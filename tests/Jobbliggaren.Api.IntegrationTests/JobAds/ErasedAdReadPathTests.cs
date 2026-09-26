@@ -134,7 +134,7 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
             // claims belong to #864's own tests on main.
             var active = await SeedAdAsync(db, "Aktiv roll", "Aktivt bolag", erase: false, ct);
 
-            db.JobSeekers.Add(JobSeeker.Register(userId, "Erased Read Path", ClockAt(T0)).Value);
+            db.JobSeekers.Add(JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value);
             db.UserJobAdMatches.Add(
                 UserJobAdMatch.Create(userId, erased.Id, NotifiableMatchGrade.Strong, ["csharp"], ClockAt(T0)).Value);
             db.UserJobAdMatches.Add(
@@ -169,7 +169,7 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
         var (db, scope) = NewScope();
         using (scope)
         {
-            var seeker = JobSeeker.Register(userId, "Erased Read Path", ClockAt(T0)).Value;
+            var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -215,7 +215,7 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
         var (db, scope) = NewScope();
         using (scope)
         {
-            db.JobSeekers.Add(JobSeeker.Register(userId, "Erased Read Path", ClockAt(T0)).Value);
+            db.JobSeekers.Add(JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value);
             await db.SaveChangesAsync(ct);
 
             var erased = await SeedAdAsync(db, "Raderad roll", "Raderat bolag", erase: true, ct);

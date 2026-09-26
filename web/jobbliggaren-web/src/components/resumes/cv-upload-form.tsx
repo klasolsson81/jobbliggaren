@@ -228,13 +228,17 @@ export function CvUploadForm({
   // Filnamnet är inte heller en serverkandidat: ADR 0096 D-B avvisade filnamnet för
   // `Resume` (PII-nära). Etikett-kanalen bär därmed BARA text en människa skrivit, och
   // handlerns scan får göra det den är rätt för: refusera en ANVÄNDARSKRIVEN etikett.
+  function submittedName(): string {
+    return nameTouched ? name.trim() : "";
+  }
+
   async function postImport(
     file: File,
     acknowledged: boolean,
   ): Promise<{ status: number; body: unknown } | null> {
     const formData = new FormData();
     formData.append("file", file);
-    const trimmedName = nameTouched ? name.trim() : "";
+    const trimmedName = submittedName();
     if (trimmedName) formData.append("name", trimmedName);
     // Fail-closed: vi skickar flaggan ENDAST vid ett uttryckligt samtycke (aldrig som
     // default på varje uppladdning — ADR 0114 §D3).
@@ -290,15 +294,15 @@ export function CvUploadForm({
       return;
     }
 
-    // Personnummer i CV-ETIKETTEN (#1060 PR C). Sedan token-splitten kan `PersonnummerPresent`
-    // med en REN kroppsscan bara komma från etiketten: kontots visningsnamn har numera sitt
-    // eget skäl, och parse-flaggan sätter alltid count > 0. Felet hör hemma på fältet, och vi
-    // navigerar INTE — granska-vyn utvärderar etikett-kanalen mot den genererade default:en
-    // och kan därför inte säga något om namnet användaren skrev.
+    // A personnummer in the CV LABEL (#1060 PR C). The error belongs on the field, and we do NOT
+    // navigate: the review evaluates the label channel against the generated default, so it can
+    // say nothing about the name the user typed. The label is the cause only when one was sent;
+    // with none sent the outcome routes to the review like any other pending one.
     if (
       outcome.kind === "pending" &&
       outcome.blockReason === "PersonnummerPresent" &&
-      outcome.personnummerCount === 0
+      outcome.personnummerCount === 0 &&
+      submittedName() !== ""
     ) {
       setNameError(t("namePersonnummer"));
       return;
@@ -431,7 +435,9 @@ export function CvUploadForm({
         {showSpinner ? (
           <div className="jp-cvupload__pending" role="status" aria-live="polite">
             <BrandSpinner size={48} label={t("pendingLabel")} />
-            <p className="jp-cvupload__pending-text">{t("pendingText")}</p>
+            <p className="jp-cvupload__pending-text" aria-hidden="true">
+              {t("pendingText")}
+            </p>
           </div>
         ) : (
           <>

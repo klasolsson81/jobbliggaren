@@ -60,7 +60,7 @@ public class DiscardParsedResumeCommandHandlerTests
     private static async Task<ParsedResume> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildPendingReview(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -120,7 +120,7 @@ public class DiscardParsedResumeCommandHandlerTests
     public async Task Handle_WhenArtifactUnknown_ReturnsNotFoundFailure_NoCrossUserLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -143,7 +143,7 @@ public class DiscardParsedResumeCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

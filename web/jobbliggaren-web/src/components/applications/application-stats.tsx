@@ -32,7 +32,6 @@ export function ApplicationStats({ data }: { data: ApplicationStatsDto }) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">{t("empty.title")}</div>
-        <p className="jp-empty__body">{t("empty.body")}</p>
         <div className="jp-empty__actions">
           <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
             {t("empty.createFirst")}
@@ -110,8 +109,7 @@ export function ApplicationStats({ data }: { data: ApplicationStatsDto }) {
               + kolumnen "Andel av skickade" beskriver redan tratten, och
               limitation-noten nedan bär den ärliga undermätnings-caveaten.
               (Klas-steer 2026-07-10: minska beskrivande brödtext där den bara
-              upprepar rubriken; de andra kortens intros bär distinkt metodik
-              och behålls.) */}
+              upprepar rubriken.) */}
           <table className="jp-table">
             <thead>
               <tr>
@@ -142,7 +140,6 @@ export function ApplicationStats({ data }: { data: ApplicationStatsDto }) {
         <h2 id="stats-status-heading" className="jp-card__title">
           {t("statusBreakdown.heading")}
         </h2>
-        <p className="mb-4 text-body">{t("statusBreakdown.intro")}</p>
         <table className="jp-table">
           <thead>
             <tr>

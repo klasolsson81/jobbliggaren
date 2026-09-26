@@ -83,3 +83,36 @@ for (const path of ["/", "/logga-in"]) {
     }
   });
 }
+
+// #1738 — `/logga-in/lank` carries a single-use login token in its URL, and is the one route with
+// headers of its own (`LOGIN_LINK_ROUTE_HEADERS`). The unit contract proves the entry is built and
+// ordered; only a served response proves it WINS over the global `/(.*)` block, and "a route rule
+// that does not win is a rule that does not exist" (ADR 0142). Measured on the GET and on the form
+// POST, which is what actually consumes the token.
+test.describe("/logga-in/lank overrides the referrer policy and forbids caching", () => {
+  const PATH = "/logga-in/lank?token=not-a-live-token";
+
+  function expectLinkRouteHeaders(headers: Record<string, string>, which: string): void {
+    // Exact, not `toContain`: if Next emitted both rules a browser would see a comma-joined
+    // value, and a presence check would pass on it.
+    expect(headers["referrer-policy"], `${which}: exactly one referrer policy`).toBe("same-origin");
+    expect(headers["cache-control"], `${which}: never cached`).toContain("no-store");
+    // The rest of the global set still applies: the route entry adds to it, it does not replace it.
+    expect(headers["x-frame-options"], `${which}: global set intact`).toBe("DENY");
+    expect(headers["content-security-policy"], `${which}: CSP intact`).toContain("form-action 'self'");
+  }
+
+  test("on the GET", async ({ page }) => {
+    expectLinkRouteHeaders(await headersFor(page, PATH), "GET");
+  });
+
+  test("on the form POST", async ({ page }) => {
+    await page.goto(PATH);
+    const [response] = await Promise.all([
+      page.waitForResponse((res) => res.request().method() === "POST" && res.url().includes("/logga-in/lank")),
+      page.getByRole("button", { name: "Logga in" }).click(),
+    ]);
+
+    expectLinkRouteHeaders(response.headers(), "POST");
+  });
+});

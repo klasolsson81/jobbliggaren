@@ -1,6 +1,5 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers.Events;
-using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Domain.JobSeekers;
@@ -8,8 +7,20 @@ namespace Jobbliggaren.Domain.JobSeekers;
 public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 {
     public Guid UserId { get; private set; }
-    public string DisplayName { get; private set; } = null!;
     public Preferences Preferences { get; private set; } = null!;
+
+    /// <summary>
+    /// ADR 0142 D6 (#1736) — the contract stamp: when the holder accepted the terms, and which
+    /// versions of the terms and the privacy policy were current then. Art. 6(1)(b) contract
+    /// formation, not Art. 7 consent, so there is no withdrawal counterpart — "withdrawing" the
+    /// terms is closing the account. Stamped once by <see cref="Register"/>, never updated: no
+    /// public setter reaches it and no method rewrites it. <c>null</c> only on the rows written before the
+    /// stamp existed (migration AddTermsAcceptanceToJobSeeker); every row <see cref="Register"/>
+    /// writes carries one. The row is the Art. 5(2) accountability record —
+    /// <see cref="JobSeekerRegisteredDomainEvent"/> announces that a registration happened and
+    /// carries no versions.
+    /// </summary>
+    public TermsAcceptance? TermsAcceptance { get; private set; }
 
     // F4-12 (ADR 0076) — the user's STATED job-search preferences (desired
     // occupation-groups/regions/employment-types) that feed the deterministic
@@ -64,98 +75,42 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     private JobSeeker(
         JobSeekerId id,
         Guid userId,
-        string displayName,
         Preferences preferences,
+        TermsAcceptance termsAcceptance,
         DateTimeOffset createdAt) : base(id)
     {
         UserId = userId;
-        DisplayName = displayName;
         Preferences = preferences;
+        TermsAcceptance = termsAcceptance;
         CreatedAt = createdAt;
-    }
-
-    /// <summary>The display name's length limit. Exposed so a caller that validates the
-    /// name at a boundary caps against the aggregate's own number, not a copy of it.</summary>
-    public const int MaxDisplayNameLength = 200;
-
-    // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the shared name-invariant enforced
-    // on EVERY DisplayName-write path (Register / UpdateDisplayName). DisplayName is a
-    // PLAINTEXT, UNENCRYPTED column that surfaces on screen and in the profile DTO, and which
-    // the promote path composes into PersonalInfo.FullName — the header of the PDF the user
-    // sends to employers. So a personnummer typed into the ACCOUNT NAME must be refused. This
-    // is a structural AGGREGATE invariant (DDD §2.2), not a boundary guard: enforcing it here
-    // closes the channel for every caller by construction, fail-closed, so a future write path
-    // (an external-identity login populating a name, say) cannot silently forget it.
-    //
-    // Detection = the FLAG-path chain (Normalize -> Scan), the same PersonnummerScanner
-    // authority Resume.ValidateName runs one aggregate over, whose written justification
-    // applies verbatim here. The name is REFUSED, never redacted — a name is user intent, not
-    // free-text evidence to strip in place. The unchanged date+Luhn authority
-    // (Personnummer.TryParse) still governs, so an ordinary name is never over-flagged.
-    // Returns the trimmed, validated name so both callers use ONE canonical value.
-    //
-    // The invariant is FORWARD-ONLY: EF materializes an existing row through the private
-    // constructor, bypassing this method, so a row written before it landed still loads. That
-    // is deliberate — the DQ6 guard on the promote path (AutoPromoteGate) remains the control
-    // standing on those rows.
-    //
-    // PUBLIC so a caller that must refuse BEFORE it can construct the aggregate can run the same
-    // rule from its one home — not a second home for it. RegisterCommandHandler is that caller:
-    // it creates the Identity user first, so evaluating the refusal only at Register() would make
-    // the response vary with whether the address already exists (#714's status oracle). Calling
-    // this earlier is an ORDERING requirement, not a duplicated invariant — Register() still runs
-    // it, so the aggregate stays fail-closed for every other caller.
-    public static Result<string> ValidateDisplayName(string? displayName)
-    {
-        if (string.IsNullOrWhiteSpace(displayName))
-            return Result.Failure<string>(
-                DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
-
-        if (displayName.Length > MaxDisplayNameLength)
-            return Result.Failure<string>(DomainError.Validation(
-                "JobSeeker.DisplayNameTooLong",
-                $"Visningsnamn får vara max {MaxDisplayNameLength} tecken."));
-
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
-            return Result.Failure<string>(DomainError.Validation(
-                "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
-                "Ta bort personnummer ur visningsnamnet."));
-
-        return Result.Success(displayName.Trim());
     }
 
     public static Result<JobSeeker> Register(
         Guid userId,
-        string? displayName,
+        TermsAcceptance acceptance,
         IDateTimeProvider clock)
     {
         if (userId == Guid.Empty)
             return Result.Failure<JobSeeker>(
                 DomainError.Validation("JobSeeker.UserIdRequired", "UserId krävs."));
 
-        var nameResult = ValidateDisplayName(displayName);
-        if (nameResult.IsFailure)
-            return Result.Failure<JobSeeker>(nameResult.Error);
+        // ADR 0142 D6 — the acceptance is a precondition of the aggregate existing, so a seeker is
+        // constructible only with one (this signature REPLACED the acceptance-less one; there is no
+        // overload). Refused at runtime rather than trusted to the parameter's nullability: NRT is
+        // not a runtime guarantee, and the userId guard above defends a non-nullable parameter the
+        // same way.
+        if (acceptance is null)
+            return Result.Failure<JobSeeker>(DomainError.Validation(
+                "JobSeeker.TermsAcceptanceRequired",
+                "Ett konto kan inte skapas utan godkända användarvillkor."));
 
-        var validatedName = nameResult.Value;
         var now = clock.UtcNow;
         var id = JobSeekerId.New();
-        var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), now);
+        var jobSeeker = new JobSeeker(id, userId, new Preferences(), acceptance, now);
         jobSeeker.RaiseDomainEvent(
-            new JobSeekerRegisteredDomainEvent(id, userId, validatedName, now));
+            new JobSeekerRegisteredDomainEvent(id, userId, now));
 
         return Result.Success(jobSeeker);
-    }
-
-    public Result UpdateDisplayName(string? displayName, IDateTimeProvider clock)
-    {
-        var nameResult = ValidateDisplayName(displayName);
-        if (nameResult.IsFailure)
-            return Result.Failure(nameResult.Error);
-
-        DisplayName = nameResult.Value;
-        UpdatedAt = clock.UtcNow;
-        return Result.Success();
     }
 
     public void UpdatePreferences(Preferences preferences, IDateTimeProvider clock)

@@ -8,12 +8,13 @@ delbeslut 3-6. Stänger del 2 av TD-16.
 
 ## 1. Översikt
 
-Användaren raderar sitt konto via `DELETE /api/v1/me`. Flödet har två
-faser:
+Användaren raderar sitt konto på `/mina-sidor` med en kod till kontots egen adress
+(`POST /api/v1/me/delete`, ADR 0142 D5, #1740). När koden inte går att få raderar en operatör på
+en mejlad begäran (§4.3). Flödet har två faser:
 
 | Fas | När | Vad | Vem |
 |---|---|---|---|
-| **Soft-delete** | Direkt vid `DELETE /me` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API |
+| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API |
 | **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. | `HardDeleteAccountsJob` (Hangfire) |
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
@@ -24,33 +25,34 @@ SQL-procedur i §4.1 tills dess).
 
 ## 2. Flöde steg för steg
 
-### 2.1 Soft-delete (`DELETE /me`)
+### 2.1 Soft-delete (`POST /me/delete`)
 
-Användaren skickar `DELETE /api/v1/me` med giltigt session-token. Backend:
+Webbens Server Action löser in koden mot `POST /api/v1/auth/reauth/verify` och skickar i samma
+anrop `POST /api/v1/me/delete` med sessionen och kroppen `{ reauthGrant }`. Granten lämnar aldrig
+servern (#1740). Backend:
 
 1. `DeleteAccountCommand` triggas (Mediator-pipeline)
 2. Authorization-behavior verifierar `IAuthenticatedRequest`
-3. Handler hämtar `JobSeeker` via `currentUser.UserId` (`IgnoreQueryFilters`)
-4. **Idempotens-check:** om `DeletedAt is not null` → return Success (ingen ny audit-rad)
-5. Cascade `SoftDelete(clock)` på alla `Application`, `Resume` (deras barn cascadar internt) och `JobSeeker`
-6. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
-7. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
-8. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
-9. Klient får `204 No Content`
+3. `ReauthenticationBehavior` löser in granten före handlern; en grant som inte går att lösa in ger
+   401
+4. Handler hämtar `JobSeeker` via `currentUser.UserId` (`IgnoreQueryFilters`)
+5. **Idempotens-check:** om `DeletedAt is not null` → return Success (ingen ny audit-rad)
+6. Cascade `SoftDelete(clock)` på alla `Application`, `Resume` (deras barn cascadar internt) och `JobSeeker`
+7. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
+8. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
+9. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
+10. Klient får `204 No Content`
 
 ### 2.2 Login under restore-fönstret
 
-Användaren försöker logga in inom 30 dagar:
+Någon begär en inloggningskod för kontots adress inom 30 dagar:
 
-1. `LoginCommandHandler.Handle` validerar credentials via `UserManager`
-2. Hämtar `JobSeeker` (`IgnoreQueryFilters`) för userId
-3. Om `DeletedAt is not null`: returnerar `Auth.InvalidCredentials` (401) — **inte** "account-pending-deletion"
-4. Audit-rad `LoginFailed` skrivs
+1. Inloggningssidan svarar som för varje annan adress; den säger aldrig vad systemet gjorde (ADR 0142).
+2. `LoginChallengePlan` väljer `PendingDeletion`: utmaningen bär varken kod eller länk.
+3. Mejlet till kontots adress säger att kontot är markerat för radering, när det tidigast raderas
+   permanent och att det kan återställas genom att skriva till kontakt@jobbliggaren.se (§4.1).
 
-**Viktigt:** felmeddelandet är identiskt med "okänd email" / "fel lösen"
-för att undvika information disclosure (security-auditor STEG 10b Sec-1).
-Användaren får ingen indikation att kontot är raderat — kontaktar support
-out-of-band om de vill återställa.
+Beskedet når alltså bara den som läser kontots inkorg.
 
 ### 2.3 Hard-delete (`HardDeleteAccountsJob`)
 
@@ -158,7 +160,7 @@ WHERE user_id IS NULL AND aggregate_type = 'JobSeeker';
 -- INTE en orphan. Filtrera bort den för att matcha vad sweepen faktiskt agerar på:
 -- KÖR i AppIdentityDbContext-schemat:
 SELECT u.id, u.user_name, u.created_at
-FROM identity.asp_net_users u
+FROM identity."AspNetUsers" u
 LEFT JOIN public.job_seekers js ON js.user_id = u.id
 WHERE js.id IS NULL
   AND u.created_at <= NOW() - INTERVAL '1 hour';
@@ -170,13 +172,37 @@ WHERE js.id IS NULL
 -- verklig lucka (#1409).
 SELECT js.id, js.user_id
 FROM public.job_seekers js
-LEFT JOIN identity.asp_net_users u ON u.id = js.user_id
+LEFT JOIN identity."AspNetUsers" u ON u.id = js.user_id
 WHERE u.id IS NULL;
 ```
 
 ---
 
 ## 4. Manuella åtgärder utanför appen
+
+### Redis operator preflight
+
+Run the Redis steps on the deployment host through
+`sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh`.
+They require a separately approved operation and the existing verified credential
+set. The helper authenticates as `operator-persistent` in DB 0, using the running
+persistent Redis container's network namespace and the host-only password on stdin.
+Do not substitute anonymous commands or mount that password into a service.
+
+Before `mark-deleted`, establish the effective API
+`SessionStoreOptions.DeletionTombstoneTtl`, including all configuration overrides.
+Record the reviewed configuration revision and confirmed positive whole-second
+duration in the existing private operation record. Set `TTL_SECONDS` to that
+confirmed duration. The source default example is `2592000` seconds; it does not
+prove the deployed value. The helper has no default and does not verify the
+configuration match. If the duration cannot be established, stop the operation.
+
+Pass the verified account UUID as `USER_ID`; the helper converts it to lowercase.
+For `delete-known-session`, `SESSION_KEY` must be an exact
+`jobbliggaren:session:<SHA-256 base64url hash>` key already associated with the
+verified account in the private operation evidence. Never pass a raw cookie or
+session token. The helper validates key shape, not account ownership; it neither
+scans keys nor reads the session index or session contents.
 
 ### 4.1 Restore inom 30-dagars-fönstret
 
@@ -190,7 +216,7 @@ alternative address). Sedan:
 BEGIN;
 
 -- 1. Hitta soft-deletad JobSeeker
-SELECT id, user_id, display_name, deleted_at
+SELECT id, user_id, deleted_at
 FROM job_seekers
 WHERE user_id = '<userId>'::uuid
   AND deleted_at IS NOT NULL;
@@ -244,7 +270,7 @@ planterade en `jobbliggaren:user:<userId>:deleted`-tombstone som `GetAsync`
 fail-closed-avvisar ALLA sessioner mot (inklusive färska sessioner efter en ny
 login — `GetAsync` kollar tombstonen, `CreateAsync` gör det inte). Rensa den efter
 SQL-restore, annars kan den återställda användaren inte hålla sig inloggad förrän
-tombstonen självdör (≤30 dagar): `DEL jobbliggaren:user:<userId>:deleted`. En
+tombstonen självdör (≤30 dagar): `sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh clear-deleted "$USER_ID"`. En
 framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
 
 **Audit-trail:** restore-händelsen skrivs INTE automatiskt (saknas
@@ -284,7 +310,7 @@ racear sweepens två snapshot-läsningar) — utred före du raderar.
 --   (ingen rad = fel id · deleted_at satt = klockan går · annars: kör §3.3 igen)
 UPDATE job_seekers SET deleted_at = NOW()
 WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
+  AND NOT EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
 ```
 
 ```sql
@@ -295,14 +321,13 @@ WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
 -- deleted_at IS NULL här: en verifierad Art. 17-begäran ska kunna korta en redan löpande klocka.
 UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days'
 WHERE id = '<jobSeekerId>'::uuid
-  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
+  AND NOT EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
 ```
 
 ⚠ **"Verifierad" har en högre tröskel här än i §4.1, och §4.1:s båda metoder är otillgängliga.** Det
 finns inget konto att legitimera sig mot (Identity-raden är per definition borta) och ingen alternativ
-adress på fil — domäntabellerna bär ingen. Kvar på raden är `display_name` i klartext, som varken är
-unikt eller verifierat, och DEK-krypterat CV-innehåll som **inte** får dekrypteras för att avgöra vems
-det är.
+adress på fil — domäntabellerna bär ingen. Kvar på raden är DEK-krypterat CV-innehåll som **inte**
+får dekrypteras för att avgöra vems det är.
 
 **Går kopplingen inte att verifiera: radera inte.** Det är rätt svar, inte ett undantag — Art. 11.2
 (kan den personuppgiftsansvarige inte identifiera den registrerade gäller Art. 15–20 inte) och
@@ -343,21 +368,71 @@ ett ställe (kontoraderingen i §2.1) — `AccountHardDeleter` planterar ingen. 
 en **levande session kvar**. Vet du inte hur raden uppstod, plantera tombsten före Steg 2. TTL:en ska
 matcha `SessionStoreOptions.DeletionTombstoneTtl`, som är sanningskällan (30 dagar som standard):
 
-```
-SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
-EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
+```bash
+sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"
 ```
 
-⚠ Redis-nycklar är skiftlägeskänsliga och koden bygger nyckeln ur en GUID i gemener. En versaliserad
-`<userId>` planterar en nyckel ingen läser, utan felmeddelande — därav `EXISTS`-raden.
+Require the helper's verified-presence receipt before proceeding.
+
+The helper builds the lowercase account key and requires `EXISTS` to return `1` after `SET`.
+
+---
+
+### 4.3 Radera ett levande konto på en mejlad begäran
+
+Självbetjäningen på `/mina-sidor` kräver en kod till kontots adress. När ingen kod går att få — mejl
+kan inte levereras, eller dygnsgränsen för koder är nådd — hänvisar sidan till
+kontakt@jobbliggaren.se, och begäran landar här.
+
+**Verifiering.** En avsändaradress ensam bevisar ingenting. **Går det inte att verifiera: radera inte**
+(Art. 11.2, Art. 12.6), som i §4.2.
+
+**Steg 1 — identifiera raden.**
+
+```sql
+\prompt 'Adress: ' adress
+SELECT js.id AS job_seeker_id, js.user_id, js.deleted_at
+FROM identity."AspNetUsers" u
+JOIN public.job_seekers js ON js.user_id = u.id
+WHERE u.normalized_email = upper(:'adress');
+```
+
+Är `deleted_at` redan satt är kontot redan raderat och klockan går; gå direkt till svaret nedan.
+
+**Steg 2 — sätt raderingstriggern.**
+
+```sql
+UPDATE job_seekers SET deleted_at = NOW()
+WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u
+              WHERE u.id = job_seekers.user_id AND u.normalized_email = upper(:'adress'))
+RETURNING user_id;
+```
+
+`NOW()` och inte en backdatering: självbetjäningen ger 30 dagars återställning, och den som mejlar
+får samma. `HardDeleteAccountsJob` raderar kontot vid första passet efter fönstret (§2.3).
+
+**Steg 3 — plantera tombsten** för det `user_id` som steg 2 returnerade, efter steg 2 som API:t gör
+efter sin commit (§2.1). Den stänger läs-vägen för varje session kontot har kvar:
+
+```bash
+sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"
+```
+
+Require the verified-presence receipt before confirming this step complete.
+
+**Svaret och posten.** Svara den registrerade att kontot är raderat och att det kan återställas i 30
+dagar genom att skriva till kontakt@ (Art. 12.3). SQL:en skriver ingen `Account.Deleted`-rad;
+begäransposten hör hemma i den personuppgiftsansvariges ärendeakt, samma hem som §4.2 namnger.
+Återställning inom fönstret går via §4.1.
 
 ---
 
 ## 5. Failure-scenarier
 
-### 5.1 DELETE /me 5xx vid Redis-fel
+### 5.1 POST /me/delete 5xx vid Redis-fel
 
-**Symptom:** `DELETE /me` returnerar 500 efter `204` har "borde returnerats".
+**Symptom:** `POST /me/delete` returnerar 500 där `204` borde ha returnerats.
 
 **Orsak:** `DeleteAccountCommand` lyckades (DB committad), men
 `InvalidateAllForUserAsync` failade med `SessionStoreUnavailableException`.
@@ -374,10 +449,12 @@ EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
 
 **Åtgärd:**
 1. Verifiera DB-state (§3.3) — JobSeeker.DeletedAt ska vara satt
-2. Manuellt rensa Redis: `DEL jobbliggaren:user:<userId>:sessions` + iterera
-   och radera individuella `jobbliggaren:session:*`-keys (om kända)
-3. Om Redis var helt nere vid delete (tombstonen planterades aldrig): plantera den
-   manuellt så läs-vägen stängs — `SET jobbliggaren:user:<userId>:deleted 1 EX 2592000` (30 dagar)
+2. Through the host helper above, run `delete-session-index "$USER_ID"`, then
+   `delete-known-session "$USER_ID" --session-key "$SESSION_KEY"` for each exact
+   session key already associated with the verified account. Do not scan or use wildcards.
+3. If Redis was unavailable for both calls and the marker is absent, run
+   `mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"` through the same helper.
+   Require its verified-presence receipt; an error does not complete this step.
 4. Eller acceptera och vänta på TTL — säkerhetsrisken är låg eftersom
    aktiv session bara har user:s egna data och D5 blockerar ny inloggning
 
@@ -386,9 +463,11 @@ EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
 **Symptom:** Hangfire-dashboard visar "Failed". Vissa konton hard-deletade,
 andra kvar.
 
-**Orsak:** Per-konto exception (DB-lock, FK-violation, etc.) bubblar och
-avbryter loopen för alla efterföljande konton (TD-25 — per-konto try/catch
-saknas).
+`HardDeleteAccountsJob` catches and logs per-account failures and continues the loop
+(EventId 2502). Investigate the failed account and the final failed count; an
+account failure alone does not fail the entire job. Startup/orphan-cleanup failures
+and cancellation can still end the run. `HardDeleteAccountsJobTests` pins the
+per-account continuation behavior.
 
 **Åtgärd:**
 1. Hangfire retry:ar automatiskt (default 10 retries)
@@ -405,7 +484,7 @@ re-registrera under cleanup-fönstret. Audit-trail anonymiserad.
 **Åtgärd:**
 - Steg 0 (orphan-cleanup) i nästa daily-run plockar upp orphanen automatiskt
 - Inget manuellt ingripande krävs förrän det blir > 24h gammalt
-- Vid permanent fail: manuell `DELETE FROM identity.asp_net_users WHERE id = '<userId>'`
+- Vid permanent fail: manuell `DELETE FROM identity."AspNetUsers" WHERE id = '<userId>'`
 
 ### 5.4 Audit-anonymisering failar
 
@@ -441,11 +520,11 @@ ingripande krävs.
 ## 7. Tech-debt-länkar
 
 - **TD-16** (audit-retention + Art. 17) — del 1 stängd via STEG 10a, del 2 stängd via STEG 10b
-- **TD-21** — rate-limiting på DELETE /me + auth-endpoints (innan prod-deploy)
+- Rate limiting is implemented in `RateLimitingExtensions` and covered by `AuthWriteRateLimitTests` (historical TD-21).
 - **TD-22** → [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) — app-logg-retention
-- **TD-23** — Redis MULTI/EXEC för CreateAsync atomicitet (Fas 2)
-- **TD-24** — DeleteAccountCommand cascade-paginering (Fas 4)
-- **TD-25** — HardDeleteAccountsJob per-konto try/catch (opportunistiskt)
+- [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — parked Redis session atomicity work; re-measure before pickup.
+- [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — parked account-deletion cascade pagination; re-measure before pickup.
+- Per-account failure isolation is implemented in `HardDeleteAccountsJob` and covered by `HardDeleteAccountsJobTests` (historical TD-25).
 
 ---
 

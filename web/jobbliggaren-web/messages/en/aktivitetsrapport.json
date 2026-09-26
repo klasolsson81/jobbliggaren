@@ -1,11 +1,10 @@
 {
   "title": "Activity report helper",
-  "lede": "Collects your applications for a month so you can copy them field by field into Arbetsförmedlingen's activity report.",
   "back": "Back to applications",
   "info": {
     "title": "About the activity report helper",
     "p1": "Each month you must report to Arbetsförmedlingen what you have done to look for work. The report for a month is submitted between the 1st and the 14th of the following month. May's activities, for example, are reported on 1–14 June.",
-    "p2": "If you do not submit the report in time it can affect your benefit, so make sure it is in by the 14th. The helper gathers your applications for the month you choose so you can transfer them into the report.",
+    "p2": "If you do not submit the report in time it can affect your benefit. The helper gathers your applications for the month you choose so you can transfer them into the report.",
     "p3": "Arbetsförmedlingen's form is filled in field by field. Copy one field at a time with the copy buttons instead of pasting a whole text, so the details land correctly and the report can be processed automatically.",
     "whatIsThisAria": "What is this? The activity report helper"
   },
@@ -25,7 +24,7 @@
     "empty": "No applications match the filter."
   },
   "empty": {
-    "text": "No applications to report for {month}. When you mark an application as applied it appears in the month you applied."
+    "text": "When you mark an application as applied it appears in the month you applied."
   },
   "card": {
     "titleFallback": "Job application",

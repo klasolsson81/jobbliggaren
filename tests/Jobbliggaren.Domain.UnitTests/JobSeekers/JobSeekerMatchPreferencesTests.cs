@@ -25,7 +25,7 @@ public class JobSeekerMatchPreferencesTests
     [Fact]
     public void UpdateMatchPreferences_SetsThePreferences()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var prefs = SamplePrefs();
 
         seeker.UpdateMatchPreferences(prefs, Clock);
@@ -36,7 +36,7 @@ public class JobSeekerMatchPreferencesTests
     [Fact]
     public void UpdateMatchPreferences_BumpsUpdatedAt_FromInjectedClock()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2));
 
         seeker.UpdateMatchPreferences(SamplePrefs(), laterClock);
@@ -49,7 +49,7 @@ public class JobSeekerMatchPreferencesTests
     {
         // CTO-bunden: ingen reaktiv konsument → inget event (paritet med
         // UpdatePreferences som heller inte höjer event).
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.ClearDomainEvents();
 
         seeker.UpdateMatchPreferences(SamplePrefs(), Clock);
@@ -62,7 +62,7 @@ public class JobSeekerMatchPreferencesTests
     {
         // Tom MatchPreferences är giltig (ingen "minst ett"-invariant) → ska gå
         // att lagra (t.ex. att nollställa angivna preferenser).
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var empty = MatchPreferences.Empty;
 
         seeker.UpdateMatchPreferences(empty, Clock);
@@ -73,7 +73,7 @@ public class JobSeekerMatchPreferencesTests
     [Fact]
     public void UpdateMatchPreferences_Overwrite_ReplacesPreviousPreferences()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.UpdateMatchPreferences(SamplePrefs(), Clock);
 
         var newPrefs = MatchPreferences.Create(

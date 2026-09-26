@@ -45,33 +45,19 @@ export function DisplayCard({
   const hintId = useId();
   const errorId = useId();
   const cardRef = useRef<HTMLElement>(null);
-  const focusedForError = useRef<string | null>(null);
 
   // Focus the control the message belongs to, so a keyboard or screen-reader user lands on it
   // instead of only hearing that something is wrong. The segment is `disabled` while the save is
   // pending, which drops focus to <body>, and `Segment`'s own restore effect is gated on the
   // group already holding focus — so nothing brings it back and `aria-describedby` is never read.
-  // Same remedy `personal-info-card.tsx` uses for its input.
   //
   // `isPending` is in the guard, not just the deps: the error renders while the buttons are still
   // disabled, and `focus()` on a disabled element does nothing.
   //
-  // The ref makes it fire on the error's ARRIVAL rather than on every release of `isPending`,
-  // which is shared with the name form. Without it, saving the NAME while a language error still
-  // stands would pull focus into this card — the cross-card misplacement this change exists to
-  // close, reproduced in focus instead of in text. Clearing on a null error re-arms it, and
-  // `applyChange` reports null before starting the transition, so a repeat of the identical
-  // message passes through that branch first.
-  //
   // Queried off the card element rather than a wrapper: a new node in `.jp-settings-field` would
   // change what the flex column lays out.
   useEffect(() => {
-    if (!error) {
-      focusedForError.current = null;
-      return;
-    }
-    if (isPending || focusedForError.current === error) return;
-    focusedForError.current = error;
+    if (!error || isPending) return;
     cardRef.current
       ?.querySelector<HTMLButtonElement>('[role="radiogroup"] button[aria-checked="true"]')
       ?.focus();

@@ -1,4 +1,7 @@
 using System.Net;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -10,7 +13,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using Testcontainers.PostgreSql;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
@@ -62,10 +64,11 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
     public const string ProdLikeHost = "dev.jobbliggaren.se";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly RedisBoundaryFixture _redisBoundary = new();
 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private RedisTestEnvironment? _redisEnvironment;
 
     /// <summary>Värdet som sätts på <c>ReverseProxy__HttpsEnabled</c> env-var i InitializeAsync.</summary>
     protected abstract bool HttpsEnabled { get; }
@@ -81,6 +84,13 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         // innan denna ConfigureWebHost-callback körs).
         builder.ConfigureServices(services =>
         {
+            // #1735 (security-auditor Major 12) — outside Development/Test the Api refuses to boot on a sender
+            // that cannot deliver, and this host would otherwise compose NullEmailSender, or a real provider from
+            // a developer's Local.json. A delivering in-process fake, registered last, keeps the boot on the path
+            // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+
             // UseHttpsRedirection-middleware behöver veta vilken port att redirecta TILL.
             // Default-resolver kollar ASPNETCORE_URLS / ASPNETCORE_HTTPS_PORTS / HTTPS_PORT —
             // ingen är satt i WebApplicationFactory-test-host → middleware loggar varning
@@ -105,12 +115,6 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
 
-            services.RemoveAll<IDistributedCache>();
-            services.AddStackExchangeRedisCache(opts =>
-            {
-                opts.Configuration = _redisCs;
-                opts.InstanceName = "jobbliggaren:";
-            });
 
             // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder
             // + ADR 0043 TaxonomySnapshotSeeder) bubblar 42P01 i Production-env
@@ -124,10 +128,10 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redisBoundary.InitializeAsync().AsTask());
 
         _postgresCs = _postgres.GetConnectionString();
-        _redisCs = _redis.GetConnectionString();
+        _redisCs = _redisBoundary.OptionsFor(_redisBoundary.Persistent, RedisBoundaryFixture.ApiPersistent).ToString(true);
 
         // Env-vars sätts FÖRE Services-access (triggar host-build). Production-env
         // kräver populerad ConnectionStrings + KnownNetworks (per ForwardedHeadersConfig.
@@ -135,7 +139,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", EnvironmentName);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): master-nyckeln (Local-only, krävs i ALLA miljöer, även
         // Production-gate) sätts systemiskt av TestSecrets-module-init före boot.
         Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", HttpsEnabled ? "true" : "false");
@@ -160,7 +164,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        _redisEnvironment?.Dispose();
         Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
         Environment.SetEnvironmentVariable("Hsts__IncludeSubDomains", null);
@@ -169,7 +173,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         // CA1816 — undviker dubbel-anrop då base själv anropar SuppressFinalize internt).
         GC.SuppressFinalize(this);
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

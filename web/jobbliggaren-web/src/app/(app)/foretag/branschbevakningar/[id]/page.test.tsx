@@ -1,0 +1,555 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { createTranslator } from "next-intl";
+import svPages from "../../../../../../messages/sv/pages.json";
+import svJobads from "../../../../../../messages/sv/jobads.json";
+import BevakningBrowsePage from "./page";
+
+const browseCriterionCompanies = vi.fn();
+const getCompanyWatchCriteria = vi.fn();
+const getCriterionReference = vi.fn();
+const getCriterionAdCount = vi.fn();
+
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (namespace?: string) =>
+    createTranslator({
+      locale: "sv",
+      messages: { pages: svPages, jobads: svJobads },
+      namespace: namespace as
+        | "pages"
+        | "pages.foretag.criteria"
+        | "jobads.companyWatches"
+        | undefined,
+    }),
+  getFormatter: async () => ({
+    number: (n: number) => new Intl.NumberFormat("sv-SE").format(n),
+  }),
+}));
+
+vi.mock("@/lib/auth/session", () => ({
+  getServerSession: async () => ({ userId: "u1" }),
+}));
+
+vi.mock("@/lib/api/company-criteria", () => ({
+  browseCriterionCompanies: (...a: unknown[]) => browseCriterionCompanies(...a),
+  getCompanyWatchCriteria: (...a: unknown[]) => getCompanyWatchCriteria(...a),
+  getCriterionReference: (...a: unknown[]) => getCriterionReference(...a),
+  getCriterionAdCount: (...a: unknown[]) => getCriterionAdCount(...a),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`NEXT_REDIRECT:${url}`);
+  },
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
+}));
+
+vi.mock("@/lib/actions/company-follows", () => ({
+  followCompanyAction: vi.fn(),
+  unfollowCompanyAction: vi.fn(),
+}));
+
+const COMPANY = {
+  organizationNumber: "5592804784",
+  isProtectedIdentity: false,
+  name: "Acme Bygg AB",
+  seatMunicipalityCode: "0180",
+  seatMunicipalityName: "Stockholm",
+  sniCodes: [],
+};
+
+/**
+ * #1681 part 2 — the criterion's identity, composed onto the browse response. Every fixture in this
+ * file carries it, because the page reads `criterion.label` unguarded: it is a required member of
+ * the response schema, not something the page defends against.
+ */
+const CRITERION = {
+  id: "c1",
+  sniCodes: ["62010"],
+  municipalityCodes: ["0180"],
+  label: "IT i Stockholm",
+};
+
+/**
+ * #1149 — the CALL-SITE pin for `showTotalCount` on the criterion browse.
+ *
+ * `job-ad-pagination.test.tsx` proves the prop suppresses the total. It cannot prove this page
+ * passes it, and this page is the surface where the omission is worst: its `totalCount` saturates
+ * at `CompanyBrowseCriteria.MaxServableRows` exactly as `/foretag/sok`'s does, so a criterion
+ * matching more companies than the cap would put a false "(2 000 träffar totalt)" directly beneath
+ * a headline that honestly says "10 000+". Deleting the prop restores that with the suite green
+ * unless something pins it here.
+ */
+describe("BevakningBrowsePage — the pager states no total", () => {
+  beforeEach(() => {
+    browseCriterionCompanies.mockReset();
+    getCompanyWatchCriteria.mockReset();
+    getCriterionReference.mockReset();
+    getCompanyWatchCriteria.mockResolvedValue({ kind: "error" });
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getCriterionAdCount.mockReset();
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+  });
+
+  it("renders the honest magnitude but never the saturated pagination total", async () => {
+    // The shape the defect lives in: a criterion whose match set exceeds every cap. The magnitude
+    // saturates at the product ceiling and says so with "+"; the pagination count saturates at the
+    // servable cap and cannot say so at all.
+    browseCriterionCompanies.mockResolvedValue({
+      kind: "ok",
+      data: {
+        criterion: CRITERION,
+        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 2000 },
+        magnitude: { magnitude: 10000, saturated: true },
+      },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    // The honest number is still there, suffix included.
+    expect(
+      screen.getByText("10 000+ företag matchar din bevakning"),
+    ).toBeInTheDocument();
+
+    // The page position survives — navigation, not a completeness claim.
+    expect(screen.getByText("Sida 1 av 100")).toBeInTheDocument();
+
+    // The ceiling must not be rendered as a total.
+    expect(screen.queryByText(/träffar totalt/)).toBeNull();
+    expect(screen.queryByText(/2\s?000\s+träffar/)).toBeNull();
+  });
+
+  // The CALL-SITE pin for `CriterionBreadth`, and it exists for the same reason the docblock above
+  // gives for `showTotalCount`: `criterion-breadth.test.tsx` proves the component counts, and
+  // `criteria-card.test.tsx` proves /oversikt renders it. Neither can prove THIS page does.
+  // Delete the element from this page and the whole suite stays green unless something pins it here.
+  //
+  // The surface matters: this page states the too-broad refusal and asks the user to narrow the
+  // watch, and until #1712 the size she was asked to narrow appeared nowhere on it (ADR 0047).
+  // `CRITERION` is one leaf and one kommun, so the honest reading is the singular pair.
+  it("visar hur bred bevakningen är, så vägran har en storhet att syfta på", async () => {
+    browseCriterionCompanies.mockResolvedValue({
+      kind: "ok",
+      data: {
+        criterion: CRITERION,
+        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+        magnitude: { magnitude: 1, saturated: false },
+      },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    const breadth = document.querySelector(".jp-criterion-breadth");
+    expect(breadth).not.toBeNull();
+    expect(breadth?.textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "1 bransch · 1 kommun",
+    );
+  });
+
+  // #1559 — the ad line has three arms and only one of them is a link. The link arm is what Klas
+  // asked for; the other two exist so the surface never offers an empty page and never renders a
+  // number the read did not produce (#859: a rendered magnitude is true or absent).
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  it("renders the ad count as a LINK to the ads when there are any", async () => {
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: {
+        ads: { magnitude: 167, saturated: false },
+        matching: { count: null, tooBroad: false },
+      },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    const link = screen.getByRole("link", {
+      name: "167 aktiva annonser från dessa företag",
+    });
+    expect(link).toHaveAttribute("href", "/foretag/branschbevakningar/c1/annonser");
+  });
+
+  it("states zero without offering a link to an empty page", async () => {
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: {
+        ads: { magnitude: 0, saturated: false },
+        matching: { count: null, tooBroad: false },
+      },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getByText("Inga aktiva annonser från dessa företag just nu."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /aktiva annonser från dessa företag/ }),
+    ).toBeNull();
+  });
+
+  it("says the number cannot be shown rather than rendering a false 0", async () => {
+    // The degraded arm. A `0` here would read as "this watch has no ads", which is a statement the
+    // failed read did not support — the same defect as a wrong number.
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Annonssiffrorna kan inte visas just nu. Ladda om sidan om en stund.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
+  });
+});
+
+/**
+ * #1656 (b) — the PERSONAL count on the criterion detail page.
+ *
+ * <para/> Klas's condition (2026-09-05) is that this works "på samma sätt som vanlig
+ * företagsbevakning", so what is pinned is the FOUR-STATE gate that surface has, plus the one thing
+ * this surface adds: a watch too broad to grade. Three of the four render no number, and the whole
+ * point is that none of them renders a ZERO instead — a `0` would say "nothing matches you" where
+ * the truth is "nothing was measured".
+ *
+ * <para/> The count is asserted on its rendered TEXT and its link TARGET, never on a class name: a
+ * number that renders without reaching the matching view is the count-to-landing divergence this
+ * arm exists to close (#1407, #1471).
+ */
+describe("BevakningBrowsePage — the personal match count", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    browseCriterionCompanies.mockReset();
+    getCompanyWatchCriteria.mockReset();
+    getCriterionReference.mockReset();
+    getCriterionAdCount.mockReset();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCompanyWatchCriteria.mockResolvedValue({ kind: "ok", data: [] });
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+  });
+
+  async function renderWith(matching: unknown) {
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: { ads: { magnitude: 12, saturated: false }, matching },
+    });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+  }
+
+  it("renders the count as a link to the MATCHING view, not the whole ad list", async () => {
+    await renderWith({ count: 9, tooBroad: false });
+
+    const link = screen.getByRole("link", { name: /9 matchande annonser/ });
+    // The axis is what makes the number true at its destination. Without it the link lands on all
+    // twelve ads while the sentence beside it promises nine.
+    expect(link).toHaveAttribute(
+      "href",
+      "/foretag/branschbevakningar/c1/annonser?visa=matchande",
+    );
+    expect(screen.getByText("9 matchande annonser just nu")).toBeInTheDocument();
+  });
+
+  it("states a zero without offering a link to an empty list", async () => {
+    await renderWith({ count: 0, tooBroad: false });
+
+    expect(screen.getByText("Inga matchande annonser just nu")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+  });
+
+  it("nudges instead of claiming zero when no occupation is stated", async () => {
+    await renderWith({ count: null, tooBroad: false });
+
+    expect(
+      screen.getByText(/Du har inte angett vilka yrken du söker inom/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ställ in matchning" })).toBeInTheDocument();
+    expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
+  });
+
+  it("refuses the question for a watch too broad to grade, and renders no number", async () => {
+    await renderWith({ count: null, tooBroad: true });
+
+    expect(
+      screen.getByText(/Bevakningen har fler annonser än vi kan matcha\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/fler företag än vi kan räkna annonser för/)).toBeNull();
+    // A refusal that names an action carries the way there — the arm two rows up already does.
+    expect(
+      screen.getByRole("link", { name: "Ändra bevakningen" }),
+    ).toHaveAttribute("href", "/foretag/branschbevakningar");
+    // Neither of the other two no-number arms, and above all not a zero: this watch was not
+    // measured, its owner has not failed to state an occupation, and nothing matched zero ads.
+    expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+  });
+
+  it("says nothing about matching when the ad-count read degraded", async () => {
+    // Both numbers arrive in one response, so a failed read leaves nothing to say that the
+    // "cannot be shown" line does not already say. Silence beats a second error sentence.
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.queryByText(/matchande annonser/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+  });
+});
+
+/**
+ * #1681 part 2 (ADR 0139) — the heading, and the read this page no longer makes.
+ *
+ * <para/> This page used to resolve its title from `GET /company-watch-criteria`. Part 2 gave every
+ * row of that list a materialised ad count AND a per-user graded matching count, which turned a
+ * heading into twenty criteria's graded counts on a route with a 300 ms budget. The fix (CTO,
+ * 2026-09-07) composes the criterion's identity onto the browse response this page already makes.
+ *
+ * <para/> Nothing pinned the REMOVAL, and a removal is exactly the kind of change that comes back:
+ * re-adding the call would restore the cost with every existing test green, because the title would
+ * still resolve. So the negative is asserted directly, on the spy for the function that must not be
+ * called. Its positive twin is the heading itself — without that, "never called" would also pass on
+ * a page that renders no title at all.
+ */
+describe("BevakningBrowsePage — the heading, and the list read that is gone", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+  });
+
+  it("heads the page from the composed criterion and never reads the criteria list", async () => {
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    // POSITIVE: the label came off the browse response. Asserted as the page's h1 rather than as
+    // loose text, so a title rendered somewhere incidental would not satisfy it.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "IT i Stockholm" }),
+    ).toBeInTheDocument();
+
+    // NEGATIVE: and it cost no list read.
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+
+    // The control for that negative. A spy that records nothing would satisfy "not called" for the
+    // wrong reason, so the sibling read on the SAME module mock is asserted to have registered.
+    expect(browseCriterionCompanies).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the neutral title for an unnamed watch, still without the list read", async () => {
+    // A null label is the ordinary case: most watches are never named. With the reference tree
+    // degraded there is no derived label either, so the page must still head itself rather than
+    // reaching for the list as a second source.
+    browseCriterionCompanies.mockResolvedValue({
+      ...okBrowse,
+      data: { ...okBrowse.data, criterion: { ...CRITERION, label: null } },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Branschbevakning" })).toBeInTheDocument();
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #1681 part 2 — the two states in which the ad numbers have no answer, and the one in which BOTH
+ * numbers are refused for the same reason.
+ *
+ * <para/> tooBroad and notMaterialised are not the same answer and must not read as one: too-broad
+ * is a determinate REFUSAL the user can act on by narrowing the watch; not-materialised is
+ * IGNORANCE that resolves itself on the next run, and telling that user to narrow the watch would
+ * be advice that cannot work. Neither is a zero, which is the whole point (ADR 0120): a 0 would say
+ * "this watch has no ads" where the truth is that nothing was counted.
+ *
+ * <para/> The shared-refusal arm exists because the two refusals COINCIDE by construction — the
+ * matching arm is derived from the same magnitude the ads flag comes from — so rendering both put
+ * the same advice on the page twice.
+ */
+describe("BevakningBrowsePage — the ad numbers with no answer", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+  });
+
+  async function renderWith(ads: unknown, matching: unknown) {
+    getCriterionAdCount.mockResolvedValue({ kind: "ok", data: { ads, matching } });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+  }
+
+  /** No arm of this family may render a zero — that is the defect the whole family exists against. */
+  function expectNoZero() {
+    expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
+    expect(screen.queryByText("Inga aktiva annonser från dessa företag just nu.")).toBeNull();
+    expect(screen.queryByText("Inga matchande annonser just nu")).toBeNull();
+  }
+
+  it("says the watch is too broad to count, once, when BOTH numbers are refused for it", async () => {
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: true, notMaterialised: false },
+      { count: null, tooBroad: true, notMaterialised: false },
+    );
+
+    expect(
+      screen.getByText(/varken antalet annonser eller matchningen mot din profil/),
+    ).toBeInTheDocument();
+    // ONCE. The two per-number sentences would repeat the same advice under the same heading.
+    expect(
+      screen.queryByText(/^Bevakningen matchar fler företag än vi kan räkna annonser för\. Färre branscher/),
+    ).toBeNull();
+    expect(
+      screen.queryByText(/^Bevakningen har fler annonser än vi kan matcha\./),
+    ).toBeNull();
+    // The action is carried, because a refusal that names one must offer the way there.
+    expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
+      "href",
+      "/foretag/branschbevakningar",
+    );
+    expectNoZero();
+  });
+
+  it("says the numbers are not computed yet, once, when both are unanswerable for that reason", async () => {
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      { count: null, tooBroad: false, notMaterialised: true },
+    );
+
+    expect(
+      screen.getByText(
+        "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
+      ),
+    ).toBeInTheDocument();
+    // Ignorance, not refusal: no "narrow the watch" advice and no link to go and do it, because
+    // there is nothing the user can change that would make the number appear sooner.
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+    expectNoZero();
+  });
+
+  it("keeps the two answers separate when only the ad number is unanswerable", async () => {
+    // The arms do NOT have to coincide, and when they do not the page owes both answers. Here the
+    // ad count is not computed yet while the personal count has a number — so the collapse must
+    // not fire, which is what stops it from swallowing an answer the page does have.
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      { count: 4, tooBroad: false, notMaterialised: false },
+    );
+
+    // SINGULAR since #1681 part 3 (design-reviewer Minor 7): the plural "Annonssiffrorna" claimed
+    // BOTH numbers while the very next line carried one, which contradicted this test's own subject
+    // — keeping the two answers separate. The sentence is now scoped to the arm that has no answer.
+    expect(
+      screen.getByText(
+        "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4 matchande annonser just nu")).toBeInTheDocument();
+    expectNoZero();
+  });
+
+  it("states the personal count is not computed yet, distinctly from every other non-number", async () => {
+    await renderWith(
+      { magnitude: 12, saturated: false, tooBroad: false, notMaterialised: false },
+      { count: null, tooBroad: false, notMaterialised: true },
+    );
+
+    expect(
+      screen.getByText(
+        "Bevakningen är inte framräknad än, så vi vet inte hur många annonser som matchar dig.",
+      ),
+    ).toBeInTheDocument();
+    // Not the too-broad refusal, and not the "you have stated no occupation" nudge: those are
+    // different facts about the same missing number, and each has its own next step (or none).
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+    expectNoZero();
+  });
+});

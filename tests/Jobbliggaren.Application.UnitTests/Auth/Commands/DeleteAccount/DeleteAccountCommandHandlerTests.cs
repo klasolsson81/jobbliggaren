@@ -75,7 +75,7 @@ public class DeleteAccountCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Raderad Användare", Clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.SoftDelete(Clock);
         var firstDeletedAt = seeker.DeletedAt;
         db.JobSeekers.Add(seeker);
@@ -104,7 +104,7 @@ public class DeleteAccountCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Aktiv Användare", Clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
 
         // Två ansökningar; en med FollowUp + Note-barn (Application.SoftDelete
         // cascadar internt till FollowUp + ApplicationNote).

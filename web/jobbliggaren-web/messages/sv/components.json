@@ -2,7 +2,23 @@
   "criterionPicker": {
     "clear": "Rensa val",
     "noMatch": "Inga träffar. Rensa sökfältet för att bläddra i hela listan.",
+    "noMatchOccupation": "Inga träffar bland branscherna, men {word} är ett yrke. Svaret står nedan, eller rensa sökfältet för att bläddra i hela listan.",
     "filterMatches": "{count, plural, one {# träff} other {# träffar}}",
-    "filterTooMany": "{count} träffar. Skriv mer för att avgränsa, eller bläddra i hela listan nedan."
+    "filterMatchesOccupation": "{count, plural, one {# träff} other {# träffar}}. {word} är också ett yrke, se svaret nedan.",
+    "filterTooMany": "{count} träffar. Skriv mer för att avgränsa, eller bläddra i hela listan nedan.",
+    "matchedVia": "träff på {term}",
+    "occupationChoose": "Vilket yrke menar du?",
+    "occupationChangeChoice": "Byt yrke",
+    "occupationHeading": "{label} är ett yrke, inte en bransch.",
+    "occupationIntro": "I de {count, plural, one {# annons} other {# annonser}} vi sett för yrket finns arbetsgivarna i:",
+    "occupationShare": "{percent}\u00a0% ({count, plural, one {# annons} other {# annonser}})",
+    "occupationShareUnderOne": "under 1\u00a0% ({count, plural, one {# annons} other {# annonser}})",
+    "occupationBelowThreshold": "Övriga branscher, var för sig för små att visa: {share}",
+    "occupationWithoutDivision": "Arbetsgivare utan bransch i registret: {share}",
+    "occupationTooFew": "För få annonser ({count}) för att säga var arbetsgivarna finns.",
+    "occupationNotProfiled": "Fördelningen kan inte visas just nu.",
+    "occupationAdsSeen": "{count, plural, one {# annons} other {# annonser}} vi sett",
+    "occupationTooFewShort": "för få annonser ({count})",
+    "occupationNotProfiledShort": "fördelningen kan inte visas"
   }
 }

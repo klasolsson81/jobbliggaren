@@ -1,7 +1,7 @@
 {
   "common": {
     "rateLimitedTitle": "Too many requests",
-    "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+    "rateLimitedBody": "Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
     "back": "Back"
   },
@@ -17,31 +17,26 @@
     "matchningar": "Your matches are loading…",
     "sparade": "Saved jobs are loading…",
     "sokningar": "Your searches are loading…",
-    "installningar": "Settings are loading…",
+    "minaSidor": "My pages are loading…",
     "nyAnsokan": "New application is loading…"
   },
   "ansokningar": {
     "title": "My applications",
-    "lede": "A pipeline of all your applications. Click a row for details.",
     "newApplication": "New application",
     "activityReport": "Activity report helper",
     "statistics": "Statistics",
     "loadErrorTitle": "Could not load applications",
     "emptyTitle": "No applications yet",
-    "emptyBody": "As soon as you register your first application, it appears here. Track status from draft to reply without losing a single application.",
     "emptyCreateFirst": "Create first application",
     "emptySearchFirst": "Search jobs first",
     "new": {
       "title": "New application",
-      "lede": "Add the job you are applying for. You can fill in the details later.",
       "titleLabel": "Job title",
       "companyLabel": "Company",
-      "urlLabel": "Job link",
-      "urlHint": "Optional. The link must start with http:// or https://.",
-      "expiresAtLabel": "Application deadline",
-      "expiresAtHint": "Optional. The date is shown as a reminder in the application list.",
-      "coverLetterLabel": "Cover letter",
-      "coverLetterHint": "Optional. You can add or edit it later.",
+      "urlLabel": "Job link (optional)",
+      "urlHint": "The link must start with http:// or https://.",
+      "expiresAtLabel": "Application deadline (optional)",
+      "coverLetterLabel": "Cover letter (optional)",
       "submit": "Create application",
       "submitting": "Saving…",
       "cancel": "Cancel",
@@ -67,12 +62,11 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Manage your CV variants. Import an existing CV for review. You always stay in control.",
+    "lede": "Import an existing CV for review.",
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",
     "emptyTitle": "No CVs yet",
-    "emptyBody": "Import your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
     "listHeading": "Saved CVs",
@@ -80,11 +74,11 @@
       "kicker": "Needs action",
       "imported": "Imported {when}",
       "heading": "Your CV has been read",
-      "body": "The file has been read but not saved as a CV. Open the review to see why.",
+      "body": "The file is not saved as a CV. The review shows why.",
       "cta": "Open the review",
       "discard": "Remove draft",
       "discardTitle": "Remove draft?",
-      "discardBody": "The draft is removed. You can import your CV again whenever you want.",
+      "discardBody": "You can import your CV again.",
       "discardConfirm": "Remove draft",
       "discardCancel": "Cancel",
       "relativeTime": {
@@ -95,8 +89,6 @@
     },
     "import": {
       "title": "Import CV",
-      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Your CV is not changed.",
-      "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed.",
       "meta": {
         "title": "Import CV"
       }
@@ -112,12 +104,13 @@
       "updatedAt": "Last updated"
     },
     "review": {
+      "beta": "Beta",
       "title": "Review imported CV",
-      "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text.",
+      "lede": "The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
-      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
+      "errorBody": "A technical error occurred. Try reloading the page.",
       "nextStepTitle": "Next step",
-      "nextStepBody": "The review is read-only and changes nothing in your file. To improve your CV, update the file based on the findings and upload it again.",
+      "nextStepBody": "Update the file based on the findings and upload it again.",
       "nextStepCta": "Upload again",
       "loading": "Loading the review…",
       "blockReason": {
@@ -125,11 +118,9 @@
         "ParseNotConfident": "The file needs to contain text that can be selected. If it is an image, a scan or a password-protected document, save it again as PDF or Word and upload it.",
         "IncompleteContent": "One or more entries in the file are incomplete. Check that every job has an employer and a job title, and every education has an institution and a degree. Complete them and upload the file again.",
         "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
-        "PersonnummerInAccountName": "Your account name contains a personal identity number. The file itself is clean. Change it under Settings and upload the file again.",
-        "settingsCta": "Go to Settings",
         "clearedKicker": "No blockers in the file",
         "clearedTitle": "Nothing in the file blocks it",
-        "clearedBody": "We find nothing in the file that stops it. Upload it again and it will be checked afresh. A name you type yourself is only checked at upload."
+        "clearedBody": "Upload the file again and it will be checked afresh. A name you type yourself is only checked at upload."
       },
       "meta": {
         "title": "Review imported CV"
@@ -158,10 +149,11 @@
       "loading": "Loading the CV…"
     },
     "granska": {
+      "beta": "Beta",
       "title": "Review of your CV",
-      "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Nothing changes in your CV automatically.",
+      "lede": "The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
-      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
+      "errorBody": "A technical error occurred. Try reloading the page.",
       "loading": "Loading the review…",
       "meta": {
         "title": "CV review"
@@ -231,7 +223,7 @@
   },
   "jobb": {
     "title": "Search jobs",
-    "lede": "Search among active listings from Platsbanken. Filter and compare without losing a single listing.",
+    "lede": "Search among active listings from Platsbanken.",
     "resultsHeading": "Available jobs",
     "loading": "The job listing is loading…",
     "detail": {
@@ -246,7 +238,7 @@
   },
   "sokningar": {
     "title": "Recent searches",
-    "lede": "Searches you have run under Jobs. Click to run a search again, or remove one you do not need. We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
+    "lede": "We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
     "loadErrorTitle": "Could not load recent searches",
     "meta": {
       "title": "Recent searches"
@@ -254,7 +246,6 @@
   },
   "sparade": {
     "title": "Saved listings",
-    "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
     "loadErrorTitle": "Could not load saved listings",
     "meta": {
       "title": "Saved ads"
@@ -265,16 +256,16 @@
       "label": "Company sub-navigation",
       "bevakade": "Followed companies",
       "sok": "Search companies",
-      "smartaBevakningar": "Smart watches",
+      "smartaBevakningar": "Industry watches",
       "historik": "Application history",
       "nyaAnnonser": "New ads"
     },
     "loading": "Loading…",
     "sok": {
       "title": "Search companies",
-      "lede": "Search the company register by name, industry or municipality.",
+      "lede": "Search the company register.",
       "searchLabel": "Company name or organisation number",
-      "searchHint": "Ten digits are searched as an organisation number, any other text as a company name.",
+      "searchHint": "Ten digits are searched as an organisation number.",
       "searchSubmit": "Search companies",
       "filterGroupLabel": "Narrow down",
       "branschLabel": "Industry",
@@ -292,7 +283,7 @@
       "ortEmpty": "The location list could not be loaded right now.",
       "ortRightEmpty": "Choose a county to see municipalities.",
       "ortRemove": "Remove {namn}",
-      "unappliedChanges": "The change in the name field applies when you choose Search companies.",
+      "unappliedChanges": "The change applies when you choose Search companies.",
       "orgNrResultLabel": "Organisation number search",
       "clearButton": "Clear the search",
       "tableAria": "Companies matching the search",
@@ -304,11 +295,11 @@
       "orgNrNotFoundTitle": "No company with that number",
       "orgNrNotFoundBody": "Check the number, or search by name instead.",
       "orgNrUrlRefusedTitle": "The number was removed from the address",
-      "orgNrUrlRefusedBody": "An organisation number never appears in the web address. Searching by organisation number is done in the search field and requires JavaScript to be enabled. You can search by company name as usual.",
+      "orgNrUrlRefusedBody": "An organisation number never appears in the web address. Searching by organisation number requires JavaScript. You can search by company name as usual.",
       "orgNrRefusedTitle": "The number cannot be searched",
       "orgNrRefusedBody": "It looks like a personal identity number. Sole traders are found via their job ads.",
       "orgNrRateLimitedTitle": "Too many searches",
-      "orgNrRateLimitedBody": "Wait {seconds} seconds and try again.",
+      "orgNrRateLimitedBody": "Wait {seconds, plural, one {# second} other {# seconds}} and try again.",
       "orgNrErrorTitle": "The search could not be completed",
       "orgNrErrorBody": "Try again in a moment.",
       "resultsHeading": "Companies in the register",
@@ -321,7 +312,7 @@
       "seatHelpAria": "What is the registered seat?",
       "source": "Source: SCB, own processing.",
       "emptyTitle": "No companies match the search",
-      "emptyBody": "Try a shorter name or fewer filters. You can also clear the search and show all companies.",
+      "emptyBody": "Try a shorter name or fewer filters.",
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
@@ -337,19 +328,19 @@
       }
     },
     "watchesHeading": "Followed companies",
-    "watchesLede": "Companies you follow. New ads from them appear on the overview and under New ads.",
+    "watchesLede": "New ads from these companies appear on Overview and under New ads.",
     "historyHeading": "Application history",
     "historyLede": "Your applications grouped by employer.",
     "loadErrorTitle": "Could not load followed companies",
     "historyLoadErrorTitle": "Could not load application history",
     "newAds": {
       "heading": "New ads from followed companies",
-      "lede": "Ads from companies you follow, since you were last here.",
+      "lede": "Since you were last here.",
       "loadErrorTitle": "Could not load new ads",
       "emptyTitle": "Nothing new right now",
-      "emptyBody": "Ads added since you were last here are shown here. Every ad from the companies you follow remains under Followed companies.",
-      "summary": "{total, plural, one {# new ad} other {# new ads}} since your last visit, of which {matching} match you.",
-      "summaryNotAssessed": "{total, plural, one {# new ad} other {# new ads}} since your last visit.",
+      "emptyBody": "Every ad from the companies you follow remains under Followed companies.",
+      "summary": "{total, plural, one {# new ad} other {# new ads}}, of which {matching} match you.",
+      "summaryNotAssessed": "{total, plural, one {# new ad} other {# new ads}}.",
       "summaryTruncated": "Showing {shown, plural, one {# new ad} other {# new ads}}, of which {matching} match you.",
       "summaryTruncatedNotAssessed": "Showing {shown, plural, one {# new ad} other {# new ads}}.",
       "consumptionNote": "The list shows what was new when you opened the page.",
@@ -360,7 +351,6 @@
         "matching": "Matching ads"
       },
       "matchingEmptyTitle": "None of the new ads match your profile",
-      "matchingEmptyBody": "Matching is based on the occupations, locations and skills you have entered under Matching.",
       "matchingEmptyAction": "Show all new ads",
       "truncated": "There are more new ads than the ones shown. They will be shown the next time you open the page.",
       "backToWatches": "To followed companies",
@@ -369,13 +359,13 @@
       }
     },
     "criteria": {
-      "heading": "Smart watches",
-      "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A smart watch sends no notifications of its own.",
-      "newButton": "New smart watch",
-      "listLabel": "Your smart watches",
-      "emptyTitle": "You have no smart watches.",
+      "heading": "Industry watches",
+      "lede": "A saved search by industry and municipality. It sends no notifications of its own.",
+      "newButton": "New industry watch",
+      "listLabel": "Your industry watches",
+      "emptyTitle": "You have no industry watches.",
       "emptyBody": "Create a watch to see companies in the register that match the industries and municipalities you choose.",
-      "loadErrorTitle": "Could not load smart watches",
+      "loadErrorTitle": "Could not load industry watches",
       "maxReached": "You have reached the limit of {max} watches. Remove one to create a new one.",
       "referenceUnavailable": "The industry register could not be loaded right now. Reload the page to create or edit a watch.",
       "moreSuffix": "and more",
@@ -387,11 +377,11 @@
         "validationFailed": "Something in your selection is not valid. Check your choices and try again.",
         "maxPerUser": "You can have at most 20 watches. Remove a watch to create a new one.",
         "notFound": "The watch was not found. It may already have been removed.",
-        "rateLimited": "Too many attempts. Wait {seconds} seconds and try again.",
+        "rateLimited": "Too many attempts. Wait {seconds, plural, one {# second} other {# seconds}} and try again.",
         "invalidInput": "Choose at least one industry and one municipality."
       },
       "row": {
-        "untitled": "Watch",
+        "untitled": "Industry watch",
         "branschCount": "{count, plural, one {# industry} other {# industries}}",
         "kommunCount": "{count, plural, one {# municipality} other {# municipalities}}",
         "openBrowse": "View companies",
@@ -406,28 +396,26 @@
         "deleting": "Removing…"
       },
       "sniHeading": "Industries",
-      "sniHelp": "Choose one or more industries. You can pick a whole section, a division, or individual codes.",
+      "sniHelp": "Choose a whole section, a division or individual industries.",
       "sniFilterLabel": "Search industry",
-      "sniFilterHint": "Type to narrow the list of industries.",
       "sniGroupAria": "Industries",
       "sniExpandAria": "Show industries in {name}",
       "sniCollapseAria": "Hide industries in {name}",
       "sniSelectedCount": "{count, plural, one {# industry selected} other {# industries selected}}",
+      "sniPickedCount": "{count, plural, one {# selection} other {# selections}}",
       "kommunHeading": "Municipalities",
-      "kommunHelp": "Choose one or more municipalities. You can pick a whole county or individual municipalities.",
+      "kommunHelp": "Choose a whole county or individual municipalities.",
       "kommunFilterLabel": "Search municipality",
-      "kommunFilterHint": "Type to narrow the list of municipalities.",
       "kommunGroupAria": "Municipalities",
       "kommunExpandAria": "Show municipalities in {name}",
       "kommunCollapseAria": "Hide municipalities in {name}",
-      "kommunSelectedCount": "{count, plural, one {# municipality selected} other {# municipalities selected}}",
+      "kommunPickedCount": "{count, plural, one {# selection} other {# selections}}",
       "dialog": {
-        "createTitle": "New smart watch",
+        "createTitle": "New industry watch",
         "editTitle": "Edit watch",
-        "intro": "Choose industries and municipalities. We show how many companies in the register match before you save.",
         "optionsUnavailable": "The register could not be loaded. Reload the page.",
         "labelLabel": "Watch name (optional)",
-        "labelHint": "Give the watch a name of your own. Otherwise industries and municipalities are shown. Up to 120 characters.",
+        "labelHint": "Without a name, industries and municipalities are shown. Up to 120 characters.",
         "previewIncomplete": "Choose at least one industry and one municipality to see how many companies match.",
         "previewLoading": "Counting companies…",
         "previewUnavailable": "The company count is not available right now. You can still save the watch.",
@@ -436,12 +424,53 @@
         "saving": "Saving…",
         "cancel": "Cancel"
       },
+      "ads": {
+        "lede": "Active job ads from the companies matching your watch.",
+        "magnitudeHeadline": "{count} active job ads",
+        "backLink": "Back to the watch",
+        "linkLabel": "{count} active job ads from these companies",
+        "none": "No active job ads from these companies right now.",
+        "countUnavailable": "The ad numbers cannot be shown right now. Reload the page in a moment.",
+        "loadErrorTitle": "Could not load the ads",
+        "loadErrorBody": "Try again in a moment.",
+        "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
+        "source": "Source: the ads from the Swedish Public Employment Service's Platsbanken, the selection from Statistics Sweden's business register. Own processing.",
+        "seatExplainer": "The selection uses the company's registered seat municipality. The ad's workplace may be elsewhere.",
+        "seatHelpTitle": "About the selection",
+        "seatHelpBody1": "The ads come from companies whose registered seat according to Statistics Sweden is in one of the watch's municipalities.",
+        "seatHelpBody2": "Where the work is performed is stated in the ad and need not be the same municipality as the seat.",
+        "seatHelpAria": "How were these ads selected?",
+        "emptyBody": "Try widening the watch's industries or municipalities.",
+        "matchingHeadline": "{count, plural, =0 {No matching job ads} one {# matching job ad} other {# matching job ads}}",
+        "matchingTooBroad": "This watch has more ads than we can match. Fewer industries or municipalities mean fewer companies.",
+        "showAll": "Show all job ads",
+        "matchingEmptyBody": "Try broadening the watch or reviewing your matching settings.",
+        "matchingTooBroadCta": "Change the watch",
+        "matchingTooBroadOnList": "This watch has more ads than we can match, so all active ads are shown here instead of the matching ones.",
+        "matchingNotAssessedOnList": "You have not stated which occupations you are looking for, so all active job ads are shown here.",
+        "adsNotMaterialised": "The ad figures for this watch have not been calculated yet. They appear here automatically when they are ready.",
+        "matchingNotMaterialised": "This watch has not been calculated yet, so we do not know how many job ads match you.",
+        "matchingNotMaterialisedOnList": "There are no job ads to show here yet.",
+        "adsTooBroad": "This watch matches more companies than we can count ads for. Fewer industries or municipalities mean fewer companies.",
+        "adsTooBroadHeadline": "The number of ads cannot be counted",
+        "adsNotMaterialisedHeadline": "The job ads have not been calculated yet",
+        "tooBroadNoList": "This watch matches more companies than we can count job ads for.",
+        "adsAndMatchingTooBroad": "This watch matches more companies than we can count ads for. Neither the number of ads nor the match against your profile is therefore shown. Fewer industries or municipalities mean fewer companies.",
+        "linkLabelStandalone": "{count} active ads",
+        "noneStandalone": "No active ads right now.",
+        "adsTooBroadShort": "This watch matches more companies than we can count ads for.",
+        "matchingTooBroadShort": "We cannot count how many of the ads match you.",
+        "adsNotMaterialisedOnly": "The number of active ads has not been calculated yet. It appears here automatically when it is ready.",
+        "adsTooBroadAdviceOnList": "Watches we cannot count ads for are shown without ad numbers.",
+        "matchingTooBroadAdviceOnList": "For watches with more ads than we can match, we do not show how many of them match you.",
+        "tooBroadAdviceRemedy": "Fewer industries or municipalities mean fewer companies."
+      },
       "browse": {
         "lede": "Active companies in the register that match your watch.",
         "magnitudeHeadline": "{count} companies match your watch",
         "backLink": "Back to Companies",
         "loadErrorTitle": "Could not load the companies",
-        "loadErrorBody": "An error occurred. Try again in a moment.",
+        "loadErrorBody": "Try again in a moment.",
         "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
         "source": "Source: Statistics Sweden (SCB), own processing.",
         "seatExplainer": "The municipality shown is the company's registered seat, not necessarily where it operates.",
@@ -463,8 +492,7 @@
         "followAria": "Follow {company}",
         "followingAria": "Following {company}",
         "cannotFollow": "Cannot be followed",
-        "emptyTitle": "No companies match right now.",
-        "emptyBody": "Try changing the watch's industries or municipalities to broaden the selection."
+        "emptyBody": "Try widening the watch's industries or municipalities."
       }
     },
     "bevakade": {
@@ -479,11 +507,16 @@
     },
     "smartaBevakningar": {
       "meta": {
-        "title": "Smart watches"
+        "title": "Industry watches"
+      },
+      "ads": {
+        "meta": {
+          "title": "Ads from the watch"
+        }
       },
       "detail": {
         "meta": {
-          "title": "Smart watch"
+          "title": "Industry watch"
         }
       }
     },
@@ -493,13 +526,12 @@
   },
   "matchningar": {
     "title": "My matches",
-    "lede": "Job ads that background matching has found for you, most recent first. Open an ad to read all of it.",
     "listLabel": "Your matches",
     "newBadge": "New",
     "newBadgeAriaLabel": "New match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
-    "emptyBody": "Background matching runs every night once you have turned on Match notifications under Settings (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
+    "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches",
@@ -507,141 +539,126 @@
       "title": "My matches"
     }
   },
-  "installningar": {
-    "title": "Settings",
-    "lede": "Manage your account details and settings.",
-    "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
-    "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
-    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment.",
+  "minaSidor": {
+    "title": "My pages",
+    "lede": "Here you manage your account, your notifications and which jobs you are looking for.",
+    "rateLimited": "Your matching choices, notifications and language could not be loaded, because too many requests came in a short time. Try reloading the page in {seconds, plural, one {# second} other {# seconds}}.",
+    "profileLoadError": "Your matching choices, notifications and language could not be loaded right now. Try reloading the page in a moment.",
     "meta": {
-      "title": "Settings"
+      "title": "My pages"
     }
   },
   "auth": {
     "backToStart": "To the start page",
-    "showPassword": "Show password",
-    "hidePassword": "Hide password",
-    "showPasswordNamed": "Show {field}",
-    "hidePasswordNamed": "Hide {field}",
-    "login": {
-      "title": "Log in",
-      "emailLabel": "Email address",
-      "emailHint": "The format is name@domain.se",
-      "passwordLabel": "Password",
-      "rememberMeLabel": "Keep me logged in",
-      "submit": "Log in",
-      "submitting": "Logging in…",
-      "noAccount": "No account?",
-      "createAccount": "Create account",
-      "forgotPassword": "Forgotten your password?",
-      "meta": {
-        "title": "Log in"
-      }
-    },
-    "register": {
-      "title": "Create account",
-      "nameLabel": "Name",
-      "nameHint": "This name is shown in your account.",
-      "emailLabel": "Email address",
-      "emailHint": "The format is name@domain.se",
-      "passwordLabel": "Password",
-      "passwordHint": "At least 12 characters.",
-      "termsLabel": "I accept the <terms>terms of use</terms> and the <privacy>privacy policy</privacy>.",
-      "termsHint": "The links open in a new tab.",
-      "submit": "Create account",
-      "submitting": "Creating account…",
-      "haveAccount": "Already have an account?",
-      "logIn": "Log in",
-      "pendingTitle": "Check your inbox",
-      "pendingBody": "We have sent an email to the address you entered. Follow the instructions in the email to continue. Check your spam folder if you do not see it within a few minutes.",
-      "meta": {
-        "title": "Create account"
-      }
-    },
-    "actions": {
-      "credentialsRequired": "Email and password are required.",
-      "registrationFieldsRequired": "Name, email and password are required.",
-      "termsRequired": "You must accept the terms of use and the privacy policy to create an account.",
-      "loginFailed": "Login failed. Check your email and password.",
-      "unexpectedError": "An unexpected error occurred. Try again.",
-      "serverUnreachable": "Could not reach the server. Try again.",
-      "registrationFailed": "Registration failed.",
-      "displayNamePersonnummer": "Your name cannot contain a personal identity number. Enter the name without it and try again.",
-      "registrationsClosed": "Registration is not open yet. Try again later.",
-      "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
-      "emailNotConfirmed": "Your email address is not confirmed yet. Check your inbox and your spam folder.",
-      "passwordResetEmailRequired": "Enter your email address.",
-      "passwordResetFailed": "We could not send a reset link right now. Try again in a moment.",
-      "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a reset link. Your password is unchanged. Try again later."
-    },
-    "confirmEmailChange": {
-      "title": "Confirm your new email address",
-      "intro": "Click the button to complete the email address change. When you confirm, the address is changed and you are logged out on all devices for security reasons.",
-      "confirm": "Confirm new email address",
-      "pending": "Confirming…",
-      "successTitle": "The email address has been changed",
-      "successBody": "You have been logged out on all devices for security reasons. Log in again with your new email address and your usual password.",
-      "loginLink": "Log in",
-      "invalidTitle": "The link cannot be used",
-      "invalidBody": "The link is invalid or has expired. Log in and request a new email change under Settings.",
-      "networkError": "Could not reach the server. Try again in a moment.",
-      "meta": {
-        "title": "Confirm email address"
-      }
-    },
-    "confirmAccount": {
-      "title": "Confirm your email address",
-      "intro": "The address is not confirmed until you click the button below.",
-      "confirm": "Confirm email address",
-      "pending": "Confirming…",
-      "successTitle": "Your email address is confirmed",
-      "successBody": "Log in to get started.",
-      "loginLink": "Log in",
-      "invalidTitle": "The link cannot be used",
-      "invalidBody": "The link is invalid or has expired. Register again to get a new link.",
-      "networkError": "Could not reach the server. Try again in a moment.",
-      "meta": {
-        "title": "Confirm account"
-      }
-    },
-    "resendConfirmation": {
-      "button": "Send a new confirmation link",
-      "sending": "Sending…",
-      "sent": "If the address needs confirming, we have sent a new link. Check your inbox and your spam folder.",
-      "error": "Could not send right now. Try again in a moment.",
-      "cooldownHint": "You can request a new link in {seconds, plural, one {# second} other {# seconds}}."
-    },
-    "forgotPassword": {
-      "title": "Reset your password",
-      "intro": "Enter your email address and we will send you a link you can use to choose a new password.",
-      "emailLabel": "Email address",
-      "emailHint": "The same address you used when you created the account.",
-      "submit": "Send reset link",
-      "submitting": "Sending…",
-      "sentTitle": "Check your inbox",
-      "sentBody": "If the address belongs to an account, we have sent a link there. Check your spam folder if you do not see the email within a few minutes. The link is valid for a short time, and the email says how long.",
-      "backToLogin": "Back to sign in",
-      "requestNewLink": "Request a new reset link",
-      "meta": {
-        "title": "Reset password"
-      }
-    },
-    "resetPassword": {
-      "title": "Choose a new password",
-      "intro": "Enter your new password. You will be signed out on all devices once it is saved.",
-      "passwordLabel": "New password",
-      "passwordHint": "At least 12 characters.",
-      "submit": "Save new password",
-      "submitting": "Saving…",
-      "successTitle": "Your password has been changed",
-      "successBody": "You are signed out on all devices. Sign in with your new password.",
-      "loginLink": "Sign in",
-      "invalidTitle": "This link cannot be used",
-      "invalidBody": "The link is invalid or has expired. Request a new reset link and try again.",
-      "passwordTooShort": "The password must be at least 12 characters.",
-      "networkError": "We could not reach the server. Try again in a moment.",
-      "meta": {
-        "title": "Choose a new password"
+    "passwordless": {
+      "entry": {
+        "meta": {
+          "title": "Log in or create account"
+        },
+        "title": "Log in or create account",
+        "lede": "You log in with a code we send to your email address.",
+        "emailLabel": "Email address",
+        "privacyHint": "How we process your email address: <privacy>the privacy policy</privacy>.",
+        "emailRequired": "Enter your email address.",
+        "emailInvalid": "Enter the email address in the correct format, for example name@example.com.",
+        "submit": "Continue",
+        "submitting": "Sending…",
+        "providersHeading": "Other ways to log in",
+        "providers": {
+          "google": "Continue with Google",
+          "linkedin": "Continue with LinkedIn",
+          "github": "Continue with GitHub",
+          "comingSoon": "Coming soon"
+        }
+      },
+      "code": {
+        "meta": {
+          "title": "Enter the code"
+        },
+        "title": "Enter the code",
+        "resting": "If there is an email from Jobbliggaren, follow the instructions in it. If the email contains a code, enter it here. The code is valid for 15 minutes.",
+        "codeLabel": "Six-digit code",
+        "codeHint": "Check your spam folder too.",
+        "submit": "Confirm the code",
+        "submitting": "Confirming the code…",
+        "wrongCode": "The code is not correct. Check the digits and try again.",
+        "malformedCode": "The code is six digits. Check the digits and try again.",
+        "lastAttempt": "One attempt left. After that you need to request a new code.",
+        "expired": "That code can no longer be used. Send a new code and try again.",
+        "burned": "You have entered the wrong code three times, so the code can no longer be used. If the email contains a login link you can use that instead, otherwise send a new code.",
+        "youEntered": "You entered {email}.",
+        "resend": {
+          "button": "Send new code",
+          "sending": "Sending…",
+          "consequence": "A new code replaces the previous one.",
+          "receipt": "We have received your request. Check your inbox and your spam folder. Enter the code from the most recent email.",
+          "cooldownHint": "You can send a new code in {seconds, plural, one {# second} other {# seconds}}."
+        },
+        "changeEmail": "Change email address"
+      },
+      "consent": {
+        "meta": {
+          "title": "Create your account"
+        },
+        "title": "Create your account",
+        "identification": "The account is created for the email address you just confirmed with the code.",
+        "termsLabel": "I accept the <terms>terms of use</terms>.",
+        "termsHint": "The links open in a new tab.",
+        "privacySibling": "We process your data in accordance with the <privacy>privacy policy</privacy>.",
+        "termsRequired": "You need to accept the terms of use to create the account.",
+        "submit": "Create account",
+        "submitting": "Creating account…",
+        "startOver": "Start over with a different email address"
+      },
+      "link": {
+        "meta": {
+          "title": "Log in to Jobbliggaren"
+        },
+        "title": "Log in to Jobbliggaren",
+        "body": "The link works once and is valid for 15 minutes.",
+        "submit": "Log in",
+        "submitting": "Logging in…",
+        "unusable": "The link cannot be used. Request a new code on the login page.",
+        "toLogin": "To the login page",
+        "alreadyLoggedIn": {
+          "title": "You are already logged in",
+          "body": "If you continue, the active login is replaced by the login the link is for, and everything you do afterwards belongs to that account.",
+          "continue": "Continue and log in",
+          "stay": "Stay logged in"
+        }
+      },
+      "persistence": "You stay logged in on this device for up to 180 days. Log out is on every logged-in page.",
+      "outcome": {
+        "registrationClosed": {
+          "title": "Registration is not open yet.",
+          "homeLink": "To the start page"
+        },
+        "accountUnavailable": {
+          "title": "We cannot log in to this address right now.",
+          "body": "Try again later, or contact us at <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "pendingDeletion": {
+          "title": "Your account is permanently deleted on {date}.",
+          "body": "Until then you can have it restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "notice": {
+        "grantUnusable": {
+          "title": "Registration was not completed",
+          "body": "Enter your email address below and start again."
+        },
+        "codeExpired": {
+          "title": "The login expired",
+          "body": "A login is valid for 15 minutes. Enter your email address below and start again."
+        },
+        "accountDeleted": {
+          "title": "Your account has been deleted",
+          "body": "You are logged out on all devices. For 30 days you can have the account restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "errors": {
+        "unavailable": "Logging in is not possible right now. Try again in a few minutes.",
+        "tooManyAttempts": "Too many attempts. Wait a moment and try again."
       }
     }
   }

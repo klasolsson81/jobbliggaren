@@ -21,7 +21,7 @@ public class CreateSavedSearchCommandHandlerTests
     private static async Task<JobSeeker> SeedSeekerAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         return seeker;

@@ -60,7 +60,7 @@ public class LastFollowUpWaitResetIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         var withFollowUp = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
@@ -92,7 +92,7 @@ public class LastFollowUpWaitResetIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         var withFollowUp = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
@@ -129,7 +129,7 @@ public class LastFollowUpWaitResetIntegrationTests
         var t0 = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
         var seedClock = new FakeDateTimeProvider(t0);
 
-        var seeker = JobSeeker.Register(_userId, "Test User", seedClock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(seedClock), seedClock).Value;
         db.JobSeekers.Add(seeker);
         var app = DomainApplication.Create(seeker.Id, null, null, null, seedClock).Value;
         app.TransitionTo(ApplicationStatus.Submitted, seedClock);

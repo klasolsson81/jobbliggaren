@@ -140,6 +140,35 @@ describe("POST /api/cv/import (binär-passthrough BFF)", () => {
     expect(init.body).not.toBeNull();
   });
 
+  it("cancels the upstream upload when the client disconnects", async () => {
+    const client = new AbortController();
+    let upstreamAborted = false;
+    let upstreamStarted!: () => void;
+    const started = new Promise<void>((resolve) => { upstreamStarted = resolve; });
+    global.fetch = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+      upstreamStarted();
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          upstreamAborted = true;
+          reject(new DOMException("Client disconnected", "AbortError"));
+        }, { once: true });
+      });
+    });
+    const request = new Request("http://localhost/api/cv/import", {
+      method: "POST",
+      headers: { "content-type": MULTIPART },
+      body: "cv-bytes",
+      signal: client.signal,
+    }) as NextRequest;
+
+    const pending = POST(request);
+    await started;
+    client.abort();
+
+    expect(upstreamAborted).toBe(true);
+    expect((await pending).status).toBe(502);
+  });
+
   it("200 LeftPending → statusen bevaras och personnummer-fyndet (count/kinds, aldrig värdet) flödar igenom", async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(

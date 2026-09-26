@@ -24,7 +24,7 @@ public class DeleteRecentSearchCommandHandlerTests
     private static async Task<(JobSeeker seeker, RecentJobSearch recent)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var criteria = SearchCriteria.Create(
@@ -96,7 +96,7 @@ public class DeleteRecentSearchCommandHandlerTests
         var (_, recent) = await SeedAsync(db, ownerUserId);
 
         // Aktuell user är annan (har ingen seeker än → lägg till en så lookup ger != default)
-        var otherSeeker = JobSeeker.Register(_userId, "Other", FakeDateTimeProvider.Default).Value;
+        var otherSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(otherSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

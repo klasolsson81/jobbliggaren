@@ -38,6 +38,27 @@ inte "en möjlighet väntar".
 
 ---
 
+## Copy-täthet (DESIGN.md §8)
+
+"Direkt" ovan är en riktlinje; regeln bor i DESIGN.md §8 (Klas-direktiv 2026-09-24,
+ADR 0144) och graderas av `design-reviewer`. Här är formerna.
+
+| Yta | ✅ Ja | ❌ Nej |
+|---|---|---|
+| Formulär där rubrik + etikett + knapp räcker | Titel "Byt namn på CV" · etikett "Namn" · knapp "Spara namn", ingen ledtext | + "Namnet visas i din CV-lista." |
+| Formulär där EN ledtext behövs | "Vi skickar en kod till din e-postadress." (det knappen "Fortsätt" inte säger) | "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord." |
+| Formathjälp, självklart format | E-postfält: ingen hint. Fel format besvaras i felet: "Skriv e-postadressen i rätt format, till exempel namn@exempel.se." | "Adressen ska innehålla @ och en domän." som hint |
+| Formathjälp, icke självklart format | Organisationsnummer: "Tio siffror." | Ingen hint (användaren skriver tolv siffror och får ett fel); "med eller utan bindestreck" (fältet tar emot båda, det sägs inte) |
+| Nästa steg | Knappen "Skicka ny kod", ingen mening om vad som händer sedan | "Klicka på Fortsätt för att gå vidare till nästa steg." |
+| Förklaring av en vy | ?-hjälp: `InfoDialog` + `.jp-labelhelp` (#408, #1003) | Ett inledande stycke ovanför listan som förklarar vyn |
+| Lugnande | (inget) | "Vi skickar aldrig reklam." |
+| Rättsligt bärande (regel 7) | Art. 13-raden under e-postfältet står kvar, kortad eller flyttad bara med security-auditors signatur; hennes bekräftade strängar i ADR 0144 | Raden struken, eller gömd bakom en länk eller ?-hjälp |
+
+Avvägningen mot ADR 0047 (en struken mening får aldrig lämna en gissning eller dölja en
+oåterkallelig handlings följd) står i DESIGN.md §8 och upprepas inte här.
+
+---
+
 ## Forbidden patterns
 
 Never use:
@@ -121,7 +142,9 @@ Konventioner och var formaterarna bor → `references/locale-formatting.md`
 
 ### 1. Empty states
 
-Struktur: konstatering + konkret nästa steg. Aldrig bara konstatering.
+Struktur: konstatering + konkret nästa steg, en gång var: högst två korta meningar,
+och nästa steg får vara en knapp i stället för en mening (DESIGN.md §8; formen i
+`jobbpilot-design-components` → Empty state). Aldrig bara konstatering.
 
 | Situation | ✅ Ja | ❌ Nej |
 |---|---|---|
@@ -150,7 +173,7 @@ Vad gick fel + vad ska göras. Aldrig vag.
 | Inloggning misslyckas | "Inloggningen misslyckades. Kontrollera e-post och lösenord." | "Hoppsan! Det blev fel." |
 | Nätverksfel | "Ingen anslutning. Kontrollera din nätverksanslutning." | "Något gick fel. Försök igen." |
 | Serverfel | "Ett fel uppstod. Försök igen om en stund eller kontakta support om problemet kvarstår." | "Error 500" |
-| Valideringsfel format | "E-postadressen har fel format." | "Ogiltigt värde" |
+| Valideringsfel format | "Skriv e-postadressen i rätt format, till exempel namn@exempel.se." | "Ogiltigt värde"; "E-postadressen har fel format." (orsak utan åtgärd) |
 | Valideringsfel krav | "Lösenordet måste vara minst 12 tecken." | "Lösenordet uppfyller inte kraven." |
 
 Aldrig:
@@ -227,12 +250,6 @@ visar dem:
 
 Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
 
-**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
-(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
-(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
-skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
-stavningen i UI.
-
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
 motsäga dem: *"Du får ingen svart låda som säger att du är en ”92-procentig
 matchning”"* (`content-matchning.json`) och *"Du får inget poäng mellan 0 och 100,
@@ -303,16 +320,21 @@ Acceptabla generiska (när kontexten är otvetydig):
 
 **Klas hård designregel 2026-05-17 (förstärker ADR 0038):** Inga input-fält
 har exempel-/instruktions-text i `placeholder`. Fälten är rena à la
-Platsbanken. Exempel/format flyttas till **hjälptext (hint) under fältet** i
-`text-text-secondary`, kopplad via `aria-describedby`. Label kvarstår ovanför.
+Platsbanken. Formathjälp, bara när fältet annars avvisar det användaren skriver (DESIGN.md
+§8 regel 3), blir **hjälptext (hint) under fältet** i
+`text-text-primary`, kopplad via `aria-describedby`. Label kvarstår ovanför.
 
 ```tsx
-// ✅ Korrekt — rent fält, exempel som hint under
-<label htmlFor="email">E-post</label>
-<Input id="email" aria-describedby="email-hint" />
-<p id="email-hint" className="text-body-sm text-text-secondary">
-  Formatet är namn@domän.se
+// ✅ Korrekt — rent fält, hint bara när fältet annars avvisar det användaren skriver (DESIGN.md §8)
+<label htmlFor="orgnr">Organisationsnummer</label>
+<Input id="orgnr" inputMode="numeric" aria-describedby="orgnr-hint" />
+<p id="orgnr-hint" className="text-body-sm text-text-primary">
+  Tio siffror.
 </p>
+
+// ✅ Korrekt — e-postfält utan hint (syntaxen är självklar)
+<label htmlFor="email">E-postadress</label>
+<Input id="email" type="email" autoComplete="email" />
 
 // ❌ Fel — exempeltext i rutan
 <Input placeholder="du@exempel.se" />

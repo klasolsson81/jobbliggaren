@@ -23,7 +23,6 @@ export function GuestJobbPage() {
           <div className="jp-hero__plate">
             <div>
               <h1 className="jp-hero__title">{t("jobb.heroTitle")}</h1>
-              <p className="jp-hero__lede">{t("jobb.heroLede")}</p>
             </div>
 
             <div className="jp-hero__panel">

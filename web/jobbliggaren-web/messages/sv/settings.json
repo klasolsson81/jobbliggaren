@@ -1,13 +1,4 @@
 {
-  "personalInfo": {
-    "title": "Personuppgifter",
-    "nameLabel": "Namn",
-    "emailLabel": "E-postadress",
-    "emailHint": "E-postadressen är knuten till ditt konto. Du kan byta den under Byt e-postadress.",
-    "saving": "Sparar…",
-    "save": "Spara ändringar",
-    "saved": "Sparat."
-  },
   "display": {
     "title": "Visning",
     "themeLabel": "Tema",
@@ -15,7 +6,7 @@
     "themeLight": "Ljust",
     "themeDark": "Mörkt",
     "languageLabel": "Språk",
-    "languageHint": "Påverkar hela appen direkt. Sparas på ditt konto.",
+    "languageHint": "Sparas på ditt konto.",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
     "savedAt": "Sparat {time}"
@@ -28,7 +19,7 @@
     "cadenceLabel": "Hur ofta vill du få sammanfattningen",
     "cadenceDaily": "Dagligen",
     "cadenceWeekly": "Veckovis",
-    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar och notiserna om företag du följer. Toppmatchningar skickas alltid direkt via e-post.",
+    "cadenceHint": "Gäller även notiserna om företag du följer.",
     "cadenceHintDisabled": "Slå på matchningsnotiser eller notiser om företag du följer för att välja hur ofta e-postsammanfattningen skickas.",
     "savedAt": "Sparat {time}",
     "errors": {
@@ -62,7 +53,6 @@
   },
   "logout": {
     "title": "Logga ut",
-    "description": "Avsluta denna session. Du kan logga in igen när som helst.",
     "action": "Logga ut"
   },
   "matchPrefs": {
@@ -71,12 +61,10 @@
     "degraded": "Dina matchningsval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "facetOccupations": "Yrken",
     "facetSkills": "Kompetenser",
-    "facetRegions": "Regioner",
     "facetOrter": "Orter",
     "facetEmployment": "Anställningsformer",
     "emptyOccupations": "Alla yrken (inget valt)",
     "emptySkills": "Inga kompetenser valda",
-    "emptyRegions": "Hela landet (ingen region vald)",
     "emptyOrter": "Hela landet (ingen ort vald)",
     "emptyEmployment": "Alla anställningsformer (inget valt)",
     "add": "Lägg till",
@@ -84,7 +72,6 @@
     "savedAt": "Sparat {time}",
     "selectedOccupations": "Valda yrken",
     "selectedSkills": "Valda kompetenser",
-    "selectedRegions": "Valda regioner",
     "selectedOrter": "Valda orter",
     "selectedEmployment": "Valda anställningsformer",
     "clear": "Rensa",
@@ -95,7 +82,6 @@
       "selectedAria": "Valda orter",
       "addOrter": "Lägg till orter",
       "filterLabel": "Filtrera kommuner",
-      "filterHint": "Skriv för att smalna av kommunlistan, eller bläddra via län.",
       "noMatch": "Ingen kommun matchar filtret.",
       "regionColumn": "Län",
       "regionsUnavailable": "Länen kunde inte läsas in just nu.",
@@ -103,12 +89,11 @@
       "chooseRegion": "Välj ett län till vänster.",
       "municipalitiesUnavailable": "Inga kommuner kunde läsas in för det här länet.",
       "distans": "Distans",
-      "distansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
+      "distansHint": "Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "wholeRegion": "Hela {label}"
     },
     "dialog": {
       "title": "Lägg till i matchning",
-      "intro": "Sök och välj yrken, orter och anställningsformer. Valda visas överst i varje del. Ta bort med kryssikonen.",
       "saving": "Sparar…",
       "save": "Spara matchning",
       "cancel": "Avbryt"
@@ -116,7 +101,6 @@
     "occupation": {
       "addOccupations": "Lägg till yrken",
       "filterLabel": "Filtrera yrkesgrupper",
-      "filterHint": "Skriv för att smalna av listan, eller bläddra via yrkesområde.",
       "noMatch": "Ingen yrkesgrupp matchar filtret.",
       "occupationField": "Yrkesområde",
       "occupationGroups": "Yrkesgrupper",
@@ -129,14 +113,13 @@
       "cancelUpload": "Avbryt",
       "openImportInstead": "Öppna importsidan i stället",
       "noCvTitle": "Inget CV uppladdat",
-      "noCvBody": "Ladda upp ett CV så kan vi föreslå yrken utifrån din erfarenhet. Du väljer själv vilka förslag som tas med.",
       "uploadCv": "Ladda upp CV",
       "noRole": "Vi kunde inte läsa ett yrke ur ditt CV. Du kan välja yrken i listan i stället.",
       "unauthorized": "Du är inte inloggad. Logga in och försök igen.",
       "error": "Kunde inte läsa ditt CV just nu. Försök igen om en stund.",
       "yearsLabel": "År i yrket",
       "yearsAria": "År i yrket {label}",
-      "yearsHint": "Ungefär hur många år du arbetat i yrket. Frivilligt, och påverkar inte din matchningsgrad.",
+      "yearsHint": "Frivilligt, och påverkar inte din matchningsgrad.",
       "yearsWhatIsThis": "Om år i yrket",
       "reviewYearsValue": "{years} år",
       "reviewYearsEmpty": "År ej angivna"
@@ -144,8 +127,7 @@
     "skill": {
       "addSkill": "Lägg till kompetens",
       "searchLabel": "Sök kompetens",
-      "searchHint": "Skriv minst två tecken för att söka. Välj en kompetens i listan för att lägga till den.",
-      "searchPrompt": "Skriv för att söka bland kompetenser.",
+      "searchHint": "Skriv minst två tecken.",
       "searching": "Söker…",
       "noResults": "Ingen kompetens matchar din sökning.",
       "added": "Tillagd",
@@ -157,7 +139,6 @@
     },
     "experience": {
       "label": "Antal års erfarenhet",
-      "hint": "Ungefärligt antal år du arbetat inom ditt område. Frivilligt; lämna tomt om du inte vill ange det.",
       "reviewValue": "{years} år",
       "reviewEmpty": "Inget angivet"
     },
@@ -172,80 +153,78 @@
     }
   },
   "account": {
-    "displayNameLabel": "Visningsnamn",
-    "displayNameHint": "Namnet som visas i appen och på dina ansökningar.",
-    "languageLabel": "Språk",
-    "languageSwedish": "Svenska",
-    "languageEnglish": "Engelska",
-    "saving": "Sparar…",
-    "saveProfile": "Spara profil",
-    "savedAt": "Sparat {time}.",
     "invalidInput": "Ogiltiga uppgifter.",
+    "reload": "Ladda om sidan",
     "danger": {
-      "title": "Farligt område",
-      "description": "Du kan radera ditt konto permanent. Åtgärden går inte att ångra och loggar ut dig från alla enheter."
+      "title": "Radera ditt konto",
+      "description": "Du kan radera ditt konto och allt du har sparat. I 30 dagar efteråt kan du få det återställt."
     },
     "delete": {
-      "trigger": "Radera konto permanent",
-      "title": "Radera konto permanent",
-      "description": "Den här åtgärden går inte att ångra. Ditt konto och all kopplad data raderas. Du loggas ut direkt efter att raderingen slutförts.",
+      "trigger": "Radera konto",
+      "title": "Radera ditt konto",
+      "description": "Ditt konto och allt du har sparat raderas, och du loggas ut på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla kontakt@jobbliggaren.se. Därefter raderas det slutgiltigt och går inte att få tillbaka.",
       "confirmEmailLabel": "Skriv din e-postadress för att bekräfta",
-      "expected": "Förväntad: {email}",
+      "expected": "Din e-postadress är {email}.",
+      "confirmMismatch": "Skriv din e-postadress som den står under fältet.",
       "cancel": "Avbryt",
       "deleting": "Raderar…",
-      "submit": "Radera mitt konto"
+      "submit": "Radera mitt konto",
+      "mailOff": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Vill du radera ditt konto kan du mejla <mail>kontakt@jobbliggaren.se</mail>.",
+      "failed": "Kontot raderades inte.",
+      "outcomeUnknown": "Vi kan inte se om kontot raderades. Ladda om sidan.",
+      "contactRoute": "Du kan också mejla <mail>kontakt@jobbliggaren.se</mail> och be oss radera kontot."
     },
     "reauth": {
-      "passwordLabel": "Lösenord"
-    },
-    "changePassword": {
-      "title": "Byt lösenord",
-      "description": "Välj ett nytt lösenord. När du byter loggas du ut från alla andra enheter.",
-      "trigger": "Byt lösenord",
-      "dialogDescription": "Ange ditt nuvarande lösenord och välj ett nytt. Du loggas ut från alla andra enheter men förblir inloggad här.",
-      "currentPasswordLabel": "Nuvarande lösenord",
-      "currentPasswordFieldName": "nuvarande lösenord",
-      "newPasswordLabel": "Nytt lösenord",
-      "newPasswordFieldName": "nytt lösenord",
-      "newPasswordHint": "Minst 12 tecken.",
-      "confirmPasswordLabel": "Bekräfta nytt lösenord",
-      "confirmPasswordFieldName": "bekräfta nytt lösenord",
-      "passwordsDontMatch": "Lösenorden matchar inte.",
-      "submit": "Byt lösenord",
-      "pending": "Byter…",
-      "cancel": "Avbryt",
-      "success": "Lösenordet är ändrat. Du är fortfarande inloggad här men utloggad från alla andra enheter."
+      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}.",
+      "send": "Skicka kod",
+      "sending": "Skickar…",
+      "sent": "Vi har skickat en kod till {email}. Koden gäller i 15 minuter.",
+      "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Skicka en ny kod och försök igen.",
+      "resendReceipt": "Vi har skickat en ny kod. Skriv in koden från det senaste mejlet.",
+      "cooldown": "En kod begärdes nyss för ditt konto. Vänta en minut och försök igen.",
+      "budgetExhausted": "Ditt konto har nått gränsen för hur många koder som kan skickas per dygn. Vänta ett dygn och försök igen.",
+      "unavailable": "Det går inte att skicka någon kod just nu. Försök igen om några minuter.",
+      "verifyUnavailable": "Det går inte att kontrollera koden just nu. Försök igen om några minuter.",
+      "codeSpent": "Koden du skrev in är förbrukad, så du behöver en ny kod när du försöker igen.",
+      "notLoggedIn": "Du är inte inloggad längre. Logga in igen och börja om.",
+      "toLogin": "Logga in"
     },
     "changeEmail": {
       "title": "Byt e-postadress",
-      "description": "Byt e-postadressen som är knuten till ditt konto. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken.",
-      "trigger": "Byt e-postadress",
-      "dialogDescription": "Ange ditt nuvarande lösenord och din nya e-postadress. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken, och då loggas du ut från alla enheter.",
-      "currentPasswordLabel": "Nuvarande lösenord",
-      "currentPasswordFieldName": "nuvarande lösenord",
+      "current": "Din e-postadress är {email}.",
+      "description": "Du bekräftar bytet med två koder, en till varje adress. När adressen är bytt loggas du ut på alla andra enheter.",
       "newEmailLabel": "Ny e-postadress",
-      "newEmailHint": "Formatet är namn@domän.se. Vi skickar bekräftelselänken hit.",
-      "sameEmail": "Den nya adressen måste skilja sig från din nuvarande.",
-      "submit": "Skicka bekräftelselänk",
-      "pending": "Skickar…",
+      "newEmailRequired": "Skriv in den nya e-postadressen.",
+      "invalidEmail": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
+      "sameEmail": "Den nya adressen är samma som din nuvarande. Skriv in en annan adress.",
+      "continue": "Fortsätt",
       "cancel": "Avbryt",
-      "success": "Vi har skickat en bekräftelselänk till din nya adress. Öppna länken för att slutföra bytet."
+      "dialogDescription": "Du byter till {newEmail}.",
+      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Koden gäller i 15 minuter.",
+      "codeLabel": "Kod till den nya adressen",
+      "codeHint": "Titta även i skräpposten.",
+      "wrongCode": "Koden stämmer inte. Använd koden från mejlet till den nya adressen och kontrollera siffrorna.",
+      "lastAttempt": "Ett försök kvar. Sedan behöver du börja om.",
+      "confirm": "Byt adress",
+      "confirming": "Byter…",
+      "startOver": "Börja om",
+      "deadCode": "Koden går inte att använda längre. Börja om för att få nya koder.",
+      "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Börja om för att få nya koder.",
+      "success": "Adressen är bytt, och du loggar in med {newEmail} från och med nu. Du är utloggad på alla andra enheter.",
+      "unusable": "Den nya e-postadressen går inte att använda. Kontrollera den eller skriv in en annan.",
+      "notDone": "Bytet genomfördes inte, och din adress är oförändrad.",
+      "incomplete": "Bytet kunde inte slutföras, och din adress är oförändrad. Vänta en stund.",
+      "outcomeUnknown": "Vi kan inte se om adressen byttes. Ladda om sidan."
     },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
-      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Ändringen sparades inte. Skriv namnet utan personnummer och spara igen.",
       "updateFailed": "Kunde inte uppdatera profilen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
-      "emailMismatch": "E-postadressen matchar inte ditt konto.",
-      "wrongPassword": "Lösenordet är felaktigt.",
-      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
-      "deleteFailed": "Kunde inte radera kontot.",
-      "changePasswordFailed": "Kunde inte byta lösenord.",
-      "emailTaken": "E-postadressen används redan av ett annat konto.",
-      "changeEmailFailed": "Kunde inte byta e-postadress.",
-      "changeEmailCooldown": "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.",
-      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon bekräftelselänk. Din adress är oförändrad. Försök igen senare."
+      "emailTaken": "E-postadressen används redan av ett annat konto. Skriv in en annan adress.",
+      "changeEmailCooldown": "Det går inte att begära ett adressbyte just nu. Försök igen senare.",
+      "changeEmailTargetBudget": "Du har nått gränsen för hur många nya adresser du kan byta till per dygn. Vänta ett dygn och försök igen.",
+      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Din adress är oförändrad. Försök igen senare."
     }
   }
 }

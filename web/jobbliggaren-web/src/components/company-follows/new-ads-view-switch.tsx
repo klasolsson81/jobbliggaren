@@ -27,7 +27,6 @@ interface NewAdsViewSwitchProps {
   /** The house's delivered filter vocabulary (`jobads.companyWatches.filter.activeOnlyMatched`). */
   filteredNote: string;
   emptyTitle: string;
-  emptyBody: string;
   emptyAction: string;
   /** Every new ad, server-rendered. */
   all: ReactNode;
@@ -43,7 +42,6 @@ export function NewAdsViewSwitch({
   matchingLabel,
   filteredNote,
   emptyTitle,
-  emptyBody,
   emptyAction,
   all,
   matching,
@@ -93,11 +91,10 @@ export function NewAdsViewSwitch({
           // a view with nothing in it and no way back stated.
           <div className="jp-empty">
             <div className="jp-empty__title">{emptyTitle}</div>
-            <p className="jp-empty__body">{emptyBody}</p>
             <div className="jp-empty__actions">
               <button
                 type="button"
-                className="jp-btn jp-btn--ghost"
+                className="jp-btn jp-btn--secondary"
                 onClick={() => setView("all")}
               >
                 {emptyAction}

@@ -9,7 +9,7 @@ export type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">
  * Shared discriminated-union renderer for a /foretag surface: `ok` → the section's
  * own content; `unauthorized` → login redirect; `rateLimited`/error → civic inline
  * notices (parity across surfaces so every read degrades identically). Extracted
- * from the pre-split /foretag hub (S1 #996) so the bevakade / smarta-bevakningar /
+ * from the pre-split /foretag hub (S1 #996) so the bevakade / branschbevakningar /
  * historik surfaces reuse one renderer (ADR 0030 list semantics — a collection
  * endpoint never surfaces `notFound`; it collapses to the error notice).
  */

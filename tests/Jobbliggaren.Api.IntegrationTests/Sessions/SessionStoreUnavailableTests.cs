@@ -20,7 +20,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Sessions;
 /// Verifierar hela 503-vägen end-to-end: en inre <see cref="RedisTimeoutException"/> (degraderad
 /// Redis) översätts av <see cref="SessionStoreResilienceDecorator"/> (#511) till
 /// <c>SessionStoreUnavailableException</c> → 503 (inte 401 eller 500), och 503-vägen loggar en
-/// dedikerad <c>session_store_unavailable</c>-Error via <c>SessionStoreUnavailableLog</c> (#512).
+/// dedikerad <c>store_unavailable</c>-Error med <c>store=session</c> via <c>StoreUnavailableLog</c> (#512).
 /// Säkerhetskrav: infrastrukturincident ska inte se ut som autentiseringsfel (ADR 0017 Turn 4).
 /// </summary>
 [Collection("Api")]
@@ -32,8 +32,7 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
 
         // Registrera en giltig session via fungerande store
-        var goodClient = factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(goodClient, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         // Bygg en ny factory-instans där den inre store:n timeout:ar (degraderad Redis) och
         // wrappas av den RIKTIGA decoratorn — precis som i produktion.
@@ -55,8 +54,7 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var goodClient = factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(goodClient, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         await using var brokenFactory = new BrokenSessionStoreFactory(factory);
         var brokenClient = brokenFactory.CreateClient();
@@ -71,12 +69,11 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_me_when_session_store_unavailable_logs_session_store_unavailable_error()
+    public async Task GET_me_when_the_session_store_is_down_logs_a_store_unavailable_error_naming_the_session_store()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var goodClient = factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(goodClient, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         await using var brokenFactory = new BrokenSessionStoreFactory(factory);
         var brokenClient = brokenFactory.CreateClient();
@@ -87,14 +84,15 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
 
         // #512: the outage must be observable — a dedicated Error event on the 503 path, so
-        // the TD-77 5xx alarm has a signal. Filter on the dedicated event-id (the request
+        // the #1172 5xx alarm has a signal. Filter on the dedicated event-id (the request
         // pipeline emits many other records); assert on the one we own.
         var unavailableLogs = brokenFactory.LogProvider.Logs
             .Where(l => l.EventId.Id == 2050).ToList();
         unavailableLogs.ShouldNotBeEmpty();
         var record = unavailableLogs[0];
         record.Level.ShouldBe(LogLevel.Error);
-        record.Message.ShouldContain("event_name=session_store_unavailable");
+        record.Message.ShouldContain("event_name=store_unavailable");
+        record.Message.ShouldContain($"store={SessionStoreUnavailableException.StoreName} ");
         // §5/data-minimisation: the log must not leak the bearer token / session-id, nor the inner
         // Redis exception message (it can embed the operated key). The broken inner threw
         // "Timeout performing GET (5000ms)" — its text must not appear in the log.

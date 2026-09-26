@@ -52,15 +52,15 @@ SEQ_ADMIN_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 
 
 **`SEQ_ADMIN_PASSWORD_DEV` är obligatorisk** — compose failar utan den. Auth på dev-Seq
 är PÅ sedan 2026-08-04 (#1198), och skälet är inte formalia: dev-Seq bär
-`ConsoleEmailSender`-rader med mejlkroppen, alltså aktiverings- och
-bekräftelselänkar i klartext. Loopback-bindningen ensam räckte inte som kontroll över
+`ConsoleEmailSender`-rader med mejlkroppen, alltså inloggningskoder och
+-länkar i klartext. Loopback-bindningen ensam räckte inte som kontroll över
 det materialet — den var dessutom mätt fel i månader medan compose-filens egen kommentar
 gick i god för den.
 
 **Sedan #1208 skrivs kroppen bara för en mottagare på en domän som RFC 2606/6761
 reserverar:** `.test`, `.example`, `.invalid`, `.localhost`, `example.com|net|org`.
-Registrerar du lokalt med någon annan adress loggas i stället en rad vars enda fält är
-`EmailKind` — ingen mottagare, ingen rubrik, ingen kropp — och då finns ingen länk att
+Loggar du in lokalt med någon annan adress loggas i stället en rad vars enda fält är
+`EmailKind` — ingen mottagare, ingen rubrik, ingen kropp — och då finns ingen kod eller länk att
 läsa ut. Använd en `.test`-adress: `klas@jobbliggaren.test` är den dokumenterade
 dev-inloggningen, och E2E-sviten kör redan mot `e2e.jobbliggaren.test`.
 
@@ -73,13 +73,20 @@ git check-ignore -v .env
 
 ### 2.2 Starta default-profile (dev)
 
+Before the first Redis start, run `pwsh scripts/prepare-dev-redis.ps1` from the
+repository root. Preserve the generated, gitignored `.redis-dev` directory.
+Repeated generation refuses; deleting it is credential rotation, not a restart.
+Only the stack owner recreates existing development Redis containers for this cutover.
+
 ```bash
 docker compose up -d
 ```
 
-Tre containrar startar (namn/portar per `docker-compose.yml`):
+Fyra containrar startar (namn/portar per `docker-compose.yml`):
 - `jobbliggaren-postgres-dev` på `5435` (db: `jobbliggaren`, user: `jobbliggaren`)
 - `jobbliggaren-redis-dev` på `6379`
+- `jobbliggaren-redis-volatile-dev` på `6381` — en Redis utan persistens (ingen AOF, ingen RDB, ingen
+  datavolym, `/data` på tmpfs), byggd för inloggningsutmaningens nycklar (ADR 0142 D1)
 - `jobbliggaren-seq` på `5341` (UI + API) och `5342` (ingestion)
 
 ### 2.3 Verifiera
@@ -93,8 +100,12 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
 # → PostgreSQL 18.3 ...
 
 # Redis
-docker exec jobbliggaren-redis-dev redis-cli ping
-# → PONG
+docker exec jobbliggaren-redis-dev sh /usr/local/bin/redis-healthcheck health-persistent /run/redis-policy/health-password
+# → exit 0 (the health script does not print credentials or a reply)
+
+# Redis utan persistens
+docker exec jobbliggaren-redis-volatile-dev sh /usr/local/bin/redis-healthcheck health-volatile /run/redis-policy/health-password
+# → exit 0 (the health script does not print credentials or a reply)
 
 # Seq UI
 curl -I http://localhost:5341
@@ -119,6 +130,15 @@ openssl rand -base64 32   # → AuditPseudonymization:PepperBase64
 openssl rand -base64 32   # → CompanyWatchPseudonymization:PepperBase64
 openssl rand -base64 32   # → CvReviewFingerprintPseudonymization:PepperBase64
 ```
+
+Both hosts require an authenticated persistent Redis connection. API additionally
+requires the volatile store. After generating `.redis-dev`, export absolute `_FILE`
+paths per process: API reads `api-persistent/connection` and `api-volatile/connection`;
+Worker reads only `worker-persistent/connection`. The two variables are
+`ConnectionStrings__Redis_FILE` and `ConnectionStrings__VolatileRedis_FILE`.
+The file provider is last and overrides JSON/environment values. Missing, empty,
+unreadable or malformed files refuse startup; anonymous endpoint placeholders in
+Development settings are insufficient. Never place Redis passwords in tracked JSON.
 
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
 källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
@@ -202,7 +222,20 @@ Om `docker compose up` säger `Bind for 127.0.0.1:5435 failed: port is already a
 falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel redan
 innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
-Samma procedur för 5433 (test-postgres), 6379/6380 (redis), 5341/5342 (seq).
+Samma procedur för 5433 (test-postgres), 6379/6380/6381 (redis), 5341/5342 (seq).
+
+### 6.1b `/api/ready` svarar 503, eller `POST /auth/challenge` svarar 503 (#1735)
+
+API:t startar även när `redis-volatile-dev` är nere (anslutningen går i återanslutningsläge i stället
+för att fälla starten), men readiness-kontrollen `redis-volatile` blir Unhealthy och varje anrop som
+rör inloggningsutmaningen svarar den uniforma 503:an. Loggraden är `event_name=store_unavailable
+store=volatile-redis`. Vanligaste orsaken: en `docker compose up -d` som kördes före #1773 och aldrig
+om efteråt, så containern finns inte.
+
+```bash
+docker compose up -d
+docker exec jobbliggaren-redis-volatile-dev sh /usr/local/bin/redis-healthcheck health-volatile /run/redis-policy/health-password   # → exit 0 (the health script does not print credentials or a reply)
+```
 
 ### 6.2 Docker Desktop inte igång
 
@@ -313,9 +346,9 @@ Alla tre startas av CC som bakgrundsprocesser.
    **ingen** `appsettings.Local.json`. Ge därför den fulla connection-stringen via
    env-var-override (`ConnectionStrings__Postgres`), byggd från `.env`:s
    `POSTGRES_PASSWORD_DEV`. Utan den → DB-auth-fel.
-2. **Worker kräver `ConnectionStrings__Redis`** (ADR 0064 — RefreshLandingStatsJob).
-   API:t har Redis i appsettings; Worker:n får den bara via env. Startfel
-   `ConnectionStrings:Redis saknas` = denna glömd.
+2. **Use the correct Redis identity for each host.** API requires `api-persistent`
+   and `api-volatile`; Worker requires `worker-persistent`. Export the generated
+   absolute `_FILE` paths for each process as shown below. Do not share the API value.
 3. **FE kräver `BACKEND_URL`.** FE:ns server-side-actions + `getLandingStats`
    (`src/lib/api/landing.ts`) läser `process.env.BACKEND_URL`. Det finns **ingen**
    `.env.local`. Startar du `pnpm dev` UTAN `BACKEND_URL=http://localhost:5049` →
@@ -355,6 +388,17 @@ Alla tre startas av CC som bakgrundsprocesser.
    `CvReviewFingerprintPseudonymization`) via env, **lästa ur API:ts `appsettings.Local.json`
    så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
    krypterade/pseudonymiserade data).
+6. **Both Redis startup probes must pass before API serves requests.** Worker checks
+   its persistent connection before starting jobs. Check the ACL-protected containers
+   and the process-specific secret-file paths when startup refuses.
+7. **Inloggningens budgetar är konstanter och TYSTA (#1738).** En inloggning är en mejlad kod, och
+   `LoginChallengePolicy` går inte att konfigurera bort: samma adress igen inom 60 sekunder, eller en
+   fjärde gång på tio minuter, får ett `challengeId` UTAN post och inget mejl, och en NY adress drar
+   på ett globalt tak om 20 mejl per dygn till adresser utan konto. Allt svarar 202. Symptomet lokalt
+   är att `POST /api/v1/dev/login-code` svarar 404 tills Playwright-hjälparen ger upp (den namnger
+   orsakerna). Budgetnycklarna ligger på `redis-volatile`, som inte persisterar, så
+   `docker compose restart redis-volatile` nollställer dem. Därför loggar e2e-specarna in EN gång
+   per fil (`tests/e2e/helpers/session.ts`), och bara ett test skapar konto genom flödet.
 
 ### Portar (matchar `docker-compose.yml`)
 
@@ -364,6 +408,7 @@ Alla tre startas av CC som bakgrundsprocesser.
 | FE (Next dev) | 3000 | `pnpm dev` |
 | Postgres dev | 5435 | db/user `jobbliggaren`, container `jobbliggaren-postgres-dev` |
 | Redis dev | 6379 | container `jobbliggaren-redis-dev` |
+| Redis dev, utan persistens | 6381 | container `jobbliggaren-redis-volatile-dev` |
 
 ### Start / omstart (Git Bash, från repo-roten)
 
@@ -372,7 +417,7 @@ Alla tre startas av CC som bakgrundsprocesser.
 #          + src/Jobbliggaren.Api/appsettings.Local.json ifylld (fälla 4 + .example-mallen).
 PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' .env | cut -d= -f2-)
 export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
-export ConnectionStrings__Redis="localhost:6379"
+REDIS_FILES=$(pwd -W)/.redis-dev  # Git Bash on Windows; use $(pwd) on Linux
 export ASPNETCORE_ENVIRONMENT=Development
 export DOTNET_ENVIRONMENT=Development                 # Worker är generic host (fälla 5)
 
@@ -396,7 +441,10 @@ export CompanyWatchPseudonymization__PepperBase64=$(python -c "import json;print
 export CvReviewFingerprintPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['CvReviewFingerprintPseudonymization']['PepperBase64'])")
 
 # 3. API FÖRST (bakgrund) → invänta /api/ready=200 → sedan Worker + FE (bakgrund).
+ConnectionStrings__Redis_FILE="$REDIS_FILES/api-persistent/connection" \
+ConnectionStrings__VolatileRedis_FILE="$REDIS_FILES/api-volatile/connection" \
 dotnet run --project src/Jobbliggaren.Api --launch-profile http --no-build   # → http://localhost:5049
+ConnectionStrings__Redis_FILE="$REDIS_FILES/worker-persistent/connection" \
 dotnet run --project src/Jobbliggaren.Worker --no-build                      # Hangfire, ingen HTTP-yta
 cd web/jobbliggaren-web && BACKEND_URL=http://localhost:5049 pnpm dev        # → http://localhost:3000 (fälla 3)
 ```

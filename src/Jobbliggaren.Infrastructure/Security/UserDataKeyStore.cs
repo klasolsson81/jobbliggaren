@@ -5,6 +5,8 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Jobbliggaren.Infrastructure.Security;
 
@@ -16,12 +18,13 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <see cref="DeleteDataKeysAsync"/> deltar i hard-delete-transaktionen (C6).
 /// DEK-unwrap memoiseras per scope via <see cref="IUserDataKeyCache"/>.
 /// </summary>
-public sealed class UserDataKeyStore(
+public sealed partial class UserDataKeyStore(
     AppDbContext db,
     IDataKeyProvider dataKeyProvider,
     IUserDataKeyCache cache,
     IDateTimeProvider clock,
-    IDbExceptionInspector dbExceptionInspector) : IUserDataKeyStore
+    IDbExceptionInspector dbExceptionInspector,
+    ILogger<UserDataKeyStore> logger) : IUserDataKeyStore
 {
     // #501: single-version-invariant. DEK-versionen och sentinel-prefixet
     // (FieldEncryptionSentinel.VersionPrefix = "v1:") är låsta till SAMMA version.
@@ -98,6 +101,16 @@ public sealed class UserDataKeyStore(
             // bevarat: unwrap-fel propageras, ingen fallback-DEK.
             db.Entry(entity).State = EntityState.Detached;
 
+            // #1633 — the only record this absorb path emits. IsUniqueConstraintViolation
+            // discriminates on SQLSTATE 23505 alone, never on the constraint, so an
+            // unexpected unique violation is swallowed here exactly like the expected
+            // first-use race. Until #1633 that was still visible: EF logged the constraint
+            // name at Error, in MessageText, which Npgsql never redacts. The re-level moved
+            // that below both sinks, so the name is carried here instead. Constraint names
+            // are schema identifiers; no owner id is logged.
+            LogFirstUseRaceLost(
+                logger, (ex.InnerException as PostgresException)?.ConstraintName ?? "unknown");
+
             var winner = await db.Set<UserDataKey>()
                 .AsNoTracking()
                 .Where(k => k.JobSeekerId == owner)
@@ -149,4 +162,8 @@ public sealed class UserDataKeyStore(
             .ExecuteDeleteAsync(ct)
             .ConfigureAwait(false);
     }
+
+    [LoggerMessage(EventId = 4901, Level = LogLevel.Information,
+        Message = "UserDataKey: first-use race lost on constraint {ConstraintName} — unwrapping the winner's row.")]
+    private static partial void LogFirstUseRaceLost(ILogger logger, string constraintName);
 }

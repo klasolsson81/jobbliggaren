@@ -1,44 +1,55 @@
-using System.Buffers.Text;
-using System.Text;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Infrastructure.Auth;
 
 public sealed partial class UserAccountService(
     UserManager<ApplicationUser> userManager,
-    ILoginTimingEqualizer loginTimingEqualizer,
-    IOptions<AuthOptions> authOptions,
-    ILogger<UserAccountService> logger)
-    : IUserAccountService
+    ILogger<UserAccountService> logger,
+    IDbExceptionInspector dbExceptionInspector)
+    : IUserAccountService, ILoginAccountLookup, IPasswordlessAccountCreator
 {
-    public async Task<Result<Guid>> CreateUserAsync(
-        string email, string password, CancellationToken ct)
+    /// <summary>
+    /// #1737 (ADR 0142 D10) — a confirmed user with no password: <c>CreateAsync(user)</c> runs no password
+    /// validator. The user name IS the address, and that is what keeps the address unique: the unique index
+    /// is on the normalised user name, while <c>RequireUniqueEmail</c> is a validator that reads before it
+    /// writes. <c>CreatedAt</c> is left to the database, so the orphan sweep's grace window reads one clock
+    /// for every account.
+    /// </summary>
+    public async Task<Result<Guid>> CreatePasswordlessUserAsync(string email, CancellationToken ct)
     {
+        if (!StorableAddress.IsStorable(email))
+            return Result.Failure<Guid>(EmailNotStorableFailure());
+
         var user = new ApplicationUser
         {
             UserName = email,
             Email = email,
+            EmailConfirmed = true,
         };
 
-        var result = await userManager.CreateAsync(user, password);
+        return CreatedOrFailure(await userManager.CreateAsync(user), user);
+    }
+
+    Task IPasswordlessAccountCreator.DeleteAsync(Guid userId, CancellationToken ct) => DeleteUserAsync(userId, ct);
+
+    private static Result<Guid> CreatedOrFailure(IdentityResult result, ApplicationUser user)
+    {
         if (!result.Succeeded)
         {
             var error = result.Errors.First();
 
-            // #481 Low — do not leak account existence on registration. Identity's duplicate errors
-            // carry a raw English message that echoes the submitted address ("Username 'x@y.z' is
-            // already taken"); collapse them to a generic localized message that names neither the
-            // field nor the address. The 200-vs-400 status oracle inherent to instant-login
-            // registration is deferred (closing it needs email-confirmation-first registration).
-            // Other Identity codes stay specific: they are genuinely actionable (e.g. InvalidEmail) and
-            // the register validator already caught password/format, so the duplicate is the only
-            // enumeration-relevant failure. CTO-bind #2.
+            // #481 Low — Identity's duplicate errors carry a raw English message that echoes the
+            // submitted address ("Username 'x@y.z' is already taken"); collapse them to one code that
+            // names neither the field nor the address. Other Identity codes stay specific (e.g.
+            // InvalidEmail).
             if (IsDuplicateAccountError(error.Code))
                 return Result.Failure<Guid>(
                     DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage));
@@ -50,43 +61,20 @@ public sealed partial class UserAccountService(
         return Result.Success(user.Id);
     }
 
-    public async Task<Result> ChangePasswordAsync(
-        Guid userId, string currentPassword, string newPassword, CancellationToken ct)
-    {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return Result.Failure(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
-
-        // ChangePasswordAsync verifies the current password, sets the new one, and rotates the
-        // security stamp — atomically. Enforces the registered password policy (RequiredLength = 12
-        // -> PasswordTooShort). Map the first error the same way as CreateUserAsync so the central
-        // DomainError.ToProblemResult mapping resolves the status (Validation -> 400).
-        var result = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-        if (!result.Succeeded)
-        {
-            var error = result.Errors.First();
-            return Result.Failure(
-                DomainError.Validation($"Auth.{error.Code}", error.Description));
-        }
-
-        return Result.Success();
-    }
-
-    public async Task DeleteUserAsync(Guid userId, CancellationToken ct)
+    private async Task DeleteUserAsync(Guid userId, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return;
 
         // #1349 — the IdentityResult was discarded. This is the COMPENSATING delete in
-        // RegisterCommandHandler's JobSeeker.Register failure arm, so a failure here leaves exactly
+        // AccountRegistrar's JobSeeker.Register failure arm, so a failure here leaves exactly
         // the orphaned Identity row that flow exists to prevent — and said nothing about it. The
         // row is then invisible until HardDeleteAccountsJob sweeps it a day later, or until someone
         // reads the reverse of that sweep's counter.
         //
-        // Codes, never Descriptions: the same discipline as LogEmailConfirmedPersistFailed below.
-        // A Description is user-facing prose that can carry the value that failed; a code cannot.
+        // Codes, never Descriptions: a Description is user-facing prose that can carry the value that
+        // failed; a code cannot.
         //
         // Logged rather than thrown, deliberately. The caller is already returning a failure to the
         // user and a throw here would replace a truthful validation error with a 500 — the
@@ -95,63 +83,6 @@ public sealed partial class UserAccountService(
         if (!result.Succeeded)
             LogCompensatingDeleteFailed(
                 userId, string.Join(", ", result.Errors.Select(e => e.Code)));
-    }
-
-    public async Task<Result<UserCredentials>> ValidateCredentialsAsync(
-        string email, string password, CancellationToken ct)
-    {
-        var user = await userManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            // Constant-time defense (#481 Low): an unknown email would otherwise short-circuit here
-            // before any hash comparison, while a known email with a wrong password pays a full PBKDF2
-            // derivation below — the latency delta enumerates registered accounts. Pay the equivalent
-            // cost so response timing reveals nothing. Not-found branch ONLY: the lockout branch stays
-            // cheap by design (#503 anti-DoS, CTO-bind #1) and its residual timing channel does not aid
-            // enumeration (a one-attempt-per-email probe never locks an account).
-            loginTimingEqualizer.Equalize(password);
-            return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
-        }
-
-        // #503 (OWASP A07, senior-cto-advisor G1): honor Identity's lockout BEFORE the
-        // hash check. A locked account is rejected without burning a password comparison
-        // and without incrementing further. A distinct internal code (AccountLocked) lets
-        // the Api handler emit an account_locked_out audit — the wire response is however
-        // normalized to a byte-identical InvalidCredentials (AuthEndpoints.ToErrorResult)
-        // so lockout state does not leak as an account-enumeration or DoS-target oracle.
-        // Requires LockoutEnabled=true on the row, which UserManager.CreateAsync stamps
-        // from opts.Lockout.AllowedForNewUsers (DependencyInjection).
-        if (await userManager.IsLockedOutAsync(user))
-            return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.AccountLocked, AuthErrorCodes.InvalidCredentialsMessage));
-
-        if (!await userManager.CheckPasswordAsync(user, password))
-        {
-            // Count the failed attempt. AccessFailedAsync auto-sets LockoutEnd once
-            // MaxFailedAccessAttempts is reached (opts.Lockout, DependencyInjection).
-            await userManager.AccessFailedAsync(user);
-            return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
-        }
-
-        // A successful verify resets the counter (only when >0 to avoid a needless write).
-        if (user.AccessFailedCount > 0)
-            await userManager.ResetAccessFailedCountAsync(user);
-
-        // #714 — email-confirmation-first login gate. Placed AFTER the successful password check, so
-        // it is reachable ONLY with a correct password and is therefore NOT an account-enumeration
-        // oracle: an unknown email / wrong password still returns the byte-identical InvalidCredentials
-        // 401 above. A distinct code lets the Api render an actionable 403 ("confirm your email");
-        // ReauthenticationService normalizes it back to InvalidCredentials so the re-auth surface stays
-        // a uniform 401. Inert when the flag is OFF (legacy instant-login). No AccessFailed increment:
-        // the credentials were valid, so this is not a failed login attempt.
-        if (authOptions.Value.RequireEmailConfirmation && !user.EmailConfirmed)
-            return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.EmailNotConfirmed, AuthErrorCodes.EmailNotConfirmedMessage));
-
-        var roles = await userManager.GetRolesAsync(user);
-        return Result.Success(new UserCredentials(user.Id, roles.ToList()));
     }
 
     public async Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct)
@@ -182,290 +113,96 @@ public sealed partial class UserAccountService(
         return new AccountSummary(user.Email, roles.ToList());
     }
 
-    public async Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
+    public async Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct)
+    {
+        if (!StorableAddress.IsStorable(newEmail))
+            return Result.Failure(EmailNotStorableFailure());
+
+        if (await userManager.FindByEmailAsync(newEmail) is not null)
+            return Result.Failure(EmailTakenFailure());
+
+        // The user name too: a swap that failed after its first write leaves the new address as a user name and
+        // not as an address, and the unique index holds it there (security-auditor, #1790). Only for someone else:
+        // on the caller's own row it is that swap, and the retry completes it.
+        var nameHolder = await userManager.FindByNameAsync(newEmail);
+        return nameHolder is null || nameHolder.Id == userId ? Result.Success() : Result.Failure(EmailTakenFailure());
+    }
+
+    // ILoginAccountLookup — one consumer, LoginSubjectResolver (#1735). A separate port rather than an
+    // IUserAccountService member, so this service still offers no bare existence check to its callers.
+    // A row with no stored address cannot be mailed and answers like no account.
+    async Task<LoginAccount?> ILoginAccountLookup.FindAccountAsync(string email, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(email);
-        return user is not null;
+        return user is { Email: { } accountEmail } ? new LoginAccount(user.Id, accountEmail) : null;
     }
 
-    public async Task<Result<string>> GenerateChangeEmailTokenAsync(
-        Guid userId, string newEmail, CancellationToken ct)
+    public async Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
     {
+        if (!StorableAddress.IsStorable(newEmail))
+            return Result.Failure(EmailNotStorableFailure());
+
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            return Result.Failure<string>(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+            return Result.Failure(DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
-        // Opaque DataProtector token (CTO-bind #1) bound to (SecurityStamp, "ChangeEmail:{newEmail}").
-        // Nothing is persisted; the pending new email lives inside the token. The email is NOT changed.
-        var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
-
-        // Base64Url so the token (base64 with +,/,=) survives the email link -> query string -> POST
-        // round-trip without a layer turning '+' into a space (CTO-bind #2 mitigation). Decoded 1:1
-        // in ConfirmChangeEmailAsync.
-        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
-        return Result.Success(urlSafeToken);
-    }
-
-    public async Task<Result> ConfirmChangeEmailAsync(
-        Guid userId, string newEmail, string urlSafeToken, CancellationToken ct)
-    {
-        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token,
-        // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
-        // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
-        // 401). Callers surface DomainError.Validation -> 400.
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return InvalidTokenFailure();
-
-        string token;
+        // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
+        // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
+        // an account by its e-mail, so two swaps that both wrote the address would leave one inbox opening
+        // either account. Taking the name first lets the index refuse the loser with nothing written.
+        IdentityResult userNameResult;
         try
         {
-            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
+            userNameResult = await userManager.SetUserNameAsync(user, newEmail);
         }
-        catch (FormatException)
+        catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
-            // A malformed (non-Base64Url) token is just an invalid token — same uniform failure.
-            return InvalidTokenFailure();
+            // Both swaps passed the validator's read; the index refused this one's write.
+            return Result.Failure(EmailTakenFailure());
         }
 
-        // ChangeEmailAsync verifies the token against (SecurityStamp, "ChangeEmail:{newEmail}"), sets
-        // Email + NormalizedEmail + EmailConfirmed=true, and rotates the security stamp (single-use:
-        // the token and any sibling pending token die). Re-runs the RequireUniqueEmail validator, so a
-        // taken address fails here — the TOCTOU backstop for the request-time pre-check.
-        var changeResult = await userManager.ChangeEmailAsync(user, newEmail, token);
-        if (!changeResult.Succeeded)
-            return InvalidTokenFailure();
-
-        // Risk 1 (CTO-bind): ChangeEmailAsync updates Email/NormalizedEmail but NOT UserName.
-        // Registration sets UserName == email (CreateUserAsync) and login resolves via
-        // FindByEmailAsync, so keep UserName in lockstep to avoid stale PII (the old address lingering
-        // in UserName / NormalizedUserName) + a latent divergence. Can't-fail in practice (newEmail is
-        // now this user's unique email and every UserName mirrors a unique Email); if it ever lags we
-        // do NOT fail the completed change — the recovery vector already moved — we log and continue.
-        var userNameResult = await userManager.SetUserNameAsync(user, newEmail);
         if (!userNameResult.Succeeded)
-            LogUserNameSyncLagged(userId);
-
-        return Result.Success();
-    }
-
-    public async Task<Result<string>> GenerateEmailConfirmationTokenAsync(
-        Guid userId, CancellationToken ct)
-    {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return Result.Failure<string>(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
-
-        // #714 — opaque DataProtector token (EmailConfirmationTokenProvider, pinned in DI) bound to the
-        // security stamp + the "EmailConfirmation" purpose. Nothing is persisted; the token IS the
-        // pending activation state. No pending new address (contrast the change-email token).
-        var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-
-        // Base64Url so the token survives the email link -> query string -> POST round-trip (parity
-        // with the change-email token, #679). Decoded 1:1 in ConfirmEmailAsync.
-        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
-        return Result.Success(urlSafeToken);
-    }
-
-    public async Task<Result> ConfirmEmailAsync(
-        Guid userId, string urlSafeToken, CancellationToken ct)
-    {
-        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token): a
-        // PUBLIC confirm endpoint must not distinguish them, or it becomes an account-existence /
-        // enumeration oracle (parity with ConfirmChangeEmailAsync + AuthProblem's byte-identical 401).
-        // Callers surface DomainError.Validation -> 400.
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return InvalidConfirmationTokenFailure();
-
-        string token;
-        try
         {
-            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
-        }
-        catch (FormatException)
-        {
-            // A malformed (non-Base64Url) token is just an invalid token — same uniform failure.
-            return InvalidConfirmationTokenFailure();
+            return Result.Failure(userNameResult.Errors.Any(error => IsDuplicateAccountError(error.Code))
+                ? EmailTakenFailure()
+                : EmailChangeIncompleteFailure());
         }
 
-        // ConfirmEmailAsync verifies the token against (SecurityStamp, "EmailConfirmation") and sets
-        // EmailConfirmed=true. It does NOT rotate the security stamp, so a double-click within the 24h
-        // lifespan is idempotent (both succeed) — the safer click-through UX for an activation link
-        // (contrast ChangeEmailAsync, which rotates the stamp because a recovery-vector change must be
-        // single-use). No UserName lockstep: the address is unchanged.
-        var confirmResult = await userManager.ConfirmEmailAsync(user, token);
-        if (!confirmResult.Succeeded)
-            return InvalidConfirmationTokenFailure();
+        // ChangeEmailAsync sets Email + NormalizedEmail + EmailConfirmed=true, re-runs RequireUniqueEmail and
+        // rotates the security stamp again. Its token argument proves nothing: the code proven in the new inbox
+        // was the credential, and the token is minted after the user-name write rotated the stamp.
+        var swapToken = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
+        var changeResult = await userManager.ChangeEmailAsync(user, newEmail, swapToken);
+        if (!changeResult.Succeeded)
+        {
+            LogAddressWriteFailedAfterUserName(userId);
+            return Result.Failure(EmailChangeIncompleteFailure());
+        }
 
         return Result.Success();
-    }
-
-    public async Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(
-        string email, CancellationToken ct)
-    {
-        // #733 — flag-gate FIRST (symmetric with the login gate above): flag-OFF (the prod-safe default)
-        // => uniform no-op. Constant-time, target-independent, before any DB lookup — never an existence
-        // signal. Preserves #714's prod-safe default OFF: instant-login accounts are all
-        // EmailConfirmed=false, so without this gate an OFF endpoint would mail every registered user.
-        if (!authOptions.Value.RequireEmailConfirmation)
-            return null;
-
-        // An account exists at this address AND is still unconfirmed. A confirmed OR non-existent address
-        // both yield null (indistinguishable). Accounts are hard-deleted (no soft-delete row lingers —
-        // DeleteUserAsync), so no deleted-state gate is needed. Mirrors FindByEmailAsync in
-        // ValidateCredentialsAsync.
-        var user = await userManager.FindByEmailAsync(email);
-        if (user is not { EmailConfirmed: false, Email: { } accountEmail })
-            return null;
-
-        // Same opaque DataProtector token + Base64Url encode as GenerateEmailConfirmationTokenAsync (the
-        // register-path token) so the emailed link is byte-shaped identically and ConfirmEmailAsync decodes
-        // it 1:1. Minted here, Api-side, in the same Data-Protection keyring that validates it at
-        // /verify-email (CTO 2026-07-10 / ADR 0102 — no cross-process token).
-        var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
-        return new EmailConfirmationResend(user.Id, accountEmail, urlSafeToken);
     }
 
     // Identity IdentityErrorDescriber codes (== the describer method names) for a taken username /
-    // email. With UserName == Email + RequireUniqueEmail, a duplicate register trips both (#481 Low).
+    // email. With UserName == Email + RequireUniqueEmail, a duplicate create trips both (#481 Low).
     private const string IdentityDuplicateUserNameCode = "DuplicateUserName";
     private const string IdentityDuplicateEmailCode = "DuplicateEmail";
 
     private static bool IsDuplicateAccountError(string code) =>
         code == IdentityDuplicateUserNameCode || code == IdentityDuplicateEmailCode;
 
-    private static Result InvalidTokenFailure() =>
-        Result.Failure(DomainError.Validation(
-            "Auth.InvalidEmailChangeToken",
-            "Bekräftelselänken är ogiltig eller har gått ut. Begär en ny ändring av e-postadressen."));
+    private static DomainError EmailNotStorableFailure() =>
+        DomainError.Validation(AuthErrorCodes.EmailNotStorable, AuthErrorCodes.EmailNotStorableMessage);
 
-    public async Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(
-        string email, CancellationToken ct)
-    {
-        // No RequireEmailConfirmation gate, unlike the resend sibling above: holding the emailed token
-        // proves inbox control, which is what confirmation proves, so an unconfirmed account is still
-        // entitled to recover. An account with no stored address cannot be mailed and yields null like
-        // any other ineligible case — indistinguishable to the caller, which is the point.
-        //
-        // This half writes nothing. It is reached from an unauthenticated endpoint taking an arbitrary
-        // address, so confirming here would let anyone confirm anyone; the EmailConfirmed write belongs
-        // after token verification and lives in ResetPasswordAsync (#1303).
-        var user = await userManager.FindByEmailAsync(email);
-        if (user is not { Email: { } accountEmail })
-            return null;
+    private static DomainError EmailTakenFailure() =>
+        DomainError.Conflict(AuthErrorCodes.EmailTaken, AuthErrorCodes.EmailTakenMessage);
 
-        // Same Base64Url shape as the two sibling mints so the emailed link survives the query round-trip
-        // unescaped. Minted here, Api-side, in the same Data-Protection keyring that validates it at
-        // /reset-password (CTO 2026-07-10; see the port for why this cites the decision and not an ADR —
-        // "ADR 0102" does not exist). The provider behind this call is PasswordResetTokenProvider, whose
-        // lifespan is PasswordResetTokenProviderOptions.LifespanMinutes rather than the shared 24h.
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
-
-        // The account's OWN address, never the submitted spelling: Identity's lookup is case-insensitive,
-        // so echoing the request back would mail a form the account does not have.
-        return new PasswordResetDelivery(user.Id, accountEmail, urlSafeToken);
-    }
-
-    public async Task<Result> ResetPasswordAsync(
-        Guid userId, string urlSafeToken, string newPassword, CancellationToken ct)
-    {
-        // Uniform failure for every TOKEN rejection (unknown user, malformed, wrong, expired) — a PUBLIC
-        // endpoint must not distinguish them, or it becomes an existence oracle. Parity with
-        // ConfirmEmailAsync above.
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return InvalidPasswordResetTokenFailure();
-
-        string token;
-        try
-        {
-            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
-        }
-        catch (FormatException)
-        {
-            return InvalidPasswordResetTokenFailure();
-        }
-
-        // ResetPasswordAsync verifies the token FIRST and only then runs the password validators
-        // (UserManager.ResetPasswordAsync -> UpdatePasswordHash(validatePassword: true)). Three
-        // consequences this method depends on, in order:
-        //   1. PwnedPasswordValidator (#616) and the RequiredLength=12 rule both run here, with no
-        //      registration of their own — which is what the #616 comment meant by "any future reset flow".
-        //   2. The security stamp rotates only on SUCCESS, so the token is single-use, while a rejected
-        //      password leaves the same link usable for a retry.
-        //   3. A password error is therefore reachable ONLY with a valid token, which is why the arm below
-        //      may name the failing rule instead of collapsing it. Anyone who can reach it already holds
-        //      the token; the specific answer costs them nothing and tells a real user what to fix.
-        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
-        if (!result.Succeeded)
-        {
-            var error = result.Errors.First();
-            return error.Code == IdentityInvalidTokenCode
-                ? InvalidPasswordResetTokenFailure()
-                : Result.Failure(DomainError.Validation($"Auth.{error.Code}", error.Description));
-        }
-
-        // Clear an active lockout: the failed-attempt counter belongs to the credential just replaced.
-        // Without this, an attacker who brute-forces a victim's login locks them out for 15 minutes and
-        // a legitimate reset does not release it — the recovery path would not recover. Not a bypass
-        // primitive: reaching this line requires a token only the inbox owner receives.
-        await userManager.ResetAccessFailedCountAsync(user);
-        await userManager.SetLockoutEndDateAsync(user, null);
-
-        // #1303 — the reset RECORDS the address as confirmed. The token reaching this line was mailed to
-        // that address, which is the same proof ConfirmEmailAsync and ChangeEmailAsync accept, so this
-        // applies an existing rule rather than a weaker one. Without it the reset costs the user a second
-        // errand: the stamp rotation above kills the confirmation link already in their inbox, so they
-        // must fetch another through the login-403 resend (#733) after already proving inbox control.
-        //
-        // NOT gated on RequireEmailConfirmation, and the asymmetry with the resend sibling is deliberate:
-        // that flag governs ENFORCEMENT at login, while this is a fact about the address. Neither
-        // existing writer consults it. Flag-OFF every reader of the column is itself flag-gated, so the
-        // write is observationally inert and a branch would add a second path whose polarities cannot be
-        // told apart. Why UpdateAsync is safe to call here: ADR 0127 Amendment 2026-08-11.
-        if (!user.EmailConfirmed)
-        {
-            user.EmailConfirmed = true;
-            var confirmResult = await userManager.UpdateAsync(user);
-            // Log and continue, matching the notice-send arm in ResetPasswordCommandHandler and the
-            // UserName-sync arm in ConfirmChangeEmailAsync above: the password is already changed and the
-            // token already spent, so throwing would skip the session teardown and the User.PasswordReset
-            // audit row, and answer 500 to a user whose retry then reports "invalid link". Codes, never
-            // Descriptions — four of the five reachable ones interpolate the address.
-            if (!confirmResult.Succeeded)
-                LogEmailConfirmedPersistFailed(
-                    userId, string.Join("; ", confirmResult.Errors.Select(e => e.Code)));
-        }
-
-        return Result.Success();
-    }
-
-    private const string IdentityInvalidTokenCode = "InvalidToken";
-
-    private static Result InvalidPasswordResetTokenFailure() =>
-        Result.Failure(DomainError.Validation(
-            AuthErrorCodes.InvalidPasswordResetToken,
-            AuthErrorCodes.InvalidPasswordResetTokenMessage));
-
-    private static Result InvalidConfirmationTokenFailure() =>
-        Result.Failure(DomainError.Validation(
-            AuthErrorCodes.InvalidEmailConfirmationToken,
-            AuthErrorCodes.InvalidEmailConfirmationTokenMessage));
+    private static DomainError EmailChangeIncompleteFailure() =>
+        DomainError.Conflict(AuthErrorCodes.EmailChangeIncomplete, AuthErrorCodes.EmailChangeIncompleteMessage);
 
     [LoggerMessage(4001, LogLevel.Warning,
-        "[UserAccountService] Change-email: UserName sync lagged Email for user {UserId} " +
-        "(username kept stale, email change succeeded)")]
-    private partial void LogUserNameSyncLagged(Guid userId);
-
-    [LoggerMessage(4006, LogLevel.Warning,
-        "[UserAccountService] Password reset: persisting EmailConfirmed failed for user {UserId} " +
-        "({ErrorCodes}) (the reset itself succeeded; the login 403 still offers a confirmation resend)")]
-    private partial void LogEmailConfirmedPersistFailed(Guid userId, string errorCodes);
+        "[UserAccountService] Change-email: the address write failed after the user-name write for user " +
+        "{UserId} (user name moved, email kept; the change was refused)")]
+    private partial void LogAddressWriteFailedAfterUserName(Guid userId);
 
     [LoggerMessage(4007, LogLevel.Warning,
         "[UserAccountService] Compensating delete failed for user {UserId} ({ErrorCodes}) — an " +

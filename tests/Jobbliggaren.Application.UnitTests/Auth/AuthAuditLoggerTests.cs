@@ -1,3 +1,6 @@
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -53,10 +56,72 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger();
 
-        sut.LoginSucceeded(Guid.NewGuid(), "abc123…");
+        sut.LoginSucceeded(Guid.NewGuid(), "abc123…", LoginMethod.Code);
 
         recorder.Latest.EventId.Id.ShouldBe(1001);
         recorder.Latest.Level.ShouldBe(LogLevel.Information);
+    }
+
+    [Fact]
+    public void LoginSucceeded_RecordsHowTheSessionWasEarned()
+    {
+        var (sut, recorder) = CreateLogger();
+
+        sut.LoginSucceeded(Guid.NewGuid(), "abc123…", LoginMethod.Link);
+
+        recorder.Latest.Message.ShouldContain("Method=Link");
+    }
+
+    [Fact]
+    public void LoginChallengeIssued_EmitsEventId1011_WithTheKindAndTheCarriedContext()
+    {
+        // Carried rather than read from an HttpContext: the caller is the dispatch consumer.
+        var (sut, recorder) = CreateLogger(ip: null, userAgent: null);
+        var userId = Guid.NewGuid();
+
+        sut.LoginChallengeIssued(userId, LoginChallengeKind.LinkOnly, "203.0.113.0", "probe/1.0");
+
+        recorder.Latest.EventId.Id.ShouldBe(1011);
+        recorder.Latest.Level.ShouldBe(LogLevel.Information);
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("ChallengeKind=LinkOnly");
+        recorder.Latest.Message.ShouldContain("Ip=203.0.113.0");
+        recorder.Latest.Message.ShouldContain("UserAgent=probe/1.0");
+    }
+
+    [Fact]
+    public void ReauthenticationSucceeded_EmitsEventId1019_Information_WithTheUserIdAndThePurpose()
+    {
+        // #1739 — the ops-log line the service writes; the user id and the purpose, and the request context the
+        // other in-request lines carry. Never an address, a code or a grant: the method takes none.
+        var (sut, recorder) = CreateLogger();
+        var userId = Guid.NewGuid();
+
+        sut.ReauthenticationSucceeded(userId, GrantPurpose.Reauthentication);
+
+        recorder.Latest.EventId.Id.ShouldBe(1019);
+        recorder.Latest.Level.ShouldBe(LogLevel.Information);
+        recorder.Latest.Message.ShouldContain("AuditEvent=reauthentication_succeeded");
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("Purpose=Reauthentication");
+        recorder.Latest.Message.ShouldContain("Ip=1.2.3.0");
+    }
+
+    [Fact]
+    public void ReauthenticationFailed_EmitsEventId1020_Warning()
+    {
+        // Warning: after 5b a series of these on one user id is the signal that someone holds a hijacked
+        // session.
+        var (sut, recorder) = CreateLogger();
+        var userId = Guid.NewGuid();
+
+        sut.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
+
+        recorder.Latest.EventId.Id.ShouldBe(1020);
+        recorder.Latest.Level.ShouldBe(LogLevel.Warning);
+        recorder.Latest.Message.ShouldContain("AuditEvent=reauthentication_failed");
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("Purpose=Reauthentication");
     }
 
     [Fact]
@@ -65,73 +130,9 @@ public class AuthAuditLoggerTests
         var (sut, recorder) = CreateLogger();
         var userId = Guid.NewGuid();
 
-        sut.LoginSucceeded(userId, "abc123…");
+        sut.LoginSucceeded(userId, "abc123…", LoginMethod.Code);
 
         recorder.Latest.Message.ShouldContain(userId.ToString());
-    }
-
-    [Fact]
-    public void LoginFailed_EmitsEventId1002_Warning()
-    {
-        var (sut, recorder) = CreateLogger();
-
-        sut.LoginFailed("deadbeef1234");
-
-        recorder.Latest.EventId.Id.ShouldBe(1002);
-        recorder.Latest.Level.ShouldBe(LogLevel.Warning);
-    }
-
-    [Fact]
-    public void LoginFailed_ContainsEmailHashNotRawEmail()
-    {
-        var (sut, recorder) = CreateLogger();
-        const string rawEmail = "secret@example.com";
-        const string emailHash = "a1b2c3d4";
-
-        sut.LoginFailed(emailHash);
-
-        recorder.Latest.Message.ShouldContain(emailHash);
-        recorder.Latest.Message.ShouldNotContain(rawEmail);
-    }
-
-    [Fact]
-    public void AccountLockedOut_EmitsEventId1004_Warning()
-    {
-        // #503 G3(b): a dedicated attack-signal event, distinct from login_failed (1002)
-        // so a lockout storm from one emailHash/IP can be alarmed (TD-77).
-        var (sut, recorder) = CreateLogger();
-
-        sut.AccountLockedOut("deadbeef1234");
-
-        recorder.Latest.EventId.Id.ShouldBe(1004);
-        recorder.Latest.Level.ShouldBe(LogLevel.Warning);
-    }
-
-    [Fact]
-    public void AccountLockedOut_ContainsEmailHashNotRawEmail()
-    {
-        // GDPR / CLAUDE.md §5: the audit event carries the SHA-256 hash, never the raw
-        // email — same PII-free shape as login_failed.
-        var (sut, recorder) = CreateLogger();
-        const string rawEmail = "locked@example.com";
-        const string emailHash = "f00dcafe";
-
-        sut.AccountLockedOut(emailHash);
-
-        recorder.Latest.Message.ShouldContain(emailHash);
-        recorder.Latest.Message.ShouldNotContain(rawEmail);
-    }
-
-    [Fact]
-    public void AccountLockedOut_AnonymizesIpv4ToSlash24()
-    {
-        // ADR 0024 D7: the lockout event's IP is /24-masked too.
-        var (sut, recorder) = CreateLogger(ip: "198.51.100.77");
-
-        sut.AccountLockedOut("hash");
-
-        recorder.Latest.Message.ShouldContain("198.51.100.0");
-        recorder.Latest.Message.ShouldNotContain("198.51.100.77");
     }
 
     [Fact]
@@ -163,21 +164,10 @@ public class AuthAuditLoggerTests
         // så även CloudWatch-loggen följer GDPR Art. 5(1)(c) data minimisation.
         var (sut, recorder) = CreateLogger(ip: "10.0.0.123");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Code);
 
         recorder.Latest.Message.ShouldContain("10.0.0.0");
         recorder.Latest.Message.ShouldNotContain("10.0.0.123");
-    }
-
-    [Fact]
-    public void LoginFailed_AnonymizesIpv4ToSlash24()
-    {
-        var (sut, recorder) = CreateLogger(ip: "203.0.113.42");
-
-        sut.LoginFailed("hash");
-
-        recorder.Latest.Message.ShouldContain("203.0.113.0");
-        recorder.Latest.Message.ShouldNotContain("203.0.113.42");
     }
 
     [Fact]
@@ -185,7 +175,7 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger(ip: null);
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Code);
 
         recorder.Latest.Message.ShouldContain("Ip=unknown");
     }
@@ -197,7 +187,7 @@ public class AuthAuditLoggerTests
         // som RequestContextProvider, så app-loggen aldrig bär unik IPv6-adress.
         var (sut, recorder) = CreateLogger(ip: "2001:db8:1234:5678:90ab:cdef:1234:5678");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Code);
 
         recorder.Latest.Message.ShouldContain("2001:db8:1234::");
         recorder.Latest.Message.ShouldNotContain("90ab");

@@ -2,7 +2,7 @@
 // No React, no DOM — so every rule below is unit-testable without rendering anything.
 //
 // It lives in `lib/` rather than beside the components because three surfaces now read it: the criterion
-// dialog (Smarta bevakningar), the bransch popover (/foretag/sok), and their tests. Before #999 the two
+// dialog (Branschbevakningar), the bransch popover (/foretag/sok), and their tests. Before #999 the two
 // tree builders were inline `useMemo`s in `criterion-dialog.tsx` and a second, differently-shaped
 // flattener (`buildBranschOptions`) lived in `foretag-sok-searchbar.tsx` — the same knowledge, "how the
 // SCB reference becomes selectable options", written twice with two different answers about which levels
@@ -23,6 +23,11 @@ export interface CriterionTreeNode {
   readonly name: string;
   readonly leafCodes: ReadonlyArray<string>;
   readonly children?: ReadonlyArray<CriterionTreeNode>;
+  /**
+   * Search words this node's `name` does not contain (#1115). Optional because geography has none —
+   * a kommun is called what it is called, while SNI names an activity and the user names a job.
+   */
+  readonly aliases?: ReadonlyArray<string>;
 }
 
 /**
@@ -37,6 +42,8 @@ export interface CriterionOption {
   readonly name: string;
   readonly depth: number;
   readonly leafCodes: ReadonlyArray<string>;
+  /** See {@link CriterionTreeNode.aliases}. Empty for every geography option. */
+  readonly aliases: ReadonlyArray<string>;
 }
 
 /**
@@ -79,14 +86,17 @@ export function buildSniNodes(reference: CriterionReference): CriterionTreeNode[
     code: section.code,
     name: toSentenceCase(section.name),
     leafCodes: section.divisions.flatMap((d) => d.leaves.map((l) => l.code)),
+    aliases: section.aliases,
     children: section.divisions.map((division) => ({
       code: division.code,
       name: division.name,
       leafCodes: division.leaves.map((l) => l.code),
+      aliases: division.aliases,
       children: division.leaves.map((leaf) => ({
         code: leaf.code,
         name: leaf.name,
         leafCodes: [leaf.code],
+        aliases: leaf.aliases,
       })),
     })),
   }));
@@ -130,6 +140,7 @@ export function flattenCriterionOptions(
         name: node.name,
         depth,
         leafCodes: node.leafCodes,
+        aliases: node.aliases ?? [],
       });
     }
     if (node.children?.length) {
@@ -168,6 +179,7 @@ export function decomposeSelection(
         name: node.name,
         depth,
         leafCodes: node.leafCodes,
+        aliases: node.aliases ?? [],
       });
       continue;
     }

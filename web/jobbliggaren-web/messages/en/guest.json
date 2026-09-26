@@ -2,12 +2,12 @@
   "banner": {
     "regionAriaLabel": "Demo mode",
     "label": "DEMO",
-    "text": "You are exploring Jobbliggaren as a guest. The content is sample data. Create an account to save job ads and follow up on your own applications.",
+    "text": "The content is sample data. Create an account to save job ads and follow up on your own applications.",
     "cta": "Create account"
   },
   "welcome": {
     "title": "Welcome to demo mode",
-    "description": "You are exploring Jobbliggaren without signing in. All content is sample data, no real applications or CVs.",
+    "description": "All content is sample data.",
     "canDoHeading": "Here is what you can do as a guest:",
     "canDoBrowse": "Browse the overview of applications and CVs",
     "canDoPipeline": "See how the pipeline view works",
@@ -25,8 +25,7 @@
     "navJobb": "Jobs",
     "navAnsokningar": "My applications",
     "navCv": "CV",
-    "logIn": "Log in",
-    "register": "Create account"
+    "logIn": "Log in"
   },
   "layout": {
     "skipToContent": "Skip to main content"
@@ -39,7 +38,6 @@
   "oversikt": {
     "kicker": "Demo overview",
     "title": "Overview",
-    "lede": "This is how it looks when you follow your applications. Everything here is sample data.",
     "noticeOfferLabel": "Offer",
     "noticeOfferText": "<b>{company}</b>: {role}. Offer awaiting response.",
     "noticeInterviewLabel": "Interview",
@@ -58,7 +56,7 @@
   "ansokningar": {
     "kicker": "Demo pipeline",
     "title": "My applications",
-    "lede": "{total} sample applications spread across all status stages.",
+    "lede": "{total} sample applications.",
     "groupAriaLabel": "{statusLabel} ({count})",
     "rowAriaLabel": "{role} – {company} – {statusLabel} – {source}, updated {updated}",
     "emptyStatus": "No applications in this status.",
@@ -77,7 +75,7 @@
   "cv": {
     "kicker": "Demo CV",
     "title": "CV",
-    "lede": "Examples of CV variants. Once you have an account you can upload your own CV and have it reviewed.",
+    "lede": "Once you have an account you can upload your own CV and have it reviewed.",
     "primaryTag": "Primary",
     "languageLabel": "Language",
     "languageSwedish": "Swedish",
@@ -91,10 +89,9 @@
   },
   "jobb": {
     "heroTitle": "Search jobs",
-    "heroLede": "These are sample job ads. Once you have an account you can search and save real job ads from Platsbanken.",
     "searchLabel": "Search by one or more words",
     "searchButton": "Search",
-    "searchHint": "Search is locked in demo mode. Log in or create an account to search the whole corpus.",
+    "searchHint": "Log in or create an account to search.",
     "listTitle": "Sample job ads",
     "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Published <b>{date}</b>",
@@ -116,7 +113,7 @@
     "source": "Source",
     "lastUpdated": "Last updated",
     "aboutHeading": "About sample applications",
-    "aboutBody": "This is a sample application in demo mode. Log in or create an account to create, edit and follow up on your own applications with status changes, notes and follow-ups.",
+    "aboutBody": "Log in or create an account to create, edit and follow up on your own applications with status changes, notes and follow-ups.",
     "modalSubtitle": "{company} · demo"
   },
   "modal": {

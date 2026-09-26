@@ -21,7 +21,7 @@ public class ListReadRateLimitTests(ListReadRateLimitApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
 
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var statusCodes = new List<HttpStatusCode>();

@@ -12,6 +12,7 @@ const wireBase = {
   regionList: ["CifL_Rzy_Mku"],
   employmentTypeList: ["gro4_cWF_6D7"],
   worktimeExtentList: ["6YE1_gAC_R2G"],
+  employerList: [],
   remote: false,
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
@@ -144,6 +145,47 @@ describe("recentJobSearchDtoSchema", () => {
     expect(recentJobSearchDtoSchema.parse({ ...wireBase, remote: false }).remote).toBe(
       false,
     );
+  });
+
+  it("carries employerList from the wire (#1471)", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      employerList: ["5566010101", "5560125790"],
+    });
+    expect(parsed.employerList).toEqual(["5566010101", "5560125790"]);
+  });
+
+  it("rejects a payload with no employerList field rather than defaulting it to empty", () => {
+    // Same actor as the remote case below (#1238's deploy-skew window), same reason: a default
+    // would make "the API stopped sending the axis" indistinguishable from "no employer
+    // filter" — a replay that silently widens, which is #1471's own failure mode one layer out.
+    const { employerList: _omitted, ...withoutEmployerList } = wireBase;
+    expect(() => recentJobSearchDtoSchema.parse(withoutEmployerList)).toThrow();
+  });
+
+  it("parses an Employer part, which carries neither text nor code (#1471)", () => {
+    const part = { kind: "Employer", text: null, conceptId: null, moreCount: 1 };
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      label: { kind: "Dimensions", join: "None", parts: [part] },
+    });
+    expect(parsed.label.parts).toEqual([part]);
+  });
+
+  it("refuses an Employer part that carries the org.nr as text or as code", () => {
+    // The value-free shape is the whole point of the part: a mirror that admitted a text or a
+    // code here would render a personnummer-shaped org.nr the backend never meant to emit.
+    for (const part of [
+      { kind: "Employer", text: "5566010101", conceptId: null, moreCount: 0 },
+      { kind: "Employer", text: null, conceptId: "5566010101", moreCount: 0 },
+    ]) {
+      expect(() =>
+        recentJobSearchDtoSchema.parse({
+          ...wireBase,
+          label: { kind: "Dimensions", join: "None", parts: [part] },
+        }),
+      ).toThrow();
+    }
   });
 
   it("rejects a payload with no remote field rather than defaulting it to false", () => {

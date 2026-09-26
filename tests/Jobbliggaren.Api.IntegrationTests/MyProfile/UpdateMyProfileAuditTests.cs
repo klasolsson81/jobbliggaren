@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// <summary>
 /// #192 (GDPR Art. 5(2)/30) — the profile-update endpoint <c>PATCH /api/v1/me/profile</c> must
 /// write exactly ONE <c>audit_log</c> row on success (the owner-scoped JobSeeker mutation is
-/// accountability-relevant; DisplayName is PII). The opt-in <c>AuditBehavior</c> only runs in the
+/// accountability-relevant). The opt-in <c>AuditBehavior</c> only runs in the
 /// real pipeline, so this can only be proven end-to-end on the wired API against REAL Postgres —
 /// mirrors <see cref="NotificationConsentEndpointTests"/>. The row carries EventType
 /// <c>JobSeeker.ProfileUpdated</c>, AggregateType <c>JobSeeker</c>, AggregateId = the JobSeeker's
@@ -30,7 +30,7 @@ public class UpdateMyProfileAuditTests(ApiFactory factory)
 
     private async Task<Guid> AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
@@ -71,7 +71,7 @@ public class UpdateMyProfileAuditTests(ApiFactory factory)
         var before = await ReadAuditEntriesAsync(jobSeekerId, ct);
 
         var response = await _client.PatchAsJsonAsync(
-            "/api/v1/me/profile", new { displayName = "Klas Ny", language = "en" }, ct);
+            "/api/v1/me/profile", new { language = "en" }, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var after = await ReadAuditEntriesAsync(jobSeekerId, ct);
@@ -89,25 +89,6 @@ public class UpdateMyProfileAuditTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Patch_profile_with_blank_displayName_writes_no_audit_row()
-    {
-        // The domain-failure path (authenticated, blank display name → 400) DOES enter the
-        // pipeline, unlike the anonymous 401 path — so this locks AuditBehavior's skip-on-failure
-        // end-to-end: a Result.Failure<Guid> writes no audit row.
-        var ct = TestContext.Current.CancellationToken;
-        var userId = await AuthenticateAsync(ct);
-        var jobSeekerId = await ReadJobSeekerIdAsync(userId, ct);
-        var before = await ReadAuditEntriesAsync(jobSeekerId, ct);
-
-        var response = await _client.PatchAsJsonAsync(
-            "/api/v1/me/profile", new { displayName = "   ", language = "sv" }, ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-
-        var after = await ReadAuditEntriesAsync(jobSeekerId, ct);
-        after.Count.ShouldBe(before.Count, "a failed (domain-invalid) profile update writes no audit row");
-    }
-
-    [Fact]
     public async Task Patch_profile_when_anonymous_writes_no_audit_row()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -115,7 +96,7 @@ public class UpdateMyProfileAuditTests(ApiFactory factory)
 
         // No Authorization header → the write policy rejects before the handler/audit runs.
         var response = await _client.PatchAsJsonAsync(
-            "/api/v1/me/profile", new { displayName = "Anon", language = "sv" }, ct);
+            "/api/v1/me/profile", new { language = "sv" }, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         var after = await ReadAuditEntryCountAsync(ct);

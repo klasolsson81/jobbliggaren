@@ -1,6 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Helpers;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
+using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
+using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -8,11 +17,14 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Testcontainers.PostgreSql;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
@@ -26,10 +38,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly RedisBoundaryFixture _redisBoundary = new();
 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private RedisTestEnvironment? _redisEnvironment;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -37,6 +50,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
         builder.ConfigureServices(services =>
         {
+            // #1735 (security-auditor Major 12) — outside Development/Test the Api refuses to boot on a sender
+            // that cannot deliver, and this host would otherwise compose NullEmailSender, or a real provider from
+            // a developer's Local.json. A delivering in-process fake, registered last, keeps the boot on the path
+            // under test.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
             services.AddDbContext<AppDbContext>(options =>
@@ -54,12 +74,6 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
 
-            services.RemoveAll<IDistributedCache>();
-            services.AddStackExchangeRedisCache(opts =>
-            {
-                opts.Configuration = _redisCs;
-                opts.InstanceName = "jobbliggaren:";
-            });
 
             // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder
             // + ADR 0043 TaxonomySnapshotSeeder) bubblar 42P01 i Production-env
@@ -68,15 +82,20 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
             // verifieras separat via *ProdBubbleTests + *.IsSchemaInitGracePeriod.
             // Delad SPOT (ADR 0043 defekt-triage #3).
             services.RemoveStartupSeeders();
+
+            // #1744 — counts the flows that reach the real state store; replaces no provider registration.
+            services.RemoveAll<IOAuthStateStore>();
+            services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
+                ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), new LoginChallengeFaults()));
         });
     }
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redisBoundary.InitializeAsync().AsTask());
 
         _postgresCs = _postgres.GetConnectionString();
-        _redisCs = _redis.GetConnectionString();
+        _redisCs = _redisBoundary.OptionsFor(_redisBoundary.Persistent, RedisBoundaryFixture.ApiPersistent).ToString(true);
 
         // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access. UseEnvironment() i
         // ConfigureWebHost är otillräckligt för minimal API. Production-mode
@@ -94,7 +113,11 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // ConfigureServices, men AddInfrastructure läser CS:erna direkt vid registrerings-
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+
+        // #1744 — a full Google client in the environment, as compose passes one on the box.
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", "configured-client-id");
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", "configured-client-secret");
+        _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
         // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
         // systemiskt av TestSecrets-module-init (process-env-var) före boot.
@@ -112,9 +135,11 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", null);
+        _redisEnvironment?.Dispose();
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }
@@ -141,27 +166,77 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12). The invariant is now NARROWER
     // than "the whole group is unmapped", and the narrowing is measured rather than assumed:
     //
-    //   * /api/v1/dev/confirm-email is UNCONDITIONALLY unmapped outside Development. It force-
-    //     confirms an address without authentication, so no configuration may widen it — and
-    //     the flag-ON arm below is what turns that from a code-reading into a measurement.
+    //   * /api/v1/dev/accounts (ADR 0142 part 5a) and /api/v1/dev/login-code (#1735) are
+    //     UNCONDITIONALLY unmapped outside Development. Without authentication they open an account
+    //     and hand out a login code, so no configuration may widen them — and the flag-ON arms below
+    //     are what turn that from a code-reading into a measurement.
     //   * /api/v1/dev/reset-my-data is unmapped outside Development UNLESS
     //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
     //     owner-scoped, authenticated, and refused a second time inside the handler.
     //
-    // A 404 (not 401/405) proves the route does not exist; if either gate regressed, these
+    // A 404 (not 401/405) proves the route does not exist; if a gate regressed, these
     // turn red before deploy.
 
     [Fact]
-    public async Task POST_dev_confirm_email_is_unmapped_in_Production_env()
+    public async Task POST_dev_login_code_is_unmapped_in_Production_env()
     {
+        // #1735 — the login-code seam's ENVIRONMENT gate. The flag-on polarity is the universally quantified
+        // route-table test below, which admits reset-my-data alone.
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/dev/confirm-email",
+            "/api/v1/dev/login-code",
             new { email = "x@e2e.jobbliggaren.test" },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_accounts_is_unmapped_in_Production_env_and_its_policy_is_not_registered()
+    {
+        // The seed seam opens an account without an inbox proof, so both gates are measured: the map (a 404
+        // for a reserved address, which the handler would otherwise answer 204) and the dev-only policy the
+        // handler cannot resolve without. The flag-on polarity of the map is the route-table test below.
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/accounts",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void IDevSeedableAddressPolicy_is_not_registered_in_Production_env_even_when_the_reset_flag_is_on()
+    {
+        using var host = _factory.WithWebHostBuilder(
+            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
+        _ = host.CreateClient();
+
+        using var scope = host.Services.CreateScope();
+        scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task No_external_identity_provider_is_live_in_Production_env_even_with_a_full_google_client()
+    {
+        // #1744, 6a PR S (security-auditor S4, condition 1): the spine ships inert. A full Google client in the
+        // configuration registers no provider, the list is empty, and a start is not found, so no flow is minted.
+        var ct = TestContext.Current.CancellationToken;
+        using var client = _factory.CreateClient();
+
+        // The control: the client reached the configuration, so the absences below are not a missing key's.
+        _factory.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
+
+        _factory.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", ct)).ShouldBe([]);
+        (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        ((FaultableOAuthStateStore)_factory.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
     }
 
     [Fact]
@@ -198,8 +273,8 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     [Fact]
     public void Only_reset_my_data_is_mapped_under_api_v1_dev_in_Production_env_when_the_flag_is_on()
     {
-        // The three route tests above are ENUMERATED — they each name a route. That is fine for
-        // the two routes that exist and blind to a third: a new endpoint added to
+        // The route tests above are ENUMERATED — they each name a route. That is fine for
+        // the routes that exist and blind to a new one: a new endpoint added to
         // MapDevResetMyDataEndpoint, or a new method called under the same flag, would reach
         // Production with the flag on and nothing would go red. This assertion is universally
         // quantified over the route table instead, so it fails on arrival rather than on
@@ -218,43 +293,66 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         devRoutes.ShouldBe(["/api/v1/dev/reset-my-data"]);
     }
 
-    [Fact]
-    public async Task POST_dev_confirm_email_stays_unmapped_in_Production_env_even_when_the_reset_flag_is_on()
+    // ADR 0142 D10 — outside Development/Test the Api refuses to boot on a sender that cannot deliver, whichever
+    // way the registration gate stands. The real NullEmailSender is what AddEmailSender composes there with
+    // Email:Provider unset.
+    [Theory]
+    [InlineData("false")]
+    [InlineData("true")]
+    public void A_host_whose_sender_cannot_deliver_refuses_to_boot_in_Production_env(string registrationsOpen)
     {
-        // THE load-bearing test of this whole change. The reset flag must never be one || away
-        // from re-arming the unauthenticated confirm-email seam in a deployed environment. That
-        // is why the two routes are mapped by two different extension methods rather than one
-        // call behind one condition — and this is the measurement that keeps it true.
-        var ct = TestContext.Current.CancellationToken;
-        using var host = _factory.WithWebHostBuilder(
-            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
-        using var client = host.CreateClient();
+        using var host = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Auth:RegistrationsOpen", registrationsOpen)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IEmailSender>();
+                services.AddSingleton<IEmailSender>(new NullEmailSender(NullLogger<NullEmailSender>.Instance));
+            }));
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/dev/confirm-email",
-            new { email = "x@e2e.jobbliggaren.test" },
-            ct);
+        var thrown = Should.Throw<Exception>(() => host.CreateClient());
 
-        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-
-        // And the second, independent gate is still shut too: the dev-only confirmer is not in
-        // the container. Both must hold — a 404 alone could also come from the endpoint's own
-        // not-found branch if both structural gates ever regressed together.
-        using var scope = host.Services.CreateScope();
-        scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
+        var refusal = Chain(thrown).OfType<OptionsValidationException>().FirstOrDefault();
+        refusal.ShouldNotBeNull($"the boot failed, but not on the AuthOptions validation: {thrown}");
+        refusal.OptionsType.ShouldBe(typeof(AuthOptions));
+        refusal.Message.ShouldContain(nameof(NullEmailSender));
     }
 
-    // The map-gate 404 above is necessary but not sufficient on its own: the endpoint's
-    // own "account not found" branch also returns 404, so if BOTH structural gates ever
-    // regressed together the route could answer 404 spuriously (green while the primitive
-    // is live). This asserts the SECOND, independent gate directly — the dev-only
-    // IDevEmailConfirmer must be ABSENT from the container outside Development
-    // (AddDevOnlyTestingSupport). Together the two tests prove both gates fail-closed.
     [Fact]
-    public void IDevEmailConfirmer_is_not_registered_in_Production_env()
+    public async Task An_open_gate_with_a_delivering_sender_boots_in_Production_env()
+    {
+        // The counterfactual: the same environment with the gate open and the fixture's delivering sender.
+        var ct = TestContext.Current.CancellationToken;
+        var logs = new CapturingLoggerProvider();
+        using var host = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Auth:RegistrationsOpen", "true")
+            .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(logs)));
+        using var client = host.CreateClient();
+
+        (await client.GetAsync("/api/live", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var announcement = logs.Logs.Where(l => l.EventId.Id is 4300 or 4301).ShouldHaveSingleItem();
+        announcement.EventId.Id.ShouldBe(4301);
+        announcement.Level.ShouldBe(LogLevel.Warning);
+    }
+
+    private static IEnumerable<Exception> Chain(Exception root)
+    {
+        yield return root;
+        var inner = root is AggregateException aggregate
+            ? aggregate.InnerExceptions
+            : root.InnerException is { } single ? [single] : (IReadOnlyCollection<Exception>)[];
+        foreach (var exception in inner.SelectMany(Chain))
+            yield return exception;
+    }
+
+    // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture
+    // is in the container. The capturing sender is not asserted here: this host replaces IEmailSender, so
+    // DevLoginCodeCaptureCompositionTests measures that half on the unswapped composition.
+    [Fact]
+    public void The_login_code_capture_is_not_registered_in_Production_env()
     {
         using var scope = _factory.Services.CreateScope();
 
-        scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
+        scope.ServiceProvider.GetService<IDevLoginCodeReader>().ShouldBeNull();
+        scope.ServiceProvider.GetService<DevLoginCodeCapture>().ShouldBeNull();
     }
 }

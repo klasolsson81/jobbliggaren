@@ -60,6 +60,6 @@ public sealed record SniSection(string Code, string Name);
 /// avdelning. Grouping/expansion level for the picker.</summary>
 public sealed record SniDivision(string Code, string SectionCode, string Name);
 
-/// <summary>Detaljgrupp (5-digit leaf, "62010"). <see cref="DivisionCode"/> = the first two digits.
+/// <summary>Detaljgrupp (5-digit leaf, "62100"). <see cref="DivisionCode"/> = the first two digits.
 /// The only level a stored criterion may carry.</summary>
 public sealed record SniLeaf(string Code, string DivisionCode, string Name);

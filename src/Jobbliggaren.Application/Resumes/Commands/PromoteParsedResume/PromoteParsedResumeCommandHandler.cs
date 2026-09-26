@@ -92,10 +92,7 @@ public sealed class PromoteParsedResumeCommandHandler(
         // is the bug" surviving on one arm of the very PR that retires it.
         //
         // It happens BEFORE the guard, and that ordering is the whole point rather than a
-        // detail. The parse's preamble is NOT a substring of RawText — `PreambleResidue.Subtract`
-        // splices surviving fragments — so a personnummer straddling a subtracted fragment was
-        // never visible to the import scan that sets `Personnummer.Found`, and DQ6 is the only
-        // control that can catch it. Substituting after the guard would hand `CreateFromParsed`
+        // detail. Substituting after the guard would hand `CreateFromParsed`
         // a preamble nothing on this path had scanned. Both arms now share one ordering:
         // derive → guard → ToDomain → CreateFromParsed.
         var submitted = command.Content with { Preamble = parsed.Content.Preamble };

@@ -1,7 +1,9 @@
+using System.Net;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Domain.JobSeekers;
@@ -11,8 +13,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// GROUND 2 of the Art. 30 retention claim for "Utgående transaktionell e-post", pinned over ALL
-/// EIGHT templates, plus the content facts that keep the absence assertion from being vacuous
+/// GROUND 2 of the Art. 30 retention claim for "Utgående transaktionell e-post", pinned over EVERY
+/// template, plus the content facts that keep the absence assertion from being vacuous
 /// (#183, 2026-08-12 — security-auditor condition 1).
 ///
 /// <para>
@@ -54,12 +56,6 @@ public class EmailHtmlNoRemoteResourceTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // Same Base64Url shape ASP.NET Identity emits, and the same fixture ScalewayEmailSenderTests uses.
-    // Not a real token: no account exists that it could activate. gitleaks:allow
-    private const string UrlSafeToken = "CfDJ8Nr-9xQvT0pLm2Zq_aB3cD4eF5gH6iJ7kL8mN9oP0qR"; // gitleaks:allow
-
-    private static readonly Guid UserId = new("6e6b1f3a-3c2d-4a8f-9b1e-7d0c5a2e4f11");
-
     /// <summary>The encoder production uses, so the oracle normalises identically.</summary>
     private static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
 
@@ -79,9 +75,8 @@ public class EmailHtmlNoRemoteResourceTests
     // ---------- fixtures: one per template, each mirroring a production call site ----------
 
     /// <summary>
-    /// All eight templates rendered the way their production callers render them. The shapes are
-    /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s, <c>RegisterCommandHandler</c>'s,
-    /// <c>ChangeEmailCommandHandler</c>'s and the reset endpoints'. Grade labels come from
+    /// Every template rendered the way its production callers render it. The shapes are
+    /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s and <c>ChangeEmailCommandHandler</c>'s. Grade labels come from
     /// <c>NotifiableMatchGradeLabels</c> verbatim — "Stark match", never "Stark matchning", which no
     /// production path emits.
     /// <para>
@@ -128,24 +123,29 @@ public class EmailHtmlNoRemoteResourceTests
                     new FollowedCompanyFilterSummary(
                         OnlyMatchedActive: true, LocationFilterActive: true)))),
 
-        ("EmailConfirmation",
-            EmailTemplates.EmailConfirmation(
-                BaseUrl, new EmailConfirmationEmail(UserId, UrlSafeToken))),
-
-        ("EmailChangeConfirmation",
-            EmailTemplates.EmailChangeConfirmation(
-                BaseUrl,
-                new EmailChangeConfirmationEmail(UserId, "ny.adress@example.com", UrlSafeToken))),
-
         ("EmailChangedNotification", EmailTemplates.EmailChangedNotification()),
 
-        ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl)),
-
-        ("PasswordReset",
-            EmailTemplates.PasswordReset(BaseUrl, new PasswordResetEmail(UserId, UrlSafeToken))),
-
-        ("PasswordChangedNotice", EmailTemplates.PasswordChangedNotice(BaseUrl)),
+        // #1735: the dispatcher and each variant it selects, shaped as LoginChallengeIssuer sends them.
+        ("LoginChallenge/code-and-link", EmailTemplates.LoginChallenge(BaseUrl, SampleCodeAndLink)),
+        ("LoginCodeAndLink", EmailTemplates.LoginCodeAndLink(BaseUrl, SampleCodeAndLink)),
+        ("LoginLinkOnly", EmailTemplates.LoginLinkOnly(BaseUrl, new LoginChallengeEmail.LinkOnly(SampleLink))),
+        ("LoginRegistrationClosed", EmailTemplates.LoginRegistrationClosed()),
+        ("LoginPendingDeletion", EmailTemplates.LoginPendingDeletion(
+            new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)))),
+        ("LoginNewAccountCode", EmailTemplates.LoginNewAccountCode(
+            new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")))),
+        ("LoginNewAccountCodeLimitReached", EmailTemplates.LoginNewAccountCodeLimitReached()),
+        ("LoginReauthenticationCode", EmailTemplates.LoginReauthenticationCode(
+            new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")))),
+        ("LoginAddressChangeCode", EmailTemplates.LoginAddressChangeCode(
+            new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917")))),
     ];
+
+    private static readonly LoginLinkToken SampleLink =
+        LoginLinkToken.FromRaw("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
+
+    private static readonly LoginChallengeEmail.CodeAndLink SampleCodeAndLink =
+        new(LoginCode.FromRaw("042917"), SampleLink);
 
     /// <summary>A body filled to the cap, which is the only state in which a remainder can exist.</summary>
     private static List<MatchNotificationItem> FullMatchPage() =>
@@ -240,7 +240,7 @@ public class EmailHtmlNoRemoteResourceTests
     public void EmailHtml_TheTemplateSet_CoversEveryTemplateMethod()
     {
         // Compared against REFLECTION, not against a hardcoded count. A count closes shrinkage only:
-        // add a ninth template with no fixture and a `ShouldBe(10)` stays green while the Theory above
+        // add a template with no fixture and a `ShouldBe(10)` stays green while the Theory above
         // never renders it, so the register would claim a measured property over a template nothing
         // measured. That is the direction that actually happened once already — PasswordReset and
         // PasswordChangedNotice reached production without an Art. 30 entry (dotnet-architect Viktigt 2
@@ -261,6 +261,20 @@ public class EmailHtmlNoRemoteResourceTests
             .ToHashSet(StringComparer.Ordinal)
             .ShouldBe(templateMethods, ignoreOrder: true,
                 "every EmailTemplates method must have at least one fixture case here");
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void EmailHtml_ForEveryTemplate_TitleAndHeadingRepeatTheSubject(string name)
+    {
+        var content = Case(name);
+
+        Inner("title").ShouldBe(content.Subject);
+        Inner("h1").ShouldBe(content.Subject);
+
+        string Inner(string tag) => WebUtility.HtmlDecode(Regex.Match(
+            content.HtmlBody, $"<{tag}[^>]*>(.*?)</{tag}>", RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Groups[1].Value);
     }
 
     // ---------- the filter disclosure must appear in BOTH parts, or in neither ----------
@@ -299,16 +313,16 @@ public class EmailHtmlNoRemoteResourceTests
         }
     }
 
-    [Theory]
-    [InlineData("EmailChangedNotification")]
-    [InlineData("AccountExistsNotice")]
-    [InlineData("PasswordChangedNotice")]
-    public void EmailHtml_ForTheTokenFreeNotices_CarriesNoToken(string name)
+    [Fact]
+    public void EmailHtml_ForTheEmailChangedNotice_CarriesNoLoginLink()
     {
-        // The HTML counterpart of the text part's own no-token assertions. These three are security
-        // notices sent to an address that may not have requested anything, so a link that grants
-        // access must not appear in either part.
-        Case(name).HtmlBody.ShouldNotContain(UrlSafeToken);
+        // The HTML counterpart of the text part's own no-token assertion. A security notice goes to an
+        // address that may not have requested anything, so a link that grants access must not appear in
+        // either part.
+        var html = Case("EmailChangedNotification").HtmlBody;
+
+        html.ShouldNotContain(EmailTemplates.LoginLinkRoute);
+        html.ShouldNotContain("token=");
     }
 
     // ---------- the injection case: third-party ad text cannot smuggle markup in ----------
@@ -355,7 +369,7 @@ public class EmailHtmlNoRemoteResourceTests
         //
         // The invariant: each engine gets exactly ONE padding. The anchor carries real padding for
         // every client; the cell carries mso-padding-alt, which only Word reads.
-        var html = Case("EmailConfirmation").HtmlBody;
+        var html = Case("LoginCodeAndLink").HtmlBody;
 
         html.ShouldContain(
             "padding:12px 22px;mso-padding-alt:0",
@@ -369,6 +383,35 @@ public class EmailHtmlNoRemoteResourceTests
         // And the cell must NOT carry ordinary padding as well: two paddings in Word is the other
         // failure mode, and it is invisible in every client that ignores mso-*.
         html.ShouldNotContain("border-radius:6px;padding:");
+    }
+
+    [Fact]
+    public void EmailHtml_TheCard_IsFluidUpToItsMaximumWidthAndGivesWordAFixedOne()
+    {
+        var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
+
+        html.ShouldContain("style=\"width:100%;max-width:600px;");
+        html.ShouldContain("border-radius:6px;overflow-wrap:anywhere;word-break:break-word;\">");
+        html.ShouldNotMatch("(?<!max-)width:600px");
+        html.ShouldContain("<!--[if mso]><table role=\"presentation\" width=\"600\"");
+        html.ShouldContain("<!--[if mso]></td></tr></table><![endif]-->");
+    }
+
+    [Fact]
+    public void EmailHtml_ThePreheader_IsFollowedByTheWholeFiller()
+    {
+        var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
+
+        html.ShouldContain("Förhandsvisning" + EmailHtml.PreheaderFiller + "</div>");
+        Regex.Count(EmailHtml.PreheaderFiller, Regex.Escape("&#847;&zwnj;&nbsp;")).ShouldBe(90);
+    }
+
+    [Fact]
+    public void EmailHtml_TheShell_HasNoLineOf998CharactersOrMore()
+    {
+        var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
+
+        html.Split('\n').Max(line => line.TrimEnd('\r').Length).ShouldBeLessThan(998);
     }
 
     [Fact]

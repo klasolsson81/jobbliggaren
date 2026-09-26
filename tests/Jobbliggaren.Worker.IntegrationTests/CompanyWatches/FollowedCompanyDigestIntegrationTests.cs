@@ -343,7 +343,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         {
             var email = $"follow-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "FollowPass123!")).Succeeded.ShouldBeTrue();
+            (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue();
             userId = user.Id;
         }
         else
@@ -352,7 +352,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
             userId = Guid.NewGuid();
         }
 
-        var jobSeeker = JobSeeker.Register(userId, "Follow Seed", clock).Value;
+        var jobSeeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         // The digest cadence is the SHARED DigestCadence (ADR 0087 D2) — set it via the background-
         // match consent path (cadence is one preference), then gate the FOLLOW pass on the separate
         // follow flag.

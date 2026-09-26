@@ -22,7 +22,7 @@ public class GetResumeByIdQueryHandlerTests
     private static async Task<Resume> SeedResumeAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -63,7 +63,7 @@ public class GetResumeByIdQueryHandlerTests
         // content-bearing test before: the seam, not the intent, was missing.
         var db = TestAppDbContextFactory.Create(
             new FakeContentHydrationInterceptor(resumeContent: content));
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.CreateFromParsed(
@@ -117,7 +117,7 @@ public class GetResumeByIdQueryHandlerTests
     public async Task Handle_WhenResumeNotFound_ReturnsNull()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -134,7 +134,7 @@ public class GetResumeByIdQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var otherResume = await SeedResumeAsync(db, Guid.NewGuid());
 
-        var ownSeeker = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

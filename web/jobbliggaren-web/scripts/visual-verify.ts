@@ -12,24 +12,23 @@
  *  1. Publikt (default) — `pnpm visual-verify` mot lokal `pnpm dev`.
  *     Capturerar enbart publika sidor. Oförändrat beteende.
  *
- *  2. Auth-läge (opt-in) — sätt VISUAL_AUTH_EMAIL + VISUAL_AUTH_PW +
- *     VISUAL_BACKEND_URL + VISUAL_BASE_URL (live-frontend). Capturerar då
- *     ÄVEN auth-gated sidor mot live-deploy per runbookens tre-nivå-policy.
- *     Login sker via direkt backend-call (robustare än formulärdrivning);
- *     session-cookien injiceras i browser-context och persisteras ALDRIG
- *     till disk (ingen storageState-fil — CLAUDE.md §5.4). En temporär
- *     "fixture"-sökning skapas via API så att populerade lista-/detalj-/
- *     dialog-tillstånd kan capureras, och raderas i teardown.
- *
- * Inga creds i kod eller repo — endast via env (CLAUDE.md §5.4).
+ *  2. Auth-läge (opt-in) — sätt VISUAL_AUTH_EMAIL + VISUAL_BACKEND_URL +
+ *     VISUAL_BASE_URL (https). Capturerar då ÄVEN auth-gated sidor. Backenden
+ *     måste köra i Development: kontot öppnas via den dev-only seed-sömmen
+ *     (`/api/v1/dev/accounts`) och koden hämtas från `/api/v1/dev/login-code`,
+ *     så adressen måste ligga på en RFC-reserverad domän. Session-cookien
+ *     injiceras i browser-context och persisteras ALDRIG till disk (ingen
+ *     storageState-fil — CLAUDE.md §5.4). En temporär "fixture"-sökning skapas
+ *     via API så att populerade lista-/detalj-/dialog-tillstånd kan capureras,
+ *     och raderas i teardown.
  *
  * Kör (publikt):  pnpm dev   (separat terminal)
  *                 pnpm visual-verify
  *
- * Kör (auth, live):
- *   VISUAL_BASE_URL=https://www.jobbliggaren.se \
- *   VISUAL_BACKEND_URL=https://dev.jobbliggaren.se \
- *   VISUAL_AUTH_EMAIL=... VISUAL_AUTH_PW=... pnpm visual-verify
+ * Kör (auth, lokal Development-stack över https):
+ *   VISUAL_BASE_URL=https://localhost:3000 \
+ *   VISUAL_BACKEND_URL=http://localhost:5049 \
+ *   VISUAL_AUTH_EMAIL=visual@e2e.jobbliggaren.test pnpm visual-verify
  */
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
@@ -39,9 +38,8 @@ const BASE_URL = process.env.VISUAL_BASE_URL ?? "http://localhost:3000";
 const ROOT = process.env.VISUAL_OUT_ROOT ?? "C:/tmp/jobbliggaren-visual";
 
 const AUTH_EMAIL = process.env.VISUAL_AUTH_EMAIL;
-const AUTH_PW = process.env.VISUAL_AUTH_PW;
 const BACKEND_URL = process.env.VISUAL_BACKEND_URL;
-const AUTH_MODE = Boolean(AUTH_EMAIL && AUTH_PW && BACKEND_URL);
+const AUTH_MODE = Boolean(AUTH_EMAIL && BACKEND_URL);
 
 // Session-cookie satt av frontend efter login (lib/auth/session.ts).
 // __Host--prefix kräver host-only + Secure + path=/ → injiceras via `url`.
@@ -58,7 +56,8 @@ interface PageTarget {
 const PUBLIC_PAGES: PageTarget[] = [
   { path: "/", name: "landing" },
   { path: "/logga-in", name: "logga-in" },
-  { path: "/registrera", name: "registrera" },
+  // A token, or the page can only render its dead-link arm.
+  { path: "/logga-in/lank?token=x", name: "logga-in-lank" },
 ];
 
 const VIEWPORTS = [
@@ -75,23 +74,46 @@ function timestamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
-/** Direkt backend-login → opaque sessionId. Inga creds loggas. */
-async function login(): Promise<string> {
-  const res = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+async function postJson(path: string, body: unknown): Promise<Response> {
+  return fetch(`${BACKEND_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: AUTH_EMAIL, password: AUTH_PW }),
+    body: JSON.stringify(body),
   });
-  if (!res.ok) {
+}
+
+/**
+ * Kod-login mot en Development-backend → opaque sessionId: kontot öppnas via seed-sömmen (idempotent),
+ * en challenge begärs, koden hämtas från login-code-sömmen och verifieras. Koden loggas aldrig.
+ */
+async function login(): Promise<string> {
+  const seeded = await postJson("/api/v1/dev/accounts", { email: AUTH_EMAIL });
+  if (seeded.status !== 204) {
     throw new Error(
-      `Login misslyckades (HTTP ${res.status}) mot ${BACKEND_URL}/api/v1/auth/login`,
+      `Kontot kunde inte öppnas (HTTP ${seeded.status}): backenden måste köra i Development och adressen ligga på en reserverad domän.`,
     );
   }
-  const data = (await res.json()) as { sessionId?: string };
-  if (!data.sessionId) {
-    throw new Error("Login-svar saknar sessionId.");
+
+  const requested = await postJson("/api/v1/auth/challenge", { email: AUTH_EMAIL });
+  if (requested.status !== 202) {
+    throw new Error(`Challenge misslyckades (HTTP ${requested.status}).`);
   }
-  return data.sessionId;
+  const { challengeId } = (await requested.json()) as { challengeId: string };
+
+  let code: string | undefined;
+  for (let attempt = 0; attempt < 600 && !code; attempt++) {
+    const res = await postJson("/api/v1/dev/login-code", { email: AUTH_EMAIL });
+    if (res.ok) code = ((await res.json()) as { code: string }).code;
+    else await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (!code) throw new Error("Ingen login-kod fångades (inom cooldown, eller budgeten slut).");
+
+  const verified = await postJson("/api/v1/auth/challenge/verify", { challengeId, code });
+  const outcome = (await verified.json().catch(() => ({}))) as { outcome?: string; sessionId?: string };
+  if (!verified.ok || outcome.outcome !== "signedIn" || !outcome.sessionId) {
+    throw new Error(`Kodverifiering misslyckades (HTTP ${verified.status}, utfall ${outcome.outcome ?? "okänt"}).`);
+  }
+  return outcome.sessionId;
 }
 
 /**
@@ -565,11 +587,10 @@ async function main(): Promise<void> {
 
   if (AUTH_MODE && !BASE_URL.startsWith("https://")) {
     // __Host--prefix kräver en secure (https) origin — Chromium avvisar
-    // cookien på http://localhost. Auth-gated verifiering sker därför mot
-    // live-deploy (https) per runbookens tre-nivå-policy, inte lokal http.
+    // cookien på http://localhost.
     throw new Error(
       `Auth-läge kräver https VISUAL_BASE_URL (__Host--cookie). Fick: ${BASE_URL}. ` +
-        `Verifiera auth-gated mot live-deploy (t.ex. https://www.jobbliggaren.se).`,
+        `Kör frontenden över https, t.ex. \`pnpm dev --experimental-https\`.`,
     );
   }
 
@@ -595,7 +616,7 @@ async function main(): Promise<void> {
         { path: "/sokningar", name: "sokningar-lista", auth: true },
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
         { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
-        { path: "/installningar", name: "installningar", auth: true },
+        { path: "/mina-sidor", name: "mina-sidor", auth: true },
         { path: "/cv", name: "cv-lista", auth: true },
         ...(appFixtures?.jobAdLinked
           ? [

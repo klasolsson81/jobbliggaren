@@ -2,7 +2,23 @@
   "criterionPicker": {
     "clear": "Clear selection",
     "noMatch": "No matches. Clear the search field to browse the whole list.",
+    "noMatchOccupation": "No matches among the industries, but {word} is an occupation. The answer is below, or clear the search field to browse the whole list.",
     "filterMatches": "{count, plural, one {# match} other {# matches}}",
-    "filterTooMany": "{count} matches. Type more to narrow the list, or browse the whole list below."
+    "filterMatchesOccupation": "{count, plural, one {# match} other {# matches}}. {word} is also an occupation, see the answer below.",
+    "filterTooMany": "{count} matches. Type more to narrow the list, or browse the whole list below.",
+    "matchedVia": "matched on {term}",
+    "occupationChoose": "Which occupation do you mean?",
+    "occupationChangeChoice": "Change occupation",
+    "occupationHeading": "{label} is an occupation, not an industry.",
+    "occupationIntro": "Across the {count, plural, one {# ad} other {# ads}} we have seen for it, the employers are in:",
+    "occupationShare": "{percent}% ({count, plural, one {# ad} other {# ads}})",
+    "occupationShareUnderOne": "under 1% ({count, plural, one {# ad} other {# ads}})",
+    "occupationBelowThreshold": "Other industries, each too small to show: {share}",
+    "occupationWithoutDivision": "Employers with no industry in the register: {share}",
+    "occupationTooFew": "Too few ads ({count}) to say where the employers are.",
+    "occupationNotProfiled": "The distribution cannot be shown right now.",
+    "occupationAdsSeen": "{count, plural, one {# ad} other {# ads}} seen",
+    "occupationTooFewShort": "too few ads ({count})",
+    "occupationNotProfiledShort": "distribution unavailable"
   }
 }

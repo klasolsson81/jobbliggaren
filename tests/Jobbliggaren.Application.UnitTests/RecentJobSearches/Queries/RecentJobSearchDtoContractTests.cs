@@ -36,6 +36,9 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.WorktimeExtentList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        // #1471 — arbetsgivar-axeln, ett org.nr per värde, maskad på vägen ut (EmployerAxisGate).
+        t.GetProperty(nameof(RecentJobSearchDto.EmployerList))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         // #1407 — distans-axeln (skalär, ingen label-dimension).
         t.GetProperty(nameof(RecentJobSearchDto.Remote))!
             .PropertyType.ShouldBe(typeof(bool));
@@ -77,13 +80,14 @@ public class RecentJobSearchDtoContractTests
     // stänger inte det hålet heller: den matchar stavningar, inte formen.
     //
     // Mängden är därför uttömmande och EXAKT. Vilken ny property som helst, oavsett
-    // namn och deklarationsform, faller ut här. Vilka dimensioner som FÅR vara med
-    // och varför en utelämnas ägs av RecentJobSearchProjectionParityTests.
+    // namn och deklarationsform, faller ut här. Att varje sökdimension är MED ägs av
+    // RecentJobSearchProjectionParityTests; att de projicerade VÄRDENA är de räknade ägs av
+    // ListRecentSearchesCountReplayParityTests.
     private static readonly string[] SurfacedProperties =
     [
         "Id", "Q",
         "OccupationGroupList", "MunicipalityList", "RegionList",
-        "EmploymentTypeList", "WorktimeExtentList", "Remote",
+        "EmploymentTypeList", "WorktimeExtentList", "EmployerList", "Remote",
         "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
         "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
     ];
@@ -100,11 +104,12 @@ public class RecentJobSearchDtoContractTests
         actual.ShouldBe(
             [.. SurfacedProperties.OrderBy(n => n, StringComparer.Ordinal)],
             "varje public instans-property på RecentJobSearchDto når HTTP-svaret. "
-            + "Är den nya propertyn en SÖKDIMENSION — en axel filtret bär — klassa den "
-            + "först i RecentJobSearchProjectionParityTests. Är den presentation eller "
+            + "Är den nya propertyn en SÖKDIMENSION — en axel filtret bär — ge den en rad i "
+            + "ListRecentSearchesCountReplayParityTests.ReplayProjection också, annars mäter "
+            + "ingen test att den räknas och replayas lika. Är den presentation eller "
             + "räknare (Label, CurrentCount, NewCount) eller ett bokföringsfält som "
-            + "redan står i den filens NotSearchDimensions (Id, LastViewedAt), är den "
-            + "här listan hela grinden.");
+            + "redan står i RecentJobSearchProjectionParityTests.NotSearchDimensions (Id, "
+            + "LastViewedAt), är den här listan hela grinden.");
     }
 
     [Fact]
@@ -122,6 +127,7 @@ public class RecentJobSearchDtoContractTests
         // #1407: Remote sist i råa-dimensions-blocket — samma position den har
         // RELATIVT de råa dimensionslistorna i JobAdFilterCriteria (där Q ligger
         // sist och här på index 1; de två ordningarna divergerade före #1407).
+        // #1471: EmployerList före Remote, av samma skäl — JobAdFilterCriteria:s ordning.
         names.ShouldBe(SurfacedProperties);
     }
 }

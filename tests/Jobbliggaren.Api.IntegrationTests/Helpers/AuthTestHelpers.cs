@@ -1,59 +1,54 @@
-using System.Net.Http.Json;
-using System.Text.Json;
+using Jobbliggaren.Application.Auth.Registration;
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobSeekers;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Jobbliggaren.Api.IntegrationTests.Helpers;
 
 public static class AuthTestHelpers
 {
     /// <summary>
-    /// Default test-lösenord för integration-tester. Inte ett riktigt secret —
-    /// gitleaks-fingerprint redan ignored för denna fil.
-    /// </summary>
-    public const string DefaultTestPassword = "T3stlosen123456";
-
-    /// <summary>
-    /// Registrerar en ny user och returnerar raw session-id för Authorization: Bearer-header.
-    /// Varje anrop skapar en unik e-post (Guid-suffix) för att undvika konflikter.
+    /// Creates the account shape ADR 0142 D10 defines — a passwordless user whose address is
+    /// confirmed — with a JobSeeker and a session of <paramref name="lifetime"/>, and returns the raw
+    /// session id for an Authorization: Bearer header.
     /// </summary>
     public static async Task<string> RegisterAndGetSessionIdAsync(
-        HttpClient client,
+        WebApplicationFactory<Program> factory,
         string? email = null,
-        string password = DefaultTestPassword,
-        string displayName = "Test User",
+        SessionLifetime lifetime = SessionLifetime.Persistent,
         CancellationToken ct = default)
     {
         email ??= $"test-{Guid.NewGuid()}@example.se";
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/register",
-            new { email, password, displayName },
-            ct);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
 
-        response.EnsureSuccessStatusCode();
+        var created = await services.GetRequiredService<IPasswordlessAccountCreator>()
+            .CreatePasswordlessUserAsync(email, ct);
+        if (created.IsFailure)
+            throw new InvalidOperationException($"Bootstrap user creation failed: {created.Error.Code}");
 
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        return json.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("sessionId saknas i register-response.");
+        return await RegisterJobSeekerAndCreateSessionAsync(services, created.Value, lifetime, ct);
     }
 
-    /// <summary>
-    /// Loggar in en befintlig user och returnerar raw session-id för Authorization: Bearer-header.
-    /// </summary>
-    public static async Task<string> LoginAndGetSessionIdAsync(
-        HttpClient client,
-        string email,
-        string password = DefaultTestPassword,
-        CancellationToken ct = default)
+    internal static async Task<string> RegisterJobSeekerAndCreateSessionAsync(
+        IServiceProvider services,
+        Guid userId,
+        SessionLifetime lifetime,
+        CancellationToken ct)
     {
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login",
-            new { email, password },
-            ct);
+        var clock = services.GetRequiredService<IDateTimeProvider>();
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock);
+        if (seeker.IsFailure)
+            throw new InvalidOperationException($"Bootstrap JobSeeker.Register failed: {seeker.Error.Code}");
 
-        response.EnsureSuccessStatusCode();
+        var db = services.GetRequiredService<IAppDbContext>();
+        db.JobSeekers.Add(seeker.Value);
+        await db.SaveChangesAsync(ct);
 
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        return json.GetProperty("sessionId").GetString()
-            ?? throw new InvalidOperationException("sessionId saknas i login-response.");
+        var session = await services.GetRequiredService<ISessionStore>().CreateAsync(userId, lifetime, ct);
+        return session.Id.Reveal();
     }
 }

@@ -33,7 +33,7 @@ public class EmployerApplicationCountBatchCrossUserIsolationTests(ApiFactory fac
     {
         var client = factory.CreateClient();
         var email = $"{prefix}-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

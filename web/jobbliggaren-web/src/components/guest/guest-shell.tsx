@@ -68,20 +68,16 @@ export function GuestShell({ children }: { children: ReactNode }) {
         <span className="jp-header__spacer" />
 
         <div className="jp-header__actions">
-          {/* Guests cannot reach Installningar; the rule and its derivation live
+          {/* Guests cannot reach Mina sidor; the rule and its derivation live
               in language-switcher.tsx's docblock. */}
           <LanguageSwitcher />
+          {/* One control: `/logga-in` is both doors (ADR 0142), and the demo banner
+              keeps the sign-up door in content in every guest view. */}
           <Link
             href="/logga-in"
             className="jp-btn jp-btn--secondary jp-btn--sm"
           >
             <LogIn size={16} aria-hidden="true" /> {t("shell.logIn")}
-          </Link>
-          <Link
-            href="/registrera"
-            className="jp-btn jp-btn--primary jp-btn--sm"
-          >
-            {t("shell.register")}
           </Link>
         </div>
       </HeaderStrip>

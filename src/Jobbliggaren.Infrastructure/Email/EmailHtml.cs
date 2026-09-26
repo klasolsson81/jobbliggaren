@@ -17,10 +17,10 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// the type guarantees nothing</b>: a positional <c>record struct</c> has a public primary
 /// constructor, so <c>new Markup(rawHtml)</c> compiles anywhere in Infrastructure and in the test
 /// assemblies reached by <c>InternalsVisibleTo</c>. What holds is therefore a GREPPABLE convention
-/// with a small audit surface, not a compiler guarantee: <c>Markup</c> is constructed in exactly
-/// seven places, all in this file, and every interpolation in those seven passes through
+/// with a small audit surface, not a compiler guarantee: <c>Markup</c> is constructed only in this
+/// file, and every interpolation in those constructions passes through
 /// <see cref="EmailHtml.Encode"/>.
-/// <b>The audit surface is found by TYPE, never by constructor spelling.</b> All seven use
+/// <b>The audit surface is found by TYPE, never by constructor spelling.</b> All of them use
 /// target-typed <c>new(...)</c>, so a search for <c>new Markup(</c> matches none of them and would
 /// report a clean repo while missing every site it claims to cover. The measurement that bears the
 /// claim is a type-name search — <c>grep -rl "Markup" src/ --include=*.cs</c>, measured 2026-08-12 =
@@ -92,8 +92,8 @@ internal readonly record struct Markup(string Value)
 /// <c>PlatsbankenJobSource</c> puts <c>hit.Employer?.Name?.Trim()</c> straight into
 /// <c>CompanyName</c>, and the payload sanitizer never runs on it. Unencoded, a crafted company name
 /// would inject markup into a mail we sign with our own DKIM, including the very <c>&lt;img&gt;</c>
-/// the paragraph above forbids. Every interpolation in the seven <c>Markup</c> constructions below
-/// passes through <see cref="Encode"/>; those seven are the whole audit surface, and
+/// the paragraph above forbids. Every interpolation in the <c>Markup</c> constructions below
+/// passes through <see cref="Encode"/>; they are the whole audit surface, and
 /// <see cref="Markup"/> explains why that is a convention rather than a compiler guarantee.
 /// </para>
 ///
@@ -111,9 +111,11 @@ internal readonly record struct Markup(string Value)
 /// box in every client, so the affordance became ~2.3x the target on the primary action of SIX of the
 /// eight mails, and a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own
 /// prescription). <c>EmailChangedNotification</c> has never had a button, and
-/// <c>PasswordChangedNotice</c> lost its own later the same day: its route is deliberately an inline
-/// link, since a button there shouts at everyone who performed the reset themselves. <c>mso-padding-alt</c> is the accepted form and needs no VML.
+/// <c>PasswordChangedNotice</c> lost its own later the same day. <c>mso-padding-alt</c> is the accepted form and needs no VML.
 /// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
+/// The card is fluid up to 600px, so a phone lays it out at its own width instead of shrinking a
+/// fixed one; Word ignores <c>max-width</c>, so a 600px table inside <c>&lt;!--[if mso]&gt;</c>
+/// comments holds the width there (design-reviewer, #1825's form round, 2026-09-24).
 /// </para>
 ///
 /// <para>
@@ -171,13 +173,27 @@ internal static class EmailHtml
         $"margin:0 0 14px 0;font-family:{FontStack};font-size:16px;line-height:1.55;color:{Ink};";
 
     /// <summary>
+    /// The code rung, DESIGN.md §11.5 point 3; <c>tabular-nums</c> because the digits are read and typed
+    /// (DESIGN.md §4).
+    /// </summary>
+    private const string CodeStyle =
+        $"margin:0 0 18px 0;font-family:{FontStack};font-size:28px;line-height:1.2;font-weight:700;"
+        + $"font-variant-numeric:tabular-nums;letter-spacing:0.08em;color:{Ink};";
+
+    /// <summary>
+    /// The footer line under the wordmark, DESIGN.md §11.5 point 3: the tagline of DESIGN.md §11, as the
+    /// web app publishes it in <c>messages/sv/landing.json</c> (<c>brand.tagline</c>).
+    /// <c>EmailFooterTaglineMirrorsBrandTaglineTests</c> pins the copy against that file.
+    /// </summary>
+    internal const string Tagline = "Den svenska jobbansökningshanteraren";
+
+    /// <summary>
     /// Zero-width filler after the preheader. Without it Gmail runs the preview text straight into
     /// the first visible line, which here is the <c>&lt;h1&gt;</c> — identical to the subject — so
     /// the inbox preview repeats the subject back at itself (design-reviewer Minor 3, 2026-08-12).
     /// </summary>
-    private const string PreheaderFiller =
-        "&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;"
-        + "&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;";
+    internal static readonly string PreheaderFiller =
+        string.Join("\n", Enumerable.Repeat(string.Concat(Enumerable.Repeat("&#847;&zwnj;&nbsp;", 10)), 9));
 
     /// <summary>
     /// Wraps a rendered body in the shell.
@@ -186,9 +202,9 @@ internal static class EmailHtml
     /// exhaustively because the Art. 30 Datakategori argument rests on the list being complete
     /// (design-reviewer and security-auditor both measured the earlier list as short): the
     /// <c>&lt;title&gt;</c>, the <paramref name="preheader"/>, the visible <c>&lt;h1&gt;</c>, the
-    /// wordmark set as text in the footer, and one footer line saying the service is free. The first
-    /// three carry no information that is not already in the subject or the body; none of the five is
-    /// a personal data field, which is the test that matters for the register.
+    /// wordmark set as text in the footer, and the tagline under it. The first three carry no
+    /// information that is not already in the subject or the body; none of the five is a personal
+    /// data field, which is the test that matters for the register.
     /// </para>
     /// </summary>
     /// <param name="title">Visible heading and document title. Encoded here.</param>
@@ -210,7 +226,8 @@ internal static class EmailHtml
         <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:{Canvas};">{Encode(preheader)}{PreheaderFiller}</div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{Canvas}" style="background-color:{Canvas};">
         <tr><td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="{Surface}" style="width:600px;max-width:600px;background-color:{Surface};border:1px solid {Border};border-radius:6px;">
+        <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{Surface}" style="width:100%;max-width:600px;margin:0 auto;background-color:{Surface};border:1px solid {Border};border-radius:6px;overflow-wrap:anywhere;word-break:break-word;">
         <tr><td height="4" bgcolor="{Accent}" style="height:4px;line-height:4px;font-size:4px;background-color:{Accent};">&nbsp;</td></tr>
         <tr><td style="padding:28px 32px 0 32px;">
         <h1 style="margin:0 0 16px 0;font-family:{FontStack};font-size:22px;line-height:1.3;font-weight:700;color:{Heading};">{Encode(title)}</h1>
@@ -223,9 +240,10 @@ internal static class EmailHtml
         </td></tr>
         <tr><td style="padding:18px 32px 26px 32px;">
         <div style="margin:0;font-family:{FontStack};font-size:16px;line-height:1.3;font-weight:700;color:{Ink};">Jobbliggaren</div>
-        <div style="margin:4px 0 0 0;font-family:{FontStack};font-size:14px;line-height:1.5;color:{Ink};">Tjänsten är helt gratis att använda.</div>
+        <div style="margin:4px 0 0 0;font-family:{FontStack};font-size:14px;line-height:1.5;color:{Ink};">{Encode(Tagline)}</div>
         </td></tr>
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
         </td></tr>
         </table>
         </body>
@@ -240,10 +258,14 @@ internal static class EmailHtml
     /// The sign-off, both lines in one paragraph exactly as the plain-text part sets them
     /// ("Vänliga hälsningar," / "Jobbliggaren"). They were split across the footer divider before,
     /// which left a comma-terminated line ending nothing (design-reviewer Major 2, 2026-08-12). The
-    /// footer wordmark stays: it is brand chrome carrying the free-of-charge line, not the sign-off.
+    /// footer wordmark stays: it is brand chrome carrying the tagline, not the sign-off.
     /// </summary>
     public static Markup SignOff() =>
         new($"""<p style="{BodyStyle}">Vänliga hälsningar,<br>Jobbliggaren</p>""");
+
+    /// <summary>A one-time code, in a paragraph of its own at the code rung. The text is encoded.</summary>
+    public static Markup Code(string text) =>
+        new($"""<p style="{CodeStyle}">{Encode(text)}</p>""");
 
     /// <summary>
     /// The call to action. The anchor carries the real <c>padding</c> and the cell carries
@@ -264,15 +286,9 @@ internal static class EmailHtml
         """);
 
     /// <summary>
-    /// A paragraph ending in an inline link. Two roles, and the second one is why the old wording
-    /// ("secondary routes … must not compete with the button") no longer describes it: a SECONDARY
-    /// route that must be reachable without competing with the call to action (settings, the contact
-    /// address), OR the PRIMARY route where a button would be the wrong tone — in
-    /// <c>PasswordChangedNotice</c> it is the only CALL TO ACTION in a mail with no button at all,
-    /// because a button there shouts at everyone who performed the reset themselves. (That mail
-    /// carries two of these — the reset route and the contact line — so "the only action" would
-    /// contradict this sentence's own taxonomy.) Underlined rather than
-    /// colour-only, so the link is not identified by colour alone (WCAG 1.4.1). Both parts encoded.
+    /// A paragraph ending in an inline link: a route that must be reachable without competing with the
+    /// call to action (settings, the contact address). Underlined rather than colour-only, so the link is
+    /// not identified by colour alone (WCAG 1.4.1). Both parts encoded.
     /// </summary>
     public static Markup LinkParagraph(string leadingText, string href, string linkText) =>
         new($"""

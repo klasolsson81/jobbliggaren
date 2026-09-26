@@ -23,7 +23,7 @@ public class GetSavedSearchQueryHandlerTests
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
@@ -97,7 +97,7 @@ public class GetSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var otherUserId = Guid.NewGuid();
         var (_, otherSaved) = await SeedAsync(db, otherUserId);
-        var ownSeeker = JobSeeker.Register(_userId, "Current", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -116,7 +116,7 @@ public class GetSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var otherUserId = Guid.NewGuid();
         var (_, otherSaved) = await SeedAsync(db, otherUserId);
-        var ownSeeker = JobSeeker.Register(_userId, "Current", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

@@ -149,11 +149,11 @@ healthy_state() {
   # list-unit-files too — a property of systemd this box was checked against, not a count:
   #   systemctl list-unit-files 'jobbliggaren*' --state=enabled
   # Regenerate that command against the box rather than trusting this list to have kept up.
-  # Last regenerated 2026-08-18, when #1175's logship pair was enabled.
-  printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\njobbliggaren-secrets-present.timer enabled enabled\njobbliggaren-logship.timer enabled enabled\njobbliggaren-logship-fresh.timer enabled enabled\n' \
+  # Last regenerated 2026-09-03, when #1170's prune timer was enabled.
+  printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\njobbliggaren-secrets-present.timer enabled enabled\njobbliggaren-logship.timer enabled enabled\njobbliggaren-logship-fresh.timer enabled enabled\njobbliggaren-logprune.timer enabled enabled\n' \
     >"$TMPROOT/enabled-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\n' >"$TMPROOT/active-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\n' >"$TMPROOT/enabled-set"
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\njobbliggaren-logprune.timer\n' >"$TMPROOT/active-timers"
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\njobbliggaren-logprune.timer\n' >"$TMPROOT/enabled-set"
   cat >"$TMPROOT/audit.rules" <<'RULES'
 -w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
 -w /etc/sudoers -p wa -k jbl-sudoers

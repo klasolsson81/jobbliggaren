@@ -7,7 +7,7 @@ import InterceptedCvImportModal from "./page";
 const redirect = vi.fn();
 const getServerSession = vi.fn();
 
-// The async server component resolves its modal title/description via
+// The async server component resolves its modal title via
 // `getTranslations("pages")`. next-intl's server entry is unavailable in jsdom,
 // so mock it to a real translator over the Swedish `pages` catalog (source of
 // truth) — verbatim copy keeps flowing, identical to production.
@@ -62,6 +62,8 @@ describe("@modal/(.)cv/importera intercepting route", () => {
     expect(document.getElementById(labelledby!)).toHaveTextContent(
       "Importera CV"
     );
+    // No dialog description: the form's own help text is what the file input is described by.
+    expect(dialog).not.toHaveAttribute("aria-describedby");
 
     // CvUploadForm-närvaro: dess upload-knapp (ärlig copy).
     expect(

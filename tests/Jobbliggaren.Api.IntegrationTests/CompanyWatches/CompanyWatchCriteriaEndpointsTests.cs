@@ -4,8 +4,13 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -39,7 +44,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
@@ -66,6 +71,8 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         (await _client.PostAsJsonAsync(Endpoint, new { }, ct)).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized);
         (await _client.GetAsync($"{Endpoint}/{Guid.NewGuid()}/companies", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized);
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions?q=systemutvecklare", ct)).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized);
     }
 
@@ -166,7 +173,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
         // ...user B probes it, plus an id that exists for nobody.
         var clientB = _factory.CreateClient();
-        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(clientB, ct: ct);
+        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var foreign = await clientB.GetAsync($"{Endpoint}/{theirId}/companies", ct);
@@ -275,6 +282,366 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         return item.TryGetProperty("label", out var label) && label.ValueKind != JsonValueKind.Null
             ? label.GetString()
             : null;
+    }
+
+    [Fact]
+    public async Task Ad_browse_own_criterion_returns_the_page_AND_the_magnitude()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedRegisterAsync(ct,
+            ("5560000012", "Acme AB"),
+            ("5560000020", "Beta AB"));
+
+        // Three Active ads at Acme, one at Beta, and one at an employer this criterion does NOT
+        // match — the last is what makes the join's WHERE observable rather than assumed.
+        await SeedAdsAsync(ct,
+            ("5560000012", 3, JobAdStatus.Active),
+            ("5560000020", 1, JobAdStatus.Active),
+            ("5569999999", 4, JobAdStatus.Active));
+
+        var id = await CreateAsync(ct);
+
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
+
+        var response = await _client.GetAsync($"{Endpoint}/{id}/ads?page=1&pageSize=2", ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        // Same composed shape as /companies: the PAGE (pagination quantities) and the MAGNITUDE (the
+        // honest "N aktiva annonser") arrive as separate members, so the FE cannot conflate them.
+        var ads = body.GetProperty("ads");
+        ads.GetProperty("items").GetArrayLength().ShouldBe(2);
+        ads.GetProperty("totalCount").GetInt32().ShouldBe(4);
+
+        var magnitude = body.GetProperty("magnitude");
+        magnitude.GetProperty("magnitude").GetInt32().ShouldBe(4);
+        magnitude.GetProperty("saturated").GetBoolean().ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Ad_browse_excludes_archived_ads_and_unmatched_employers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedRegisterAsync(ct, ("5560000012", "Acme AB"));
+
+        // Two Active ads and two Archived ones at the SAME matched employer, plus ads at an employer
+        // outside the criterion. Only the two Active ones at Acme may be counted.
+        await SeedAdsAsync(ct,
+            ("5560000012", 2, JobAdStatus.Active),
+            ("5560000012", 2, JobAdStatus.Archived),
+            ("5569999999", 5, JobAdStatus.Active));
+
+        var id = await CreateAsync(ct);
+
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
+
+        // #1656 (b) — /ad-count composes two questions now. `ads` is this assertion's; `matching`
+        // has its own oracle in CriterionMatchingAdCountApiTests.
+        var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
+        count.GetProperty("ads").GetProperty("magnitude").GetInt32().ShouldBe(2);
+
+        var body = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ads", ct);
+        var items = body.GetProperty("ads").GetProperty("items");
+        items.GetArrayLength().ShouldBe(2);
+        foreach (var item in items.EnumerateArray())
+            item.GetProperty("status").GetString().ShouldBe(JobAdStatus.Active.Value);
+    }
+
+    [Fact]
+    public async Task Ad_browse_orders_newest_first_across_the_wire()
+    {
+        // The port publishes published_at DESC and the handler re-states it; this is the only test
+        // that sees the order the FE actually receives, through both.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedRegisterAsync(ct, ("5560000012", "Acme AB"));
+        await SeedAdsAsync(ct, ("5560000012", 5, JobAdStatus.Active));
+
+        var id = await CreateAsync(ct);
+
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
+
+        var body = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ads", ct);
+        var published = body.GetProperty("ads").GetProperty("items").EnumerateArray()
+            .Select(i => i.GetProperty("publishedAt").GetDateTimeOffset())
+            .ToList();
+
+        published.Count.ShouldBe(5);
+        published.ShouldBe(published.OrderByDescending(p => p).ToList());
+    }
+
+    [Fact]
+    public async Task Ad_endpoints_for_a_foreign_criterion_are_the_identical_404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        await AuthenticateAsync(ct);
+        var theirId = await CreateAsync(ct);
+
+        var clientB = _factory.CreateClient();
+        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
+        clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
+
+        var foreignAds = await clientB.GetAsync($"{Endpoint}/{theirId}/ads", ct);
+        var unknownAds = await clientB.GetAsync($"{Endpoint}/{Guid.NewGuid()}/ads", ct);
+        var foreignCount = await clientB.GetAsync($"{Endpoint}/{theirId}/ad-count", ct);
+        var unknownCount = await clientB.GetAsync($"{Endpoint}/{Guid.NewGuid()}/ad-count", ct);
+
+        // IDOR posture (C-D10/ADR 0031): 404 on both surfaces, for both causes, never 403 and never
+        // distinguishable — otherwise the ad routes would become the existence oracle /companies is
+        // careful not to be.
+        foreignAds.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        unknownAds.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        foreignCount.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        unknownCount.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("page=101")]
+    [InlineData("page=0")]
+    [InlineData("pageSize=101")]
+    [InlineData("pageSize=0")]
+    public async Task Ad_browse_rejects_transport_bounds_with_400_never_500(string query)
+    {
+        // The validator's bounds and the port's count cap are one knowledge piece: rejecting the
+        // out-of-range page is what makes "TotalPages never exceeds MaxPage" true rather than
+        // hopeful. And the failure MODE matters as much as the rejection — CompanyBrowseCriteria's
+        // constructor throws ArgumentOutOfRangeException, so a missing validator rule is not a
+        // permissive 200 but a 500. Only the pageSize bound could actually produce one before this
+        // test existed (test-writer §3).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await CreateAsync(ct);
+
+        var response = await _client.GetAsync($"{Endpoint}/{id}/ads?{query}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// #1682 — the occupation block's read at the wire, and the one seam no other test crosses: the
+    /// profile is keyed on <c>job_ads.occupation_group_concept_id</c> as the ACL writes it, the deriver
+    /// answers <c>OccupationCandidate.OccupationGroupConceptId</c> out of the taxonomy, and the feature
+    /// is alive only while those are one keyspace. A drift there is SILENT — every word answers "too
+    /// few ads" at zero, an honest refusal over a dead feature, green suite — so the ads here carry the
+    /// deriver test's own golden id (<see cref="MjukvaraGroup"/>, provenance in
+    /// <c>OccupationCodeDeriverIntegrationTests</c>) and the assertion runs through the real deriver,
+    /// the real builder out of the Api's own graph, and the real endpoint. The 400 and the cache
+    /// header are proven only here: the handler unit test constructs the query directly.
+    /// </summary>
+    [Fact]
+    public async Task OccupationDivisions_answers_from_the_profile_the_job_built_over_the_ads_the_ACL_keyed_and_400s_below_the_floor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedRegisterAsync(ct, ("5560000062", "Kodhuset AB"));
+        await SeedRegisterRowAsync("5560000078", "Bemanningshuset AB", "78200", ct);
+        // 21 = the derived floor (100 / 5 + 1): one fewer and the answer is a refusal, not a profile.
+        // Split 20 / 1: the single ad under huvudgrupp 78 is 4.76 %, under the 5 % cut, so the
+        // below-threshold residual on the wire is a real number produced end-to-end, never a zero.
+        await SeedOccupationAdsAsync(MjukvaraGroup, ct, ("5560000062", 20), ("5560000078", 1));
+        await BuildProfileAsync(ct);
+
+        var ok = await _client.GetAsync($"{Endpoint}/occupation-divisions?q=systemutvecklare", ct);
+        ok.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ok.Headers.CacheControl!.ToString().ShouldContain("private");
+        ok.Headers.CacheControl!.ToString().ShouldContain("no-store");
+
+        var body = await ok.Content.ReadFromJsonAsync<JsonElement>(ct);
+        body.GetProperty("word").GetString().ShouldBe("systemutvecklare");
+        var mjukvara = body.GetProperty("occupations").EnumerateArray()
+            .Single(o => o.GetProperty("occupationGroupConceptId").GetString() == MjukvaraGroup);
+        mjukvara.GetProperty("state").GetString().ShouldBe("profiled");
+        mjukvara.GetProperty("totalAds").GetInt32().ShouldBe(21);
+        var division = mjukvara.GetProperty("divisions").EnumerateArray().ShouldHaveSingleItem();
+        division.GetProperty("code").GetString().ShouldBe("62");
+        division.GetProperty("adCount").GetInt32().ShouldBe(20);
+        division.GetProperty("sharePercent").GetInt32().ShouldBe(95, "20/21 = 95.24 %");
+        mjukvara.GetProperty("belowThresholdAdCount").GetInt32().ShouldBe(1, "the 78 ad: 1/21 = 4.76 %, under the cut");
+        mjukvara.GetProperty("belowThresholdSharePercent").GetInt32().ShouldBe(5);
+        mjukvara.GetProperty("withoutDivisionAdCount").GetInt32().ShouldBe(0);
+
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions?q=a", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.BadRequest);
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.BadRequest, "a missing q binds to the empty word, which the validator refuses");
+    }
+
+    /// <summary>The deriver test's golden ssyk-4 id for "Mjukvaru- och systemutvecklare m.fl.".</summary>
+    private const string MjukvaraGroup = "DJh5_yyF_hEM";
+
+    /// <summary>
+    /// Active ads under one occupation group, split across employers, through <c>JobAd.Import</c> with
+    /// the group in the payload the way the ACL reads it out (<c>TestFacets.FromPayload</c>). Owns the
+    /// group's slice of the shared table first: the profile counts every ad under the id, so a row
+    /// left by another class's run would inflate the denominator these assertions rest on.
+    /// </summary>
+    private async Task SeedOccupationAdsAsync(
+        string occupationGroupConceptId, CancellationToken ct, params (string OrgNr, int Count)[] employers)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM job_ads WHERE occupation_group_concept_id = {0};", [occupationGroupConceptId], ct);
+
+        var published = new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+        var offset = 0;
+        foreach (var (orgNr, count) in employers)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var externalId = $"ext-{Guid.NewGuid():N}";
+                var payload =
+                    $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}},"
+                    + $"\"occupation_group\":{{\"concept_id\":\"{occupationGroupConceptId}\"}}}}";
+                var import = JobAd.Import(
+                    title: $"Systemutvecklare {offset}",
+                    company: Company.Create($"Bolag {orgNr}").Value,
+                    description: "beskrivning",
+                    url: $"https://example.com/jobs/{externalId}",
+                    external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+                    rawPayload: payload,
+                    facets: TestFacets.FromPayload(payload),
+                    publishedAt: published.AddHours(-offset),
+                    expiresAt: published.AddDays(60),
+                    clock: new FixedClock(published.AddHours(-offset)),
+                    declaredContacts: [],
+                    extractTerms: TestKeywordExtraction.None);
+                import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
+                db.JobAds.Add(import.Value);
+                offset++;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>One Active register row with its own primary SNI code, through the production upsert.</summary>
+    private async Task SeedRegisterRowAsync(string orgNr, string name, string sni, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entry = new ScbCompanyRegisterEntry
+        {
+            OrganizationNumber = orgNr,
+            Name = name,
+            SeatMunicipalityCode = KommunStockholm,
+            SeatMunicipalityName = "Stockholm",
+            SniCodes = [sni],
+            HasAdvertisingBlock = false,
+            ScbStatusRaw = "1",
+            Status = CompanyRegisterStatus.Active,
+        };
+        await new ScbCompanyRegisterStore(db).UpsertBatchAsync(
+            [entry], new DateTimeOffset(2026, 7, 16, 10, 0, 0, TimeSpan.Zero), ct);
+    }
+
+    /// <summary>The PRODUCTION builder out of the Api's own graph — the profile has exactly one writer.</summary>
+    private async Task BuildProfileAsync(CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var result = await scope.ServiceProvider
+            .GetRequiredService<IOccupationDivisionProfileBuilder>()
+            .BuildAsync(ct);
+        result.RowsWritten.ShouldBeGreaterThan(0, "the builder is enabled by default in the Api graph too");
+    }
+
+    /// <summary>
+    /// Seeds Active/Archived <c>job_ads</c> for given employers through the production ingest entry
+    /// point (<c>JobAd.Import</c>, then the archive transition) — so the rows these assertions rest on
+    /// are ones <c>src/</c> produces (CLAUDE.md §5 <c>Tests:</c>). Like
+    /// <see cref="SeedRegisterAsync"/> it first clears its own slice of the shared table, because the
+    /// Api collection shares one Postgres and a previous run's ads would inflate the counts.
+    /// </summary>
+    private async Task SeedAdsAsync(
+        CancellationToken ct, params (string OrgNr, int Count, JobAdStatus Status)[] rows)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var orgNrs = rows.Select(r => r.OrgNr).Distinct().ToArray();
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM job_ads WHERE organization_number = ANY({0});", [orgNrs], ct);
+
+        var published = new DateTimeOffset(2026, 9, 4, 10, 0, 0, TimeSpan.Zero);
+        var offset = 0;
+
+        foreach (var (orgNr, count, status) in rows)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var externalId = $"ext-{Guid.NewGuid():N}";
+                // The org.nr reaches the column the way production's ACL puts it there: parsed OUT
+                // of the payload, not handed in as a separate argument beside it.
+                var payload = $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}}}}";
+                var import = JobAd.Import(
+                    title: $"Roll {offset}",
+                    company: Company.Create("Seedad AB").Value,
+                    description: "beskrivning",
+                    url: $"https://example.com/jobs/{externalId}",
+                    external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+                    rawPayload: payload,
+                    facets: TestFacets.FromPayload(payload),
+                    publishedAt: published.AddDays(-offset),
+                    expiresAt: published.AddDays(60),
+                    clock: new FixedClock(published.AddDays(-offset)),
+                    declaredContacts: [],
+                    extractTerms: TestKeywordExtraction.None);
+                import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
+
+                if (status == JobAdStatus.Archived)
+                {
+                    var archived = import.Value.Archive(new FixedClock(published));
+                    archived.IsSuccess.ShouldBeTrue(
+                        $"seed: JobAd.Archive måste lyckas ({archived.Error?.Code})");
+                }
+
+                db.JobAds.Add(import.Value);
+                offset++;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// #1681 part 2 (ADR 0139) — runs the PRODUCTION materialisation job. The ad-side reads answer
+    /// from the member set it writes rather than from a live register join, so a criterion nobody has
+    /// materialised reports "not materialised": an empty page and an absent magnitude, never a zero
+    /// and never the old live number.
+    ///
+    /// <para>
+    /// The real <c>ICompanyWatchCriterionMaterialiser</c> out of the Api's own graph, never a
+    /// hand-written member row — the two derived tables have exactly one writer in <c>src/</c>, and
+    /// these assertions rest on what IT produces (CLAUDE.md §5 <c>Tests:</c>).
+    /// </para>
+    /// </summary>
+    private async Task MaterialiseAsync(CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var materialiser = scope.ServiceProvider
+            .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+        await materialiser.MaterialiseAsync(ct);
+    }
+
+    /// <summary>Test clock — the house form in this project (parity the Applications suites).</summary>
+    private sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow => now;
     }
 
     /// <summary>

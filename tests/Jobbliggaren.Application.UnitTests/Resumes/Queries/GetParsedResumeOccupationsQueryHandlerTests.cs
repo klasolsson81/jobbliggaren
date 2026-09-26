@@ -64,7 +64,7 @@ public class GetParsedResumeOccupationsQueryHandlerTests
         Infrastructure.Persistence.AppDbContext db, Guid userId,
         IReadOnlyList<ProposedOccupation> proposals)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id, proposals);
         db.ParsedResumes.Add(parsed);
@@ -102,7 +102,7 @@ public class GetParsedResumeOccupationsQueryHandlerTests
     public async Task Handle_ShouldReturnNull_WhenArtifactNotFound_AndNotLogCrossUser()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -119,7 +119,7 @@ public class GetParsedResumeOccupationsQueryHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid(), [Proposal()]);
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -149,7 +149,7 @@ public class GetParsedResumeOccupationsQueryHandlerTests
             otherParsed.Promote(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
         else
             otherParsed.Discard(FakeDateTimeProvider.Default);
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

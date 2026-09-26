@@ -61,7 +61,6 @@ export default async function MatchningarPage() {
     <div className="flex flex-col">
       <div>
         <h1 className="jp-h1">{t("matchningar.title")}</h1>
-        <p className="jp-lede">{t("matchningar.lede")}</p>
       </div>
 
       <div className="mt-7">{renderResult(result, t)}</div>

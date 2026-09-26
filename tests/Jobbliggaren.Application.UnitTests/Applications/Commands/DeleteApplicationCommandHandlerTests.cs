@@ -29,7 +29,7 @@ public class DeleteApplicationCommandHandlerTests
     private static async Task<(JobSeeker seeker, DomainApplication application)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var application = DomainApplication.Create(
@@ -101,7 +101,7 @@ public class DeleteApplicationCommandHandlerTests
         var (_, application) = await SeedAsync(db, ownerUserId);
 
         // The current user is different (own seeker so the lookup resolves != default).
-        var otherSeeker = JobSeeker.Register(_userId, "Other", FakeDateTimeProvider.Default).Value;
+        var otherSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(otherSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

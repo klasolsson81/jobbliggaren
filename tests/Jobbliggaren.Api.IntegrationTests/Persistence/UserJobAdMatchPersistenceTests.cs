@@ -285,7 +285,7 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
         var (db, clock, scope) = NewScope();
         using (scope)
         {
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             seekerId = seeker.Id;
 
             // Consent fields live in the preferences jsonb (additive — no migration).

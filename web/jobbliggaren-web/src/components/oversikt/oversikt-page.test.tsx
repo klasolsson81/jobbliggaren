@@ -2,11 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OversiktPage } from "./oversikt-page";
+import messages from "../../../messages/sv";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
-import type { PipelineGroupDto } from "@/lib/dto/applications";
+import type { ApplicationDto, PipelineGroupDto } from "@/lib/dto/applications";
+import type {
+  CompanyWatchCriterion,
+  ListCompanyWatchCriteriaResult,
+} from "@/lib/dto/company-criteria";
 import type {
   CompanyWatch,
   ListCompanyWatchesResult,
@@ -15,6 +20,8 @@ import type {
   ListSavedJobAdsResult,
   SavedJobAdDto,
 } from "@/lib/dto/saved-job-ads";
+import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
+import { buildCriterionAdsHref } from "@/lib/company-criteria/criterion-ads-href";
 import { DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { queryLabel } from "@/test/recent-search-label";
 // Sidan renderar NoticeToolbar, vars uppdatera-kontroll kallar `useRouter()` (#1549).
@@ -25,13 +32,16 @@ vi.mock("next/navigation", () => ({
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 //
-// #726 notiscenter: notiserna byggs per KÄLLA. Setup-kort ↔ match-notis är
-// ÖMSESIDIGT uteslutande (profile.data.hasStatedDesiredOccupation). NoticeSection
-// är client-lokalt localStorage-backat, så localStorage rensas mellan testen.
+// ADR 0140: sidan är sex kort i ett rutnät. Notiserna byggs som förut per källa och delas på
+// KIND: allt utom `info` går till Kräver dig, `info` till Senaste händelser. De fyra stående
+// tillstånden är egna kort. Setup-läge ↔ matchtal är ÖMSESIDIGT uteslutande
+// (profile.data.hasStatedDesiredOccupation). Listkorten är client-lokalt localStorage-backade,
+// så localStorage rensas mellan testen.
+
+const COPY = messages.oversikt;
 
 const baseProfile: JobSeekerProfileDto = {
   id: "22222222-2222-2222-2222-222222222222",
-  displayName: "Anna",
   language: "sv",
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",
@@ -56,6 +66,7 @@ interface RenderOpts {
   readonly savedJobAds?: ApiResult<ListSavedJobAdsResult>;
   readonly newFollowedCompanyAdCount?: number;
   readonly companyWatches?: ApiResult<ListCompanyWatchesResult>;
+  readonly criteria?: ApiResult<ListCompanyWatchCriteriaResult>;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
   readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
@@ -68,6 +79,10 @@ function renderOversikt(
     savedJobAds = errored,
     newFollowedCompanyAdCount = 0,
     companyWatches = errored,
+    // `errored` som default, parity `companyWatches`: de här testerna mäter notiserna och de
+    // andra korten, och en degraderad läsning ger ett kort med en en-dash i stället för ett
+    // vars innehåll skulle sippra in i deras textassertions.
+    criteria = errored,
     profileOverrides = {},
     pipeline = errored,
   }: RenderOpts = {},
@@ -78,8 +93,6 @@ function renderOversikt(
   };
   return render(
     <OversiktPage
-      email="anna@example.se"
-      displayName="Anna"
       profile={profile}
       pipeline={pipeline}
       savedJobAds={savedJobAds}
@@ -87,6 +100,8 @@ function renderOversikt(
       matchCount={matchCount}
       newFollowedCompanyAdCount={newFollowedCompanyAdCount}
       companyWatches={companyWatches}
+      criteria={criteria}
+      criterionReference={null}
     />,
   );
 }
@@ -102,6 +117,7 @@ function makeRecent(
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    employerList: [],
     remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],
@@ -129,6 +145,20 @@ function makeWatch(overrides: Partial<CompanyWatch> = {}): CompanyWatch {
   };
 }
 
+function makeCriterion(overrides: Partial<CompanyWatchCriterion> = {}): CompanyWatchCriterion {
+  return {
+    id: "aaaa1111-0000-4000-8000-000000000001",
+    sniCodes: ["62010"],
+    municipalityCodes: ["1480"],
+    label: "Utveckling i Göteborg",
+    createdAt: "2026-08-01T08:00:00+00:00",
+    updatedAt: "2026-08-01T08:00:00+00:00",
+    ads: { magnitude: 42, saturated: false, tooBroad: false, notMaterialised: false },
+    matching: { count: 7, tooBroad: false, notMaterialised: false },
+    ...overrides,
+  };
+}
+
 function makeSaved(company: string, expiresAt: string): SavedJobAdDto {
   return {
     id: `saved-${company}`,
@@ -146,106 +176,246 @@ function makeSaved(company: string, expiresAt: string): SavedJobAdDto {
   };
 }
 
+// An application in InterviewScheduled updated today — `findRecentInterviews` admits it
+// (daysSince <= 1), so the page emits the one `brand`-kind notice there is.
+function makeInterviewApp(): ApplicationDto {
+  return {
+    id: "55555555-5555-5555-5555-555555555555",
+    jobSeekerId: baseProfile.id,
+    jobAdId: "ad-2",
+    status: "InterviewScheduled",
+    createdAt: "2026-09-01T08:00:00Z",
+    updatedAt: new Date().toISOString(),
+    jobAd: {
+      jobAdId: "ad-2",
+      title: "Systemutvecklare",
+      company: "Stena Line",
+      url: null,
+      source: "Platsbanken",
+      publishedAt: null,
+      expiresAt: null,
+    },
+  };
+}
+
+function card(name: string) {
+  return screen.getByRole("region", { name });
+}
+function bigNumber(name: string): string {
+  return (card(name).querySelector<HTMLElement>(".jp-ov-num__value")?.textContent ?? "").trim();
+}
+function text(el: Element | null): string {
+  return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 beforeEach(() => window.localStorage.clear());
 
-describe("OversiktPage — setup-kort ↔ match-notis ömsesidig uteslutning", () => {
-  it("hasStatedDesiredOccupation=false → setup-kort synligt, match-notis frånvarande", () => {
-    renderOversikt(false);
+describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
+  it("bär bara titeln: ingen kicker och ingen ingress", () => {
+    // The kicker said "Inloggad som" + the name or the address's local part. The account has no
+    // name, and the shell's Mina sidor popup is where the address is shown.
+    const { container } = renderOversikt(true);
+    const hero = container.querySelector<HTMLElement>(".jp-pagehero");
+    expect(hero).not.toBeNull();
+    expect(hero!.querySelector(".jp-pagehero__kicker")).toBeNull();
+    const main = hero!.querySelector<HTMLElement>(".jp-pagehero__main")!;
+    expect([...main.children].map((c) => c.tagName)).toEqual(["H1"]);
+    expect(main.textContent).toBe(COPY.hero.title);
+  });
+});
 
-    const nudgeCta = screen.getByRole("link", { name: /Ställ in matchning/ });
-    // Epik #526 — kortet öppnar matchnings-setup-modalen via ?matchsetup=1.
-    expect(nudgeCta).toHaveAttribute("href", "/oversikt?matchsetup=1");
-    expect(
-      screen.queryByRole("link", { name: /Visa annonser/ }),
-    ).toBeNull();
+describe("OversiktPage — kompositionen (ADR 0140)", () => {
+  it("renderar sex kort i rutnätet, i handoffens ordning, var och ett namngivet ur katalogen", () => {
+    const { container } = renderOversikt(true);
+    const headings = [
+      ...container.querySelectorAll<HTMLElement>(".jp-ov-grid > section.jp-ov-card > .jp-ov-card__head h2"),
+    ].map((h) => h.textContent);
+    expect(headings).toEqual([
+      COPY.cards.requiresYou,
+      COPY.cards.applications,
+      COPY.cards.matching,
+      COPY.companySummary.heading,
+      COPY.criteriaSummary.heading,
+      COPY.cards.events,
+    ]);
+    // No ledger sections survive on the app surface — they are the guest demo's now.
+    expect(container.querySelector<HTMLElement>("section.jp-section")).toBeNull();
   });
 
-  it("hasStatedDesiredOccupation=true → match-notis synlig, setup-kort frånvarande", () => {
+  it("ETT kugghjul, i toolbar-raden, med alla nio typerna under sina tre källor", async () => {
+    const user = userEvent.setup();
+    const { container } = renderOversikt(true);
+    const gears = screen.getAllByRole("button", { name: COPY.notices.settingsAria });
+    expect(gears).toHaveLength(1);
+    expect(container.querySelector<HTMLElement>(".jp-oversikt-toolbar .jp-section__gear")).toBe(gears[0]);
+
+    await user.click(gears[0]!);
+    const panel = screen.getByRole("group", { name: COPY.notices.settingsAria });
+    expect(within(panel).getAllByRole("checkbox")).toHaveLength(9);
+    expect(
+      [...panel.querySelectorAll<HTMLElement>(".jp-notice-prefs__grouptitle")].map((e) => e.textContent),
+    ).toEqual([
+      COPY.notices.sectionApplications,
+      COPY.notices.sectionJobAds,
+      COPY.notices.sectionCompanies,
+    ]);
+  });
+
+  it("'Markera alla' ligger EFTER rutnätet i DOM-ordning (#1557)", () => {
+    const { container } = renderOversikt(true, { matchCount: 42 });
+    const row = container.querySelector<HTMLElement>(".jp-notice-bulk");
+    expect(row).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Markera alla som lästa/ })).toBeInTheDocument();
+    const grid = container.querySelector<HTMLElement>(".jp-ov-grid")!;
+    expect(grid.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(grid.contains(row!)).toBe(false);
+  });
+});
+
+describe("OversiktPage — kind-splitten mellan Kräver dig och Senaste händelser", () => {
+  it("varning och brand (intervju) går till Kräver dig; info går till händelserna", () => {
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    renderOversikt(true, {
+      matchCount: 42,
+      savedJobAds: { kind: "ok", data: [makeSaved("Klarna", soon)] },
+      pipeline: {
+        kind: "ok",
+        data: [{ status: "InterviewScheduled", count: 1, applications: [makeInterviewApp()] }],
+      },
+    });
+
+    const requires = card(COPY.cards.requiresYou);
+    const events = card(COPY.cards.events);
+    expect(within(requires).getByRole("link", { name: /Visa sparade/ })).toBeInTheDocument();
+    expect(within(requires).getByRole("link", { name: /Öppna ärende/ })).toBeInTheDocument();
+    expect(within(requires).queryByRole("link", { name: /^Visa annonser/ })).toBeNull();
+    expect(within(events).getByRole("link", { name: /^Visa annonser/ })).toBeInTheDocument();
+    expect(within(events).queryByRole("link", { name: /Visa sparade/ })).toBeNull();
+    expect(within(requires).getByText("2 olästa")).toBeInTheDocument();
+    expect(within(events).getByText("1 oläst")).toBeInTheDocument();
+  });
+
+  it("utan notiser står båda listkorten kvar med sin tomrad, och Kräver dig tappar varningskanten", () => {
+    renderOversikt(true, { matchCount: null });
+    const requires = card(COPY.cards.requiresYou);
+    expect(within(requires).getByText(COPY.cards.requiresYouEmpty)).toBeInTheDocument();
+    expect(requires).toHaveAttribute("data-empty", "true");
+    expect(within(card(COPY.cards.events)).getByText(COPY.cards.eventsEmpty)).toBeInTheDocument();
+  });
+});
+
+describe("OversiktPage — setup-läge ↔ matchtal ömsesidig uteslutning (ADR 0076)", () => {
+  it("hasStatedDesiredOccupation=false → setup-callouten tar Matchning-kortet; inget matchtal, ingen match-notis", () => {
+    renderOversikt(false);
+
+    const matching = card(COPY.cards.matching);
+    const nudgeCta = within(matching).getByRole("link", { name: /Ställ in matchning/ });
+    // Epik #526 — kortet öppnar matchnings-setup-modalen via ?matchsetup=1.
+    expect(nudgeCta).toHaveAttribute("href", "/oversikt?matchsetup=1");
+    expect(matching.querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
+    expect(screen.queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Visa annonser/ })).toBeNull();
+  });
+
+  it("hasStatedDesiredOccupation=true → matchtal + solid CTA i kortet, match-notis i händelserna, ingen setup-länk", () => {
     renderOversikt(true);
 
-    expect(
-      screen.getByRole("link", { name: /Visa annonser/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: /Ställ in matchning/ }),
-    ).toBeNull();
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaAria })).toBeInTheDocument();
+    expect(within(card(COPY.cards.events)).getByRole("link", { name: /^Visa annonser/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Ställ in matchning/ })).toBeNull();
   });
 });
 
 describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
-  it("count > 0 → live-copy med siffran", () => {
+  it("count > 0 → talet i kortet och live-copyn i notisen", () => {
     const { container } = renderOversikt(true, { matchCount: 42 });
 
+    expect(bigNumber(COPY.cards.matching)).toBe("42");
     expect(
-      screen.getByText(/Det finns/, { selector: ".jp-notice__text" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("42")).toBeInTheDocument();
-    const text = container.textContent ?? "";
-    expect(text).not.toContain("143");
-    expect(text).not.toContain("Mjukvaru- och systemutvecklare");
+      text(screen.getByText(/annonser matchar dina val/, { selector: ".jp-ov-event__text" })),
+    ).toBe("42 annonser matchar dina val.");
+    const pageText = container.textContent ?? "";
+    expect(pageText).not.toContain("143");
+    expect(pageText).not.toContain("Mjukvaru- och systemutvecklare");
   });
 
-  it("count > 0 → länken bär de sparade facetterna som hårda filter, INGA matchGrades (H2)", () => {
+  it("count === 1 → notisen står i singular", () => {
+    renderOversikt(true, { matchCount: 1 });
+
+    expect(
+      text(screen.getByText(/annons matchar dina val/, { selector: ".jp-ov-event__text" })),
+    ).toBe("1 annons matchar dina val.");
+  });
+
+  it("kortets CTA och notisens CTA bär SAMMA länk: de sparade facetterna som hårda filter, INGA matchGrades (H2)", () => {
     renderOversikt(true, {
       matchCount: 42,
       profileOverrides: {
         preferredOccupationGroups: ["grp_dev"],
         preferredRegions: ["region_AB"],
-        // TVÅ kommuner, inte en. Notisens href byggs genom `buildJobbHref` och
-        // ÄRVER därför axel-serialiseringen (2026-08-01) utan en enda diff-rad
-        // här — men vid ett värde per axel är den joinade formen byte-identisk
-        // med den upprepade, så fixturen var blind för själva formskiftet
-        // (design-reviewer, #1144). Detta är den enda ytan PR:en ändrade utan
-        // att röra den.
+        // TVÅ kommuner, inte en: vid ett värde per axel är den joinade formen byte-identisk med
+        // den upprepade, så fixturen vore blind för formskiftet (design-reviewer, #1144).
         preferredMunicipalities: ["kommun_0180", "kommun_0181"],
         preferredEmploymentTypes: ["et_fast"],
       },
     });
 
-    const cta = screen.getByRole("link", { name: /Visa annonser/ });
-    expect(cta).toHaveAttribute(
+    const expected =
+      "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180.kommun_0181&employmentType=et_fast";
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaAria })).toHaveAttribute(
       "href",
-      "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180.kommun_0181&employmentType=et_fast",
+      expected,
+    );
+    expect(within(card(COPY.cards.events)).getByRole("link", { name: /^Visa annonser/ })).toHaveAttribute(
+      "href",
+      expected,
     );
   });
 
-  it("count === 0 → nollstate-copy, notisen NOT dold, länken kvar", () => {
+  it("count === 0 → 0 i kortet utan nollcopy och en betonad väg till hela listan; nollcopyn i notisen, som INTE är dold och behåller sin länk", () => {
     renderOversikt(true, { matchCount: 0 });
 
-    expect(
-      screen.getByText(/inga annonser som matchar dina val just nu/),
-    ).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Visa annonser/ });
-    expect(cta).toHaveAttribute("href", "/jobb");
+    expect(bigNumber(COPY.cards.matching)).toBe("0");
+    expect(within(card(COPY.cards.events)).getByText(COPY.notices.matchTextZero)).toBeInTheDocument();
+    expect(within(card(COPY.cards.matching)).queryByText(COPY.notices.matchTextZero)).toBeNull();
+    expect(within(card(COPY.cards.matching)).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaZero })).toHaveAttribute(
+      "href",
+      "/jobb",
+    );
+    expect(within(card(COPY.cards.events)).getByRole("link", { name: /^Visa annonser/ })).toHaveAttribute(
+      "href",
+      "/jobb",
+    );
   });
 
-  it("count === null (fetch degraderade) → match-notis utelämnas, resten renderar", () => {
+  it("count === null (fetch degraderade) → en-dash utan CTA i kortet, ingen match-notis, resten renderar", () => {
     renderOversikt(true, { matchCount: null });
 
-    expect(
-      screen.queryByRole("link", { name: /Visa annonser/ }),
-    ).toBeNull();
-    // Sidan renderar fortfarande — sektionshuvudena finns.
-    expect(
-      screen.getByRole("heading", { name: "Jobbannonser" }),
-    ).toBeInTheDocument();
+    expect(bigNumber(COPY.cards.matching)).toBe(COPY.cards.unmeasured);
+    expect(within(card(COPY.cards.matching)).queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Visa annonser/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: COPY.cards.events })).toBeInTheDocument();
   });
 });
 
 describe("OversiktPage — deadline-notis (riktig expiresAt, #726)", () => {
-  it("sparad annons med deadline inom fönstret → notis med företagsnamn och CTA till /sparade", () => {
+  it("sparad annons med deadline inom fönstret → rad i Kräver dig med företagsnamn och CTA till /sparade", () => {
     // Relativt today = new Date() i komponenten: +3 dagar ligger inom 7-dagarsfönstret.
     const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
     renderOversikt(true, {
-      matchCount: null, // utelämna match-notisen så "Visa annonser" inte krockar
+      matchCount: null,
       savedJobAds: { kind: "ok", data: [makeSaved("Klarna", soon)] },
     });
 
-    const cta = screen.getByRole("link", { name: /Visa sparade/ });
+    const cta = within(card(COPY.cards.requiresYou)).getByRole("link", { name: /Visa sparade/ });
     expect(cta).toHaveAttribute("href", "/sparade");
     const row = cta.closest("li");
     expect(row).toHaveTextContent(/inom 7 dagar/);
     expect(row).toHaveTextContent("Klarna");
+    expect(row).toHaveAttribute("data-kind", "warning");
   });
 
   it("bara passerade deadlines → ingen deadline-notis", () => {
@@ -254,87 +424,64 @@ describe("OversiktPage — deadline-notis (riktig expiresAt, #726)", () => {
       matchCount: null,
       savedJobAds: { kind: "ok", data: [makeSaved("Gammal", past)] },
     });
-    expect(
-      screen.queryByRole("link", { name: /Visa sparade/ }),
-    ).toBeNull();
+    expect(screen.queryByRole("link", { name: /Visa sparade/ })).toBeNull();
   });
 });
 
-describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)", () => {
-  it("newFollowedCompanyAdCount > 0 → notis med CTA till /foretag/bevakade", () => {
-    // #1547: the CTA used to read "Visa annonser" and land on a company list, and /foretag is not
-    // even a 3xx -- its redirect() runs after the layout streams, so it serves a 200 meta-refresh
-    // document. The CTA still names the catalogue and lands there; what changed with #1576 is that
-    // the NUMBER now carries the way to the ads it counts (pinned below), so the row has two
-    // destinations and they must not collapse into one.
+describe("OversiktPage — företagsbevaknings-notis (#726, #1547, #1576, ADR 0140)", () => {
+  it("newFollowedCompanyAdCount > 0 → notis i händelserna vars CTA namnger de nya annonserna och går dit", () => {
+    // ADR 0140: the CTA used to name the catalogue (/foretag/bevakade) while the number in the
+    // text already went to the new ads (#1576). One notice, one destination now.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
-    const cta = screen.getByRole("link", { name: /Visa bevakade företag/ });
-    expect(cta).toHaveAttribute("href", "/foretag/bevakade");
+    const cta = within(card(COPY.cards.events)).getByRole("link", { name: COPY.notices.companiesCta });
+    expect(cta).toHaveAttribute("href", "/foretag/bevakade/nya");
     const row = cta.closest("li");
     expect(row).toHaveTextContent("5");
     expect(row).toHaveTextContent(/nya annonser/);
   });
 
-  // #1576 — the defect was a number no path reached. The number IS the path now, and nothing else
-  // in the suite says so: point `newAdsLink` at /foretag/bevakade like the CTA and every spec stays
-  // green while the issue reopens.
-  it("talet självt är länken till annonserna det räknar", () => {
+  it("talet självt är fortfarande länken till annonserna det räknar", () => {
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
-
-    const countLink = screen.getByRole("link", { name: /5 nya annonser/ });
+    const countLink = within(card(COPY.cards.events)).getByRole("link", { name: "5 nya annonser" });
     expect(countLink).toHaveAttribute("href", "/foretag/bevakade/nya");
-
-    // The catalogue keeps its own way in: numbers link to ads, the anchor links to the list.
-    expect(screen.getByRole("link", { name: /Visa bevakade företag/ })).toHaveAttribute(
-      "href",
-      "/foretag/bevakade"
-    );
-  });
-
-  it("CTA:n lovar inte längre annonser — det ordet tillhör match-notisen, som håller det", () => {
-    // Guards the rename in the direction that matters: "Visa annonser" is still the matchCta in the
-    // same namespace, and that one DOES link to /jobb. Reverting the copy alone would put an ad
-    // promise back on a company-list link, and the href assertion above would not see it.
-    renderOversikt(false, { newFollowedCompanyAdCount: 5 });
-
-    const row = screen
-      .getByRole("link", { name: /Visa bevakade företag/ })
-      .closest("li")!;
-    expect(within(row).queryByRole("link", { name: /Visa annonser/ })).toBeNull();
   });
 
   it("notisen bär inget org.nr och ingen employer-axel", () => {
-    // Scoped to the row, not the page: the notice carries a scalar count only (ADR 0087 D8), and
-    // #1547 is exactly the issue that would tempt threading an org.nr in here so it COULD link to
-    // ads. The counts that may carry one live on /foretag/bevakade, never on Oversikt.
+    // Scoped to the row: the notice carries a scalar count only (ADR 0087 D8).
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
-
-    const row = screen
-      .getByRole("link", { name: /Visa bevakade företag/ })
+    const row = within(card(COPY.cards.events))
+      .getByRole("link", { name: COPY.notices.companiesCta })
       .closest("li")!;
     expect(row.innerHTML).not.toContain("employer=");
     expect(row.innerHTML).not.toMatch(/\d{10}/);
   });
 
-  it("newFollowedCompanyAdCount === 0 → ingen företagsbevaknings-notis", () => {
-    // Anchored on the notice's OWN sentence, not on its CTA copy: a CTA-name query goes green the
-    // moment the copy is renamed again, whether or not the notice renders, and this case is about
-    // the notice existing at all.
-    renderOversikt(false, { newFollowedCompanyAdCount: 0 });
-    expect(
-      screen.queryByText(/Dina bevakade företag har publicerat/),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("link", { name: /Visa bevakade företag/ }),
-    ).toBeNull();
+  it("newFollowedCompanyAdCount === 0 → ingen notis och ingen pill", () => {
+    renderOversikt(false, {
+      newFollowedCompanyAdCount: 0,
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+    });
+    expect(screen.queryByText(/Dina bevakade företag har publicerat/)).toBeNull();
+    expect(card(COPY.companySummary.heading).querySelector<HTMLElement>(".jp-ov-card__pill")).toBeNull();
+  });
+
+  it("talet når också kortets pill, som länkar dit talet i notisen redan går", () => {
+    renderOversikt(false, {
+      newFollowedCompanyAdCount: 5,
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+    });
+    const pill = within(card(COPY.companySummary.heading)).getByRole("link", {
+      name: /^5 nya annonser från bevakade företag/,
+    });
+    expect(pill).toHaveAttribute("href", "/foretag/bevakade/nya");
   });
 });
 
 describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("featurar senaste recent-search med replay-CTA", () => {
+  it("featurar senaste recent-search med replay-CTA i händelserna", () => {
     // Notistexten hämtar counten lazy; en aldrig-resolvande stub håller den i
     // no-count-grenen så testet isolerar wiring (namn + href).
     vi.stubGlobal(
@@ -343,30 +490,37 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     );
 
     renderOversikt(true, {
-      matchCount: null, // utelämna match-notisen så CTA-namnen inte krockar
+      matchCount: null,
       recentSearches: {
         kind: "ok",
         data: [makeRecent({ label: queryLabel("Backend Stockholm"), q: "backend" })],
       },
     });
 
-    const cta = screen.getByRole("link", { name: /Kör sökning/ });
+    const cta = within(card(COPY.cards.events)).getByRole("link", { name: /Kör sökning/ });
     const href = cta.getAttribute("href") ?? "";
     expect(href).toMatch(/^\/jobb\?/);
     expect(href).toContain("q=backend");
-    expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument();
     expect(
-      screen.getByText("Backend Stockholm", {
-        selector: ".jp-notice__text b",
-      }),
+      screen.getByText("Backend Stockholm", { selector: ".jp-ov-event__text b" }),
     ).toBeInTheDocument();
   });
 
-  // #1548 var en KOMPOSITIONSdefekt: sammanfattningen fanns inte på sidan alls.
-  // application-summary.test.tsx målar komponenten isolerat och skulle förblir
-  // grön om summary-propen togs bort här eller om NoticeSection slutade rendera
-  // sloten. Dessa två asserterar inkopplingen, inne i rätt sektion.
-  it("ansökningssammanfattningen renderas inuti Mina ansökningar", () => {
+  it("ingen recent-search → ingen senaste-sök-notis", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      recentSearches: { kind: "ok", data: [] },
+    });
+    expect(screen.queryByRole("link", { name: /Kör sökning/ })).toBeNull();
+  });
+});
+
+// ── WIRING. The card suites pass their props themselves and cannot see the call site, so a
+// regression in `oversikt-page.tsx` — a wrong Result, a dropped prop, a stale href — survives all
+// of them (#1115, #1717: measured by mutation). These pin the composition on the REAL page.
+
+describe("OversiktPage — Mina ansökningar-kortets inkoppling", () => {
+  it("talet, staplarna och CTA:n kommer ur pipeline-propen", () => {
     renderOversikt(true, {
       matchCount: null,
       pipeline: {
@@ -377,183 +531,114 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
         ],
       },
     });
-
-    const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(
-      within(section).getByText("3 ansökningar · 2 aktiva"),
-    ).toBeInTheDocument();
-    expect(
-      within(section).getByRole("list", { name: "Ansökningar per steg" }),
-    ).toBeInTheDocument();
+    const applications = card(COPY.cards.applications);
+    expect(bigNumber(COPY.cards.applications)).toBe("2");
+    expect(text(applications.querySelector<HTMLElement>(".jp-ov-num__unit"))).toBe("aktiva av 3 ansökningar");
+    expect(within(applications).getByRole("list", { name: COPY.summary.stepsAriaLabel })).toBeInTheDocument();
+    expect(within(applications).getByRole("link", { name: COPY.summary.link })).toHaveAttribute(
+      "href",
+      "/ansokningar",
+    );
   });
 
-  it("degraderad pipeline ger ingen siffra i sammanfattningen", () => {
+  it("degraderad pipeline ger en en-dash, aldrig en nolla", () => {
     renderOversikt(true, { matchCount: null });
-
-    const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(
-      within(section).getByText(/kunde inte hämtas/),
-    ).toBeInTheDocument();
-    expect(within(section).queryByText(/ansökningar ·/)).toBeNull();
+    expect(bigNumber(COPY.cards.applications)).toBe(COPY.cards.unmeasured);
+    expect(within(card(COPY.cards.applications)).getByText(/kunde inte hämtas/)).toBeInTheDocument();
   });
 
-  // design-reviewer Major 1+2: sektionen får inte säga två saker om samma
-  // olästa data. När sammanfattningen bär sektionens tillstånd ska notislistans
-  // eget tomt-läge utebli — och vid en misslyckad hämtning även oläst-räknaren,
-  // som annars räknar notiser som aldrig lästes.
-  it("degraderad pipeline: varken oläst-räknare eller tomt-läge i sektionen", () => {
-    renderOversikt(true, { matchCount: null });
-
-    const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(within(section).queryByText(/olästa/)).toBeNull();
-    expect(
-      within(section).queryByText(/Vi säger till när något händer/),
-    ).toBeNull();
-    expect(within(section).getByText(/kunde inte hämtas/)).toBeInTheDocument();
-    // En tom <ul> renderar som en naken hårlinje; den ska inte finnas.
-    expect(section.querySelector("ul.jp-notice-list")).toBeNull();
-  });
-
-  it("tomt konto: tomt-läget utelämnas, men oläst-räknaren står kvar", () => {
+  it("tomt konto: tomt-läget med sidans enda skapa-länk", () => {
     renderOversikt(true, { matchCount: null, pipeline: { kind: "ok", data: [] } });
-
-    const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(
-      within(section).queryByText(/Vi säger till när något händer/),
-    ).toBeNull();
-    expect(within(section).getByText("Du har inga ansökningar än")).toBeInTheDocument();
-    // Källan lästes och höll inget, så noll olästa är ett MÄTT påstående.
-    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+    const applications = card(COPY.cards.applications);
+    expect(within(applications).getByText(COPY.summary.emptyTitle)).toBeInTheDocument();
+    expect(within(applications).getByRole("link", { name: COPY.summary.emptyCta })).toHaveAttribute(
+      "href",
+      "/ny-ansokan",
+    );
+    expect(screen.getAllByRole("link", { name: COPY.summary.emptyCta })).toHaveLength(1);
   });
+});
 
-  it("populerat konto: tom-raden tiger — sektionen bär redan information", () => {
-    // ⚠ Detta INVERTERAR ett tidigare medvetet val ("notislistan bär sitt eget tomt-läge som
-    // förut"). Klas-direktiv 2026-08-30: raden får stå när sektionen är helt tom på annan info,
-    // men inte bredvid en sammanfattning som just räknat upp två ansökningar — då säger den att
-    // information samlas här, på en plats där information redan står.
+describe("OversiktPage — Bevakade företag-kortets inkoppling", () => {
+  it("summorna och länkarna kommer ur companyWatches-propen", () => {
     renderOversikt(true, {
       matchCount: null,
-      pipeline: {
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+    });
+    const companies = card(COPY.companySummary.heading);
+    expect(bigNumber(COPY.companySummary.heading)).toBe("9");
+    expect(text(companies.querySelector<HTMLElement>(".jp-ov-sub"))).toBe("1 bevakat företag · 136 aktiva annonser");
+    expect(within(companies).getByRole("link", { name: "136 aktiva annonser" })).toHaveAttribute(
+      "href",
+      buildCompanyJobsHref(["5566524301"], "all"),
+    );
+    expect(within(companies).getByRole("link", { name: COPY.cards.companiesCtaAria })).toHaveAttribute(
+      "href",
+      buildCompanyJobsHref(["5566524301"], "matching"),
+    );
+  });
+
+  it("noll bevakningar: kortet äger tomt-läget", () => {
+    renderOversikt(true, { matchCount: null, companyWatches: { kind: "ok", data: [] } });
+    expect(within(card(COPY.companySummary.heading)).getByText(COPY.companySummary.emptyTitle)).toBeInTheDocument();
+  });
+
+  it("oläsbara bevakningar: en-dash och ohämtbar-copy — en ohämtbar-rad är också information", () => {
+    renderOversikt(true, { matchCount: null, companyWatches: { kind: "error" } });
+    expect(bigNumber(COPY.companySummary.heading)).toBe(COPY.cards.unmeasured);
+    expect(within(card(COPY.companySummary.heading)).getByText(COPY.companySummary.unavailable)).toBeInTheDocument();
+  });
+});
+
+describe("OversiktPage — Branschbevakning-kortets inkoppling och reflow", () => {
+  it("EN bevakning: span 4 med talet, namnet och länkarna; syskonen span 4", () => {
+    renderOversikt(true, { matchCount: null, criteria: { kind: "ok", data: [makeCriterion()] } });
+    const criteria = card(COPY.criteriaSummary.heading);
+    expect(criteria).toHaveAttribute("data-span", "4");
+    expect(bigNumber(COPY.criteriaSummary.heading)).toBe("7");
+    expect(within(criteria).getByText("Utveckling i Göteborg")).toBeInTheDocument();
+    expect(within(criteria).getByRole("link", { name: COPY.cards.criteriaCtaAria })).toHaveAttribute(
+      "href",
+      buildCriterionAdsHref("aaaa1111-0000-4000-8000-000000000001", 1, "matching"),
+    );
+    expect(card(COPY.cards.matching)).toHaveAttribute("data-span", "4");
+    expect(card(COPY.companySummary.heading)).toHaveAttribute("data-span", "4");
+  });
+
+  it("TVÅ bevakningar: kortet tar hela raden med en rad per bevakning och ingen summa; syskonen breddas till span 6", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      criteria: {
         kind: "ok",
-        data: [{ status: "Submitted", count: 2, applications: [] }],
+        data: [makeCriterion({ id: "a", label: "Första" }), makeCriterion({ id: "b", label: "Andra" })],
       },
     });
-
-    const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(
-      within(section).queryByText(/Vi säger till när något händer/),
-    ).toBeNull();
-    // Sammanfattningen står kvar — det är DEN som gör tom-raden överflödig.
-    expect(within(section).getByText(/2 ansökningar/)).toBeInTheDocument();
+    const criteria = card(COPY.criteriaSummary.heading);
+    expect(criteria).toHaveAttribute("data-span", "12");
+    expect(criteria.querySelectorAll<HTMLElement>(".jp-ov-criteria__row")).toHaveLength(2);
+    expect(criteria.querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
+    expect(criteria.textContent).not.toMatch(/\b14\b/);
+    expect(card(COPY.cards.matching)).toHaveAttribute("data-span", "6");
+    expect(card(COPY.companySummary.heading)).toHaveAttribute("data-span", "6");
   });
 
-  // #1558, samma kompositionsdefekt som #1548: company-summary.test.tsx målar
-  // komponenten isolerat och förblir grön om `summary`-propen tas bort här. Dessa
-  // asserterar inkopplingen, inne i rätt sektion.
-  // Egen brytpunkt mot testet nedan: HÄR finns det en riktig notis (delta 5), så det här
-  // mäter att sammanfattningen står TILLSAMMANS med en notisrad. Testet nedan mäter det
-  // motsatta fallet (delta 0). Utan den skillnaden vore det ena en delmängd av det andra
-  // och kunde inte falla av eget skäl (code-reviewer Minor 2).
-  it("sammanfattningen står tillsammans med en notisrad, inte i stället för den", () => {
-    renderOversikt(true, {
-      matchCount: null,
-      newFollowedCompanyAdCount: 5,
-      companyWatches: { kind: "ok", data: [makeWatch()] },
-    });
-
-    const section = screen.getByRole("region", { name: "Företagsbevakning" });
-    expect(
-      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("1 bevakat företag · 136 aktiva annonser");
-    expect(within(section).getByText(/publicerat/)).toBeInTheDocument();
-    expect(within(section).getByText(/1 oläst/)).toBeInTheDocument();
-  });
-
-  // Defekten issuet stänger, mätt på sidan: watermarken är avancerad (delta 0) men
-  // kontot bevakar ett företag med 136 aktiva annonser. Före #1558 var sektionens enda
-  // innehåll tomt-läget.
-  it("delta 0 men levande bevakning: sektionen påstår inte längre att inget finns", () => {
-    renderOversikt(true, {
-      matchCount: null,
-      newFollowedCompanyAdCount: 0,
-      companyWatches: { kind: "ok", data: [makeWatch()] },
-    });
-
-    const section = screen.getByRole("region", { name: "Företagsbevakning" });
-    expect(
-      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("1 bevakat företag · 136 aktiva annonser");
-    expect(
-      within(section).getByRole("link", { name: "Visa bevakade företag" }),
-    ).toBeInTheDocument();
-  });
-
-  it("noll bevakningar: sammanfattningen äger tomt-läget, notislistans utelämnas", () => {
-    renderOversikt(true, {
-      matchCount: null,
-      companyWatches: { kind: "ok", data: [] },
-    });
-
-    const section = screen.getByRole("region", { name: "Företagsbevakning" });
-    expect(
-      within(section).getByText("Du bevakar inga företag än"),
-    ).toBeInTheDocument();
-    expect(
-      within(section).queryByText(/Händelser från dina bevakade företag/),
-    ).toBeNull();
-    // Källan lästes och höll inget, så noll olästa är ett mätt påstående.
-    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
-  });
-
-  // Skillnaden mot ansökningssektionen, och den är avsiktlig: notiserna och
-  // sammanfattningen läser SKILDA källor här, så en fallen bevakningshämtning får inte
-  // dölja oläst-räknaren — den räknar notiser vars egen källa lästes.
-  it("oläsbara bevakningar: oläst-räknaren står kvar och tom-raden tiger — en ohämtbar-rad är också information", () => {
-    renderOversikt(true, {
-      matchCount: null,
-      companyWatches: { kind: "error" },
-    });
-
-    const section = screen.getByRole("region", { name: "Företagsbevakning" });
-    expect(
-      within(section).getByText(/Bevakade företag kunde inte hämtas/),
-    ).toBeInTheDocument();
-    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
-    // Även en ohämtbar-rad ÄR information. Att bredvid den säga att händelser samlas här är
-    // dubbelt tomt prat (Klas-direktiv 2026-08-30) — tidigare pinnades motsatsen här.
-    expect(
-      within(section).queryByText(/Händelser från dina bevakade företag/),
-    ).toBeNull();
-  });
-
-  it("ingen recent-search → ingen senaste-sök-notis", () => {
-    renderOversikt(true, {
-      matchCount: null,
-      recentSearches: { kind: "ok", data: [] },
-    });
-    expect(
-      screen.queryByRole("link", { name: /Kör sökning/ }),
-    ).toBeNull();
+  it("oläsbara bevakningar: en-dash, och syskonen förblir span 4", () => {
+    renderOversikt(true, { matchCount: null, criteria: { kind: "error" } });
+    expect(bigNumber(COPY.criteriaSummary.heading)).toBe(COPY.cards.unmeasured);
+    expect(card(COPY.cards.matching)).toHaveAttribute("data-span", "4");
   });
 });
 
 describe("OversiktPage — notis-id:ts dygnsgräns (#1557)", () => {
   it("stämplar notis-id med LÄSARENS dygn, inte UTC:s", async () => {
     // 2026-08-29T22:30:00Z är 2026-08-30 00:30 i Sverige (CEST): läsarens dygn har
-    // vänt, UTC:s inte. Utan den här mätningen är ANROPSSTÄLLET omätt — alla sju
+    // vänt, UTC:s inte. Utan den här mätningen är ANROPSSTÄLLET omätt — alla
     // enhetstesterna för `swedishDateSlug` går gröna även om den här filen aldrig
-    // anropar den. Det är inte hypotetiskt: `swedish-calendar.ts` bokför att en
-    // revert till `getUTCMonth()` en gång "survived the entire suite" av exakt det
-    // skälet, därför att anropsstället läste klockan ambient.
+    // anropar den.
     //
-    // Id:t når inget DOM-attribut (det används som React-`key` och som argument till
-    // `onDismiss`), så avfärdandets rundtur genom localStorage är enda observabeln —
-    // klicket går alltså inte att undvika.
-    //
-    // Fake timers är skopade till det här testet: deadline-testerna i samma fil
-    // bygger sina fixturer ur riktig `Date.now()`, och en filbred frusen klocka
-    // hade tyst ändrat vad de mäter. `shouldAdvanceTime` låter userEvents egna
-    // timers ticka.
+    // Id:t når inget DOM-attribut, så avfärdandets rundtur genom localStorage är enda
+    // observabeln — klicket går alltså inte att undvika. Fake timers är skopade till det
+    // här testet: deadline-testerna bygger sina fixturer ur riktig `Date.now()`.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       vi.setSystemTime(new Date("2026-08-29T22:30:00Z"));
@@ -572,34 +657,5 @@ describe("OversiktPage — notis-id:ts dygnsgräns (#1557)", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe("OversiktPage — 'Markera alla' sitter EFTER sektionerna (#1557)", () => {
-  it("renderar kontrollen, och raden ligger efter sista sektionen i DOM-ordning", () => {
-    // Placeringen ÄR issuet: kontrollen låg ovanför de tre sektionerna den verkar på,
-    // vilket läste som "rensa innan du tittar". Utan den här assertionen är just den
-    // egenskapen opinnad — en flytt tillbaka upp ger noll signal från tsc, lint och
-    // hela sviten, eftersom komponenten bara refereras från sin egen testfil och från
-    // den här sidan. Samma hål som `swedishDateSlug` hade, en nivå upp: en enhet kan
-    // vara helt bevisad och ändå monterad på fel plats.
-    const { container } = renderOversikt(true, { matchCount: 42 });
-
-    const row = container.querySelector(".jp-notice-bulk");
-    expect(row).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: /Markera alla som lästa/ }),
-    ).toBeInTheDocument();
-
-    const sections = [...container.querySelectorAll("section.jp-section")];
-    expect(sections.length).toBeGreaterThan(0);
-    const last = sections[sections.length - 1]!;
-    // DOCUMENT_POSITION_FOLLOWING: raden kommer EFTER sista sektionen. Flaggan sätts även
-    // för en DESCENDANT (4|16), så ensam läser den bara "inte före" — `contains` skär bort
-    // inneslutning så paret betyder syskon EFTER, vilket är det placeringen handlar om.
-    expect(last.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(last.contains(row!)).toBe(false);
   });
 });

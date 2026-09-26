@@ -10,9 +10,9 @@ namespace Jobbliggaren.Migrate.UnitTests;
 /// <c>AuthOptionsValidatorTests</c> pins every combination the validator accepts and refuses.
 /// Neither of them sees the value the box actually feeds it: an interpolation default in
 /// <c>deploy/docker-compose.yml</c>. Flip <c>${AUTH_REGISTRATIONS_OPEN:-false}</c> to
-/// <c>:-true</c> and nothing goes red — the box boots LEGALLY, because open + confirmation +
-/// a delivering sender satisfies both validator rules, and registration is then open on a
-/// public IP with no operator having flipped anything.
+/// <c>:-true</c> and nothing goes red — the box boots LEGALLY, because an open gate with a
+/// delivering sender satisfies the validator, and registration is then open on a public IP
+/// with no operator having flipped anything.
 /// </para>
 ///
 /// <para>
@@ -39,20 +39,28 @@ public class DeployComposeRegistrationGateTests
             $"deploy/docker-compose.yml has no single line containing '{key}'. If the file was " +
             "restructured, this pin must be rewritten rather than deleted.");
 
-    [Theory]
-    [InlineData("Auth__RegistrationsOpen:", "AUTH_REGISTRATIONS_OPEN")]
-    [InlineData("Auth__RequireEmailConfirmation:", "AUTH_REQUIRE_EMAIL_CONFIRMATION")]
-    public void AuthFlags_DefaultToFalse_WhenTheBoxSetsNothing(string key, string variable)
+    [Fact]
+    public void RegistrationGate_DefaultsToFalse_WhenTheBoxSetsNothing()
     {
         // The whole line, so the assertion fails on a changed variable name as well as on a
         // changed default — a rename that leaves the .env template behind is the same defect
         // as an open default, just slower to find.
-        LineContaining(key).Trim().ShouldBe($"{key} ${{{variable}:-false}}",
+        LineContaining("Auth__RegistrationsOpen:").Trim().ShouldBe(
+            "Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}",
             customMessage:
             "The gate must default CLOSED. An open default boots legally once the mail " +
             "provider delivers, so nothing refuses it and no log line reads as wrong: the " +
             "announcement says OPEN because it IS open. AuthOptions' code default and " +
             "AuthOptionsValidator both sit downstream of this value and cannot see it.");
+    }
+
+    [Fact]
+    public void TheRetiredConfirmationFlag_IsNotPassed()
+    {
+        // ADR 0142 part 5a retired Auth:RequireEmailConfirmation. The binder ignores a key no option
+        // declares, so a mapping that came back would pass every boot while meaning nothing.
+        ComposeText.ShouldNotContain("RequireEmailConfirmation");
+        ComposeText.ShouldNotContain("AUTH_REQUIRE_EMAIL_CONFIRMATION");
     }
 
     [Fact]
@@ -71,7 +79,7 @@ public class DeployComposeRegistrationGateTests
     [Fact]
     public void TheAuthFlags_ReachTheApiOnly_AndNeverTheWorker()
     {
-        // Counting occurrences is NOT this property. Move all three keys into a shared anchor
+        // Counting occurrences is NOT this property. Move both keys into a shared anchor
         // and each still appears once, the whole-line pins above still match, and the worker
         // silently gains config it has no consumer for — the exact arrangement the compose
         // comment says it avoids. So assert WHERE they sit: after the `api:` service header and
@@ -89,7 +97,6 @@ public class DeployComposeRegistrationGateTests
         foreach (var key in new[]
                  {
                      "Auth__RegistrationsOpen:",
-                     "Auth__RequireEmailConfirmation:",
                      "AdminBootstrap__InitialAdminEmail:",
                  })
         {

@@ -15,9 +15,9 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 
 /// <summary>
-/// The "spara direkt" mechanism (CV-pivot PR 5a, CTO-bind 2026-07-17). Flow: resolve owner
-/// (id + display name in one projection) → owner-scoped tracked load (IDOR fail-closed,
-/// parity <c>PromoteParsedResumeCommandHandler</c>) → resolve the two names →
+/// The "spara direkt" mechanism (CV-pivot PR 5a, CTO-bind 2026-07-17). Flow: resolve owner →
+/// owner-scoped tracked load (IDOR fail-closed, parity
+/// <c>PromoteParsedResumeCommandHandler</c>) → resolve the label →
 /// <see cref="AutoPromoteGate"/> (every gate, in order, ending in the ONE buildability
 /// authority) → <c>ParsedResume.Promote</c> (aggregate owns the gate) → add →
 /// reconciler-seed → audit → <c>Promoted</c>.
@@ -64,12 +64,10 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
         if (!currentUser.UserId.HasValue)
             throw new UnauthorizedException();
 
-        // One projection resolves both the owner scope and the bound name source
-        // (JobSeeker.DisplayName — CTO R5); no second round-trip.
         var owner = await db.JobSeekers
             .AsNoTracking()
             .Where(js => js.UserId == currentUser.UserId.Value)
-            .Select(js => new { js.Id, js.DisplayName })
+            .Select(js => new { js.Id })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (owner is null)
@@ -101,21 +99,6 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
                 DomainError.NotFound("ParsedResume", parsedResumeId.Value));
         }
 
-        // ── The two names are DIFFERENT concepts and are resolved separately (#1060).
-        //
-        // Until now one string fed both, so a user who named the CV "Backend-CV 2026" got
-        // that printed where her name belongs, and a user who accepted the suggested account
-        // name got every import labelled identically in the hub. They are also in different
-        // data-protection classes: `Resume.Name` is a PLAINTEXT column that surfaces in CV
-        // lists (its classification rests on it being a LABEL — see Resume.ValidateName's
-        // remarks), while PersonalInfo.FullName lives in the DEK-encrypted content shadow.
-        // Defaulting the plaintext column to the account holder's personal name made personal
-        // data the standard content of exactly that column.
-        //
-        // Person name: ALWAYS the account holder's display name. Never the form field, and
-        // never the parsed contact name (5a CTO-bind R5, preserved).
-        var personName = owner.DisplayName;
-
         // Label: the form field when the user typed one, else a generated non-PII default. The
         // file name is deliberately NOT a candidate — ADR 0096 D-B refused it on Resume, and a
         // filename label would also falsify the documented rule that a filename never reaches
@@ -125,7 +108,7 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
         // ── Every gate, in one place, shared verbatim with the read path (#1060 D4-REBIND).
         // The promotable arm carries the built Resume: this handler deliberately has no
         // CreateFromParsed of its own, so "would it build?" and "build it" are one evaluation.
-        var verdict = AutoPromoteGate.Evaluate(parsed, personName, label, owner.Id, clock);
+        var verdict = AutoPromoteGate.Evaluate(parsed, label, owner.Id, clock);
         if (verdict is AutoPromoteGateVerdict.Blocked blocked)
             return LeftPending(blocked.Reason, blocked.DomainErrorCode, parsed.Id);
 
@@ -232,7 +215,7 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     //     so a reordering that let ValidateName answer first turns that test red.
     //   - `Resume.PersonnummerMustBeRemoved` is not a Resume.cs code at all —
     //     ResumeContentPersonnummerGuard (Application) owns it, its arm returns
-    //     PersonnummerInAccountName, and that arm passes DomainErrorCode: null. It is not in the
+    //     PersonnummerPresent, and that arm passes DomainErrorCode: null. It is not in the
     //     error set this parameter draws from, so it is excluded by construction rather than by
     //     order.
     // Either way the disclosure would be nil: the token printed beside the code on those arms

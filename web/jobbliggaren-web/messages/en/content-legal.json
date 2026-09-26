@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-08-28",
+    "updated": "Last updated: 2026-09-26",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -26,11 +26,12 @@
         "paragraphs": [
           "In order for you to create an account and use Jobbliggaren, we process the data below. The legal basis is that the processing is necessary for us to deliver the service to you (Article 6(1)(b), performance of a contract). Without this data, we cannot provide an account.",
           "Your CV, your cover letters, your notes and your follow-ups are more sensitive data and are protected with encryption, see the section on security further down.",
-          "A CV file you upload may contain information about other people, for example references. Such information is processed only as part of your own document, for example when the file's text is read out for your own CV review. It is never used for any other purpose, never shown to anyone else and never used to contact anyone. The file is stored encrypted and only for your own use."
+          "A CV file you upload may contain information about other people, for example references. Such information is processed only as part of your own document, for example when the file's text is read out for your own CV review. It is never used for any other purpose, never shown to anyone else and never used to contact anyone. The file is stored encrypted and only for your own use.",
+          "When you enter your email address on the login page, we process the address in order to send a login code or a login link to it. If registration is open and the address has no account, you can create an account in the same step by accepting the terms of use, and the address then becomes your account's address. The legal basis is that the processing is necessary in order to enter into or perform the contract with you (Article 6(1)(b)). The address is stored protected for at most 25 minutes; if an account is created, it is then stored as the account's address in accordance with the points above. An imprint of the address, which we cannot compute back to the address, is stored for at most 24 hours in order to limit how many emails can be requested for one and the same address. The page answers the same way whether or not the address has an account, because an answer that distinguished between addresses would have revealed which addresses exist with us, and under heavy load we may have to refrain from sending the email to an address that has no account."
         ],
         "list": [
-          "Email address, password (stored as a cryptographic hash, never in plaintext), display name and account identifier, as well as an identifier from an external login service if you log in via one. Used to create and secure your account and to identify you in the service.",
-          "Display name, language preference and your matching preferences, for example occupation, region, type of employment and skills you want to match against. Used to show relevant jobs and to tailor the service to your choices.",
+          "Email address and account identifier, as well as an identifier from an external login service if you log in via one. Also the time you accepted the terms of use and which versions of the terms and the privacy policy applied then. Used to create and secure your account, to identify you in the service and to show that the terms were accepted.",
+          "Language preference and your matching preferences, for example occupation, region, type of employment and skills you want to match against. Used to show relevant jobs and to tailor the service to your choices.",
           "Your CV and content parsed from it. Used to store, display and work with your CV in the service.",
           "Your uploaded original CV file. When you import a CV, we store the file you uploaded in its original form and encrypted, so you can download it again and later continue working from it. If the file's text contains a personal identity number, the file is stored only if you explicitly approve it when you upload the file; without your approval it is not stored. You can withdraw your choice at any time by removing the draft or the CV, and the file is then deleted immediately.",
           "Your applications, cover letters, personal notes and follow-ups linked to jobs. Used to help you keep track of your applications and to remind you about follow-ups.",
@@ -44,10 +45,11 @@
         ],
         "list": [
           "Security and event log. We log events in the service, for example logins, together with the IP address and browser information. Our legitimate interest is to protect the service and your account against misuse, intrusion and incorrect use, and to be able to investigate security events.",
-          "Security messages about accounts. We send a message when something security relevant happens to an account: when the address is changed, a message goes to the previous address; when the password has been reset, we send a confirmation; and if someone attempts to register an account using an address that already exists with us, you as the owner of that address are told. One of these messages can reach you even if you have no account with us: if someone enters your address for an address change, we send a confirmation link there. Our legitimate interest is that you should be able to detect and act on a change you did not make yourself, and that an address should not be attachable to an account without the owner of that address confirming it. The messages go to the address being protected, which is why they are sent by email rather than shown in the service.",
+          "Security messages about accounts. We send a message when something security relevant happens to an account: when the address is changed, a message goes to the previous address. One of these messages can reach you even if you have no account with us: if someone enters your address for an address change, we send a code there. Our legitimate interest is that you should be able to detect and act on a change you did not make yourself, and that an address should not be attachable to an account without the owner of that address confirming it. The messages go to the address being protected, which is why they are sent by email rather than shown in the service.",
           "Retrieval of job ads from JobTech. We retrieve and process open data about job openings from Arbetsförmedlingen JobTech. Our legitimate interest is to be able to offer a functioning job service. The ads we retrieve are public data and are not your personal data. If an ad contains details of a contact person at the employer, we process those details as described in the section Contact details in job ads below.",
           "Marking what is new since your last visit. We keep track of what is new for you since you were last logged in, so that you can quickly see what has been added. Our legitimate interest is to give you a useful and clear service.",
-          "Company lookups against SCB's business register (planned). When you search for an organisation number under Companies, the number you enter is sent to Statistics Sweden (SCB) to fetch the company's name. Our legitimate interest is enabling you to find and follow employers, including those with no ads with us. Numbers that may be personal identity numbers (sole traders) are never looked up and never sent. This is planned and not yet in operation."
+          "Company lookups against SCB's business register (planned). When you search for an organisation number under Companies, the number you enter is sent to Statistics Sweden (SCB) to fetch the company's name. Our legitimate interest is enabling you to find and follow employers, including those with no ads with us. Numbers that may be personal identity numbers (sole traders) are never looked up and never sent. This is planned and not yet in operation.",
+          "Login emails to an address without an account. If someone enters an email address on the login page and the address has no account with us, we still send an email there, with the same content as to everyone else in the same situation. The email contains no information about anyone else. Our legitimate interest is that an address must not be linked to an account without the owner of the address confirming it, and that the answer on the page is the same for every address. Under heavy load we send no email at all in this case."
         ]
       },
       {
@@ -92,7 +94,7 @@
           "Statistics Sweden (SCB) is planned to receive the organisation numbers looked up in the company search: when you search for an organisation number, it is sent to SCB's business register to fetch the company's name. SCB is an independent public authority with its own data-controller responsibility for its register and is not our data processor. This is planned and not yet in operation.",
           "Scaleway SAS (email provider, France) delivers all email from the service via Scaleway Transactional Email. That covers both the notifications you turn on yourself and email about your account, for example to confirm your email address or to tell you that the address has been changed. The email is processed in the provider's fr-par region, and the provider undertakes in the data processing agreement that the processing takes place within the EU.",
           "The data disclosed to Scaleway SAS is your email address and the content of the message, which for a watch notification contains the job title, the company name and how strong the match is. Receiving the notification also shows that you have turned that feature on. If you change your email address, the notice about the change goes to your previous address, which is therefore also disclosed to the provider.",
-          "STRATO GmbH (provider for incoming email, Germany) is planned to receive and store the email you send to our contact address kontakt@jobbliggaren.se, for example when you want to exercise your rights. The data disclosed is your email address and what you write in the message yourself. We keep such correspondence for twelve months after the matter has been closed. This is planned and not yet in operation."
+          "STRATO GmbH (provider for incoming email, Germany) receives and stores the email you send to our contact address kontakt@jobbliggaren.se, for example when you want to exercise your rights. The data disclosed is your email address and what you write in the message yourself. We keep such correspondence for twelve months after the matter has been closed. If the message never becomes a closed matter, we keep it for twelve months from the day it arrived."
         ]
       },
       {
@@ -228,7 +230,7 @@
       "description": "Terms of use for Jobbliggaren, a free service for finding jobs and keeping track of your applications. Built on Arbetsförmedlingen's open data."
     },
     "title": "Terms of use",
-    "updated": "Last updated: 2026-06-28",
+    "updated": "Last updated: 2026-09-25",
     "intro": "These terms of use apply to your use of Jobbliggaren. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open job data from Arbetsförmedlingen JobTech (Platsbanken). By creating an account and using the service, you accept the terms below. How we process your personal data is described in the privacy policy, and which cookies we use is described in the cookie policy.",
     "sections": [
       {
@@ -248,7 +250,7 @@
       {
         "heading": "Who can use the service",
         "paragraphs": [
-          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for keeping your login details protected. If you suspect that someone unauthorised has gained access to your account, you should change your password and contact us.",
+          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for protecting access to your email, since login codes and login links are sent there. If you suspect that someone unauthorised has gained access to your account or to your email, you should contact us.",
           "The service is aimed at you who are looking for work and is not intended for children. If you are under 18, you should have a guardian's consent before using the service."
         ]
       },
@@ -313,7 +315,7 @@
       "description": "Which cookies Jobbliggaren uses and why. Only necessary and functional cookies, no tracking and no consent banner."
     },
     "title": "Cookie policy",
-    "updated": "Last updated: 2026-07-05",
+    "updated": "Last updated: 2026-09-23",
     "intro": "This cookie policy describes which cookies and similar storage techniques Jobbliggaren uses, why they are used and how you control them. The policy is informational. Jobbliggaren uses no tracking, analytics or marketing cookies, and therefore no consent banner is shown.",
     "sections": [
       {
@@ -326,11 +328,12 @@
       {
         "heading": "Necessary cookies",
         "paragraphs": [
-          "Necessary cookies are required for basic functions to work, above all login. Without them you cannot log in or use your account. These cookies are not set for visitors who do not log in.",
-          "When you log in you can choose Keep me logged in. If you leave the box unticked, a session cookie is set that disappears when you close the browser, which is the safe default on shared computers. If you tick the box, a persistent cookie is set so that you stay logged in on this device for up to 180 days. For security the session id is automatically rotated at regular intervals without logging you out. You can log out at any time with Log out, which is available on every signed-in page and removes the cookie immediately."
+          "Necessary cookies are required for basic functions to work, above all logging in. Without them you cannot log in or use your account. One of them is set as soon as you enter your email address on the login page, that is, before you are logged in; otherwise these cookies are not set for visitors who do not log in.",
+          "When you log in, we keep you logged in on this device. If you do not use the service for 30 days you are logged out, and that is the limit that applies in practice. Even if you use the service continuously, you are logged out after 180 days at the latest. There is no choice to make when you log in and no box to tick: this is how it always works. For security reasons the session id is automatically replaced at regular intervals, without logging you out. You can log out at any time with Log out, which is on every logged-in page, and that removes the cookie immediately. On a shared computer, Log out is what you should use when you are finished, because the cookie otherwise stays on the device."
         ],
         "list": [
-          "__Host-jobbliggaren_session: keeps you logged in. It contains only a random session id, no personal data. It is set with HttpOnly, Secure and SameSite=Strict. If you chose Keep me logged in it lasts up to 180 days, otherwise it disappears when you close the browser.",
+          "__Host-jobbliggaren_session: keeps you logged in. It contains only a random session id, no personal data. It is set with HttpOnly, Secure and SameSite=Strict and lasts up to 180 days, while you are logged out after 30 days without using the service.",
+          "__Host-jobbliggaren_login: keeps the login together while it is in progress. It is set when you enter your email address on the login page and contains the address you typed, so that you can see which address you entered and can request a new code. It is set with HttpOnly, Secure and SameSite=Strict, cannot be read by the page's scripts, and lasts at most 15 minutes. It is exchanged for a short-lived cookie without an address when you continue, and it is removed when you log in. If you delete your account, it is also set as a short-lived cookie without an address, so that the login page can confirm that the account has been deleted.",
           "__Host-jobbliggaren_refresh_after: a technical helper cookie with no personal data that governs how often your login is refreshed in the background. It contains only a timestamp.",
           "Protection against forged requests (CSRF): Jobbliggaren protects you against so-called cross-site request forgery attacks. The protection builds on how the session cookie is configured (SameSite=Strict) together with a server-side check of where the request comes from. No special, separate protection cookie is required."
         ]

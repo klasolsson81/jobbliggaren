@@ -77,7 +77,7 @@ export function InfoDialog({
           ) : null}
         </DialogHeader>
         {rest.length > 0 ? (
-          <div className="flex flex-col gap-3 text-body-sm leading-5 text-text-primary">
+          <div className="flex flex-col gap-3 text-body-sm text-text-primary">
             {rest.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}

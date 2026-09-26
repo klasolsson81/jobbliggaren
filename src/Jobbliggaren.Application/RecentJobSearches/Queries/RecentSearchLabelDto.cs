@@ -76,6 +76,16 @@ public enum RecentSearchLabelPartKind
     Remote,
 
     /// <summary>
+    /// The employer axis. Carries neither <see cref="RecentSearchLabelPartDto.Text"/> nor
+    /// <see cref="RecentSearchLabelPartDto.ConceptId"/>: the value is an org.nr, and for an
+    /// enskild firma that IS the holder's personnummer (#841), so the label never names it —
+    /// Klas chose the value-free form (2026-08-23), delivered with #1471 once the replay carried
+    /// the axis. <see cref="RecentSearchLabelPartDto.MoreCount"/> still counts the employers
+    /// beyond the first, so the client can say how many without saying which.
+    /// </summary>
+    Employer,
+
+    /// <summary>
     /// A taxonomy concept whose NAME is locale copy.
     /// It carries <see cref="RecentSearchLabelPartDto.ConceptId"/> and no
     /// <see cref="RecentSearchLabelPartDto.Text"/> — the mirror image of <see cref="Named"/>.
@@ -98,7 +108,7 @@ public enum RecentSearchLabelPartKind
 /// <summary>
 /// One part of the label: what names it, plus how many further selections it stands for.
 /// </summary>
-/// <param name="Kind">Which of <paramref name="Text"/> and <paramref name="ConceptId"/> is set.</param>
+/// <param name="Kind">Which of <paramref name="Text"/> and <paramref name="ConceptId"/> is set, if either.</param>
 /// <param name="Text">
 /// The resolved register label. Set exactly when <paramref name="Kind"/> is
 /// <see cref="RecentSearchLabelPartKind.Named"/>.

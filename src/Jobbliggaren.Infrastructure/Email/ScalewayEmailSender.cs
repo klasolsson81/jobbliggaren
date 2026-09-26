@@ -55,8 +55,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// </para>
 /// <para>
 /// <b>No idempotency parameter.</b> Scaleway's send endpoint offers none, and the port stopped
-/// carrying one in ADR 0124 — dedupe across calls is owned by the claim-then-send spine and by
-/// <c>ICooldownGate</c> (ADR 0103), one layer up. The transport adds no retry of its own; see
+/// carrying one in ADR 0124 — dedupe across calls is owned by the claim-then-send spine and by the
+/// login challenge's budgets, one layer up. The transport adds no retry of its own; see
 /// <see cref="ScalewayClientRegistration"/> for why none may be added.
 /// </para>
 /// </summary>
@@ -110,14 +110,6 @@ public sealed partial class ScalewayEmailSender(
             "followed-company-notification",
             cancellationToken);
 
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail, EmailChangeConfirmationEmail content, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.EmailChangeConfirmation(_options.BaseUrl, content),
-            "email-change-confirmation",
-            cancellationToken);
-
     public Task SendEmailChangedNotificationAsync(
         string toEmail, CancellationToken cancellationToken) =>
         SendAsync(
@@ -126,36 +118,12 @@ public sealed partial class ScalewayEmailSender(
             "email-changed-notification",
             cancellationToken);
 
-    public Task SendEmailConfirmationAsync(
-        string toEmail, EmailConfirmationEmail content, CancellationToken cancellationToken) =>
+    public Task SendLoginChallengeAsync(
+        string toEmail, LoginChallengeEmail content, CancellationToken cancellationToken) =>
         SendAsync(
             toEmail,
-            EmailTemplates.EmailConfirmation(_options.BaseUrl, content),
-            "email-confirmation",
-            cancellationToken);
-
-    public Task SendAccountExistsNoticeAsync(
-        string toEmail, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.AccountExistsNotice(_options.BaseUrl),
-            "account-exists-notice",
-            cancellationToken);
-
-    public Task SendPasswordResetAsync(
-        string toEmail, PasswordResetEmail content, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.PasswordReset(_options.BaseUrl, content),
-            "password-reset",
-            cancellationToken);
-
-    public Task SendPasswordChangedNoticeAsync(
-        string toEmail, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.PasswordChangedNotice(_options.BaseUrl),
-            "password-changed-notice",
+            EmailTemplates.LoginChallenge(_options.BaseUrl, content),
+            "login-challenge",
             cancellationToken);
 
     private async Task SendAsync(

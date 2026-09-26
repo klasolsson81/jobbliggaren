@@ -27,8 +27,9 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 > real target** — the fetch, the `age` decryption, the private key, the object names, the pairing
 > stamp, and the schema as it will actually be on the day. CI possesses no private key by design
 > (§1), so it can prove none of that. **Gate M-4 is closed by the ops half, not by this note**, and
-> it must complete **before first real data**. When it has run, record the date here and fill the
-> verification rows in `vps-deploy-stack.md` §5.
+> it was owed **before first real data**. ⚠ **That arrived 2026-08-17**
+> (`release-checklist.md` §2.6 point 3.5), so the ops half is **overdue, not upcoming**. When it
+> has run, record the date here and fill the verification rows in `vps-deploy-stack.md` §5.
 
 ---
 
@@ -80,9 +81,12 @@ refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 > `jobbpilot_vps_ed25519` permitted, over `security-auditor`'s objection and recorded as an
 > accepted risk in **ADR 0129** (gitignored per §6.5; if it is absent from your checkout, the
 > decision is summarised in `vps-deploy-stack.md` rows 26 and 32). Her reservation in §5 below —
-> that this choice is hers once real data exists — is **unspent**, and the rotation did not spend
-> it: the new private half sits on the same device, which is the same accepted risk and not a new
-> one. **Row 32 is closed and dated 2026-08-12: the identity exists and Klas confirmed the escrow.**
+> that this choice is hers once real data exists — ⚠ **has been TRIGGERED: real data arrived
+> 2026-08-17** (`release-checklist.md` §2.6 point 3.5), and the rotation did not spend it:
+> the new private half sits on the same device, which is the same accepted risk and not a new
+> one. **What form ADR 0129's re-examination takes is Klas's to settle**, and this line does
+> not pre-empt it.
+> **Row 32 is closed and dated 2026-08-12: the identity exists and Klas confirmed the escrow.**
 > Both escrow rows are now shut, which was the last thing blocking #198's cutover on this axis.
 > The date lives there, not here; this callout never owned it.
 >
@@ -532,8 +536,9 @@ at all: "exactly one generation" is achieved by overwrite.
 
 **What you need, and where.** The two artefacts may be fetched anywhere — they are ciphertext.
 The **decryption must happen on the machine holding the age private key, and that machine is
-never this box.** For a drill before real data exists, that machine is the operator workstation;
-once real data exists that choice is open and is security-auditor's to settle (§8).
+never this box.** For a drill before real data exists, that machine is the operator workstation.
+⚠ **Real data arrived 2026-08-17** (`release-checklist.md` §2.6 point 3.5), so that choice is
+**now open** and is security-auditor's to settle (§8).
 
 > **STEP 0, AND IT IS NOT OPTIONAL: CHECK THE PAIRING BEFORE YOU FETCH ANYTHING.** The DEK
 > artefact must never be older than the main artefact you pair it with. That is normally true by
@@ -777,9 +782,11 @@ two halves that prove different things:
   real target**, on the real schema. It is what proves the units, the credential, the recipient,
   the retention layout and the decryption path — none of which CI can see.
 
-**Run the ops half before first real data**, and again after any change to the target, the
-recipient, or the master key. Record each run in `vps-deploy-stack.md` §5 with the date and the
-counts from step 5 — **(b2), not (b)**, is the one that carries the erasure claim; a row without
+**The ops half was owed before first real data, and that arrived 2026-08-17**
+(`release-checklist.md` §2.6 point 3.5) — so it is overdue, and §5's decryption-machine
+question gates it. Run it again after any change to the target, the recipient, or the master key.
+Record each run in `vps-deploy-stack.md` §5 with the date and the counts from step 5 —
+**(b2), not (b)**, is the one that carries the erasure claim; a row without
 a date is a claim that cannot be told from one that has decayed.
 
 ---
@@ -857,6 +864,7 @@ a date is a claim that cannot be told from one that has decayed.
    object fails at decrypt rather than yielding partial data — but the object sits under a
    legitimate-looking run-stamped name until the lifecycle expires it. **Do not read a main
    artefact's existence as evidence it is complete;** the journal for that run is the evidence.
-8. **Where decryption happens once real data exists.** The workstation is inside the trust
-   boundary (ADR 0123). Acceptable for a drill on an empty box; open beyond that, and
-   security-auditor's to settle.
+8. **Where decryption happens once real data exists — and it does, since 2026-08-17**
+   (`release-checklist.md` §2.6 point 3.5). The workstation is inside the trust boundary
+   (ADR 0123). That was acceptable for a drill on an empty box; this box is no longer empty, so
+   the question is **open** and security-auditor's to settle.

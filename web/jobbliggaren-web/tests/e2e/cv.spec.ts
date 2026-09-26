@@ -1,21 +1,11 @@
-import { test, expect } from "@playwright/test";
-import {
-  loginAs,
-  ensureConfirmedTestUser,
-  seedResumeViaApi,
-} from "./helpers/auth";
+import { expect } from "@playwright/test";
+import { seedResumeViaApi } from "./helpers/auth";
+import { loggedInTest } from "./helpers/session";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 // Unique run ID ensures each test run starts with a fresh user (no leftover CVs).
 const RUN_ID = Date.now();
-
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
-
-test.beforeEach(async ({ page }) => {
-  await loginAs(page, RUN_ID);
-});
+const test = loggedInTest(RUN_ID);
 
 test.describe("CV-lista (/cv)", () => {
   test("visar tom-tillstånd när inga CV finns, med import som enda ingång", async ({
@@ -64,8 +54,8 @@ test.describe("Redigering pausad (/cv/[id]) — #1373", () => {
     page,
   }) => {
     const id = await seedResumeViaApi(
+      page,
       BACKEND_URL,
-      RUN_ID,
       "CV bakom grinden",
       "Bertil Berg",
     );
@@ -85,8 +75,8 @@ test.describe("Redigering pausad (/cv/[id]) — #1373", () => {
     page,
   }) => {
     const id = await seedResumeViaApi(
+      page,
       BACKEND_URL,
-      RUN_ID,
       "CV utan redigeringslänk",
       "Frida Falk",
     );
@@ -102,7 +92,7 @@ test.describe("CV-hantering från hubben (#1373)", () => {
   // Radering och namnbyte flyttade hit när /cv/[id] grindades; grunden bor i den
   // routens doc-kommentar (`app/(app)/cv/[id]/page.tsx`).
   test("kan radera CV via bekräftelsedialog på kortet", async ({ page }) => {
-    await seedResumeViaApi(BACKEND_URL, RUN_ID, "CV att radera", "Doris Dahl");
+    await seedResumeViaApi(page, BACKEND_URL, "CV att radera", "Doris Dahl");
     await page.goto("/cv");
 
     const card = page.locator(".jp-cv").filter({ hasText: "CV att radera" });
@@ -119,7 +109,7 @@ test.describe("CV-hantering från hubben (#1373)", () => {
   });
 
   test("kan byta namn på CV från kortet", async ({ page }) => {
-    await seedResumeViaApi(BACKEND_URL, RUN_ID, "Gammalt namn", "Erik Eriksson");
+    await seedResumeViaApi(page, BACKEND_URL, "Gammalt namn", "Erik Eriksson");
     await page.goto("/cv");
 
     const card = page.locator(".jp-cv").filter({ hasText: "Gammalt namn" });

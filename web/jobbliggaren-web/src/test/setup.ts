@@ -8,3 +8,9 @@ import "@testing-library/jest-dom/vitest";
 afterEach(() => {
   cleanup();
 });
+
+// jsdom implements no `document.elementFromPoint`, and `input-otp` (the code field) probes it for a
+// password manager's badge. `null` is an answer a browser gives too: nothing drawn at that point.
+if (typeof document !== "undefined" && typeof document.elementFromPoint !== "function") {
+  document.elementFromPoint = () => null;
+}

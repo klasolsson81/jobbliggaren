@@ -12,7 +12,7 @@ namespace Jobbliggaren.Api.IntegrationTests.HealthChecks;
 /// graph (the <c>CompaniesRateLimitWiringTests</c> pattern — stronger than a key-string pin: a
 /// dropped <c>.RequireRateLimiting</c> silently removes the DoS bulkhead while every options test
 /// stays green). Both <c>/api/live</c> and <c>/api/ready</c> must carry <c>HealthCheckPolicy</c>:
-/// <c>/api/ready</c> runs a Postgres CanConnect + Redis PING per hit (an amplification vector for
+/// <c>/api/ready</c> runs a Postgres CanConnect + two Redis PINGs per hit (an amplification vector for
 /// an unauth flood), and <c>/api/live</c>, though cheap, is still an anonymous surface.
 ///
 /// <para>

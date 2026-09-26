@@ -1,11 +1,9 @@
 import { type Page } from "@playwright/test";
+import { SESSION_COOKIE_NAME } from "../../../src/lib/auth/cookie-names";
 
 /**
  * Säkerhetsguards för E2E-test-helpers (TD-11).
  *
- * - `TEST_USER_PASSWORD` läses från env. Fallback till klart-test-lösenord
- *   för lokal utveckling. Får aldrig matcha riktigt prod-lösenord (BUILD.md
- *   §13.1 "Känsligt").
  * - Test-domänen är `e2e.jobbliggaren.test` — RFC 6761 reserverar `.test` TLD
  *   som non-resolvable för testning. Eliminerar risken att test-konton
  *   skapas mot riktiga email-adresser eller produktionsdomäner.
@@ -13,8 +11,6 @@ import { type Page } from "@playwright/test";
  *   icke-localhost / icke-staging-URL. Skyddar mot misskonfigurerade
  *   CI-pipelines som råkar köra E2E mot prod.
  */
-export const TEST_PASSWORD =
-  process.env.TEST_USER_PASSWORD ?? "E2eTestPass123!Dev";
 const TEST_EMAIL_DOMAIN = "e2e.jobbliggaren.test";
 
 export function testEmail(runId: number): string {
@@ -46,73 +42,99 @@ function assertSafeBaseURL(url: string): void {
   }
 }
 
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
+
+/**
+ * Reads the login code the DEV-ONLY seam captured for a reserved recipient
+ * (`POST /api/v1/dev/login-code`, mapped under IsDevelopment() only; ADR 0142 D10).
+ *
+ * It POLLS, because the 202 from `/auth/challenge` returns BEFORE the challenge is written and the
+ * mail sent: a background consumer does both. Same cadence as the backend's own tests.
+ *
+ * A timeout names its causes, because none of them looks like a broken test from the outside: the
+ * budgets are constants in `LoginChallengePolicy` and they are silent by design.
+ */
+export async function takeLoginCode(email: string): Promise<string> {
+  assertSafeBaseURL(BACKEND_URL);
+  const deadline = Date.now() + 30_000;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${BACKEND_URL}/api/v1/dev/login-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    lastStatus = res.status;
+    if (res.ok) {
+      const { code } = (await res.json()) as { code: string };
+      return code;
+    }
+    if (res.status !== 404) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(
+    `No login code for ${email} (last status ${lastStatus}). One of: ` +
+      `(1) the dispatch consumer has not written the challenge yet; ` +
+      `(2) this address asked again inside the 60 s cooldown, or more than 3 times in 10 minutes, ` +
+      `and such a request gets a challenge id with NO record and no mail, so log in ONCE per ` +
+      `address (see helpers/session.ts); ` +
+      `(3) a NEW address, and the 20-per-24-h cap on mails to addresses without an account is ` +
+      `spent in this Redis (locally: \`docker compose restart redis-volatile\` resets it); ` +
+      `(4) the recipient's domain is not reserved, or the API is not running in Development.`
+  );
+}
+
+/**
+ * Logs in through the real UI: address, then the code from the dev seam. For an address that
+ * HAS an account (seed it first with `seedTestUser`), so it spends nothing of the
+ * global cap on new addresses.
+ *
+ * ONCE per address. A second login for the same address inside the cooldown can never succeed
+ * (see `takeLoginCode`), which is why the data specs log in once per FILE through
+ * `helpers/session.ts` instead of once per test.
+ */
 export async function loginAs(page: Page, runId: number): Promise<void> {
   await page.goto("/logga-in");
   // Playwright resolverar page.goto mot config-baseURL — guard:a efter navigation
-  // för att fånga felkonfigurerade baseURL (CI mot prod) innan credentials fylls i.
+  // för att fånga felkonfigurerade baseURL (CI mot prod) innan adressen fylls i.
   assertSafeBaseURL(page.url());
   await page.getByLabel("E-postadress").fill(testEmail(runId));
-  // exact: the shared PasswordInput's "Visa lösenord" toggle also matches a loose
-  // "Lösenord" label (strict-mode violation → fill fails), same as auth.spec.ts.
-  await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Logga in" }).click();
-  // A successful login redirects to /oversikt (loginAction's safeRedirectPath default) —
-  // the old "**/mig" wait could never match: /mig has been a 308 → /installningar since
-  // ADR 0057, and it was never the post-login target. #813.
+  // exact: the three provider rows are buttons named "Fortsätt med …" and match loosely.
+  await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
+  await page.waitForURL("**/logga-in/kod");
+  await page.getByLabel("Sexsiffrig kod").fill(await takeLoginCode(testEmail(runId)));
+  await page.getByRole("button", { name: "Bekräfta koden" }).click();
+  // A login with no `next` lands on /oversikt (`safeRedirectPath`'s default).
   await page.waitForURL("**/oversikt");
 }
 
-export async function ensureTestUser(baseURL: string, runId: number): Promise<void> {
-  assertSafeBaseURL(baseURL);
-  const res = await fetch(`${baseURL}/api/v1/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD, displayName: "E2E Testare" }),
-  });
-  if (!res.ok && res.status !== 409) {
-    if (res.status === 400) {
-      const body = await res.json().catch(() => ({}));
-      if (!String(body?.title ?? "").includes("Duplicate")) {
-        throw new Error(`Failed to create test user: ${res.status} ${JSON.stringify(body)}`);
-      }
-    } else {
-      throw new Error(`Failed to create test user: ${res.status}`);
-    }
-  }
+/**
+ * Seeds the test account through the DEV-ONLY seed seam (`POST /api/v1/dev/accounts`, mapped under
+ * IsDevelopment() only; ADR 0142 part 5a). The seam opens the account with the writer registration
+ * uses, so it is the state a real registration produces, and it spends nothing of the global
+ * 20-per-24-h cap on mails to addresses without an account, where seeding every spec's user through
+ * the code flow would spend the cap within a couple of local runs (measured, #1738). It hands out no
+ * credential: `loginAs` still logs in through the code flow.
+ */
+export async function seedTestUser(baseURL: string, runId: number): Promise<void> {
+  await seedAccount(baseURL, testEmail(runId));
 }
 
-/**
- * Force-confirms the test account's email via the DEV-ONLY confirmed-login seam
- * (`POST /api/v1/dev/confirm-email`, #796). Only reachable in Development — the
- * endpoint is mapped and the impl DI-registered ONLY under IsDevelopment(). Lets the
- * loginAs specs obtain a CONFIRMED, login-capable user against a flag-ON backend
- * (Auth:RequireEmailConfirmation=true) without a real out-of-band email round-trip.
- * Tolerates 404 (account not found — treated as a no-op so callers can be defensive).
- */
-export async function confirmTestUser(baseURL: string, runId: number): Promise<void> {
+/** The same seeding for an address the caller spells itself (it must be on a reserved domain). */
+export async function seedAccount(baseURL: string, email: string): Promise<void> {
   assertSafeBaseURL(baseURL);
-  const res = await fetch(`${baseURL}/api/v1/dev/confirm-email`, {
+  const res = await fetch(`${baseURL}/api/v1/dev/accounts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId) }),
+    body: JSON.stringify({ email }),
   });
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Failed to confirm test user: ${res.status}`);
-  }
-}
-
-/**
- * Register + confirm in one step: the seeding path for every `loginAs`-based spec.
- * Under the launch-representative flag ON, a bare register leaves the account
- * unconfirmed (→ login-403), so `loginAs` would time out waiting for /mig. This pairs
- * the register with the dev confirmed-login seam so the account can log in.
- *
- * NOTE: keep `ensureTestUser` (register-only) for `auth.spec.ts`, whose login-403
- * regression deliberately needs an UNCONFIRMED user — do not fold confirm into it.
- */
-export async function ensureConfirmedTestUser(baseURL: string, runId: number): Promise<void> {
-  await ensureTestUser(baseURL, runId);
-  await confirmTestUser(baseURL, runId);
+  if (res.status === 204) return;
+  throw new Error(
+    `Could not seed ${email} (status ${res.status}). One of: ` +
+      `(404) the address is not on a reserved domain, or the API is not running in Development; ` +
+      `(409) the address already has an account the login cannot sign in to (pending deletion, or ` +
+      `an Identity row without a profile).`
+  );
 }
 
 /**
@@ -129,45 +151,17 @@ export async function ensureConfirmedTestUser(baseURL: string, runId: number): P
  * is meant to stay.
  *
  * The API takes the session id as a Bearer token (ADR 0018 — the backend is cookie-agnostic;
- * the Next proxy owns the cookie), so this logs in against the backend directly rather than
- * borrowing the browser context's cookie.
+ * the Next proxy owns the cookie), so the id is read from the logged-in context's cookie.
  */
-// One backend session per run, reused across seeds. NOT a micro-optimisation:
-// `/auth/login` sits behind the AuthWrite rate-limit policy (20 per 60s per IP),
-// and every `loginAs` in every spec shares that budget from the same IP. Logging
-// in once per seed would add one write per seeded CV on top of the per-test UI
-// logins — a rate-limit flake this helper would have introduced.
-// Keyed on runId + baseURL, not a bare string: `auth.ts` is shared across lanes, and a
-// second caller with a different runId would otherwise silently receive the first user's
-// session. One caller today; the key costs nothing and removes the trap.
-const cachedSessions = new Map<string, string>();
-
-async function seedSession(baseURL: string, runId: number): Promise<string> {
-  const key = `${baseURL}|${runId}`;
-  const cachedSessionId = cachedSessions.get(key);
-  if (cachedSessionId) return cachedSessionId;
-  const login = await fetch(`${baseURL}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD }),
-  });
-  if (!login.ok) {
-    throw new Error(`Failed to log in test user for seeding: ${login.status}`);
-  }
-  const { sessionId } = (await login.json()) as { sessionId: string };
-  cachedSessions.set(key, sessionId);
-  return sessionId;
-}
-
 export async function seedResumeViaApi(
+  page: Page,
   baseURL: string,
-  runId: number,
   name: string,
   fullName: string,
 ): Promise<string> {
   assertSafeBaseURL(baseURL);
 
-  const sessionId = await seedSession(baseURL, runId);
+  const sessionId = await sessionIdOf(page);
 
   const created = await fetch(`${baseURL}/api/v1/resumes`, {
     method: "POST",
@@ -182,4 +176,15 @@ export async function seedResumeViaApi(
   }
   const { id } = (await created.json()) as { id: string };
   return id;
+}
+
+/**
+ * The session id of the logged-in context, read from its session cookie. A second login for the same
+ * address inside the challenge cooldown gets a challenge with no record (see `takeLoginCode`), so the
+ * seeding borrows the session the spec already holds instead of opening another.
+ */
+async function sessionIdOf(page: Page): Promise<string> {
+  const cookie = (await page.context().cookies()).find((c) => c.name === SESSION_COOKIE_NAME);
+  if (!cookie) throw new Error(`The context holds no ${SESSION_COOKIE_NAME}: log in first (helpers/session.ts).`);
+  return cookie.value;
 }

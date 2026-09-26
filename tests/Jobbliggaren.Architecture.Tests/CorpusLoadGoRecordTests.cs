@@ -6,7 +6,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// Fitness function for the corpus-load GO record (<c>release-checklist.md</c> §2.6 point 3.5).
 ///
 /// <para>
-/// The condition that gates <c>JobTech__IngestEnabled=true</c> — and therefore 51 347 recruiter
+/// The condition that gates <c>JobTech__IngestEnabled=true</c> — and therefore the recruiter
 /// contact records, Art. 14 data about non-users — is <b>Klas's explicit written GO</b>. It is a
 /// DECISION, not a derivable state, and deliberately so: four state-shaped conditions each failed
 /// open on 2026-08-16, every time when their sub-condition discharged.
@@ -109,7 +109,7 @@ public class CorpusLoadGoRecordTests
                 "GO, never the authorisation itself — so a ticked box without adjudicator, date " +
                 "and place demonstrates nothing, and Art. 5(2) requires compliance to be " +
                 "demonstrable. Either fill in who gave the GO, when and where, or untick the " +
-                "box. This gate stands in front of 51 347 recruiter contact records.");
+                "box.");
         }
     }
 

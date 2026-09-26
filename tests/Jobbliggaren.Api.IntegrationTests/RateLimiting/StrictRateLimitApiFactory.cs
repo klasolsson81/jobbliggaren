@@ -1,4 +1,5 @@
-using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 
@@ -25,10 +25,11 @@ namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly RedisBoundaryFixture _redisBoundary = new();
 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private RedisTestEnvironment? _redisEnvironment;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -54,31 +55,15 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
 
-            services.RemoveAll<IDistributedCache>();
-            services.AddStackExchangeRedisCache(opts =>
-            {
-                opts.Configuration = _redisCs;
-                opts.InstanceName = "jobbliggaren:";
-            });
-
-            // #714 — force email-confirmation-first OFF (parity with ApiFactory). Development env loads
-            // appsettings.Development.json where the flag is ON; without this override the AuthWrite
-            // rate-limit test's RegisterAndGetSessionIdAsync gets a 202 (empty body) instead of a session.
-            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
-
-            // ADR 0083 Amendment 2026-08-03 - the kill-switch defaults CLOSED, and this factory
-            // registers users (RegisterAndGetSessionIdAsync). Pinned explicitly, like the line
-            // above, so the harness never depends on a dev config file it does not own.
-            services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
     }
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redisBoundary.InitializeAsync().AsTask());
 
         _postgresCs = _postgres.GetConnectionString();
-        _redisCs = _redis.GetConnectionString();
+        _redisCs = _redisBoundary.OptionsFor(_redisBoundary.Persistent, RedisBoundaryFixture.ApiPersistent).ToString(true);
 
         // ASPNETCORE_ENVIRONMENT + ConnectionStrings sätts FÖRE Services-access
         // (samma rationale som ApiFactory — IConnectionMultiplexer registreras
@@ -86,7 +71,7 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         // bara IDistributedCache + DbContexts).
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
 
         // VIKTIGT: clear:a ev. ApiFactory-overlays som lever i samma process —
         // strikt-factoryn ska se default-värden i RateLimitingOptions.
@@ -109,9 +94,9 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        _redisEnvironment?.Dispose();
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

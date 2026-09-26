@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -13,6 +16,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
@@ -73,6 +77,38 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         auditEntry.UserId.ShouldBeNull("user_id ska anonymiseras");
         auditEntry.IpAddress.ShouldBeNull();
         auditEntry.UserAgent.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_RemovesTheAccountsExternalLogins()
+    {
+        // #1744 (security-auditor m-10, 6a form round): AspNetUserLogins holds the provider's identifier for the
+        // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) is its only
+        // eraser. This pins the effect. In production the state is a link written by ExternalLoginLinker while the
+        // account was active, followed by DeleteAccount's soft delete; here the same writer links the soft-deleted
+        // seed, which leaves the same row.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var (userId, _) = await SeedSoftDeletedAccountAsync(now.AddDays(-(RestoreWindowDays + 1)), ct);
+        var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var store = new IdentityExternalLoginStore(
+                seedScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                seedScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
+                seedScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
+
+            // Precondition, or the absence below passes vacuously.
+            (await store.FindUserIdAsync(ExternalProviderKey.Google, subject, ct)).ShouldBe(userId);
+        }
+
+        await RunJobAsync(now, ct);
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var identity = verifyScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+        (await identity.UserLogins.AsNoTracking().CountAsync(l => l.UserId == userId, ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -173,7 +209,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 Email = orphanEmail,
                 CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
             };
-            var result = await userManager.CreateAsync(user, "OrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
             orphanUserId = user.Id;
         }
@@ -214,7 +250,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = new ApplicationUser { UserName = freshEmail, Email = freshEmail };
-            var result = await userManager.CreateAsync(user, "FreshOrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: färsk Identity-user måste skapas");
             freshUserId = user.Id;
         }
@@ -260,7 +296,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(DateTimeOffset.UtcNow.AddDays(-1));
-            var seeker = JobSeeker.Register(reverseOrphanUserId, "Reverse Orphan", clock).Value;
+            var seeker = JobSeeker.Register(reverseOrphanUserId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
             reverseOrphanSeekerId = seeker.Id;
@@ -281,7 +317,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 Email = forwardEmail,
                 CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
             };
-            var result = await userManager.CreateAsync(user, "FwdOrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: åldrad forward-orphan Identity-user måste skapas");
             forwardUserId = user.Id;
         }
@@ -469,6 +505,15 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3) and
         // FollowedCompanyAdHit (FK-less by UserId, ADR 0087 D5, #311 PR-4), and
         // CompanyWatchCriterion (FK-less by UserId, #560 Fork A1, DPIA Part D C-D1).
+        //
+        // #1681 (ADR 0139; security-auditor Major 5(b), 2026-09-06) — and the criterion's two
+        // MATERIALISED tables. Those are NOT FK-less by UserId: they hang off the criterion by a
+        // DB-level FK with ON DELETE CASCADE, so nothing in HardDeleteAccountAsync mentions them and
+        // AccountHardDeleteCascadeFitnessTests cannot see them either (its partition is over
+        // AggregateRoots, and under ADR 0139's Infrastructure-scoped form these are read models).
+        // That is exactly why the auditor made this oracle MANDATORY rather than recommended: it is
+        // the ONLY thing in the repo that measures whether derived personal data about the user
+        // survives her account deletion (Art. 17, Art. 5(1)(e)).
         // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
         // tests above, all 10 CascadeMap aggregates are now covered both structurally
         // (build-time) and behaviorally (here) — symmetric layers.
@@ -532,6 +577,45 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             db.CompanyWatchCriteria.Add(secondCriterion);
 
             await db.SaveChangesAsync(ct);
+
+            // #1681 — one ACTIVE register company matching the FIRST criterion, so the
+            // materialisation below has something real to write. Seeded through the same raw-SQL
+            // shape ScbCompanyRegisterStore's upsert emits.
+            //
+            // The register is CLEARED first, and that is not tidiness: this collection shares one
+            // database, sibling suites seed register rows that match this test's predicate, and the
+            // member count below is a function of how many of them survive. Depending on another
+            // test's leftovers is depending on execution order — it passed locally and failed in CI
+            // at 5 instead of 1. A test owns its fixture or it measures nothing reliably.
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM company_register;", ct);
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO company_register (
+                    organization_number, company_name, sate_kommun_code, sate_kommun_name,
+                    sni_codes, reklamsparr, scb_status_raw, status, synced_at, created_at)
+                VALUES ('5560000001', 'IT-bolaget AB', '0180', NULL,
+                        ARRAY['62010'], false, '1', 'Active', now(), now());
+                """, ct);
+        }
+
+        // #1681 — the ids THIS test owns. The counts below are scoped to them rather than
+        // taken over the whole table: the Worker fixture shares one database across the collection,
+        // so a global count is a claim about every other test's leftovers as well as this one's.
+        // That is not a hypothetical — it broke the moment a sibling suite started seeding criteria.
+        var ownedCriterionIds = await ReadCriterionIdsAsync(userId, ct);
+        ownedCriterionIds.Count.ShouldBe(2, "seed: exakt två kriterier ska tillhöra det här kontot");
+
+        // #1681 — run the PRODUCTION materialiser to create the derived rows. Deliberately not a
+        // hand-written INSERT: the state under test must be one src/ produces (CLAUDE.md §5 Tests:),
+        // and hand-seeding it here would make the assertion rest on a premise production never emits.
+        using (var materialiseScope = _fixture.Services.CreateScope())
+        {
+            var materialiser = materialiseScope.ServiceProvider
+                .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+            // The RUN total is deliberately not asserted — it counts every criterion in the shared
+            // database. What this test needs is that ITS criterion got its member row, which the
+            // scoped pre-condition below measures.
+            await materialiser.MaterialiseAsync(ct);
         }
 
         // Resume — its initial Master ResumeVersion carries DEK-encrypted content
@@ -580,6 +664,15 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             criterionCount.ShouldBe(2,
                 "seed must persist exactly two company_watch_criteria rows before the job runs — "
                 + "two, so a cascade that erased only one would not pass");
+
+            // #1681 — the derived rows exist before the job runs. Without this pre-condition the
+            // post-condition below would pass on an empty table, which is the vacuous-green shape
+            // this suite already guards against everywhere else.
+            (await CountCriterionMembersAsync(preDb, ownedCriterionIds, ct)).ShouldBe(1,
+                "seed must persist exactly one company_watch_criterion_members row for THIS account's "
+                + "criteria before the job runs");
+            (await CountCriterionMaterialisationsAsync(preDb, ownedCriterionIds, ct)).ShouldBe(2,
+                "seed must persist a materialisation state row for BOTH of this account's criteria");
         }
 
         await RunJobAsync(now, ct);
@@ -626,7 +719,52 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             "CompanyWatchCriterion (FK-löst by UserId, #560 Fork A1) ska hard-raderas vid konto-radering "
             + "(GDPR Art. 17, DPIA Part D C-D1) — annars orphan:as profileringsnära PII (vilka branscher "
             + "och orter användaren jobbsöker i) efter konto-radering");
+
+        // #1681 (security-auditor Major 5(b)) — the derived tables go with the criterion, via the
+        // DB-level FK cascade and nothing else. No line of HardDeleteAccountAsync names these
+        // tables; if the FK were dropped or weakened to NO ACTION, the criterion delete would either
+        // fail or leave the members behind, and this is the assertion that would catch it.
+        (await CountCriterionMembersAsync(verifyDb, ownedCriterionIds, ct)).ShouldBe(0,
+            "company_watch_criterion_members ska raderas när kriteriet raderas vid konto-radering "
+            + "(GDPR Art. 17 / Art. 5(1)(e), ADR 0139) — härledd personuppgift om användaren får "
+            + "inte överleva kriteriet den härleddes ur");
+        (await CountCriterionMaterialisationsAsync(verifyDb, ownedCriterionIds, ct)).ShouldBe(0,
+            "company_watch_criterion_materialisations ska raderas på samma sätt — annars blir en "
+            + "halv materialisering kvar efter att kontot är borta");
     }
+
+    // #1681 — the two materialisation tables are Infrastructure-internal and deliberately NOT DbSets
+    // on IAppDbContext (DPIA C-D4 firewall), so they are counted with raw SQL rather than LINQ. That
+    // is the same reason the production read path goes through ICompanyWatchBrowseQuery.
+    private async Task<IReadOnlyList<Guid>> ReadCriterionIdsAsync(
+        Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.CompanyWatchCriteria
+            .AsNoTracking()
+            .Where(c => c.UserId == userId)
+            .Select(c => c.Id.Value)
+            .ToListAsync(ct);
+    }
+
+    private static async Task<int> CountCriterionMembersAsync(
+        AppDbContext db, IReadOnlyList<Guid> criterionIds, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<int>(
+                "SELECT count(*)::int AS \"Value\" FROM company_watch_criterion_members "
+                + "WHERE criterion_id = ANY({0});",
+                criterionIds.ToArray())
+            .ToListAsync(ct))[0];
+
+    private static async Task<int> CountCriterionMaterialisationsAsync(
+        AppDbContext db, IReadOnlyList<Guid> criterionIds, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<int>(
+                "SELECT count(*)::int AS \"Value\" FROM company_watch_criterion_materialisations "
+                + "WHERE criterion_id = ANY({0});",
+                criterionIds.ToArray())
+            .ToListAsync(ct))[0];
 
     // ─── Helpers ───
 
@@ -722,13 +860,13 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
 
         var email = $"hd-{Guid.NewGuid():N}@test.local";
         var user = new ApplicationUser { UserName = email, Email = email };
-        var result = await userManager.CreateAsync(user, "HardDeletePass123!");
+        var result = await userManager.CreateAsync(user);
         result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         // JobSeeker.Register tar IDateTimeProvider — vi använder en FixedClock
         // för registreringstid och en separat FixedClock för soft-delete.
         var registerClock = new FixedClock(deletedAt.AddDays(-1)); // registrerades före radering
-        var seekerResult = JobSeeker.Register(user.Id, "HardDelete Seed", registerClock);
+        var seekerResult = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(registerClock), registerClock);
         seekerResult.IsSuccess.ShouldBeTrue();
         var jobSeeker = seekerResult.Value;
 

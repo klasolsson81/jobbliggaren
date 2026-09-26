@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -24,16 +25,18 @@ public class RefreshSessionTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    // A registered user gets a Legacy-profile session (rememberMe threading ships later),
-    // which never rotates → refresh only slides. Pins the endpoint wiring + the
-    // rotated:false contract end-to-end, and that the session still authenticates after.
+    // A Session-profile session never rotates → refresh only slides. Pins the endpoint wiring + the
+    // rotated:false contract end-to-end, and that the session still authenticates after. The profile's
+    // one producer in src/ is the change-email confirm's fallback in AuthEndpoints, when the current
+    // session cannot be read.
     [Fact]
-    public async Task POST_refresh_with_legacy_session_returns_rotated_false_and_keeps_session()
+    public async Task POST_refresh_with_session_profile_session_returns_rotated_false_and_keeps_session()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
 
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
+            factory, lifetime: SessionLifetime.Session, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.PostAsync(RefreshEndpoint, content: null, ct);

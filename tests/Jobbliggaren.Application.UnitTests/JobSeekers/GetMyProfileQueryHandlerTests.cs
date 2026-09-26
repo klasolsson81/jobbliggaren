@@ -15,7 +15,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seekerResult = JobSeeker.Register(userId, "Klas Olsson", FakeDateTimeProvider.Default);
+        var seekerResult = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seekerResult.Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -27,8 +27,7 @@ public class GetMyProfileQueryHandlerTests
         var result = await handler.Handle(new GetMyProfileQuery(), CancellationToken.None);
 
         result.ShouldNotBeNull();
-        result!.DisplayName.ShouldBe("Klas Olsson");
-        result.Id.ShouldBe(seekerResult.Value.Id.Value);
+        result!.Id.ShouldBe(seekerResult.Value.Id.Value);
         // A never-set user projects an EMPTY overlay (present, not null/absent) so the FE can
         // .map() it safely (ADR 0079-amendment read-side projection).
         result.PreferredOccupationExperience.ShouldBeEmpty();
@@ -73,7 +72,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Fresh Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -99,7 +98,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Consenting Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -126,7 +125,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Following Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);

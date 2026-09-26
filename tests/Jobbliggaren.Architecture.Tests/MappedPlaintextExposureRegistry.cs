@@ -106,9 +106,8 @@ internal static class MappedPlaintextExposureRegistry
             // ── ASP.NET Identity: one row per user. ───────────────────────────────────────────
             ["AspNetUsers"] = "One row per registered user. Holds email, normalized_email, "
                 + "user_name and normalized_user_name (UserAccountService writes UserName = email, "
-                + "so three of these are the address), phone_number, password_hash, and the OAuth "
-                + "provider's identifier for her. Two of the four entries in the oldest delivered "
-                + "enumeration are here.",
+                + "so three of these are the address), phone_number and password_hash. Two of the "
+                + "four entries in the oldest delivered enumeration are here.",
             ["AspNetUserClaims"] = "One row per user claim. Both claim_type and claim_value are "
                 + "unvalidated text on a per-person row.",
             ["AspNetUserLogins"] = "One row per external login. provider_key is the OAuth "
@@ -119,9 +118,12 @@ internal static class MappedPlaintextExposureRegistry
                 + "today; listed so a column added here cannot land outside the row test.",
 
             // ── The seeker's own records. ─────────────────────────────────────────────────────
-            ["job_seekers"] = "One row per seeker (UserId). display_name, match_preferences, the "
-                + "preferences ToJson container and Language inside it — #1435 measured all four as "
-                + "free text with no taxonomy lookup and, for Language, no server-side validation.",
+            ["job_seekers"] = "One row per seeker (UserId). match_preferences, the "
+                + "preferences ToJson container and Language inside it — #1435 measured them as "
+                + "free text with no taxonomy lookup and, for Language, no server-side validation. "
+                + "terms_version and privacy_policy_version (#1736) are Domain constants, not free "
+                + "text, and the row test exposes them all the same: a closed domain beside her id is "
+                + "still her data.",
             ["applications"] = "One row per application she made (JobSeekerId). Her manual_* entries "
                 + "and the frozen snapshot_* block are both her record of having applied.",
             ["application_status_changes"] = "One row per status transition on an application, so "
@@ -144,6 +146,29 @@ internal static class MappedPlaintextExposureRegistry
             ["company_watch_criteria"] = "Her saved watch criteria (UserId): label is free text she "
                 + "types, and kommun_codes and sni_codes are the set SHE chose to follow — a "
                 + "selection about her interests even though each code is a closed domain.",
+            // #1681 (ADR 0139; security-auditor Minor 7, 2026-09-06). Both tables hang off
+            // company_watch_criteria by criterion_id, and that table is already person-grained by
+            // UserId — so criterion_id -> user_id attributes every row here to an identifiable
+            // natural person and the STEP 1 row test carries them WITH NO OPT-OUT. That is not a
+            // finding to be argued down: the values are register-DERIVED (legal-entity org.nr, ADR
+            // 0091, plus this job's own pnr-shape guard), yet the SET of companies a given person's
+            // criterion resolves to is a statement about HER interests, exactly as the criterion's
+            // own code lists are one table over. Consequence, and it is the controller's call rather
+            // than the session's: the accepted restore-exposure list (ADR 0125 Case 2, #197, #1285)
+            // grows by these two entries — granted by Klas and recorded in ADR 0139 under
+            // "Klas beviljanden" (3), which is where the decision lives.
+            ["company_watch_criterion_members"] = "The register companies HER criterion resolves to "
+                + "(criterion_id -> user_id): each organization_number is public legal-entity data, "
+                + "but the SET is a materialised statement about which employers she is watching — "
+                + "the same class as the criterion's own code lists.",
+            ["company_watch_criterion_materialisations"] = "The per-criterion materialisation state "
+                + "(criterion_id -> user_id): state is a closed two-member enum, criteria_fingerprint "
+                + "(#1681 part 2) is a fixed-width SHA-256 of her own SNI/kommun selection, and the "
+                + "rest are two counts and a timestamp — so nothing here is free text. The table is "
+                + "listed because the ROW is attributable to her, which is what the row test asks, "
+                + "and so a column added here later cannot land outside it. The fingerprint is the "
+                + "first DERIVED value on this table rather than a bare count, which is why Klas "
+                + "extended ADR 0139's grant 3 to cover BOTH materialisation tables (2026-09-06).",
             ["followed_company_ad_hits"] = "One row per ad hit delivered to her (UserId). "
                 + "notification_status is a fact about what she was sent.",
             ["user_job_ad_matches"] = "One row per match computed FOR HER (UserId). grade is the "
@@ -221,6 +246,16 @@ internal static class MappedPlaintextExposureRegistry
             ["taxonomy_relations.source_concept_id"] = PlaintextExposure.NoPersonalData,
             ["taxonomy_relations.related_concept_id"] = PlaintextExposure.NoPersonalData,
             ["taxonomy_snapshot_meta.taxonomy_version"] = PlaintextExposure.NoPersonalData,
+
+            // ── #1682 (ADR 0141) — the occupation × SNI-division profile, a corpus statistic. ─────
+            // STEP 1 passes: no row is attributable to a person — the tables carry no user_id, no
+            // criterion_id and no organization_number; a row is (occupation group, huvudgrupp, count)
+            // aggregated over job_ads ⋈ company_register, and the run row is one timestamp and five
+            // counters. So the columns get their own verdicts (STEP 2), and each is a closed code or a
+            // constant key: no user write path reaches any of it.
+            ["occupation_division_profiles.occupation_group_concept_id"] = PlaintextExposure.NoPersonalData,
+            ["occupation_division_profiles.division_code"] = PlaintextExposure.NoPersonalData,
+            ["occupation_division_profile_runs.profile_key"] = PlaintextExposure.NoPersonalData,
         };
 
     /// <summary>

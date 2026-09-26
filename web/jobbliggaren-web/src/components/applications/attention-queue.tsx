@@ -177,7 +177,6 @@ export const AttentionQueue = memo(function AttentionQueue({
         <span className="jp-section__count">{cards.length}</span>
         <span className="jp-section__hint">{tUi("queue.sortHint")}</span>
       </div>
-      <p className="jp-attentionqueue__lede">{tUi("queue.lede")}</p>
 
       {cards.length === 0 ? (
         <div className="jp-attentionqueue__empty">{tUi("queue.empty")}</div>

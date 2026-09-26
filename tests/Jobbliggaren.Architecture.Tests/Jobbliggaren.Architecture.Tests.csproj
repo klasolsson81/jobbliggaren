@@ -35,6 +35,11 @@
   <ItemGroup>
     <PackageReference Include="Mono.Cecil" />
     <PackageReference Include="NetArchTest.Rules" />
+    <!-- #1633 — IncludeErrorDetailGuardTests names NpgsqlConnectionStringBuilder at compile time.
+         The edge existed transitively through Infrastructure; only the declaration was missing.
+         Without it, PrivateAssets on Infrastructure's Npgsql reference would stop this project
+         COMPILING rather than turning a guard red. -->
+    <PackageReference Include="Npgsql" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>

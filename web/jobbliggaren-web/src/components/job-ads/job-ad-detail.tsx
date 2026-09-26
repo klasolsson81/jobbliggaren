@@ -70,7 +70,7 @@ interface JobAdDetailProps {
    * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län) för match-sektionens
    * RegionFit-bevis. Härleds FE-side ur taxonomin i page-handlern (architect
    * NOTE-2) och vidarebefordras till JobAdMatchSection. Utelämnad → generisk
-   * bevisform (degraderad taxonomi).
+   * bevisform.
    */
   ortGranularityByConceptId?: Record<string, OrtGranularity>;
   /**

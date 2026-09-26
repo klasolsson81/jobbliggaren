@@ -7,6 +7,7 @@ using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
+using Jobbliggaren.Application.RecentJobSearches.Queries;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -140,6 +141,17 @@ public class OrganizationNumberSurfacingGuardTests
         // gate rather than a discipline. It is also the compensating control the #883 CTO bind (D2)
         // leaned on to keep the OrganizationNumber VO's raw ToString() out of scope — so the list must
         // actually cover the VO's callers.
+        // #1681 (ADR 0139; security-auditor Minor 9, 2026-09-06) — the criterion-membership
+        // materialisation. THREE files, because the raw org.nr transits all three: the store reads
+        // every matched company's org.nr out of company_register and writes it into the member table,
+        // the write-boundary filter holds each value while deciding whether it is personnummer-shaped,
+        // and the orchestrator holds the filtered list on its way to the store. All three log counts
+        // and criterion GUIDs only — never a value — and this scan is what makes that a build gate
+        // rather than a discipline. Without the entry the scan is SILENTLY VACUOUS for the newest
+        // path that reads raw org.nr in the whole codebase.
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMemberStore.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMemberFilter.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMaterialiser.cs",
         "src/Jobbliggaren.Infrastructure/JobAds/RecruiterErasureMatchQuery.cs",
         "src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/EraseRecruiterAdsCommandHandler.cs",
     ];
@@ -264,7 +276,10 @@ public class OrganizationNumberSurfacingGuardTests
     public void Every_org_nr_surfacing_dto_is_classified_masking_or_exempt()
     {
         // FAIL-CLOSED partition. Every *Dto exposing an org.nr-shaped member must be consciously
-        // classified — a new one of any shape fails here before it can surface a raw personnummer.
+        // classified — a new one the detector can see (an org.nr-NAMED or OrganizationNumber-TYPED
+        // member, see OrgNrMemberNameTokens) fails here before it can surface a raw personnummer.
+        // A carrier under another name is the class that docblock declares unreachable by name;
+        // Recent_search_employer_list_is_outside_the_name_detector names the one instance.
         var orgNrTypes = OrgNrSurfaceScan.OrgNrSurfacingTypes(typeof(CompanyWatchDto).Assembly);
         var classified = MaskingOrgNrDtos
             .Concat(ExemptOrgNrDtos)
@@ -505,6 +520,34 @@ public class OrganizationNumberSurfacingGuardTests
             "WatchFilterDto exponerar ett org.nr-format medlem. Filtret bär taxonomi-referenser " +
             "(concept-id) — aldrig en identitet. Ta bort medlemmen; klassificera den INTE i " +
             "MaskingOrgNrDtos/ExemptOrgNrDtos.");
+    }
+
+    [Fact]
+    public void Recent_search_employer_list_is_outside_the_name_detector()
+    {
+        // #1471 — RecentJobSearchDto.EmployerList carries legal-entity org.nr under a name the
+        // detector does not read (no OrgNrMemberNameTokens hit, typed IReadOnlyList<string>), so the
+        // partition above cannot classify it: the "EmployerKey" class the OrgNrMemberNameTokens
+        // docblock predicts, realised. Pinned rather than left silent, in two directions.
+        //
+        // (1) The value guard lives where the mask runs, not here: EmployerAxisGate.Surfaceable
+        // withholds a personnummer-shaped value before the ONE JobAdFilterCriteria per row is built,
+        // and ListRecentSearchesCountReplayParityTests (Application.UnitTests) asserts the serialised
+        // DTO carries no such value under ANY property name. This assembly can see names only.
+        var employerList = typeof(RecentJobSearchDto).GetProperty("EmployerList");
+        employerList.ShouldNotBeNull("RecentJobSearchDto.EmployerList is the replay's employer axis (#1471)");
+        employerList!.PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+
+        // (2) The day the detector DOES see this DTO — a token added, the member renamed — the
+        // partition test starts demanding a classification, and the honest answer is not
+        // MaskingOrgNrDtos (no nullable string? + bool flag: the mask is a list filter upstream of
+        // the DTO) but ExemptOrgNrDtos with EmployerAxisGate as the ground. This turns red on that
+        // day so the classification is made consciously instead of the detector going quiet.
+        OrgNrSurfaceScan.HasOrgNrMember(typeof(RecentJobSearchDto)).ShouldBeFalse(
+            "RecentJobSearchDto is now visible to the org.nr member detector. Classify it in "
+            + "ExemptOrgNrDtos with EmployerAxisGate as the ground (the mask runs upstream of the "
+            + "DTO, so MaskingOrgNrDtos' nullable-string?+bool shape does not apply), then retire "
+            + "this pin.");
     }
 
     [Fact]

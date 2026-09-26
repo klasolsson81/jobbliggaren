@@ -46,7 +46,7 @@ public sealed class MatchPreferencesJsonbBackcompatTests(ApiFactory factory)
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Backcompat User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         if (prefs is not null)
             seeker.UpdateMatchPreferences(prefs, clock);
         db.JobSeekers.Add(seeker);

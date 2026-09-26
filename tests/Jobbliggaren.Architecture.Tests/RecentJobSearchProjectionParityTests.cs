@@ -6,14 +6,14 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1407 — a search dimension persisted on <see cref="RecentJobSearch"/> must either reach the
-/// read projection <see cref="RecentJobSearchDto"/> or be classified, by a human, as deliberately
-/// not surfaced. Nothing bound the two before this guard, and the gap is what shipped the defect:
-/// <c>Remote</c> landed on <see cref="Domain.SavedSearches.SearchCriteria"/>, the filter hash, the
-/// entity column and the per-row count filter in #551 PR-D, but not on the DTO. The compiler saw
-/// nothing — the DTO is an independent declaration — so the replay href had no value to carry and
-/// hard-coded <c>false</c>. The row's count was computed WITH the axis and its link replayed
-/// WITHOUT it. This test is RED against that state and green now.
+/// #1407 — every search dimension persisted on <see cref="RecentJobSearch"/> must reach the read
+/// projection <see cref="RecentJobSearchDto"/>. Nothing bound the two before this guard, and the
+/// gap is what shipped the defect: <c>Remote</c> landed on
+/// <see cref="Domain.SavedSearches.SearchCriteria"/>, the filter hash, the entity column and the
+/// per-row count filter in #551 PR-D, but not on the DTO. The compiler saw nothing — the DTO is an
+/// independent declaration — so the replay href had no value to carry and hard-coded <c>false</c>.
+/// The row's count was computed WITH the axis and its link replayed WITHOUT it. This test is RED
+/// against that state and green now.
 ///
 /// <para>
 /// <b>Written in the shape <see cref="MatchPreferencesContractParityTests"/> established</b>, and
@@ -30,10 +30,21 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// This is the ONE home for "which dimensions reach the projection, and why one does not".
-/// <c>RecentJobSearchDtoContractTests</c> (Application.UnitTests — named, not cref'd, because this
-/// assembly does not reference it) pins the exact property SET; this pins what that set must
-/// contain, and what it must NOT. A comment repeating either elsewhere is drift waiting to happen.
+/// Until #1471 this file also carried a <c>NotSurfaced</c> allow-list with one entry, <c>Employer</c>:
+/// the org.nr axis was withheld from the projection (ADR 0087 D8(c), the EXCLUDED arm) at the cost the
+/// entry itself named — a captured employer search replayed broader than it was. #1471 moved the axis
+/// to D8(c)'s MASKED arm: the value reaches the projection, and <c>EmployerAxisGate</c> withholds a
+/// personnummer-shaped one on the write side and the read side alike. With no withheld dimension left,
+/// the list went too — an empty allow-list plus the two tests that read it would have been green on
+/// nothing. Withholding a dimension again means reinstating that two-way interlock here, visibly, not
+/// adding an exception clause to the assertion below.
+/// </para>
+///
+/// <para>
+/// This is the ONE home for "every dimension reaches the projection". <c>RecentJobSearchDtoContractTests</c>
+/// (Application.UnitTests — named, not cref'd, because this assembly does not reference it) pins the
+/// exact property SET, and <c>ListRecentSearchesCountReplayParityTests</c> (same assembly) pins that the
+/// projected VALUES are the ones the count ran on — this file can see names, not values.
 /// </para>
 /// </summary>
 public class RecentJobSearchProjectionParityTests
@@ -45,23 +56,6 @@ public class RecentJobSearchProjectionParityTests
     {
         "Id", "JobSeekerId", "FilterHash", "LastViewedAt", "LastSeenCount", "CreatedAt",
         "DomainEvents",
-    };
-
-    // Dimensions deliberately withheld from the projection. Each entry states the ground, because
-    // the asymmetry looks like an inconsistency to clean up and that is exactly how the leak gets
-    // reintroduced.
-    private static readonly Dictionary<string, string> NotSurfaced = new(StringComparer.Ordinal)
-    {
-        ["Employer"] =
-            "org.nr. Data minimisation, Art. 5(1)(c) — the same ground "
-            + "EmployerOrgNumberSurfaceGuardTests uses for JobAdDto: filter input is not output. "
-            + "The PRIMARY protection against a personnummer in this column is upstream and is "
-            + "not this omission: RecentJobSearchCaptureBehavior skips the whole capture when the "
-            + "value is personnummer-shaped (#1411). This omission is defence in depth on top of "
-            + "it. ADR 0087 D8(c) offers flagged, masked OR excluded; exclusion is what shipped, "
-            + "and a masked or name-substituted projection remains open — it would restore "
-            + "replayability without revealing an org.nr. Cost as it stands: a captured employer "
-            + "search replays broader than it was (buildRecentSearchHref).",
     };
 
     [Fact]
@@ -78,72 +72,17 @@ public class RecentJobSearchProjectionParityTests
             "the guard measures nothing if RecentJobSearch exposes no search dimensions");
 
         var missing = dimensions
-            .Where(name => !NotSurfaced.ContainsKey(name))
             .Where(name => !projected.Contains(name) && !projected.Contains(name + "List"))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         missing.ShouldBeEmpty(
-            "every RecentJobSearch search dimension must reach RecentJobSearchDto, or be "
-            + $"classified in NotSurfaced with its ground. Missing: {string.Join(", ", missing)}. "
+            "every RecentJobSearch search dimension must reach RecentJobSearchDto. "
+            + $"Missing: {string.Join(", ", missing)}. "
             + "A dimension the projection omits cannot be replayed, so the row's count and the "
-            + "list its link produces stop resting on the same criterion (#1407).");
+            + "list its link produces stop resting on the same criterion (#1407, #1471).");
     }
 
-    [Fact]
-    public void NotSurfaced_DimensionsAreActuallyAbsentFromTheProjection()
-    {
-        // The allow-list must FORBID, not merely excuse. Without this, an entry only lifts
-        // the requirement to project, and the leak has a fully green path: add EmployerList
-        // to the DTO plus RecentJobSearchDtoContractTests.SurfacedProperties, leave the
-        // entry, ship.
-        //
-        // What this closes, measured: that path now fails here.
-        //
-        // The interlock is two-way, and each half is measured: deleting the entry ALONE
-        // turns EverySearchDimension_ReachesTheReadProjection red (Employer is a dimension
-        // again, and unprojected), and adding the property alone turns THIS one red. Only
-        // the combination is green, so the leak costs a reviewable deletion of a stated PII
-        // ground rather than a property addition that reads as tidying up.
-        //
-        // What the pair does NOT close: it reasons about property NAMES, like its sibling,
-        // so a projection under another spelling — `Employers`, `EmployerOrgNumbers` — is
-        // not a key this dictionary checks and passes with the entry intact. That axis is
-        // closed one layer out, on the value: RecentSearchesTests asserts the org.nr appears
-        // nowhere in the response text.
-        var projected = ProjectedProperties();
-
-        var surfacedAnyway = NotSurfaced.Keys
-            .Where(name => projected.Contains(name) || projected.Contains(name + "List"))
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        surfacedAnyway.ShouldBeEmpty(
-            "a dimension classified NotSurfaced must be absent from RecentJobSearchDto, "
-            + $"under both spellings. Surfaced anyway: {string.Join(", ", surfacedAnyway)}. "
-            + "Removing the entry instead of the property inverts the guard into a "
-            + "rubber stamp.");
-    }
-
-    [Fact]
-    public void NotSurfaced_OnlyNamesDimensionsThatStillExist()
-    {
-        // A withheld dimension that has been removed leaves an entry whose ground nobody can
-        // check, and which silently excuses a FUTURE property that happens to take the name.
-        var dimensions = SearchDimensions().ToHashSet(StringComparer.Ordinal);
-
-        var stale = NotSurfaced.Keys
-            .Where(name => !dimensions.Contains(name))
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        stale.ShouldBeEmpty(
-            $"NotSurfaced names dimensions RecentJobSearch no longer has: {string.Join(", ", stale)}");
-    }
-
-    // Shared so the two complementary predicates cannot drift apart: one asserts a
-    // dimension IS in this set, the other that a NotSurfaced key is NOT. A diverging
-    // BindingFlags would silently stop them measuring the same surface.
     private static HashSet<string> ProjectedProperties() =>
         typeof(RecentJobSearchDto)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)

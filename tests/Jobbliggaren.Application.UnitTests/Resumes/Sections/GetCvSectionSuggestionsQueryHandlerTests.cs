@@ -123,7 +123,7 @@ public class GetCvSectionSuggestionsQueryHandlerTests
         IEnumerable<string>? occupationGroups = null,
         IEnumerable<ProposedOccupation>? occupationProposals = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
 
         if (occupationGroups is not null)
         {

@@ -18,7 +18,7 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("identity")
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -84,19 +84,6 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("phone_number_confirmed");
 
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Local")
-                        .HasColumnName("provider");
-
-                    b.Property<string>("ProviderUserId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("provider_user_id");
-
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text")
                         .HasColumnName("security_stamp");
@@ -119,11 +106,6 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
-
-                    b.HasIndex("Provider", "ProviderUserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_asp_net_users_provider_provider_user_id")
-                        .HasFilter("\"provider_user_id\" IS NOT NULL");
 
                     b.ToTable("AspNetUsers", "identity");
                 });

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Data.Common;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -34,7 +35,6 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Refit;
 using Shouldly;
-using Testcontainers.PostgreSql;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -72,6 +72,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// resurrect it.
 /// </para>
 /// </remarks>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 {
     // A recruiter, in the shape the real corpus actually holds her (evidence pack §9: "kontakta
@@ -118,14 +119,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string RawPayloadOnlyToken = "Vikströmshamn";
     private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
     private readonly CommandTimeoutRecorder _commandTimeouts = new();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
 
+    public RecruiterErasureIngestTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         _jobTech = WireMockServer.Start();
         _jobTech
@@ -138,7 +142,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AppDbContext>(options => options
-            .UseNpgsql(_postgres.GetConnectionString(),
+            .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(_commandTimeouts));
@@ -161,11 +165,6 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -173,7 +172,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await _provider.DisposeAsync();
         _jobTech.Stop();
         _jobTech.Dispose();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
     }
 
     /// <summary>The JobTech wire shape, v2 (webpage_url top-level).</summary>
@@ -1089,7 +1088,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1118,7 +1117,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1155,7 +1154,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1197,7 +1196,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1242,7 +1241,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1625,26 +1624,24 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A display name naming her is matched, and her account name SURVIVES the destructive run. The
+    /// A match preference naming her is matched, and the profile SURVIVES the destructive run. The
     /// gap between Matched and Erased is the disclosure, not an omission.
-    /// <b>Mutation:</b> delete the <c>display_name</c> disjunct.
+    /// <b>Mutation:</b> make the handler erase the profile surface.
     /// </summary>
     [Fact]
-    public async Task A_DISPLAY_NAME_naming_her_is_matched_and_her_profile_SURVIVES()
+    public async Task A_MATCH_PREFERENCE_naming_her_is_matched_and_her_profile_SURVIVES()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
-        var response = await EraseAsync("Vendela Hjorthén", ct);
+        var response = await EraseAsync("Vendela-Hjorthen", ct);
 
         response.Matched.JobSeekerProfiles.ShouldBe(1);
-        response.Erased.JobSeekerProfiles.ShouldBe(0,
-            "the remedy is not constructible without her: the invariant refuses an empty name.");
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.JobSeekers.AsNoTracking().Select(js => js.DisplayName).SingleAsync(ct))
-            .ShouldBe("Konsult åt Vendela Hjorthén");
+        response.Erased.JobSeekerProfiles.ShouldBe(0);
+        var survivor = await ReadSeekerAsync(seekerId, ct);
+        survivor.DeletedAt.ShouldBeNull();
+        survivor.MatchPreferences.PreferredOccupationGroups.ShouldBe(["Konsult-Vendela-Hjorthen"]);
     }
 
     /// <summary>
@@ -1657,18 +1654,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task MATCH_PREFERENCES_are_matched_on_that_column_ALONE()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
-
-        using (var scope = _provider.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == seekerId, ct);
-
-            seeker.UpdateMatchPreferences(
-                MatchPreferences.Create(["Almqvist-Rehnberg"], null, null).Value, clock);
-            await db.SaveChangesAsync(ct);
-        }
+        var seekerId = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seekerId, "Almqvist-Rehnberg", ct);
 
         var probe = await EraseAsync("Almqvist-Rehnberg", ct, dryRun: true);
 
@@ -1686,7 +1673,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task The_preferences_containers_unvalidated_LANGUAGE_is_matched_on_that_column_ALONE()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1738,25 +1725,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task Only_the_seeded_profile_is_counted_while_two_neutral_profiles_are_NOT()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Sökande Ett", ct);
-        var neutral = await SeedJobSeekerAsync("Sökande Två", ct);
+        var seeded = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seeded, "Konsult-Vendela-Hjorthen", ct);
+        await SeedJobSeekerAsync(ct);
+        var neutral = await SeedJobSeekerAsync(ct);
 
         // One neutral profile carries NON-EMPTY match preferences. All-empty lists serialise to
         // arrays with no string values, which jsonb_path_query skips — so with only empty ones a
         // bare wildcard on that disjunct would leave this fact green.
-        using (var scope = _provider.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == neutral, ct);
+        await SetMatchPreferencesAsync(neutral, "Thorvaldsen-Ek", ct);
 
-            seeker.UpdateMatchPreferences(
-                MatchPreferences.Create(["Thorvaldsen-Ek"], null, null).Value, clock);
-            await db.SaveChangesAsync(ct);
-        }
-
-        var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+        var probe = await EraseAsync("Vendela-Hjorthen", ct, dryRun: true);
 
         probe.Matched.JobSeekerProfiles.ShouldBe(1);
     }
@@ -1812,8 +1791,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task An_identifier_that_is_only_a_jsonb_KEY_NAME_matches_no_profile()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Sökande", ct);
-        await SeedJobSeekerAsync("Annan Sökande", ct);
+        await SeedJobSeekerAsync(ct);
+        await SeedJobSeekerAsync(ct);
 
         var probe = await EraseAsync("Lang", ct, dryRun: true);
 
@@ -1867,7 +1846,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_WRITTEN_FORM_of_her_org_nr_reaches_shape_only_MATCH_PREFERENCES()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1942,7 +1921,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_SOFT_DELETED_profile_is_still_reported()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1954,40 +1934,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+        var response = await EraseAsync("Vendela-Hjorthen", ct);
 
-        probe.Matched.JobSeekerProfiles.ShouldBe(1);
-    }
-
-    /// <summary>
-    /// <b>This surface matches on a SHARED NAME, and the reply templates branch on that.</b> A
-    /// display name is the account holder's own name, so two users called what the requester is
-    /// called are two hits about neither of them. It is the whole reason `jobSeekerProfiles` has its
-    /// own reply template (B5) instead of triggering B2, which would call the hit hers and promise a
-    /// removal the display-name invariant makes impossible — so the property is measured here rather
-    /// than asserted in a runbook only.
-    /// <b>Mutation:</b> make the profile query return DISTINCT users by some other key, or narrow
-    /// the display-name arm to an exact match.
-    /// </summary>
-    [Fact]
-    public async Task TWO_users_sharing_her_name_are_BOTH_counted_and_neither_is_erased()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Sökande Utan Träff", ct);
-
-        var response = await EraseAsync("Vendela Hjorthén", ct);
-
-        response.Matched.JobSeekerProfiles.ShouldBe(2,
-            "both are reported. The count names nobody, and B5 is written so that reporting them "
-            + "claims nothing about either.");
+        response.Matched.JobSeekerProfiles.ShouldBe(1);
         response.Erased.JobSeekerProfiles.ShouldBe(0);
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.JobSeekers.AsNoTracking().CountAsync(js => js.DisplayName == "Vendela Hjorthén", ct))
-            .ShouldBe(2);
+        (await ReadSeekerAsync(seekerId, ct)).MatchPreferences.PreferredOccupationGroups
+            .ShouldBe(["Konsult-Vendela-Hjorthen"]);
     }
 
     /// <summary>
@@ -2002,7 +1954,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_jsonb_value_carrying_JSON_ESCAPED_characters_is_matched_on_its_DECODED_text()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -2416,7 +2368,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <summary>
     /// Re-points the stub at <paramref name="snapshotJson"/> and runs the production ingest. Safe
     /// because this class is <see cref="IAsyncLifetime"/> on the CLASS, so every test method gets
-    /// its own container, its own stub and its own database.
+    /// its own database and its own stub.
     /// </summary>
     private async Task IngestPayloadAsync(string snapshotJson, CancellationToken ct)
     {
@@ -2442,7 +2394,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -2498,16 +2450,35 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<JobSeekerId> SeedJobSeekerAsync(string displayName, CancellationToken ct)
+    private async Task<JobSeekerId> SeedJobSeekerAsync(CancellationToken ct)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), displayName, clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker.Id;
+    }
+
+    private async Task SetMatchPreferencesAsync(JobSeekerId seekerId, string occupationGroup, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.Id == seekerId, ct);
+
+        seeker.UpdateMatchPreferences(MatchPreferences.Create([occupationGroup], null, null).Value, clock);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<JobSeeker> ReadSeekerAsync(JobSeekerId seekerId, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(js => js.Id == seekerId, ct);
     }
 
     private async Task<EraseRecruiterAdsResponse> EraseAsync(
@@ -3023,7 +2994,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3165,7 +3136,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3199,7 +3170,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         using (var seed = _provider.CreateScope())
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3378,7 +3349,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -3409,7 +3380,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -3652,7 +3623,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3705,7 +3676,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 

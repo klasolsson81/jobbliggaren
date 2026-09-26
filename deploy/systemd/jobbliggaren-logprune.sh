@@ -86,13 +86,13 @@ readonly RETENTION_DAYS=30
 # the app stream here would silently swap the criterion (security-auditor, 2026-08-28).
 #
 # WHY THE OPERABILITY CRITERION CANNOT BE BORROWED — measured on the box 2026-08-28, not assumed.
-# `postgres` runs with no `log_*` override, so Postgres defaults apply and a unique-violation is
-# logged as `DETAIL: Key (...)=(<value>) already exists.` — the key's VALUES, not just its column
-# names. That was read off this box's own log, not off the documentation. The schema carries a
-# unique index on `(UserId, OrganizationNumber)` and four more on `UserId` pairs, so such a line
-# carries a user id and an organisation number — and for an enskild firma the organisation
-# number IS the holder's personnummer (#841). A container excluded for not emitting *app events*
-# can therefore still hold personal data the window governs.
+# A container excluded for not emitting *app events* can still hold personal data the window
+# governs: postgres logged constraint KEY VALUES, not merely column names, read off this box's
+# own log rather than off the documentation. ⚠ The specifics are NOT restated here — they live
+# in log-sink.md §4. Both that this comment used to carry were falsified within six days: that
+# postgres ran with no `log_*` override (this repo set one), and which key was the bearer (the
+# `(UserId, OrganizationNumber)` index stores an HMAC token, ADR 0090 D5).
+# The conclusion survives both; the restatement did not.
 #
 # EXPANDING THIS ARRAY IS NOT A CHANGE TO ADR 0128's TABLE (CTO 2026-08-28). logship's note that
 # adding a name is a Streams-table change is true OF LOGSHIP, which adds a stream, an archive
@@ -101,7 +101,7 @@ readonly RETENTION_DAYS=30
 #
 # NOR IS IT A FOURTH RETENTION NUMBER. The window follows the DATA, not the container: D7
 # policy 1 derives it from the Art. 17 restore window (D5/D6), and a row bearing a user id is
-# governed by that window wherever it is written. A separate number for these five would be the
+# governed by that window wherever it is written. A separate number for these six would be the
 # fourth; the same number is the rule.
 #
 # THE SET IS THE COMMITMENT'S, NOT TODAY'S MEASUREMENT'S. Some of these sit inside the window
@@ -120,6 +120,7 @@ readonly -a RETENTION_BOUND_CONTAINERS=(
   jobbliggaren-caddy
   jobbliggaren-postgres
   jobbliggaren-redis
+  jobbliggaren-redis-volatile
   jobbliggaren-seq
   jobbliggaren-migrate
   jobbliggaren-migrate-rewrap

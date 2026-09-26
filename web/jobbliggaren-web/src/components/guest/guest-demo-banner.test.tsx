@@ -7,10 +7,10 @@ describe("<GuestDemoBanner />", () => {
     render(<GuestDemoBanner />);
     expect(screen.getByText("DEMO")).toBeInTheDocument();
     expect(
-      screen.getByText(/utforskar Jobbliggaren som gäst/i)
+      screen.getByText(/Innehållet är exempeldata/i)
     ).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /skapa konto/i });
-    expect(cta).toHaveAttribute("href", "/registrera");
+    expect(cta).toHaveAttribute("href", "/logga-in");
   });
 
   it("har region-roll med svenskt aria-label så skärmläsare annonserar demoläget", () => {

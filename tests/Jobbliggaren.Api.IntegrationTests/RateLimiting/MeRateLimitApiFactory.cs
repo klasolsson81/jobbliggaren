@@ -1,4 +1,5 @@
-using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 
@@ -18,8 +18,6 @@ namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 /// - Aggressiva limits (3/60s) på de tre nya "me"-policyerna (MeListRead,
 ///   JobAdStatusBatch, MeWrite) för test-snabbhet — annars krävs 40-60+
 ///   sekventiella anrop för att trigga 429.
-/// - Höjd AuthWrite (10000/min) så registrerings-flödet inte själv rate-
-///   limit:as på den delade 127.0.0.1-IP-bucketen.
 ///
 /// Egen Postgres + Redis Testcontainer (cold-start ~16s) — acceptabelt för
 /// isolerat test-flöde. Speglar ListReadRateLimitApiFactory exakt.
@@ -27,10 +25,11 @@ namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly RedisBoundaryFixture _redisBoundary = new();
 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private RedisTestEnvironment? _redisEnvironment;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -55,42 +54,19 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
 
-            services.RemoveAll<IDistributedCache>();
-            services.AddStackExchangeRedisCache(opts =>
-            {
-                opts.Configuration = _redisCs;
-                opts.InstanceName = "jobbliggaren:";
-            });
-
-            // #714 — force email-confirmation-first OFF (parity with ApiFactory). This factory forces
-            // Development env, which loads appsettings.Development.json where the flag is ON; without
-            // this override the rate-limit tests' RegisterAndGetSessionIdAsync gets a 202 (empty body)
-            // instead of 200 + sessionId. PostConfigure runs after config binding (and beats a dev's
-            // gitignored appsettings.Local.json, which an env var would not).
-            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
-
-            // ADR 0083 Amendment 2026-08-03 - the kill-switch defaults CLOSED, and this factory
-            // registers users (RegisterAndGetSessionIdAsync). Pinned explicitly, like the line
-            // above, so the harness never depends on a dev config file it does not own.
-            services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
     }
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redisBoundary.InitializeAsync().AsTask());
 
         _postgresCs = _postgres.GetConnectionString();
-        _redisCs = _redis.GetConnectionString();
+        _redisCs = _redisBoundary.OptionsFor(_redisBoundary.Persistent, RedisBoundaryFixture.ApiPersistent).ToString(true);
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
-
-        // AuthWrite höjs så registration-flödet inte rate-limit:as (delade
-        // 127.0.0.1-bucket med övriga tester).
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", "10000");
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
+        _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
 
         // De tre nya "me"-policyerna aggressiva för test-snabbhet (TD-87 + TD-92).
         // MeListRead: GET /api/v1/me/profile m.fl. — partition UserId (claim "sub").
@@ -117,9 +93,7 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
+        _redisEnvironment?.Dispose();
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", null);
@@ -127,7 +101,7 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

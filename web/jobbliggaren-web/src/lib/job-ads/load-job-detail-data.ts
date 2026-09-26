@@ -90,8 +90,7 @@ export async function loadJobDetailData(
 
   // Spår 3 PR-D — granularitets-kartan är match-gatad; det eager-startade
   // taxonomi-löftet konsumeras BARA här (och slängs när ingen match finns).
-  // Cachad 1h (statisk referensdata); kartan byggs FE-side (architect NOTE-2),
-  // taxonomi-fel → null → generisk bevisform.
+  // Cachad 1h (statisk referensdata); kartan byggs FE-side (architect NOTE-2).
   const taxonomy =
     match != null
       ? await taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null))

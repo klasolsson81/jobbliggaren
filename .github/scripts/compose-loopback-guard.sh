@@ -375,7 +375,7 @@ trap 'rm -f "$errfile" "$nullenv"' EXIT
 # stays the question being answered.
 #
 # Profile-gated services are included WITHOUT `--profile '*'` — measured on this repo's own
-# file, whose `postgres-test` and `redis-test` sit behind the `test` profile and whose six
+# file, whose `postgres-test` and `redis-test` sit behind the `test` profile and whose seven
 # ports are all counted. Their bindings were otherwise provable only by not running them.
 violations=""
 recognised=0

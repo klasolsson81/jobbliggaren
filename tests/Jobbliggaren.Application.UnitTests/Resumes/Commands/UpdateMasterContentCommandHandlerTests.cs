@@ -33,7 +33,7 @@ public class UpdateMasterContentCommandHandlerTests
         Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -85,7 +85,7 @@ public class UpdateMasterContentCommandHandlerTests
     public async Task Handle_WhenResumeNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -103,7 +103,7 @@ public class UpdateMasterContentCommandHandlerTests
         var otherUserId = Guid.NewGuid();
         var resume = await SeedResumeAsync(db, otherUserId);
 
-        var ownSeeker = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -112,22 +112,6 @@ public class UpdateMasterContentCommandHandlerTests
 
         await Should.ThrowAsync<NotFoundException>(
             () => handler.Handle(command, CancellationToken.None).AsTask());
-    }
-
-    [Fact]
-    public async Task Handle_WithEmptyFullName_ReturnsResumeFullNameRequiredFailure()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var resume = await SeedResumeAsync(db, _userId);
-
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
-        // Domain ValidateContent kontrollerar PersonalInfo.FullName.
-        var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent(fullName: "   "));
-
-        var result = await handler.Handle(command, CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
     }
 
     // ===============================================================

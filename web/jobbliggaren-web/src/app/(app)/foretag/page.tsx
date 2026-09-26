@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * `/foretag` (S1 #996) — the hub root redirects to the default surface, Bevakade företag (Klas
  * 2026-07-21, "Bevakade först"). The six sections that used to live here are split into focused
- * sub-pages — bevakade / sok / smarta-bevakningar / historik — sharing a persistent sub-nav
+ * sub-pages — bevakade / sok / branschbevakningar / historik — sharing a persistent sub-nav
  * (`ForetagSubnav`). The top-nav "Företag" item still lands here. Auth is
  * enforced by the target surface.
  */

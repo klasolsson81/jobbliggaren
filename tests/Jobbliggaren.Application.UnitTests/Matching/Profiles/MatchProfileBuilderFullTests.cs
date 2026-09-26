@@ -116,7 +116,7 @@ public class MatchProfileBuilderFullTests
         MatchPreferences prefs,
         ResumeId? primaryResumeId = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         seeker.UpdateMatchPreferences(prefs, FakeDateTimeProvider.Default);
         if (primaryResumeId is { } id)
             seeker.SetPrimaryResume(id, FakeDateTimeProvider.Default);

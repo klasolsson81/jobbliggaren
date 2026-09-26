@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { useTranslations } from "next-intl";
+import { challengeIdInputSchema, codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { digestCadenceSchema } from "@/lib/dto/me";
 
 // next-intl translator scoped to the `validation` namespace (see
@@ -9,90 +10,28 @@ import { digestCadenceSchema } from "@/lib/dto/me";
 export type ValidationTranslator = ReturnType<typeof useTranslations<"validation">>;
 
 /**
- * TD-28 — defense-in-depth typed-confirmation + re-auth innan DELETE /me.
- * Typed-confirmation = användarens egen e-postadress (matchar GitHub/Stripe-
- * mönstret; högre friktion än ett magiskt ord).
- *
- * Schemat validerar struktur — e-post-matchning mot inloggad användare sker
- * i `deleteAccountAction` så validation-feedback kan visas inline i modalen.
+ * #1740 — the typed address of delete-account. Friction against the user's own mistake, never proof of
+ * identity (the code is), so it carries no format rule at all: `z.email()` refused addresses the backend
+ * admits (`björn@…`, #1781) and locked those accounts out of deleting themselves. The action compares it
+ * with the SESSION's address before anything is spent (#822).
  */
-export function makeDeleteMyAccountSchema(t: ValidationTranslator) {
-  return z.object({
-    confirmEmail: z.email(t("profile.confirmEmailInvalid")),
-    password: z.string().min(1, t("profile.passwordRequired")),
-  });
-}
+export const deleteConfirmationSchema = z.string().trim().min(1).max(256);
 
-export type DeleteMyAccountInput = z.infer<
-  ReturnType<typeof makeDeleteMyAccountSchema>
->;
+/** A code and the challenge it answers, as a Server Action receives them from the dialog. */
+export const codeProofSchema = z.object({
+  challengeId: challengeIdInputSchema,
+  code: codeInputSchema,
+});
 
-/**
- * #678 — change-password. Client-side structural check (the backend is the last
- * barrier). `currentPassword` is the re-auth credential: presence only (a length
- * rule on a re-auth field could reject/echo a supplied credential). `newPassword`
- * mirrors the backend floor (12, PasswordRules / Identity RequiredLength). The
- * new/confirm match is a CARD-level `canSubmit` gate (client friction only), so it
- * is not part of this action schema.
- */
-export function makeChangePasswordSchema(t: ValidationTranslator) {
-  return z.object({
-    currentPassword: z.string().min(1, t("profile.passwordRequired")),
-    newPassword: z.string().min(12, t("profile.newPasswordTooShort")),
-  });
-}
-
-export type ChangePasswordInput = z.infer<
-  ReturnType<typeof makeChangePasswordSchema>
->;
-
-/**
- * #679 — change-email. Client-side structural check (the backend is the last
- * barrier). `currentPassword` is the re-auth credential: presence only (a length
- * rule on a re-auth field could reject/echo a supplied credential). `newEmail`
- * is a syntactic email check only; the new/different-from-current guard is a
- * CARD-level `canSubmit` gate (client friction), so it is not part of this schema.
- */
-export function makeChangeEmailSchema(t: ValidationTranslator) {
-  return z.object({
-    currentPassword: z.string().min(1, t("profile.passwordRequired")),
-    newEmail: z.email(t("profile.confirmEmailInvalid")),
-  });
-}
-
-export type ChangeEmailInput = z.infer<
-  ReturnType<typeof makeChangeEmailSchema>
->;
-
-// Both fields are OPTIONAL because the command is a partial update: the handler applies each
-// only when it is non-null. Sending an unchanged field is not free — since #1117 the display
-// name carries an invariant the server re-evaluates on every write, so a profile row written
-// before that invariant landed would have its LANGUAGE change refused on the strength of a name
-// the user never touched. A field that is not being changed is therefore not sent at all.
-// Present-but-invalid is still rejected: the min/max below apply whenever the key is there.
+// The language is the only field /mina-sidor writes through this action, so it is required: a
+// payload without it would PATCH nothing and the card would still stamp "Sparat".
 export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
   return z.object({
-    displayName: z
-      .string()
-      .trim()
-      .min(1, t("profile.displayNameRequired"))
-      .max(200, t("profile.displayNameMax"))
-      .optional(),
-    language: z
-      .enum(["sv", "en"], {
-        message: t("profile.languageInvalid"),
-      })
-      .optional(),
+    language: z.enum(["sv", "en"], {
+      message: t("profile.languageInvalid"),
+    }),
     // TD-115: legacy emailNotifications/weeklySummary retired (gated no email path).
-  })
-    // Optional does not mean "all optional at once". An empty payload is a save that changes
-    // nothing: the server no-ops it with a 200 and the card then stamps "Sparat" for a change
-    // that never happened. Closing it in the contract rather than trusting every call site to
-    // pass a field means a future control cannot reintroduce that silently.
-    .refine(
-      (v) => v.displayName !== undefined || v.language !== undefined,
-      { message: t("profile.nothingToUpdate") },
-    );
+  });
 }
 
 export type UpdateMyProfileInput = z.infer<

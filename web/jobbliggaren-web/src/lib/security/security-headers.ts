@@ -13,9 +13,25 @@
 // no-CDN VPS and colliding with the middleware.ts hotspot — for a marginal XSS
 // gain the boxed exfil channels (connect/img/form-action/base-uri) already deny.
 //
-// frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the fetched
-// PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl = URL.createObjectURL),
-// a blob: URL that would otherwise fall back to default-src 'self' and be blocked.
+// ⚠ That trade-off was priced before this origin could hold a blob: document built from
+// user-uploaded bytes. It is not false, but it is weaker than when it was written, and
+// security-auditor re-priced it 2026-09-07: a blob: document inherits its creator's origin AND
+// its CSP, so 'unsafe-inline' above is the amplifier that turns "active content" into full XSS
+// if lapse-trigger 1 or 2 ever fires (DPIA #659 §11/§12). Exfil is boxed but not closed —
+// there is no navigate-to directive. The nonce cost against ADR 0045 stands, so this is a
+// re-pricing and not yet a decision to change it.
+//
+// frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the user's own
+// uploaded PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl =
+// URL.createObjectURL), a blob: URL that would otherwise fall back to
+// default-src 'self' and be blocked. DOCX is downloaded, never framed.
+//
+// The blob: indirection is not incidental, and it is the mechanism ADR 0101
+// `Amendment 2026-09-06` / DPIA #659 §11 oblige that surface to name: framing the
+// BFF route directly cannot work here, because frame-ancestors 'none' and
+// X-Frame-Options: DENY below are served on `/(.*)` — route handlers included —
+// and deny same-origin framing too. Loosening either is DPIA #659 §11's
+// lapse-trigger 4, so this is the only branch available to that feature.
 //
 // This module is pure and framework-free so it is unit-testable and frozen by a
 // co-located contract test; next.config.ts is the sole consumer.
@@ -112,3 +128,30 @@ export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
         ]),
   ];
 }
+
+/**
+ * `/logga-in/lank` carries a single-use login token in its query string (ADR 0142 "Page form").
+ *
+ * `no-store` on the GET and on the POST: a login URL must never be served out of a cache.
+ *
+ * `same-origin`, for a reason that is this page's alone: its form must work without JavaScript, and a no-JS form POST is a navigate-mode
+ * request. Under `no-referrer` the Fetch standard serializes that request's `Origin` as `null`,
+ * and Next refuses a Server Action whose `Origin` does not match the host (`action-handler.js`,
+ * "Invalid Server Actions request"). `same-origin` still strips the referrer on every cross-origin request, and the CSP
+ * admits no cross-origin subresource to begin with; the edge drops the whole request-header map
+ * from its log (`CaddyfileTokenScrubbingPinTests`), so a same-origin `Referer` is not persisted
+ * there either (security-auditor, #1738 M-1).
+ *
+ * One home for the value: the route entry in `next.config.ts` and the page's metadata both read
+ * it, because a meta tag alone can stream after subresources have already been requested. That
+ * the route entry WINS over the global `/(.*)` block is measured in
+ * `tests/e2e/security-headers.spec.ts`: a route rule that does not win is a rule that does not
+ * exist.
+ */
+export const LOGIN_LINK_ROUTE = "/logga-in/lank";
+export const LOGIN_LINK_REFERRER_POLICY = "same-origin";
+
+export const LOGIN_LINK_ROUTE_HEADERS: readonly HttpHeader[] = [
+  { key: "Cache-Control", value: "no-store" },
+  { key: "Referrer-Policy", value: LOGIN_LINK_REFERRER_POLICY },
+];

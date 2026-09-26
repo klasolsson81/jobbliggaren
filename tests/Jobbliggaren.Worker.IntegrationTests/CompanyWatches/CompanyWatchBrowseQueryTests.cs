@@ -5,6 +5,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Shouldly;
 
 namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
@@ -26,6 +27,16 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 [Trait("Category", "SmokeTest")]
 public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
 {
+    /// <summary>
+    /// #1681 part 2 — the port gained the read-side age bound (from the materialisation options) and
+    /// a clock. One factory, so every test here runs the SAME configuration production ships: the
+    /// option's own default, never a value picked to make a test pass.
+    /// </summary>
+    private static CompanyWatchBrowseQuery PortFor(AppDbContext db) =>
+        new(db,
+            Options.Create(new CompanyWatchMaterialisationOptions()),
+            new DateTimeProvider());
+
     private readonly WorkerTestFixture _fixture = fixture;
 
     private static readonly DateTimeOffset T0 = new(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
@@ -439,7 +450,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
             Entry(OrgNr(6), "Dead AB", KommunStockholm, [SniIt],
                 status: CompanyRegisterStatus.Deregistered));
 
-        var magnitude = await new CompanyWatchBrowseQuery(ctx.Db).CountMatchingCompaniesAsync(
+        var magnitude = await PortFor(ctx.Db).CountMatchingCompaniesAsync(
             Spec([SniIt], [KommunStockholm]), ceiling: 10_000, ct);
 
         magnitude.ShouldBe(3);
@@ -456,7 +467,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
             .ToArray();
         await SeedAsync(ctx.Db, ct, entries);
 
-        var magnitude = await new CompanyWatchBrowseQuery(ctx.Db).CountMatchingCompaniesAsync(
+        var magnitude = await PortFor(ctx.Db).CountMatchingCompaniesAsync(
             Spec([SniIt], [KommunStockholm]), ceiling: 5, ct);
 
         // min(true count, ceiling): the caller reads "== ceiling" as SATURATED and renders "5+".
@@ -484,7 +495,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
         await SeedAsync(ctx.Db, ct, entries);
 
         var spec = Spec([SniIt], [KommunStockholm]);
-        var query = new CompanyWatchBrowseQuery(ctx.Db);
+        var query = PortFor(ctx.Db);
 
         var page = await query.BrowseAsync(new CompanyBrowseCriteria(spec, 1, PageSize), ct);
         var magnitude = await query.CountMatchingCompaniesAsync(spec, ceiling: 10_000, ct);
@@ -505,7 +516,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
         // fails LOUD here too — a silent zero would render "0 företag matchar" over a live watch.
         var corrupt = CompanyWatchCriteriaSpec.FromTrusted([], [KommunStockholm]);
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await new CompanyWatchBrowseQuery(ctx.Db)
+            await PortFor(ctx.Db)
                 .CountMatchingCompaniesAsync(corrupt, ceiling: 10, ct));
     }
 
@@ -516,7 +527,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
         await using var ctx = await FreshContextAsync(ct);
 
         await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
-            await new CompanyWatchBrowseQuery(ctx.Db)
+            await PortFor(ctx.Db)
                 .CountMatchingCompaniesAsync(Spec([SniIt], [KommunStockholm]), ceiling: 0, ct));
     }
 
@@ -531,7 +542,7 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
         CancellationToken ct,
         int page = 1,
         int pageSize = 20) =>
-        new CompanyWatchBrowseQuery(db)
+        PortFor(db)
             .BrowseAsync(new CompanyBrowseCriteria(spec, page, pageSize), ct);
 
     private static ScbCompanyRegisterEntry Entry(

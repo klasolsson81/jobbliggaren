@@ -106,11 +106,6 @@ export function StatusSection({
               form som "Alla ansökningar (N)" och Tavla-kolumnerna → de tre
               vyerna läser konsistent. */}
           <span className="jp-section__count">({shown})</span>
-          {!open && (
-            <span className="jp-section__closedhint">
-              {tUi("pipeline.clickToShow")}
-            </span>
-          )}
         </button>
       </h3>
 

@@ -25,7 +25,7 @@ public class RenameResumeCommandHandlerTests
         Guid userId,
         string name = "Original")
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.Create(seeker.Id, name, "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -70,7 +70,7 @@ public class RenameResumeCommandHandlerTests
     public async Task Handle_WhenResumeNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -89,7 +89,7 @@ public class RenameResumeCommandHandlerTests
         var resume = await SeedResumeAsync(db, otherUserId);
 
         // Egen JobSeeker så att jobSeekerId blir != default
-        var ownSeeker = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

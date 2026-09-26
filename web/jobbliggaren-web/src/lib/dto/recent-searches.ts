@@ -63,6 +63,15 @@ export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
     conceptId: z.null(),
     moreCount: z.literal(0),
   }),
+  // "Employer" är värdefri av beslut, inte av slump: värdet är ett org.nr, och för en enskild
+  // firma är det innehavarens personnummer (#841). Delen bär bara HUR MÅNGA arbetsgivare
+  // sökningen filtrerade på; ordet är locale-copy (#1471, Klas-beslut 2026-08-23).
+  z.object({
+    kind: z.literal("Employer"),
+    text: z.null(),
+    conceptId: z.null(),
+    moreCount: z.number().int().nonnegative(),
+  }),
   // "Coded" är spegelvänd mot "Named": wire:n bär koden, katalogen bär ordet. Att `text` är
   // null är poängen: det finns ingen svenska att tyst falla tillbaka på, så en saknad
   // katalognyckel blir synlig i stället för att bli svensk.
@@ -116,6 +125,13 @@ export const recentJobSearchDtoSchema = z.object({
   // bär Klass 2-filtret. Backend `RecentJobSearchDto` bär dem sedan B2/#60.
   employmentTypeList: z.array(z.string()),
   worktimeExtentList: z.array(z.string()),
+  // #1471 — arbetsgivar-axeln, ett org.nr per värde, konsumerad för replay så "Kör igen"
+  // bär samma filter som radens tal räknades med. OBLIGATORISK som varje annan rå dimension
+  // här — `remote`-noten nedan säger varför en default vore fel, och här är felet exakt
+  // issuet: ett saknat fält som tyst blir ett tomt filter är en replay som tyst vidgas.
+  // Vad listan får bära avgörs på servern (ADR 0087 D8(c), maskad arm) — ett
+  // personnummer-format når den aldrig.
+  employerList: z.array(z.string()),
   // #1407 (#551 punkt 4) — distans-axeln. OBLIGATORISK, inte `.default(false)`, av
   // två skäl som båda är husets egna: varje RÅTT dimensionsfält här är required (bara
   // de tre `*Labels` defaultar), och högljutt-före-tyst-fel är ratificerat (ADR 0067

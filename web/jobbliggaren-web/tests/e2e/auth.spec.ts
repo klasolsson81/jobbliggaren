@@ -1,84 +1,233 @@
-import { test, expect } from "@playwright/test";
-import { TEST_PASSWORD, ensureTestUser, testEmail } from "./helpers/auth";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { test, expect, type Page } from "@playwright/test";
+import {
+  seedAccount,
+  seedTestUser,
+  takeLoginCode,
+  testEmail,
+} from "./helpers/auth";
 
 /**
- * #791 / #733 — email-confirmation resend affordance (register-202 panel + login-403 gate).
+ * #1738 — the one auth page: an address, a mailed code, and for a new address the terms.
  *
- * REQUIRES a backend with `Auth:RequireEmailConfirmation` = true (the dev default). With the flag
- * OFF, register returns 200 + instant login and login succeeds, so neither the register-202
- * "check inbox" panel nor the login-403 gate renders and the resend button under test never
- * appears. The existing `loginAs`-based specs (delete-account / applications / cv) conversely
- * assume the flag OFF (they wait for `/mig`). The two sets therefore cannot run against the same
- * backend instance; reconciling that (per-test flag toggle / separate backend) is the
- * Playwright-in-CI infra issue, not this spec.
+ * Runs on the DEV seam: `POST /api/v1/dev/login-code` hands back the code the mail carried, for a
+ * reserved recipient, in Development only. So the API must run in Development with registration
+ * open (its Development default).
  *
- * The login-403 test is the regression for #791: before the fix, the resend button read the live
- * (React-19-reset, empty) email input and silently no-op'd. It now reads the submitted email from
- * the action state, so clicking it produces the uniform "sent" confirmation.
+ * ONE ADDRESS PER TEST. The login challenge's budgets are constants and silent: the same address
+ * again inside 60 seconds gets a challenge with no record. And exactly ONE test here creates an
+ * account through the flow, because every new address spends a slot of the global 20-per-24-hour
+ * cap on mails to addresses without an account. The other tests seed their account through the
+ * API first (`helpers/auth.ts` says why).
+ *
+ * Not covered here, and it cannot be: a login link that WORKS. The seam hands out the code only,
+ * never the link's token. `challenge-actions.test.ts` covers that arm; this spec covers the
+ * landing itself with a token that is dead.
+ *
+ * Copy is duplicated from `messages/sv/pages.json` on purpose. This job is observe-only
+ * (e2e.yml), so a stale string here fails silently; keep them in step.
  */
-
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 
-const RESEND_BUTTON = "Skicka en ny bekräftelselänk";
-const RESEND_SENT =
-  "Om adressen behöver bekräftas har vi skickat en ny länk. Kontrollera inkorgen och skräpposten.";
-// Duplicated from messages/sv/pages.json `auth.actions.emailNotConfirmed`. This job is
-// observe-only (e2e.yml), so a stale copy here breaks #791's regression silently — it was
-// missed once (#1442) precisely because nothing goes red.
-const LOGIN_403_COPY =
-  "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.";
+const uniqueRunId = (): number => Date.now() + Math.floor(Math.random() * 1_000_000);
 
-test.describe("auth email-confirmation resend (flag ON)", () => {
-  test("register-202 shows the check-inbox panel with a working resend button", async ({
+/**
+ * A page on ANOTHER site carrying a link, as webmail does. `127.0.0.1` is not the same site as the
+ * app's `localhost`, so a click on the link is a cross-site navigation.
+ */
+async function serveMailWithLink(href: string): Promise<{ url: string; close: () => Promise<void> }> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end(`<a href="${href}">Logga in via mejlet</a>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}/`,
+    close: () => new Promise<void>((resolve) => void server.close(() => resolve())),
+  };
+}
+
+async function submitAddress(page: Page, email: string, path = "/logga-in"): Promise<void> {
+  await page.goto(path);
+  await page.getByLabel("E-postadress").fill(email);
+  // exact: the three provider rows are buttons named "Fortsätt med …" and match loosely.
+  await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
+  await page.waitForURL("**/logga-in/kod");
+}
+
+async function submitCode(page: Page, code: string): Promise<void> {
+  await page.getByLabel("Sexsiffrig kod").fill(code);
+  await page.getByRole("button", { name: "Bekräfta koden" }).click();
+}
+
+test.describe("/logga-in — an address that has an account", () => {
+  test("logs in in two steps, with a session that lasts, and the typed address leaves the device", async ({
     page,
+    context,
+    baseURL,
   }) => {
-    // A fresh address each run — register is uniform 202 (fresh or taken), so re-runs are harmless.
-    const email = `test-e2e-${Date.now()}-reg@e2e.jobbliggaren.test`;
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
 
-    await page.goto("/registrera");
-    await page.getByLabel("Namn").fill("E2E Testare");
-    await page.getByLabel("E-postadress").fill(email);
-    // exact: the PasswordInput's "Visa lösenord" toggle also matches a loose "Lösenord" label.
-    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
-    // #1479: the terms acceptance is `required`, so a real browser refuses to submit without it.
-    await page.getByRole("checkbox", { name: /Jag godkänner/ }).check();
-    await page.getByRole("button", { name: "Skapa konto" }).click();
+    await submitAddress(page, testEmail(runId));
 
-    // #714: uniform 202 -> check-inbox panel replaces the form; NO auto-login.
-    await expect(
-      page.getByRole("heading", { name: "Kontrollera din inkorg" })
-    ).toBeVisible();
+    // The step rests on an instruction, never on a claim that a mail was sent or to whom.
+    await expect(page.getByRole("heading", { level: 1, name: "Ange koden" })).toBeVisible();
+    await expect(page.getByText(`Du angav ${testEmail(runId)}.`)).toBeVisible();
+    await expect(page.getByText(/Vi har skickat/)).toHaveCount(0);
+    // A resend right now would kill the code just mailed, so the button starts in cooldown.
+    await expect(page.getByRole("button", { name: "Skicka ny kod" })).toBeDisabled();
 
-    const resend = page.getByRole("button", { name: RESEND_BUTTON });
-    await expect(resend).toBeVisible();
+    await submitCode(page, await takeLoginCode(testEmail(runId)));
+    await page.waitForURL("**/oversikt");
 
-    await resend.click();
-    // #733: uniform "sent" confirmation (anti-enum: identical regardless of account existence).
-    await expect(page.getByText(RESEND_SENT)).toBeVisible();
+    const cookies = await context.cookies();
+    const session = cookies.find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(session).toBeDefined();
+    // Persistent by default (ADR 0142 D4): Max-Age 15552000 s = 180 days, never a session cookie.
+    const lifetimeSeconds = session!.expires - Date.now() / 1000;
+    expect(lifetimeSeconds).toBeGreaterThan(15_552_000 - 120);
+    expect(lifetimeSeconds).toBeLessThanOrEqual(15_552_000);
+    expect(session).toMatchObject({ httpOnly: true, secure: true, sameSite: "Strict" });
+    // The flow cookie carried the typed address. It goes in the same action as the login.
+    expect(cookies.find((c) => c.name === "__Host-jobbliggaren_login")).toBeUndefined();
+
+    // Logged in, a login link asks before it replaces the session: two controls, no address.
+    await page.goto("/logga-in/lank?token=not-a-live-token");
+    await expect(page.getByRole("heading", { level: 1, name: "Du är redan inloggad" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Fortsätt och logga in" })).toBeVisible();
+    await page.getByRole("link", { name: "Stanna kvar som inloggad" }).click();
+    await page.waitForURL("**/oversikt");
+
+    // The same link CLICKED ON ANOTHER SITE. The Strict session cookie is not sent with that
+    // navigation, so the GET cannot see the session and renders the one-button arm. The press is
+    // same-site: it must ask, consume nothing and leave the session as it was.
+    const mail = await serveMailWithLink(`${baseURL}/logga-in/lank?token=not-a-live-token`);
+    try {
+      await page.goto(mail.url);
+      await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Logga in på Jobbliggaren" })
+      ).toBeVisible();
+
+      await page.getByRole("button", { name: "Logga in", exact: true }).click();
+
+      await expect(page.getByRole("heading", { level: 1, name: "Du är redan inloggad" })).toBeFocused();
+      await expect(page.getByRole("button", { name: "Fortsätt och logga in" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Stanna kvar som inloggad" })).toBeVisible();
+      const after = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+      expect(after?.value).toBe(session!.value);
+    } finally {
+      await mail.close();
+    }
   });
 
-  test("login-403 gates an unconfirmed account and the resend button works (#791 regression)", async ({
+  test("honours next, and answers a wrong code on the field without losing the step", async ({
     page,
   }) => {
-    // Seed an UNCONFIRMED account via the API (register 202 under the flag; never confirmed).
-    const runId = Date.now();
-    await ensureTestUser(BACKEND_URL, runId);
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
 
-    await page.goto("/logga-in");
-    await page.getByLabel("E-postadress").fill(testEmail(runId));
-    // exact: the PasswordInput's "Visa lösenord" toggle also matches a loose "Lösenord" label.
-    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
+    await submitAddress(page, testEmail(runId), "/logga-in?next=%2Fcv");
+    const code = await takeLoginCode(testEmail(runId));
+    const wrong = code === "000000" ? "000001" : "000000";
+
+    await submitCode(page, wrong);
+    const alert = page.getByRole("alert").filter({ hasText: "Koden stämmer inte." });
+    await expect(alert).toBeVisible();
+    await expect(page.getByLabel("Sexsiffrig kod")).toBeFocused();
+    await expect(page).toHaveURL(/\/logga-in\/kod$/);
+
+    await submitCode(page, code);
+    await page.waitForURL("**/cv");
+  });
+
+  test("takes björn@ all the way in: the browser does not refuse what the backend admits", async ({
+    page,
+  }) => {
+    // Seeded as an existing account, so it spends nothing of the cap on new addresses.
+    const email = `björn-${uniqueRunId()}@e2e.jobbliggaren.test`;
+    await seedAccount(BACKEND_URL, email);
+
+    // With native validation on, Chromium stops this submit before it is sent: the HTML email
+    // production is ASCII-only in the local part. The form is `noValidate` for that reason.
+    await submitAddress(page, email);
+    await submitCode(page, await takeLoginCode(email));
+    await page.waitForURL("**/oversikt");
+  });
+});
+
+test.describe("/logga-in — a new address", () => {
+  test("creates the account in three steps: address, code, terms", async ({ page }) => {
+    // THE test that spends a slot of the global cap on new addresses. Keep it the only one.
+    const email = `new-${uniqueRunId()}@e2e.jobbliggaren.test`;
+
+    await submitAddress(page, email);
+    await submitCode(page, await takeLoginCode(email));
+    await page.waitForURL("**/logga-in/villkor");
+
+    await expect(page.getByRole("heading", { level: 1, name: "Skapa ditt konto" })).toBeVisible();
+    // No address on this step: the account is created on what the code proved.
+    await expect(page.getByText(email)).toHaveCount(0);
+
+    // The Server Action refuses an unticked box; the grant survives it.
+    await page.getByRole("button", { name: "Skapa konto" }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Du behöver godkänna användarvillkoren" })
+    ).toBeVisible();
+
+    await page.getByRole("checkbox", { name: "Jag godkänner användarvillkoren." }).check();
+    await page.getByRole("button", { name: "Skapa konto" }).click();
+    await page.waitForURL("**/oversikt");
+  });
+});
+
+test.describe("/registrera", () => {
+  test("answers 308 to /logga-in and keeps the query", async ({ request }) => {
+    const res = await request.get("/registrera?next=%2Fcv", { maxRedirects: 0 });
+
+    expect(res.status()).toBe(308);
+    expect(res.headers()["location"]).toBe("/logga-in?next=%2Fcv");
+  });
+});
+
+test.describe("/logga-in/lank", () => {
+  test("consumes nothing on the GET, and says one sentence for a link that cannot be used", async ({
+    page,
+  }) => {
+    await page.goto("/logga-in/lank?token=not-a-live-token");
+
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Logga in på Jobbliggaren" })
+    ).toBeVisible();
     await page.getByRole("button", { name: "Logga in" }).click();
 
-    // #714: correct password + unconfirmed -> distinct 403 with actionable copy (no redirect).
-    await expect(page.getByText(LOGIN_403_COPY)).toBeVisible();
+    await expect(
+      page.getByText("Länken går inte att använda. Begär en ny kod på inloggningssidan.")
+    ).toBeVisible();
+    // A dead link has no retry: the button, and the token with it, are gone.
+    await expect(page.getByRole("button", { name: "Logga in" })).toHaveCount(0);
+    await expect(page.locator('input[name="token"]')).toHaveCount(0);
+  });
 
-    const resend = page.getByRole("button", { name: RESEND_BUTTON });
-    await expect(resend).toBeVisible();
+  test("works with JavaScript OFF: the form POST reaches the Server Action", async ({ browser }) => {
+    // The measurement behind `LOGIN_LINK_REFERRER_POLICY`. A no-JS form POST is a navigate-mode
+    // request. Under `Referrer-Policy: no-referrer` it carries `Origin: null`, and Next refuses a
+    // Server Action whose Origin does not match the host, so the page would answer with Next's
+    // error instead of the sentence below. It is `same-origin` so that this passes.
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      await page.goto("/logga-in/lank?token=not-a-live-token");
+      await page.getByRole("button", { name: "Logga in" }).click();
 
-    // #791: pre-fix this was a silent no-op (the React-reset email input read ""). Post-fix it reads
-    // the submitted email from the action state and produces the uniform "sent" confirmation.
-    await resend.click();
-    await expect(page.getByText(RESEND_SENT)).toBeVisible();
+      await expect(
+        page.getByText("Länken går inte att använda. Begär en ny kod på inloggningssidan.")
+      ).toBeVisible();
+    } finally {
+      await context.close();
+    }
   });
 });

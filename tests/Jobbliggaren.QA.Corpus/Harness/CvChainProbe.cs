@@ -98,12 +98,11 @@ internal static class CvChainProbe
     ];
 
     internal static async Task<CvChainObservation> RunAsync(
-        string fileName, string contentType, byte[] bytes, string accountDisplayName,
-        CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, CancellationToken ct)
     {
         try
         {
-            return await RunCoreAsync(fileName, contentType, bytes, accountDisplayName, ct);
+            return await RunCoreAsync(fileName, contentType, bytes, ct);
         }
         catch (Exception ex)
         {
@@ -124,31 +123,14 @@ internal static class CvChainProbe
     }
 
     private static async Task<CvChainObservation> RunCoreAsync(
-        string fileName, string contentType, byte[] bytes, string accountDisplayName,
-        CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
         var clock = FixedClock.Default;
         await using var db = CorpusAppDbContextFactory.Create();
 
-        // The account display name is a CASE input, not a fixed constant. The auto-promote
-        // handler feeds it into the composed DTO, so it is the ONLY text the DQ6 guard sees that
-        // the import scan did not already cover. One case therefore carries a personnummer HERE
-        // rather than in the CV body: that is the only route to the DQ6 rung which a parse-level
-        // personnummer does not pre-empt, and without it, deleting the guard call would leave the
-        // whole report byte-identical.
-        //
-        // Since #1117 that name cannot be REGISTERED: JobSeeker.Register refuses a
-        // personnummer-shaped display name (pinned in Jobbliggaren.Domain.UnitTests,
-        // JobSeekerTests). The probe therefore registers a placeholder and writes the case's own
-        // name straight to the column, which is the state a row written BEFORE that invariant
-        // has — the invariant is forward-only, since EF materializes an existing row past the
-        // factory methods. That legacy population is exactly what the DQ6 arm still stands on,
-        // so the case keeps measuring the rung it was built for; what changed is which actor
-        // produced its premise, not what it proves.
-        var seeker = JobSeeker.Register(userId, "Korpus Testkonto", clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
-        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = accountDisplayName;
         await db.SaveChangesAsync(ct);
 
         var currentUser = Substitute.For<ICurrentUser>();

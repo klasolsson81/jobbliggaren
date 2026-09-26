@@ -117,7 +117,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
         var (db, scope, clock) = NewScope();
         using (scope)
         {
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Status Seeker", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             return seeker.Id;

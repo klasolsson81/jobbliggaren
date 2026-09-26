@@ -89,12 +89,19 @@
   --jp-warning:    #A34A06;  --jp-warning-bg: #FCE9D1;  /* #193: pill text 4.2->5.0:1 on warning-bg */
   --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
   --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
+  /* ADR 0140 — /oversikt-kortens info-axel. `-fill`/`-hover` följer knapp-kontraktet och
+     dark-skiftas ALDRIG (vit text på fyllningen i båda teman, som --jp-accent-800); `-border`
+     är kortets dekorativa hairline mot `-bg` och skiftar med tinten. */
+  --jp-info-fill:   #1B5396;  --jp-info-hover:  #164478;  --jp-info-border: #C5D8F0;
   /* #1000 / ADR 0116 — "bevakad"-tillstånd (slate-teal). En FJÄRDE status-axel
      (relation) vid sidan av grön=grad, blå=handling (sparad/ansökt), neutral=tid:
      BEVAKAR-taggen + `.jp-job[data-followed]`-vänsterkanten. Icke-grön (grad+
      interaktion låst, ADR 0068), icke-blå (sparad/ansökt), icke-danger. AA:
      text/border mot vitt kort 5.83:1, mot --jp-follow-bg 4.92:1. */
   --jp-follow:     #3E6C74;  --jp-follow-bg:  #E2EEF0;
+  /* ADR 0140 — samma tre roller för bevakad-axeln; `--jp-follow` själv är text/kant och skiftar
+     till #7FC4CE i dark, vilket är exakt varför fyllningen behöver en egen, oskiftad token. */
+  --jp-follow-fill: #3E6C74;  --jp-follow-hover: #2F5860;  --jp-follow-border: #C5DDE1;
 
   /* Accenter (v3-kanon) */
   --jp-leaf-600:  #1C7530;   --jp-leaf-50:  #DFF3E5;  /* #193: "Ny"-tag 3.76->4.97:1 on leaf-50 */
@@ -196,6 +203,7 @@
      (namngivna, dokumenterade, swappbara — medvetna undantag utanför H-skalan;
      skal-rungarna i @theme bär all skalburen typografi). */
   --jp-fs-oversikt-day:  30px;  /* .jp-oversikt__today__day — stor datum-numeral */
+  --jp-fs-oversikt-num:  40px;  /* .jp-ov-num — kortens stora tal på /oversikt (ADR 0140) */
   --jp-fs-countcard-num: 26px;  /* .jp-wizard__countcard-num — wizard-räknarsiffra */
   --jp-fs-brand-word:    24px;  /* brand-lockupens ordmärke */
 
@@ -343,9 +351,11 @@
   --jp-warning: #FBC267;  --jp-warning-bg: #3F2A0B;
   --jp-danger:  #FB8989;  --jp-danger-bg:  #3F1419;
   --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
+  --jp-info-border: #2E4F7E;   /* ADR 0140 — -fill/-hover skiftas EJ (knapp-kontraktet) */
   /* #1000 / ADR 0116 — "bevakad" (slate-teal), dark. Text/border mot mörk kort-yta
      7.21:1, mot --jp-follow-bg 6.84:1. */
   --jp-follow:  #7FC4CE;  --jp-follow-bg:  #153338;
+  --jp-follow-border: #245059; /* ADR 0140 — -fill/-hover skiftas EJ (knapp-kontraktet) */
 
   --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
   /* #290 — dark leaf-ramp extensions (mirror :root rungs). Stark/Bra/Grund
@@ -578,8 +588,7 @@ a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn):hover { color: var(--j
   --color-sidebar-accent-foreground:    var(--sidebar-accent-foreground);
   --color-sidebar-border:               var(--sidebar-border);
   --color-sidebar-ring:                 var(--sidebar-ring);
-  /* Radius: pekar på v3 --jp-r-* (ADR 0052). --radius-xl cappas till
-     --jp-r-lg (8px) — 12px är ENDAST hero (.jp-hero, ej shadcn-primitiv). */
+  /* Radius: pekar på v3 --jp-r-* (ADR 0052). --radius-xl cappas till --jp-r-lg. */
   --radius-sm:   var(--jp-r-sm);
   --radius-md:   var(--jp-r-md);
   --radius-lg:   var(--jp-r-lg);
@@ -1011,20 +1020,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-.jp-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-accent-100);
-  color: var(--jp-accent-700);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: var(--jp-fw-bold);
-  font-size: var(--text-caption);
-  border: 1px solid var(--jp-border);
-  cursor: pointer;
-}
 
 /* Mobile drawer trigger */
 .jp-drawer-trigger { display: none; }
@@ -1109,20 +1104,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 8px;
   z-index: 50;
 }
+/* Who is logged in: two lines, both body text on ink-1 (DESIGN.md §4: 14 px floor, mono only for
+   codes). The popup is 240 px wide, so a long address wraps and is never truncated. */
 .jp-usermenu__head {
   padding: 8px 10px 12px;
   border-bottom: 1px solid var(--jp-border-soft);
   margin-bottom: 6px;
-}
-.jp-usermenu__name {
-  font-weight: var(--jp-fw-semibold);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
-  font-size: var(--text-ui);
 }
 .jp-usermenu__email {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
+  font-weight: var(--jp-fw-semibold);
+  overflow-wrap: anywhere;
   margin-top: 2px;
 }
 .jp-usermenu__item {
@@ -1453,6 +1446,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline-offset: -3px; /* inåtvänd — yttre ring klipps av searchrow-overflow */
 }
 
+/* #1610 — active-option indicator for the /jobb typeahead (WCAG 1.4.11 non-text
+   contrast). The bg-surface-tertiary highlight is 1.18:1 light / 1.28:1 dark against
+   the resting row, so background alone cannot carry the state, and no surface token in
+   the palette reaches 3:1 (accent-50 is 1.14:1, weaker still). A 3px edge in accent-700
+   clears the floor at 6.4:1 light / 7.2:1 dark against the highlighted row.
+
+   Drawn as a PSEUDO-ELEMENT, never border-left — same reason as
+   .jp-job[data-followed]::before (#1000 / ADR 0116): a real border shifts every row
+   against its unmarked siblings. It also keeps this rule off every property the option
+   Tailwind utilities set, so the unlayered-CSS precedence gap cannot bite.
+
+   WARNING: var(--jp-accent-700) DIRECTLY, never --jp-focus / --color-focus-ring. They
+   alias the same value at :root, but .jp-hero__plate re-scopes --jp-focus to #FFFFFF so
+   its buttons get a white ring on the gradient — and this typeahead renders inside that
+   plate on /jobb.
+
+   Bound to aria-selected, not to a state class, so the visual signal cannot drift from
+   the ARIA state it announces. */
+.jp-typeahead__option {
+  position: relative;
+}
+.jp-typeahead__option[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--jp-accent-700);
+}
+
 .jp-hero__pills {
   display: flex;
   flex-wrap: wrap;
@@ -1536,15 +1558,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Avgränsning mot mörk canvas — paritet med .jp-hero__plate (G1). */
   border: 1px solid var(--jp-border-soft);
 }
-@media (max-width: 720px) {
-  .jp-pagehero { padding: 16px 20px 0; }
-  .jp-pagehero__inner { padding: 28px 24px; }
-  .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
-  /* #805 punkt 7: den stackade asiden (ansökningar) går full bredd och
-     vänsterjusteras på smala skärmar i stället för att hänga i högerkanten. */
-  .jp-pagehero__aside--stacked { align-items: stretch; width: 100%; }
-  .jp-pagehero__aside--stacked .jp-pagehero__btnrow { justify-content: flex-start; }
-}
 .jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
 .jp-pagehero__kicker {
   font-family: var(--jp-font-mono);
@@ -1558,14 +1571,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--jp-fs-hero-title); font-weight: var(--jp-fw-heavy);
   letter-spacing: -0.025em; line-height: 1.1;
   margin: 0; color: var(--jp-hero-ink);
+  /* A single long word is wider than the content box on narrow viewports, and the
+     plate then scrolls the document sideways (WCAG 2.1 AA 1.4.10, #1727). `hyphens`
+     breaks on the dictionary for the document's own lang with a visible hyphen;
+     `overflow-wrap` is the net for what the dictionary cannot divide — this title is
+     data-derived on the criterion and guest-application surfaces, so the string is
+     not ours to bound. Both are inert when the word fits, which is why they are
+     unconditional: an aside can squeeze this column narrow above 720px too. */
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
   color: var(--jp-hero-ink-soft); max-width: 60ch;
+  text-wrap: pretty;
 }
 .jp-pagehero__aside {
   flex: 0 0 auto; display: flex; align-items: center;
   gap: 12px; flex-wrap: wrap;
+}
+/* Narrow viewport (<=720px). MUST follow the base rules above: a media query adds
+   no specificity, so an identical selector (0,1,0) earlier in source order loses
+   silently. That is exactly what held .jp-pagehero__title at 44px on every width
+   until #1727 — .jp-hero__title escapes it only by sitting after its own base rule. */
+@media (max-width: 720px) {
+  .jp-pagehero { padding: 16px 20px 0; }
+  .jp-pagehero__inner { padding: 28px 24px; }
+  .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
 }
 .jp-pagehero .jp-btn {
   white-space: nowrap;
@@ -1665,6 +1697,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   text-decoration: underline;
 }
+/* #1682 — a text action that destroys nothing ("Byt yrke"): .jp-clearlink's geometry in the app's one
+   interaction colour. Danger is for the action that clears a selection, never for a step back. */
+.jp-textaction {
+  background: transparent;
+  border: 0;
+  color: var(--jp-accent-700);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  cursor: pointer;
+  text-decoration: underline;
+}
 .jp-popover__body {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1749,6 +1792,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-criterionrow:focus-visible {
   outline-offset: -2px;
 }
+/* Same hover surface as `.jp-checkitem` below, on the FILTERED row only: since #1682 that row
+   reveals its SNI code on hover, and a number lighting up on an otherwise unchanged row reads as
+   an artefact rather than as the row answering the pointer. The tree rows share `.jp-criterionrow`
+   for the touch-target floor above but carry no code, so they are not in this selector. */
+.jp-criterionrow--filtered:hover { background: var(--jp-surface-3); }
+/* #1682 — the occupation block's choice rows ("Vilket yrke menar du?"): the same hover surface as
+   the rows above. Separate bordered boxes with room around them, so the global focus ring stands. */
+.jp-occupation__choice:hover { background: var(--jp-surface-3); }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;
@@ -2077,8 +2128,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-hint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 .jp-input {
   width: 100%;
@@ -3066,7 +3117,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-left: 8px;
   font-weight: var(--jp-fw-regular);
   letter-spacing: 0.02em;
-  color: var(--jp-ink-3);
+  color: var(--jp-ink-2);
 }
 /* #805 punkt 5: inline "?"-hjälp tätt bunden till en sektionsetikett
    (uppföljning-vs-anteckning). Etiketttext + trigger i en smal-gap-grupp så
@@ -3307,7 +3358,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Sub-nav (S1 #996; refined per #996 live-review + senior-cto-advisor) — persistent
    horizontal wayfinding under the pagehero for the /foretag surfaces (Bevakade företag ·
-   Sök företag · Smarta bevakningar · Ansökningshistorik). The civic view-switcher idiom
+   Sök företag · Branschbevakningar · Ansökningshistorik). The civic view-switcher idiom
    (Stripe Dashboard / 1177): an underline tab-row, deliberately DISTINCT from .jp-segment
    above (a filled-pill toggle, reused inline in the Bevakade view's matching/all control —
    never a per-item box or fill here, so no nested-segment clash). RSC-driven (<Link> +
@@ -3848,12 +3899,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   width: 100%;
   height: 38px;
   justify-content: center;
-}
-.jp-drawer-cta__hint {
-  margin: 6px 0 0;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  text-align: center;
 }
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
    nuvarande = fylld accent-800 + NU-chip + accent-50-rad, framtida = vit med
@@ -4506,6 +4551,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-header__actions .jp-btn--ghost { height: 36px; }
 @media (max-width: 768px) {
   .jp-header__actions .jp-btn--ghost { min-height: 44px; }
+  /* The icon buttons in the same row (Aviseringar, Mina sidor, the drawer trigger) meet the same
+     touch floor (DESIGN.md §5); at rest they are 38 px. */
+  .jp-header__actions .jp-icon-btn { width: 44px; height: 44px; }
 }
 
 /* The shell contract needs the same graded row, and for the same reason: the
@@ -4533,16 +4581,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Gratis- och datarader under ett registreringsformulär ───
    Kvar av det flikade auth-kortet, som förlorade sin enda konsument
-   med <AuthCard/> i #1480. /registrera renderar båda raderna;
-   landningens kontokort bara gratisraden. */
-.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
+   med <AuthCard/> i #1480. Landningens kontokort renderar båda raderna
+   sedan registreringssidan gick i #1738. */
+.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; text-align: center; }
 /* Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
 
 /* ── Kontokortet i landningens hero (riktning 2b, #1480) ─────
    Ljust kort på den mörka plattan. Ersatte det inbäddade
    registreringsformuläret: kortet säljer kontot och länkar till
-   /registrera i stället för att kräva ifyllnad direkt.
+   /logga-in i stället för att kräva ifyllnad direkt.
    Radierna, färgerna och skuggan är befintliga tokens — inga nya. */
 .jp-land-account {
   background: var(--jp-surface); border: 1px solid var(--jp-border);
@@ -4604,6 +4652,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero__lede--plate {
   margin: 26px 0 0; font-size: var(--text-h3); line-height: 1.55;
   color: rgba(255, 255, 255, 0.94); max-width: 48ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  text-wrap: pretty;
 }
 .jp-land-hero__source {
   margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
@@ -4701,13 +4750,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ============================================================
    v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
    Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
-   som refaktoreras i F3-F6 (jobb/ansökningar/cv/mig/sökningar +
+   som refaktoreras i F3-F6 (jobb/ansökningar/cv/sökningar +
    status-dot/status-pill/applications-pipeline) samt admin-
    granskning (utanför v3-scope, HANDOVER §7 = 5 användarrouter).
    Tas bort per sida när dess fas refaktorerar; helt borta vid F-städ.
    ============================================================ */
 
-/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/mig/sokningar/admin) */
+/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/sokningar/admin) */
 .jp-h1 {
   font-size: var(--text-h1);
   font-weight: var(--jp-fw-bold);
@@ -4729,6 +4778,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   max-width: 60ch;
   margin: 8px 0 0;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.
@@ -5077,16 +5127,53 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-bold);
 }
-.jp-appsummary__emptybody {
-  margin: 0;
-  color: var(--jp-ink-2);
-}
 .jp-appsummary--empty .jp-btn { align-self: flex-start; }
 /* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
 .jp-appsummary--unavailable { color: var(--jp-ink-1); }
+/* #1717 — blockets namn. Sektionen "Företagsbevakning" (h2) rymmer TVÅ innehållstyper, så h2:n
+   namnger bara den ena; den andra namngavs enbart av sin räknemening. Regeln bindningen vilar på är
+   att varje innehållsblock namnges av närmaste rubrik ovanför sig — i sektioner med ett enda block
+   gör h2:n redan det, vilket är varför ansökningsblocket inte får någon (design-reviewer B1/A1).
+
+   Overline är husets befintliga namn-på-block (sidfotens kolumnhuvuden, hero-kickern, header-stats,
+   `.jp-notice__label`). Skillnaden mot notisetiketten är SCOPE, inte register: etiketten namnger en
+   RAD i radens egen kolumn, den här ett BLOCK över blocket — därför införs ingen etikettkolumn och
+   ingen etikett tas bort (design-reviewer B2/A2). Inga nya tokens.
+
+   `--jp-ink-1`, aldrig ink-2: ink-2 klarar kontrastgolvet, men 11px grått är just den grå småtext
+   som är stående avvisad, och ett strukturnamn ska inte spendera kontrastmarginal. Versalerna sätts
+   här och aldrig i DOM-texten, så AT läser namnet som ord — samma konstruktion som
+   `.jp-notice__label`. */
+.jp-appsummary__heading {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-1);
+}
 /* #1558 — matchningsraden i företagssammanfattningen. `.jp-matchline` bär 6px top-margin
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
 .jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
+
+/* Branschbevakningens BREDD ("1 bransch · 1 kommun") — en klass, delad av alla fyra ytor som visar
+   ett kriterium: `/oversikt`, katalogen och de två detaljsidorna (design-reviewer B-7, 2026-09-08).
+   Egen sektion: en regel fyra ytor läser hör inte hemma under en enskild ytas rubrik
+   (design-reviewer + code-reviewer, omkontroll 2026-09-08). Inga nya tokens.
+
+   `font-variant-numeric` sätts HÄR och aldrig som Tailwind-utility i JSX: `.jp-*` ligger utanför
+   Tailwinds lager och slår därför varje utility för en egenskap regeln själv sätter, så en utility
+   vore en tyst no-op och en falsk signal till nästa läsare. Av samma skäl gör `margin: 0` varje
+   `mt-*`/`mb-*` på elementet verkningslöst — avståndet ägs av grannarna. */
+.jp-criterion-breadth {
+  margin: 0;
+  /* 14px — paritet med `.jp-job__meta`, som bär samma uppgift på katalogytan. */
+  font-size: var(--text-body-sm);
+  /* Aldrig ink-2/ink-3: talen är sakuppgifter, inte grå metadata. */
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Notiser */
 .jp-notice-list {
@@ -5207,8 +5294,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── Översikt-notiscenter (#726) ─────────────────────────────────────────────
-   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar), åtgärds-
-   kort (setup-callout), kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
+   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar),
+   kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
    only — inga nya hex; mörkt tema kommer gratis via `--jp-*`. */
 
 /* Läst (dismissad men ej borttagen) notisrad — de-emfaserad via AA-säkra
@@ -5254,68 +5341,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-oversikt-toolbar__receipt {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
-}
-
-/* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
-.jp-callout-block { margin-top: 24px; }
-.jp-callout {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  box-shadow: var(--jp-shadow-card);
-  overflow: hidden;
-}
-.jp-callout__strip {
-  flex: 0 0 4px;
-  align-self: stretch;
-  background: var(--jp-warning);
-}
-.jp-callout__body {
-  flex: 1 1 320px;
-  min-width: 0;
-  padding: 20px 24px 22px;
-}
-.jp-callout__label {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--jp-warning);
-  margin-bottom: 8px;
-}
-.jp-callout__text {
-  font-size: var(--text-ui);
-  line-height: 1.5;
-  color: var(--jp-ink-1);
-  max-width: 62ch;
-  margin: 0;
-}
-.jp-callout__text b {
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-}
-.jp-callout__aside {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  padding: 18px 24px;
-}
-.jp-callout__hint {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-}
-@media (max-width: 640px) {
-  .jp-callout__aside {
-    align-items: stretch;
-    width: 100%;
-    padding: 0 24px 20px;
-  }
 }
 
 /* Sidans ikon-only-form: kugghjulet i sektionshuvudet och toolbarens uppdatera-kontroll
@@ -5380,6 +5405,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   padding: 10px 14px 8px;
 }
+/* Grupprubrik i den samlade popovern på /oversikt (ADR 0140 Beslut 4): ett kugghjul bär alla
+   nio typerna, så raderna behöver sin källa som avdelare. Samma register som huvudet, ett steg
+   tystare; renderas aldrig i en en-grupps-popover. */
+.jp-notice-prefs__grouptitle {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-2);
+  padding: 8px 14px 2px;
+  border-top: 1px solid var(--jp-border-soft);
+  margin-top: 4px;
+}
+.jp-notice-prefs__heading + .jp-notice-prefs__grouptitle {
+  border-top: 0;
+  margin-top: 0;
+}
 .jp-notice-prefs__row {
   display: flex;
   align-items: center;
@@ -5391,6 +5431,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-notice-prefs__row:hover {
   background: var(--jp-surface-2);
+}
+/* Touch-golvet (DESIGN.md §5): raden var 38px under 768 sedan #726; den samlade popovern på
+   /oversikt tredubblar raderna, så golvet sätts här (design-reviewer Minor 10, 2026-09-13). */
+@media (max-width: 768px) {
+  .jp-notice-prefs__row { min-height: 44px; }
 }
 .jp-notice-prefs__row input {
   width: 15px;
@@ -5475,7 +5520,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 24px;
 }
 /* Hinten är INNEHÅLL, inte metadata: den är det enda som säger att knappen är
-   ofarlig. Därför ink-1 — aldrig .jp-callout__hint:s micro + ink-3, som är rätt för
+   ofarlig. Därför ink-1 — aldrig micro + ink-3, som är rätt för
    en kvalificerare men fel för det bärande skälet att våga klicka (DESIGN.md §4).
    body-sm och inte body: hinten sitter under en 14px semibold kontrolletikett, och
    16px hade lagt kvalificeraren över kontrollen i vikt. */
@@ -5739,6 +5784,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: center;
   margin-top: 6px;
 }
+.jp-empty__title + .jp-empty__actions {
+  margin-top: 16px;
+}
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
    skiljs från den solida vita primärknappen utan en andra fylld yta.
@@ -5775,6 +5823,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+/* #805 punkt 7: the stacked aside goes full width and left-aligns on narrow
+   screens instead of hanging at the right edge. It lives here, after the
+   --stacked base rules above, for the same source-order reason as the pagehero
+   arm: `align-items: stretch` previously sat in the pagehero block and lost to
+   `align-items: flex-end` below, which left `justify-content: flex-start` inert
+   (a shrink-to-fit row inside a flex-end column has nothing to justify). */
+@media (max-width: 720px) {
+  .jp-pagehero__aside--stacked { align-items: stretch; width: 100%; }
+  .jp-pagehero__aside--stacked .jp-pagehero__btnrow { justify-content: flex-start; }
 }
 /* Vit-fylld sekundär i den stackade asiden (scopad — övriga pageheroes behåller
    outline-behandlingen ovan). Källordning efter `.jp-pagehero .jp-btn--secondary`
@@ -5897,7 +5955,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-cvupload__drop-hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 /* Input:et är visuellt dolt men kvarstår fokuserbart + i tab-ordningen
    (ingen display:none — det skulle ta bort det ur tangentbordsflödet). */
@@ -5915,7 +5973,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvupload__help {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -5945,7 +6003,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 36ch;
   font-size: var(--text-ui);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* ── Granska-vyns fil-meta ───────────────────────── */
@@ -6026,25 +6084,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
-}
-.jp-parse-summary__note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--jp-info-bg);
-  border: 1px solid var(--jp-info);
-  border-radius: var(--jp-r-sm);
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  line-height: 1.45;
-}
-.jp-parse-summary__note-icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--jp-info);
-  margin-top: 1px;
 }
 .jp-parse-summary__sections {
   list-style: none;
@@ -6164,8 +6203,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-direction: column;
   gap: 4px;
 }
-/* Hederlighetsklausulen och rubrikversionen är villkoren täckningen läses under, inte
-   påståendet — de stöder från raden under den. */
+/* Rubrikversionen är villkoret täckningen läses under, inte påståendet — den stöder
+   från raden under den. */
 .jp-cvreview__coverage-note {
   margin: 0;
   font-size: var(--text-body-sm);
@@ -6534,7 +6573,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvreview__status-hint {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -6557,20 +6596,40 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cv-preview-actions {
   display: flex;
 }
-/* PDF-iframe i CvPreview-modalen. Civic-utility: 1px-kant via surface-2-fyll,
-   liten radie, ingen shadow/gradient. Höjd cappas så modalen inte spränger. */
+/* PDF-iframe i CvPreview-modalen — användarens EGEN uppladdade fil (ADR 0101
+   `Amendment 2026-09-06`). Civic-utility: hairline + surface-2-fyll, liten radie,
+   ingen shadow/gradient. Kanten speglar syskonet `.jp-atstext__body` — de två är samma
+   slags inbäddade dokumentblock i samma modal. Höjden är ett TAK, inte en höjd: ramen är
+   ett flex-item och krymper till modalkroppen, så `min()` binder först vid höga vyportar. */
 .jp-pdf-frame {
   width: 100%;
   height: min(70vh, 800px);
-  border: 0;
+  border: 1px solid var(--jp-border-soft);
   border-radius: var(--jp-r-sm);
   background: var(--jp-surface-2);
 }
-.jp-pdf-frame__fallback {
-  margin: 0;
-  font-size: var(--text-body-sm);
+/* Ramen är en tab-stopp och måste bära en synlig fokusring (SC 2.4.7). Ringen hänger på ett
+   ATTRIBUT, inte på en fokus-pseudoklass, och det är inte en stilfråga: när fokus går in i ett
+   iframe stiger det ned i det inbäddade browsing-contextet och värddokumentet lämnar
+   fokuskedjan. `:focus-visible`, `:focus` och `:focus-within` matchar därför ingenting på den
+   verkliga vägen — inte heller på en wrapper. Attributet sätts i `cv-preview.tsx` från
+   window-blur/focus, som är den signal som faktiskt finns. Offset lägger ringen på modalytan
+   i stället för på pdf-läsarens egen chrome.
+   ⚠ Mät detta med VERKLIGT Tab, aldrig `element.focus()`: den senare fokuserar ramen i vårt
+   dokument utan att stiga ned, så varje pseudoklassform ser grön ut på en väg ingen användare
+   tar (design-reviewer, PR #1692). */
+.jp-pdf-frame[data-frame-focused="true"] {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
 }
-
+/* design-reviewer Major, PR #1692: en dokumentvy är inte en textmodal. Med husets vanliga
+   modalbredd blir Chromes miniatyrlist ~303px av 712px och CV:t renderas i 51% — och
+   krymper ju större skärmen blir, eftersom ramen växer på höjden men aldrig på bredden.
+   1080px är DESIGN.md §5:s innehållsbredd, inget nytt token.
+   Bredden är enda spaken — `#view=FitH`/`#zoom=page-width` på blob-URL:en är inerta i Chrome. */
+.jp-modal--doc {
+  width: min(1080px, 100%);
+}
 /* ── ATS-textflik i CvPreview-modalen (Fas 4b PR-8.3) ──────────────
    Ren, linjäriserad CV-text som en ATS-parser läser den. Mono för att
    understryka "plain text", pre-wrap bevarar radbrytningar och wrappar långa
@@ -6584,7 +6643,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 68ch;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-atstext__body {
   margin: 0;
@@ -6780,6 +6839,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
+/* #1703 — branschbevakningskatalogens EGET råd om för breda bevakningar, en gång under listan och
+   aldrig en gång per rad. Bär `.jp-matchline` för typografin och skriver bara över det raden inte
+   ska ha.
+
+   ⚠ Regeln MÅSTE stå efter `.jp-matchline`: båda är (0,1,0), så ordningen — inte specificiteten —
+   avgör vems `margin` som vinner. Flyttas den upp till `.jp-criterion-breadth`-blocket blir
+   `margin: 0` en tyst no-op och avståndet 22 px.
+
+   Avståndet till listan ägs av sektionens egen `gap` (16 px, på 4px-rutnätet, DESIGN.md §5);
+   `.jp-matchline`s 6 px hade adderats till det. Radlängden kapas vid 68ch (jobbpilot-design-a11y
+   §8) — samma tak som `/oversikt`s eget råd, av samma skäl. Inga nya tokens. */
+.jp-criteria-advice {
+  margin: 0;
+  max-width: 68ch;
+}
+
 /* #858 — delad platt transparens-disclosure. EN behandling för lastbärande "det du ser är smalare än
    verkligheten"-förbehåll, oavsett per rad (bevakningens vilolägestext, BC-9′) eller per sektion
    (ansökningshistorikens golv-not, #824): platt, --jp-ink-1 (aldrig grå; båda teman via token),
@@ -6965,28 +7040,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
-.jp-section__closedhint {
-  /* #805 punkt 2: antalet flyttades inline intill etiketten, så "klicka för att
-     visa"-hinten bär nu högerjusteringen (var margin-left:12px efter det
-     tidigare höger-pushade antalet). */
-  margin-left: auto;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
 
 /* ── Kräver åtgärd-kön ── */
 .jp-attentionqueue {
   margin-top: 8px;
-}
-.jp-attentionqueue__lede {
-  margin: 10px 0 14px;
-  max-width: 68ch;
-  font-size: var(--text-body-sm);
-  /* Instruktions-/scanning-copy = informationsbärande → ink-1 (#549 WS1,
-     no-gray-doktrinen). Storleken 14px hålls medvetet: syskon-ledena
-     (.jp-parse-summary__lede/.jp-occupations__lede) är redan 14px ink-1;
-     defekten var färgen, inte storleken (CTO-bind 2026-07-10). */
-  color: var(--jp-ink-1);
 }
 .jp-actioncard-grid {
   display: grid;
@@ -7165,7 +7222,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-steprail__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-steprail__cells {
   display: grid;
@@ -7296,7 +7353,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-board__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px
@@ -7311,18 +7368,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding-bottom: 4px;
 }
 
-/* Terminal-spalten: fyra mini-zoner + ghost-hjalptext, staplade. */
+/* Terminal-spalten: fyra mini-zoner, staplade. */
 .jp-board__terminal {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-.jp-board__ghosthint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-  line-height: 1.35;
-  margin-top: 2px;
 }
 
 /* Kolumn/zon-chassi. Toppband = 3px border-top i statusfarg (data-status-
@@ -7724,7 +7775,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
   padding: 32px 16px;
   text-align: center;
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-apptable__footer {
   display: flex;

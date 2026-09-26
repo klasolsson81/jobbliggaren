@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { useDismissedNotices } from "./use-dismissed-notices";
 import { useNoticePrefs } from "./use-notice-prefs";
-import type { SectionNoticeData } from "./notice-section";
+import type { SectionNoticeData } from "./notice-types";
 
 interface MarkAllReadRowProps {
   /** ALLA sektioners notiser — kontrollen avfärdar tvärs över sektionerna. */

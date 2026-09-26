@@ -579,17 +579,17 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 
 | # | Gate | Severity | Hemvist |
 |---|---|---|---|
-| B-1 | Master-nyckel ALDRIG plaintext-på-disk på beta-VPS (systemd-credentials TPM-bunden el. sops+age→tmpfs; plaintext OK bara lokalt) | Blocker | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102) |
+| B-1 | Master-nyckel ALDRIG plaintext-på-disk på beta-VPS (systemd-credentials TPM-bunden el. sops+age→tmpfs; plaintext OK bara lokalt) | Blocker | ADR 0049 `Amendment 2026-08-09` — **#198 STÄNGD 2026-09-06** (Klas-beslut); mätrader `vps-deploy-stack.md` §5 rad 21–25 (predikatet står på `:687`) |
 | B-2 | Gitleaks/historik-scan: ingen master-nyckel/cred committad; rotation om läckt | Blocker | **Verifierad GRÖN 2026-06-08** (`appsettings.Local.json` i .gitignore, aldrig committad; inget nyckel-värde i historik) |
-| M-3 | Körbar idempotent master-nyckel-re-wrap-rotation + kadens (minst årlig + händelse-driven vid box-kompromiss/offboarding) | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102) |
+| M-3 | Körbar idempotent master-nyckel-re-wrap-rotation + kadens (minst årlig + händelse-driven vid box-kompromiss/offboarding) | Major | ADR 0049 `Amendment 2026-08-09` — **#198 STÄNGD 2026-09-06** (Klas-beslut); förfarandet + kadensen `master-key-ops.md` §4, mätrad `vps-deploy-stack.md` §5 rad 27 |
 | M-4 | pg_dump klient-side-krypterad + backup-retention/rotation definierad + EU-jurisdiktion (+ två krav 2026-08-04, se `Amendment 2026-08-04` §7) | Major | [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (f.d. TD-107) |
 | M-5 | ~~Cloudflare "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS~~ | Major | **SUPERSEDED 2026-08-04 → M-5a + M-5b** (se `Amendment 2026-08-04`) |
 | **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01 **eller** TLS-ALPN-01 — se §5), **HSTS emitteras faktiskt i Production på BÅDA svarsvägarna** (Caddy och Next — de täcker olika svar), ingen klartextsträcka. **Bevisas på det OAUTENTISERADE 401-svaret, inte bara på ett autentiserat 200 — och aldrig på konfigen** (se §5) | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **Major** (satt av security-auditor 2026-08-04 vid granskningen av PR #1200) — bär tre villkor, se `Amendment 2026-08-04` §5 | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, ~~fail2ban~~, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) · **baseline i övrigt mätt grön** ([#1196](https://github.com/klasolsson81/jobbliggaren/pull/1196)) · **fail2ban-klausulen: avvikelse REGISTRERAD, ratificering väntar på Klas GO** (`Amendment 2026-08-04`) |
-| **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns ⛔ **DOM 2026-08-17 (`security-auditor`, hennes att sätta): M-7 KONVERTERAR** vid första riktiga användardata — `unmitigated` är mätt sann, och beviljandet 2026-08-16 täcker bara tillståndet UTAN riktig användardata medan M-7 utvärderas VID den. **Att bygga mitigeringarna räcker inte:** det krävs också ett NYTT beviljande som täcker det tillståndet, plus båda M-7-benen levererade och verifierade på `host-detection.md`:s verifikationsrader. Härled inte disjunktionen själv — läs domen. | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
+| **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns ⛔ **DOM 2026-08-17 (`security-auditor`, hennes att sätta): M-7 KONVERTERAR** vid första riktiga användardata — `unmitigated` är mätt sann, och beviljandet 2026-08-16 täcker bara tillståndet UTAN riktig användardata medan M-7 utvärderas VID den. **Att bygga mitigeringarna räcker inte:** det krävs också ett NYTT beviljande som täcker det tillståndet, plus båda M-7-benen levererade och verifierade på `host-detection.md`:s verifikationsrader. Härled inte disjunktionen själv — läs domen. | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **båda mekanismhalvorna hos [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — se daterad not nedan** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
-| M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
+| M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | ADR 0049 `Amendment 2026-08-09` — #198 stängd 2026-09-06 |
 | **N-1** | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas; **grunden korrigerad av security-auditor 2026-08-11** i PR #1313:s omkontroll) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim). Sink-disjunktionen läses per led: **residens-disjunkten är mätt FALSK** (båda hoppen EU — Netcup Nürnberg per `Amendment 2026-08-04` §1; OVH `eu-west-par` per `vps-deploy-stack.md` rad 27c, mätt 2026-08-09), men **over-retention-disjunkten är INTE falsifierad** — det lokala `json-file`-lagret är åldersobundet och `http.log.error` skriver redan i det (OVH `hostlogs/` tillkommer som andra åldersobundna lager när #1312:s skeppning installeras), och en odefinierad gräns är ett Art. 5(1)(e)-fel i sig, så det benet räknas som UPPFYLLT. **(Andra grunden föll 2026-08-12 när G3 fick sina tal — men benet står kvar på den FÖRSTA: lagren är fortfarande åldersobundna, eftersom ingen regel är applicerad. En satt siffra är inte en verkande regel.)** **Det som håller raden Minor i dag är frånvaron av verkligt datasubjekt i capture-och-retain-benen — inte residensen — och ARM (1) FYRAR INTE, mätt 2026-08-12 — men premissen bärs inte av greppet. GRUNDEN ÄR NOLL DATASUBJEKT, INTE GREPPET. Mätt 2026-08-12 på lådan: `identity."AspNetUsers"` = 0, `job_seekers` = 0, registreringen stängd — och citatet är `AuthOptions.RegistrationsOpen`, en oinitierad `bool` vars default är `false`, satt till `true` enbart i `appsettings.Development.json` och av ingenting i `deploy/` (mätt 2026-08-12). `AuthOptionsValidator` är INTE grunden: den är villkorlig och förbjuder bara öppen registrering *utan* e-postbekräftelse, alltså tillåter den öppen registrering med en levererande provider — vilket SES gjorde uppfyllbart den här veckan. Läs stängningen som en DEFAULT och inte en garanti: en env-flagga i lådans `.env` vänder den, och det är därför triggern nedan är `AspNetUsers > 0` och inte validatorn, och `basic_auth` är hela admission control i Caddyfile. Med noll registrerade kan ingen verklig registrerad ha fått en token-länk, oavsett vad loggen fångar. Boxgrepet är korroboration och kan inte bära slutsatsen ensamt: enda capture-vägen är default-loggerns `http.log.error` vid 5xx, och 4xx ligger under default-nivån. En lyckad token-klick (200/302) lämnar därför ingen rad alls, och grepet är strukturellt blint för hela framgångsvägen. `http.log.error`-rader i bufferten: 0. Containern startades `2026-08-12T16:49:20Z`, så fönstret är timmar och inte dygn. Vad grepet visar är alltså: ingen 5xx-loggad token-rad i den här instansens buffert — sant, men smalt. Regenerera: `sudo docker logs jobbliggaren-caddy 2>&1 | grep -c 'http.log.error'`, `sudo docker inspect -f '{{.State.StartedAt}}' jobbliggaren-caddy`. OMPRÖVAS NÄR `AspNetUsers > 0` eller registreringen öppnas — det är villkoret som har en avläsare, till skillnad från "om lådan betjänat riktiga användare". Arm (2) står kvar oförändrad: obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data.** Två omgraderingsarmar: **(1)** raden flippar till Blocker OMEDELBART om eskaleringspunkt 1:s mätning på lådan (PR #1313) ger > 0 riktiga token-bärande rader — utan att invänta någon granskning; **(2)** obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data (M-5b-klausulen) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) · **G2 LEVERERAD I KANTKONFIGURATIONEN 2026-08-29** (globalt `log`-block i `deploy/caddy/Caddyfile`, tvåarmad mätning i `Amendment 2026-08-29`) |
 
 > **ID-prefixet bär graden:** `B-` = Blocker, `M-` = Major, `N-` = Minor (miNor; `M-` var
@@ -626,7 +626,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 
 **Obligatorisk re-review:** en andra security-auditor-granskning av den faktiska
 prod-konfigurationen (master-nyckel-injektion, backup-kryptering, TLS-topologi,
-härdning) krävs **innan första beta-data laddas** (TD-102 punkt 3). Den
+härdning) krävs **innan första beta-data laddas** (läsare: ADR 0049 `Amendment 2026-08-09`, ADR 0123, ADR 0126 och `release-checklist.md` §2.5 förutsättning 5:s trigger (b)). Den
 granskningen är gaten — inte denna design-dom.
 
 ### Sekvensering (Klas-beslut 2026-06-08)
@@ -665,13 +665,25 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > explicit icke-Local-värde. Lösningen har nu **0 Amazon-paket**. Config-switchen
 > `FieldEncryption:Provider "Kms"/"Local"` (nämnd tidigare i denna ADR) är
 > reducerad till enbart `"Local"`. Prod-master-nyckelns skyddsmodell kvarstår
-> **TD-102** — självständig från den borttagna KMS-providern.
+> och ägdes av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102,
+> stängd 2026-09-06; hem ADR 0049 `Amendment 2026-08-09`)
+> — självständig från den borttagna KMS-providern.
 
 > **Truth-sync 2026-08-08 (ADR 0124 / [#1237](https://github.com/klasolsson81/jobbliggaren/issues/1237)):
-> meningen "Lösningen har nu **0 Amazon-paket**" ovan är inte längre sann, och
-> Klas-citatet "no AWS, ever" är överskrivet av Klas själv.** Lösningen bär sedan
-> 2026-08-08 exakt **ett** Amazon-paket: `AWSSDK.SimpleEmailV2` (+ transitiv
+> meningen "Lösningen har nu 0 Amazon-paket" ovan var inte sann mellan 2026-08-08 och
+> 2026-08-15, och Klas-citatet "no AWS, ever" var i det fönstret överskrivet av Klas
+> själv.** Lösningen bar då exakt **ett** Amazon-paket: `AWSSDK.SimpleEmailV2` (+ transitiv
 > `AWSSDK.Core`), confined till `Jobbliggaren.Infrastructure`.
+>
+> ⚠ **Fönstret är stängt, och det står här i stället för i ett tredje lager.** Paketet togs
+> bort **2026-08-15**, så meningen på raden ovan är sann igen och `NoAmazonReferenceTests`
+> är åter ett **totalförbud**, inte en allow-list. Mätt i trackade filer:
+> `Directory.Packages.props:126` (*"AWSSDK-ytan är TOM och är återigen ett förbud, inte en
+> allow-list"*) och `:285` (*"AWSSDK.SimpleEmailV2 togs bort 2026-08-15"*) ·
+> `NoAmazonReferenceTests` · `BUILD.md` §3.1. Blocket dateras i
+> stället för att strykas, därför att det är proveniens för **varför allow-listen fanns** —
+> och för att en tredje truth-sync ovanpå en andra är precis den tillväxt §13 finns för att
+> hindra.
 >
 > **Detta är en Klas-överskrivning av ett Klas-direktiv, och den skrivs ut i stället för
 > att glidas förbi.** 2026-07-12 sa han "no AWS, ever" — i en truth-sync om
@@ -679,13 +691,14 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > **AWS SES i `eu-north-1`** som e-postleverantör, och 2026-08-08 bekräftade han att
 > SES är den enda: *"Vi ska enbart ha AWS SES, detta är vår enda email-provider."*
 > Han gav samma dag §12-GO:t för biblioteket. Det senare direktivet är specifikt,
-> senare och givet med kännedom om grinden, så det gäller.
+> senare och givet med kännedom om grinden, och **gällde till 2026-08-14**, då AWS permanent
+> vägrade produktionsåtkomst för SES-kontot. **Ingen av de e-postleverantörer det här blocket
+> nämner är den nuvarande** — läs leverantörsläget i `BUILD.md` §3.1/§13.4, aldrig här.
 >
 > **Vad som INTE är överskrivet, och det är merparten:** fält-krypteringen är
 > fortsatt Local-only (`LocalDataKeyProvider`), `KmsDataKeyProvider` är fortsatt
 > borttagen, och KMS, Secrets Manager, S3, Bedrock samt varje
-> `AWSSDK.Extensions.*`/`AWS.Logger.*` är fortsatt bannade — nu av en allow-list i
-> `NoAmazonReferenceTests` i stället för av ett blankettförbud. #802:s faktiska
+> `AWSSDK.Extensions.*`/`AWS.Logger.*` är fortsatt bannade. #802:s faktiska
 > invariant (ingen AWS i krypteringsvägen) står orörd; det som föll var den bredare
 > läsningen "noll paket", som aldrig var #802:s ärende.
 >
@@ -1206,8 +1219,8 @@ formulering är en andra plats att driva isär. **Severity restateras däremot**
 grindraden pekar hit och en pekare måste leda till svaret: en grad plus ett villkor är
 billig att hålla synkad, ett stycke juridik är det inte. Skyldigheten ägs av
 [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion och
-alerting hos [#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
-nyckelåtkomst-detektion hos [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)**;
+alerting och nyckelåtkomst-detektion — båda sedan 2026-08-10 hos [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201)**
+(ursprungligen [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) respektive [#198](https://github.com/klasolsson81/jobbliggaren/issues/198), båda stängda);
 en grind med två ägare har ingen, därav den egna issuen.
 **Severity är satt:** `Major` (security-auditor 2026-08-04), med **eskalering till Blocker
 om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data** — samma
@@ -1294,7 +1307,7 @@ domare satt.
 och droppar 25/465/587 (mätt i Netcups SCP-panel 2026-08-03 under grundhärdningen,
 #1196; leverantörsinställning, inte en repo-konfiguration — omverifiera i panelen före
 cutover). Det är ett andra, oberoende skäl att transaktionsmejl går över
-leverantörens **HTTPS-API** (Resend i dag, SES planerat) och **aldrig SMTP** — och ett
+leverantörens **HTTPS-API** och **aldrig SMTP** — och ett
 skäl att aldrig be Netcup öppna 587.
 
 **Netcup-snapshots är inte deploy-rollback:** copy-on-write, kräver 50 % ledig disk, och
@@ -1631,7 +1644,8 @@ sina två omgraderingsarmar) står oförändrade och behöver fortfarande ett ö
   samma STOPP-disciplin.
 - **ADR 0049** — TD-13 envelope-encryption. KMS-beroendet **LÖST** via ADR 0066
   `LocalDataKeyProvider` (ej längre migrations-blocker). Kvarvarande Hetzner-
-  prod-härdning + rotation = **TD-102** (ADR 0049-amendment-scope, M-2/M-3).
+  prod-härdning + rotation ägdes av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)
+  (f.d. TD-102, stängd 2026-09-06; hem ADR 0049 `Amendment 2026-08-09`, M-2/M-3).
 - **ADR 0066** — AWS dev-stack-teardown. Löste KMS-beroendet (`LocalDataKeyProvider`)
   och gjorde rollback-storyn ("behåll AWS körande") ogiltig. Komplementär:
   ADR 0066 var temporär semester-pause, ADR 0050 är permanent provider-exit.

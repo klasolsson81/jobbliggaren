@@ -11,7 +11,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /**
  * The shared picker had NO component test before #999, and #999 changes its filter semantics — which
- * are consumed by the criterion dialog (Smarta bevakningar) as well as the new bransch popover. Without
+ * are consumed by the criterion dialog (Branschbevakningar) as well as the new bransch popover. Without
  * these, the three-level filter would ship unguarded on a surface outside the PR's own verification.
  */
 const REFERENCE: CriterionReference = {
@@ -52,7 +52,6 @@ function renderPicker(
       onToggle={onToggle}
       onClear={onClear}
       filterLabel="Sök bransch"
-      filterHint="Skriv för att smalna av listan över branscher."
       groupAria="Branscher"
       // AXIS copy, host-supplied since #1146 — the fixture speaks the SNI axis,
       // matching `filterLabel`/`groupAria` above.
@@ -132,20 +131,52 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     }
   });
 
-  it("renders the code VISIBLY, not only in the authored name", async () => {
+  it("keeps the code in the row, last and hidden at rest, revealed on hover and focus (#1682)", async () => {
     // The row's name comes from `aria-label`, which is what makes it identical in every environment —
-    // but it also decouples the name from the JSX. Delete the visible code span and every name
-    // assertion above still passes while the row loses the level cue that is the whole remedy for the
-    // filtered view. This is the assertion that notices. (Not a WCAG 2.5.3 break: removing visible
-    // text leaves the name a superset of it. The direction that DOES break label-in-name is adding
-    // visible text without updating the label, which the component comment states.)
+    // but it also decouples the name from the JSX. Delete the code span and every name assertion
+    // above still passes while a sighted user loses the level cue on hover. This is the assertion
+    // that notices. jsdom has no cascade, so what it pins is the reveal hook the CSS attaches to,
+    // not the rendered visibility — that is the rendered measurement in the PR body. (Not a WCAG
+    // 2.5.3 break: the name is a superset of the visible text. The direction that DOES break
+    // label-in-name is adding visible text without updating the label, which the component comment
+    // states.)
     renderPicker();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "datapro");
     const row = screen.getByRole("checkbox", {
       name: "62 Dataprogrammering, datakonsultverksamhet",
     });
-    expect(within(row).getByText("62")).toHaveClass("jp-mono");
+    const code = within(row).getByText("62");
+    expect(code).toHaveClass("jp-mono");
+    expect(code).toHaveClass("invisible");
+    expect(code).toHaveClass("group-hover:visible");
+    expect(code).toHaveClass("group-focus-visible:visible");
+    // The caption SIZE, in the twMerge-safe length form: through `cn()` the bare `text-caption`
+    // was silently dropped as a colour conflict and the code rendered at the name's size (round 1).
+    expect(code).toHaveClass("text-(length:--text-caption)");
+    expect(row).toHaveClass("group");
+    // The hover surface is scoped to the filtered row; tree rows carry no code to reveal.
+    expect(row).toHaveClass("jp-criterionrow--filtered");
+    // The code is the LAST child: the name leads the row now.
+    expect(row.lastElementChild).toBe(code);
+    // Below `sm` the name takes a zero basis so it shares the checkbox's line instead of wrapping
+    // under it (round 1, measured at 400). jsdom pins the hook; the rendered corpus pins the line.
+    expect(
+      within(row).getByText("Dataprogrammering, datakonsultverksamhet"),
+    ).toHaveClass("max-sm:flex-1");
+  });
+
+  it("shows the code while the row is selected, so a pick can be verified without a pointer (#1682)", async () => {
+    renderPicker({ selected: new Set(["62010", "62020"]) });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "datapro");
+    const row = screen.getByRole("checkbox", {
+      name: "62 Dataprogrammering, datakonsultverksamhet",
+    });
+    expect(row).toHaveAttribute("aria-checked", "true");
+    const code = within(row).getByText("62");
+    expect(code).toHaveClass("visible");
+    expect(code).not.toHaveClass("invisible");
   });
 
   it("toggles a matched parent as its whole expansion, not as itself", async () => {
@@ -186,11 +217,12 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     // measurement in the PR body (38px before, 44px after, at 375 and 768). What it CAN pin is the
     // hook the media query attaches to, which is the part a refactor silently drops.
     renderPicker();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Informations- och kommunikationsverksamhet",
-      }),
-    ).toHaveClass("jp-criterionrow");
+    const treeRow = screen.getByRole("checkbox", {
+      name: "Informations- och kommunikationsverksamhet",
+    });
+    expect(treeRow).toHaveClass("jp-criterionrow");
+    // …but not the filtered row's hover-surface class: a tree row has no code to reveal (#1682).
+    expect(treeRow).not.toHaveClass("jp-criterionrow--filtered");
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "system");
@@ -307,12 +339,15 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
   });
 
   it("renders both for the dialog, which stacks two pickers and needs them", () => {
-    renderPicker({ heading: "Branscher", help: "Välj en eller flera branscher." });
+    renderPicker({
+      heading: "Branscher",
+      help: "Välj en hel avdelning, en huvudgrupp eller enskilda branscher.",
+    });
     expect(
       screen.getByRole("heading", { name: "Branscher" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Välj en eller flera branscher."),
+      screen.getByText("Välj en hel avdelning, en huvudgrupp eller enskilda branscher."),
     ).toBeInTheDocument();
   });
 
@@ -388,5 +423,213 @@ describe("CriterionPicker — the selection contract", () => {
     expect(toggleGroup(new Set(["62010", "62020"]), ["62010", "62020"])).toEqual(
       new Set(),
     );
+  });
+});
+
+/**
+ * #1115 — the alias surface. SNI classifies ACTIVITIES, so the words users hold ("systemutveckl")
+ * matched 0 of the real 944 node names. These rows exist so a concept the user has a different word
+ * for is reachable, and every one of them pins a property that keeps the layer a LOOKUP AID rather
+ * than the SNI↔SSYK crosswalk #560 bind 4 forbids: the SNI concept stays the row, the alias is shown
+ * as the search word that led to it, and the emitted selection is still the node's own leaf codes.
+ */
+const ALIASED_REFERENCE: CriterionReference = {
+  ...REFERENCE,
+  sni: [
+    {
+      code: "J",
+      name: "Informations- och kommunikationsverksamhet",
+      // A section-level alias. The wire and the projection both carry one, so leaving it unpinned
+      // let the whole level be cut without a red test.
+      aliases: ["it-bransch"],
+      divisions: [
+        {
+          code: "62",
+          name: "Dataprogrammering, datakonsultverksamhet",
+          // A DIVISION-level alias, and this is the level that matters most: 7 of the 8 authored
+          // term-instances in the shipped asset sit on a division (`mjukvara`, `apputveckling`,
+          // `byggare`, `rörmokare`, `snickare`). With aliases pinned on a leaf only, deleting
+          // `aliases: division.aliases` from buildSniNodes left all 196 tests green — measured.
+          aliases: ["mjukvara"],
+          leaves: [
+            {
+              code: "62100",
+              name: "Dataprogrammering",
+              // Shaped like the real SCB entries under 62201: a classified sentence whose everyday
+              // synonym sits in a parenthesis, which is what the rendering has to dig out.
+              aliases: [
+                "Agil systemutveckling",
+                "Datakonsultverksamhet, (IT-konsult, ITkonsult), systemdesign",
+              ],
+            },
+            { code: "62201", name: "Datakonsultverksamhet" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const ALIASED_NODES = buildSniNodes(ALIASED_REFERENCE);
+const ALIASED_OPTIONS = flattenCriterionOptions(ALIASED_NODES);
+
+function renderAliased(
+  props: Partial<React.ComponentProps<typeof CriterionPicker>> = {},
+) {
+  return renderPicker({
+    nodes: ALIASED_NODES,
+    options: ALIASED_OPTIONS,
+    ...props,
+  });
+}
+
+describe("CriterionPicker — the alias surface (#1115)", () => {
+  it("surfaces a row whose NAME does not contain the query, via its alias", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+
+    // "Datakonsultverksamhet" contains no "agil" — the row is here only because of the alias.
+    expect(
+      screen.getByRole("checkbox", { name: /62100 Dataprogrammering/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows WHY the row matched, and puts it in the accessible name too", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+
+    // Visible: a row that contains none of the typed characters would otherwise be a result with no
+    // reason. The row's aria-label is author-set, so anything visible added must be added there too
+    // or the accessible name stops containing the visible text (WCAG 2.5.3).
+    expect(screen.getByText("träff på Agil systemutveckling")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62100 Dataprogrammering, träff på Agil systemutveckling",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT annotate a row the query already explains", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // "data" is deliberately a query the row matches BOTH ways: its name is "Dataprogrammering" and
+    // its alias "Datakonsultverksamhet, (IT-konsult, ITkonsult), systemdesign" contains it too. A
+    // rule that annotated whenever an alias happened to match would fire here; only one that
+    // annotates on the reason the row APPEARED stays silent.
+    await user.type(screen.getByLabelText("Sök bransch"), "data");
+
+    expect(
+      screen.getByRole("checkbox", { name: "62100 Dataprogrammering" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^träff på /)).not.toBeInTheDocument();
+  });
+
+  it("keeps aliases silent below the word threshold, while names still match", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // "ag" is a fragment, not a word. Were aliases to answer it, `st` went 275 -> 318 against the
+    // real catalogue and crossed MAX_FILTER_MATCHES — the regression ALIAS_MIN_QUERY prevents.
+    await user.type(screen.getByLabelText("Sök bransch"), "ag");
+
+    expect(screen.queryByText(/^träff på /)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Dataprogrammering/ }),
+    ).not.toBeInTheDocument();
+    // The name surface is untouched by the threshold: "da" still matches at two characters.
+    await user.clear(screen.getByLabelText("Sök bransch"));
+    await user.type(screen.getByLabelText("Sök bransch"), "da");
+    expect(
+      screen.getByRole("checkbox", { name: /62100 Dataprogrammering/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("emits the node's own leaf codes when an alias-matched row is toggled", async () => {
+    const { onToggle } = renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+    await user.click(
+      screen.getByRole("checkbox", { name: /62100 Dataprogrammering/ }),
+    );
+
+    // The alias never reaches the selection — bind 4's actual guarantee is that the user picks the
+    // SNI node, and what leaves this component is that node's code and nothing else.
+    expect(onToggle).toHaveBeenCalledWith(["62100"]);
+  });
+
+  it("answers at EXACTLY the threshold, not one character above it", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // Three characters is the boundary itself. Every other alias query in this file is 4+, so
+    // ALIAS_MIN_QUERY could be raised to 4 and the suite would stay green while every 3-character
+    // alias query silently stopped answering. "gil" appears in no node NAME and in one alias.
+    await user.type(screen.getByLabelText("Sök bransch"), "gil");
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62100 Dataprogrammering, träff på Agil systemutveckling",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("carries aliases from a DIVISION, not leaves only", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // The level that carries 7 of the 8 authored terms in the shipped asset. Measured: with the
+    // fixture hanging aliases on a leaf alone, deleting `aliases: division.aliases` from
+    // buildSniNodes left all 196 tests green, so `mjukvara`, `rörmokare`, `snickare`, `byggare` and
+    // `apputveckling` could have stopped resolving without a single red test.
+    await user.type(screen.getByLabelText("Sök bransch"), "mjukvara");
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62 Dataprogrammering, datakonsultverksamhet, träff på mjukvara",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("carries aliases from a SECTION too", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // The wire and the projection both carry a section-level alias, so the level is pinned rather
+    // than left supported-but-untested — the shape that rots.
+    await user.type(screen.getByLabelText("Sök bransch"), "it-bransch");
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "J Informations- och kommunikationsverksamhet, träff på it-bransch",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the SEGMENT that contains the query, not the whole SCB sentence", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // SCB writes classified sentences and the everyday synonym usually sits in a parenthesis.
+    // Rendering the whole term and clipping it showed the OPENING — the one part that never has to
+    // contain the query. Measured on the shipped asset: `it-konsult` produced 8 rows of which 0
+    // displayed the typed word, one reading "Datakonsultverksamhet · matchar Datakonsultverksamhet, (…".
+    await user.type(screen.getByLabelText("Sök bransch"), "it-konsult");
+
+    expect(screen.getByText("träff på IT-konsult")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/träff på Datakonsultverksamhet/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("matches a compound TAIL, which is how Swedish users type", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "utveckling");
+
+    // "utveckling" is not a word-prefix of "systemutveckling" — it is a substring. A word-prefix
+    // rule measured 10 -> 1 rows for `konsult` and 2 -> 0 for `omsorg` against the real catalogue,
+    // which is why alias matching is substring above the threshold rather than prefix.
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62100 Dataprogrammering, träff på Agil systemutveckling",
+      }),
+    ).toBeInTheDocument();
   });
 });

@@ -150,6 +150,22 @@ public static class JobAdLifecycleReadRegistry
                     + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
+            ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
+                One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
+                    + "(/foretag/branschbevakningar/[id]/annonser, #1559). NO Status predicate at this "
+                    + "site, and it is INHERITED rather than absent: the ids come from the browse "
+                    + "port's join, whose SQL carries `j.status = @ad_status` as its whole ad-side "
+                    + "exclusion, and the headline count on the same screen is produced by the SAME "
+                    + "predicate in the same statement family. Re-stating Active here would create a "
+                    + "second gate that could drift from the one that produced the ids — and an "
+                    + "archived ad rendered under a count that excluded it is #864 read from the "
+                    + "other end. Pinned end-to-end by CompanyWatchCriteriaEndpointsTests"
+                    + ".Ad_browse_excludes_archived_ads_and_unmatched_employers. "
+                    + "#1656 (b): the site moved from Handle to this shared loader, and it now serves "
+                    + "BOTH arms. The filtered arm's ids inherit the SAME exclusion twice over — "
+                    + "ListActiveAdIdsAsync carries the identical `AdsFromWhere`, and "
+                    + "FilterToMatchingAsync re-applies Status == Active on top — so neither arm "
+                    + "can hand this loader an archived ad.")),
             ["Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob.ScanUserAsync"] =
                 One(Active(".Where(j.Status == Active && CreatedAt > since && watchedOrgNrs.Contains(orgNr)) — new-ad scan for followed companies.")),
             ["Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQueryHandler.Handle"] =
@@ -431,5 +447,13 @@ public static class JobAdLifecycleReadRegistry
             "The Art. 17 match runs db.Database.SqlQuery('... FROM job_ads WHERE status <> {erased} ...'); the "
             + "erased exclusion is in the SQL string. (The subsequent re-fetch on the returned ids DOES call "
             + "get_JobAds and IS classified in Sites above.)"),
+        new("Jobbliggaren.Infrastructure.CompanyRegister.OccupationDivisionProfileStore", "RebuildAsync",
+            "#1682 — the occupation x SNI-division profile is ONE raw NpgsqlCommand (INSERT ... SELECT ... FROM "
+            + "job_ads j LEFT JOIN company_register r ... WHERE j.status = ANY(@ad_statuses)), so the IL scan sees no "
+            + "get_JobAds site. Lifecycle decision, in words: AnyStatus as a POSITIVE allow-list bound to "
+            + "[Active, Archived] — every ad we have seen counts (Klas 2026-09-14), and the list is positive so "
+            + "the Erased Art. 17 tombstone, and any status added later, is excluded by construction rather than "
+            + "by a '<>' that would silently admit it (#864 D4). No org.nr reaches C# scope: the aggregate is "
+            + "computed server-side and only counts come back."),
     ];
 }

@@ -56,7 +56,7 @@ public class DeleteResumeVersionInUseHandlerTests(ApiFactory factory)
         ApplicationStatus applicationStatus, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, ct);
 

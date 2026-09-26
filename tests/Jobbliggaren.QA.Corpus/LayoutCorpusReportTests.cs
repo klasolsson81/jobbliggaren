@@ -6,24 +6,11 @@ using Shouldly;
 namespace Jobbliggaren.QA.Corpus;
 
 /// <summary>
-/// PR K (#1060) — the layout fitness corpus. It authors 21 CV documents as real PDF and DOCX
+/// PR K (#1060) — the layout fitness corpus. It authors CV documents as real PDF and DOCX
 /// BYTES and drives each of them through the product's own chain: <c>CvFileSignature</c> →
 /// <c>ImportResumeCommandHandler</c> (extract, personnummer scan, segment, <c>ParsedResume.Create</c>)
 /// → <c>AutoPromoteParsedResumeCommandHandler</c> (five gates, DQ6 among them, the internal content
 /// mapper, <c>Resume.CreateFromParsed</c>). No database server, no container, no network.
-///
-/// <para>Both numerals above were wrong and were corrected 2026-07-28. What follows is the
-/// MEASUREMENT rather than a characterisation of it, because two reviewers and I each produced a
-/// different characterisation from the same history and all three were wrong somewhere:</para>
-/// <code>
-/// 980a00d4  16 cases  "sixteen"   &lt;- true when written
-/// ccda80d0  17 cases  "sixteen"   &lt;- went false inside PR K's OWN review round
-/// d9e0af7f  17 cases  "sixteen"   &lt;- shipped false
-/// 7a5496fe  21 cases  "sixteen"   &lt;- PR E drifted it further
-/// </code>
-/// <para>"six gates" is the simpler kind: true until PR B retired the preamble gate. A numeral
-/// beside a catalog anyone can count needs no such archaeology, which is why the count is now a
-/// digit — and why this paragraph states four measurements instead of one adjective.</para>
 ///
 /// <para><b>The material difference from the existing corpus.</b> <c>CorpusGenerator</c> starts
 /// DOWNSTREAM of the segmenter — it calls <c>ParsedResume.Create</c> with pre-built content and
@@ -88,7 +75,7 @@ public sealed class LayoutCorpusReportTests
     /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
     /// nothing.</para>
     /// </summary>
-    private const string BaseCommit = "b637b691";
+    private const string BaseCommit = "26963715";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -152,14 +139,14 @@ public sealed class LayoutCorpusReportTests
             + "so pin P5's non-difference claim is noise rather than a measurement.");
 
         // Production-touching assert (d), argued here. TWO causes, and the FIRST is the one a
-        // reader will actually hit: the ladder has no arm for the reason the handler returned, so
-        // it cannot place the block. That is reachable by a product change — a new
+        // reader will actually hit: the ladder has no arm for the block the handler returned, so
+        // it cannot place it. That is reachable by a product change — a new
         // AutoPromoteBlockReason reddens this — and red is the right answer, because the
         // alternative is what shipped before: the artifact narrating an unmapped token as a
         // handler fault while §0 reported the instrument healthy. It does not block its own
         // remedy: the remedy is one arm in GateLadder, in this same suite.
         observations.Where(o => !GateLadder.IsWellFormed(o.Gates)).ShouldBeEmpty(
-            "INSTRUMENT: a gate ladder is not well-formed. Either (1) it has no arm for the reason "
+            "INSTRUMENT: a gate ladder is not well-formed. Either (1) it has no arm for the block "
             + "the handler returned — most likely a new AutoPromoteBlockReason — or (2) it reports "
             + "a rung as passed after one that was never evaluated, which is impossible.");
 

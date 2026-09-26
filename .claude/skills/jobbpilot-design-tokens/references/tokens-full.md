@@ -58,8 +58,8 @@ F-städ-fas.
 | Token | Light | Dark | Tailwind class (alias) | Use |
 |---|---|---|---|---|
 | `--jp-ink-1` | `#0C1A2E` | `#F4F7FC` | `text-text-primary` | Brödtext, rubriker |
-| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | Lede, metadata, all informationsbärande sekundärtext |
-| `--jp-ink-3` | `#4F5D72` | `#8DA0BD` | `text-text-tertiary` | ~6.7:1 på vit — AA-säker (mörkad från `#7C8AA0`/3.5:1, issue #296). Demoterad metadata-tier (tider, hints, ids); placeholder = `--jp-placeholder` |
+| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | ÄKTA metadata: timestamps, `<dt>`-etiketter, eyebrows, kvitton (#549 WS1: informationsbärande innehåll → ink-1) |
+| `--jp-ink-3` | `#4F5D72` | `#8DA0BD` | `text-text-tertiary` | ~6.7:1 på vit — AA-säker (mörkad från `#7C8AA0`/3.5:1, issue #296). Demoterad metadata-tier (tider, ids); placeholder = `--jp-placeholder` |
 | `--jp-ink-inverse` | `#FFFFFF` | `#0C1A2E` | `text-text-inverse` | Text på inverterad yta |
 | `--jp-placeholder` | `#626B78` | (tema-oberoende) | — | Placeholder — AA mot `#FFFFFF` (5.39:1) och `#F0F4FB` (4.89:1); input-fältet är ljust i båda teman |
 
@@ -89,6 +89,12 @@ Bas-token = text/ikon; `-bg` = pill/banner-bakgrund. Tailwind-alias:
 | `--jp-danger-bg` | `#FBE0E0` | `#3F1419` |
 | `--jp-info` | `#1B5396` | `#8FBEEF` |
 | `--jp-info-bg` | `#DEE9F8` | `#1B3358` |
+| `--jp-info-fill` | `#1B5396` | (skiftas EJ) — ADR 0140, /oversikt-kortets solida knapp |
+| `--jp-info-hover` | `#164478` | (skiftas EJ) — ADR 0140 |
+| `--jp-info-border` | `#C5D8F0` | `#2E4F7E` — ADR 0140, kortkant |
+| `--jp-follow-fill` | `#3E6C74` | (skiftas EJ) — ADR 0140, /oversikt-kortets solida knapp |
+| `--jp-follow-hover` | `#2F5860` | (skiftas EJ) — ADR 0140 |
+| `--jp-follow-border` | `#C5DDE1` | `#245059` — ADR 0140, kortkant |
 
 ## Dekorativa accenter
 

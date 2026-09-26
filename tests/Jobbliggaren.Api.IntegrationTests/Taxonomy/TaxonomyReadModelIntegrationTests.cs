@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 
@@ -15,40 +15,37 @@ namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 /// (Testcontainers, ALDRIG EF-InMemory: query-filter/sortering/idempotens-
 /// transaktion + advisory-lock måste verifieras mot relationell motor).
 /// Kör seedern direkt (Test-env grace-period) och exercerar porten.
-/// Self-contained fixture (egen container) så idempotens/version-bump kan
+/// Self-contained fixture så idempotens/version-bump kan
 /// styras deterministiskt.
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
 
+    public TaxonomyReadModelIntegrationTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).
-        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await appDb.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 

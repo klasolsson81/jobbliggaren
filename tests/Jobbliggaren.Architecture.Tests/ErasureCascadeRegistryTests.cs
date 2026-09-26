@@ -79,14 +79,11 @@ public class ErasureCascadeRegistryTests
         // ── (This section is EMPTY, and that is the finding.) ─────────────────────────────────
         // It was headed "The seeker's OWN data, with no third-party free-text column" and held
         // `job_seekers`, on the ground "Not one column accepts free text ABOUT A THIRD PARTY".
-        // FALSE, and false in the way the entry below already warned about: `display_name` is
-        // varchar(200) refusing only empty, over-length and a personnummer; `match_preferences` is
+        // FALSE, and false in the way the entry below already warned about: `match_preferences` is
         // six lists of shape-validated tokens with no taxonomy lookup on any path; and `Language`,
         // inside the `preferences` container, has no server-side validation at all. The ground was
         // written against what the aggregate is FOR — a profile — and the second half of the
         // ADMISSION RULE is a conjunction the write path fails (#1435).
-        //
-        // ⇒ All four keys are column-classified now, and all four are SEARCHED.
         //
         // `resumes` USED TO BE HERE, on the ground "ids, timestamps and a status enum; it holds no
         // content". That sentence was copied from the AGGREGATE'S DOCSTRING and never checked
@@ -254,6 +251,27 @@ public class ErasureCascadeRegistryTests
             + "If it cannot hold recruiter text at all, add its TABLE to NonRecruiterTables above.\n"
             + "Do not guess: 'we looked and it was fine' is what the last registry said.\n\n"
             + "Unclassified:\n  " + string.Join("\n  ", unclassified));
+    }
+
+    /// <summary>
+    /// The inverse of the test above: every classified key names a column the model still maps.
+    /// </summary>
+    [Fact]
+    public void Every_classified_column_is_still_mapped_by_the_model()
+    {
+        var mapped = ModelSweep.AppModelColumnsByTable()
+            .SelectMany(t => t.Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var stale = ErasureCascadeRegistry.Columns.Keys
+            .Where(k => !mapped.Contains(k))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        stale.ShouldBeEmpty(
+            "ErasureCascadeRegistry.Columns names a column the model no longer maps. Remove the key, "
+            + "and its channel entry, in the change that removes the column.\n\nStale:\n  "
+            + string.Join("\n  ", stale));
     }
 
     /// <summary>

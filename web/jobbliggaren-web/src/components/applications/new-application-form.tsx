@@ -30,12 +30,9 @@ const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
   coverLetter: "cover-letter",
 };
 
-// Hint paragraphs the three optional fields are described by. A field in error is described by its
-// hint AND its own message, not the message alone: each hint states the constraint the refusal is
-// about.
+// The hint paragraph the link field is described by. A field in error is described by its hint AND
+// its own message, not the message alone: the hint states the constraint the refusal is about.
 const URL_HINT_ID = "url-hint";
-const EXPIRES_HINT_ID = "expires-hint";
-const COVER_LETTER_HINT_ID = "cover-letter-hint";
 
 /**
  * The manual create-application form, extracted from `/ny-ansokan/page.tsx`.
@@ -277,12 +274,9 @@ export function NewApplicationForm() {
           id={FIELD_ELEMENT_IDS.expiresAt}
           type="date"
           disabled={isPending}
-          {...fieldA11y("expiresAt", EXPIRES_HINT_ID)}
+          {...fieldA11y("expiresAt")}
           {...register("expiresAt")}
         />
-        <p id={EXPIRES_HINT_ID} className="text-body-sm text-text-primary">
-          {t("ansokningar.new.expiresAtHint")}
-        </p>
         {fieldError("expiresAt")}
       </div>
 
@@ -294,12 +288,9 @@ export function NewApplicationForm() {
           id={FIELD_ELEMENT_IDS.coverLetter}
           rows={8}
           disabled={isPending}
-          {...fieldA11y("coverLetter", COVER_LETTER_HINT_ID)}
+          {...fieldA11y("coverLetter")}
           {...register("coverLetter")}
         />
-        <p id={COVER_LETTER_HINT_ID} className="text-body-sm text-text-primary">
-          {t("ansokningar.new.coverLetterHint")}
-        </p>
         {fieldError("coverLetter")}
       </div>
 

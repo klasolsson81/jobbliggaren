@@ -1,0 +1,71 @@
+{
+ "//": "Authored residue for the SNI alias extract (#1115). SCB SNI-sok carries no entry containing these words at all (measured: 0 of 835 pages, 2026-09-05), so a sourced-only asset leaves them returning nothing. Every row here was written by hand in a reviewed PR and can only enter under the five conditions below - the brand-groups.v1.json discipline: a term belongs here because a maintainer put it there, never by inference.",
+ "//conditions": [
+  "1. The word is on demand-terms.json AND measured ZERO SCB coverage (enforced fail-loud by generate.mjs).",
+  "2. Graded: point at the leaf only where exactly one leaf is unambiguous; otherwise the division; where candidates cross divisions, emit each division. Never a guessed leaf.",
+  "3. Enumerated here with a per-term rationale.",
+  "4. Fail-loud if it points at a code absent from sni-2025.v1.json (enforced by generate.mjs).",
+  "5. The SNI concept must BE the trade or activity definitionally. A cross-industry occupation is rejected however obvious its nearest code looks - systemutvecklare was rejected on this ground (CTO 2026-09-05): they work at banks (64), retailers (47), municipalities (84) and hospitals (86), so systemutvecklare -> 62201 would narrow a company search wrongly. Zero rows beats a confidently wrong row, and this is the substance of #560 bind 4."
+ ],
+ "authoredVersion": "2026-09-05.v1",
+ "terms": [
+  {
+   "term": "apputveckling",
+   "codes": [
+    "62"
+   ],
+   "why": "An activity word naming what division 62 produces, not an agent noun. Candidate leaves 62100 (Dataprogrammering) and 62201 (Datakonsultverksamhet) both plausibly host it, so the division is the honest level (condition 2)."
+  },
+  {
+   "term": "byggare",
+   "codes": [
+    "41",
+    "43"
+   ],
+   "why": "Colloquial for a construction worker; construction IS the trade definitionally (condition 5). Candidates cross divisions 41 (Byggande av bostadshus och andra byggnader) and 43 (Specialiserad bygg- och anläggningsverksamhet), so both divisions are emitted (condition 2). Division 42 Anläggningsarbeten is excluded deliberately: it is civil engineering (roads, bridges, networks), which is not what the colloquial word names."
+  },
+  {
+   "term": "elektriker",
+   "codes": [
+    "43210"
+   ],
+   "why": "Exactly one unambiguous leaf: an elektriker works at an electrical installation firm, and 43210 Elinstallationer IS that trade (condition 5)."
+  },
+  {
+   "term": "mjukvara",
+   "codes": [
+    "62"
+   ],
+   "why": "A product word for what division 62 makes. No single leaf owns it - 62100 writes it and 62201 consults on it - so the division is the honest level."
+  },
+  {
+   "term": "rörmokare",
+   "codes": [
+    "43"
+   ],
+   "why": "Two candidate leaves in one division, 43221 Värme- och sanitetsarbeten and 43229 Övriga VVS-arbeten, so the division is the honest level (condition 2). The industry is definitionally the trade (condition 5)."
+  },
+  {
+   "term": "snickare",
+   "codes": [
+    "16",
+    "43"
+   ],
+   "why": "Candidates cross divisions: 43320 Byggnadssnickeriarbeten (on-site carpentry) and 16239 Tillverkning av övriga byggnads- och inredningssnickerier (joinery manufacture). Both divisions are emitted rather than one guessed leaf (condition 2)."
+  }
+ ],
+ "omitted": [
+  {
+   "term": "systemutvecklare",
+   "why": "REJECTED by condition 5 (CTO ruling 2026-09-05). Systemutvecklare work at banks (64), retailers (47), municipalities (84), hospitals (86) and telecoms (61) - software development is the paradigm cross-industry occupation, so systemutvecklare -> 62201 would narrow a company search wrongly. Zero rows beats a confidently wrong row. The activity form arrives from SCB anyway: 62201 carries \"Agil systemutveckling\" and \"Systemutveckling, data\" verbatim."
+  },
+  {
+   "term": "montör",
+   "why": "REJECTED by condition 5. Assemblers work across manufacturing divisions 25-33 and beyond; no SNI concept is definitionally the trade, so any single target would be a guess at division level too."
+  },
+  {
+   "term": "lönekonsult",
+   "why": "REJECTED by condition 5. Payroll work is performed in-house inside every industry as well as as a service (69201 Redovisning och bokföring; skatterådgivning); the industry is not definitionally the trade. The service form is already reachable today - \"redovisning\" matches 69201 by name."
+  }
+ ]
+}

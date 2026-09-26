@@ -27,7 +27,7 @@ widens that self-heal cadence from **every read** to **every `SlideThreshold × 
 
 - **Account deletion (GDPR Art. 17) is unaffected** at any threshold — the `:deleted` tombstone gate
   runs on every read *before* the throttle, and the absolute-cap eviction likewise.
-- The residual only touches **logout-everywhere / password-reissue** reaching an *already-orphaned*
+- The residual only touches **logout-everywhere / change-email reissue** reaching an *already-orphaned*
   session (index membership already lost), which `InvalidateAllForUserAsync` finds via the SET.
 
 ## Pre-ratchet checklist (before setting `SlideThreshold > 0` in production)
@@ -44,7 +44,7 @@ test-writer) as the conditions under which enabling the throttle is safe:
    via traffic that active sessions have all been read at least once.
 2. **`>0.1` on the Persistent profile → add the `:revoked` read-path gate first.** Give
    `RedisSessionStore.GetAsync` a `:revoked`-tombstone check with the same placement as the
-   `:deleted` gate, so logout-everywhere / password-reissue gets the same immediate read-path
+   `:deleted` gate, so logout-everywhere / change-email reissue gets the same immediate read-path
    backstop as Art. 17 deletion (closes the widened self-heal window for compromise response).
 3. **security-auditor sign-off on the chosen value** (the enforceable meaning of the CTO bind
    2026-07-19: the `[0.0, 0.25]` cap is mechanical; the `>0.1` sign-off is procedural). Changing

@@ -215,7 +215,7 @@ d=$(mk_container jobbliggaren-api "$ID_API")
 out=$(run_sut) || true
 check "mixed-age segment kept"             "$([ -f "$d/$ID_API-json.log.1" ] && echo 1 || echo 0)"
 
-echo "== case 11: all NINE retention-bound containers are covered, BEHAVIOURALLY =="
+echo "== case 11: all TEN retention-bound containers are covered, BEHAVIOURALLY =="
 # ⚠ THIS CASE USED TO GREP THE SUT'S SOURCE TEXT, AND THAT WAS NOT COVERAGE. A grep for the array
 # literal cannot see whether the LOOP reads the array: replacing
 # `for container in "${APP_CONTAINERS[@]}"` with two hard-coded names left the literal untouched
@@ -223,11 +223,11 @@ echo "== case 11: all NINE retention-bound containers are covered, BEHAVIOURALLY
 # which is a container this change exists for. Every name below is now exercised through the real
 # path: its own container, its own aged segment, its own live segment that must survive.
 #
-# NINE, not the app stream's four (CTO 2026-08-28): the prune's set is keyed to personal data,
+# TEN, not the app stream's four (CTO 2026-08-28): the prune's set is keyed to personal data,
 # not to app events, so it deliberately diverges from `jobbliggaren-logship.sh`'s array. A case
-# that iterated four would pass while five containers silently reached no age bound.
+# that iterated four would pass while six containers silently reached no age bound.
 reset_world
-for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-redis-volatile jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
   # A distinct 64-hex id per container, so a path collision cannot make one stand in for another.
   id=$(printf '%s' "$n" | md5sum | cut -c1-32)$(printf '0%.0s' {1..32})
   d=$(mk_container "$n" "$id")
@@ -236,8 +236,8 @@ for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-cadd
   eval "D_${n//-/_}=$d"; eval "I_${n//-/_}=$id"
 done
 out=$(run_sut) || true
-check "all nine aged segments pruned"      "$(echo "$out" | grep -q 'pruned=9' && echo 1 || echo 0)"
-for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+check "all ten aged segments pruned"       "$(echo "$out" | grep -q 'pruned=10' && echo 1 || echo 0)"
+for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-redis-volatile jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
   d=$(eval "echo \$D_${n//-/_}"); id=$(eval "echo \$I_${n//-/_}")
   check "$n: rotated segment removed"      "$([ ! -f "$d/$id-json.log.1" ] && echo 1 || echo 0)"
   check "$n: LIVE segment survives"        "$([ -f "$d/$id-json.log" ] && echo 1 || echo 0)"

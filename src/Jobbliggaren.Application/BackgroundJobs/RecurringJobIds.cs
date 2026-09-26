@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace Jobbliggaren.Application.BackgroundJobs;
 
 /// <summary>
-/// Single source of truth for the 16 Hangfire recurring-job ids. Used both by the
+/// Single source of truth for the 17 Hangfire recurring-job ids. Used both by the
 /// Worker's <c>RecurringJobRegistrar</c> (registration) and by the admin operator
 /// surface's trigger validator (the closed allowlist).
 ///
@@ -46,6 +46,40 @@ public static class RecurringJobIds
     public const string SyncScbCompanyRegister = "sync-scb-company-register";
 
     /// <summary>
+    /// #1681 (ADR 0139) — resolve every saved smart watch (a predicate) into the register companies it
+    /// matches, out of the request path. Cron is config-driven
+    /// (<c>CompanyWatchMaterialisation:CadenceCron</c>), on its OWN options section: tying it to
+    /// <c>ScbRegister:*</c> would inherit that section's <c>Enabled=false</c> default and the job would
+    /// never run in the default posture (security-auditor Major 3).
+    /// </summary>
+    public const string MaterialiseCompanyWatchCriteria = "materialise-company-watch-criteria";
+
+    /// <summary>
+    /// #1681 clause (ii) — the reconciling sweep: recompute only those criteria whose stored
+    /// membership does not describe their current predicate, so a user's OWN edit does not wait for
+    /// <see cref="MaterialiseCompanyWatchCriteria"/>. Cron is config-driven
+    /// (<c>CompanyWatchMaterialisation:SweepCron</c>), in the same options section because the two
+    /// cadences constrain one another.
+    ///
+    /// <para>
+    /// A SECOND id rather than a faster cadence on the first, because the two jobs answer two
+    /// different change-reasons — the register moved (weekly, external) versus a predicate moved
+    /// (continuous, user) — and because they take opposite retry postures. They share one distributed
+    /// lock all the same; see <c>CompanyWatchCriterionMaterialisationWorker</c>.
+    /// </para>
+    /// </summary>
+    public const string SweepChangedCompanyWatchCriteria = "sweep-changed-company-watch-criteria";
+
+    /// <summary>
+    /// #1682 — rebuild the occupation-group × SNI-division profile out of our own ads, the measured
+    /// answer the bransch picker gives a typed occupation word. Cron is config-driven
+    /// (<c>OccupationDivisionProfile:CadenceCron</c>), its own section, clock-padded after the daily
+    /// snapshot ingest rather than chained to it (senior-cto-advisor D1, 2026-09-14). A third actor
+    /// beside the two above — "our own ad corpus moved" — so a third id, not a third method.
+    /// </summary>
+    public const string BuildOccupationDivisionProfile = "build-occupation-division-profile";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -67,5 +101,8 @@ public static class RecurringJobIds
         DigestDispatchWeekly,
         RefreshLandingStats,
         SyncScbCompanyRegister,
+        MaterialiseCompanyWatchCriteria,
+        SweepChangedCompanyWatchCriteria,
+        BuildOccupationDivisionProfile,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

@@ -28,7 +28,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 ## 2. Före tag (pre-flight)
 
 - [ ] **main-CI grön** — `gh run list --workflow build --limit 1` → `success`
-      (backend + frontend + coverage + ci alla gröna). Coverage-gaten
+      (frontend + coverage + ci alla gröna). Coverage-gaten
       (ADR 0044) får inte vara röd.
 - [ ] **Observe-only-signaler granskade** (ADR 0045) — `lighthouse` /
       `loadtest` / `audit`-jobben är observe-only och blockerar inte, men
@@ -42,7 +42,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
-      ändring → manuell procedur (parkerad, #1172).
+      ändring → `bootstrap`-proceduren i `vps-deploy-stack.md` §3c.
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
       (#884, **ADR 0110** — den tidigare pekaren till ADR 0109 var fel; 0109 är
       "The engine describes, the user classifies" och rör CV-lanen). Ett btree-index på
@@ -246,13 +246,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > lika fullt — mottagar-adressen når en US-processor oavsett vilken mall som skickas.
 > Den tidigare avgränsningen "(bakgrundsmatchnings-notiser)" i den här blockquoten är
 > därför borttagen: den var ingen avgränsning, och ingenting annat i sektionen skopar
-> grinden till notis-vägen. (Prod-lansering
-> tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
-> **false** och sätts `true` bara i `appsettings.Development.json`.)
+> grinden till notis-vägen.
 
-- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **den här punkten**;
+      #183 STÄNGD 2026-09-06 på Klas-beslut, se stycket nedan).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
+      ⛔ **KLAS-BESLUT 2026-09-06 — #183 STÄNGD; LEDEN ÄGER SIG SJÄLVA.** Ingen gradering
+      ändras — `security-auditor`s domar står som skrivna. Vad som inte längre finns är en issue
+      som läsare; den som bockar ett led skriver det här.
+      **SES-IAM-nycklarna:** Klas 2026-09-06, *"Finns inga nycklar kvar"* — #183:s beslut 3 av
+      2026-08-15 har därmed inget objekt. E4:s Scaleway-konsolrunbok författas ur vad Klas gör
+      nästa gång han står i konsolen, och har ingen issue. Härledning: ADR 0138 (lokal).
       - **biträdesavtal med Scaleway på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-15 mot
         Scaleways egna avtalsdokument: DPA:n (gällande version daterad 2024-06-01; ingen senare
         revision hittad) är avtalsdokument **nr 1** i GTS:ens prioritetsordning (version
@@ -317,7 +322,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ⚠ **Kadensen har ingen ägare och ingen påminnare — ersättningskontrollens svagaste punkt.**
         En kalenderförpliktelse utan påminnare körs inte. Den hör ihop med #1267 AC 2:s påminnarhalva,
         som inte är byggd; lägg den där, fila ingen egen post;
-      - dokumenterad **Kap. V-grund** — **KVAR (omprövning ligger i #183:s E3-PR)**. ⚠ **Den
+      - dokumenterad **Kap. V-grund** — **KVAR**. ⚠ **Den
         tidigare statusen "UPPLÖST 2026-08-08" gällde AWS och ärvs INTE** — den domen sa att
         överföringen **ska** redovisas trots `eu-north-1`, med grund **SCC Art. 46(2)(c)**,
         eftersom `BUILD.md` §15.1:s tillämpade standard behandlar ett **US-ägt** biträde som en
@@ -492,7 +497,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ompinnad till `Scaleway SAS` i samma ändring, så en halvflippad katalog kan inte bli grön;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
-        (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        (TD-116 stängdes 2026-07-26; residualen ägs av det här ledet — #183 stängd 2026-09-06.)
         ⚠ **LEDET ÄR RETROAKTIVT SEDAN 2026-08-16 OCH DET ÄR EN ANNAN SORTS LED NU.**
         CC1-lanen flippade `Email:Provider` till Scaleway under registreringsbesöket, med Klas
         vid terminalen, medan led (a), (b), (c) och (e) alla bar KVAR — vilket preambelns
@@ -529,7 +534,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         obligatoriskt under Scaleway, frånvaro fail-loud. Delningen tystnad/förvarning ratificeras.
         **Rotationsförfarandet finns inte** — `master-key-ops.md` §4 är masternyckeln, en annan
         livscykel. Ett registrerat datum plus en närvarokontroll är en **inventering, inte en
-        rotationsstrategi**. #198 äger förfarandet, #1267 AC 2 påminnaren; ingendera är byggd.
+        rotationsstrategi**. Förfarandet ägs av det här ledet (#198 stängd 2026-09-06), #1267 AC 2
+        påminnaren; ingendera är byggd.
         **Förutsättning 4 — SIGNERAS DELVIS.** API-referenshalvan ratificeras och är oberoende
         verifierad i vår ände: armen sänder en fast nyttolast utan spårningsfält
         (`ScalewayEmailSender.cs:311-318`). **Changeloghalvan är inte redundant och är omätt** —
@@ -595,7 +601,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         av att ingen spårningsyta finns i TEM-projektet · den delade grunden för
         `EmailChangeConfirmation` i ROPA:n med matchande Art. 13(1)(d)-copy · Art. 14-stycket i
         mallen · och antingen en levererande `kontakt@`-brevlåda eller en publicerad kanal som
-        levererar. Rotationsförfarandet (#198) och påminnaren (#1267 AC 2) grindar inte ledet men
+        levererar. Rotationsförfarandet (förutsättning 3) och påminnaren (#1267 AC 2) grindar inte ledet men
         står kvar som skyldigheter. Ingenting mer krävs.
         **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
         2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
@@ -753,7 +759,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ögonblicket**, inte en Minor.
         3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
            nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
-           återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den
+           återregistreras här så den inte tappas; ägs av den här förutsättningen. **Sedan 2026-08-15 gäller den
            `Email:Scaleway:SecretKey`.** ⚠ **`ProjectId` roterar INTE och ska inte behandlas som en
            nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
            med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
@@ -806,7 +812,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            **upprepa dem inte här** (ETT HEM PER TAL). code-reviewer Minor 3, 2026-08-09.
            ⚠ **DET ANDRA SKÄLET ÄR BYTT 2026-08-12 (#183) — läs inte den gamla formuleringen.**
            Fram till dess var skäl 2 *"ingen HTML-del"*. Mejlen bär numera en HTML-del, så det skälet
-           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla åtta
+           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla
            mallarna i `EmailHtmlNoRemoteResourceTests`. **Den exakta förbjudna mängden är detektorns
            egna arrayer i `RemoteResourceDetector`, inte den här raden** — en regel med tre prosa-hem
            är tre hem att revidera. Den här raden räknade tidigare upp mängden utan den kvalifikation
@@ -853,31 +859,21 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
            (`ScalewayEmailSender`, via `additional_headers`, pinnat) — så ett svar på en notis
            landar där, inte på `no-reply@`.
-           ⚠ **MX-LÄGET ÄR MÄTT FALSKT 2026-08-15 och förutsättningen är därmed längre från
-           uppfylld än den var.** Apex-MX är `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8), satt
-           av leverantörens domänverifiering, så `kontakt@jobbliggaren.se` **tar emot ingenting**.
-           Klas har skjutit upp reparationen i väntan på STRATO:s e-postpaket. Instrumentet är
-           `vps-deploy-stack.md` rad 36 — återställ inte den gamla förväntan som en "reparation",
-           recorda vad som resolverar.
-           ⚠ **FÖRUTSÄTTNINGEN ÄR INTE UPPFYLLD — VÄG (a) ÄR VALD, OCH DEN BÄR EN ORDNINGSREGEL
-           (Klas-beslut 2026-08-16).** *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
+           Instrumentet är `vps-deploy-stack.md` rad 36 — återställ inte den gamla förväntan som en
+           "reparation", recorda vad som resolverar.
+           ✅ **VÄG (a) ÄR UPPFYLLD 2026-09-04** (`security-auditor`s ruling samma dag), med de tre
+           konjunkterna avbockade var för sig: *finns* ✅ · *tar emot* ✅ (17:33, lagring 1,09 → 10 kB)
+           · *läses* ✅.
+           **Läsaren (Art. 12(3)) — Klas-beslut 2026-09-06, enda hemmet:** Klas själv, *"alltid
+           vid nya mail"*, med notis i mobilen. Ingen kadens utöver det och ingen mekanism på
+           lådan; det är en mänsklig praxis, och den här raden namnger vems.
+           *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
            grammatik är "grön = inget led bär KVAR" hade den markerat ett **vägval** på en
            förutsättning som fortfarande är **osignerad och Major** — samma glyf, två jobb, och det
            ena i den farliga riktningen. `security-auditor` m-3.)* Ledet
            namnger tre vägar igenom förutsättningen — brevlådan börjar ta emot, en publicerad kanal
-           som levererar, eller en accepterad risk. **Klas valde den första**, och den är inte
-           längre en öppen fråga utan ett **schemalagt åtagande**: STRATO:s e-postpaket köps **inom
-           ~1 vecka från 2026-08-16**, långt före MVP-lansering, och Klas band ordningen — **inga
-           riktiga användare innan brevlådan tar emot.**
-           **Det binder ihop två klausuler som hittills hängt löst.** Trigger (b) — första konto
-           vars adress Klas inte själv innehar — förutsätter nu att kanalen fungerar först, alltså
-           kan den händelse som konverterar hela grinden inte längre inträffa medan
-           rättighetskanalen är död. Ordningsregeln är därmed en **förutsättning för** triggern, inte
-           ett alternativ till den, och den flyttar ingen gräns: trigger (b):s definition står
-           oförändrad **nedan**, i den här förutsättningens eget eskaleringsschema, och ägs där.
-           ⚠ **ORDNINGSREGELN ÄR ETT ÅTAGANDE, INTE EN MÄTNING — och det är hela varningen.**
-           Ingenting i den säger vad MX resolverar till; den säger vad Klas har åtagit sig att göra.
-           **MX SKA OMMÄTAS NÄR PAKETET ÄR PÅ PLATS, ALDRIG ANTAS** — instrumentet är
+           som levererar, eller en accepterad risk. **Klas valde den första.**
+           ⚠ **MX SKA OMMÄTAS NÄR PAKETET ÄR PÅ PLATS, ALDRIG ANTAS** — instrumentet är
            `vps-deploy-stack.md` rad 36:s MX-ben, körningen är `nslookup -type=MX jobbliggaren.se
            8.8.8.8`, och förutsättningen är uppfylld först av det som resolverar. **Apex-MX:en blev
            falsk på exakt det sättet förra gången:** raden bar `smtp.rzone.de` som förväntan tills
@@ -915,7 +911,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
            ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
-           GRADERINGEN av den.** (1) Tas den bort för en demo blir blackholen Blocker i samma
+           GRADERINGEN av den.** (1) Tas den bort för en demo fyrar trigger (c) ovan i samma
            ögonblick, och ingenting varnar.
            ⚠ ~~(2) Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som
            falska, om en levande behandling (ADR 0090 D3).~~ **SLUTSATS (2) ÄR UTSLÄCKT 2026-08-16
@@ -940,8 +936,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `test-accounts.local.md` **pekar hit och räknar inte själva.**
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
-           uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal
-           — och det är de som gör blackhole-läget allvarligt.
+           uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal.
            ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5:s
            räckvidd bestäms av predikatet i preambeln — **läs det där, det upprepas inte här**. Den
            **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
@@ -1127,19 +1122,11 @@ REGISTRETS TÄCKNING, inte mallantalet, så bumpen konverterade ett sant påstå
 i en merge-blockerande grind — i den lugnande riktningen. Mätt 2026-08-10 av dotnet-architect och
 security-auditor oberoende.)*
 
-**FYRA**
-av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`),
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
-den gamla adressen finns), samt sedan #1171 `PasswordReset`
-(`RequestPasswordResetCommandHandler`) och `PasswordChangedNotice`
-(`ResetPasswordCommandHandler`) — **båda utan feature-villkor alls**, så en flipp gör dem levande
-vid första `/glomt-losenord`. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
-providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen, och
-`EmailChangeConfirmation` har en och listas ändå här.)* **Den senare går till den GAMLA adressen** — en annan
+den gamla adressen finns) är ogrindad. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
+providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen.)* **Den går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
-den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
-`RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En
-prod-lansering tvingar alltså inte i sig grinden.)
+den första lämnar en mottagare oregistrerad.
 
 Det är samma lucka som den redan eskalerade frågan om kontot/autentiseringen (Art. 30(1)) —
 **och den luckan stängdes INTE av #1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
@@ -1236,6 +1223,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    ⚠ **Beslutat är inte mekaniserat** — ingenting raderar automatiskt i en STRATO-brevlåda.
 >    Skriv aldrig ledet som uppfyllt på grundval av att beslutet är fattat.
 >
+>    ⚠ **DEN REGELN TÄCKTE EN AV TRE BREVLÅDOR.** DMARC-aggregat är inga ärenden, och post som
+>    aldrig blir ett avslutat ärende — spam förbi filtret, obesvarad förfrågan, felsänd post —
+>    startar aldrig klockan; `webmaster@` har ingen ärendeform alls. **Beslutat 2026-09-04 av
+>    personuppgiftsansvarig: tolv månader från MOTTAGANDET**, för DMARC-rapporter och för
+>    inkommande post som aldrig blir ett avslutat ärende, `webmaster@` inräknat. Samma hem som
+>    raden ovan, och samma icke-mekanisering.
+>
 >    ✅ **LÄSAREN ÄR UTPEKAD SEDAN 2026-08-28, OCH DET HÄR ÄR HANS HEM (#183 led 6).**
 >    **Läsare: Klas Olsson, personuppgiftsansvarig.** CC ska aldrig ha brevlådeåtkomst — ingen
 >    credentialförvaring, och en sådan åtkomst vidgar en behandling registret nyss villkorade.
@@ -1266,7 +1260,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS.**
 >    I lågtrafikläget — det förväntade — är `R1` tyst och varken
 >    `R3` eller `R4` fyrar, så bara `R2` återstår: en post som förfaller vid tolv månader raderas då
->    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym, som är noll inkommande. **Det
+>    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym. **Det
 >    gör det inte till tolv.**
 >
 >    ⛔ **INGEN PÅMINNARE ÄR BYGGD, och den meningen får aldrig strykas av att åtgärden godkänts.**
@@ -1333,17 +1327,19 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-28 (#183, STRATO-mottagarstycket): 8 + 8** (rad 37, 50, 82, 92, **95**,
-      116, 117, 152 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff).
-      **Den här gången VÄXTE mängden, och förskjutningen är enhetlig:** det nya lövet är
-      STRATO-raden på 95, och de tre raderna under den flyttade **+1** (115→116, 116→117, 151→152).
-      Rad 37, 50, 82 och 92 ligger ovanför insättningen och står stilla — inklusive notisraden på
-      82 med sina tolv egna hem, som alltså inte behövde röras.
+      **Regenererad 2026-09-04 (#183, MX-flytten): 7 + 7** (rad 37, 50, 82, 92, 116, 117, 152 —
+      identiska i sv och en). **Mängden KRYMPTE med ett och ingen rad flyttade:** STRATO-raden på
+      95 förlorade sin markör i copy-flippen, och en redigering **inuti** en JSON-sträng flyttar
+      ingenting under sig — samma mekanik som 2026-08-16-regenereringen nedan skriver ut.
+      *(Föregående regenerering, kvar som daterad proveniens: **2026-08-28** (#183,
+      STRATO-mottagarstycket): **8 + 8** på rad 37, 50, 82, 92, **95**, 116, 117, 152. Den gången
+      VÄXTE mängden och förskjutningen var enhetlig: det nya lövet var STRATO-raden på 95, och de
+      tre raderna under den flyttade **+1** (115→116, 116→117, 151→152). Rad 37, 50, 82 och 92 låg
+      ovanför insättningen och stod stilla — inklusive notisraden på 82 med sina tolv egna hem.)*
       ⚠ **Ett stycke lades till i `Mottagare av uppgifter` utan att någon spärr fällde**, och det
       är väntat: både e-post- och värdtripwiren är term-scopade (`Scaleway` respektive
       `netcup GmbH`) och itererar inte lövet. Sedan 2026-08-28 har STRATO-raden **en egen spärr** i
-      `content-legal-parity.test.ts` med golv, path-paritet och positiv markörpinne. Den tar den
-      här inventeringens plats som mekanisk läsare **för just den raden**, aldrig för de övriga sju.
+      `content-legal-parity.test.ts`. För de övriga sju raderna var den aldrig läsare.
       *(Föregående regenerering, kvar som daterad proveniens: **2026-08-19**, sökhistorik-disclosuren,
       ADR 0060 rad 152 — **7 + 7** på rad 37, 50, 82, 92, 115, 116, 151.)*
       **Vid den regenereringen var mängden oförändrad medan fem av sju rader flyttade, med TVÅ
@@ -1532,9 +1528,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         är inte en release, så punkt 2:s vanliga utfall (*bocka hela sektionen och sluta*) är
         blint för den. **Proceduren bor i `vps-deploy-stack.md` rad 36:s MX-ben**, som är där
         operatören står i det ögonblick handlingen utförs; den här bulleten **klassificerar,
-        den bär inte proceduren**. Den mekaniska läsaren för just det stycket är STRATO-spärren
-        i `content-legal-parity.test.ts`, och den fäller **bara** en copy-flip utan MX-flytt —
-        aldrig det omvända, eftersom det inte finns något repo-event att fälla på.
+        den bär inte proceduren**.
       - **Användar-aktiverad — NY KLASS 2026-08-28, i samma ändring som den tredje.** Notisernas
         stycke, som bulleten om konfigurations-grindade ovan redan namnger och uttryckligen
         utesluter (*"grindas av ett användarreglage, inte av den här punkten"*) utan att ge det
@@ -1658,8 +1652,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
       (`security-auditor` 2026-08-09). Grinden biter vid **det tidigare av**:
-      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 51 347 rekryterar-kontaktposter
-        över 27 160 annonser, Art. 14-uppgifter om icke-användare), och
+      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 47 918 rekryterar-kontaktposter
+        över 71 054 annonser, mätt count-only på lådan 2026-09-06, Art. 14-uppgifter om
+        icke-användare), och
       - **(ii) första konfigurationen utanför `Development` som sätter `Auth:RegistrationsOpen=true`**.
 
       **(i) är den tidigare, och det är den ingen mental modell håller:** rekryterar-PII når
@@ -1754,8 +1749,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) gate M-7 ·
       [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199):s
       övriga led (policy-copy, ROPA, `BUILD.md`, paritetstestet) ·
-      [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som äger själva laddningen
-      och bär den mätta grindlistan i sin kropp.
+      [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som ägde själva laddningen.
+      ⚠ **Kroppens grindlista är överspelad** — tre av dess fyra grindar var urladdade när den lästes
+      om 2026-09-06, och issuen är sedan dess omformulerad till svepet som pekar om de stale
+      låd-utsagorna hit. **För KORPUSLADDNINGENS state läs den här punkten, aldrig #1240:s
+      kropp** — kroppen bär fortfarande andra mätningar som är routade till `security-auditor`.
       ⛔ **M-7 KONVERTERAR TILL `Blocker` VID FÖRSTA RIKTIGA ANVÄNDARDATA — `security-auditor`s dom
       2026-08-17, och den är hennes att sätta.** Den här raden påstod motsatsen till dess.
       #1201:s eskalering är en **disjunktion med två armar**: *"M-7 becomes a `Blocker` if ADR 0123
@@ -1930,6 +1928,109 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       faller på de 532 rekryterarna. **Nuvarande inramning — ett record av en ansvarshandling — är den
       korrekta.**
 
+      ⛔ **KLAS-BESLUT 2026-09-06 — RUTTVALET ÄR TAGET, OCH DET ÄR RUTT (c): NOTISEN GÖRS INTE
+      PUBLIKT NÅBAR I FÖRTID; DEN BLIR DET VID LANSERING.** `security-auditor` eskalerade ruttvalet
+      2026-09-06 (tre rutter: (a) direkt tillhandahållande, (b) 14(5)(b) via publicering i förtid,
+      (c) dokumenterat beslut på annan grund). Klas valde (c), med dessa skäl:
+
+      - **Identisk information är publikt tillgänglig hos källan utan inloggning.** Uppgifterna
+        kommer ur Arbetsförmedlingens öppna Platsbanken-API och visas där utan konto.
+      - **AF:s annonsvillkor kräver att annonsören har kontaktpersonens samtycke** till
+        publiceringen, och att annonsdata får visas hos andra aktörer som hämtar via API:t — källans
+        egna ord (`content-legal.json`, `/kontaktperson-i-annons`). ⚠ **Villkoren binder annonsören;
+        de informerar ingen registrerad, och ett krav på att samtycke SKA ha inhämtats är inget bevis
+        på att det inhämtades.** Ledet når heller inte hela populationen — residualen 2026-08-17
+        delade 822 poster i **532 `Declared` + 290 `ExtractedFromBody`**, och för en
+        `ExtractedFromBody`-träff pekar villkoren ut ingen kontaktperson alls (regelextraherad ur
+        fritext, ingen NER — ADR 0106 D5). *(`security-auditor` 2026-09-06.)* ⚠ **Det bär Recital 62:s avvägning om registrerades förväntningar.
+        Det är INTE vår rättsliga grund, som är Art. 6(1)(f)** (`gdpr-processing-register.md:100`:
+        *"Art. 6(1)(f) berättigat intresse — annonsen är redan publicerad av Arbetsförmedlingen för
+        allmän indexering"*), **och det urladdar inte i sig Art. 14.** Samtycket gavs i
+        Arbetsförmedlingens egen personuppgiftsansvarsrelation och kan inte fullgöra vår
+        informationsplikt; skrivet bredvid vår behandling utan detta förbehåll läses det vid en kall
+        omläsning som om vår grund vore samtycke, vilket skulle dra in Art. 7(3):s
+        återkallelsemaskineri som vi varken har eller är skyldiga (`security-auditor` 2026-09-06).
+      - **Varje annons hos oss länkar till originalannonsen** ("Öppna annonsen"), så uppgifterna är
+        verifierbart samma publika data. ⚠ **Länken är villkorad i koden** (`job-ad-detail.tsx`
+        renderar den bara när `jobAd.url` är satt), så allkvantifieringen är en **mätning, inte en
+        garanti**: count-only 2026-09-06 bär **71 054 av 71 054** annonser en `url` — noll fall utan
+        länk i dagens korpus.
+      - **Att öppna en sökväg i basic_auth skulle riva den 401-mätning Art. 12-omgraderingen vilar
+        på.** `deploy/caddy/Caddyfile`s eget block säger det: *"one of the measurements is that this
+        site answers 401 on every path. Remove or bypass this block — even briefly, even for a demo —
+        and that fires the checklist's trigger (c)."* Rutt (b) i förtid kostar alltså en trigger,
+        inte bara en konfigrad. ⚠ **Men kostnaden undviks inte av rutt (c) — den skjuts upp och
+        VIDGAS:** vid lansering tas blocket bort **helt, för varje sökväg**, så trigger (c) fyrar
+        bredare då än rutt (b) hade gjort nu. §2.5 förutsättning 5:s E5-dom vilar på just
+        läsbarhetsarmen (dev svarar 401 på varje väg, mätt 2026-08-16). *(`security-auditor`
+        2026-09-06.)*
+      - ⛔ **OCH DET AVGÖRANDE LEDET (Klas 2026-09-06): VID LANSERING FINNS INGEN BASIC_AUTH.**
+        Lanseringen sker på `jobbliggaren.se` där man registrerar ett konto för att logga in — utan
+        basic_auth. **Mätt 2026-09-06:** `/kontaktperson-i-annons` står **inte** i
+        `PROTECTED_PREFIXES` (`web/jobbliggaren-web/src/lib/auth/protected-routes.ts`) och
+        matchningen är segmentgränsmedveten (#583), så inget av de tolv prefixen sväljer den. Den är
+        en publik marknadsföringssida. **Notisen blir därför allmänt tillgänglig automatiskt när
+        basic_auth försvinner** — ingen Caddy-ändring, ingen ny kod, ingen ny grind.
+
+      ⛔ **ART. 14(5)(b) ÅBEROPAS INTE HÄR, OCH RUTT (c) STÅR PÅ SINA EGNA SKÄL OVAN.** Undantagets
+      **villkorsled** — att tillhandahållandet visar sig omöjligt eller skulle kräva en
+      oproportionerlig ansträngning — är ingenstans nedskrivet, och Art. 14(5)(b) andra meningen
+      kräver att **personuppgiftsansvarig** vidtar och dokumenterar det. Att göra informationen
+      allmänt tillgänglig är den åtgärd som blir skyldig **när villkoret är uppfyllt**; den är inget
+      alternativ till Art. 14(1)-(2). **Läs därför ingen mening här som att 14(5)(b) vore uppfylld
+      eller att M1 vore urladdad** (`security-auditor` 2026-09-06, eskalerad till Klas).
+
+      ⚠ **Vad beslutet INTE gör.** Det upphäver ingen gradering: `security-auditor`s M1 står som
+      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. Det är ett beslut av
+      **personuppgiftsansvarig om sin egen behandling** (Art. 24(1)) — inte en §9.6-acceptans, och
+      det bär ingen signatur av henne. Läs det inte som att fristen upphört: det som skett är att
+      Klas valt rutt och skrivit ned grunden, vilket är precis vad Art. 5(2) kräver av honom.
+
+      ⚠ **Klas-beslut 2026-09-06 om M-7:** *"Ja, ingen blocker"* — flippen tas utan ett nytt
+      beviljande före **första riktiga användardata** (hennes konverteringshändelse, inte ett
+      kontoantal). Graderingen är hennes och står; beslutet är hans som personuppgiftsansvarig
+      (Art. 24(1)). Härledning: ADR 0138 (lokal); M-7:s hem är #1201.
+
+      ⚠ **Lapsvillkor — TRE mekanismer, och den ena ersätter inte den andra.** En enda
+      villkorsmening är ingen triggeruppsättning (`security-auditor` M-1, ADR 0133).
+      - **(i) Datumet, och det fyrar på kalendern:** `security-auditor`s M1 arm (i) **konverterar till
+        Blocker 2026-09-17** om notisen inte är publikt nåbar då — **oavsett om lapsläsaren tittat
+        eller inte**. Det är hennes gradering, inte Klas instrument, och den avvaktar ingen.
+        ⚠ **M1:s tredje arm nedan — *"eller tidigare om copyn blir publik medan brevlådan är
+        blackholad"* — är URLADDAD, inte förbisedd: brevlådan tar emot, ommätt 2026-09-04/05.**
+      - **(ii) Villkoret:** blir lanseringen skjuten utan att notisen gjorts nåbar kommer posten
+        tillbaka — grunden ovan hänger på att lanseringen faktiskt tar bort basic_auth.
+        **Läsare: Klas.** Ingen automatik upptäcker det.
+        **Klas 2026-09-06:** lanseringen ligger *"mest troligen efter"* 2026-09-17 — *"ingen
+        blocker"*. Perioden mellan fristen och lanseringen bär han som personuppgiftsansvarig;
+        M1 arm (i):s gradering från den dagen står oförändrad. Härledning: ADR 0138 (lokal).
+      - **(iii) Grunden själv — tre av dess fyra fakta har INGEN egen trigger**
+        (`security-auditor` 2026-09-06): att `/kontaktperson-i-annons` förblir utanför
+        `PROTECTED_PREFIXES` (ett `(app)`-flytt eller ett nytt prefix tystar notisen utan att något
+        fyrar — `protected-routes.test.ts` grindar **spegling**, inte publikhet) · att notisens copy
+        fortsätter bära källan och rättigheterna · att ingen ny ingest-källa tillkommer vars
+        kontakter AF:s villkor inte når. **Läsare: Klas**, samma som (ii).
+
+      ⚠ **Kostnaden för uppskjutning ackumuleras DAGLIGEN, inte platt vid ett datum.** Rutt (c) plus
+      lansering har rätt form för den rullande plikten — när notisen väl är publikt nåbar möter varje
+      framtida kohort samma publicerade notis, vilket är välj-en-gång-egenskapen. Men fram till lanseringen får **varje dygns kohort sin egen
+      enmånadsfrist**. En två månaders försening är alltså inte samma exponering som en två dagars.
+
+      ⚠ **Populationen, mätt count-only 2026-09-06 och därmed rättad — distinkta tal
+      skiftlägesnormaliserade:** 47 918 kontaktposter ·
+      **17 983 distinkta e-postadresser · 15 324 distinkta namn · 15 932 distinkta telefonnummer**.
+      Talet `532` nedan är daterat till 2026-08-17 och mäter ett annat och mycket mindre tillfälle.
+      Regenerera talen ovan (heltal, skriver aldrig ut ett värde):
+
+      ```bash
+      sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
+      WITH e AS (SELECT c FROM job_ads a CROSS JOIN LATERAL jsonb_array_elements(a.contacts) AS c)
+      SELECT count(*)                             AS entries,
+             count(DISTINCT lower(c->>'Email'))   AS distinct_emails,
+             count(DISTINCT lower(c->>'Name'))    AS distinct_names,
+             count(DISTINCT c->>'Phone')          AS distinct_phones FROM e;"
+      ```
+
       ⛔ **ART. 14(3)(a)-KLOCKAN GÅR SEDAN 2026-08-17, OCH FRISTEN ÄR `2026-09-17`**
       (`security-auditor` 2026-08-17, M1). Recordet ovan säger uttömmande vad som **ligger** på lådan
       och ingenting om vad som är **skyldigt** — det är den lucka den här raden stänger. Tre led,
@@ -2101,9 +2202,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
       `NullEmailSender`, och e-postflippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
-      **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
-      ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
-      förutsättningarna ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
+      **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment och ADR 0142 del 5a
+      kan flippen inte ske utan en riktig `Email:Provider`, och den förutsättningen ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
       **blockerande acceptanskriterier på #734**. Kan flippen inte ske utan #734, och kan #734 inte
       stängas utan (a) och (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är
       grinden. *(Raden namngav till 2026-08-09 även **#196** som medägare "där env-konfigurationen
@@ -2119,10 +2219,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
       åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth bärs av ingen annan
       mekanism.
-      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två kombinationer utanför
-      Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och (sedan
-      2026-08-09) `RegistrationsOpen` MED `RequireEmailConfirmation` när den registrerade
-      avsändaren inte kan leverera. Allt som följer i den här noten gäller **båda** reglerna:
+      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på ett villkor utanför
+      Development/Test — en registrerad avsändare som inte kan leverera (sedan #1735 oavsett grinden,
+      eftersom inloggningen själv är en kod per e-post). Regeln om grinden utan e-postbekräftelse
+      föll med flaggan i ADR 0142 del 5a. Allt som följer i den här noten gäller regeln:
       garantin bärs av **den ivriga
       `IOptions<AuthOptions>`-läsningen** vid boot-announcement i `Program.cs`: den ligger
       bevisligen före `app.Run()` och därmed före att Kestrel binder socketen. `ValidateOnStart`
@@ -2132,27 +2232,18 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       fortsätter köra; en operatör som ser jobb-loggar rulla vidare ska inte läsa det som att
       spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
-      - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
-        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
-        medan `NullEmailSender` är den levande defaulten.
+      - **(a) `settings.json` påstår ett utskick som inte sker.** Fram till #1740 sade fyra
+        publicerade strängar (`:218`, `:220`, `:224`, `:229`) att en bekräftelselänk skickas eller
+        har skickats, medan `NullEmailSender` var den levande defaulten när villkoret skrevs.
         **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
-        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
-        presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
-        `skickar|skickat|skicka\b|sänder|sent|send|sending`, skiftlägesokänsligt, över alla
-        strängvärden under `account.changeEmail` i `messages/{sv,en}/settings.json` — ger **sex**
-        träffar per språk, men de två extra är `submit` ("Skicka bekräftelselänk",
-        imperativ som namnger den handling användaren begär) och `pending` ("Skickar…", som beskriver
-        en pågående request). **Ingen av de två falsifieras av ett svalt utskick**, och båda förblir
-        sanna under förhandsavslaget. Verbstammen är alltså en proxy för kriteriet och överskattar
-        det: skillnaden ligger i talakten, inte i ordet. *(Mätt 2026-08-09 under #1087; issuens egen
-        tabell placerade dessutom `success` på `:226`, vilket är `submit` — den här raden har haft
-        rätt uppsättning sedan tidigare.)* **Villkoret, triggern och upphörandet
+        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — av de fyra
+        utlovade tre den i presens, och en påstod den fullbordad. **Villkoret, triggern och upphörandet
         står oförändrade; bara mekanismmeningen är omskriven, för att den blev falsk 2026-08-09
         (#1087, PR i samma ändring som denna rad).**
         Vad #1087 ändrade: `ChangeEmailCommandHandler` skickar inte längre ogrindat — porten bär
         `IEmailSender.CanDeliver`, handlern vägrar i förväg med **503**
         (`Auth.EmailDeliveryUnavailable`), ingen token mintas, och nedkylningsfönstret konsumeras
-        inte. `:229` (`success`) är därmed **onåbar** när leverans är omöjlig. **Ingen
+        inte. `:229` (`success`) var därmed **onåbar** när leverans var omöjlig. **Ingen
         `User.EmailChangeRequested`-rad skrivs — men läs varför rätt:** den gamla raden var **sann**
         (en begäran gjordes); det falska var 202:an och flödet den antydde. Raden försvinner för att
         flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
@@ -2161,25 +2252,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Användarytan är STÄNGD sedan 2026-08-10 (B-ii).** Tillståndet som stängdes: en 503 föll
         igenom till det generiska `changeEmailFailed`, så användaren fick ingen förklaring, inte
         veta att adressen var oförändrad, och submit-knappen levde kvar för ett omförsök som inte
-        kan lyckas. `changeEmailAction` bär nu en 503-arm som returnerar ett `refused`-resultat, och
-        kortet ersätter sig självt med en `role="status"`-panel utan trigger — affordansen tas bort,
-        inte bara texten. Armen diskriminerar på ProblemDetails-**titeln**, aldrig på statusen
+        kan lyckas. B-ii gav `changeEmailAction` en 503-arm som returnerade ett `refused`-resultat,
+        och kortet ersatte sig självt med en `role="status"`-panel utan trigger — affordansen togs
+        bort, inte bara texten. Armen diskriminerade på ProblemDetails-**titeln**, aldrig på statusen
         ensam (grinden är konjunktiv: status 503 OCH exakt titel):
         rutten har minst två andra 503-producenter (`SessionStoreUnavailableException` via Redis,
         vars body saknar `title`-nyckeln, samt en omvänd proxy, vars body inte är JSON alls) — en
         statusbaserad arm skriver
-        "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**. **Båda
-        kontrafaktumen är pinnade** (`me.change-email.test.ts`: Redis-bodyn `Program.cs` faktiskt
-        skriver, främmande titel, icke-JSON-proxy, samt en 409 som bär vår egen titel och inte får
-        fyra). Ingen användare kunde nå tillståndet före flippen, vilket är varför det var ett
+        "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**.
+        Ingen användare kunde nå tillståndet före flippen, vilket är varför det var ett
         grindvillkor och inte en defekt i drift.
-        **Löftestexten renderas inte i det vägrade läget** — strängarna `:218`/`:220`/`:224` är
-        **orörda** i `settings.json`, så villkor (a) är oförändrat; det är villkorad rendering i ett
-        läge, inte en uppmjukning av copy (Klas-beslut 2026-08-10). Den nya nyckeln ligger under
-        `account.errors`, utanför verbstams-greppets skop, så **sexsiffran nedan är oförändrad**.
-        **Vad #1087 INTE ändrade, och därför upphör villkoret inte:** `:218`, `:220` och `:224`
-        publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
-        inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
+        **Löftestexten renderades inte i det vägrade läget** — B-ii lämnade strängarna
+        `:218`/`:220`/`:224` **orörda** i `settings.json`, så villkor (a) var oförändrat; det var
+        villkorad rendering i ett läge, inte en uppmjukning av copy (Klas-beslut 2026-08-10).
+        **Vad #1087 INTE ändrade, och därför upphörde villkoret inte:** `:218`, `:220` och `:224`
+        publicerades före handlingen och utlovade ett utskick som defaultkonfigurationen inte kunde
+        göra, fram till #1740. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
         stycket ovan redan namnger — aldrig vid att #1087 mergats.
         **Registerkedjan hör till samma trigger, och den tekniska halvan är STÄNGD sedan
         2026-08-09** ([PR #1282](https://github.com/klasolsson81/jobbliggaren/pull/1282), D1).
@@ -2189,15 +2277,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         `EmailConfirmed`, och återsändningen var lika tyst: **kontot skapades och blev permanent
         onåbart.** Det är strikt värre än (a):s ursprungliga fall — ett misslyckat adressbyte
         lämnar användaren där hon var.
-        Åtgärden landade som föreskriven: `AuthOptionsValidator` bär numera **två** vägransregler,
-        och den andra frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
+        Åtgärden landade som föreskriven: `AuthOptionsValidator` fick en andra vägransregel (sedan
+        ADR 0142 del 5a den enda), som frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
         att läsa om `Email:Provider`. Asymmetrin är löst som punkten krävde — regeln bor i
         validatorn, som binds i Api:ns identitetsmodul, och **inte** i `AddEmailSender`, den enda
-        sömmen båda hostarna delar; Worker:n binder samma `Auth`-sektion med ett rent `Configure`
-        och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
+        sömmen båda hostarna delar; Worker:n registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
         paritets-editen åt endera hållet landar rött.
         ⚠ **Detta stänger INTE punkt 5.5, och inte heller B-ii gör det.** Villkor (a) upphör
-        alltjämt först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerar fortfarande
+        först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerade då fortfarande
         ett utlovat utskick som defaultkonfigurationen inte kan göra — B-ii döljer dem i **ett**
         vägrat läge, den ändrar ingen sträng och når inte den publicerade copyn i normalläget),
         (b) är orörd, och **`Test`-divergensen står kvar**: den tekniska spärren undantar
@@ -2207,8 +2294,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
-        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
-        GDPR-grind), båda öppna och `mvp`. *(Raden namngav tidigare **#1087**, som stängs med
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **§2.5 punkt 1** (e-post-prod-flippens
+        GDPR-grind; #183 stängd 2026-09-06). *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
         #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
@@ -2218,7 +2305,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Det är plikten som står här, aldrig registrets tillstånd** — ett trackat påstående om en
         gitignorerad fils innehåll kan varken CI, en PR-granskare eller en parallell session
         verifiera. Triggern fyrade **2026-08-16**, inte i framtiden: villkoret var alltså öppet
-        under det fönstret. Villkor (a) står kvar — 5.5 är inte urladdad.
+        under det fönstret.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
@@ -2296,8 +2383,16 @@ samma stycken men medvetet inte flippade dem).
 borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
-operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
-e-postadress. Ingen av dem får finnas när riktiga användare gör det.
+operation, och `accounts` (ADR 0142 del 5a) är en **oautentiserad** seam som öppnar ett konto
+för en reserverad adress. `login-code` (#1735) lämnar ut inloggningskoden till en reserverad adress
+utan brevlåda. Ingen av dem får finnas när riktiga användare gör det.
+
+⛔ **KLAS-BESLUT 2026-09-06, och det gäller `reset-my-data` ensamt:** *"Ja den får vara kvar.
+Jag kommer säga till när CC ska ta bort den."* Rivningen nedan körs på Klas ord, inte på
+händelsen. Residualen under beslutet, mätt i koden av `security-auditor` 2026-09-06: en
+autentiserad, ägarskopad, irreversibel radering av användarens eget CV-/sök-/matchningsdata
+utan bekräftelsesteg, nåbar för en riktig användare. `accounts` och `login-code` omfattas inte — de
+är Development-grindade i två oberoende lager och onåbara på lådan. Härledning: ADR 0138 (lokal).
 
 **Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
 overksamt inom en omstart; en halvriven kodbas är inte.
@@ -2311,9 +2406,14 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - de två map-grindarna och boot-annonseringen i `src/Jobbliggaren.Api/Program.cs`
    - `src/Jobbliggaren.Api/Observability/DevToolsLog.cs`
    - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Configuration/DevToolsOptions.cs`,
-     `Commands/ResetMyData/`, `Commands/ConfirmEmail/`, `Abstractions/`)
+     `Commands/ResetMyData/`, `Commands/SeedAccount/`, `Commands/TakeLoginCode/`,
+     `Abstractions/`)
+   - `src/Jobbliggaren.Infrastructure/Auth/DevSeedableAddressPolicy.cs` och
+     `src/Jobbliggaren.Infrastructure/Auth/DevLoginCodeCapture.cs`; att katalogen ovan rivs
+     bryter bygget i båda, så de kan inte bli kvar
    - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
-     och `AddDevOnlyTestingSupport` i samma fil
+     och `AddDevOnlyTestingSupport` + `AddDevLoginCodeCapture` i samma fil, och anropet av
+     `AddDevLoginCodeCapture` i `tests/Jobbliggaren.Api.IntegrationTests/Infrastructure/ApiFactory.cs`
    - `"DevTools"`-sektionen i `src/Jobbliggaren.Api/appsettings.Development.json`
    - `deploy/docker-compose.yml` (`DevTools__EnableResetMyData` på `api`,
      `DEV_TOOLS_RESET_ENABLED` på `web`), `deploy/.env.example`-blocket, och
@@ -2324,20 +2424,26 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
    - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
      `web/jobbliggaren-web/src/lib/env.test.ts`,
-     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`
-   - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevAccountSeedEndpointTests.cs`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevLoginCodeEndpointTests.cs`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Configuration/DevLoginCodeCaptureCompositionTests.cs`,
+     `tests/Jobbliggaren.Application.UnitTests/Auth/DevLoginCodeCaptureTests.cs`
+   - `tests/Jobbliggaren.Api.IntegrationTests/Email/EmailSenderRecordingTests.cs` asserterar på
+     `DevLoginCodeCapturingEmailSender` — återställ den till `RecordingEmailSender` i samma PR
+   - **Playwright-sviten kallar `accounts` och `login-code`** — den måste få en annan inloggningsväg
      i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
      strykning, och det är därför avstängningen i steg 1 kommer först.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
-   `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
+   `ProductionStartupSmokeTests` mäter att rutterna är omappade; de är meningslösa
    först när det inte finns någon rutt att mappa.
 4. **Verifiera efteråt:** `grep -rnE --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=bin
-   --exclude-dir=obj "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
+   --exclude-dir=obj "api/v1/dev|DevTools|DEV_TOOLS|(class|interface|record) I?Dev[A-Z]" src web tests deploy`
    → noll träffar utanför den här filen. **Den vidare formen är avsiktlig:** token
    `api/v1/dev` finns varken i `DevToolsLog.cs`, `env.ts`,
    `"DevTools"`-sektionen, compose-sloten, `.env.example`-raden eller
    `DeployComposeDevToolsGateTests` — en grind som mäter en annan mängd än steg 2
-   river är sämre än ingen grind.
+   river är sämre än ingen grind. Det sista alternativet fångar dev-sömmens typer, som alla
+   heter `Dev*`/`IDev*` (senior-cto-advisor Q4, 2026-09-19).
    ⚠ **Uteslutningarna är inte kosmetik — utan dem kan kriteriet aldrig uppnås.** Mätt
    2026-08-27 på ett byggt träd: **90 filer med bara `node_modules`/`.next` uteslutna, 22
    när `bin`/`obj` också utesluts.** Resten är kompilerade `.dll`/`.pdb`, `.next`-chunks
@@ -2366,6 +2472,11 @@ git tag v<X.Y.Z> <HEAD> && git push origin v<X.Y.Z>             # → prod (manu
 
 CC får **inte** push:a en prod-tag (ren `v*`) utan explicit Klas-GO i
 sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
+
+**Utrullningsordning för policyversionen (ADR 0142 D6, #1736):** `TermsAcceptance.CurrentPrivacyPolicyVersion`
+i API-imagen och `privacy.updated` i web-imagen är samma datum — pinnat i ett träd, inte vid deploy.
+Webben ska ut **senast samtidigt** som API:t: API först stämplar en policyversion som ingen levande sida
+bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullning gäller web först.
 
 ---
 

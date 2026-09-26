@@ -8,7 +8,11 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CriterionTree, CheckBox } from "./criterion-tree";
+import { OccupationDivisionBlock } from "./occupation-division-block";
+import { cn } from "@/lib/utils";
 import { groupTriState } from "@/lib/company-criteria/criterion-selection";
+import type { OccupationDivisionsResolver } from "@/lib/company-criteria/resolve-occupation-divisions";
+import { useOccupationDivisions } from "@/lib/hooks/use-occupation-divisions";
 import type {
   CriterionOption,
   CriterionTreeNode,
@@ -26,10 +30,57 @@ import type {
  *
  * 300 sits in a measured gap: it excludes every non-selective query (`er` 665, `in` 649, `ni` 516,
  * `an` 405, `ve` 397) and admits every query that has actually narrowed something (`st` 275,
- * `ha` 181, `tr` 167, `verksamhet` 152, `dat` 22, `sys` 2). Above roughly a third of the catalogue the
+ * `ha` 181, `tr` 167, `verksamhet` 162, `dat` 25, `sys` 4). Above roughly a third of the catalogue the
  * filter has selected nothing, and the tree is the better rendering of "most of the catalogue".
+ *
+ * Counts of 3+ characters now span two match surfaces (name and alias, #1115) and were re-measured
+ * on 2026-09-05; the 1-2 character counts are name-only and unchanged, since aliases do not answer
+ * below ALIAS_MIN_QUERY.
  */
 const MAX_FILTER_MATCHES = 300;
+
+/**
+ * Aliases (#1115) answer queries of this length and up; names still match at ONE character.
+ *
+ * **This is not a MIN_QUERY revival.** The constant above rejects length as a proxy for cardinality,
+ * and rightly: `MIN_QUERY = 2` suppressed the whole filter — exact name matches included — on a
+ * cardinality guess. Nothing here gates the filter. `c` still returns 507 rows and every 1-2
+ * character count in the docblock above is unchanged.
+ *
+ * It bounds ONE match surface to its own domain: an alias resolves a WORD, and a 1-2 character
+ * fragment is not one. Measured, that costs zero coverage — every term on the demand list is 4+
+ * characters, and all 17 probed gap words resolve with the bound as without it. Without it `st`
+ * went 275 → 318 and crossed the ceiling above, which is the regression this prevents.
+ *
+ * MAX_FILTER_MATCHES remains the only cardinality guard.
+ */
+const ALIAS_MIN_QUERY = 3;
+
+/**
+ * The part of an alias worth showing: the comma- or parenthesis-delimited segment that contains the
+ * query.
+ *
+ * SCB writes its entries as whole classified sentences — "Datakonsultverksamhet, (IT-konsult,
+ * ITkonsult, ADB-konsult), systemdesign" — and the everyday synonym the user actually typed is
+ * usually one clause inside, often inside the parentheses. Rendering the whole term and clipping it
+ * showed the OPENING of the sentence, which is the one part that never had to contain the query:
+ * measured over the shipped asset, 279 of 335 terms overflowed and `it-konsult` produced 8 rows of
+ * which 0 displayed the typed word, one of them tautologically reading
+ * "Datakonsultverksamhet · matchar Datakonsultverksamhet, (…".
+ *
+ * The segment contains the query BY CONSTRUCTION, so the row can always answer "why am I here".
+ * Measured: 750 of 1 017 segments are 27 characters or fewer, median 15 ("IT-konsult" 10,
+ * "undersköterska" 14, "Agil systemutveckling" 21). Truncation stays as the last resort for the rest.
+ *
+ * The stored term is untouched — this is a rendering choice, and the asset keeps SCB's wording whole.
+ */
+function matchedSegment(term: string, query: string): string {
+  const segments = term
+    .split(/[,()]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return segments.find((s) => s.toLocaleLowerCase("sv-SE").includes(query)) ?? term;
+}
 
 interface CriterionPickerProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;
@@ -52,8 +103,6 @@ interface CriterionPickerProps {
   readonly help?: string;
   readonly selectedCountLabel?: string;
   readonly filterLabel: string;
-  /** Omitted where the field's own label already says it (the popover). */
-  readonly filterHint?: string;
   readonly groupAria: string;
   /**
    * AXIS copy, supplied by the host like `heading`/`help`/`groupAria` — not
@@ -69,6 +118,12 @@ interface CriterionPickerProps {
   readonly collapseAria: (name: string) => string;
   /** Axis-specific message when the reference tree is empty (degraded load). */
   readonly optionsUnavailable: string;
+  /**
+   * #1682 — answers an OCCUPATION word with the occupation groups it denotes and where their
+   * employers are by huvudgrupp, counted from our own ads. Data, not a mode flag: the SNI axis passes
+   * its resolver, the kommun axis passes nothing and renders exactly as before.
+   */
+  readonly resolveOccupations?: OccupationDivisionsResolver;
 }
 
 export function CriterionPicker({
@@ -81,11 +136,11 @@ export function CriterionPicker({
   help,
   selectedCountLabel,
   filterLabel,
-  filterHint,
   groupAria,
   expandAria,
   collapseAria,
   optionsUnavailable,
+  resolveOccupations,
 }: CriterionPickerProps) {
   // The component's OWN strings, not the page's. Three surfaces render this
   // picker (`/foretag/sok`'s bransch popover and both pickers in the criterion
@@ -94,20 +149,41 @@ export function CriterionPicker({
   // inherits copy written for `/foretag`, or duplicates it.
   const t = useTranslations("components.criterionPicker");
   const filterId = useId();
-  const filterHelpId = useId();
   const [filter, setFilter] = useState("");
 
   const trimmed = filter.trim().toLocaleLowerCase("sv-SE");
   const isFiltering = trimmed.length > 0;
 
+  // #1682 — the occupation block's data for the current word, debounced and abortable; inert
+  // without a resolver. A word that resolves to SEVERAL occupation groups is a choice the user makes
+  // (never a pick made for her); the block owns that choice and is mounted under `key={trimmed}`
+  // below, so a new word is a new block with no choice — no effect has to reset anything.
+  const occupationData = useOccupationDivisions(trimmed, resolveOccupations);
+  const occupationAnswers = occupationData !== null && occupationData.occupations.length > 0;
+
   // Matches at EVERY level (#999): a section, a division and a leaf can all carry the searched word,
   // and the control this replaced searched all three. Leaf-only matching is why "hard to find" survived
   // the last two rounds — you had to already know the detail code's exact wording.
+  //
+  // A row matches on its NAME, or (#1115) on one of its ALIASES — the everyday words SNI, which
+  // classifies activities, has no word for. `matchedAlias` is undefined when the name matched, and
+  // that is what the row renders on: a row is annotated only when it appeared for a reason its own
+  // visible text does not already show.
   const filteredOptions = useMemo(() => {
     if (!isFiltering) return [];
-    return options.filter((option) =>
-      option.name.toLocaleLowerCase("sv-SE").includes(trimmed),
-    );
+    const out: Array<{ option: CriterionOption; matchedAlias?: string }> = [];
+    for (const option of options) {
+      if (option.name.toLocaleLowerCase("sv-SE").includes(trimmed)) {
+        out.push({ option });
+        continue;
+      }
+      if (trimmed.length < ALIAS_MIN_QUERY) continue;
+      const hit = option.aliases.find((alias) =>
+        alias.toLocaleLowerCase("sv-SE").includes(trimmed),
+      );
+      if (hit) out.push({ option, matchedAlias: matchedSegment(hit, trimmed) });
+    }
+    return out;
   }, [options, trimmed, isFiltering]);
 
   const tooMany = filteredOptions.length > MAX_FILTER_MATCHES;
@@ -141,13 +217,7 @@ export function CriterionPicker({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           maxLength={80}
-          aria-describedby={filterHint !== undefined ? filterHelpId : undefined}
         />
-        {filterHint !== undefined && (
-          <p id={filterHelpId} className="text-body-sm text-text-primary">
-            {filterHint}
-          </p>
-        )}
       </div>
 
       {/* ONE persistent live region carries every filtering outcome, including zero matches.
@@ -166,7 +236,14 @@ export function CriterionPicker({
 
           Gated on there being a catalogue: with a degraded reference the box below says "Registret
           kunde inte laddas", and announcing "0 träffar" over it would claim a search ran against a
-          catalogue that is not there. */}
+          catalogue that is not there.
+
+          #1682: when the occupation block answers, the message says so. "Inga träffar. Rensa
+          sökfältet" over a block that answers tells a screen-reader user to do the one thing that
+          removes the answer, and a sighted first-time user reads a denial two lines above a full
+          answer (design-reviewer Blocker 1, PR 2). Same region, same one-message rule: the text
+          changes twice — the filter's outcome at once, the block's 400 ms later — and both are
+          mutations of a region already in the DOM. */}
       <p
         className="min-h-6 text-body-sm tabular-nums text-text-primary"
         role="status"
@@ -174,10 +251,14 @@ export function CriterionPicker({
       >
         {isFiltering && nodes.length > 0
           ? filteredOptions.length === 0
-            ? t("noMatch")
+            ? occupationAnswers
+              ? t("noMatchOccupation", { word: filter.trim() })
+              : t("noMatch")
             : tooMany
               ? t("filterTooMany", { count: filteredOptions.length })
-              : t("filterMatches", { count: filteredOptions.length })
+              : occupationAnswers
+                ? t("filterMatchesOccupation", { count: filteredOptions.length, word: filter.trim() })
+                : t("filterMatches", { count: filteredOptions.length })
           : ""}
       </p>
 
@@ -198,6 +279,20 @@ export function CriterionPicker({
         </p>
       )}
 
+      {/* #1682 — the occupation block, OUTSIDE the box below and its zero-hits gate: `systemutvecklare`
+          matches no SNI name and used to end in "Inga träffar" with no box at all, and this is the
+          answer that survives that. Ticking a huvudgrupp here calls the same `onToggle(leafCodes)`
+          the rows do. */}
+      {isFiltering && occupationAnswers && occupationData !== null && (
+        <OccupationDivisionBlock
+          key={trimmed}
+          data={occupationData}
+          options={options}
+          selected={selected}
+          onToggle={onToggle}
+        />
+      )}
+
       {/* The list cap is viewport-relative so the panel it sits in stays a SINGLE scroller. Measured at
           1280×720: a flat `max-h-72` made the panel taller than `.jp-panel__body`'s 60vh cap, so both
           engaged and scrolling the list chained into scrolling the panel. At 900px height only one
@@ -213,7 +308,7 @@ export function CriterionPicker({
           ) : showFilterList ? (
             // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
             // nested groups with the same label make AT announce the axis name three times over.
-            filteredOptions.map((option) => {
+            filteredOptions.map(({ option, matchedAlias }) => {
               // Tri-state, not a boolean: a matched division is "mixed" when only some of its leaves
               // are selected, and rendering that as unchecked would let a click silently deselect the
               // part already chosen. `groupTriState` is the same derivation the tree rows use.
@@ -224,16 +319,25 @@ export function CriterionPicker({
                   role="checkbox"
                   aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
                   // Name from author, so the row announces the same string in every environment. Letting
-                  // the name be computed from the two child spans depends on whose separator rule you
+                  // the name be computed from the child spans depends on whose separator rule you
                   // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
-                  // whether or not the JSX contains one, while jsdom concatenates without it and reports
-                  // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
+                  // whether or not the JSX contains one, while jsdom concatenates the spans without
+                  // it. An explicit `{" "}` would therefore be a text node that
                   // exists only to satisfy the test environment — and a whitespace-only node directly in
-                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
-                  // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
-                  // mind: the name no longer tracks the JSX, so anything visible added to this row has
-                  // to be added here too, or the label stops containing the visible text.
-                  aria-label={`${option.code} ${option.name}`}
+                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The name is a SUPERSET
+                  // of the visible text, not equal to it: the code leads the name while the row shows it
+                  // last and only on hover, focus or selection (#1682, below). WCAG 2.5.3 asks that the
+                  // name CONTAIN the visible text, which a superset satisfies — the direction that
+                  // breaks it is adding visible text without adding it here, so anything visible added
+                  // to this row has to be added here too. The alias (#1115) is exactly such an
+                  // addition, so it is appended here when it is rendered. The comma is for prosody:
+                  // without it a screen reader runs the name and the annotation together into one
+                  // sentence. The segment, not the whole term, keeps the label scannable by ear.
+                  aria-label={
+                    matchedAlias
+                      ? `${option.code} ${option.name}, ${t("matchedVia", { term: matchedAlias })}`
+                      : `${option.code} ${option.name}`
+                  }
                   tabIndex={0}
                   onClick={() => onToggle(option.leafCodes)}
                   onKeyDown={(e) => {
@@ -245,17 +349,84 @@ export function CriterionPicker({
                   // Indentation is a SECONDARY cue only. In a filtered list the ancestors are not
                   // rendered, so equal indent on two rows can suggest a sibling relationship that does
                   // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
-                  // carries the level in text: its length says which level it is (`A` / `62` / `62010`),
-                  // it lands in the row's accessible name, and two codes side by side settle whether the
-                  // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
+                  // carries the level in text: its length says which level it is (`A` / `62` / `62100`),
+                  // and it leads the row's accessible name because `role="checkbox"` admits no
+                  // `aria-level` — the name is the only carrier a screen reader gets, which is why the
+                  // code stays in it after #1682 stopped showing it at rest. SNI 2025 has
+                  // "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                  className="jp-criterionrow flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
+                  // `jp-criterionrow--filtered` scopes the hover surface to THIS row kind: the tree rows
+                  // share `jp-criterionrow` for the touch-target floor but carry no code to reveal.
+                  className="group jp-criterionrow jp-criterionrow--filtered flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
                 >
                   <CheckBox state={state} />
-                  <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
+                  {/* `min-w-0` so the flex row may shrink it, but NOT `truncate`: the name is the
+                      primary content, and an unclipped name is already this component's own form — the tree
+                      view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
+                      7 of 25 names and `partihandel` 4 of 56, on rows carrying no annotation at
+                      all, which is a regression on a surface this delta only passes through. */}
+                  {/* Below `sm` the row wraps, and a flex item wraps BEFORE it shrinks: with its natural
+                      basis a long name dropped to a second line and left the checkbox alone on the first
+                      once the code no longer filled that line (measured at 400, #1682 round 1). `flex-1`
+                      gives it a zero basis, so it joins the checkbox's line and breaks internally. */}
+                  <span className="min-w-0 break-words max-sm:flex-1">{option.name}</span>
+                  {/* Why this row is here at all. Without it a row appears containing none of the
+                      typed characters — a result with no visible reason, which AGENTS.md §5 rules
+                      out for match surfaces ("matched/missing keywords are always surfaced"). It
+                      also keeps the alias honest: the SNI concept stays the row, and the alias is
+                      shown as the search word that led to it, never as a claim about the concept.
+
+                      It renders the matched SEGMENT (see matchedSegment above), so it contains the
+                      typed word by construction. Truncation is the last resort for the segments
+                      that are still long: 113 of the 335 shipped terms exceed 90 characters and the
+                      longest is 240, so some clipping is unavoidable — but it now clips a clause
+                      that already showed the answer, not the opening of a sentence that never did.
+
+                      Two arms, both measured. From `sm` up it sits at the end of the row and does
+                      NOT shrink: letting it give way clipped 9 of 10 rows on `undersköterska` at
+                      1280, and holding it firm makes the name wrap instead — 0 clipped, 0 overflow.
+                      Below `sm` there is no width to share, so it wraps onto its OWN line rather
+                      than being squeezed: keeping it inline at 390 left `träff …` visible and
+                      nothing else, which is the same "row with no visible reason" the annotation
+                      exists to prevent, and forcing it inline with `shrink-0` blew rows to 255 px.
+
+                      `break-words` on the name is what makes the narrow arm safe: without it the
+                      longest word painted 24-30 px INTO this box at 390, which the old `truncate`
+                      had been hiding rather than preventing. */}
+                  {matchedAlias && (
+                    // `max-sm:order-last`: below `sm` this is a full-width line of its own, and the code
+                    // below it must not follow it onto a THIRD line — an unchecked row would then reserve
+                    // an empty line for a code nothing reveals on touch. Ordering the alias last on the
+                    // narrow arm keeps the code on the checkbox's line; the DOM order stays name, alias,
+                    // code, which is what `sm` and up render.
+                    <span className="w-full min-w-0 truncate text-caption text-text-secondary max-sm:order-last sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
+                      {t("matchedVia", { term: matchedAlias })}
+                    </span>
+                  )}
+                  {/* Last, and hidden at rest (#1682 — Klas 2026-09-06: the number is clutter in the
+                      search). Revealed on hover, on keyboard focus and while the row is checked or
+                      mixed, so a user who knows the code can verify a pick without a pointer.
+                      `invisible`, not `hidden`: the slot keeps its width, so revealing the code moves
+                      nothing. Two arms, both measured: from `sm` up the row is one line and the code
+                      trails the alias when there is one (`sm:ps-2`, the same column break the alias
+                      keeps against the name) and takes the row's end otherwise; below `sm` it sits at
+                      the end of the checkbox's line, before the alias line (see `max-sm:order-last`). */}
+                  {/* `text-(length:--text-caption)`, not `text-caption`: tailwind-merge files both
+                      `text-caption` and `text-text-secondary` under text-colour and keeps only the last,
+                      so through `cn()` the caption size silently vanished and the code rendered at the
+                      name's 14 px (design-reviewer, round 1 re-check). The length form is what
+                      `ui/dialog.tsx` uses for the same reason. */}
+                  <span
+                    className={cn(
+                      "jp-mono shrink-0 text-(length:--text-caption) tabular-nums text-text-secondary",
+                      matchedAlias ? "ms-auto sm:ms-0 sm:ps-2" : "ms-auto",
+                      state === "unchecked"
+                        ? "invisible group-hover:visible group-focus-visible:visible"
+                        : "visible",
+                    )}
+                  >
                     {option.code}
                   </span>
-                  <span>{option.name}</span>
                 </div>
               );
             })

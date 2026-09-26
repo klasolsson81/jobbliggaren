@@ -18,7 +18,6 @@ export default async function NyAnsokningPage() {
     <div className="jp-container jp-page flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="jp-h1">{t("ansokningar.new.title")}</h1>
-        <p className="jp-lede">{t("ansokningar.new.lede")}</p>
       </header>
 
       <NewApplicationForm />

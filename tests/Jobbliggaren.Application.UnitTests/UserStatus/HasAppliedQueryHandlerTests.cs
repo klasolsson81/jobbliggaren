@@ -23,7 +23,7 @@ public class HasAppliedQueryHandlerTests
     private async Task<(JobSeeker seeker, JobAd jobAd)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(_userId, "Test", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
         var jobAd = JobAd.Create(
             "Test", Company.Create("Acme").Value, "Desc", "https://example.com",

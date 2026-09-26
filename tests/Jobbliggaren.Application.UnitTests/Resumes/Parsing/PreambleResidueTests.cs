@@ -1,3 +1,4 @@
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Shouldly;
@@ -985,6 +986,147 @@ public class PreambleResidueTests
         // cap" is satisfied by the empty string and by a single surviving line.
         preamble.Length.ShouldBeGreaterThan(PreambleResidue.MaxPreambleChars - line.Length - 1);
     }
+
+    [Theory]
+    [InlineData(1989, "811218-98765")]
+    // Fullwidth digits: the scan reads \p{Nd}, not ASCII digits only.
+    [InlineData(1989, "\uFF18\uFF11\uFF11\uFF12\uFF11\uFF18-\uFF19\uFF18\uFF17\uFF16\uFF15")]
+    public void Segment_HeadinglessParagraphHardCut_NeverMintsAPersonnummerTheWholeTextLacks(
+        int proseLength, string run)
+    {
+        // Premise: a DOCX paragraph with no line break and no text box in it is ONE extracted line, so a
+        // headingless CV whose first paragraph passes the cap reaches the hard cut. The cap falls
+        // inside a digit run the scan of the whole text rejects on its trailing-digit boundary. The
+        // carried prefix must not hold a personnummer the scan of the whole text did not: the
+        // promote-time guard reads the carrier, the import scan never did.
+        AssertTheHardCutMintsNothing(proseLength, run);
+    }
+
+    // The scan strips some characters before it reads, so they do not end a digit run. The oracle is
+    // the Domain normalizer itself, over every UTF-16 unit, never a list kept here: a character it
+    // starts stripping joins these rows, in three places, with nothing to update.
+    public static TheoryData<string, int> CharactersTheScanStrips()
+    {
+        var data = new TheoryData<string, int>();
+        for (var codePoint = 0; codePoint <= char.MaxValue; codePoint++)
+        {
+            var c = (char)codePoint;
+            if (char.IsSurrogate(c)
+                || PersonnummerTextNormalizer.Normalize(
+                    "1" + c + "1", PersonnummerGapProfile.ExtractedDocumentText) != "11")
+                continue;
+            data.Add("right after the cut", codePoint);
+            data.Add("right before the cut", codePoint);
+            data.Add("inside the run before the cut", codePoint);
+        }
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(CharactersTheScanStrips))]
+    public void Segment_HeadinglessParagraphHardCut_ReadsEveryCharacterTheScanStripsAsPartOfTheRun(
+        string place, int codePoint)
+    {
+        var c = ((char)codePoint).ToString();
+        var (proseLength, run) = place switch
+        {
+            "right after the cut" => (1989, "811218-9876" + c + "5"),
+            "right before the cut" => (1988, "811218-9876" + c + "5"),
+            _ => (1987, "811218-9876" + c + "54"),
+        };
+
+        AssertTheHardCutMintsNothing(proseLength, run);
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphHardCut_NeverLeavesALoneHighSurrogate()
+    {
+        // The cap falls between the two halves of an astral character (an emoji in a CV header).
+        var prose = Prose(1999);
+        var cv = prose + "\uD83D\uDE00 och fler rader utan rubrik.";
+
+        _sut.Segment(cv).Content.Preamble.ShouldBe(prose.TrimEnd());
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphHardCut_CarriesTheHeadWhenOnlyAFormatCharacterFollowsIt()
+    {
+        // A digit at the cap and nothing after it but a character the scan strips: there is no digit
+        // on the far side, so nothing is cut back, and nothing reads past the end of the text.
+        var prose = Prose(1999);
+        var cv = prose + "7\u200B";
+
+        _sut.Segment(cv).Content.Preamble.ShouldBe(prose + "7");
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphOfProsePastTheCap_CutsAtTheCap()
+    {
+        var cv = Prose(2100);
+
+        _sut.Segment(cv).Content.Preamble.ShouldBe(cv[..PreambleResidue.MaxPreambleChars].TrimEnd());
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphOfOnlyDigitsPastTheCap_CarriesAPrefixTheScanPasses()
+    {
+        // The digit run starts the text, so there is nowhere outside it to cut: the scan decides.
+        var cv = new string('1', PreambleResidue.MaxPreambleChars + 1);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotBeEmpty();
+        cv.ShouldStartWith(preamble);
+        ScanCount(preamble).ShouldBe(0);
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphOfTenDigitsDilutedPastTheCap_CarriesTheLongestPrefixTheScanPasses()
+    {
+        // Ten digits of a personnummer spread by characters the scan strips, the eleventh past the
+        // cap: the whole text is an eleven-digit run to the scan, while the head alone would be the
+        // personnummer. The run starts the text, so the scan decides what is carried.
+        var filler = new string('\u200B', 200);
+        var cv = string.Join(filler, "8112189876".Select(d => d.ToString()));
+        cv += new string('\u200B', PreambleResidue.MaxPreambleChars - cv.Length) + "5 och fler rader.";
+
+        ScanCount(cv).ShouldBe(0);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotBeEmpty();
+        cv.ShouldStartWith(preamble);
+        ScanCount(preamble).ShouldBe(0);
+        ScanCount(cv[..(preamble.Length + 1)]).ShouldBe(1);
+    }
+
+    private void AssertTheHardCutMintsNothing(int proseLength, string run)
+    {
+        var prose = Prose(proseLength);
+        var cv = prose + run + " och fler rader utan rubrik.";
+
+        ScanCount(cv).ShouldBe(0);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        cv.ShouldStartWith(preamble);
+        preamble.ShouldStartWith(prose);
+        ScanCount(preamble).ShouldBe(0);
+    }
+
+    // Prose with no line break and no digit, ending in a space, of exactly `length` characters.
+    private static string Prose(int length)
+    {
+        const string sentence = "Erfaren undersköterska med tio års erfarenhet av natt och trygg vård ";
+        return string.Concat(Enumerable.Repeat(sentence, 40))[..(length - 1)] + " ";
+    }
+
+    private static int ScanCount(string text) =>
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).Count;
 
     // ── Back-compat: the artifact is an encrypted JSON shadow (ADR 0095 D-D) ───────
 

@@ -31,7 +31,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 ///   1. The handler DECRYPTS the parse's Form-B content shadow under a warm owner DEK,
 ///      projects it, and persists a new Resume whose Master <c>content_enc</c> is ciphertext
 ///      (<c>v1:</c> sentinel, the profile PII marker absent on disk) that round-trips to the
-///      verbatim content — with the ACCOUNT display name, never the file's contact name; the
+///      verbatim content; the
 ///      source ParsedResume is <c>Promoted</c> + soft-deleted, and the distinct Art. 22
 ///      audit row (<c>Resume.AutoPromotedFromParsed</c>) is in the same database.
 ///   2. A LeftPending outcome persists NOTHING relationally: no resume row, the artifact
@@ -54,7 +54,6 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
     // the contact name the canonical CV must NEVER carry.
     private const string ProfileMarker = "PII-AUTOPROMOTE-PROFIL-5A-7731";
     private const string ParsedContactName = "Fil Namnsson";
-    private const string AccountDisplayName = "Anna Kontosson";
 
     // ── Seeding ──────────────────────────────────────────────────────────
 
@@ -62,8 +61,9 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
         var seeker = JobSeeker.Register(
-            userId, AccountDisplayName, new FixedClock(DateTimeOffset.UtcNow)).Value;
+            userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;
@@ -157,10 +157,10 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         return raw is null or DBNull ? null : raw.ToString();
     }
 
-    // ── 1. Clean parse → encrypted Resume, account name, Promoted artifact, distinct audit ─
+    // ── 1. Clean parse → encrypted Resume, Promoted artifact, distinct audit ─
 
     [Fact]
-    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_GeneratedLabelAccountNamed_AuditedDistinctly()
+    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_GeneratedLabelAndNoName_AuditedDistinctly()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -215,7 +215,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             auditEvent.ShouldBe(AutoPromoteParsedResumeCommand.AuditEventType);
         }
 
-        // Round-trip under a warm DEK: verbatim content, ACCOUNT-named — never the file's name.
+        // Round-trip under a warm DEK: verbatim content, and no person's name in it at all.
         using (var readScope = _fixture.Services.CreateScope())
         {
             await PrefetchOwnerDekAsync(readScope, owner, ct);
@@ -225,16 +225,12 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
                 .SingleAsync(r => r.Id == resumeId, ct);
 
             // #1060: the LABEL is GENERATED (non-PII by construction — never the file name,
-            // which ADR 0096 D-B refused for Resume, and never the account name), the PERSON
-            // name comes from the account (inside the DEK-encrypted shadow).
-            // Asserting both here is the point: they are different values in different
-            // protection classes, and this test is the one that reads them through the real
-            // encryption pipeline.
+            // which ADR 0096 D-B refused for Resume), and the content carries no person's name
+            // (ADR 0142 D7). This test reads both through the real encryption pipeline, so the
+            // absent name round-trips the encrypted shadow here.
             resume.Name.ShouldStartWith("Importerat CV ");
-            resume.Name.ShouldNotBe(AccountDisplayName);
             var content = resume.MasterVersion.Content;
-            content.PersonalInfo.FullName.ShouldBe(AccountDisplayName);
-            content.PersonalInfo.FullName.ShouldNotBe(ParsedContactName);
+            content.PersonalInfo.FullName.ShouldBeNull();
             content.Summary.ShouldBe(ProfileMarker);
             var exp = content.Experiences.ShouldHaveSingleItem();
             exp.Company.ShouldBe("Beta AB");

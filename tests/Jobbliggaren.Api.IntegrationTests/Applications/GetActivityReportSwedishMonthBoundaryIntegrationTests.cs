@@ -76,7 +76,7 @@ public class GetActivityReportSwedishMonthBoundaryIntegrationTests
 
     private async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, IDateTimeProvider clock)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         return seeker;

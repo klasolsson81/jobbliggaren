@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -9,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 
@@ -20,7 +20,7 @@ namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 /// (Testcontainers, ALDRIG EF-InMemory — paritet med
 /// TaxonomyReadModelIntegrationTests / SwedishStemmerPostgresParityTests; the
 /// seeder's idempotens-transaktion + advisory-lock kräver en relationell motor).
-/// Self-contained fixture (egen container) så snapshoten styrs deterministiskt.
+/// Self-contained fixture så snapshoten styrs deterministiskt.
 ///
 /// V2 (CTO Decision 1): match the free-text title against the ~2323 occupation-
 /// NAME labels, resolve the hit to its ssyk-4 group via the frozen map, return a
@@ -46,6 +46,7 @@ namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 ///
 /// RED until OccupationCodeDeriver + IOccupationCodeDeriver + the DTOs/enum ship.
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
 {
     // Frozen migration-owned reverse-lookup resource (ADR 0067 C2). F4-3 reads
@@ -56,29 +57,26 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
         "Jobbliggaren.Infrastructure.Persistence.Migrations.Resources." +
         "occupation-name-to-ssyk-level-4.v30.json";
 
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
     private IReadOnlyDictionary<string, string> _frozenMap = default!;
 
+    public OccupationCodeDeriverIntegrationTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await appDb.Database.MigrateAsync();
 
         await RunSeederAsync(CancellationToken.None);
         _frozenMap = await ReadFrozenMapAsync();
@@ -87,7 +85,7 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 
@@ -240,6 +238,31 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
         var result = await sut.DeriveAsync("sjuksköterskan", ct);
 
         result.Candidates.ShouldAllBe(c => groupIds.Contains(c.OccupationGroupConceptId));
+    }
+
+    // =================================================================
+    // (b2) #1682 — the two acceptance words of the bransch picker's occupation block.
+    // The issue's own measurement was ILIKE over labels; the picker resolves the typed word
+    // through THIS deriver, a different operator (exact, then Snowball-stemmed and spread-gated).
+    // The block cannot render for a word the deriver returns nothing for, so the two words the
+    // issue names as acceptance are pinned here against the live seeded snapshot, and the groups
+    // they resolve to are written to the test output so the session can read them.
+    // =================================================================
+
+    [Theory]
+    [InlineData("systemutvecklare")]
+    [InlineData("sjuksköterska")]
+    public async Task DeriveAsync_BranschPickerAcceptanceWord_ResolvesToAtLeastOneGroup(string word)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var result = await sut.DeriveAsync(word, ct);
+
+        result.Candidates.ShouldNotBeEmpty();
+        foreach (var c in result.Candidates)
+            TestContext.Current.TestOutputHelper?.WriteLine(
+                $"{word} -> {c.OccupationGroupConceptId} {c.OccupationGroupLabel} [{c.MatchKind}] on '{c.MatchedOn}'");
     }
 
     // =================================================================

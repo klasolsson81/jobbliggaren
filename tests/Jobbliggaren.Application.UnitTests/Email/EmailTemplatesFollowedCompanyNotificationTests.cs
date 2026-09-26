@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// ADR 0087 D5 (#311 PR-4) + bevakning F4a RF-13=13B (#803, BC-8) — locks the invariants of
 /// <see cref="EmailTemplates.FollowedCompanyNotification"/> (Infrastructure-internal, reachable via
 /// InternalsVisibleTo). The load-bearing invariants: the settings/unsubscribe link
-/// (<c>{baseUrl}/installningar</c>, GDPR Art. 7(3)) is ALWAYS present; the body carries ONLY public
+/// (<c>{baseUrl}/mina-sidor</c>, GDPR Art. 7(3)) is ALWAYS present; the body carries ONLY public
 /// ad fields (title + company) and NEVER an org.nr, a grade label, a score, or a recipient address
 /// (ADR 0087 D8 / CLAUDE.md §5); civic tone (no exclamation marks, no em-dash).
 ///
@@ -68,7 +68,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         var email = EmailTemplates.FollowedCompanyNotification(
             BaseUrl, Content(1, DigestCadence.Weekly, Item()));
 
-        email.PlainTextBody.ShouldContain($"{BaseUrl}/installningar");
+        email.PlainTextBody.ShouldContain($"{BaseUrl}/mina-sidor");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         var email = EmailTemplates.FollowedCompanyNotification(
             BaseUrl, Content(1, DigestCadence.Weekly, Item()));
 
-        email.PlainTextBody.ShouldContain("en ny annons");
+        email.PlainTextBody.ShouldContain("En ny annons sedan sist:");
     }
 
     [Fact]

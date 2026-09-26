@@ -37,7 +37,6 @@ namespace Jobbliggaren.Application.UnitTests.IdentityBootstrap;
 public class IdempotentAdminRoleSeederAuditEvidenceTests
 {
     private const string AdminEmail = "admin@jobbliggaren.test";
-    private const string AdminPassword = "P@ssword12345";
 
     [Fact]
     public async Task StartAsync_MatchingUserExists_EmitsLogAdminAssignedEventId2()
@@ -131,9 +130,8 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         {
             Email = email,
             UserName = email,
-            Provider = AuthProvider.Local,
         };
-        var result = await userManager.CreateAsync(user, AdminPassword);
+        var result = await userManager.CreateAsync(user);
         result.Succeeded.ShouldBeTrue(string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 

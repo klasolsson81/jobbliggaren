@@ -330,20 +330,17 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
     const described = describedText(
       screen.getByRole("checkbox", { name: ONLY_MATCHED })
     );
-    // Båda halvorna hörs: vad kontrollen gör, OCH varför den inte gäller än.
-    expect(described).toMatch(/matchar de yrken, orter och kompetenser/);
     expect(described).toMatch(/Filtret sparas och börjar gälla/);
   });
 
-  it("med matchningsprofil beskrivs kontrollen av hjälptexten, utan dinglande inert-skäl", () => {
+  it("med matchningsprofil bär kontrollen ingen aria-describedby, utan dinglande inert-skäl", () => {
     render(<Host />);
 
-    const described = describedText(
-      screen.getByRole("checkbox", { name: ONLY_MATCHED })
-    );
-    expect(described).toMatch(/matchar de yrken, orter och kompetenser/);
     // Inget inert-skäl att annonsera när filtret faktiskt gäller.
-    expect(described).not.toMatch(/Filtret sparas och börjar gälla/);
+    expect(screen.getByRole("checkbox", { name: ONLY_MATCHED })).not.toHaveAttribute(
+      "aria-describedby"
+    );
+    expect(screen.queryByText(/Filtret sparas och börjar gälla/)).toBeNull();
   });
 
   it("utan matchningsprofil visas en ärlig inert-nudge som pekar på matchnings-inställningarna", () => {
@@ -351,12 +348,12 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
 
     expect(
       screen.getByText(
-        "Du har inte angett vilka yrken du söker inom, så vi kan inte avgöra vilka annonser som matchar dig. Filtret sparas och börjar gälla när du ställt in matchningen."
+        "Du har inte angett vilka yrken du söker inom. Filtret sparas och börjar gälla när du ställt in matchningen."
       )
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ställ in matchning" })).toHaveAttribute(
       "href",
-      "/installningar#matchning"
+      "/mina-sidor#matchning"
     );
   });
 

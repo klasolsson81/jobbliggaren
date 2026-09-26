@@ -26,7 +26,7 @@ public class AuditLogIntegrationTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"audit-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"audit-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // Hämta UserId via /me för att korsverifiera audit_log.user_id senare

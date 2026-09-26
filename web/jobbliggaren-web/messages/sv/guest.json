@@ -2,12 +2,12 @@
   "banner": {
     "regionAriaLabel": "Demoläge",
     "label": "DEMO",
-    "text": "Du utforskar Jobbliggaren som gäst. Innehållet är exempeldata. Skapa ett konto för att spara annonser och följa upp egna ansökningar.",
+    "text": "Innehållet är exempeldata. Skapa ett konto för att spara annonser och följa upp egna ansökningar.",
     "cta": "Skapa konto"
   },
   "welcome": {
     "title": "Välkommen till demoläget",
-    "description": "Du utforskar Jobbliggaren utan att logga in. Allt innehåll är exempeldata, inga riktiga ansökningar eller CV.",
+    "description": "Allt innehåll är exempeldata.",
     "canDoHeading": "Det här kan du göra som gäst:",
     "canDoBrowse": "Bläddra i översikten över ansökningar och CV",
     "canDoPipeline": "Se hur pipeline-vyn fungerar",
@@ -25,8 +25,7 @@
     "navJobb": "Jobb",
     "navAnsokningar": "Mina ansökningar",
     "navCv": "CV",
-    "logIn": "Logga in",
-    "register": "Skapa konto"
+    "logIn": "Logga in"
   },
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"
@@ -39,7 +38,6 @@
   "oversikt": {
     "kicker": "Demoöversikt",
     "title": "Översikt",
-    "lede": "Så här ser det ut när du följer dina ansökningar. Allt här är exempeldata.",
     "noticeOfferLabel": "Erbjudande",
     "noticeOfferText": "<b>{company}</b>: {role}. Erbjudande väntar svar.",
     "noticeInterviewLabel": "Intervju",
@@ -58,7 +56,7 @@
   "ansokningar": {
     "kicker": "Demopipeline",
     "title": "Mina ansökningar",
-    "lede": "{total} exempelansökningar fördelade över alla statuslägen.",
+    "lede": "{total} exempelansökningar.",
     "groupAriaLabel": "{statusLabel} ({count})",
     "rowAriaLabel": "{role} – {company} – {statusLabel} – {source}, uppdaterad {updated}",
     "emptyStatus": "Inga ansökningar i den här statusen.",
@@ -77,7 +75,7 @@
   "cv": {
     "kicker": "Demo-CV",
     "title": "CV",
-    "lede": "Exempel på CV-varianter. När du har konto kan du ladda upp ditt eget CV och få det granskat.",
+    "lede": "När du har konto kan du ladda upp ditt eget CV och få det granskat.",
     "primaryTag": "Primär",
     "languageLabel": "Språk",
     "languageSwedish": "Svenska",
@@ -91,10 +89,9 @@
   },
   "jobb": {
     "heroTitle": "Sök jobb",
-    "heroLede": "Detta är exempelannonser. När du har konto kan du söka och spara riktiga annonser från Platsbanken.",
     "searchLabel": "Sök på ett eller flera ord",
     "searchButton": "Sök",
-    "searchHint": "Sökfunktionen är låst i demoläget. Logga in eller skapa ett konto för att söka i hela korpus.",
+    "searchHint": "Logga in eller skapa ett konto för att söka.",
     "listTitle": "Exempelannonser",
     "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Publicerad <b>{date}</b>",
@@ -116,7 +113,7 @@
     "source": "Källa",
     "lastUpdated": "Senast uppdaterad",
     "aboutHeading": "Om exempelansökningar",
-    "aboutBody": "Detta är en exempelansökan i demoläget. Logga in eller skapa ett konto för att skapa, redigera och följa upp egna ansökningar med statusbyten, anteckningar och uppföljningar.",
+    "aboutBody": "Logga in eller skapa ett konto för att skapa, redigera och följa upp egna ansökningar med statusbyten, anteckningar och uppföljningar.",
     "modalSubtitle": "{company} · demo"
   },
   "modal": {

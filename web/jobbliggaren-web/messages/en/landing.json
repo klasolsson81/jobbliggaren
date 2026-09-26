@@ -21,7 +21,7 @@
     "step1": "Find the job.",
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
-    "ledgerLede": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application, from draft to response. All in one place.",
+    "ledgerLede": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application. All in one place.",
     "source": "Built on open data from the Swedish Public Employment Service and Statistics Sweden"
   },
   "account": {
@@ -45,7 +45,7 @@
     },
     "applications": {
       "key": "Applications",
-      "body": "Track every application from draft to response: interviews, offers and rejections. Nothing falls through the cracks."
+      "body": "Track every application from draft to response: interviews, offers and rejections."
     },
     "cvReview": {
       "key": "CV review",
@@ -53,7 +53,7 @@
     },
     "companyWatch": {
       "key": "Company watch",
-      "body": "Follow employers you want to work for and see their new ads on your overview. A smart watch finds companies by industry and municipality to follow."
+      "body": "Follow employers you want to work for and see their new ads on your overview. An industry watch finds companies by industry and municipality to follow."
     },
     "reminders": {
       "key": "Reminders",
@@ -74,8 +74,7 @@
     "colAbout": "About Jobbliggaren",
     "colLegal": "Legal",
     "start": {
-      "register": "Create account",
-      "login": "Log in"
+      "auth": "Log in or create account"
     },
     "support": {
       "help": "Help centre",

@@ -2,18 +2,6 @@ using Jobbliggaren.Domain.Common;
 
 namespace Jobbliggaren.Application.Common.Abstractions;
 
-public sealed record UserCredentials(Guid UserId, IReadOnlyList<string> Roles);
-
-/// <summary>
-/// The material a confirmation-link RESEND needs (#733): the account's userId + address plus a freshly
-/// minted opaque Base64Url confirmation token. Produced by
-/// <see cref="IUserAccountService.TryPrepareEmailConfirmationResendAsync"/> ONLY when
-/// email-confirmation-first is enabled AND a still-unconfirmed account exists at the address; the token is
-/// minted and validated in the SAME Api process (one Data-Protection keyring) so the emailed link resolves
-/// at /verify-email.
-/// </summary>
-public sealed record EmailConfirmationResend(Guid UserId, string Email, string UrlSafeToken);
-
 /// <summary>
 /// The composite the <c>/me</c> session probe needs in ONE query intention (#828): the account's address
 /// plus its roles. <c>Email</c> is nullable and carries the TRUE absence of an address — a present account
@@ -24,36 +12,8 @@ public sealed record EmailConfirmationResend(Guid UserId, string Email, string U
 /// </summary>
 public sealed record AccountSummary(string? Email, IReadOnlyList<string> Roles);
 
-/// <summary>
-/// The material a password-reset link needs (#1171): the account's userId + address plus a freshly minted
-/// opaque Base64Url reset token. Produced by
-/// <see cref="IUserAccountService.TryPreparePasswordResetAsync"/> ONLY when an account exists at the
-/// address; the token is minted and validated in the SAME Api process (one Data-Protection keyring) so the
-/// emailed link resolves at /reset-password.
-/// <para>
-/// <c>Email</c> is the account's own stored address rather than the submitted one, for the same reason
-/// <see cref="EmailConfirmationResend"/> carries it: the reset link must go to the address on record, and
-/// Identity's lookup is case-insensitive, so echoing the request's spelling back into the send would mail a
-/// form the account does not actually have.
-/// </para>
-/// </summary>
-public sealed record PasswordResetDelivery(Guid UserId, string Email, string UrlSafeToken);
-
 public interface IUserAccountService
 {
-    Task<Result<Guid>> CreateUserAsync(string email, string password, CancellationToken ct);
-
-    /// <summary>
-    /// Changes the user's password via Identity (verifies the current password, sets the new one,
-    /// and re-stamps the security stamp). The current password is re-verified here even though
-    /// <c>ReauthenticationBehavior</c> already checked it — defense-in-depth and the atomic Identity
-    /// primitive. Maps the first <c>IdentityError</c> to a <c>DomainError</c> the same way as
-    /// <see cref="CreateUserAsync"/> (e.g. <c>Auth.PasswordTooShort</c>, <c>Auth.PasswordMismatch</c>).
-    /// </summary>
-    Task<Result> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct);
-
-    Task DeleteUserAsync(Guid userId, CancellationToken ct);
-    Task<Result<UserCredentials>> ValidateCredentialsAsync(string email, string password, CancellationToken ct);
     Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct);
     Task<string?> GetEmailAsync(Guid userId, CancellationToken ct);
 
@@ -69,117 +29,22 @@ public interface IUserAccountService
     Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct);
 
     /// <summary>
-    /// True if some account already owns <paramref name="email"/> (RequireUniqueEmail). Used by the
-    /// change-email request step (#679) for a friendly "address is taken" (409) BEFORE issuing a
-    /// token; uniqueness is still enforced authoritatively at <see cref="ConfirmChangeEmailAsync"/>.
+    /// Whether a change-email may name <paramref name="newEmail"/> (#1739): a failure when the address carries a
+    /// character no stored address may hold (<c>Auth.EmailNotStorable</c>), or when some account holds it as its
+    /// address OR its user name (<c>Auth.EmailTaken</c>). The user name counts because a swap that failed after its
+    /// first write leaves a row whose user name is the new address and whose address is the old one, and that row
+    /// holds the address against everyone but <paramref name="userId"/>, whose retry completes the swap.
+    /// Authoritative uniqueness is still the swap's.
     /// </summary>
-    Task<bool> IsEmailTakenAsync(string email, CancellationToken ct);
+    Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct);
 
     /// <summary>
-    /// Generates a URL-safe change-email ownership-confirmation token bound to the user + the NEW
-    /// address (#679). Uses the opaque DataProtector provider (CTO-bind #1); the token encodes the
-    /// pending new email, nothing is persisted (the pending state lives in the emailed link), and the
-    /// email is NOT changed here. Base64Url-encoded so it survives a URL/query round-trip. Returns
-    /// NotFound if the user is gone.
+    /// Moves the account to <paramref name="newEmail"/>, whose inbox a change-email grant has proven (#1739, ADR 0142
+    /// D5). The user name is written first and its refusal is fatal, because the unique index is on the user name:
+    /// a taken name (the validator's refusal or the index's) is <c>Auth.EmailTaken</c>, any other refusal
+    /// <c>Auth.EmailChangeIncomplete</c>. The address write follows, and its failure is fatal as
+    /// <c>Auth.EmailChangeIncomplete</c>, leaving the user name moved and the address kept, a state no one else can
+    /// take and a retry completes. The security stamp rotates with each write.
     /// </summary>
-    Task<Result<string>> GenerateChangeEmailTokenAsync(Guid userId, string newEmail, CancellationToken ct);
-
-    /// <summary>
-    /// Applies a pending email change (#679): verifies the URL-safe token against the user + NEW
-    /// address, sets Email/NormalizedEmail (+ EmailConfirmed) and keeps UserName in lockstep with the
-    /// email (registration couples them), rotating the security stamp so the token is single-use.
-    /// Returns ONE uniform failure for every rejection (user-not-found, bad/expired/malformed token,
-    /// address-taken) so the PUBLIC confirm endpoint reveals no account-existence or enumeration oracle.
-    /// </summary>
-    Task<Result> ConfirmChangeEmailAsync(Guid userId, string newEmail, string urlSafeToken, CancellationToken ct);
-
-    /// <summary>
-    /// Generates a URL-safe email-confirmation token for the user's CURRENT address (#714, registration
-    /// confirmation). Uses the opaque DataProtector provider (<c>EmailConfirmationTokenProvider</c>,
-    /// pinned in DI); the token is bound to the security stamp, time-limited (24h default) and
-    /// Base64Url-encoded so it survives a URL/query round-trip. Unlike the change-email token there is
-    /// no pending new address. Returns NotFound if the user is gone.
-    /// </summary>
-    Task<Result<string>> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken ct);
-
-    /// <summary>
-    /// Confirms a registration email address (#714): verifies the URL-safe token and sets
-    /// <c>EmailConfirmed=true</c>. Returns ONE uniform failure for every rejection (user-not-found,
-    /// bad/expired/malformed token) so the PUBLIC confirm endpoint reveals no account-existence or
-    /// enumeration oracle. Idempotent within the token lifespan: a double-click both succeed (unlike
-    /// <see cref="ConfirmChangeEmailAsync"/>, the security stamp is NOT rotated — an activation link
-    /// need not be single-use, and idempotency is the safer click-through UX).
-    /// </summary>
-    Task<Result> ConfirmEmailAsync(Guid userId, string urlSafeToken, CancellationToken ct);
-
-    /// <summary>
-    /// #733 — eligibility + token mint for a confirmation-link RESEND, sealed in Infrastructure. Returns
-    /// the delivery material (userId + address + a freshly minted opaque Base64Url token) ONLY when
-    /// email-confirmation-first is ENABLED (<see cref="Auth.AuthOptions.RequireEmailConfirmation"/>) AND an
-    /// account exists at <paramref name="email"/> that is still unconfirmed; <c>null</c> otherwise
-    /// (flag-OFF / non-existent / already-confirmed — all indistinguishable to the caller). The flag-gate
-    /// is FIRST (constant-time, before any DB lookup) so flag-OFF is a uniform no-op that never mails a
-    /// user whose instant-login works — symmetric with the login gate, preserving #714's prod-safe default
-    /// OFF. Sealing the "does an unconfirmed account exist here" knowledge here keeps the uniform
-    /// anti-enumeration response in the handler and prevents a future handler turning a bare existence
-    /// primitive into an oracle. The token is minted Api-side, in the same Data-Protection keyring that
-    /// validates it at /verify-email (CTO 2026-07-10 / ADR 0102 — no cross-process token).
-    /// </summary>
-    Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(string email, CancellationToken ct);
-
-    /// <summary>
-    /// #1171 — eligibility + token mint for a PASSWORD RESET, sealed in Infrastructure. Returns the
-    /// delivery material ONLY when an account exists at <paramref name="email"/>; <c>null</c> otherwise,
-    /// and the caller answers identically either way.
-    /// <para>
-    /// <b>No confirmation gate, deliberately.</b> Unlike the resend sibling this does not consult
-    /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/> and does not skip unconfirmed accounts:
-    /// possession of the emailed token proves control of the inbox, which is exactly what confirmation
-    /// proves, so refusing an unconfirmed account would lock out a real owner for a reason unrelated to
-    /// their password. This REQUEST half nonetheless writes nothing — the endpoint behind it is
-    /// unauthenticated and takes an arbitrary address, so confirming here would let anyone confirm
-    /// anyone. <c>EmailConfirmed</c> is written by <see cref="ResetPasswordAsync"/> (#1303), after the
-    /// token is verified.
-    /// </para>
-    /// <para>
-    /// It bundles the existence bit WITH the delivery material so no naked existence primitive exists to
-    /// misuse — the same discipline as the resend sibling. Read the guarantee precisely: the uniform
-    /// anti-enumeration answer is the HANDLER's responsibility (and its tests'), not this port's. The port
-    /// still returns null for an absent account; what it refuses to offer is a bare DoesAccountExist. The token is minted Api-side, in the same
-    /// Data-Protection keyring that validates it at /reset-password (CTO 2026-07-10 — no cross-process
-    /// token; the Worker registers no token providers at all). That decision is recorded on
-    /// <c>ResendEmailConfirmationCommandHandler</c> and in <c>AddCoreIdentityForWorker</c>'s comment,
-    /// NOT in an ADR: "ADR 0102" is cited in several files and no such document exists (measured
-    /// 2026-08-10; docs/decisions jumps 0101 → 0103, and 0103 is used twice).
-    /// </para>
-    /// </summary>
-    Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(string email, CancellationToken ct);
-
-    /// <summary>
-    /// #1171 — applies a password reset against an emailed token. Every token rejection (unknown user,
-    /// malformed, wrong, expired) collapses to ONE uniform failure, because the endpoint is public and
-    /// distinguishing them would make it an account-existence oracle.
-    /// <para>
-    /// <b>Password rejections are NOT collapsed, and that is safe for a measured reason:</b> Identity
-    /// verifies the token BEFORE it validates the password, so a <c>Auth.PwnedPassword</c> or
-    /// <c>Auth.PasswordTooShort</c> answer is reachable only by someone who already holds a valid token.
-    /// It discloses nothing they do not have. The user needs to know which rule they broke.
-    /// </para>
-    /// <para>
-    /// Single-use comes from the same verification order: the security stamp the token is bound to is
-    /// rotated only on a SUCCESSFUL reset, so a rejected password leaves the link usable for a retry
-    /// while a completed reset kills it. An active lockout is cleared on success — the failed-attempt
-    /// counter belongs to the credential just replaced, and clearing it needs a token only the inbox
-    /// owner holds, so it is not a lockout-bypass primitive.
-    /// </para>
-    /// <para>
-    /// <b>A successful reset also sets <c>EmailConfirmed</c> (#1303), regardless of
-    /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/>.</b> The token reaching this point was
-    /// mailed to the address, which is the proof <see cref="ConfirmEmailAsync"/> and
-    /// <see cref="ConfirmChangeEmailAsync"/> already accept. Why the flag does not gate it, and why the
-    /// extra persist is safe: ADR 0127 Amendment 2026-08-11.
-    /// </para>
-    /// </summary>
-    Task<Result> ResetPasswordAsync(
-        Guid userId, string urlSafeToken, string newPassword, CancellationToken ct);
+    Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct);
 }

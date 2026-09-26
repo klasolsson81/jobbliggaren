@@ -78,8 +78,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
 
   // Antalet valda ORTER är summan av de två axlarna: ett helt-läns-val är ETT val (och lagras som ett
   // läns-id), inte länets alla kommuner. Att räkna dem var för sig vore att ljuga om vad användaren valt.
-  // Distans är den tredje granulariteten på samma axel och "räknas som en egen ort" —
-  // ordagrant ur strängen dialogen själv renderar (matchPrefs.cascade.distansHint).
+  // Distans är den tredje granulariteten på samma axel och räknas som en egen ort.
   // Utan den termen visades ett distans-only-filter som "Filtrerat: 0 orter": ett
   // filter som finns, beskrivet som noll orter.
   const ortCount = item.filter
@@ -154,8 +153,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           {mode === "matching" &&
             (item.matchingAdCount === null ? (
               // Honest not-assessed: the user stated no occupation, so matching is undefined. Render a
-              // civic nudge to state occupations, never a false "0" (parity /jobb + /matchningar). Copy
-              // + link style mirror the JobAdMatchSection not-assessed signpost (SPOT, no drift).
+              // civic nudge to state occupations, never a false "0" (parity /jobb + /matchningar).
               <p className="jp-matchline">
                 {t("matchNudge")}{" "}
                 <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">

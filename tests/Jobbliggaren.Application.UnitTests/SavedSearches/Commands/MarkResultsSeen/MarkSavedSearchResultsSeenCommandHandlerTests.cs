@@ -49,7 +49,7 @@ public class MarkSavedSearchResultsSeenCommandHandlerTests
     // baselines at Now). Time advances in the tests that need advancement past the baseline.
     private (JobSeeker seeker, SavedSearch saved) Seed(AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
         var saved = SavedSearch.Create(seeker.Id, "Backend", Criteria(), true, _clock).Value;
         db.SavedSearches.Add(saved);
@@ -176,7 +176,7 @@ public class MarkSavedSearchResultsSeenCommandHandlerTests
         // Register the CURRENT user's own seeker so the miss is a genuine cross-tenant access
         // (jobSeekerId lookup succeeds), not a "no seeker" miss.
         var userId = Guid.NewGuid();
-        db.JobSeekers.Add(JobSeeker.Register(userId, "Current", _clock).Value);
+        db.JobSeekers.Add(JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value);
         db.SaveChanges();
 
         var result = await Sut(db, UserWith(userId)).Handle(

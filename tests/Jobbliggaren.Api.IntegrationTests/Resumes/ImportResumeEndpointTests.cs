@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Domain.Resumes.Parsing;
@@ -45,7 +47,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"import-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"import-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
@@ -206,6 +208,41 @@ public class ImportResumeEndpointTests(ApiFactory factory)
         // handler + Testcontainers tests; here we prove the form field reaches the command).
         var parsedId = json.GetProperty("parsedResumeId").GetString()!;
         (await OriginalFileCapturedAsync(parsedId, ct)).ShouldBeTrue();
+    }
+
+    // #1741 — Word writes Shift+Enter as <w:br/> and a tab as <w:tab/> inside the run. The
+    // personnummer is followed by a phone number.
+    [Theory]
+    [InlineData("line break")]
+    [InlineData("tab")]
+    public async Task POST_import_pnr_in_docx_beside_a_phone_across_a_line_break_or_tab_surfaces_the_finding(
+        string separator)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        using var form = FileForm(ContactBlockDocx(separator), "cv.docx", DocxContentType);
+
+        var response = await _client.PostAsync("/api/v1/resumes/import", form, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        json.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeTrue();
+        json.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+    }
+
+    private static byte[] ContactBlockDocx(string separator)
+    {
+        OpenXmlElement Separator() => separator switch
+        {
+            "line break" => new Break(),
+            "tab" => new TabChar(),
+            _ => throw new ArgumentOutOfRangeException(nameof(separator), separator, null),
+        };
+
+        return CvDocxFixtures.BuildDocx(new Paragraph(new Run(
+            new Text("Anna Andersson"), Separator(),
+            new Text(ValidPersonnummer), Separator(),
+            new Text("070-123 45 67"))));
     }
 
     [Fact]

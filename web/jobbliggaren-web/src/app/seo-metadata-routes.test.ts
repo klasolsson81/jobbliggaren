@@ -101,7 +101,7 @@ describe("sitemap.ts", () => {
 
   it("never lists an authed app route or the /gast demo", () => {
     for (const u of urls) {
-      expect(u).not.toMatch(/\/(gast|oversikt|ansokningar|cv|installningar|matchningar|sokningar|sparade)(\/|$)/);
+      expect(u).not.toMatch(/\/(gast|oversikt|ansokningar|cv|mina-sidor|matchningar|sokningar|sparade)(\/|$)/);
       // /jobb is the authed search; the public demo is /gast/jobb (already excluded above).
       expect(u).not.toBe(`${SITE_URL}/jobb`);
     }

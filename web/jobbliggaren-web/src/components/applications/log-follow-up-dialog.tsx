@@ -23,7 +23,7 @@ export interface LogFollowUpDialogProps {
   /** Kontextraden "roll · företag" (design §9). null → radens korta id. */
   contextTitle: string | null;
   contextCompany: string | null;
-  /** Visningsnamn i uppföljningstoasten ("{company}: uppföljning sparad …"). */
+  /** Visningsnamn i uppföljningstoasten ("{company}: uppföljning sparad"). */
   toastCompany: string;
   /** Ankrad topp-position (nära klicket, §9); null → Radix-centrerad default. */
   top?: number | null;

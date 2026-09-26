@@ -6,12 +6,7 @@
 
 import { useId, useMemo, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +20,7 @@ import {
 import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { useCriterionPreviewCount } from "@/lib/hooks/use-criterion-preview-count";
+import { resolveOccupationDivisions } from "@/lib/company-criteria/resolve-occupation-divisions";
 import {
   createCriterionAction,
   updateCriterionAction,
@@ -150,9 +146,6 @@ export function CriterionDialog({
           <DialogTitle className="jp-matchdialog__title">
             {isEdit ? t("editTitle") : t("createTitle")}
           </DialogTitle>
-          <DialogDescription className="jp-matchdialog__intro">
-            {t("intro")}
-          </DialogDescription>
         </div>
 
         <div className="jp-matchdialog__body flex flex-col gap-6">
@@ -165,16 +158,19 @@ export function CriterionDialog({
             heading={tc("sniHeading")}
             help={tc("sniHelp")}
             filterLabel={tc("sniFilterLabel")}
-            filterHint={tc("sniFilterHint")}
             groupAria={tc("sniGroupAria")}
             expandAria={(name) => tc("sniExpandAria", { name })}
             collapseAria={(name) => tc("sniCollapseAria", { name })}
             // Counts what the user PICKED, not what it expanded to. One click on a section used to
             // report "52 valda branscher" while the label beside it named one division — the same
-            // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
-            // semantic: both surfaces now count decomposed nodes.
-            selectedCountLabel={tc("sniSelectedCount", { count: sniPicked })}
+            // number the /foretag/sok chips contradicted (#999 design finding 4). Named "val", not
+            // "bransch": a pick may be a whole avdelning or huvudgrupp, and the breadth line the
+            // saved watch renders counts its leaves under "bransch" (#1711).
+            selectedCountLabel={tc("sniPickedCount", { count: sniPicked })}
             optionsUnavailable={t("optionsUnavailable")}
+            // The SNI axis answers an occupation word with where its employers are (#1682); the
+            // kommun axis below passes no resolver and stays as it is.
+            resolveOccupations={resolveOccupationDivisions}
           />
 
           <CriterionPicker
@@ -186,11 +182,11 @@ export function CriterionDialog({
             heading={tc("kommunHeading")}
             help={tc("kommunHelp")}
             filterLabel={tc("kommunFilterLabel")}
-            filterHint={tc("kommunFilterHint")}
             groupAria={tc("kommunGroupAria")}
             expandAria={(name) => tc("kommunExpandAria", { name })}
             collapseAria={(name) => tc("kommunCollapseAria", { name })}
-            selectedCountLabel={tc("kommunSelectedCount", { count: kommunPicked })}
+            // "val", not "kommun": a whole län is one pick and is not a kommun (#1711).
+            selectedCountLabel={tc("kommunPickedCount", { count: kommunPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 

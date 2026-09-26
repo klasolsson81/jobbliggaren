@@ -21,29 +21,7 @@ describe("CvBlockReason", () => {
     expect(screen.getByText(/ladda upp den igen/i)).toBeInTheDocument();
   });
 
-  it("sends the ACCOUNT-NAME case to Inställningar, and says the file is clean", () => {
-    // The design/security Blocker. The file has nothing in it on this path, so
-    // PersonnummerWarning renders nothing and ParseSummary shows zero findings — telling the
-    // user to remove a number from her file is advice that cannot work, and a loop with no
-    // exit. The token is separate for exactly this reason (CTO-bind D2), and the control has
-    // to be next to the instruction (ADR 0047), not three screens away.
-    render(<CvBlockReason reason="PersonnummerInAccountName" />);
-
-    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByText(/Filen är däremot ren/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Inställningar/ })).toHaveAttribute(
-      "href",
-      "/installningar",
-    );
-    // It must NOT tell her to edit the file.
-    expect(screen.queryByText(/Ta bort det ur filen/i)).not.toBeInTheDocument();
-  });
-
   it("explains a failed extraction as an ACTION, leaving the statement to ParseSummary", () => {
-    // ParseSummary renders `parse.overallFailed` on this same page, and the two must reconcile
-    // rather than contradict (ADR 0047). Until #1373 both ended on "fylla i uppgifterna för
-    // hand" — an instruction that pointed at /cv/ny, which has 404'd since #1061. Both now end
-    // on the one path the MVP actually has: correct the file and upload it again.
     render(<CvBlockReason reason="ParseNotConfident" />);
 
     expect(screen.getByText(/text som går att markera/i)).toBeInTheDocument();
@@ -79,8 +57,8 @@ describe("CvBlockReason", () => {
       return text;
     });
 
-    expect(bodies).toHaveLength(4);
-    expect(new Set(bodies).size).toBe(4);
+    expect(bodies).toHaveLength(3);
+    expect(new Set(bodies).size).toBe(3);
   });
 
   it("scopes the null verdict to the FILE and never certifies a save", () => {
@@ -94,7 +72,7 @@ describe("CvBlockReason", () => {
     expect(
       screen.getByRole("heading", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vi hittar inget i filen som stoppar den/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ladda upp filen igen så prövas den på nytt/i)).toBeInTheDocument();
     // The unassessed channel is disclosed, not silently omitted.
     expect(
       screen.getByText(/namn du skriver själv kontrolleras först vid uppladdningen/i),
@@ -102,8 +80,8 @@ describe("CvBlockReason", () => {
     // And the retired certifications must not come back.
     expect(screen.queryByText(/Klar att sparas/)).not.toBeInTheDocument();
     // "Inget hittat i filen" was my first kicker and it was also wrong: it is
-    // parse.overallFailed's own failure phrasing ("Vi kunde inte läsa någon användbar text
-    // ur filen"), rendered on the same page, inside a GREEN pill (design-reviewer round 2).
+    // the failure phrasing of the enums.overall.Failed pill ("Ingen text kunde läsas"),
+    // rendered on the same page, inside a GREEN pill (design-reviewer round 2).
     expect(screen.queryByText(/Inget hittat i filen/)).not.toBeInTheDocument();
     expect(screen.getByText("Inga hinder i filen")).toBeInTheDocument();
     expect(screen.queryByText(/uppfyller kraven/)).not.toBeInTheDocument();

@@ -73,7 +73,7 @@ interface OccupationSectionProps {
    * (welcome-flödet). När satt läses CV-förslaget ur den staging-artefakten
    * (`occupation_proposals`, ingen DEK/CV-PII) i stället för ur det promotade
    * `Resume`:ts `latestRole` — en ny användare har ännu inget promotat Resume.
-   * Utelämnat (dialog/`/cv`/`/installningar`) → faller tillbaka på latestRole-vägen.
+   * Utelämnat (dialog/`/cv`/`/mina-sidor`) → faller tillbaka på latestRole-vägen.
    */
   readonly parsedResumeId?: string;
   /**
@@ -254,7 +254,6 @@ export function OccupationSection({
   // Stabilt panel-id (aria-controls). useId ger ett hydration-säkert unikt id.
   const reactId = useId();
   const panelId = `${idPrefix}-occ-picker-${reactId}`;
-  const filterHelpId = `${idPrefix}-occ-filter-help`;
 
   function openPicker() {
     setPickerOpen(true);
@@ -358,11 +357,7 @@ export function OccupationSection({
                 value={occupationFilter}
                 onChange={(e) => setOccupationFilter(e.target.value)}
                 maxLength={80}
-                aria-describedby={filterHelpId}
               />
-              <p id={filterHelpId} className="text-body-sm text-text-primary">
-                {t("matchPrefs.occupation.filterHint")}
-              </p>
             </div>
 
             {isFiltering ? (
@@ -723,18 +718,14 @@ function CvSuggestMessage({
           <p className="text-body-sm text-text-primary font-medium">
             {t("matchPrefs.occupation.noCvTitle")}
           </p>
-          <p className="text-body-sm text-text-primary mt-1">
-            {t("matchPrefs.occupation.noCvBody")}
-          </p>
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
-          <Button
+          <button
             type="button"
-            variant="secondary"
-            className="mt-2.5"
+            className="jp-occpicker__cta mt-2.5"
             onClick={onOpenUpload}
           >
             {t("matchPrefs.occupation.uploadCv")}
-          </Button>
+          </button>
         </div>
       );
     case "noRole":

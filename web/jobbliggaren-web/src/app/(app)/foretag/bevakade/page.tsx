@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * follow-lookup was removed here per Klas live-review 2026-07-22 — company search lives under Sök
  * företag; the follow-via-org.nr consolidation is S2 #997.) This is the default landing of the /foretag hub (Klas 2026-07-21, "Bevakade först"): the
  * `/foretag` root redirects here, and the /oversikt "nya annonser från bevakade företag"-notis links
- * here. It is its own NOTIFICATION surface — distinct from Smarta bevakningar (a browsing surface with
+ * here. It is its own NOTIFICATION surface — distinct from Branschbevakningar (a browsing surface with
  * no per-company notices), ADR 0117.
  */
 export default async function BevakadeForetagPage() {

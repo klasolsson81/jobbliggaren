@@ -34,7 +34,7 @@ public class GetCvSectionSuggestionsEndpointTests(ApiFactory factory)
     {
         var client = f.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"sect-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            f, email: $"sect-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -42,7 +42,7 @@ public class GetCvSectionSuggestionsEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"sect-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"sect-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

@@ -152,9 +152,9 @@ is read/written throughout the codebase, as **`__Host-jobbliggaren_session`**
 
 The original "Max-Age: 14 days (sliding, refreshed on use)" row described the single,
 always-persistent session profile that existed until 2026-07-05 — every login received the same
-silent 14-day cookie, with no user choice. Per **ADR 0093** (persistent-login opt-in activation —
-full GDPR/ePrivacy legal-basis analysis there; local-only file per the ADR 0072 docs-privacy
-convention), the cookie now branches on an explicit "Håll mig inloggad" checkbox at login/register:
+silent 14-day cookie, with no user choice. Per **ADR 0142** (which carries the persistent-login legal-basis analysis; until 2026-09-17 this
+pointer read "ADR 0093", a number that holds a different ADR — the analysis was never written,
+#1494), the cookie now branches on an explicit "Håll mig inloggad" checkbox at login/register:
 
 | Choice | Cookie `Max-Age` | Server-side lifetime |
 |---|---|---|
@@ -176,5 +176,41 @@ expiry.
 ### Disciplin
 
 Additive amendment — the original 2026-05-06 decision text above is unchanged; no content beyond
-this appended block was edited. See ADR 0093 for the legal-basis rationale (why opt-in rather than
-silent-default, why 180 days, why mandatory rotation above 30 days).
+this appended block was edited. See ADR 0142 for the legal-basis rationale (this pointer read "ADR 0093" until 2026-09-17, #1494;
+why 180 days and why mandatory rotation above 30 days are carried there, and the opt-in itself is
+reversed there on 2026-09-17).
+
+---
+
+## Amendment 2026-09-17 (ADR 0142, epic #1732) — persistent by default; the cookie table's `Max-Age` row; the dead `ADR 0093` pointers
+
+*Affects the Amendment of 2026-07-05 above (the branch table and its two legal-basis pointers) and*
+*the "Cookie attributes" table's `Max-Age` row. The topology, the `__Host-` discipline and the*
+*three-layer CSRF mitigation are unchanged.*
+
+1. **Persistent by default.** ADR 0142 D4 reverses the 2026-07-05 opt-in on a controller decision
+   (Klas 2026-09-16): every passwordless login issues the `Persistent` profile (30 d sliding /
+   180 d absolute cap / 24 h session-id rotation) and the cookie always carries `Max-Age` 180 d.
+   The "Håll mig inloggad" checkbox is removed; the `Session` profile becomes dead and is retired
+   in a later PR; `Legacy` is untouched. The branch table above therefore describes the state
+   between 2026-07-05 and the merge of #1732 part 2, and the `Max-Age` row reads **180 days** from
+   that merge. The disclosure moves to the steps that create a session, and the cookie-policy copy lands in the same PR as
+   `setSessionCookie(id, true)`.
+2. **The legal basis is written.** The two pointers in the 2026-07-05 amendment cited "ADR 0093"
+   for the GDPR/ePrivacy analysis; 0093 is the CV-motor v2 ADR and the analysis existed nowhere
+   (#1494, a same-day number collision). Both pointers now read ADR 0142, which carries the analysis
+   verbatim (security-auditor, 2026-09-17): the session cookie is strictly necessary under ePrivacy
+   Art. 5(3) / WP194 criterion B; the duration is disclosed where the per-device action is taken;
+   Art. 25(2) is answered because under passwordless every re-login is itself processing (a mail
+   through the processor, a PII record in Redis), so persistence is the minimising choice under the
+   new purpose; the effective inactive-device default is 30 days; the shared-device residual is
+   named and remedied by copy plus Logout on every page. **#1494 closes on this amendment.**
+3. **Login-side cookies added by ADR 0142.** `__Host-jobbliggaren_login` (challenge id + submitted
+   address as a display echo, httpOnly, `SameSite=Strict`, 15 min) and, in part 6a, the OAuth state
+   cookie (`__Host-`, `SameSite=Lax` ≤ 10 min — Lax because the IdP callback arrives as a
+   cross-site-initiated top-level navigation; **mandatory**, the callback refuses without it). The
+   OAuth callback answers 200 + a document, never a 302, because the Strict session cookie does not
+   ride a cross-site-initiated redirect chain — the same property the "Negative" consequence above
+   already names for external links.
+
+Additive amendment apart from the two pointer corrections in point 2, which are marked in place.

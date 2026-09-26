@@ -37,7 +37,7 @@
     "rows": [
       { "part": "Occupation", "what": "The ad's occupation group against the occupations you have chosen. This is the gate: if the occupation does not match, the ad gets no label.", "cv": false },
       { "part": "Title", "what": "The ad's title against the role in your CV. Background only, it never affects the grade.", "cv": false },
-      { "part": "Region", "what": "The ad's county or municipality against the locations you have chosen.", "cv": false },
+      { "part": "Place", "what": "The ad's county or municipality against the locations you have chosen.", "cv": false },
       { "part": "Form of employment", "what": "The ad's form of employment against the forms you have chosen.", "cv": false },
       { "part": "Skills", "what": "The ad's skill terms against the skills in your CV.", "cv": true },
       { "part": "Must-have requirements", "what": "The ad's mandatory requirements against your CV.", "cv": true },

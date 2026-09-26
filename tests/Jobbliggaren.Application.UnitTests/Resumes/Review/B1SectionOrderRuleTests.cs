@@ -205,4 +205,77 @@ public class B1SectionOrderRuleTests
         Verdict(result, "B1").Verdict.ShouldBe(CriterionVerdict.Pass);
     }
 
+    // ===============================================================
+    // (e) The contact section is the one each arm DETECTED (#1741)
+    // ===============================================================
+
+    [Fact]
+    public async Task B1_ShouldFindTheContactSection_OnACanonicalCvWithNoNameAndOnlyAPhone()
+    {
+        // Auto-promote takes no name into the CV (ADR 0142 D7), and this file gave no e-mail. The
+        // linearizer still writes a contact section for the phone, so B1 must not report one missing.
+        var content = new ResumeContent(
+            new PersonalInfo(null, null, "070-123 45 67", null),
+            experiences:
+            [
+                new Experience("Acme AB", "Backend-utvecklare",
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1),
+                    "Levererade 3 plattformsmigrationer."),
+            ],
+            educations:
+            [
+                new Education("KTH", "Civilingenjör", new DateOnly(2016, 8, 1), new DateOnly(2021, 6, 1)),
+            ]);
+
+        var result = await NewEngine().ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        Verdict(result, "B1").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task B1_ShouldMissTheContactSection_OnACanonicalCvWithNoContactFields()
+    {
+        var content = new ResumeContent(
+            new PersonalInfo(null, null, null, null),
+            experiences:
+            [
+                new Experience("Acme AB", "Backend-utvecklare",
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1),
+                    "Levererade 3 plattformsmigrationer."),
+            ],
+            educations:
+            [
+                new Education("KTH", "Civilingenjör", new DateOnly(2016, 8, 1), new DateOnly(2021, 6, 1)),
+            ]);
+
+        var result = await NewEngine().ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        var b1 = Verdict(result, "B1");
+        b1.Verdict.ShouldBe(CriterionVerdict.Warn);
+        b1.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>()
+            .Observation.ShouldBe("Saknar sektion(er): kontakt.");
+    }
+
+    [Fact]
+    public async Task B1_ShouldFindTheContactSection_OnAStagedFileWhoseOnlyContactFieldIsAPhone()
+    {
+        // The segmenter reports a phone-only contact as Degraded, not NotFound
+        // (HeadingDrivenResumeSegmenter.ContactConfidence), so the contact section was detected.
+        var b1 = await B1Async(Resume(
+            contact: new ParsedContact(null, null, "070-123 45 67", null),
+            rawText: InConventionOrder,
+            confidence: ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Degraded, ["phone extracted"]),
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, ["1 post"]),
+            ])));
+
+        b1.Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
 }

@@ -32,6 +32,7 @@ namespace Jobbliggaren.Worker.Hosting;
 ///   05:00   — backfill-field-encryption (30-min padding efter purge)
 ///   06:00   — digest-dispatch-daily (Strong-digest, daglig kadens, ADR 0080 Vag 4 PR-4b)
 ///   06:00 mån — digest-dispatch-weekly (Strong-digest, veckovis kadens — civic-default)
+///   05:30   — materialise-company-watch-criteria (kriterium -> org.nr, ADR 0139; EGEN options-sektion)
 ///
 /// 30-min-padding mellan jobben eliminerar kollision på Hangfire-dashboard
 /// vid pålastnings-toppar — även om jobben rör olika tabeller är padding
@@ -48,6 +49,8 @@ namespace Jobbliggaren.Worker.Hosting;
 public sealed partial class RecurringJobRegistrar(
     IRecurringJobManager manager,
     IOptions<ScbRegisterOptions> scbOptions,
+    IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
+    IOptions<OccupationDivisionProfileOptions> profileOptions,
     ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -157,6 +160,59 @@ public sealed partial class RecurringJobRegistrar(
             RecurringJobIds.SyncScbCompanyRegister,
             job => job.RunAsync(CancellationToken.None),
             scbOptions.Value.SyncCadenceCron);
+
+        // #1681 (ADR 0139) — materialisera kriterium → org.nr ur läsvägen. Config-driven cron
+        // (CompanyWatchMaterialisation:CadenceCron; default dagligen 05:30 UTC — efter
+        // parsed-resume-retention 05:15, 30 min före digest-fönstret 06:00).
+        //
+        // EGEN options-sektion, och det är själva poängen (security-auditor Major 3, 2026-09-06):
+        // den närliggande designen — räkna om medlemskapet i slutet av en registersynk — knyter
+        // jobbet till ScbRegister:Enabled, som defaultar FALSE. I defaultläget hade jobbet då aldrig
+        // kört: enda uppdateringen vore användarens egen redigering, och ett avregistrerat bolag hade
+        // räknats i hennes /oversikt obegränsat (DPIA R-D6, Art. 5(1)(d)) — precis den mitigering
+        // jobbet finns för att ersätta. Därför läser det här anropet INGET ur ScbRegister:*.
+        //
+        // Registreras ovillkorligt: kill-switchen sitter i jobbet (Enabled, default true) och
+        // degraderar ärligt, medan en registrering som försvinner ur schemat i stället skulle driva
+        // isär mot RecurringJobIds-allowlisten (registrar-id-mängden == All är ett test).
+        manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
+            RecurringJobIds.MaterialiseCompanyWatchCriteria,
+            job => job.RunAsync(CancellationToken.None),
+            materialisationOptions.Value.CadenceCron);
+
+        // #1681 clause (ii) — the reconciling sweep. Its own cron
+        // (CompanyWatchMaterialisation:SweepCron, default minutely) and its own job id, because it
+        // answers a DIFFERENT change-reason than the registration above: the register moved (weekly,
+        // external) versus a predicate moved (continuous, the user). Same options section, because
+        // the two cadences constrain one another — SweepBatchSize is derived from SweepCron's
+        // interval.
+        //
+        // NO handler enqueues anything. The committed state IS the queue — criteria_fingerprint
+        // beside materialised_at is already the same fact the read path gates on — so the sweep is
+        // level-triggered and a missed tick is repaired by the next. An edge-triggered signal would
+        // additionally have had to defeat UnitOfWorkBehavior committing AFTER the handler
+        // (senior-cto-advisor, 2026-09-07).
+        //
+        // Registered unconditionally for the same reason as the line above: the kill-switch is in
+        // the job.
+        manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
+            RecurringJobIds.SweepChangedCompanyWatchCriteria,
+            job => job.SweepAsync(CancellationToken.None),
+            materialisationOptions.Value.SweepCron);
+
+        // #1682 — rebuild the occupation × SNI-division profile out of our own ads. Config-driven cron
+        // (OccupationDivisionProfile:CadenceCron; default 03:35 UTC — after the 02:00 snapshot's
+        // 3 600 s lock clears at 03:00, inside the ingest-consumer cluster with ten minutes' padding
+        // either side). Its OWN options section and its own Enabled, for the reason the block above
+        // gives: a cadence tied to another feature's flag runs exactly as often as that flag is true.
+        // Clock-padded, not chained: job_ads has TWO writers (the stream job on */10 is the other), so
+        // a watermark on the snapshot's audit row would fire as often as this cron while claiming to
+        // track ingest (senior-cto-advisor D1, 2026-09-14). Registered unconditionally — the
+        // kill-switch is in the job — so the registrar id-set stays equal to RecurringJobIds.All.
+        manager.AddOrUpdate<OccupationDivisionProfileWorker>(
+            RecurringJobIds.BuildOccupationDivisionProfile,
+            job => job.RunAsync(CancellationToken.None),
+            profileOptions.Value.CadenceCron);
 
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.

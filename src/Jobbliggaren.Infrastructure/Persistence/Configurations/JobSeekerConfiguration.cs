@@ -9,7 +9,14 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
 {
     public void Configure(EntityTypeBuilder<JobSeeker> builder)
     {
-        builder.ToTable("job_seekers");
+        // #1736 (ADR 0142 D6 amendment) — the terms stamp is all-or-nothing at the database: the
+        // optional owned mapping below reads "no stamp" from all three columns NULL, and this
+        // constraint holds that sentinel where raw SQL lives (the account-deletion runbook updates
+        // job_seekers directly). A half-stamped row is a state the aggregate has no reading for. The
+        // pre-migration rows (all three NULL) satisfy it; every stamped row has all three set.
+        builder.ToTable("job_seekers", t => t.HasCheckConstraint(
+            "ck_job_seekers_terms_all_or_none",
+            "num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)"));
 
         builder.HasKey(js => js.Id);
         builder.Property(js => js.Id)
@@ -19,12 +26,31 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         builder.Property(js => js.UserId).IsRequired();
         builder.HasIndex(js => js.UserId).IsUnique();
 
-        builder.Property(js => js.DisplayName).HasMaxLength(200).IsRequired();
-
         builder.OwnsOne(js => js.Preferences, prefs =>
         {
             prefs.ToJson();
         });
+
+        // ADR 0142 D6 (#1736) — the terms-acceptance stamp as an OPTIONAL owned type over three plain
+        // columns (parity with Preferences' OwnsOne; NOT ToJson — an accountability record stays
+        // queryable). Explicit HasColumnName on every property: the global snake_case convention
+        // would otherwise prefix the navigation name (terms_acceptance_*). Navigation.IsRequired(false)
+        // is obligatory, the ManualPosting/AdSnapshot form: EF Core 10 defaults an owned reference to
+        // required. The all-null sentinel is unambiguous by construction here: every property is non-nullable inside the
+        // type, so a present stamp never writes an all-null row (the property AdSnapshot has to argue
+        // for via captured_at). varchar(20) is headroom over a 10-char ISO date; the value has no
+        // Domain reader that would give a shared constant a consumer.
+        builder.OwnsOne(js => js.TermsAcceptance, terms =>
+        {
+            terms.Property(t => t.AcceptedAt).HasColumnName("terms_accepted_at");
+            terms.Property(t => t.TermsVersion)
+                .HasColumnName("terms_version")
+                .HasMaxLength(20);
+            terms.Property(t => t.PrivacyPolicyVersion)
+                .HasColumnName("privacy_policy_version")
+                .HasMaxLength(20);
+        });
+        builder.Navigation(js => js.TermsAcceptance).IsRequired(false);
 
         // F4-12 (ADR 0076) — MatchPreferences as a jsonb column via a property-level
         // ValueConverter (parity with SearchCriteria; OwnsOne().ToJson() does not map

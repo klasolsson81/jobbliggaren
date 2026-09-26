@@ -4,8 +4,7 @@ import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
 /**
- * (auth)/error — the runtime error boundary for /logga-in, /registrera,
- * /glomt-losenord, /aterstall-losenord and the two /bekrafta-* surfaces.
+ * (auth)/error — the runtime error boundary for /logga-in and its steps.
  *
  * Without it a throw on any of them bubbled past every boundary to
  * global-error.tsx, which by Next convention REPLACES the root layout — so the

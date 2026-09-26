@@ -33,13 +33,14 @@ Referenser som **inte** ska kännas:
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
 | Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
-| Tabeller och listor | Kort-layouter överallt |
-| `border-radius: 4px` | 16px+ rundade hörn |
+| Tabeller och listor (**scoped undantag:** `/oversikt` är ett kort-rutnät, ADR 0140) | Kort-layouter överallt |
+| `border-radius` via `--jp-r-*` | Radier över `--jp-r-lg` |
 | Muted statusfärger | Glow, drop shadow, glasmorfism |
 | Breadcrumbs + hierarki | Flata sidor utan kontext |
 | Systemfont/Source Sans 3 | Display-fonter, scripts |
 | Content-first sidor (hero-bannern är en saklig sök-/orienterings-yta, ADR 0068) | Marketing-heros, vibey microcopy |
 | Kvantifierad info | Vag "positiv" feedback |
+| Bara text som bär information (§8, copy-täthet) | Förklaringar av det självklara, lugnande meningar |
 
 ---
 
@@ -63,11 +64,13 @@ Filosofi-sammanfattningar finns i denna fil. Fullständiga specer med tokens, va
 
 Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens — fler färger skapar kognitiv belastning. Kanon = `globals.css` (v3-neutraler + grön accent per ADR 0068); fullständiga värden i `jobbpilot-design-tokens`-skillen.
 
-- **Accent (mörkgrön, ADR 0068):** `--jp-accent-800` `#15603F` fill (primärknapp, EJ dark-skiftad, vit text — aldrig ljus knapp/mörk text); `--jp-accent-700` `#15603F` light / `#6EE7A8` dark för länkar, aktiv nav, fokus (`#6EE7A8` ALDRIG som fill); `--jp-accent-50` selektion. Ersätter tidigare blå/navy. Logo-marken (Sigillet, ADR 0070) bär grön skiva + guldsignatur `--jp-gold` `#E8C77B` — egen färgsättning utanför interaktions-accenten.
+- **Accent (mörkgrön, ADR 0068):** `--jp-accent-800` `#15603F` fill (primärknapp, EJ dark-skiftad, vit text — aldrig ljus knapp/mörk text); `--jp-accent-700` `#15603F` light / `#6EE7A8` dark för länkar, aktiv nav, fokus **och indikator-barer för markerat/aktivt tillstånd** (`#6EE7A8` ALDRIG som fill); `--jp-accent-50` selektions-**fyllning** — 1,14:1 mot vitt i light, under 1.4.11:s 3:1. Ersätter tidigare blå/navy. Logo-marken (Sigillet, ADR 0070) bär grön skiva + guldsignatur `--jp-gold` `#E8C77B` — egen färgsättning utanför interaktions-accenten.
 - **Hero-gradient (scoped undantag, ADR 0068):** `--jp-hero-gradient` (118° `#0B2A1E`→`#14503A`→`#1E6B4C`) ENBART på hero-banner-plattan/pagehero/landing-hero — gradients förbjudna överallt annars.
+- **Fokus-tokenen är yt-scopad, indikator-tokenen är det inte (G1 + ADR 0068):** `--jp-focus` re-scopas till `#FFFFFF` på gradient-ytorna (`.jp-hero__plate`, `.jp-pagehero__inner`) så ringen syns mot grönt. En indikator som läser fokus-aliaset renderas vit inuti plattan (mätt 1,18:1 mot en markerad `--jp-surface-3`-rad, 1,00:1 mot en vit yta). `--jp-accent-700` re-deklareras per tema, och en yta som pinnar den (`[data-theme="dark"] .jp-header`) pinnar till sitt eget läsbara värde — aldrig bort.
 - **CV-mall-accenter (scoped undantag, PR-8b / ADR 0096):** de fyra kuraterade accentfärgerna för mallbyggarens CV-render — Marinblå `#1E3A5F`, Skogsgrön `#15603F`, Vinröd `#7A2E35`, Grafit `#3A4451` — gäller ENBART den exporterade CV-PDF:en (rubriker/streck på ljusa mallar; hela sidopanel-bakgrunden i Mörk panel under vit text, Klas 2026-07-12 "panelfärg = vald accent"). App-UI:t behåller den enda gröna interaktions-accenten (ADR 0068) — CV:t är ett användardokument, inte app-chrome, så en kuraterad flerfärgspalett där är en medveten avgränsad avvikelse (samma slag av scoped undantag som hero-gradienten). Varje accent WCAG-AA-gardad som par mot vitt (≥4.5:1, Skogsgrön ljusast = 7.56:1) via `CvPalette`-fitnessfunktionen; slutna `CvAccentColor`-SmartEnum-värden, aldrig fri hex. Bor i renderaren (`Infrastructure/Resumes/Rendering/CvPalette`), inte i `globals.css` (ingen app-yta konsumerar dem).
 - **Neutraler (v3, ADR 0052; ink-3 mörkad i #296):** ink `#0C1A2E` / `#455366` / `#4F5D72` (text-tertiary mörkad från `#7C8AA0` till en hög-kontrast slate-navy så all 11–12.5px metadata-text klarar WCAG AA — min 5.45:1, issue #296; ink-1/-2 oförändrade av G1), surfaces `#FFFFFF` / `#F4F6FA` / `#E8EDF4`, canvas `#F4F6FA` light / `#0B1525` dark (mörk navy-grå, inte svart), placeholder `#626B78` (WCAG-motiverad).
 - **Statusfärger:** success `#16793B`, warning `#A34A06` (mörkad från `#B4540B` för 4.5:1 pill-text, issue #193), danger `#BE1B1B`, info `#1B5396` + bg-varianter — endast för status (aldrig dekoration); oförändrade av accentbytet.
+- **`/oversikt`-kortens fyllning och kant (scoped undantag, ADR 0140):** korten på Översikten tintas per axel — accent (`--jp-accent-50`/`-100`), bevakad (`--jp-follow-bg` + ny `--jp-follow-border` `#C5DDE1` light / `#245059` dark) och info (`--jp-info-bg` + ny `--jp-info-border` `#C5D8F0` / `#2E4F7E`) — och bär EN solid knapp var i axelns fyllning: `--jp-accent-800`, ny `--jp-follow-fill` `#3E6C74` (hover `--jp-follow-hover` `#2F5860`) och ny `--jp-info-fill` `#1B5396` (hover `--jp-info-hover` `#164478`). Fyllnings- och hover-tokens dark-skiftas ALDRIG (knapp-kontraktet, vit text ≥ 5,83:1 i båda teman); kant-tokens är dekorativa hairlines (1,2:1 mot tinten) och skiftar med den. Gäller ENBART `/oversikt`; ingen annan yta får en solid follow-/info-knapp.
 - **Bevakad-tillstånd (slate-teal, ADR 0116):** `--jp-follow` `#3E6C74` light / `#7FC4CE` dark (text/border/kort-vänsterkant) + `--jp-follow-bg` `#E2EEF0` / `#153338` (fyllning) — en FJÄRDE semantisk axel (relation: "du bevakar arbetsgivaren") vid sidan av grön=grad, blå=sparad/ansökt, neutral=tid. Bär `.jp-tag[data-tag="followed"]` (BEVAKAR-taggen, /jobb-kort + annonsmodal) + `.jp-job[data-followed]`-vänsterkanten (pseudo-element, överlever grön hover). Icke-grön (grad+interaktion låst, ADR 0068), icke-blå (sparad/ansökt), icke-danger. AA: light 5.83:1 mot vitt kort / 4.92:1 mot bg; dark 7.21:1 / 6.84:1 (design-reviewer re-verifierar mot rendering, §12).
 - **Borders:** border `#C9D2E0` (dekorativa hairlines), border-soft `#E3E8F0`, border-strong `#7C8AA0` (informationsbärande dividers, mörkad från `#97A4B8` till 3.5:1-UI-golvet, issue #193 — delar nu värde med border-input, medveten tonalitet), border-input `#7C8AA0`; border-modal/-structural per ADR 0041 (re-homade på v3-border).
 - **Skuggor:** bara shadow-card/pop/modal (popovers/dropdowns/modal) — djup skapas via border/hairline, aldrig på cards/knappar
@@ -104,7 +107,7 @@ Komplett skala, line-heights och Tailwind-mappning → **jobbpilot-design-tokens
 ## 5. Spacing och layout (sammanfattning)
 
 - **4px-baserad skala.** Vanliga värden: 8, 12, 16, 24, 28, 48, 64.
-- **Border-radius:** sm 2px (inputs/badges), md 4px (default — knappar, panels, sökruta), lg 6px (större paneler/dropdowns), pill 9999px (endast statusprickar/pills). Inga andra radier — inga 8/10/12px.
+- **Border-radius:** golvet är `--jp-r-md` för rader/kort/knappar, modaler går på `--jp-r-lg`, och pill är undantaget. **Radier över `--jp-r-lg` är förbjudna** — `--jp-r-xl` (12px, "endast hero") togs bort med ADR 0052:s amendment 2026-07-26 när hero-plattan blev `--jp-r-md`. Komplett skala med px-värden → **jobbpilot-design-tokens** (ADR 0052 Beslut 4 + Amendment 2026-07-26, #1054).
 - **App shell (Variant B):** vänster sidebar 240px med `border-right` hairline, topbar 56px, innehåll max-width 1080px.
 - **Formulär:** max-width 640px, labels alltid ovanför inputs.
 - Desktop-first — touch (≤768px) bumpar hit-targets till 44px, ledger-tabeller stackas (utvecklaransvar).
@@ -138,7 +141,7 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - **Knapphöjd — TVÅ ratificerade system, båda korrekta. Namnge alltid vilket du menar.** `.jp-btn` = **44px** (`--sm` 36; `--lg` 52 är ratificerad men **oimplementerad** — klassen finns inte, så `jp-btn--lg` ger tyst 44px) i 46 filer (42 produktionsfiler) — ratificerad av HANDOVER-v3 §5.1 via ADR 0052 (Amendment 2026-07-27). shadcn `Button` = **40px** (`sm` 36, `lg` 44) — ratificerad av ADR 0038. **Ingen av dem är drift.** En blank mening som "knapphöjd = 40px" är falsk genom utelämnande oavsett siffra; skriv ut systemet. Radius `--jp-r-md` = **6px** (ADR 0052 Beslut 4: knappar 6px). Transition **90ms** (`.jp-btn`; shadcn `Button` `duration-75` = 75ms). Max EN `--primary` per skärm (ADR 0038). Inline-padding = `--jp-btn-px` (**18px**, `--sm` 14px via scoped re-pin) — namnet finns för att `.jp-btn--flush` ska kunna upphäva **exakt** den med `calc(-1 * var(--jp-btn-px))`, så en knapps TEXT hamnar på rälsen (#1090; alternativen är `padding-inline: 0`, som får ghost-hoverns fyllning att klistra sig mot glyferna, och ett `-18px` kopplat till regeln av ingenting). CSS-scopad till `:first-child` — "flush" betyder bara något först i sin rad, och efter en chipsrad skulle marginalen äta gapet. **Inte** samma sak som `--jp-control-px` (kontroll-storleks-punkten nedan), som är en DELAD SSOT över flera komponenter; denna läses av knapp-familjen plus sin egen upphävare. **Inte** heller det tokeniserings-punkten avvisar: ett `--jp-field-h` **skulle** dölja vilket av två system som gällde, medan `--jp-btn-px` namnger sitt (`.jp-btn`) och ändrar inget renderat värde. Klas-beslut 2026-07-28.
 - **Samma betoningsnivå på `.jp-btn`-chassit: `.jp-btn--emphasis`** (#1373). Speglar `.jp-rowbtn--emphasis` exakt — `--jp-accent-50`-vilo-tint + `--jp-accent-700` text och kant + `--jp-fw-bold` — för ytor som bär `.jp-btn` i stället för `.jp-rowbtn`. Modifiern finns för att kort-griderna behövde samma nivå: `ResumeCard` renderas en gång per CV, så en `--primary` där hade gett N solida accent-800-fyllningar på `/cv` och brutit raden nedan. Komponerar befintliga tokens, inför inga nya. Kontrast mätt: text 6,62:1, kant mot vitt kort 7,56:1.
 - **Rad-CTA-betoning (`.jp-rowbtn--emphasis`, ej en andra primär):** en föreslagen radhandling (t.ex. "Flytta till {status}" i ansöknings-raden) betonas via `--jp-accent-700`-kant + `--jp-fw-bold` på den vita `.jp-rowbtn`-basen — en UNDERORDNAD nivå *under* den solida en-per-skärm-primären (`.jp-btn--primary`, accent-800-fyllning). Aldrig solid fyllning per rad (N rader = N knappar bryter regeln ovan); betoningen håller sig innanför ADR 0038 just genom att vara icke-solid. Blir nivån för tyst eskaleras den *inom* den icke-solida nivån (t.ex. `--jp-accent-50`-vilo-tint + distinkt hover), aldrig till solid fyllning (CTO-bind 2026-07-12, #788).
-- **Input/Select-höjd — samma två system, samma regel.** `.jp-input` = **48px** (sm 40 ratificerad men **oimplementerad** — ingen `.jp-input--sm` finns) och radie **6px** — HANDOVER-v3 §5.2 via ADR 0052 (Amendment 2026-07-27); bumpen gjordes för att ett v2-användartest föll för §1.1-målanvändaren (55-åriga jobbsökare), så den är avsiktlig, inte slarv. shadcn `Input` = **44px** (ingen size-prop) och `SelectTrigger` = **44px** (`sm` 36) — ADR 0038; de bär flest ytor (`ui/input` i 20 filer, `ui/select` i 2 produktionsfiler). `.jp-sortfield__select` läser `--jp-control-h`; `.jp-select`/`.jp-textarea` städades bort i #1073; textarea bärs av `[data-slot="textarea"]` (`min-h-16`). **Följd av deltat:** en `.jp-input` (48px) och en `.jp-btn` (44px) på samma rad linjerar inte — para dem med `.jp-btn--field` (48px). Label alltid ovanför, hint under. **Inga beskrivande placeholder-exempel i sök/filter-fält** (Nielsen/WCAG-anti-pattern). Format-placeholder i auth-formulär OK (`namn@exempel.se` = syntax, ej exempelinnehåll)
+- **Input/Select-höjd — samma två system, samma regel.** `.jp-input` = **48px** (sm 40 ratificerad men **oimplementerad** — ingen `.jp-input--sm` finns) och radie **6px** — HANDOVER-v3 §5.2 via ADR 0052 (Amendment 2026-07-27); bumpen gjordes för att ett v2-användartest föll för §1.1-målanvändaren (55-åriga jobbsökare), så den är avsiktlig, inte slarv. shadcn `Input` = **44px** (ingen size-prop) och `SelectTrigger` = **44px** (`sm` 36) — ADR 0038; de bär flest ytor (`ui/input` i 20 filer, `ui/select` i 2 produktionsfiler). `.jp-sortfield__select` läser `--jp-control-h`; `.jp-select`/`.jp-textarea` städades bort i #1073; textarea bärs av `[data-slot="textarea"]` (`min-h-16`). **Följd av deltat:** en `.jp-input` (48px) och en `.jp-btn` (44px) på samma rad linjerar inte — para dem med `.jp-btn--field` (48px). Label alltid ovanför, hint under. **Ingen exempel-placeholder i något inmatningsfält** (ADR 0038, amendment 2026-05-17); formathjälp bara där §8 regel 3 ger den.
 - **Varför två system, och varför det inte är drift (#1095, avgjort 2026-07-27).** En revision flaggade 48/44 som avvikelse från ADR 0038. Fel: båda värdena är protokollförda i `HANDOVER-v3.md` §5.1/§5.2, den Klas-beslutade designspec vars **header** (rad 3) bär vetot över befintliga ADR:er (filen är **gitignorerad** — `.gitignore:104`; substansen är transkriberad in i ADR 0052:s amendment så den går att läsa ur repot, och `.worktreeinclude` tar med den i worktrees), och som ADR 0052 säger sig vara transkriberad från. Radien och typografin fördes över till Beslut 4/5; **höjdraderna tappades i just den transkriptionen** — en ofullständig transkription, inte ett obeslutat värde. ADR 0038:s 44/40 står kvar och är korrekt **för de primitiver den styr**. Alltså: ADR 0038 → shadcn-primitiverna, ADR 0052/HANDOVER → `.jp-*`. **Tokenisera inte 48:an** — ett `--jp-field-h` skulle dölja vilket system som gäller bakom ett namn där ingen letar (samma form som density-systemet, retirerat 2026-07-26). Den verkliga SSOT-kandidaten ligger i /jobb-sökraden, som upprepar 52px i tre regler för en visuell rad.
 - **`.jp-*` är OLAGRAT — en Tailwind-utility för en egenskap som `.jp-*`-regeln SJÄLV sätter är tyst verkningslös.** `@layer base`/`utilities` ägs av Tailwind; `.jp-*`-reglerna står utanför alla lager, och olagrad CSS vinner över varje lager. Det gäller varje egenskap, inte bara höjd: `.jp-btn` sätter både `height` och `padding`, så `className="jp-btn h-12"` OCH `className="jp-btn px-0"` är båda no-ops. Utan fel och utan varning — `guard:css` läser stilmallen, jsdom har ingen kaskad, eslint ser en giltig sträng. Mätt 2026-07-26: `{"input":48,"button":44}` med `h-12` på elementet. Ändra i regeln eller i en `.jp-*`-modifier (som `.jp-btn--field`) — aldrig med en utility. **Shorthand-fällan:** en regel som sätter `padding: 0 32px` blockerar även `py-4`, inte bara `px-*` — shorthanden sätter alla fyra sidorna. Omvänt gäller regeln BARA de egenskaper klassen faktiskt sätter: `.jp-skeleton` sätter bara `background` + `border-radius`, så `className="jp-skeleton h-10"` fungerar och görs på 59 ställen.
 - **Kontroll-storlek (filterrader)** — `--jp-control-h` (40px) + `--jp-control-fs` (14px) + `--jp-control-px` (14px) i `globals.css` är SSOT för filterradernas kontroll-storlek (hero-pills + sort-select på /jobb). Ändra storlek/textstorlek HÄR, aldrig inline per komponent — så hela filterraden förblir EN form med EN textstorlek (Klas 2026-06-30). Textstorlek ≥ 14px-golvet (§4 — kontrolltext aldrig under body-sm); mobil bumpar hit-targets till 44px (WCAG 2.5.5).
@@ -148,7 +151,7 @@ Regler:
 - Destructive actions kräver alltid bekräftelse-dialog
 - Icon-only buttons kräver `aria-label`
 - Loading state: ersätt label med "Sparar…", behåll bredd, sätt `disabled`
-- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan
+- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan. **Scoped undantag (ADR 0140): `/oversikt` är ett rutnät av sex kort med ett stort tal var (`--jp-fs-oversikt-num` 40px), en solid CTA per kort i kortets egen axelfärg, aldrig fler.** Undantaget når ingen annan sida.
 
 Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-components**.
 
@@ -169,6 +172,31 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - **Direkt:** 10 ord där möjligt, inte 25
 - **Konkret:** siffror, datum, namn — "Intervjun är 14 apr kl 10:00" slår "Du har en kommande intervju"
 - **Opretentiös:** inga ordspråk, inga liknelser, ingen peppning
+- **Copy-täthet: det självklara förklaras inte** (Klas-direktiv 2026-09-24, som gör hans "så få klick
+  och info som möjligt" från 2026-09-16 (ADR 0142) till regel; #1003; ADR 0144). `design-reviewer`
+  graderar överskott som **Major**, på samma sätt som hon graderar brist (ADR 0047):
+  1. Ingen mening som säger vad en rubrik (h1, dialog-, kort- eller Alert-titel), etikett eller knapp
+     redan säger.
+  2. Ett formulär (sida, kort eller dialog) bär högst EN ledtext, och bara när rubrik + etikett + knapp
+     inte redan säger vad som händer.
+  3. Formathjälp (hint) bara när en förstagångsanvändare utan den skriver ett värde som fältet
+     avvisar. Skrivsätt som fältet tolererar (bindestreck, mellanslag) förklaras inte; fältet tar emot
+     dem. E-postadressens syntax får ingen hint (fel format besvaras i felmeddelandet);
+     organisationsnummer, datum i fritext och concept-id är exempel på vad testet ger.
+  4. Vad systemet gör härnäst skrivs bara där användaren inte kan sluta sig till det av knappen.
+  5. Förklaringar ligger bakom ?-hjälpen (`InfoDialog` + `.jp-labelhelp`, #408, #1003), aldrig inline
+     som default; regel 7:s text flyttar inte dit utan hennes signatur.
+  6. Lugnande meningar är förbjudna (en försäkran om vad vi inte gör, en dementi av ett krav som
+     inte ställs): en yta som inte påstår något behöver inte dementera det. Det gäller inte vad en
+     oåterkallelig handling lämnar orört, eller raden till den som fått ett mejl hen inte begärt: det
+     är följd och instruktion (ADR 0047).
+  7. Rättsligt bärande text (samtycke och återkallelse enligt Art. 7, upplysningar enligt Art. 13
+     och 14, #1003:s undantag) står kvar i sin minsta signerade form: den kortas eller flyttas bara
+     med `security-auditor`s signatur och stryks aldrig. Vad som är rättsligt bärande avgör hon;
+     hennes bekräftade strängar står i ADR 0144.
+  Brist och överskott möts i samma mening: går uppgiften inte att slutföra utan att gissa, eller syns
+  inte en oåterkallelig handlings följd före handlingen, när meningen stryks (ADR 0047 punkt 1 och 3),
+  är fyndet en kortare mening eller en bättre etikett/knapp, aldrig gissningen.
 - Inga utropstecken i info/success. OK i error om det förstärker brådska — sparsamt.
 - Inga emojis, inga engelska fraser i svensk copy
 - Svenska locale-format: "14 apr 2026", "14:32", "33 456 kr"
@@ -182,6 +210,14 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
   och bär sitt verdikt och sitt skäl eller sitt bevis; utan den raden är
   sektionen inte tyst utan tom. Skyltar som är **åtgärdbara** — angivet yrke,
   uppladdat CV — står kvar; den om angivet yrke ersätter dessutom hela sektionen
+- **Ort-axeln heter "Ort"** — dess granulariteter heter "Län" och "Kommun". En
+  resultat-etikett namnger AXELN (senior-cto-advisor 2026-09-01, #1623). Regeln
+  binder varje yta som rapporterar utfallet, resultatrad såväl som förklaringstabell
+- **Bevisramen förutsätter sitt led** — listan över vad annonsen efterfrågar ramas
+  med "även" bara när raden faktiskt visar en föregående träff. Utan träff faller
+  adverbet bort (`jobads.ui.match.requested` i stället för
+  `jobads.ui.match.alsoRequested`).
+  Gäller varje dimension som når den generiska bevisformen (#1627)
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva
@@ -255,7 +291,13 @@ copyn ligger i `EmailTemplates.cs` bredvid textdelen den speglar. Ingen annan yt
    främmande klient. Skalan är: rubrik **22px/700** i `--jp-navy-800`-värdet, brödtext **16px/1.55**,
    sidfot **14px** (golvet, aldrig under). Ordmärket i sidfoten är **16px/700 utan negativ tracking** —
    det får aldrig väga tyngre än brödtexten, eftersom "ingen grå text" tar bort färg som hierarki-axel
-   och då måste storlek och vikt bära den ensamma.
+   och då måste storlek och vikt bära den ensamma. Engångskoden i ett kodmejl är ett eget steg,
+   **28px/700/1.2** med `tabular-nums` och letter-spacing 0.08em i ink-värdet, i ett eget stycke: koden
+   är mejlets ärende och väger därför avsiktligt tyngre än rubriken, och den är ingen brödtext, så §4:s
+   förbud mot letter-spacing i brödtext når den inte (Klas-direktiv 2026-09-24, #1825). Sidfotens rad
+   under ordmärket är taglinen "Den svenska jobbansökningshanteraren" (§11) i sidfotens 14px och
+   ink-värdet, inte §11:s 12px/500/`--jp-ink-2`, och den ersätter prisraden (Klas-direktiv 2026-09-24,
+   #1825).
 
 **Dessutom, och utan avsteg:** tabellayout och inline-CSS (inget `<style>`-block alls), max 600px,
 ingen flexbox/grid, `color-scheme: light` — mejlet är avsiktligt ljust i båda teman, vilket är rätt

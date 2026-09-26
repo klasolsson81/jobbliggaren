@@ -10,6 +10,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 // materializes the EF value-converter per row. Clearing on BOTH entry and exit makes every
 // such test order-independent (generalizes #300 PR-4). Raw SQL DELETE bypasses the converter
 // — the toxic rows cannot be read back, only deleted.
+// The same entry+exit clearing serves a test that nulls PLAIN columns by raw SQL to reach a
+// pre-migration row shape (TermsAcceptanceBackcompatTests, #1736): no jsonb involved, same need.
 public abstract class MalformedJsonbSeedTestBase(ApiFactory factory) : IAsyncLifetime
 {
     protected ApiFactory Factory { get; } = factory;

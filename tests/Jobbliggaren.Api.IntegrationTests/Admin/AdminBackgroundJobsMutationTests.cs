@@ -28,7 +28,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Admin;
 /// <list type="bullet">
 /// <item><b>Audit-row proof:</b> a successful trigger/retry writes exactly one audit_log row with the
 /// expected EventType for the admin actor; a REJECTED retry (NotFound/Conflict) writes NO row
-/// (AuditBehavior skips on failure). Mirrors <see cref="MyProfile.UpdateMyProfileAuditTests"/>.</item>
+/// (AuditBehavior skips on failure).</item>
 /// <item><b>Trigger allowlist over HTTP:</b> a non-allowlisted id → 400.</item>
 /// <item><b>Retry outcome mapping over HTTP:</b> Requeued → 200, JobNotFound → 404,
 /// NotInFailedState → 409.</item>
@@ -45,7 +45,7 @@ public class AdminBackgroundJobsMutationTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var email = $"admin-jobs-mut-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var me = await client.GetAsync("/api/v1/me", ct);

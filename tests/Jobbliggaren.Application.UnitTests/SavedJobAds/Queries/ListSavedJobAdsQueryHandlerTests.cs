@@ -36,7 +36,7 @@ public class ListSavedJobAdsQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
 
         var jobAd1 = CreateJobAd(_clock, "Backendutvecklare");
@@ -69,7 +69,7 @@ public class ListSavedJobAdsQueryHandlerTests
         // GroupJoin/DefaultIfEmpty ger j == null → JobAd null i DTO:n.
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
 
         var orphanJobAdId = new JobAdId(Guid.NewGuid());
@@ -101,7 +101,7 @@ public class ListSavedJobAdsQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
 
         var activeAd = CreateJobAd(_clock, "Backendutvecklare");
@@ -147,8 +147,8 @@ public class ListSavedJobAdsQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", _clock).Value;
-        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), "Other", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
+        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.AddRange(seeker, otherSeeker);
 
         var jobAd = CreateJobAd(_clock, "Backendutvecklare");

@@ -19,7 +19,7 @@ public class JobSeekerLastSeenJobsTests
     private static readonly FakeDateTimeProvider BaseClock = FakeDateTimeProvider.Default;
 
     private static JobSeeker NewSeeker() =>
-        JobSeeker.Register(Guid.NewGuid(), "Klas Olsson", BaseClock).Value;
+        JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(BaseClock), BaseClock).Value;
 
     private static FakeDateTimeProvider Later(int hours) =>
         FakeDateTimeProvider.At(BaseClock.UtcNow.AddHours(hours));

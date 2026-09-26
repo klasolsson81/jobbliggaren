@@ -24,8 +24,7 @@ describe("AddNoteForm", () => {
   it("re-seeds the note from the action's echo rather than losing it to the reset", async () => {
     // The echo deliberately differs from what was typed. In production they are equal, and that is
     // exactly why the difference is needed here: an assertion on the typed string alone would also
-    // pass if the field were simply never reset. Same reason LoginForm's #791 test types one
-    // address and echoes another.
+    // pass if the field were simply never reset.
     addNoteActionMock.mockResolvedValue({
       success: false,
       error: "Det gick inte att spara noteringen.",

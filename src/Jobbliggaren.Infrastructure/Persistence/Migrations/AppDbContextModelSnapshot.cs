@@ -564,12 +564,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("display_name");
-
                     b.Property<DateTimeOffset?>("LastCompanyWatchScanAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_company_watch_scan_at");
@@ -619,7 +613,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_job_seekers_user_id");
 
-                    b.ToTable("job_seekers", (string)null);
+                    b.ToTable("job_seekers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_job_seekers_terms_all_or_none", "num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Matching.UserJobAdMatch", b =>
@@ -1206,6 +1203,117 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("saved_searches", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMaterialisation", b =>
+                {
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criterion_id");
+
+                    b.Property<string>("CriteriaFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("criteria_fingerprint");
+
+                    b.Property<int>("ExcludedPersonnummerShaped")
+                        .HasColumnType("integer")
+                        .HasColumnName("excluded_personnummer_shaped");
+
+                    b.Property<DateTimeOffset>("MaterialisedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("materialised_at");
+
+                    b.Property<int>("MemberCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("member_count");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.HasKey("CriterionId")
+                        .HasName("pk_company_watch_criterion_materialisations");
+
+                    b.ToTable("company_watch_criterion_materialisations", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMember", b =>
+                {
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criterion_id");
+
+                    b.Property<string>("OrganizationNumber")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("organization_number");
+
+                    b.HasKey("CriterionId", "OrganizationNumber")
+                        .HasName("pk_company_watch_criterion_members");
+
+                    b.ToTable("company_watch_criterion_members", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.OccupationDivisionProfileRow", b =>
+                {
+                    b.Property<string>("OccupationGroupConceptId")
+                        .HasColumnType("text")
+                        .HasColumnName("occupation_group_concept_id");
+
+                    b.Property<string>("DivisionCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("division_code");
+
+                    b.Property<int>("AdCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("ad_count");
+
+                    b.HasKey("OccupationGroupConceptId", "DivisionCode")
+                        .HasName("pk_occupation_division_profiles");
+
+                    b.ToTable("occupation_division_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.OccupationDivisionProfileRun", b =>
+                {
+                    b.Property<string>("ProfileKey")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("profile_key");
+
+                    b.Property<int>("AdsCounted")
+                        .HasColumnType("integer")
+                        .HasColumnName("ads_counted");
+
+                    b.Property<int>("AdsInRegisterWithoutSni")
+                        .HasColumnType("integer")
+                        .HasColumnName("ads_in_register_without_sni");
+
+                    b.Property<int>("AdsNotInRegister")
+                        .HasColumnType("integer")
+                        .HasColumnName("ads_not_in_register");
+
+                    b.Property<int>("OccupationGroupsProfiled")
+                        .HasColumnType("integer")
+                        .HasColumnName("occupation_groups_profiled");
+
+                    b.Property<DateTimeOffset>("ProfiledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("profiled_at");
+
+                    b.Property<int>("RowsWritten")
+                        .HasColumnType("integer")
+                        .HasColumnName("rows_written");
+
+                    b.HasKey("ProfileKey")
+                        .HasName("pk_occupation_division_profile_runs");
+
+                    b.ToTable("occupation_division_profile_runs", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterEntry", b =>
                 {
                     b.Property<string>("OrganizationNumber")
@@ -1665,8 +1773,41 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                                 .HasConstraintName("fk_job_seekers_job_seekers_id");
                         });
 
+                    b.OwnsOne("Jobbliggaren.Domain.JobSeekers.TermsAcceptance", "TermsAcceptance", b1 =>
+                        {
+                            b1.Property<Guid>("JobSeekerId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateTimeOffset>("AcceptedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("terms_accepted_at");
+
+                            b1.Property<string>("PrivacyPolicyVersion")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("privacy_policy_version");
+
+                            b1.Property<string>("TermsVersion")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("terms_version");
+
+                            b1.HasKey("JobSeekerId");
+
+                            b1.ToTable("job_seekers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("JobSeekerId")
+                                .HasConstraintName("fk_job_seekers_job_seekers_id");
+                        });
+
                     b.Navigation("Preferences")
                         .IsRequired();
+
+                    b.Navigation("TermsAcceptance");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.Resume", b =>
@@ -1742,6 +1883,26 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_resume_versions_resumes_resume_id");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMaterialisation", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion", null)
+                        .WithMany()
+                        .HasForeignKey("CriterionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_watch_criterion_materialisations_criterion_id");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMember", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion", null)
+                        .WithMany()
+                        .HasForeignKey("CriterionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_watch_criterion_members_criterion_id");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Applications.Application", b =>

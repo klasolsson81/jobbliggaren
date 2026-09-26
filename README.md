@@ -627,7 +627,7 @@ Permanent deploy-infra (netcup-lådan, BE + FE co-tenant, ingen CDN) definieras 
 | `local` | Utveckling | Docker Compose | **Aktiv** |
 | `dev` / `staging` / `prod` | Integration / pre-prod / live | TBD (ADR 0050) | Avvecklad (ADR 0066) |
 
-Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md). `ci`-aggregatet (backend + frontend + coverage) måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
+Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md). `ci`-aggregatet måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
 
 ---
 

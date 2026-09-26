@@ -62,7 +62,7 @@ public class AdminBackgroundJobsAuthTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var email = $"admin-jobs-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // Bekräfta att klienten faktiskt är autentiserad (icke-Admin) så att 403

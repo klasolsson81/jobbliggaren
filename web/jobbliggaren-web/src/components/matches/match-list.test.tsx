@@ -26,7 +26,7 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     // en användare på standardvägen inte tror att hen kvalificerar och väntar
     // förgäves. ADR 0080: konstatera villkoret, värva inte (ingen nudge/banner).
     const emptyBody = screen.getByText(/Bakgrundsmatchningen körs varje natt/);
-    expect(emptyBody).toHaveTextContent(/Matchningsnotiser under Inställningar/);
+    expect(emptyBody).toHaveTextContent(/Matchningsnotiser under Mina sidor/);
     expect(emptyBody).toHaveTextContent(/avstängt som standard/);
     expect(emptyBody).toHaveTextContent(/angett vilka yrken du söker inom/);
     // Ingen lista renderas.

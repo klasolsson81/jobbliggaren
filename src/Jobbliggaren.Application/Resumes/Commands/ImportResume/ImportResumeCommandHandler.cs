@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.Resumes.Commands.ImportResume;
 /// <summary>
 /// F4-8 import/parse orchestration (thin handler — the Infrastructure ports do the
 /// heavy lifting). Flow (ADR 0074): resolve file kind (MIME + magic bytes) → extract →
-/// normalize a transient scan-copy → run the personnummer guard on the RAW text BEFORE
+/// normalize a transient scan-copy → run the personnummer guard on the extracted text BEFORE
 /// persist (Invariant 1) → segment → derive an SSYK proposal (F4-3, user confirms
 /// later) → construct the aggregate → capture the original file as a Form C-sealed
 /// <see cref="ResumeFile"/> when the body scan is clean OR the user acknowledged the
@@ -76,10 +76,10 @@ public sealed class ImportResumeCommandHandler(
         //     criteria (B2/D9/E2) verdict honestly. NEVER reads CV text (that is `extraction`).
         var layoutMetrics = layoutAnalyzer.Analyze(command.FileBytes, kind, cancellationToken);
 
-        // 2. Personnummer guard on the RAW text BEFORE persist (Invariant 1). The
-        //    normalizer bridges spaced/OCR-gapped forms on a transient scan-copy only;
-        //    the persisted raw text is the original, un-normalized extraction.
-        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.RawText, PersonnummerGapProfile.ExtractedDocumentText);
+        // 2. Personnummer guard on the extracted text, a DOCX's other stories and tracked changes included, BEFORE
+        //    persist (Invariant 1). The normalizer bridges spaced/OCR-gapped forms on a transient
+        //    scan-copy only; the persisted raw text is the original, un-normalized extraction.
+        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.ScanText, PersonnummerGapProfile.ExtractedDocumentText);
         var personnummerMatches = PersonnummerScanner.Scan(scanCopy);
 
         // 2a. Defense-in-depth (#426, ADR 0074 Invariant 1): the CV FILENAME is a second

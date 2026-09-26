@@ -82,7 +82,6 @@ export function ApplicationSummary({
     return (
       <div className="jp-appsummary jp-appsummary--empty">
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
-        <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men INTE solid: en-primär-per-skärm är redan spenderad på
             sektionens åtgärdskort. `--emphasis` är husets ratificerade nivå
             under den (DESIGN.md §6, #1373). */}

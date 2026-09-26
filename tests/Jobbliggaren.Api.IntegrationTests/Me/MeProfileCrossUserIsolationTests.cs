@@ -24,12 +24,11 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 [Collection("Api")]
 public class MeProfileCrossUserIsolationTests(ApiFactory factory)
 {
-    private async Task<HttpClient> RegisterUserAsync(string userPrefix, string displayName, CancellationToken ct)
+    private async Task<HttpClient> RegisterUserAsync(string userPrefix, CancellationToken ct)
     {
         var client = factory.CreateClient();
         var email = $"{userPrefix}-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email, displayName: displayName, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -38,17 +37,13 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
     public async Task User_B_PATCH_profile_does_not_affect_user_A_profile()
     {
         var ct = TestContext.Current.CancellationToken;
-        var clientA = await RegisterUserAsync("me-iso-a", "Anna A", ct);
-        var clientB = await RegisterUserAsync("me-iso-b", "Bertil B", ct);
+        var clientA = await RegisterUserAsync("me-iso-a", ct);
+        var clientB = await RegisterUserAsync("me-iso-b", ct);
 
         // User B muterar sin egen profil
         var patchResponse = await clientB.PatchAsJsonAsync(
             "/api/v1/me/profile",
-            new
-            {
-                displayName = "Bertil Förändrad",
-                language = "en"
-            },
+            new { language = "en" },
             ct);
         patchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
@@ -56,13 +51,13 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
         var aResponse = await clientA.GetAsync("/api/v1/me/profile", ct);
         aResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var aJson = await aResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        aJson.GetProperty("displayName").GetString().ShouldBe("Anna A");
+        aJson.GetProperty("language").GetString().ShouldBe("sv");
 
         // User B:s profil ska reflektera ändringen
         var bResponse = await clientB.GetAsync("/api/v1/me/profile", ct);
         bResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var bJson = await bResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        bJson.GetProperty("displayName").GetString().ShouldBe("Bertil Förändrad");
+        bJson.GetProperty("language").GetString().ShouldBe("en");
     }
 
     [Fact]
@@ -73,8 +68,8 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
         // ska A:s profil ändå vara orörd. Idag ignoreras dessa fält av
         // modellbindningen — testet låser det beteendet.
         var ct = TestContext.Current.CancellationToken;
-        var clientA = await RegisterUserAsync("me-iso-a", "Anna A", ct);
-        var clientB = await RegisterUserAsync("me-iso-b", "Bertil B", ct);
+        var clientA = await RegisterUserAsync("me-iso-a", ct);
+        var clientB = await RegisterUserAsync("me-iso-b", ct);
 
         // Hämta A:s userId så vi kan försöka injicera den i B:s payload
         var aMeResponse = await clientA.GetAsync("/api/v1/me", ct);
@@ -87,7 +82,6 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
             "/api/v1/me/profile",
             new
             {
-                displayName = "Bertil ändrad via injection",
                 language = "en",
                 userId = userIdA,
                 jobSeekerId = userIdA
@@ -99,15 +93,15 @@ public class MeProfileCrossUserIsolationTests(ApiFactory factory)
         var aProfileResponse = await clientA.GetAsync("/api/v1/me/profile", ct);
         aProfileResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var aProfileJson = await aProfileResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        aProfileJson.GetProperty("displayName").GetString().ShouldBe("Anna A");
+        aProfileJson.GetProperty("language").GetString().ShouldBe("sv");
     }
 
     [Fact]
     public async Task User_B_GET_me_returns_user_B_data_not_user_A_data()
     {
         var ct = TestContext.Current.CancellationToken;
-        var clientA = await RegisterUserAsync("me-iso-a", "Anna A", ct);
-        var clientB = await RegisterUserAsync("me-iso-b", "Bertil B", ct);
+        var clientA = await RegisterUserAsync("me-iso-a", ct);
+        var clientB = await RegisterUserAsync("me-iso-b", ct);
 
         var aMeResponse = await clientA.GetAsync("/api/v1/me", ct);
         var aJson = await aMeResponse.Content.ReadFromJsonAsync<JsonElement>(ct);

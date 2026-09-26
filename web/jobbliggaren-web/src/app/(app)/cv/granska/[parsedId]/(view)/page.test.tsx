@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../../messages/sv/pages.json";
-import type { ParsedResumeDetailDto } from "@/lib/dto/parsed-resume";
+import type {
+  CriterionVerdict,
+  CvReviewDto,
+  ParsedResumeDetailDto,
+} from "@/lib/dto/parsed-resume";
 import CvReviewPage from "./page";
 
 /**
@@ -51,7 +55,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Client islands with their own suites; the page test is about which blocks render.
-vi.mock("@/components/resumes/cv-preview", () => ({ CvPreview: () => null }));
+// Prop-capturing rather than `() => null`: a null mock never inspects props, so pointing
+// this surface back at the generated-render path would pass the whole suite (test-writer,
+// PR #1684).
+const cvPreviewProps = vi.fn();
+vi.mock("@/components/resumes/cv-preview", () => ({
+  CvPreview: (props: Record<string, unknown>) => {
+    cvPreviewProps(props);
+    return null;
+  },
+}));
 vi.mock("@/components/resumes/cv-review-panel", () => ({ CvReviewPanel: () => null }));
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
@@ -66,7 +79,6 @@ function detail(
     sourceFileName: "cv.pdf",
     confidence: {
       overall: "Degraded",
-      requiresManualReview: true,
       fallback: "None",
       sections: [],
     },
@@ -105,6 +117,44 @@ beforeEach(() => {
   getCvReview.mockResolvedValue({ kind: "error" });
 });
 
+describe("/cv/granska/[parsedId] — the original file reaches CvPreview", () => {
+  it("passes the PARSED original path and no atsTextUrl", async () => {
+    cvPreviewProps.mockClear();
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    render(await invoke());
+
+    expect(cvPreviewProps).toHaveBeenCalledTimes(1);
+    const props = cvPreviewProps.mock.calls[0]![0] as Record<string, unknown>;
+    // Klas-direktiv 2026-09-06: the staging surface shows the user's OWN file. `/preview`
+    // is our generated rendering and is exactly what had to go.
+    expect(props.originalUrl).toBe(`/api/cv/parsed/${PARSED_ID}/original`);
+    expect(String(props.originalUrl)).not.toContain("/preview");
+    // No canonical id here, so no ATS-text tab — and therefore no tab row at all.
+    expect(props.atsTextUrl).toBeUndefined();
+    // The file name the page already renders, so the download is identifiable.
+    expect(props.fileName).toBe("cv.pdf");
+  });
+});
+
+describe("/cv/granska/[parsedId] — the Beta marker", () => {
+  it("marks the staging review Beta, because it is the one a user meets FIRST", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    const { container } = render(await invoke());
+
+    // The import flow lands here BEFORE promotion, so an unmarked staging surface would
+    // implicitly claim it is not beta while the canonical one says it is — inverting the
+    // marker's purpose (design-reviewer, PR #1684).
+    const kicker = container.querySelector(".jp-pagehero__kicker");
+    expect(kicker).not.toBeNull();
+    expect(kicker!.textContent).toBe("Beta");
+    // The reservation itself is the sentence, and it lives in the lede so the skeleton
+    // reserves the right band height without a second paragraph.
+    expect(screen.getByText(/Granskningen är ny och byggs vidare/)).toBeInTheDocument();
+  });
+});
+
 describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
   it("renders the reason the DTO carried, not a generic block", async () => {
     getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
@@ -115,20 +165,6 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
       screen.getByRole("heading", { name: "Därför är filen inte sparad som CV" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/anställning har arbetsgivare och titel/i)).toBeInTheDocument();
-  });
-
-  it("carries the ACCOUNT-NAME reason through to its own copy and control", async () => {
-    // The wiring that matters most: this reason renders on a page where every file-side
-    // surface says "clean", so if the page passed the wrong value nothing else would betray it.
-    getParsedResume.mockResolvedValue({
-      kind: "ok",
-      data: detail("PersonnummerInAccountName"),
-    });
-
-    render(await invoke());
-
-    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Inställningar/ })).toBeInTheDocument();
   });
 
   it("renders the file-scoped cleared state when nothing blocks the artifact", async () => {
@@ -149,5 +185,59 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
 
     getParsedResume.mockResolvedValue({ kind: "unauthorized" });
     await expect(invoke()).rejects.toThrow("NEXT_REDIRECT:/logga-in");
+  });
+});
+
+function review(verdicts: CriterionVerdict[]): CvReviewDto {
+  return {
+    rubricVersion: "1",
+    profile: "Ats",
+    categories: [],
+    verdicts: verdicts.map((verdict, index) => ({
+      criterionId: `A${index + 1}`,
+      name: `Kriterium ${index + 1}`,
+      category: "Content",
+      verdict,
+      evidence: [],
+      notAssessedReason: null,
+      userStatus: null,
+      userStatusStaleAt: null,
+      isIgnorable: false,
+    })),
+    criticalFails: [],
+    assessedCount: verdicts.length,
+    totalCount: verdicts.length,
+  };
+}
+
+describe("/cv/granska/[parsedId] — the next-step sentence", () => {
+  const NEXT_STEP_BODY = "Uppdatera filen utifrån anmärkningarna och ladda upp den på nytt.";
+
+  it("renders the sentence when the review has a finding to fix", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+    getCvReview.mockResolvedValue({ kind: "ok", data: review(["Pass", "Warn"]) });
+
+    render(await invoke());
+
+    expect(screen.getByText(NEXT_STEP_BODY)).toBeInTheDocument();
+  });
+
+  it("renders no sentence when the review has no finding to fix", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+    getCvReview.mockResolvedValue({ kind: "ok", data: review(["Pass", "NotAssessed"]) });
+
+    render(await invoke());
+
+    expect(screen.getByRole("heading", { name: "Nästa steg" })).toBeInTheDocument();
+    expect(screen.queryByText(NEXT_STEP_BODY)).toBeNull();
+  });
+
+  it("renders no sentence when the review could not be loaded", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    render(await invoke());
+
+    expect(screen.getByRole("heading", { name: "Nästa steg" })).toBeInTheDocument();
+    expect(screen.queryByText(NEXT_STEP_BODY)).toBeNull();
   });
 });

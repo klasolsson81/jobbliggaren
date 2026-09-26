@@ -46,7 +46,7 @@ public sealed record Session(
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
     // The lifetime profile the session was created under (#481). Exposed so a caller that
-    // re-issues the current session (change-password C6, #678) can mint the replacement under
+    // re-issues the current session (the change-email confirm's C6, #678) can mint the replacement under
     // the SAME profile and tell the Next layer whether the cookie is persistent — without a
     // second store round-trip or a new port method. Every store read/create populates this
     // authoritatively from the payload/param. The Legacy default is purely a construction
@@ -67,10 +67,10 @@ public enum SessionLifetime
     /// <summary>Pre-profiles reach (the value in effect before opt-in persistence).</summary>
     Legacy = 0,
 
-    /// <summary>Short-lived: "Håll mig inloggad" unchecked. Dies quickly, never rotates.</summary>
+    /// <summary>Short-lived. Dies quickly, never rotates.</summary>
     Session = 1,
 
-    /// <summary>"Håll mig inloggad" checked: long sliding window, hard cap, rotates on interval.</summary>
+    /// <summary>Long sliding window, hard cap, rotates on interval.</summary>
     Persistent = 2,
 }
 

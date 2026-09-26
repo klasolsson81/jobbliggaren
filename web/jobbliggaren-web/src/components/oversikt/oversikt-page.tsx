@@ -9,6 +9,10 @@ import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
+import type {
+  CriterionReference,
+  ListCompanyWatchCriteriaResult,
+} from "@/lib/dto/company-criteria";
 import {
   findFollowUpCandidates,
   findLatestOffer,
@@ -21,76 +25,86 @@ import {
   OVERSIKT_DEADLINE_WINDOW_DAYS,
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
-import { ApplicationSummary } from "./application-summary";
-import { MarkAllReadRow } from "./mark-all-read-row";
-import { CompanySummary } from "./company-summary";
-import {
-  countByStatus,
-  totalCount,
-} from "@/lib/applications/pipeline-counts";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import {
   buildRecentSearchLabel,
   recentSearchLabelCopy,
 } from "@/lib/job-ads/recent-search-label";
-import { SavedSearchNoticeText } from "./saved-search-notice-text";
-import { SetupCallout } from "./setup-callout";
-import { NoticeToolbar } from "./notice-toolbar";
-import { NOTICE_TYPES } from "./notice-types";
+import { ApplicationsCard } from "./applications-card";
+import { CompaniesCard } from "./companies-card";
+import { CriteriaCard, criteriaCardIsWide } from "./criteria-card";
+import { MarkAllReadRow } from "./mark-all-read-row";
+import { MatchingCard } from "./matching-card";
 import {
-  NoticeSection,
+  NoticePrefsPopover,
+  type NoticePrefGroup,
   type NoticePrefType,
+} from "./notice-prefs-popover";
+import { NoticeToolbar } from "./notice-toolbar";
+import {
+  NOTICE_TYPES,
   type NoticeSource,
   type NoticeType,
   type SectionNoticeData,
-} from "./notice-section";
+} from "./notice-types";
+import { RecentEventsCard } from "./recent-events-card";
+import { RequiresYouCard } from "./requires-you-card";
+import { SavedSearchNoticeText } from "./saved-search-notice-text";
 
 interface OversiktPageProps {
-  readonly email: string;
-  readonly displayName: string | null;
   readonly profile: ApiResult<JobSeekerProfileDto>;
   readonly pipeline: ApiResult<PipelineGroupDto[]>;
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
   readonly recentSearches: ApiResult<ListRecentSearchesResult>;
   /**
-   * ADR 0079 STEG 6 — live match-count (Bra + Stark) för matchnings-notisen.
-   * `number` = backend-svar (`count`, kan vara 0 = honest nollstate). `null` =
-   * fetch:en degraderade (nätverk/auth/rate-limit) ⇒ notisen utelämnas helt
-   * (aldrig en mock-fallback). Notisen renderas bara när profilen har angett ett
-   * yrke (`hasStatedDesiredOccupation`); annars äger setup-kortet slotten.
+   * ADR 0079 STEG 6 — live match-count (Bra + Stark) för Matchning-kortet och matchnings-notisen.
+   * `number` = backend-svar (`count`, kan vara 0 = honest nollstate). `null` = fetch:en
+   * degraderade (nätverk/auth/rate-limit) ⇒ kortet visar en en-dash utan CTA och notisen
+   * utelämnas (aldrig en mock-fallback). Renderas bara när profilen har angett ett yrke
+   * (`hasStatedDesiredOccupation`); annars äger setup-läget kortet.
    */
   readonly matchCount: number | null;
   /**
    * Bevakning F2 (#801, RF-6=6B) — antalet nya annonser från bevakade företag
    * NYA sedan senaste /foretag-besök (live `GET /me/followed-company-ads/new-count`,
-   * per-watch grad-filtrerat read-time). Driver Företagsbevaknings-notisen (#726);
-   * `0` ⇒ notisen utelämnas (honest tomt-läge). Degraderar till `0` vid fetch-fel.
+   * per-watch grad-filtrerat read-time). Driver Företagsbevaknings-notisen (#726) och kortets
+   * "N nya"-pill; `0` ⇒ båda utelämnas (honest tomt-läge). Degraderar till `0` vid fetch-fel.
    */
   readonly newFollowedCompanyAdCount: number;
   /**
-   * #1558 — de bevakade företagen, som Result. Driver Företagsbevaknings stående
-   * tillstånd. Ett Result och inte en array: sammanfattningen måste kunna skilja noll
-   * bevakningar från en hämtning som föll, och bara ett Result bär den skillnaden.
+   * #1558 — de bevakade företagen, som Result. Driver Bevakade företag-kortet. Ett Result och
+   * inte en array: kortet måste kunna skilja noll bevakningar från en hämtning som föll, och
+   * bara ett Result bär den skillnaden.
    */
   readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
+  /**
+   * #1681 del 3 — branschbevakningarna, som Result och av samma skäl som `companyWatches`:
+   * bara ett Result skiljer "du har inga" från "listan kunde inte läsas". Varje rad bär de TVÅ
+   * annonstal detaljsidan visar, i samma former (ADR 0139) — talen är alltså redan komponerade
+   * när de kommer hit, och den här sidan räknar ingenting själv.
+   */
+  readonly criteria: ApiResult<ListCompanyWatchCriteriaResult>;
+  /**
+   * SCB-referensträdet, för radernas människoetikett. `null` = läsningen degraderade; rubriken
+   * faller då till användarens egen etikett och därefter till den neutrala. En degraderad tabell
+   * får ALDRIG blanka annonstalen — de är kortets poäng och beror inte på trädet.
+   */
+  readonly criterionReference: CriterionReference | null;
 }
 
 /**
- * F6 P5 Punkt 4 — Översikt-sidan, omgjord till NOTISCENTER (#726). Server
- * Component (orkestratorn, non-async — synkron next-intl-translator).
+ * Översikt-sidan som bento-dashboard (ADR 0140, #1723). Server Component (orkestratorn,
+ * non-async — synkron next-intl-translator).
  *
- * Bygger notiser grupperade per KÄLLA (Mina ansökningar / Jobbannonser /
- * Företagsbevakning) i stället för de globala "Kräver åtgärd"/"Information"-
- * grupperna, plus ett "Kräver åtgärd"-kort för matchnings-setup. Sammanfattningen
- * och I dag-kortet är borttagna.
+ * Bygger notiserna som förut (#726) och delar dem på KIND: allt utom `info` är åtgärder och
+ * går till Kräver dig, `info` går till Senaste händelser. De fyra stående tillstånden (ansökningar,
+ * matchning, bevakade företag, branschbevakningar) är egna kort med ett tal och en CTA var.
  *
- * Degraderad fallback: ApiResult-fel på en enskild källa ger en tom sektion
- * (tomt-läge), aldrig en blank sida.
+ * Degraderad fallback: ApiResult-fel på en enskild källa ger ett kort med en en-dash och
+ * `unavailable`-text — aldrig en blank cell, aldrig en blank sida.
  */
 export function OversiktPage({
-  email,
-  displayName,
   profile,
   pipeline,
   savedJobAds,
@@ -98,6 +112,8 @@ export function OversiktPage({
   matchCount,
   newFollowedCompanyAdCount,
   companyWatches,
+  criteria,
+  criterionReference,
 }: OversiktPageProps) {
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
@@ -108,8 +124,7 @@ export function OversiktPage({
   const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   // #1576 - the number itself is the way to the ads it counts. The destination runs the SAME
-  // predicate as this count, so the two cannot disagree. The row's single CTA still points at the
-  // catalogue: the number links to the ads, the CTA to the list - CompanySummary's division.
+  // predicate as this count, so the two cannot disagree.
   const newAdsLink = (chunks: ReactNode) => (
     <Link href="/foretag/bevakade/nya" className="jp-countlink">
       {chunks}
@@ -120,44 +135,42 @@ export function OversiktPage({
   // notification-port finns: byt slug+datum mot riktigt notificationId per
   // backend-instans.
   const dateSlug = swedishDateSlug(today);
-  const kickerName =
-    displayName && displayName.trim().length > 0
-      ? displayName
-      : (email.split("@")[0] ?? email);
 
   const pipelineData = pipeline.kind === "ok" ? pipeline.data : [];
-  // Vad sammanfattningen redan säger om sektionen, så notislistan inte
-  // upprepar det i en andra form. Vid en misslyckad hämtning är även
-  // "inga olästa" ett påstående om data som aldrig lästes.
-  const summaryOwns =
-    pipeline.kind !== "ok"
-      ? ("unreadable" as const)
-      : totalCount(countByStatus(pipeline.data)) === 0
-        ? ("empty" as const)
-        : undefined;
   const allApps = flattenPipeline(pipelineData);
-
-  // Företagsbevakningens motsvarighet, och den har MEDVETET bara den ena grenen.
-  // `summaryOwns` får sättas när sammanfattningens tillstånd MEDFÖR notisernas: noll
-  // bevakningar medför noll händelser, för ett företag man inte följer kan inte
-  // publicera något nytt. En misslyckad bevakningshämtning medför däremot ingenting om
-  // händelseantalet — till skillnad från ansökningarna läser de två halvorna här skilda
-  // källor (notiserna `newFollowedCompanyAdCount`, sammanfattningen `companyWatches`),
-  // så "unreadable" hade dolt en oläst-räknare som fortfarande är ett mätt påstående.
-  const companySummaryOwns =
-    companyWatches.kind === "ok" && companyWatches.data.length === 0
-      ? ("empty" as const)
-      : undefined;
 
   const followUps = findFollowUpCandidates(allApps, today);
   const recentInterviews = findRecentInterviews(allApps, today);
   const latestOffer = findLatestOffer(allApps);
 
-  // F4-12 PR-B (ADR 0076): setup-kort ↔ match-notis är ÖMSESIDIGT uteslutande,
-  // styrt av `hasStatedDesiredOccupation`. Yrke angett → match-notis (live count).
-  // Ej angett → setup-kortet. Aldrig båda.
+  // F4-12 PR-B (ADR 0076): setup-läge ↔ matchtal är ÖMSESIDIGT uteslutande, styrt av
+  // `hasStatedDesiredOccupation`. Yrke angett → Matchning-kortet bär talet och match-notisen
+  // renderas. Ej angett → kortet bär setup-callouten. Aldrig båda.
   const hasStatedOccupation =
     profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
+
+  // Trust-invariant (harmoniserad 2026-07-03, CTO H2): länken bär EXAKT samma facetter som
+  // backend-counten hård-filtrerar på och INGA matchGrades — /jobb-landningens TotalCount ==
+  // kortets tal == notis-talet == setup-räknaren per konstruktion. Byggd EN gång och delad av
+  // kortet och notisen, så de två inte kan peka på olika listor.
+  const matchHref =
+    profile.kind === "ok"
+      ? buildJobbHref({
+          q: "",
+          occupationGroup: [...profile.data.preferredOccupationGroups],
+          region: [...profile.data.preferredRegions],
+          municipality: [...profile.data.preferredMunicipalities],
+          // #551 punkt 4 — H2-invarianten ovan: GetMyMatchCountQueryHandler
+          // hård-filtrerar på den persisterade PreferredRemote, så länken måste bära
+          // samma axel. Utan den säger kortet N medan listan visar ett annat tal så
+          // snart användaren sparat Distans.
+          remote: profile.data.preferredRemote,
+          employmentType: [...profile.data.preferredEmploymentTypes],
+          worktimeExtent: [],
+          matchGrades: [],
+          sortBy: DEFAULT_SORT_BY,
+        })
+      : null;
 
   // ── Mina ansökningar ──────────────────────────────────────────────────────
   const applicationNotices: SectionNoticeData[] = [];
@@ -253,25 +266,7 @@ export function OversiktPage({
     });
   }
 
-  if (hasStatedOccupation && matchCount !== null && profile.kind === "ok") {
-    // Trust-invariant (harmoniserad 2026-07-03, CTO H2): länken bär EXAKT samma
-    // facetter som backend-counten hård-filtrerar på och INGA matchGrades —
-    // /jobb-landningens TotalCount == notis-talet == setup-räknaren per konstruktion.
-    const matchHref = buildJobbHref({
-      q: "",
-      occupationGroup: [...profile.data.preferredOccupationGroups],
-      region: [...profile.data.preferredRegions],
-      municipality: [...profile.data.preferredMunicipalities],
-      // #551 punkt 4 — H2-invarianten ovan: GetMyMatchCountQueryHandler
-      // hård-filtrerar på den persisterade PreferredRemote, så länken måste bära
-      // samma axel. Utan den säger notisen N medan listan visar ett annat tal så
-      // snart användaren sparat Distans.
-      remote: profile.data.preferredRemote,
-      employmentType: [...profile.data.preferredEmploymentTypes],
-      worktimeExtent: [],
-      matchGrades: [],
-      sortBy: DEFAULT_SORT_BY,
-    });
+  if (hasStatedOccupation && matchCount !== null && matchHref !== null) {
     jobAdNotices.push({
       id: `n-match-${dateSlug}`,
       source: "jobads",
@@ -333,7 +328,9 @@ export function OversiktPage({
         lnk: newAdsLink,
       }),
       cta: t("notices.companiesCta"),
-      href: "/foretag/bevakade",
+      // ADR 0140: the CTA now names the new ads and goes where the number in the text already
+      // went — one destination for one notice.
+      href: "/foretag/bevakade/nya",
       time: t("notices.timeToday"),
     });
   }
@@ -344,11 +341,16 @@ export function OversiktPage({
     ...companyNotices,
   ];
 
-  // Kugghjuls-typer per sektion, byggda ur NOTICE_TYPES-SSOT:en så popover-
-  // raderna aldrig kan drifta från notisernas `type`-slugs (code-reviewer
-  // Minor 1). `Record<NoticeType, string>` tvingar en label för VARJE typ —
-  // en ny typ utan label blir ett kompileringsfel. Inkluderar förberedda typer
-  // utan notiser ännu ("Statusändringar", "Företagshändelser"). A′: sök-typen
+  // Kind-splitten (ADR 0140 Beslut 5): allt utom `info` kräver något av läsaren — uppföljning,
+  // deadline, erbjudande, intervju — och går till Kräver dig; `info` är händelser. Varje lista
+  // behåller konstruktionsordningen.
+  const actionNotices = allNotices.filter((n) => n.kind !== "info");
+  const infoNotices = allNotices.filter((n) => n.kind === "info");
+
+  // Kugghjuls-typer per källa, byggda ur NOTICE_TYPES-SSOT:en så popover-raderna aldrig kan
+  // drifta från notisernas `type`-slugs (code-reviewer Minor 1). `Record<NoticeType, string>`
+  // tvingar en label för VARJE typ — en ny typ utan label blir ett kompileringsfel. Inkluderar
+  // förberedda typer utan notiser ännu ("Statusändringar", "Företagshändelser"). A′: sök-typen
   // heter "Senaste sökningen", inte "Sparade sökningar".
   const prefLabels: Record<NoticeType, string> = {
     followup: t("notices.prefFollowup"),
@@ -363,6 +365,18 @@ export function OversiktPage({
   };
   const prefTypesFor = (source: NoticeSource): NoticePrefType[] =>
     NOTICE_TYPES[source].map((id) => ({ id, label: prefLabels[id] }));
+  // ONE gear for the page (ADR 0140 Beslut 4), the nine types grouped under the source names
+  // the three sections used to carry.
+  const prefGroups: NoticePrefGroup[] = [
+    { source: "applications", title: t("notices.sectionApplications"), types: prefTypesFor("applications") },
+    { source: "jobads", title: t("notices.sectionJobAds"), types: prefTypesFor("jobads") },
+    { source: "companies", title: t("notices.sectionCompanies"), types: prefTypesFor("companies") },
+  ];
+
+  // Two or more industry watches reflow the Branschbevakning card to a full row, and its two
+  // siblings widen to keep the row even. One expression, read here for the siblings and inside
+  // the card for itself.
+  const siblingSpan = criteriaCardIsWide(criteria) ? 6 : 4;
 
   return (
     <>
@@ -371,11 +385,7 @@ export function OversiktPage({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">
-              {t("hero.kicker", { name: kickerName })}
-            </div>
             <h1 className="jp-pagehero__title">{t("hero.title")}</h1>
-            <p className="jp-pagehero__lede">{t("hero.lede")}</p>
           </div>
         </div>
       </section>
@@ -386,45 +396,26 @@ export function OversiktPage({
         <NoticeToolbar
           lastUpdated={formatNoticesStamp(format, today)}
           lastUpdatedIso={today.toISOString()}
+          aside={<NoticePrefsPopover groups={prefGroups} notices={allNotices} />}
         />
 
-        {!hasStatedOccupation && <SetupCallout />}
-
-        <NoticeSection
-          source="applications"
-          titleId="oversikt-applications"
-          title={t("notices.sectionApplications")}
-          notices={applicationNotices}
-          emptyBody={t("notices.emptyApplications")}
-          prefTypes={prefTypesFor("applications")}
-          summary={
-            <ApplicationSummary pipeline={pipeline} linkHref="/ansokningar" />
-          }
-          summaryOwns={summaryOwns}
-        />
-        <NoticeSection
-          source="jobads"
-          titleId="oversikt-jobads"
-          title={t("notices.sectionJobAds")}
-          notices={jobAdNotices}
-          emptyBody={t("notices.emptyJobAds")}
-          prefTypes={prefTypesFor("jobads")}
-        />
-        <NoticeSection
-          source="companies"
-          titleId="oversikt-companies"
-          title={t("notices.sectionCompanies")}
-          notices={companyNotices}
-          emptyBody={t("notices.emptyCompanies")}
-          prefTypes={prefTypesFor("companies")}
-          summary={
-            <CompanySummary
-              watches={companyWatches}
-              linkHref="/foretag/bevakade"
-            />
-          }
-          summaryOwns={companySummaryOwns}
-        />
+        <div className="jp-ov-grid">
+          <RequiresYouCard notices={actionNotices} />
+          <ApplicationsCard pipeline={pipeline} />
+          <MatchingCard
+            matchCount={matchCount}
+            matchHref={matchHref}
+            hasStatedOccupation={hasStatedOccupation}
+            span={siblingSpan}
+          />
+          <CompaniesCard
+            watches={companyWatches}
+            newAdCount={newFollowedCompanyAdCount}
+            span={siblingSpan}
+          />
+          <CriteriaCard criteria={criteria} reference={criterionReference} />
+          <RecentEventsCard notices={infoNotices} />
+        </div>
 
         {/* Sist på sidan, efter det den verkar på (#1557). */}
         <MarkAllReadRow notices={allNotices} />

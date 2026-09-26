@@ -43,7 +43,7 @@ public class IncludeRelatedParamBindingTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
     }

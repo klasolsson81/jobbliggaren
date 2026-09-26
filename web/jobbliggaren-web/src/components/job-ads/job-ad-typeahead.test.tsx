@@ -280,6 +280,53 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     });
   });
 
+  // #1610 — the WCAG 1.4.11 active-row edge hangs on the CSS selector
+  // .jp-typeahead__option[aria-selected="true"]. Asserting the class and the ARIA
+  // state separately would stay green while the pair drifted apart onto different
+  // elements, so this queries with the stylesheet's own selector string.
+  // What is NOT assertable here: the rendered contrast. jsdom runs no cascade and
+  // has no .jp-hero__plate ancestor, so the token that actually resolves on /jobb
+  // is invisible to this suite — DoD #4 rendered verification carries that half.
+  it("#1610: exactly one option matches the active-indicator selector, and it is the marked row", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([
+            { kind: 0, conceptId: null, label: "Frontend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
+            { kind: 0, conceptId: null, label: "Fullstack-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
+          ]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    const { container } = render(<ControlledHarness onSelect={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    await user.type(input, "f");
+    await user.type(input, "u");
+    await screen.findByRole(
+      "option",
+      { name: "Frontend-utvecklare" },
+      { timeout: 2000 },
+    );
+
+    const indicator = '.jp-typeahead__option[aria-selected="true"]';
+
+    // Every option carries the hook, not just the marked one: the rule sets
+    // position: relative on all of them so the pseudo-element anchors correctly.
+    expect(container.querySelectorAll(".jp-typeahead__option")).toHaveLength(2);
+
+    // Resting list — nothing marked, so the indicator selector matches nothing.
+    expect(container.querySelectorAll(indicator)).toHaveLength(0);
+
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+
+    const marked = container.querySelectorAll(indicator);
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent("Fullstack-utvecklare");
+  });
+
   it("Tab is NOT intercepted without a marked option (no focus trap)", async () => {
     const fetchMock = vi.fn(
       async () =>

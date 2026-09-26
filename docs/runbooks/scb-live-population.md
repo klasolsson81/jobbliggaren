@@ -580,8 +580,8 @@ Three independent facts, and each alone is sufficient:
 - **`Enabled` is `false` in both homes** — `src/Jobbliggaren.Worker/appsettings.json`
   and the C# property default on `ScbRegisterOptions`. Removing the key restores
   `false`. ⚠ **Do not generalise this polarity to the other ingest gate.**
-  `JobSourceIngestOptions.IngestEnabled` defaults **`true`** and is held off only
-  by the Worker's Production overlay — the two gates fail in opposite directions,
+  `JobSourceIngestOptions.IngestEnabled` defaults **`true`** and is shipped off by
+  the Worker's Production overlay — the two gates fail in opposite directions,
   and reasoning about one from the other is how a corpus lands unasked.
 - **The client certificate is not on the box and nothing puts it there.**
   `ScbClientCertificateProvider` loads it from the OS certificate store

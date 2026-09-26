@@ -26,9 +26,10 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 // De råa listorna säkerställer att CountAsync filtrerar på exakt samma kriterium
 // som sökningen och att en framtida re-run reproducerar Klass 2.
 //
-// #1407: Remote surfas, Employer surfas inte. Vilka dimensioner som når projektionen,
-// och varför en utelämnas, ägs av RecentJobSearchProjectionParityTests — ett hem, som
-// fäller testet i stället för att bara beskriva.
+// #1407/#1471: every search dimension reaches the projection — RecentJobSearchProjectionParityTests
+// fails if one is missing, and ListRecentSearchesCountReplayParityTests fails if a projected value
+// differs from the counted one. EmployerList is org.nr per value, masked on the way out
+// (EmployerAxisGate — ADR 0087 D8(c), masked arm): a personnummer-shaped value never reaches the wire.
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,
@@ -37,6 +38,7 @@ public sealed record RecentJobSearchDto(
     IReadOnlyList<string> RegionList,
     IReadOnlyList<string> EmploymentTypeList,
     IReadOnlyList<string> WorktimeExtentList,
+    IReadOnlyList<string> EmployerList,
     bool Remote,
     IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
     IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,

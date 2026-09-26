@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -5,97 +6,84 @@ using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 
+/// <summary>
+/// #1739 — the change-email request step (ADR 0142 D5): gates, then a bound challenge addressed to the NEW address
+/// and a code mailed to it, synchronously. Every refusal is visible, because the caller is the account holder and
+/// has just re-authenticated.
+/// </summary>
 public sealed class ChangeEmailCommandHandler(
     ICurrentUser currentUser,
     IUserAccountService userAccountService,
     IEmailSender emailSender,
-    ICooldownGate cooldown,
-    IOptions<AuthEmailCooldownOptions> cooldownOptions)
-    : ICommandHandler<ChangeEmailCommand, Result<Guid>>
+    IRateBudget budget,
+    IOptions<AuthEmailCooldownOptions> cooldownOptions,
+    ILoginChallengeStore store)
+    : ICommandHandler<ChangeEmailCommand, Result<EmailChangeChallenge>>
 {
-    public async ValueTask<Result<Guid>> Handle(ChangeEmailCommand command, CancellationToken cancellationToken)
+    private readonly TimeSpan _window = TimeSpan.FromSeconds(cooldownOptions.Value.ChangeEmailWindowSeconds);
+
+    public async ValueTask<Result<EmailChangeChallenge>> Handle(
+        ChangeEmailCommand command, CancellationToken cancellationToken)
     {
-        // Self-defending (mirrors ChangePassword / DeleteAccount): Authorization + Reauthentication ran
+        // Self-defending (mirrors DeleteAccount): Authorization + Reauthentication ran
         // before this handler, but we do not take a dependency on pipeline configuration.
         if (!currentUser.UserId.HasValue)
-            return Result.Failure<Guid>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att byta e-postadress."));
+            return Result.Failure<EmailChangeChallenge>(
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att byta e-postadress."));
 
         // The validator guarantees both are non-empty; re-assert so the handler is correct in isolation.
-        if (string.IsNullOrEmpty(command.CurrentPassword) || string.IsNullOrEmpty(command.NewEmail))
-            return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Nuvarande lösenord och ny e-postadress krävs."));
+        if (string.IsNullOrEmpty(command.ReauthGrant) || string.IsNullOrEmpty(command.NewEmail))
+            return Result.Failure<EmailChangeChallenge>(
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Ny e-postadress krävs."));
 
-        // #1087 — this flow's success is DEFINED by delivery: the address is swapped only when the
-        // emailed link is opened (ConfirmEmailChangeCommandHandler), so a send that goes nowhere
-        // leaves the user with a success message, a stamped User.EmailChangeRequested audit row, an
-        // unchanged address and no way forward. Refuse BEFORE anything happens rather than lie after.
-        //
-        // Placed ahead of the cooldown deliberately: this is a static server condition that reads no
-        // request input, so burning the actor's 60s anti-email-bomb window on a request the server
-        // could never fulfil would punish the user for our configuration. Ahead of the token mint for
-        // the same reason — no credential is minted for a request that cannot complete.
-        //
-        // No User.EmailChangeRequested row follows, because AuditBehavior stamps only on
-        // Result.Success. Note precisely what that removes: the OLD row was TRUE — a request WAS
-        // made — and what was false was the 202 and the flow it implied. The row goes because the
-        // flow never starts, not because it was a false record (security-auditor 2026-08-09). The
-        // distinction matters for the next reader: where the REQUEST itself is the security-relevant
-        // event, #842's Art. 12(3) AuditFailures opt-in binds and absence would be wrong.
-        //
-        // The capability is asked of the PORT, never of the environment: Application has no
-        // Microsoft.Extensions.Hosting reference and an IHostEnvironment branch here would not
-        // compile (CLAUDE.md §2.1). See IEmailSender.CanDeliver.
+        // #1087 — refuse BEFORE anything happens rather than lie after: a code that cannot be delivered leaves
+        // the user with no way forward. Ahead of the budgets, so the server's configuration spends none of them.
+        // The capability is asked of the PORT, never of the environment (CLAUDE.md §2.1).
         if (!emailSender.CanDeliver)
-            return Result.Failure<Guid>(
-                DomainError.Validation(
-                    AuthErrorCodes.EmailDeliveryUnavailable,
-                    AuthErrorCodes.EmailDeliveryUnavailableMessage));
+            return Result.Failure<EmailChangeChallenge>(DomainError.Validation(
+                AuthErrorCodes.EmailDeliveryUnavailable,
+                AuthErrorCodes.EmailDeliveryUnavailableMessage));
 
         var userId = currentUser.UserId.Value;
         var newEmail = command.NewEmail;
 
-        // #703: per-user AND per-target anti-email-bomb cooldown. Each request mints a fresh token and mails
-        // an attacker-chosen NewEmail; the per-IP AuthWrite limit protects the attacker's bucket, not the
-        // victim inbox. Check per-USER first (the actor throttle is primary — short-circuit so a throttled
-        // actor cannot also extend a victim's window), then per-TARGET. A cooled request is a VISIBLE 409
-        // (unlike the unauthenticated resend / account-exists silent no-op): this path is authenticated and
-        // already leaks existence via the EmailTaken 409, so anti-enum silence buys nothing and a "wait a
-        // moment" beats a false "link sent". A rejected request consumes the actor's window — the correct
-        // anti-retry behaviour for a rare 60s action.
-        var window = TimeSpan.FromSeconds(cooldownOptions.Value.ChangeEmailWindowSeconds);
-        if (!await cooldown.TryBeginAsync(CooldownScopes.ChangeEmailUser, userId.ToString(), window, cancellationToken)
-            || !await cooldown.TryBeginAsync(CooldownScopes.ChangeEmailTarget, newEmail, window, cancellationToken))
-        {
-            return Result.Failure<Guid>(
-                DomainError.Conflict(AuthErrorCodes.ChangeEmailCooldown, AuthErrorCodes.ChangeEmailCooldownMessage));
-        }
+        // The budgets, each spent only when the one before admitted the request (security-auditor, PR 4's
+        // pre-code round). The two keyed by the USER come first, so a refusal on a user key never spends the
+        // ones shared between users; the two keyed by the address keep the cooldown's own code, because a code of
+        // their own would tell the caller that someone else asked for the same address. The shared login
+        // mail budget is not consulted: the public login arm spends it anonymously, before any lookup.
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(_window), userId.ToString(), cancellationToken))
+            return Result.Failure<EmailChangeChallenge>(Cooldown());
 
-        // Request-time uniqueness pre-check (Klas: a clear 409 "adressen är upptagen"). Only an
-        // authenticated + re-authenticated user reaches here (ReauthenticationBehavior ran first), so
-        // this enumeration surface is far narrower than registration's unauthenticated 400 leak;
-        // uniqueness is still enforced authoritatively at confirm (ConfirmChangeEmailAsync, TOCTOU).
-        if (await userAccountService.IsEmailTakenAsync(newEmail, cancellationToken))
-            return Result.Failure<Guid>(
-                DomainError.Conflict("Auth.EmailTaken", "Den e-postadressen är upptagen."));
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.UserTargetsDailyBudget, userId.ToString(), cancellationToken))
+            return Result.Failure<EmailChangeChallenge>(DomainError.Conflict(
+                AuthErrorCodes.ChangeEmailTargetBudgetExhausted, AuthErrorCodes.ChangeEmailTargetBudgetExhaustedMessage));
 
-        // Mint the opaque, URL-safe ownership-confirmation token bound to (user, newEmail). The email
-        // is NOT changed here — the pending state lives entirely in the emailed link.
-        var tokenResult = await userAccountService.GenerateChangeEmailTokenAsync(userId, newEmail, cancellationToken);
-        if (tokenResult.IsFailure)
-            return Result.Failure<Guid>(tokenResult.Error);
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(_window), newEmail, cancellationToken))
+            return Result.Failure<EmailChangeChallenge>(Cooldown());
 
-        var urlSafeToken = tokenResult.Value;
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.PerTargetDailyBudget, newEmail, cancellationToken))
+            return Result.Failure<EmailChangeChallenge>(Cooldown());
 
-        // Send the confirmation link to the NEW address. A send failure propagates (no User.
-        // EmailChangeRequested audit row is written — AuditBehavior only stamps on Result.Success).
-        await emailSender.SendEmailChangeConfirmationAsync(
-            newEmail,
-            new EmailChangeConfirmationEmail(userId, newEmail, urlSafeToken),
+        // Storable and free, after the user budgets: probing addresses for existence costs a re-authentication
+        // and is capped per user. The address is the validated command's, never a stored row's.
+        var free = await userAccountService.CheckAddressIsFreeAsync(userId, newEmail, cancellationToken);
+        if (free.IsFailure)
+            return Result.Failure<EmailChangeChallenge>(free.Error);
+
+        // The record BEFORE the mail (a code that arrives before its record would read as expired), then the
+        // mail, synchronously. A send that throws propagates, and no User.EmailChangeRequested row is written.
+        var challengeId = ChallengeId.Generate();
+        var code = await store.PutBoundAsync(
+            new NewBoundChallenge(challengeId, newEmail, new ChallengeBinding(ChallengePurpose.ChangeEmail, userId)),
             cancellationToken);
 
-        // Return the authenticated user id: the User.EmailChangeRequested audit aggregate id. The
-        // email is unchanged and no session is touched (the swap happens only at confirm).
-        return Result.Success(userId);
+        await emailSender.SendLoginChallengeAsync(
+            newEmail, new LoginChallengeEmail.AddressChangeCode(code), cancellationToken);
+
+        return Result.Success(new EmailChangeChallenge(userId, challengeId));
     }
+
+    private static DomainError Cooldown() =>
+        DomainError.Conflict(AuthErrorCodes.ChangeEmailCooldown, AuthErrorCodes.ChangeEmailCooldownMessage);
 }

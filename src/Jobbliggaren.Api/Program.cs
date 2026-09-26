@@ -13,11 +13,11 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Common.Behaviors;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
-using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -59,6 +59,18 @@ builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
+
+// #1656 (b) — SCOPED so the criterion's ad magnitude and its matching set are measured at most once
+// per request however many handlers ask. Two resolutions are two measurements at two instants, and a
+// response whose count and list came from different instants is the divergence the type exists to
+// close.
+//
+// Registered HERE and not in AddApplication(), which both hosts call: the memo is keyed on criterion
+// id while its value is per-user (the profile comes from ICurrentUser), so it is safe exactly where a
+// scope IS a request. A Worker scope is not one -- DigestDispatchJob iterates users inside a single
+// scope -- so the Worker container must not be able to resolve it at all.
+builder.Services.AddScoped<CriterionMatchingAdSetResolver>();
+
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddMediator(options =>
 {
@@ -158,8 +170,8 @@ builder.Services.AddScoped<
 //              Bara liveness, för container-level orchestration (även om Fargate
 //              ignorerar Docker HEALTHCHECK så ALB är auktoritativ).
 //
-// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING.
-//               Returnerar 503 under cold-start tills BÅDE Postgres + Redis svarar.
+// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING på BÅDA Redis-instanserna.
+//               Returnerar 503 under cold-start tills Postgres och båda Redis-instanserna svarar.
 //               ALB target-group pekar på denna (BUILD.md §15.4, modules/alb/variables.tf
 //               health_check_path default "/api/ready") → tasks får INGEN trafik förrän
 //               DB-pool + Redis-multiplexer är initierade.
@@ -172,9 +184,13 @@ builder.Services.AddScoped<
 // AddDbContextCheck<AppDbContext> är Microsoft-paket (inte Xabaril) — pingar
 // via `Database.CanConnectAsync()`. RedisHealthCheck är custom (Api/HealthChecks/)
 // — undviker third-party-dep, semantiken är två linjer (IsConnected + PingAsync).
+//
+// #1735 — a third readiness check: the non-persisted Redis the login challenge's stores run on. It is
+// registered through Infrastructure because the connection type is internal there (VolatileRedisHealthCheck).
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])
-    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"]);
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"])
+    .AddVolatileRedisCheck();
 
 // HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
 // rätt värden. UseHsts() i pipelinen nedan gate:as på Environment + HttpsEnabled
@@ -202,36 +218,21 @@ builder.Services.AddHsts(o =>
     o.Preload = hstsConfig.Preload;
 });
 
-// #512: throttled Error log for the session-store-unavailable 503 path (below). Singleton so
-// the throttle window is shared across all requests of the host — a Redis outage fans out to
-// every authenticated request, so one log per window is enough for the TD-77 alarm.
-builder.Services.AddSingleton<SessionStoreUnavailableLog>();
+// #512: throttled Error log for the store-unavailable 503 path (below). Singleton so the
+// throttle windows are shared across all requests of the host — a Redis outage fans out to
+// every request on that store, so one log per window and store is enough for the #1172 alarm.
+builder.Services.AddSingleton<StoreUnavailableLog>();
 
-var app = builder.Build();
+await using var app = builder.Build();
+await app.Services.RequireApiRedisReadyAsync();
 
-// ADR 0083 Amendment 2026-08-03 — announce the auth-flow posture once per process. Read through
-// IOptions so the values are the ones the handler will actually see (PostConfigure wins over config
-// binding, and both resolve the same singleton, so announcement and behaviour cannot diverge).
-//
-// BOTH flags, deliberately. An OPEN gate with email confirmation OFF is legacy instant-login — an
-// account minted with no proof the registrant owns the address — which is the posture #734 exists to
-// prevent, and announcing only the gate would reproduce this class of defect one flag over. Measured
-// 2026-08-03: the Auth section exists only in appsettings.Development.json, so in the Production
-// configuration the handler WOULD take the legacy branch. No Production host has booted yet — that is
-// a property of the configuration, not a history.
-var authFlags = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
-var emailConfirmationState = authFlags.RequireEmailConfirmation ? "REQUIRED" : "NOT REQUIRED";
-if (authFlags.RegistrationsOpen && !app.Environment.IsDevelopment())
-{
-    // Warning, not Information: an open gate outside Development is a security-posture statement and
-    // should be alertable rather than one Information line among a boot's dozens.
-    RegistrationGateLog.AnnounceOpenOutsideDevelopment(app.Logger, "OPEN", emailConfirmationState);
-}
-else
-{
-    RegistrationGateLog.Announce(
-        app.Logger, authFlags.RegistrationsOpen ? "OPEN" : "CLOSED", emailConfirmationState);
-}
+// ADR 0083 Amendment 2026-08-03 — announce the registration gate once per process. Read through IOptions so
+// the value is the one the handlers will actually see (PostConfigure wins over config binding, and both resolve
+// the same singleton, so announcement and behaviour cannot diverge).
+RegistrationGateLog.AnnounceGate(
+    app.Logger,
+    app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.RegistrationsOpen,
+    app.Environment.IsDevelopment());
 
 app.Use(async (ctx, next) =>
 {
@@ -251,9 +252,9 @@ app.Use(async (ctx, next) =>
     }
     catch (ReauthenticationFailedException)
     {
-        // Server-enforced re-auth failure (PR2c/C5) — render the SAME ProblemDetails 401 as
-        // /auth/verify (AuthProblem is the single source), so wrong-password / locked /
-        // soft-deleted are byte-identical on the wire and none leaks which cause applied
+        // Server-enforced re-auth failure (PR2c/C5) — render the ProblemDetails 401
+        // (AuthProblem is the single source), so an unusable grant and a soft-deleted
+        // account are byte-identical on the wire and neither leaks which cause applied
         // (GDPR Art. 32 oracle-avoidance). No credential material is logged or echoed.
         await AuthProblem.InvalidCredentials().ExecuteAsync(ctx);
     }
@@ -291,17 +292,16 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 500;
         await ctx.Response.WriteAsJsonAsync(new { error = "Ett internt fel uppstod." });
     }
-    catch (SessionStoreUnavailableException ex)
+    catch (StoreUnavailableException ex)
     {
-        // #512: log the outage BEFORE writing 503. Auth runs outside the Mediator pipeline, so
-        // LoggingBehavior never sees this — without this line a Redis outage produces zero log
-        // signal (the one deliberately-handled infra path was the least observable). Throttled,
-        // dedicated event-id. §5/data-minimisation: only the inner exception TYPE is logged, never
-        // its message (which can embed the operated Redis key → a userId) — see
-        // SessionStoreUnavailableLog.
-        ctx.RequestServices.GetRequiredService<SessionStoreUnavailableLog>().Emit(ex.InnerException ?? ex);
+        // #512: log the outage BEFORE writing 503. The session store fails inside authentication, which
+        // runs outside the Mediator pipeline, so this line is the only signal LoggingBehavior leaves it.
+        // Throttled, dedicated event-id. §5/data-minimisation: only the failure's TYPE is logged, never a
+        // message, which can embed the operated Redis key (a userId, or an address fingerprint) — see
+        // StoreUnavailableLog. Every subtype answers the same body.
+        ctx.RequestServices.GetRequiredService<StoreUnavailableLog>().Emit(ex.Store, ex.InnerType);
         ctx.Response.StatusCode = 503;
-        await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
+        await ctx.Response.WriteAsJsonAsync(new { error = StoreUnavailableException.ClientMessage });
     }
 });
 
@@ -375,15 +375,23 @@ if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
     app.UseHttpsRedirection();
 }
 
-// Fas 4b PR-9b (DPIA #659 M-F2, security-auditor Minor 4): the original-file download path
-// (/api/v1/resumes/files/...) must carry `Cache-Control: no-store` + `X-Content-Type-Options:
-// nosniff` on EVERY response — the 200, the 404, the 401 auth challenge, and a 405 — not only the
-// happy path the endpoint delegate sees. Registered BEFORE UseAuthentication and using OnStarting
-// so the headers are stamped even on framework-generated responses (the auth challenge
-// short-circuits before the delegate). Path-scoped so no other endpoint is affected.
+// Fas 4b PR-9b (DPIA #659 M-F2, security-auditor Minor 4): the original-file download paths
+// (/api/v1/resumes/{id}/original and /api/v1/resumes/parsed/{parsedId}/original) must carry
+// `Cache-Control: no-store` + `X-Content-Type-Options: nosniff` on EVERY response — the 200, the
+// 404, the 401 auth challenge, and a 405 — not only the happy path the endpoint delegate sees.
+// Registered BEFORE UseAuthentication and using OnStarting so the headers are stamped even on
+// framework-generated responses (the auth challenge short-circuits before the delegate).
+//
+// Matched on the LAST segment, not a prefix: the two routes differ in their id form, so `original`
+// is the only thing they share. The comparison is case-insensitive and tolerates a trailing slash
+// because ASP.NET routing is too — under-matching here would silently drop the M-F2 headers from a
+// request that still reaches the endpoint, so the predicate is deliberately the looser of the two
+// (no other /api/v1/resumes route ends in `original`).
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Path.StartsWithSegments("/api/v1/resumes/files"))
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/resumes")
+        && ctx.Request.Path.Value is { } resumesPath
+        && resumesPath.TrimEnd('/').EndsWith("/original", StringComparison.OrdinalIgnoreCase))
     {
         ctx.Response.OnStarting(static state =>
         {
@@ -410,16 +418,16 @@ app.UseRateLimiter();
 //             orchestration kan peka hit (även om Fargate ignorerar Docker
 //             HEALTHCHECK).
 //
-// /api/ready: strict readiness. DbContext-check + Redis-PING via "ready"-tag.
+// /api/ready: strict readiness. DbContext-check + PING mot båda Redis-instanserna via "ready"-tag.
 //             ALB target-group pekar hit (modules/alb/variables.tf
 //             health_check_path default "/api/ready"). Returnerar 503 tills
-//             BÅDE Postgres + Redis svarar.
+//             Postgres och båda Redis-instanserna svarar.
 //
 // Response: default HealthCheckResponseWriter skriver "Healthy" / "Unhealthy"
 // som text. ALB kollar bara HTTP-status; manuella smoke-tests får text-body.
 //
 // #483 Low — both endpoints carry the anonymous, IP-partitioned HealthCheckPolicy: /api/ready
-// runs a Postgres CanConnect + Redis PING per hit (an amplification vector for an unauth flood),
+// runs a Postgres CanConnect + a PING on each Redis instance per hit (an amplification vector for an unauth flood),
 // and /api/live, though cheap, is still an anonymous surface. The limit is generous so legitimate
 // ALB/orchestrator probes are never throttled (see RateLimitingOptions.HealthCheck).
 app.MapHealthChecks("/api/live", new HealthCheckOptions
@@ -457,9 +465,9 @@ app.MapLandingEndpoints();
 // DEV-ONLY — remove before launch (Klas), with everything they gate
 // (docs/runbooks/release-checklist.md). TWO gates, deliberately not one.
 //
-// The token-free confirm-email seam is ENVIRONMENT-gated and nothing widens it: it force-
-// confirms an address without authentication, so it must be unreachable in every deployed
-// environment regardless of configuration.
+// The seed and login-code seams are ENVIRONMENT-gated and nothing widens them: unauthenticated, they
+// open an account and hand out a login code for a reserved address, so they must be unreachable in every
+// deployed environment regardless of configuration.
 if (app.Environment.IsDevelopment())
     app.MapDevEnvironmentOnlyEndpoints();
 
@@ -477,6 +485,6 @@ if (devTools.EnableResetMyData)
 if (devTools.EnableResetMyData && !app.Environment.IsDevelopment())
     DevToolsLog.AnnounceResetMyDataEnabledOutsideDevelopment(app.Logger);
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

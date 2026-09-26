@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/status-pill";
+import { InfoDialog } from "@/components/common/info-dialog";
 import { CvProfileToggle } from "@/components/resumes/cv-profile-toggle";
 import { CvCriterionVerdict } from "@/components/resumes/cv-criterion-verdict";
 import { CvFindingStatusControl } from "@/components/resumes/cv-finding-status-control";
@@ -347,8 +348,8 @@ export function CvReviewPanel({
       {/* Täckningsberättelsen lyft (#1062 Q1 punkt 3): "17 av 35 kriterier är bedömda" är
           sidans mest bärande mening — den säger hur mycket av CV:t som faktiskt blev
           granskat — och stod på samma `--text-body-sm` som brödtexten runt den, med de
-          18 obedömda 3051px längre ned. Den leder nu; hederlighetsklausulen och
-          rubrikversionen stöder från raden under. */}
+          18 obedömda 3051px längre ned. Den leder nu; rubrikversionen stöder från
+          raden under. */}
       <div className="jp-cvreview__coverage-block">
         <p className="jp-cvreview__coverage">
           {t("review.summary", {
@@ -357,7 +358,6 @@ export function CvReviewPanel({
           })}
         </p>
         <p className="jp-cvreview__coverage-note">
-          {t("review.summaryNote")}{" "}
           <span className="jp-cvreview__rubric">
             {t("review.rubric", { version: review.rubricVersion })}
           </span>
@@ -422,12 +422,20 @@ export function CvReviewPanel({
         className="jp-cvreview__dimensions"
         aria-labelledby="cvreview-dimensions-title"
       >
-        <LayerHeading
-          id="cvreview-dimensions-title"
-          className="jp-cvreview__dimensions-title"
-        >
-          {t("review.categoriesTitle")}
-        </LayerHeading>
+        <div className="jp-labelhelp">
+          <LayerHeading
+            id="cvreview-dimensions-title"
+            className="jp-cvreview__dimensions-title"
+          >
+            {t("review.categoriesTitle")}
+          </LayerHeading>
+          <InfoDialog
+            title={t("review.categoriesTitle")}
+            paragraphs={[t("review.summaryNote")]}
+            ariaLabel={t("review.summaryNoteAria")}
+            triggerClassName="jp-labelhelp__trigger"
+          />
+        </div>
         {review.categories.map((category) => (
           <CategoryRow
             key={category.category}

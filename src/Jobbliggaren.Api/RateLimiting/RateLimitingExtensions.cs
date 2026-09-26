@@ -34,7 +34,9 @@ public static partial class RateLimitingExtensions
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
     public const string CompanyBrowsePolicy = "company-watch-browse";
+    public const string CompanyWatchCriteriaListPolicy = "company-watch-criteria-list";
     public const string CriterionCountPreviewPolicy = "criterion-count-preview";
+    public const string OccupationDivisionsPolicy = "occupation-divisions";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
@@ -99,9 +101,8 @@ public static partial class RateLimitingExtensions
                     });
             });
 
-            // Partition: IP (Connection.RemoteIpAddress). Bromsar credential-stuffing
-            // och registration-spam. Vid prod bakom ALB krävs UseForwardedHeaders så
-            // klient-IP plockas från X-Forwarded-For (TD-21 / Sec-Major-1) — annars
+            // Partition: IP (Connection.RemoteIpAddress). Bromsar registration-spam. Vid prod bakom ALB
+            // krävs UseForwardedHeaders så klient-IP plockas från X-Forwarded-For (TD-21 / Sec-Major-1) — annars
             // hamnar alla i samma proxy-IP-bucket och rate-limit blir effektivt no-op.
             options.AddPolicy(AuthWritePolicy, ctx =>
             {
@@ -116,7 +117,7 @@ public static partial class RateLimitingExtensions
             });
 
             // Partition: IP. Mer permissiv än AuthWrite eftersom logout är idempotent
-            // och inte öppnar abuse-vektor på samma sätt som login/register.
+            // och inte öppnar abuse-vektor.
             options.AddPolicy(AuthLoosePolicy, ctx =>
             {
                 var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
@@ -311,7 +312,7 @@ public static partial class RateLimitingExtensions
 
             // Partition: IP. #483 Low — anonymous health endpoints /api/live + /api/ready. Own
             // policy (least common mechanism, Saltzer/Schroeder): an anonymous DoS surface — and
-            // /api/ready amplifies each hit into a Postgres CanConnect + Redis PING — must not share
+            // /api/ready amplifies each hit into a Postgres CanConnect + two Redis PINGs — must not share
             // a budget with LandingPublicRead. FixedWindow mirrors LandingPublicRead (anonymous
             // public read); generous limit so ALB/orchestrator probes are never throttled while a
             // flood is capped (see RateLimitingOptions.HealthCheck). Behind ALB requires
@@ -361,12 +362,14 @@ public static partial class RateLimitingExtensions
             });
 
             // Partition: UserId (claim "sub"). #560 PR-3 (CTO Fork G4) — dedikerad bucket för
-            // register-browsen, husets tyngsta läsning (1,17M rader; 25–163 ms/anrop). Aldrig
-            // fold-in i MeListRead (bulkhead — en scan-burst får inte svälta /oversikts ~7-anrops-
-            // fan-out). TokenBucket (#875 villkor 3: populerar Retry-After; SlidingWindow gör
-            // inte det), QueueLimit=0 (kö = memory-DoS). Auth-gated → anonym fångas av
-            // RequireAuthorization (NoLimiter bypass). Parametrar IOptions-bundna (§5.1).
-            // security-auditor BLOCKING verifierar tal (CTO-riktvärde 15/min).
+            // register-browsen, husets tyngsta läsning. Aldrig fold-in i MeListRead (bulkhead — en
+            // scan-burst får inte svälta /oversikts ~7-anrops-fan-out). TokenBucket (#875 villkor 3:
+            // populerar Retry-After; SlidingWindow gör inte det), QueueLimit=0 (kö = memory-DoS).
+            // Auth-gated → anonym fångas av RequireAuthorization (NoLimiter bypass). Parametrar
+            // IOptions-bundna (§5.1).
+            // ⚠ TALET, HUR MÅNGA RUTTER SOM DELAR HINKEN OCH HUR MAN RÄKNAR OM DET STÅR I
+            // RateLimitingOptions.CompanyBrowse — och bara där. Den här kommentaren upprepade det
+            // (#1654), och hann bli falsk. Två hem för samma tal är hur det går till.
             options.AddPolicy(CompanyBrowsePolicy, ctx =>
             {
                 var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -380,6 +383,35 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyBrowse.PermitLimit / rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.CompanyBrowse.WindowSeconds / (double)rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #1681 del 2 (ADR 0139) — GET /me/company-watch-criteria
+            // fick en EGEN hink 2026-09-07 (security-auditor rekommenderade, Klas beslutade): den
+            // lämnade MeListRead därför att dess per-request-BACKENDKOSTNAD inte längre liknar något
+            // annat i den hinken. Ingen ratchet gjordes på MeListRead — en egen policy sänker inget
+            // någon redan har (least common mechanism; bulkhead). TokenBucket (populerar Retry-After;
+            // SlidingWindow gör det inte), QueueLimit=0. Auth-gated → anonym NoLimiter-bypass.
+            // Parametrar IOptions-bundna (§5.1).
+            // ⚠ TALET, DESS HÄRLEDNING (båda halvorna) OCH DESS OMRÄKNINGSTRIGGER STÅR I
+            // RateLimitingOptions.CompanyWatchCriteriaList — och bara där. CompanyBrowse-kommentaren
+            // intill upprepade en gång sitt eget tal och hann bli falsk (#1654); två hem för samma
+            // tal är hur det går till.
+            options.AddPolicy(CompanyWatchCriteriaListPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-company-watch-criteria-list");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.CompanyWatchCriteriaList.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyWatchCriteriaList.PermitLimit / rateLimitOpts.CompanyWatchCriteriaList.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.CompanyWatchCriteriaList.WindowSeconds / (double)rateLimitOpts.CompanyWatchCriteriaList.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });
@@ -404,6 +436,29 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.CriterionCountPreview.PermitLimit / rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.CriterionCountPreview.WindowSeconds / (double)rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #1682 — the bransch picker's occupation block, the
+            // picker's SECOND live read beside preview-count: same debounce-burst profile, same
+            // 30/10 s, and its OWN bucket for the same bulkhead reason (the derivation and the numbers
+            // are in RateLimitingOptions.OccupationDivisions). TokenBucket, QueueLimit=0. Auth-gated →
+            // anonym NoLimiter-bypass. security-auditor BLOCKING verifierar tal.
+            options.AddPolicy(OccupationDivisionsPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-occupation-divisions");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.OccupationDivisions.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.OccupationDivisions.PermitLimit / rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.OccupationDivisions.WindowSeconds / (double)rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

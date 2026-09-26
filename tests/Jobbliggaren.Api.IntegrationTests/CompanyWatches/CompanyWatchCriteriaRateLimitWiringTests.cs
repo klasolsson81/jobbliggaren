@@ -38,8 +38,21 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         routes.ShouldNotBeEmpty(
             "the criteria endpoint group must be discoverable in the built endpoint graph");
 
-        // GET  base           -> a light per-user read (MeListRead, NOT the browse policy).
-        PolicyFor(routes, "GET", IsBase).ShouldBe(RateLimitingExtensions.MeListReadPolicy);
+        // GET  base           -> the criteria LIST. It was MeListRead until 2026-09-07 and is now its
+        //                         own bucket (#1681 part 2, security-auditor's recommendation, Klas's
+        //                         decision). What changed is not the route but its per-request cost:
+        //                         every row gained a materialised ad count and a per-user graded
+        //                         matching count, measured at 47,3 ms everyday and 381,5 ms at the ad
+        //                         ceiling, against the 0,166 ms org.nr twin that shares MeListRead.
+        //                         At 120/min that is ~45,8 s of database time per minute from one
+        //                         account with QueueLimit = 0. Pinned here as its own line, because a
+        //                         policy move that shows up only as a changed constant is a bulkhead
+        //                         moving silently. That MeListRead was not ratcheted in exchange is
+        //                         the other half of the decision, and it is pinned where it can
+        //                         actually fail: RateLimitingOptionsTests holds both numbers in ONE
+        //                         test, so lowering MeListRead to "simplify" the split away breaks it.
+        PolicyFor(routes, "GET", IsBase)
+            .ShouldBe(RateLimitingExtensions.CompanyWatchCriteriaListPolicy);
         // POST base           -> create (MeWrite).
         PolicyFor(routes, "POST", IsBase).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         // GET  /reference      -> the static taxonomy tree (TaxonomyRead mold).
@@ -48,13 +61,44 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         // GET  /{id}/companies -> the heaviest read in the house (its OWN CompanyBrowse bucket).
         PolicyFor(routes, "GET", r => r.EndsWith("companies", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
+        // GET  /{id}/ads      -> #1559, the same register join plus an ad load: the CompanyBrowse
+        //                         bucket, deliberately shared rather than given its own. Name the
+        //                         counterfactual or the multiplier is meaningless: a bucket PER
+        //                         criteria route hands one user 45/min register joins instead of
+        //                         15 — 3x the thing the cap exists to limit (security-auditor
+        //                         2026-09-04). Splitting only /ads off would be 2x; this comment
+        //                         said "a second bucket" while quoting the 3x figure until #1654
+        //                         measured the two apart.
+        PolicyFor(routes, "GET", r => r.EndsWith("ads", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
+        // GET  /{id}/ad-count  -> the headline number alone; same bucket, same reason.
+        PolicyFor(routes, "GET", r => r.EndsWith("ad-count", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
         // POST /preview-count  -> the picker's live magnitude preview (its OWN CriterionCountPreview).
         PolicyFor(routes, "POST", r => r.EndsWith("preview-count", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CriterionCountPreviewPolicy);
+        // GET /occupation-divisions -> the picker's occupation block (#1682), its OWN bucket beside
+        // preview-count: the picker's two live reads must not be able to starve each other.
+        PolicyFor(routes, "GET", r => r.EndsWith("occupation-divisions", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.OccupationDivisionsPolicy);
         // PATCH/DELETE /{id}   -> mutations (MeWrite).
         PolicyFor(routes, "PATCH", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         PolicyFor(routes, "DELETE", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
+
+        // The assertions above are hand-written, so the test's own title ("Every criteria route")
+        // was a claim nothing enforced: #1559 added two routes and the suite stayed green with both
+        // unasserted, because IsIdRoute requires the pattern to END at the id token. Counting closes
+        // that — a route added without an assertion above makes this line fail and names the number.
+        routes.Count.ShouldBe(
+            ExpectedRouteCount,
+            $"the criteria group has {routes.Count} routes but this test asserts a policy for "
+            + $"{ExpectedRouteCount}. A route without an assertion here can lose its rate limit "
+            + "silently — add the assertion and bump the count together.");
     }
+
+    // GET base, POST base, GET /reference, GET /{id}/companies, GET /{id}/ads,
+    // GET /{id}/ad-count, POST /preview-count, GET /occupation-divisions, PATCH /{id}, DELETE /{id}.
+    private const int ExpectedRouteCount = 10;
 
     // The group root ".../company-watch-criteria" (both the GET list and the POST create map "/").
     private static bool IsBase(string raw) =>
@@ -62,8 +106,7 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
 
     // The "/{id}" mutation routes — end at the id token, and are NOT the "/{id}/companies" browse.
     private static bool IsIdRoute(string raw) =>
-        !raw.EndsWith("companies", StringComparison.Ordinal)
-        && raw.TrimEnd('/').EndsWith('}');
+        raw.TrimEnd('/').EndsWith('}');
 
     private static string? PolicyFor(
         IEnumerable<RouteEndpoint> routes, string method, Func<string, bool> suffixMatch)

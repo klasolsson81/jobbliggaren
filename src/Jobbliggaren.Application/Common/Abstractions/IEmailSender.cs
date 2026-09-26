@@ -16,9 +16,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// Application-ägd port som bär en avvecklad leverantörs trådformat, som ingen implementation
 /// kan konsumera (ISP). <b>Vad som faktiskt skyddade vad, efter mätning:</b> dedup ÖVER anrop
 /// ägs en nivå upp — av claim-then-send-spinen plus <c>StrandedMatchReaperJob</c> för
-/// notiserna, och av <c>ICooldownGate</c> för kontolivscykeln. ADR 0103 säger det uttryckligen
-/// om anti-email-bomb-kontrollen: den är <i>"provider-independent (works regardless of Resend's
-/// own idempotency-key dedup)"</i>. Kvar fanns bara transport-retry INOM en dispatch, och den
+/// notiserna, och av inloggningsutmaningens budgetar (<c>IRateBudget</c>) för kontomejlen.
+/// Kvar fanns bara transport-retry INOM en dispatch, och den
 /// finns inte: Scaleway-armen registrerar ingen resilience-handler alls, och
 /// <c>ScalewayClientRegistration</c> säger också varför ingen får läggas till. (Den mekanism som
 /// tidigare stod här — <c>MaxErrorRetry = 0</c> på SES-klienten — raderades med SES-armen i #183.
@@ -35,9 +34,7 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// vidarebefordrar ett <see cref="Exception"/>-objekt till sänkan (antalet och dess grep bor i
 /// ADR 0124), och <c>Api/Program.cs</c> har ingen generisk <c>catch</c> som stoppar ett
 /// omatchat. Ett undantag ÄR
-/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen — och
-/// <c>ConfirmEmailChangeCommandHandler</c>:s lokala <i>"§5 parity with the sender boundary"</i>
-/// blir därmed den allmänna regeln i stället för en handlares egen disciplin.
+/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen.
 /// </para>
 /// </summary>
 public interface IEmailSender
@@ -49,8 +46,7 @@ public interface IEmailSender
     /// <para>
     /// <b>This exists because <c>NullEmailSender</c> was an LSP violation without it (#1087).</b> It
     /// is registered as a valid <see cref="IEmailSender"/> in every non-Development/Test environment
-    /// and is the live default today (<c>Email:Provider</c> is unset in every committed
-    /// <c>appsettings*.json</c>). Dropping a notification is correct — a missed convenience. Dropping
+    /// where <c>Email:Provider</c> is unset, as it is in every committed <c>appsettings*.json</c>. Dropping a notification is correct — a missed convenience. Dropping
     /// an ownership-confirmation link is not: <c>ChangeEmailCommandHandler</c> minted a token, mailed
     /// it into the void, returned <c>Result.Success</c> and had a <c>User.EmailChangeRequested</c>
     /// audit row stamped, while the address is only ever swapped when the link is opened. The user
@@ -117,25 +113,6 @@ public interface IEmailSender
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Sends the change-email OWNERSHIP CONFIRMATION (#679) to the NEW address. <paramref name="content"/>
-    /// carries the recipient's own new address + an opaque, single-use, URL-safe token the template
-    /// builds the confirmation link from (<c>{BaseUrl}/bekrafta-epost?uid=&amp;email=&amp;token=</c>). The
-    /// address is NOT changed until the link is opened. This is the codebase's first
-    /// token-&gt;email-&gt;confirm path (registration is not email-confirmed).
-    /// <para>
-    /// Repeated sends are bounded by <c>ICooldownGate</c> on BOTH
-    /// <c>CooldownScopes.ChangeEmailUser</c> (per actor) and <c>CooldownScopes.ChangeEmailTarget</c>
-    /// (per new address) before the send (ADR 0103, <c>ChangeEmailCommandHandler</c>) — the VISIBLE
-    /// half of the asymmetry (409), since the surface is authenticated. Provider-independent by
-    /// construction.
-    /// </para>
-    /// </summary>
-    Task SendEmailChangeConfirmationAsync(
-        string toEmail,
-        EmailChangeConfirmationEmail content,
-        CancellationToken cancellationToken);
-
-    /// <summary>
     /// Sends the "your email address was changed" SECURITY NOTICE (#679, CTO-bind #4) to the OLD
     /// address after a completed change, so the previous owner can detect an unauthorized change
     /// (OWASP ASVS V2.5 / NIST SP 800-63B). Carries NO token, NO link to the new address, and does NOT
@@ -150,96 +127,18 @@ public interface IEmailSender
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Sends the registration EMAIL-CONFIRMATION link (#714) to the account's own address after signup.
-    /// <paramref name="content"/> carries the recipient's userId + an opaque, Base64Url token the
-    /// template builds the activation link from (<c>{BaseUrl}/bekrafta-konto?uid=&amp;token=</c>). Until
-    /// the link is opened the account cannot log in (the <c>EmailConfirmed</c> gate). This closes the
-    /// registration status-oracle: the response is an identical 202 for a fresh or a taken address, and
-    /// the confirmation link is the only out-of-band signal (delivered only to an inbox the requester
-    /// controls, i.e. a fresh address).
+    /// Sends the login-challenge mail (#1735, ADR 0142 D2): exactly one per admitted request, in the variant
+    /// <paramref name="content"/> names.
     /// <para>
-    /// Two call sites, and only one of them can repeat: the fresh registration send
-    /// (<c>RegisterCommandHandler</c>) happens once per accepted signup and is ungated, while the
-    /// user-driven resend endpoint is bounded by <c>ICooldownGate</c> on
-    /// <c>CooldownScopes.ResendConfirm</c> (ADR 0103, <c>ResendEmailConfirmationCommandHandler</c>) —
-    /// SILENT, because the surface is unauthenticated and a visible cooldown would itself be an
-    /// enumeration oracle.
+    /// <b>Delivery-dependent, and the only login path.</b>
+    /// <c>RequestLoginChallengeCommandHandler</c> consults <see cref="CanDeliver"/> as its first statement and
+    /// refuses with a 503 before reading anything, so the 503/202 split carries no account information.
+    /// Anti-email-bomb is the request path's per-address cooldown and mail budget (<c>IRateBudget</c>,
+    /// <c>LoginChallengePolicy</c>), not this port.
     /// </para>
     /// </summary>
-    Task SendEmailConfirmationAsync(
+    Task SendLoginChallengeAsync(
         string toEmail,
-        EmailConfirmationEmail content,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Sends the registration ACCOUNT-EXISTS notice (#714) out-of-band to a TAKEN address when someone
-    /// attempts to register it. Carries NO token, NO link that grants access - only a factual notice +
-    /// a login link built template-side from <c>EmailOptions.BaseUrl</c>, so a real account owner is
-    /// told someone tried to register their address (login-nudge, Klas decision) while the HTTP response
-    /// stays an identical 202 (no enumeration signal). Mirrors the change-email old-address notice.
-    /// <para>
-    /// <b>Anti-email-bomb lives in <c>ICooldownGate</c>, not here (ADR 0103).</b> The per-target,
-    /// existence-independent, SILENT cooldown on <c>CooldownScopes.AccountExists</c>, checked in
-    /// <c>RegisterCommandHandler</c> before this call, is what stops an attacker flooding a taken
-    /// address; ADR 0103's Consequences state it works <i>"regardless of Resend's own
-    /// idempotency-key dedup"</i>, which is why the control survived that provider's removal
-    /// untouched. The port carried a second, weaker copy of this claim until ADR 0124.
-    /// </para>
-    /// </summary>
-    Task SendAccountExistsNoticeAsync(
-        string toEmail,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Sends the PASSWORD-RESET link (#1171) to the address that requested it. <paramref name="content"/>
-    /// carries the userId plus an opaque Base64Url token the template builds
-    /// <c>{BaseUrl}/aterstall-losenord?uid=&amp;token=</c> from.
-    /// <para>
-    /// <b>Delivery-dependent, and the strictest case on this port.</b> The password is only changed when
-    /// the emailed link is opened, so a dropped send leaves the requester with a "check your inbox"
-    /// message, no link, and no way back into the account — which is the whole defect #1171 exists to
-    /// close. <c>RequestPasswordResetCommandHandler</c> therefore consults <see cref="CanDeliver"/> and
-    /// refuses with a 503 BEFORE any token is minted.
-    /// </para>
-    /// <para>
-    /// <b>That refusal is the FIRST statement of the handler, and the ordering is load-bearing rather
-    /// than tidy.</b> The surface is unauthenticated and answers a uniform 202 for known and unknown
-    /// addresses alike. A capability check placed AFTER the account lookup would only ever be reachable
-    /// when an account exists, making the 503 itself an existence oracle — the trap
-    /// <c>ResendEmailConfirmationCommandHandler</c> avoids by never returning 503 at all. Checked first,
-    /// the 503/202 split is a property of the server's configuration, evaluated before the submitted
-    /// address is read, so it can carry no information about any account.
-    /// </para>
-    /// <para>
-    /// Single-use without any stored token: <c>ResetPasswordAsync</c> rotates the user's SecurityStamp,
-    /// which the token is bound to. Lifespan is <c>PasswordResetTokenProviderOptions.LifespanMinutes</c>,
-    /// shorter than the other link kinds and enforced by its own token provider. Anti-email-bomb is
-    /// <c>ICooldownGate</c> on <c>CooldownScopes.PasswordReset</c> — SILENT, for the same reason the
-    /// resend cooldown is: a visible throttle on an unauthenticated surface is itself an oracle.
-    /// </para>
-    /// </summary>
-    Task SendPasswordResetAsync(
-        string toEmail,
-        PasswordResetEmail content,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Sends the PASSWORD-CHANGED security notice (#1171) after a completed reset, to the address the
-    /// reset was performed for. Carries NO token and NO link that grants access — it is a factual
-    /// notice, the breach-detection control OWASP ASVS V2.5 and NIST SP 800-63B ask for on a credential
-    /// change, and the twin of <see cref="SendEmailChangedNotificationAsync"/>.
-    /// <para>
-    /// A password reset is an account-takeover vector by construction: whoever holds the inbox holds the
-    /// account. This notice is what lets a real owner notice a reset they did not perform, at the one
-    /// moment they still could act on it.
-    /// </para>
-    /// <para>
-    /// <b><c>NullEmailSender</c> dropping this is unreachable rather than tolerated.</b> No reset token
-    /// can be minted while <see cref="CanDeliver"/> is false, so the event this notice reports cannot
-    /// occur with a sender that would drop it. It needs no gate of its own.
-    /// </para>
-    /// </summary>
-    Task SendPasswordChangedNoticeAsync(
-        string toEmail,
+        LoginChallengeEmail content,
         CancellationToken cancellationToken);
 }

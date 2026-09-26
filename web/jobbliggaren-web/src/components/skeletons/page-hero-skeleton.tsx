@@ -21,8 +21,8 @@ import type { ReactElement } from "react";
  *
  * **`title`/`lede` close it.** A pagehero title and lede are static translations, so a
  * fallback can render the REAL text and let the browser do the wrapping — then the band
- * cannot disagree with the page at any viewport. Where the copy is genuinely unknown at
- * fallback time the default bars stand in, and reserve one lede line.
+ * cannot disagree with the page at any viewport. `lede={null}` is a
+ * page that renders no lede, and reserves no line.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
  * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton).
@@ -35,7 +35,7 @@ import type { ReactElement } from "react";
  * an empty aside costs nothing beside `__main` but takes a whole line plus the row `gap`
  * once it wraps, and the band then over-reserves at exactly the narrow widths a hero with
  * no aside is most sensitive at (#1385). `kicker` adds the mono overline row that
- * Översikt renders above its title (`.jp-pagehero__kicker`), so the band height
+ * the two CV review pages render above their title (`.jp-pagehero__kicker`), so the band height
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
  *
@@ -70,8 +70,11 @@ export function PageHeroSkeleton({
   kicker?: boolean;
   /** The page's real title. Given, it is rendered instead of the title bar. */
   title?: string;
-  /** The page's real lede. Given, it is rendered instead of the lede bar. */
-  lede?: string;
+  /**
+   * The page's real lede; `null` where the page
+   * renders none.
+   */
+  lede: string | null;
 }) {
   return (
     <section className="jp-pagehero" aria-hidden="true">
@@ -83,11 +86,7 @@ export function PageHeroSkeleton({
           ) : (
             <h1 className="jp-pagehero__title">{title}</h1>
           )}
-          {lede === undefined ? (
-            <span className="jp-skeleton mt-2 block h-4 w-96 max-w-full" />
-          ) : (
-            <p className="jp-pagehero__lede">{lede}</p>
-          )}
+          {lede !== null && <p className="jp-pagehero__lede">{lede}</p>}
         </div>
         {aside !== null && (
           <div

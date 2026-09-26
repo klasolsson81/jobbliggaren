@@ -1,0 +1,1196 @@
+{
+ "//": "Search aliases over the SNI 2025 branch names (#1115). Two sources, and the \"source\" field says which per row. \"scb\": entries reproduced verbatim from SCB SNI-sök (https://snisok.scb.se/<code>), section \"Exempel på vad som ingår i denna SNI-kod\", fetched 2026-09-05; SCB open data is CC0 (policy since 2021-07-01) and the SNI-sök pages carry no separate licence notice — verified 2026-09-05. \"authored\": written by this repo for demand words SCB does not carry at all, enumerated with rationale in tools/sni-aliases/authored-terms.json. NOT A CROSSWALK: every code is an SNI 2025 code present in sni-2025.v1.json, no SSYK/JobTech concept id appears anywhere in this file, and nothing derives or preselects — the user still picks the SNI node. The /jobb occupation synonyms (SearchSynonyms:Occupations in appsettings.json) are a different axis in a different bounded context; neither map is a mapping of the other. Only the terms matching a dated demand list ship, not SCB's whole register — see tools/sni-aliases/README.md for why. Regenerate with: node tools/sni-aliases/generate.mjs",
+ "sniVersion": "2025.v1",
+ "aliasVersion": "2025.alias.v1",
+ "demandVersion": "2026-09-05.v1",
+ "fetchedAt": "2026-09-05",
+ "aliases": [
+  {
+   "code": "01482",
+   "source": "scb",
+   "terms": [
+    "Sällskapsdjur (hundar, katter, m.fl.), uppfödning och träning"
+   ]
+  },
+  {
+   "code": "01620",
+   "source": "scb",
+   "terms": [
+    "Djurmassage, husdjur, hästar, kor, grisar m.fl. (ej veterinärverksamhet)",
+    "Hästmassage (ej veterinärverksamhet)",
+    "Hästträning, tillridning av hästar, på uppdrag",
+    "Massagebehandling, husdjur, hästar, kor, grisar m.fl. (ej veterinärverksamhet)"
+   ]
+  },
+  {
+   "code": "14230",
+   "source": "scb",
+   "terms": [
+    "Förkläden, tillverkning (ej av gummi eller svetsares läderförkläden)"
+   ]
+  },
+  {
+   "code": "14240",
+   "source": "scb",
+   "terms": [
+    "Läderförkläden till svetsare, tillverkning"
+   ]
+  },
+  {
+   "code": "14290",
+   "source": "scb",
+   "terms": [
+    "Kläder, textil, babykläder, baddräkter, träningsoveraller, tillverkning",
+    "Träningsoveraller, tillverkning"
+   ]
+  },
+  {
+   "code": "15200",
+   "source": "scb",
+   "terms": [
+    "Sportskor eller idrottsskor; tennisskor, basketbollskor, gymnastikskor, träningsskor o.d., med yttersulor av gummi eller plast och överdelar av textilmaterial, tillverkning"
+   ]
+  },
+  {
+   "code": "16",
+   "source": "authored",
+   "terms": [
+    "snickare"
+   ]
+  },
+  {
+   "code": "20599",
+   "source": "scb",
+   "terms": [
+    "Pastor, för svetsning, tillverkning",
+    "Pulver, för svetsning, tillverkning"
+   ]
+  },
+  {
+   "code": "22120",
+   "source": "scb",
+   "terms": [
+    "Galonkläder, svetsade, tillverkning",
+    "Regnkläder, gummi, svetsade, tillverkning"
+   ]
+  },
+  {
+   "code": "22260",
+   "source": "scb",
+   "terms": [
+    "Kläder, plastkläder, klistrade eller svetsade, tillverkning",
+    "Regnkläder, plastregnkläder, svetsade, tillverkning"
+   ]
+  },
+  {
+   "code": "24340",
+   "source": "scb",
+   "terms": [
+    "Svetstråd, tillverkning"
+   ]
+  },
+  {
+   "code": "25530",
+   "source": "scb",
+   "terms": [
+    "Arborrning, fräsning, skavning, hyvling, läppning, driftning, planing, sågning, slipning, svetsning, skarvning, metall (ej i samband med tillverkning av metallvaror)",
+    "Mekanisk verkstad, legoarbeten, såsom slipning, fräsning, borrning, svetsning, kapning, bockning etc.",
+    "Metallegoarbeten, såsom slipning, fräsning, borrning, svetsning, kapning, bockning etc.",
+    "Svetsarbeten, metall, enklare, (ej på byggnadsplats)"
+   ]
+  },
+  {
+   "code": "25930",
+   "source": "scb",
+   "terms": [
+    "Rör, oädel metall eller hårdmetall, överdragna eller fyllda med flussmedel, av sådant slag som används för lödning eller svetsning av metall eller hårdmetall, tillverkning",
+    "Svetselektroder, tillverkning"
+   ]
+  },
+  {
+   "code": "25999",
+   "source": "scb",
+   "terms": [
+    "Swimmingpooler, badbassänger, stål, tillverkning i delar för hopsvetsning på plats, tillverkning"
+   ]
+  },
+  {
+   "code": "27110",
+   "source": "scb",
+   "terms": [
+    "Svetstransformatorer, tillverkning",
+    "Transformatorer för bågsvetsning, tillverkning"
+   ]
+  },
+  {
+   "code": "27900",
+   "source": "scb",
+   "terms": [
+    "Elektriska robotar, för svetsning, tillverkning",
+    "Elektriska svetsmaskiner, tillverkning",
+    "Elsvetsutrustning, tillverkning",
+    "Maskinreparationer, egentillverkade elektriska svetsmaskiner och lödningsmaskiner",
+    "Svetsningsmaskiner och lödningsmaskiner, elektriska, tillverkning",
+    "Svetsningsrobotar, elektriska, tillverkning"
+   ]
+  },
+  {
+   "code": "28290",
+   "source": "scb",
+   "terms": [
+    "Svetsapparater, ej elektrisk, tillverkning",
+    "Svetsutrustning, ej elektrisk, tillverkning"
+   ]
+  },
+  {
+   "code": "28410",
+   "source": "scb",
+   "terms": [
+    "Maskiner, för metallbearbetning, tillverkning (ej för lödning eller svetsning, ej motordrivna handverktyg)",
+    "Maskinreparationer, egentillverkade, verktygsmaskiner för metallbearbetning (ej för lödning eller svetsning)",
+    "Metallbearbetningsmaskiner, tillverkning (ej för lödning eller svetsning, ej motordrivna handverktyg)",
+    "Verktygsmaskiner, egentillverkade, för metallbearbetning (ej lödmaskiner eller svetsmaskiner), installation",
+    "Verktygsmaskiner, egentillverkade, för metallbearbetning (ej lödmaskiner eller svetsmaskiner), reparation",
+    "Verktygsmaskiner, för metallbearbetning, tillverkning (ej för lödning eller svetsning, ej motordrivna handverktyg)"
+   ]
+  },
+  {
+   "code": "28990",
+   "source": "scb",
+   "terms": [
+    "Utsugningsanordningar för olika maskiner t.ex. spånmaskiner och svetsmaskiner, installation av egentillverkade",
+    "Utsugningsanordningar för olika maskiner t.ex. spånmaskiner och svetsmaskiner, tillverkning"
+   ]
+  },
+  {
+   "code": "30310",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som flygtekniker, flygmekaniker, till flygtillverkningsindustrin",
+    "Markträningsapparater för flygutbildning, tillverkning"
+   ]
+  },
+  {
+   "code": "30320",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som flygtekniker, flygmekaniker, till tillverkning av militärt flyg",
+    "Markträningsapparater för militär flygutbildning, tillverkning"
+   ]
+  },
+  {
+   "code": "32300",
+   "source": "scb",
+   "terms": [
+    "Träningsmaskiner och träningsredskap, för kroppsövningar, gymnastik eller idrott, tillverkning"
+   ]
+  },
+  {
+   "code": "32501",
+   "source": "scb",
+   "terms": [
+    "Massageapparater, tillverkning",
+    "Massagestolar, tillverkning"
+   ]
+  },
+  {
+   "code": "32502",
+   "source": "scb",
+   "terms": [
+    "Tandtekniskt laboratorium (tandtekniker)",
+    "Tillverkning av konstgjorda tänder, tandbryggor, bettskenor o.d. framställda i dentallaboratorier (tandtekniker)"
+   ]
+  },
+  {
+   "code": "33120",
+   "source": "scb",
+   "terms": [
+    "Maskinreparationer, ej egentillverkade elektriska svetsmaskiner och lödningsmaskiner",
+    "Maskinreparationer, ej egentillverkade, verktygsmaskiner för metallbearbetning (ej för lödning eller svetsning)",
+    "Reparation, av ej egentillverkad, ej elektrisk, svetsutrustning och lödningsutrustning",
+    "Verktygsmaskiner, ej egentillverkade, för metallbearbetning (ej lödmaskiner eller svetsmaskiner), reparation"
+   ]
+  },
+  {
+   "code": "33160",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som flygtekniker, flygmekaniker (reparation av flygplan) (ej militära)"
+   ]
+  },
+  {
+   "code": "33180",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som flygtekniker, flygmekaniker (reparation av flygplan)"
+   ]
+  },
+  {
+   "code": "33200",
+   "source": "scb",
+   "terms": [
+    "Installation av utsugningsanordningar för olika maskiner t.ex. spånmaskiner och svetsmaskiner (ej egentillverkade, ej i samband med handel)",
+    "Svetsningsmaskiner och lödningsmaskiner, installation (av ej egentillverkade, ej i samband med handel)"
+   ]
+  },
+  {
+   "code": "41",
+   "source": "authored",
+   "terms": [
+    "byggare"
+   ]
+  },
+  {
+   "code": "43",
+   "source": "authored",
+   "terms": [
+    "byggare",
+    "rörmokare",
+    "snickare"
+   ]
+  },
+  {
+   "code": "43210",
+   "source": "authored",
+   "terms": [
+    "elektriker"
+   ]
+  },
+  {
+   "code": "43221",
+   "source": "scb",
+   "terms": [
+    "Svetsarbeten, i samband med rördragning, inomhus"
+   ]
+  },
+  {
+   "code": "43341",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som målare för måleriarbeten, på byggnader och anläggningar, invändigt och utvändigt"
+   ]
+  },
+  {
+   "code": "43999",
+   "source": "scb",
+   "terms": [
+    "Bockning och svetsning av stål för gjutning av armerad betong på byggarbeten",
+    "Metallkonstruktioner, ej egentillverkade, svetsarbeten och montagearbeten, på byggplats"
+   ]
+  },
+  {
+   "code": "46189",
+   "source": "scb",
+   "terms": [
+    "Träningsmaskiner och träningsredskap, för kroppsövningar, gymnastik eller idrott, till företag"
+   ]
+  },
+  {
+   "code": "46190",
+   "source": "scb",
+   "terms": [
+    "Uthyrning av sig själv som försäljare inom provisionshandel till företag med ospecificerat sortiment, näringsidkare utan anställda"
+   ]
+  },
+  {
+   "code": "46410",
+   "source": "scb",
+   "terms": [
+    "Mirakeltrasor, städning, textilmaterial, partihandel"
+   ]
+  },
+  {
+   "code": "46420",
+   "source": "scb",
+   "terms": [
+    "Fritidskläder, partihandel (ej träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå)",
+    "Sportkläder, partihandel (ej träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå)",
+    "Träningsskor, sportskor eller idrottsskor; tennisskor, basketbollskor, gymnastikskor, o.d., med yttersulor av gummi eller plast och överdelar av textilmaterial, partihandel"
+   ]
+  },
+  {
+   "code": "46450",
+   "source": "scb",
+   "terms": [
+    "Massagesalvor, partihandel"
+   ]
+  },
+  {
+   "code": "46460",
+   "source": "scb",
+   "terms": [
+    "Massagebänkar, partihandel",
+    "Massagestolar, partihandel"
+   ]
+  },
+  {
+   "code": "46491",
+   "source": "scb",
+   "terms": [
+    "Motionsartiklar, (ej sportkläder, träningsskor, djursadlar), partihandel",
+    "Sportartiklar, (ej sportkläder, träningsskor, djursadlar), partihandel (även internethandel till företag)",
+    "Träningsmaskiner och träningsredskap, för kroppsövningar, gymnastik eller idrott, partihandel"
+   ]
+  },
+  {
+   "code": "46620",
+   "source": "scb",
+   "terms": [
+    "Elsvetsutrustningar, partihandel",
+    "Svetsningsmaskiner, partihandel"
+   ]
+  },
+  {
+   "code": "46649",
+   "source": "scb",
+   "terms": [
+    "Svetselektroder, partihandel",
+    "Svetstransformatorer, partihandel"
+   ]
+  },
+  {
+   "code": "46841",
+   "source": "scb",
+   "terms": [
+    "Svetstråd, partihandel"
+   ]
+  },
+  {
+   "code": "46900",
+   "source": "scb",
+   "terms": [
+    "Uthyrning av sig själv som försäljare inom ospecificerad partihandel"
+   ]
+  },
+  {
+   "code": "47111",
+   "source": "scb",
+   "terms": [
+    "Dagligvaruhandel med större än 1 500 m2 säljarea och minst 35 procent livsmedel, drycker och tobak",
+    "Stormarknadshandel, varmed avses butikslokaler med minst 2 500 m2 säljarea och externt läge samt brett sortiment men med minst 35 procent livsmedel, drycker och tobak",
+    "Varuhushandel, varmed avses butikslokaler med minst 1 500 m2 säljarea och brett sortiment men med minst 35 procent livsmedel, drycker och tobak"
+   ]
+  },
+  {
+   "code": "47112",
+   "source": "scb",
+   "terms": [
+    "Dagligvaruhandel med mindre än 1 500 m2 säljarea och minst 35 procent livsmedel, drycker och tobak"
+   ]
+  },
+  {
+   "code": "47631",
+   "source": "scb",
+   "terms": [
+    "Fritidsartiklar, (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, ej cyklar, vapen eller ammunition, ej sportskor, idrottsskor, tennisskor, basketbollskor, gymnastikskor, träningsskor o.d.), detaljhandel",
+    "Motionsartiklar, (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, ej cyklar, vapen eller ammunition, ej sportskor, idrottsskor, tennisskor, basketbollskor, gymnastikskor, träningsskor o.d.), detaljhandel",
+    "Sportartiklar, (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, ej cyklar, vapen eller ammunition, ej sportskor, idrottsskor, tennisskor, basketbollskor, gymnastikskor, träningsskor o.d.), detaljhandel",
+    "Sportbutiker, (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, ej cyklar, vapen eller ammunition, ej sportskor, idrottsskor, tennisskor, basketbollskor, gymnastikskor, träningsskor o.d.), detaljhandel",
+    "Träningskläder av trikå, detaljhandel"
+   ]
+  },
+  {
+   "code": "47634",
+   "source": "scb",
+   "terms": [
+    "Internethandel med träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, till hushåll och privatpersoner",
+    "Internethandel, detaljhandel med sportutrustning och fritidsutrustning (webbutik) (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå) till hushåll och privatpersoner",
+    "Postorderhandel med träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå, till hushåll och privatpersoner",
+    "Sportartiklar, fritidsartiklar, motionsartiklar, (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå) postorderhandel",
+    "Sportutrustning, postorderhandel till hushåll och privatpersoner (ej kläder andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå)"
+   ]
+  },
+  {
+   "code": "47711",
+   "source": "scb",
+   "terms": [
+    "Babykläder, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Barnkläder, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Ekiperingshandel, blandat barnkläder, damkläder och herrkläder (ej päls. Badkläder eller träningsdräkter av trikå)",
+    "Herrkonfektion, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Kläder, barnkläder, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Kläder, blandat barnkläder, damkläder, herrkläder, butikshandel (ej kläder av päls eller badkläder eller träningsdräkter av trikå)",
+    "Kläder, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Kläder, dam, butikshandel (ej av päls eller badkläder, och träningsdräkter av trikå)",
+    "Kläder, försäljning i butik (klädbutik) med damkläder, herrkläder och barnkläder, blandat (ej kläder av päls eller badkläder och träningsdräkter av trikå)",
+    "Kläder, försäljning, dam, butikshandel (ej av päls eller badkläder, och träningsdräkter av trikå)",
+    "Kläder, försäljning, herr, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Klädförsäljning i butik (klädbutik) barnkläder (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Klädförsäljning i butik (klädbutik) damkläder (ej av päls eller badkläder, och träningsdräkter av trikå)",
+    "Klädförsäljning i butik (klädbutik) herrkläder (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Klädförsäljning i butik (klädbutik) med damkläder, herrkläder och barnkläder, blandat (ej kläder av päls eller badkläder och träningsdräkter av trikå)",
+    "Konfektion, barnkonfektion, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Konfektion, blandat barnkläder, damkläder, herrkläder, butikshandel (ej kläder av päls eller badkläder och träningsdräkter av trikå)",
+    "Konfektion, damkonfektion, butikshandel (ej av päls eller badkläder, och träningsdräkter av trikå)",
+    "Konfektion, herrkonfektion, butikshandel (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Sportkläder, barn (utom badkläder och träningsoveraller av trikå), butikshandel",
+    "Sportkläder, barn, dam, herr blandat (ej träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå), butikshandel",
+    "Sportkläder, dam, utom badkläder och träningsoveraller av trikå, butikshandel",
+    "Sportkläder, herr, utom badkläder och träningsoveraller i trikå, butikshandel"
+   ]
+  },
+  {
+   "code": "47712",
+   "source": "scb",
+   "terms": [
+    "Babykläder, detaljhandel via internet eller postorder (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Ekiperingshandel (ej badkläder eller träningsdräkter av trikå)",
+    "Kläder, (ej badkläder och träningsdräkter av trikå) detaljhandel via internet eller postorder",
+    "Kläder, barnkläder, detaljhandel via internet eller postorder (ej av päls eller badkläder och träningsdräkter av trikå)",
+    "Kläder, detaljhandel via internet eller postorder (ej badkläder eller träningsdräkter av trikå)",
+    "Kläder, internethandel till hushåll och privatpersoner, andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå",
+    "Klädförsäljning, internethandel, detaljhandel, (webbutik) till hushåll och privatpersoner, andra än träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå",
+    "Konfektion, detaljhandel via internet eller postorder (ej badkläder och träningsdräkter av trikå)",
+    "Sportkläder, (ej träningsoveraller, skiddräkter, baddräkter och badbyxor av trikå), detaljhandel via internet eller postorder",
+    "Sportkläder, (utom badkläder och träningsoveraller av trikå), detaljhandel via internet eller postorder"
+   ]
+  },
+  {
+   "code": "47751",
+   "source": "scb",
+   "terms": [
+    "Massageoljor och massagesalvor försäljning i samband med behandling"
+   ]
+  },
+  {
+   "code": "47910",
+   "source": "scb",
+   "terms": [
+    "Förmedling av kontakter och affärer mellan köpare och säljare inom detaljhandeln, utan att själva sälja varorna"
+   ]
+  },
+  {
+   "code": "47920",
+   "source": "scb",
+   "terms": [
+    "Förmedling av kontakter och affärer mellan köpare och säljare inom specialiserad detaljhandel, utan att själva sälja varorna"
+   ]
+  },
+  {
+   "code": "49310",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som busschaufför till linjetrafik med buss",
+    "Uthyrning av sig själv som busschaufför till linjetrafik med buss"
+   ]
+  },
+  {
+   "code": "49320",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som busschaufför till chartertrafik med buss",
+    "Hyra ut sig själv som busschaufför till fjärrtrafik med buss",
+    "Uthyrning av sig själv som busschaufför till fjärrtrafik med buss",
+    "Uthyrning av sig själv som busschaufför till företag med busstjänster för speciella tillfällen"
+   ]
+  },
+  {
+   "code": "49330",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som taxichaufför utan bil",
+    "Uthyrning av sig själv som taxichaufför utan egen bil"
+   ]
+  },
+  {
+   "code": "49410",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som godstrafikchaufför (ej distribution av vatten, ej flyttransporter, ej insamling av sopor och avfall)"
+   ]
+  },
+  {
+   "code": "55101",
+   "source": "scb",
+   "terms": [
+    "Turism, hotell med restaurang"
+   ]
+  },
+  {
+   "code": "55103",
+   "source": "scb",
+   "terms": [
+    "Turism, hotell utan restaurang"
+   ]
+  },
+  {
+   "code": "55201",
+   "source": "scb",
+   "terms": [
+    "Turism, vandrarhem"
+   ]
+  },
+  {
+   "code": "55202",
+   "source": "scb",
+   "terms": [
+    "Turism, uthyrning av stugor"
+   ]
+  },
+  {
+   "code": "56110",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som kock eller hovmästare till restauranger",
+    "Uthyrning av sig själv som kock till restauranger",
+    "Uthyrning av sig själv som servitris, servitör till restauranger"
+   ]
+  },
+  {
+   "code": "56120",
+   "source": "scb",
+   "terms": [
+    "Detaljhandel med beredd mat för omedelbar konsumtion (flyttbara matförsäljare)"
+   ]
+  },
+  {
+   "code": "56222",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som kock, kokerska, köksbiträde, serveringspersonal till centralkök för skolor, omsorg och institutioner",
+    "Hyra ut sig själv som kock, kokerska, köksbiträde, serveringspersonal till centralkök på sjukhus",
+    "Uthyrning av sig själv som kock, kokerska, köksbiträde, serveringspersonal till centralkök för sjukhus",
+    "Uthyrning av sig själv som kock, kokerska, köksbiträde, serveringspersonal till centralkök för skolor, omsorg och institutioner"
+   ]
+  },
+  {
+   "code": "58210",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult, ADB-konsult) utveckling av generella programvaror för dataspel i samband med utgivning"
+   ]
+  },
+  {
+   "code": "58290",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult, ADB-konsult) utgivning av generella programvaror, mjukvaror, appar (ej för dataspel)",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult, ADB-konsult) utveckling i samband med utgivning av generella programvaror, mjukvaror, appar (ej för dataspel)"
+   ]
+  },
+  {
+   "code": "59110",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som studiotekniker, kameraman, producent etc till filminspelning, ljudinspelning eller videoinspelning",
+    "Hyra ut sig själv som studiotekniker, kameraman, producent etc till produktion av ej direktsända TV-program"
+   ]
+  },
+  {
+   "code": "60200",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som studiotekniker, kameraman, producent etc till produktion av direktsända TV-program"
+   ]
+  },
+  {
+   "code": "60390",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), drift av webbplatser"
+   ]
+  },
+  {
+   "code": "62",
+   "source": "authored",
+   "terms": [
+    "apputveckling",
+    "mjukvara"
+   ]
+  },
+  {
+   "code": "62100",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult) utveckling av generella programvaror, mjukvaror ej i samband med utgivning",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), programmering för specifik kund",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), utveckling av applikationer",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), utveckling av kundspecifika mjukvaror, programvaror",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), webbutveckling",
+    "Uthyrning av sig själv som programmerare till företag som har programmering som verksamhet",
+    "Webbutveckling, skapa och utveckla hemsidor på uppdrag",
+    "Webbutveckling, webbproduktion, webbprogrammering, kundanpassad"
+   ]
+  },
+  {
+   "code": "62201",
+   "source": "scb",
+   "terms": [
+    "Agil systemutveckling",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult) hårdvara, maskinvara",
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), systemdesign",
+    "Konsultverksamhet, maskinvara, datorer (ej producenter eller återförsäljare)",
+    "Maskinvara, datorer, konsultverksamhet, (ej producenter eller återförsäljare)",
+    "Mediaproduktion, system för webbutveckling",
+    "Projektledning, systemutveckling, IT",
+    "Systemutveckling, data"
+   ]
+  },
+  {
+   "code": "62202",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), drift av kunds datasystem"
+   ]
+  },
+  {
+   "code": "62900",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), återskapande av data efter datorkrasch"
+   ]
+  },
+  {
+   "code": "63100",
+   "source": "scb",
+   "terms": [
+    "Datakonsultverksamhet, (IT-konsult, ITkonsult), databehandling, databasverksamhet"
+   ]
+  },
+  {
+   "code": "68120",
+   "source": "scb",
+   "terms": [
+    "Bostadsutveckling, bostadsutvecklare"
+   ]
+  },
+  {
+   "code": "68310",
+   "source": "scb",
+   "terms": [
+    "Fastighetskonsult, fastighetsmäkleri, fastighetsmäklare"
+   ]
+  },
+  {
+   "code": "69101",
+   "source": "scb",
+   "terms": [
+    "Jurist, på advokatbyrå (utom patentfrågor och copyrightfrågor)"
+   ]
+  },
+  {
+   "code": "69102",
+   "source": "scb",
+   "terms": [
+    "Jurist, på juridiska byråer (utom patentfrågor och copyrightfrågor)",
+    "Jurist, rådgivning och handläggning av patentfrågor och copyrightfrågor"
+   ]
+  },
+  {
+   "code": "69202",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som revisor"
+   ]
+  },
+  {
+   "code": "70200",
+   "source": "scb",
+   "terms": [
+    "Rådgivning avseende utveckling av näringsgrenar, turism, regional utveckling etc, konsultverksamhet"
+   ]
+  },
+  {
+   "code": "71121",
+   "source": "scb",
+   "terms": [
+    "Byggnadsingenjörsverksamhet, (ej inom projekt tillhörande anläggningsarbeten inom elteknik och VVS-teknik)"
+   ]
+  },
+  {
+   "code": "71123",
+   "source": "scb",
+   "terms": [
+    "Byggnadsingenjörsverksamhet, tillhörande anläggningsarbeten inom elteknik"
+   ]
+  },
+  {
+   "code": "71124",
+   "source": "scb",
+   "terms": [
+    "Byggnadsingenjörsverksamhet, tillhörande anläggningsarbeten inom VVS-teknik",
+    "Skyddsingenjörsverksamhet"
+   ]
+  },
+  {
+   "code": "74200",
+   "source": "scb",
+   "terms": [
+    "Bildjournalistik"
+   ]
+  },
+  {
+   "code": "77210",
+   "source": "scb",
+   "terms": [
+    "Träningsmaskiner och redskap, för kroppsövningar, gymnastik eller idrott, uthyrning till hushåll"
+   ]
+  },
+  {
+   "code": "77220",
+   "source": "scb",
+   "terms": [
+    "Massagebänkar, uthyrning"
+   ]
+  },
+  {
+   "code": "77390",
+   "source": "scb",
+   "terms": [
+    "Ljudanläggningar, uthyrning, för yrkesmässigt bruk, utan tekniker",
+    "Ljusanläggningar, uthyrning, för yrkesmässigt bruk, utan tekniker",
+    "Uthyrning, ljudanläggningar, för yrkesmässigt bruk, utan tekniker",
+    "Uthyrning, ljusanläggningar, för yrkesmässigt bruk, utan tekniker"
+   ]
+  },
+  {
+   "code": "77400",
+   "source": "scb",
+   "terms": [
+    "Licensieringstjänster, rätten att använda immateriella rättigheter såsom arkitektplaner och ingenjörsplaner, industriell design etc."
+   ]
+  },
+  {
+   "code": "78201",
+   "source": "scb",
+   "terms": [
+    "Personaluthyrning, (temporärt) företag med anställda, uthyrning av chaufför, lagerarbetare m.fl."
+   ]
+  },
+  {
+   "code": "79900",
+   "source": "scb",
+   "terms": [
+    "Turism, guidning",
+    "Turism, turistbyrå"
+   ]
+  },
+  {
+   "code": "81100",
+   "source": "scb",
+   "terms": [
+    "Städning i samband med fastighetsservice på uppdrag (ej utförd av städföretag)"
+   ]
+  },
+  {
+   "code": "81210",
+   "source": "scb",
+   "terms": [
+    "Flyttstädning, åt företag",
+    "Städning av butiker",
+    "Städning av fabriker",
+    "Städning av kontor (kontorsstädning)",
+    "Städning av verkstäder",
+    "Städning på uppdrag, entreprenad, fönsterputs i samband med lokalvård",
+    "Städning på uppdrag, entreprenad, lokalvård"
+   ]
+  },
+  {
+   "code": "81221",
+   "source": "scb",
+   "terms": [
+    "Byggstädning",
+    "Städning på uppdrag, entreprenad, byggstädning",
+    "Städning på uppdrag, entreprenad, fönsterputs (ej i samband med lokalvård)"
+   ]
+  },
+  {
+   "code": "81230",
+   "source": "scb",
+   "terms": [
+    "Fartygsstädning",
+    "Flygplansstädning",
+    "Rengöring, städning av stränder på uppdrag (ej sanering av oljeutsläpp och andra föroreningar )",
+    "Städning på uppdrag, entreprenad, städning av bussar, flygplan eller tåg"
+   ]
+  },
+  {
+   "code": "84124",
+   "source": "scb",
+   "terms": [
+    "Omsorg, äldreomsorg, administration, offentlig förvaltning (ej av privata företag)"
+   ]
+  },
+  {
+   "code": "85100",
+   "source": "scb",
+   "terms": [
+    "Förskolor (ej öppen förskola)",
+    "Hyra ut sig själv som förskollärare"
+   ]
+  },
+  {
+   "code": "85201",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som grundskolelärare (ej till anpassad grundskola)",
+    "Uthyrning av sig själv som grundskolelärare (ej till anpassad grundskola)"
+   ]
+  },
+  {
+   "code": "85202",
+   "source": "scb",
+   "terms": [
+    "Anpassad grundskola, träningsskola",
+    "Hyra ut sig själv som lärare till anpassad grundskola"
+   ]
+  },
+  {
+   "code": "85311",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till gymnasieskolans studieförberedande linjer"
+   ]
+  },
+  {
+   "code": "85312",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till kommunal vuxenutbildning"
+   ]
+  },
+  {
+   "code": "85321",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till gymnasial yrkesutbildning (ej anpassad gymnasieskola)"
+   ]
+  },
+  {
+   "code": "85322",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till anpassad gymnasieskola"
+   ]
+  },
+  {
+   "code": "85330",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till polishögskolan eller yrkeshögskolan"
+   ]
+  },
+  {
+   "code": "85400",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till universitet och högskola, (ej till polishögskolan eller yrkeshögskolan)",
+    "Högskoleundervisning, journalistik",
+    "Journalisthögskola"
+   ]
+  },
+  {
+   "code": "85510",
+   "source": "scb",
+   "terms": [
+    "Friskvårdskonsult, fysisk träning",
+    "Gruppträning inom idrott",
+    "Mental träning, idrottsrelaterad"
+   ]
+  },
+  {
+   "code": "85521",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som bildlärare på grundskolenivå och gymnasieskolenivå",
+    "Uthyrning av sig själv som bildlärare till kommunala kulturskolor på grundskolenivå och gymnasieskolenivå",
+    "Uthyrning av sig själv som musiklärare till kommunala kulturskolor på grundskolenivå och gymnasieskolenivå"
+   ]
+  },
+  {
+   "code": "85522",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som musiklärare för privatundervisning",
+    "Uthyrning av sig själv som musiklärare för privatundervisning"
+   ]
+  },
+  {
+   "code": "85592",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till folkhögskoleundervisning"
+   ]
+  },
+  {
+   "code": "85593",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare till studieförbund"
+   ]
+  },
+  {
+   "code": "85594",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare/föreläsare för personalutbildning"
+   ]
+  },
+  {
+   "code": "85599",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som lärare/föreläsare inom övrig utbildning",
+    "Livvaktsträning (ej personalutbildning)",
+    "Massageutbildning",
+    "Överlevnadsträning och kurser (ej personalutbildning)"
+   ]
+  },
+  {
+   "code": "86102",
+   "source": "scb",
+   "terms": [
+    "Förlossning, patienter inskrivna vid vårdenhet under direkt överinseende av läkare på sjukhus",
+    "Hyra ut sig själv som operstionssjuksköterska till sjukhus med sluten somatisk sjukvård",
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till sjukhus med sluten somatisk sjukvård",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till sjukhus inom sluten vård"
+   ]
+  },
+  {
+   "code": "86211",
+   "source": "scb",
+   "terms": [
+    "Allmänmedicinska mottagningar inom primärvården",
+    "Allmänpraktiserande läkarverksamhet inom primärvården",
+    "Hemsjukvård, öppen äldreomsorg",
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc på primärvårdsmottagning",
+    "Läkare, allmänmedicinsk konsultverksamhet, behandlingsuppdrag inom primärvården (ej på sjukhus)",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska till primärvårdsmottagningar, vårdcentraler"
+   ]
+  },
+  {
+   "code": "86212",
+   "source": "scb",
+   "terms": [
+    "Allmänpraktiserande läkarverksamhet (ej inom primärvården)",
+    "Läkarpraktik, allmänpraktiserande (ej inom primärvården)"
+   ]
+  },
+  {
+   "code": "86221",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till öppenvårdsmottagningar på sjukhus",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till sjukhus inom öppen vård"
+   ]
+  },
+  {
+   "code": "86222",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till specialistmottagningar (ej på sjukhus)",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till specialistmottagningar (ej på sjukhus)"
+   ]
+  },
+  {
+   "code": "86230",
+   "source": "scb",
+   "terms": [
+    "Folktandvården (FTV)",
+    "Hyra ut sig själv som tandläkare, tandsköterska"
+   ]
+  },
+  {
+   "code": "86950",
+   "source": "scb",
+   "terms": [
+    "Massage i samband med sjukgymnastik, människor"
+   ]
+  },
+  {
+   "code": "86960",
+   "source": "scb",
+   "terms": [
+    "Medicinsk fibromassage"
+   ]
+  },
+  {
+   "code": "87100",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende med sjuksköterskevård",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende med sjuksköterskevård"
+   ]
+  },
+  {
+   "code": "87201",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för personer med utvecklingsstörning eller psykisk funktionsnedsättning",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för personer med utvecklingsstörning eller psykisk funktionsnedsättning"
+   ]
+  },
+  {
+   "code": "87202",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för barn och ungdomar med missbruksproblem",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för barn och ungdomar med missbruksproblem"
+   ]
+  },
+  {
+   "code": "87203",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för vuxna med missbruksproblem",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för vuxna med missbruksproblem"
+   ]
+  },
+  {
+   "code": "87301",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till äldreboende",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till äldreboenden",
+    "Äldreomsorg i särskilda boendeformer, som gruppboende, servicehus, ålderdomshem o.d."
+   ]
+  },
+  {
+   "code": "87302",
+   "source": "scb",
+   "terms": [
+    "Hyra ut sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för personer med funktionsnedsättning",
+    "Uthyrning av sig själv som sjuksköterska, undersköterska, vårdbiträde etc till boende för personer med funktionsnedsättning"
+   ]
+  },
+  {
+   "code": "87991",
+   "source": "scb",
+   "terms": [
+    "Träningslägenheter för flyktingbarn, drift av"
+   ]
+  },
+  {
+   "code": "87992",
+   "source": "scb",
+   "terms": [
+    "Träningslägenhet för vuxna"
+   ]
+  },
+  {
+   "code": "88101",
+   "source": "scb",
+   "terms": [
+    "Äldreomsorg/äldrevård öppna sociala insatser, som hemtjänst, dagverksamhet, servicecentraler o.d."
+   ]
+  },
+  {
+   "code": "88910",
+   "source": "scb",
+   "terms": [
+    "Hushållsnära tjänster, barnpassning som utförs i eller i nära anslutning till bostaden samt lämning och hämtning av barn vid förskola, skola, fritidsaktivitet eller liknade",
+    "Småbarnsgrupper (ej inom förskolan)",
+    "Öppna förskolor (öppen förskola)"
+   ]
+  },
+  {
+   "code": "88993",
+   "source": "scb",
+   "terms": [
+    "Arbetsträning"
+   ]
+  },
+  {
+   "code": "90110",
+   "source": "scb",
+   "terms": [
+    "Frilansjournalist",
+    "Frilansjournalistik",
+    "Journalist, frilans",
+    "Publicist, frilansjournalist"
+   ]
+  },
+  {
+   "code": "90390",
+   "source": "scb",
+   "terms": [
+    "FOH (front of house) ljudtekniker som sköter ljudet framför scenen under t.ex. konserter och föreställningar",
+    "Förvaltningstjänster av upphovsrätt samt intäkter i samband med detta, frilansjournalister och frilansfotografers rättigheter",
+    "Uthyrning av ljudanläggningar och ljusanläggningar med tekniker"
+   ]
+  },
+  {
+   "code": "93130",
+   "source": "scb",
+   "terms": [
+    "Styrketräningsinstitut"
+   ]
+  },
+  {
+   "code": "93191",
+   "source": "scb",
+   "terms": [
+    "Galopphästar, träning och tävling",
+    "Hästträning, galopphästar",
+    "Hästträning, travhästar",
+    "Travhästar, träning och tävling",
+    "Travträning",
+    "Träning av och tävling med hästar"
+   ]
+  },
+  {
+   "code": "93199",
+   "source": "scb",
+   "terms": [
+    "Träning av jakthundar"
+   ]
+  },
+  {
+   "code": "94990",
+   "source": "scb",
+   "terms": [
+    "LMS Riksföreningen för lärare i moderna språk"
+   ]
+  },
+  {
+   "code": "96220",
+   "source": "scb",
+   "terms": [
+    "Ansiktsmassage",
+    "Fotvård, fotbehandling, fotmassage, (ej medicinsk)"
+   ]
+  },
+  {
+   "code": "96230",
+   "source": "scb",
+   "terms": [
+    "Aromamassage, människor",
+    "Babymassage",
+    "Energimassage, människor",
+    "Friskvård, massage människor",
+    "Klangmassage",
+    "Massagebehandling, människor (ej i samband med sjukgymnastik)",
+    "Massagebehandling, människor (ej medicinsk)",
+    "Massageterapi, på människor (ej i samband med sjukgymnastik)",
+    "Massageterapi, på människor (ej medicinsk)",
+    "Shiatsu massage",
+    "Taktilmassage",
+    "Thaimassage",
+    "Träning i mindfulness"
+   ]
+  },
+  {
+   "code": "96910",
+   "source": "scb",
+   "terms": [
+    "Flyttstädning, hos hushåll och privatpersoner",
+    "Hushållsnära tjänster, städning av bostäder till privatpersoner",
+    "Hushållsstädning"
+   ]
+  },
+  {
+   "code": "96990",
+   "source": "scb",
+   "terms": [
+    "Djurmassage, sällskapsdjur, hundar, katter m.fl. (ej veterinärverksamhet)",
+    "Hundmassage, Kattmassage",
+    "Hundträning, Hundcoachning, Hundskola (ej i samband med uppfödning)",
+    "Hundvård (trimning, bad, dressyr, massage, psykoterapi m.m.), ej i samband med uppfödning",
+    "Massagebehandling för sällskapsdjur, hundar, katter m.fl. (ej veterinärverksamhet)",
+    "Mental träning (ej idrottsrelaterad)",
+    "Sällskapsdjur, hundar, katter m.fl., träning av (ej i samband med uppfödning)",
+    "Vakthundar, träning av (ej i samband med uppfödning)"
+   ]
+  }
+ ]
+}

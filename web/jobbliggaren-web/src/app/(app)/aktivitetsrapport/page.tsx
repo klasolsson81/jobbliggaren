@@ -119,7 +119,6 @@ export default async function AktivitetsrapportPage({
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <h1 className="jp-pagehero__title">{t("title")}</h1>
-            <p className="jp-pagehero__lede">{t("lede")}</p>
           </div>
         </div>
       </section>

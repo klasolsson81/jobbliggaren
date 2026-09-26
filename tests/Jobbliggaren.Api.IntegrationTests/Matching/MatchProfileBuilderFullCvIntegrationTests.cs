@@ -78,7 +78,7 @@ public class MatchProfileBuilderFullCvIntegrationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         seeker.UpdateMatchPreferences(Prefs(confirmedSkills), clock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);

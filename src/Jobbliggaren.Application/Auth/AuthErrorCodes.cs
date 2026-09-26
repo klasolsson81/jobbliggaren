@@ -8,112 +8,123 @@ namespace Jobbliggaren.Application.Auth;
 public static class AuthErrorCodes
 {
     /// <summary>
-    /// Generic, deliberately vague credential failure: unknown email, wrong password
-    /// or a soft-deleted account. Rendered as 401 (AuthEndpoints) with copy that never
-    /// reveals which of the causes applied (account-enumeration avoidance).
+    /// Generic, deliberately vague refusal to re-authenticate: a missing, spent or foreign grant, a
+    /// soft-deleted account, or an account without an address. Rendered as 401 (AuthEndpoints) with copy
+    /// that never reveals which of the causes applied.
     /// </summary>
     public const string InvalidCredentials = "Auth.InvalidCredentials";
+
+    /// <summary>
+    /// A handler's self-defending refusal when <c>ICurrentUser</c> carries no user: AuthorizationBehavior ran
+    /// before it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string NotAuthenticated = "Auth.NotAuthenticated";
+
+    /// <summary>
+    /// A handler's self-defending refusal of input its validator already refuses: ValidationBehavior ran before
+    /// it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string InvalidInput = "Auth.InvalidInput";
+
+    /// <summary>The account a user id names is gone. NotFound → 404.</summary>
+    public const string UserNotFound = "Auth.UserNotFound";
 
     /// <summary>
     /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
     /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
     /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
-    /// the wire — normalized by AuthProblem in both the behavior and /auth/verify paths) cannot
+    /// the wire — normalized by AuthProblem in the behavior path) cannot
     /// silently drift from the authoritative copy (dotnet-architect PR2c-1 Minor — single source).
     /// </summary>
-    public const string InvalidCredentialsMessage = "E-post eller lösenord är felaktigt.";
+    public const string InvalidCredentialsMessage = "Det gick inte att bekräfta att det är du.";
 
     /// <summary>
-    /// Internal lockout verdict (#503, OWASP A07): the account is temporarily locked
-    /// after too many failed attempts. Discriminates the audit event
-    /// (<c>account_locked_out</c>) in the Api handler BUT is normalized to a
-    /// byte-identical <see cref="InvalidCredentials"/> response on the wire
-    /// (<c>AuthEndpoints.ToErrorResult</c>) so lockout state never leaks as an
-    /// account-enumeration or DoS-target oracle. This code must NEVER reach the client.
-    /// </summary>
-    public const string AccountLocked = "Auth.AccountLocked";
-
-    /// <summary>
-    /// Generic, non-enumerating registration failure (#481 Low): a duplicate email/username is
-    /// collapsed to this so a legacy (flag-OFF) 400 response reveals neither which field failed nor
-    /// the submitted address (vs Identity's raw English "Username 'x' is already taken").
-    /// <para>
-    /// #714: with email-confirmation-first registration ON, this code is an INTERNAL DISCRIMINANT
-    /// ONLY (like <see cref="AccountLocked"/>) — <c>RegisterCommandHandler</c> swallows the duplicate,
-    /// returns the SAME 202 as a fresh signup and emails an out-of-band account-exists notice, so a
-    /// taken address is indistinguishable from a free one on both status and body (the 200-vs-400
-    /// status oracle is closed). This code and <see cref="DuplicateAccountMessage"/> MUST NEVER reach
-    /// the wire on the flag-ON path. Rendered as 400 only on the legacy flag-OFF path.
-    /// </para>
+    /// An address or user name that already has an account, collapsed to one code so neither the field nor
+    /// the submitted address is echoed (vs Identity's raw English "Username 'x' is already taken"). An
+    /// INTERNAL DISCRIMINANT: <c>AccountRegistrar</c> treats it as success, because the address has an account
+    /// afterwards, so this code and <see cref="DuplicateAccountMessage"/> never reach the wire.
     /// </summary>
     public const string DuplicateAccount = "Auth.DuplicateAccount";
 
-    /// <summary>
-    /// The single user-facing detail for <see cref="DuplicateAccount"/>. No address echo, no field
-    /// name; hints the recovery path (log in) without confirming more than the 400 status already does.
-    /// Legacy flag-OFF path only (see <see cref="DuplicateAccount"/>).
-    /// </summary>
+    /// <summary>The message <see cref="DuplicateAccount"/> carries. No address echo, no field name.</summary>
     public const string DuplicateAccountMessage =
         "Det gick inte att skapa kontot. Om du redan har ett konto kan du logga in i stället.";
 
     /// <summary>
-    /// #714 — login gate for email-confirmation-first registration. Emitted by
-    /// <c>UserAccountService.ValidateCredentialsAsync</c> only when the flag is ON, the password is
-    /// CORRECT, and <c>ApplicationUser.EmailConfirmed</c> is false. Because it is reachable only after
-    /// a valid password it is NOT an account-enumeration oracle (a wrong password / unknown account
-    /// still yields the byte-identical <see cref="InvalidCredentials"/> 401). The Api renders it as a
-    /// distinct <c>403</c> with an actionable message (endpoint-local arm, no new ErrorKind). The
-    /// re-auth path (<c>ReauthenticationService</c>) normalizes it back to
-    /// <see cref="InvalidCredentials"/> so the re-auth surface stays a uniform 401 (it is unreachable
-    /// there — only confirmed users hold sessions — but defense-in-depth).
-    /// </summary>
-    public const string EmailNotConfirmed = "Auth.EmailNotConfirmed";
-
-    /// <summary>
-    /// The single user-facing detail for the <see cref="EmailNotConfirmed"/> 403. Actionable (§10):
-    /// tells a legitimate unconfirmed user how to proceed instead of a misleading wrong-password 401.
-    /// <para>
-    /// #1349 — it states what the gate establishes and nothing more. It used to say confirming was
-    /// enough to log in; for a profile-less row it is not, and that row reaches THIS surface rather
-    /// than the uniform 401, because ValidateCredentialsAsync returns EmailNotConfirmed before the
-    /// JobSeeker guard runs. The second sentence became an instruction for the same reason: the gate
-    /// establishes EmailConfirmed=false and knows nothing about whether a send succeeded.
-    /// </para>
-    /// </summary>
-    public const string EmailNotConfirmedMessage =
-        "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.";
-
-    /// <summary>
-    /// #714 — uniform failure for EVERY rejection on the PUBLIC registration-confirm endpoint
-    /// (<c>POST /auth/verify-email</c>): unknown user, malformed/bad/expired token. A public confirm
-    /// endpoint must not distinguish them or it becomes an account-existence oracle (parity with
-    /// <c>Auth.InvalidEmailChangeToken</c>, #679). Rendered as 400 via the central kind-mapper.
-    /// </summary>
-    public const string InvalidEmailConfirmationToken = "Auth.InvalidEmailConfirmationToken";
-
-    /// <summary>
-    /// The single user-facing detail for <see cref="InvalidEmailConfirmationToken"/>. No account/field
-    /// disclosure; points to the recovery path (register again for a fresh link).
-    /// </summary>
-    public const string InvalidEmailConfirmationTokenMessage =
-        "Bekräftelselänken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.";
-
-    /// <summary>
-    /// #703 — the authenticated change-email request is inside its per-user or per-target anti-email-bomb
-    /// cooldown window. Rendered as a VISIBLE 409 via the central kind-mapper (unlike the unauthenticated
-    /// resend / account-exists silent no-op): the change-email surface already leaks existence via the
-    /// <c>Auth.EmailTaken</c> 409, so the anti-enum silence buys nothing here and a "wait a moment" is
-    /// better UX than a false "link sent". The per-user throttle is checked first (short-circuit) so a
-    /// blocked actor cannot also extend a victim's window.
+    /// #703 — the authenticated change-email request is refused by one of its anti-email-bomb budgets: the
+    /// per-user cooldown, the per-address cooldown, or the per-address daily cap (#1739). The three share this
+    /// code because the last two are shared between users, and a refusal that told them apart would say that
+    /// someone else asked for the address. Rendered as a VISIBLE 409 via the central kind-mapper: the
+    /// change-email surface already leaks existence via the <c>Auth.EmailTaken</c> 409, so an anti-enum
+    /// silence would buy nothing here. The per-user throttle is
+    /// checked first (short-circuit) so a blocked actor cannot also extend a victim's window.
     /// </summary>
     public const string ChangeEmailCooldown = "Auth.ChangeEmailCooldown";
 
     /// <summary>
-    /// The single user-facing detail for <see cref="ChangeEmailCooldown"/> (§10, civic tone; no address
-    /// echo, actionable — tells the user to wait).
+    /// The single user-facing detail for <see cref="ChangeEmailCooldown"/> (§10, civic tone; no address echo).
+    /// It holds for every producer: the caller may have asked nothing (the two budgets are shared between
+    /// users) and the wait is a minute or a day, so it names neither.
     /// </summary>
     public const string ChangeEmailCooldownMessage =
-        "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
+        "Det går inte att begära ett adressbyte just nu. Försök igen senare.";
+
+    /// <summary>
+    /// #1739 — a re-authentication code was requested inside the account's own cooldown. The caller is signed in,
+    /// so the refusal is visible. Conflict → 409.
+    /// </summary>
+    public const string ReauthCooldown = "Auth.ReauthCooldown";
+
+    public const string ReauthCooldownMessage =
+        "Du begärde nyligen en kod. Vänta en liten stund innan du försöker igen.";
+
+    /// <summary>
+    /// #1739 — the account's re-authentication codes for the day are spent
+    /// (<c>LoginChallengePolicy.ReauthCodeBudget</c>). Terminal: unlike the login challenge there is no link to
+    /// fall back to, since a link yields a session and never a re-authentication, so the message says a day
+    /// and not a moment. Only a holder of the session can spend this budget. Conflict → 409.
+    /// </summary>
+    public const string ReauthCodeBudgetExhausted = "Auth.ReauthCodeBudgetExhausted";
+
+    public const string ReauthCodeBudgetExhaustedMessage =
+        "Du har begärt så många koder som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// The address a change-email names is already some account's address or user name (#679; both since
+    /// #1739). Answered at the request step and, for a race the request step lost, at the swap. The route is
+    /// authenticated and re-authenticated, and the per-user budgets run first, so the refusal is visible.
+    /// Conflict → 409.
+    /// </summary>
+    public const string EmailTaken = "Auth.EmailTaken";
+
+    public const string EmailTakenMessage = "Den e-postadressen är upptagen.";
+
+    /// <summary>
+    /// #1739 — the user has asked to move to as many new addresses as a day admits
+    /// (<c>ChangeEmailPolicy.UserTargetsDailyBudget</c>). Keyed by the user id, so only a holder of the session can
+    /// spend it. Conflict → 409.
+    /// </summary>
+    public const string ChangeEmailTargetBudgetExhausted = "Auth.ChangeEmailTargetBudgetExhausted";
+
+    public const string ChangeEmailTargetBudgetExhaustedMessage =
+        "Du har bett om att byta till så många nya adresser som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// #1739 — the change-email grant cannot be redeemed: unknown, expired, already used, or issued for another
+    /// user or address. One answer, the <see cref="LoginGrantUnusable"/> form. Gone → 410.
+    /// </summary>
+    public const string EmailChangeGrantUnusable = "Auth.EmailChangeGrantUnusable";
+
+    public const string EmailChangeGrantUnusableMessage =
+        "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";
+
+    /// <summary>
+    /// #1739 — the swap did not complete: the address write, or a user-name write
+    /// that failed for any reason but a taken name. Conflict → 409.
+    /// </summary>
+    public const string EmailChangeIncomplete = "Auth.EmailChangeIncomplete";
+
+    public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
 
     /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
@@ -134,8 +145,7 @@ public static class AuthErrorCodes
     /// but a date we might miss is worse than none. Echoes the copy the retired kill-switch carried
     /// before ADR 0083 removed it.
     /// <para>
-    /// <b>The user never sees this string.</b> The frontend renders its own localised copy
-    /// (<c>auth.actions.registrationsClosed</c> in <c>messages/{sv,en}/pages.json</c>) and never the
+    /// <b>The user never sees this string.</b> The frontend renders its own localised copy and never the
     /// ProblemDetails <c>detail</c>; what it consumes is <see cref="RegistrationsClosed"/> as the
     /// discriminator. The two Swedish sentences are therefore independent by construction, not
     /// duplicated by accident — this one exists so a direct API consumer gets a civil answer too.
@@ -197,8 +207,6 @@ public static class AuthErrorCodes
     /// <b>The client arm exists since #734 B-ii</b> (it did not until then: a 503 fell through to the
     /// generic <c>settings.account.errors.changeEmailFailed</c>, so the user learned neither the
     /// reason nor that the address was unchanged, and the submit button stayed live).
-    /// <c>changeEmailAction</c> now returns a <c>refused</c> result on this title and the card
-    /// replaces itself with a <c>role="status"</c> panel, removing the retry affordance.
     /// <b>It discriminates on the TITLE, never on the status alone</b> (the gate is conjunctive —
     /// status 503 AND the exact title), because this route has at least two other 503 producers:
     /// a Redis-backed <c>SessionStoreUnavailableException</c>, whose body carries no <c>title</c>
@@ -213,9 +221,9 @@ public static class AuthErrorCodes
     /// </para>
     /// <para>
     /// <b>Generalised for #1171.</b> It read "…någon bekräftelselänk. Din adress är oförändrad." while
-    /// change-email was the only producer; the forgot-password request is the second, and there no
-    /// address was being changed, so that sentence would have been false. The code names an OPERATIONAL
-    /// condition — no configured sender can deliver — which is flow-independent, so the detail is too.
+    /// change-email was the only producer; the forgot-password request (retired in ADR 0142 part 5a) was the
+    /// second, and there no address was being changed, so that sentence would have been false. The code names an
+    /// OPERATIONAL condition — no configured sender can deliver — which is flow-independent, so the detail is too.
     /// A second code for the same condition would have needed a second endpoint arm and a second
     /// frontend whitelist entry to say the same thing. Neither client renders this string, so no user
     /// copy changed.
@@ -225,35 +233,83 @@ public static class AuthErrorCodes
         "E-postutskick är inte aktiverat just nu, så vi kan inte skicka något e-postmeddelande. "
         + "Ingenting har ändrats. Försök igen senare.";
 
-    /// <summary>
-    /// A password-reset token was rejected (#1171): unknown user, malformed, wrong, or expired. ONE code
-    /// for all four, deliberately — the reset endpoint is PUBLIC, and telling "no such account" apart
-    /// from "bad token" would make it an account-existence oracle. Rendered 400 through the central
-    /// kind-mapper; no endpoint-local arm.
-    /// <para>
-    /// <b>Password rejections do NOT collapse into this</b>, and that asymmetry is safe for a measured
-    /// reason rather than a stylistic one: Identity verifies the token BEFORE running the password
-    /// validators, so a password rejection is reachable only by someone already holding a valid token.
-    /// It discloses nothing that person does not have, and a real user needs to know which rule they
-    /// broke.
-    /// </para>
-    /// <para>
-    /// On the wire that means <c>Auth.PwnedPassword</c> and nothing else. A too-short password never
-    /// reaches <c>UserManager</c>: <c>ResetPasswordCommandValidator</c> carries the same 12-character
-    /// floor as <c>IdentityOptions.Password.RequiredLength</c>, so <c>ValidationBehavior</c> fells it
-    /// first and answers with the <c>{errors}</c> shape. <c>Auth.PasswordTooShort</c> IS producible by
-    /// <c>IUserAccountService.ResetPasswordAsync</c> if called directly — the port maps every Identity
-    /// error code — but no HTTP request can produce it here.
-    /// </para>
-    /// </summary>
-    public const string InvalidPasswordResetToken = "Auth.InvalidPasswordResetToken";
+    // ── #1735 — the login challenge's answers to a presented code or link (ADR 0142 D3). The cookie holder
+    // is told which of wrong / expired / burned happened: they minted the challenge, a record is always
+    // written, so the distinction carries no account information. Missing and expired are ONE code. As with
+    // the codes above, the browser renders its own copy; these messages follow the page form's wording.
+
+    /// <summary>A wrong code, with more than one attempt left. Validation → 400.</summary>
+    public const string LoginCodeWrong = "Auth.LoginCodeWrong";
+
+    public const string LoginCodeWrongMessage = "Koden stämmer inte. Kontrollera siffrorna och försök igen.";
+
+    /// <summary>A wrong code, with exactly one attempt left: the page warns before the burn. Validation → 400.</summary>
+    public const string LoginCodeWrongLastAttempt = "Auth.LoginCodeWrongLastAttempt";
+
+    public const string LoginCodeWrongLastAttemptMessage =
+        "Koden stämmer inte. Ett försök kvar. Sedan behöver du begära en ny kod.";
+
+    /// <summary>The code arm is burned after the last wrong attempt. Gone → 410.</summary>
+    public const string LoginCodeBurned = "Auth.LoginCodeBurned";
+
+    public const string LoginCodeBurnedMessage =
+        "Du har skrivit fel kod tre gånger. Av säkerhetsskäl behöver du en ny kod.";
+
+    /// <summary>No live challenge: expired, used, replaced or never written — one answer. Gone → 410.</summary>
+    public const string LoginCodeExpired = "Auth.LoginCodeExpired";
+
+    public static readonly string LoginCodeExpiredMessage =
+        $"Koden har gått ut. Den gäller i {(int)LoginChallenges.LoginChallengePolicy.ChallengeTtl.TotalMinutes} minuter.";
+
+    /// <summary>A link that cannot be used, for any reason — one answer. Gone → 410.</summary>
+    public const string LoginLinkUnusable = "Auth.LoginLinkUnusable";
+
+    public const string LoginLinkUnusableMessage =
+        "Länken går inte att använda. Begär en ny kod på inloggningssidan.";
 
     /// <summary>
-    /// The single user-facing detail for <see cref="InvalidPasswordResetToken"/> (§10: du-form,
-    /// informative, non-blaming, no exclamation mark). It names the recovery — request a new link —
-    /// because the state is not the user's fault and is one click from being fixed. As with the other
-    /// codes here, the browser renders its own localised copy and never this string.
+    /// The submitted address carries a character no account's stored address may hold: a control, format,
+    /// surrogate or whitespace character. A property of the submitted spelling alone, so it says nothing about
+    /// any account. Validation → 400.
     /// </summary>
-    public const string InvalidPasswordResetTokenMessage =
-        "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.";
+    public const string EmailNotStorable = "Auth.EmailNotStorable";
+
+    public const string EmailNotStorableMessage =
+        "E-postadressen innehåller tecken som inte kan användas. Kontrollera adressen och försök igen.";
+
+    /// <summary>
+    /// A grant that cannot be redeemed, for any reason: unknown, expired, already used, or a registration
+    /// claim another request holds. One answer. Gone → 410.
+    /// </summary>
+    public const string LoginGrantUnusable = "Auth.LoginGrantUnusable";
+
+    public const string LoginGrantUnusableMessage =
+        "Det gick inte att slutföra registreringen. Begär en ny kod på inloggningssidan.";
+
+    /// <summary>
+    /// #1744 — no provider is registered under the key: unknown to this build, or known and without keys on this
+    /// host. NotFound → 404.
+    /// </summary>
+    public const string ExternalProviderUnknown = "Auth.ExternalProviderUnknown";
+
+    public const string ExternalProviderUnknownMessage = "Inloggningstjänsten finns inte.";
+
+    /// <summary>
+    /// #1744 — an external login that cannot be completed, for any reason: a state that is unknown, expired, used or
+    /// started for another provider, or a code the provider refused. The flow is spent either way. One answer; the
+    /// log names the cause. Gone → 410.
+    /// </summary>
+    public const string ExternalLoginUnusable = "Auth.ExternalLoginUnusable";
+
+    public const string ExternalLoginUnusableMessage =
+        "Inloggningen slutfördes inte. Försök igen, eller logga in med en kod.";
+
+    /// <summary>
+    /// #1744 — the provider is not authoritative for the account's address, or has not verified it (ADR 0142 D8).
+    /// The login is refused and nothing is linked; the remedy is a code to the address. Validation → 400.
+    /// </summary>
+    public const string ExternalEmailUnverified = "Auth.ExternalEmailUnverified";
+
+    public const string ExternalEmailUnverifiedMessage =
+        "Inloggningstjänsten kan inte intyga din e-postadress. Logga in med en kod i stället.";
 }

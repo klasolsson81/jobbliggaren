@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { InfoDialog } from "@/components/common/info-dialog";
-import {
-  buildCompanyJobsHref,
-  isLinkableOrgNr,
-} from "@/lib/job-ads/company-jobs-href";
+import { summariseWatches } from "@/lib/company-watches/watch-summary";
 import { EyeOff, Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -24,7 +21,7 @@ interface CompanySummaryProps {
    *
    * Gäst-demon (#1572) skickar `null`, och det är etiketten som avgör det, inte
    * href:en: `companySummary.link` lyder "Visa bevakade företag", så en omdirigering
-   * till `/registrera` hade gjort ETIKETTEN falsk i stället för att laga länken.
+   * till inloggningssidan hade gjort ETIKETTEN falsk i stället för att laga länken.
    * Demot har ingen `/gast/foretag` att peka på, och sektionens notis bär redan
    * "Skapa konto" som konverteringsväg.
    *
@@ -32,6 +29,18 @@ interface CompanySummaryProps {
    * `mock-adapters.test.ts` pinnar gästmockens bevakningsmängd som icke-tom.
    */
   readonly linkHref: string | null;
+  /**
+   * Blockets namn, eller `null` för att rendera inget namn alls (#1717).
+   *
+   * Obligatorisk och utan default, av samma skäl som `linkHref` ovan: en utelämnad prop hade
+   * tyst gett varje anropsställe en rubrik, och den ENA yta som inte ska ha en — gäst-demon,
+   * vars sektion har en enda innehållstyp — hade fått den utan att någon valde det.
+   *
+   * `null` är alltså ett val och inte en frånvaro. `design-reviewer` B1/B4 (2026-09-13): ett
+   * block namnges av närmaste rubrik ovanför sig, så där sektionens h2 redan står ensam över
+   * en enda innehållstyp vore en h3 en tautologi.
+   */
+  readonly heading: string | null;
 }
 
 /**
@@ -47,10 +56,14 @@ interface CompanySummaryProps {
  * med samma grammatik men annan betydelse (stående tillstånd vs händelser). Formen
  * varierar därför inte med antalet: den är densamma vid 1 som vid 25 bevakningar, och
  * inget företagsnamn renderas.
+ *
+ * Siffrorna och länkregeln bor i `summariseWatches` (ADR 0140): samma tal renderas som ett kort
+ * på `/oversikt`, och en andra härledning hade varit en andra sanning.
  */
 export function CompanySummary({
   watches,
   linkHref,
+  heading,
 }: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
   // The matching rule is read from the keys the watch-filter dialog already owns, never copied:
@@ -58,11 +71,29 @@ export function CompanySummary({
   // duplicating the two sentences here is how the two surfaces drift apart on the next edit.
   const tRule = useTranslations("jobads.companyWatches.filter");
 
+  // Renderas i ALLA tre lägena, ovillkorligt (design-reviewer B1): namnet är blockets, och
+  // tomt-läget är just när läsaren mest behöver veta VILKET block som är tomt.
+  const headingNode =
+    heading !== null ? (
+      <h3 className="jp-appsummary__heading">{heading}</h3>
+    ) : null;
+
   if (watches.kind !== "ok") {
+    // Utan rubrik behålls den ensamma `<p>`-formen ORÖRD — det är den som gör gäst-ytan
+    // byte-identisk (design-reviewer B4). Med rubrik måste grenen bära två barn, och klassen
+    // stannar på rotelementet så `.jp-appsummary:has(+ .jp-appsummary)` fortsätter matcha.
+    if (headingNode === null) {
+      return (
+        <p className="jp-appsummary jp-appsummary--unavailable">
+          {t("unavailable")}
+        </p>
+      );
+    }
     return (
-      <p className="jp-appsummary jp-appsummary--unavailable">
-        {t("unavailable")}
-      </p>
+      <div className="jp-appsummary jp-appsummary--unavailable">
+        {headingNode}
+        <p>{t("unavailable")}</p>
+      </div>
     );
   }
 
@@ -71,8 +102,8 @@ export function CompanySummary({
   if (items.length === 0) {
     return (
       <div className="jp-appsummary jp-appsummary--empty">
+        {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
-        <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men inte solid: en-primär-per-skärm är redan spenderad, och i
             det här läget kan setup-kortet stå högre upp på samma sida. */}
         <Link className="jp-btn jp-btn--emphasis" href="/foretag/sok">
@@ -82,80 +113,28 @@ export function CompanySummary({
     );
   }
 
-  // Summan är exakt för att employer-bevakningar är disjunkta PER KONSTRUKTION: det unika
-  // indexet `ux_company_watches_user_orgnr_active` på (UserId, OrganizationNumber) ger en
-  // rad per arbetsgivare och användare, och en annons har en arbetsgivare. Det villkor som
-  // bryter invarianten är en `BrandGroup`-bevakning — dess rad summerar över sina medlemmar
-  // och kan därför täcka en annan rads org.nr — och dto:n bär varken `targetType` eller
-  // `brandGroupId`, så klienten kan inte upptäcka en sådan rad. Det arbetet bor i #1566.
-  const activeAds = items.reduce((sum, w) => sum + w.activeAdCount, 0);
-
-  // `some`, inte `every`. Backendens SSYK-gate sätts en gång per request, så alla
-  // bevakningar är null eller ingen — men brister den gaten någon gång tystnar raden
-  // hellre än summerar en delmängd och underskattar tyst. Förenkla inte till `every`.
-  const matchingNotAssessed = items.some((w) => w.matchingAdCount === null);
-  const matchingAds = matchingNotAssessed
-    ? null
-    : items.reduce((sum, w) => sum + (w.matchingAdCount ?? 0), 0);
-
-  // En rad över alla bevakningar, aldrig en per bevakning — en per-bevakningsrad vore
-  // katalogen från /foretag/bevakade, byggd genom bakdörren.
-  const filteredWatches = items.filter((w) => w.filter !== null).length;
-
-  // Klas-direktiv 2026-08-30: the sums link straight to the ads, so a user reaches them in one
-  // click instead of going through /foretag/bevakade first.
-  //
-  // EVERY watch must be linkable or neither sum links. A masked sole-prop and a brand-group watch
-  // both arrive with `organizationNumber: null`, and their ads would be missing from the
-  // destination while the number beside the link still counted them -- the count/click divergence
-  // this route exists to avoid. Partial is worse than plain text here.
-  const linkableOrgNrs = items.flatMap((w) =>
-    !w.isProtectedIdentity &&
-    w.organizationNumber &&
-    isLinkableOrgNr(w.organizationNumber)
-      ? [w.organizationNumber]
-      : []
-  );
-  const everyWatchLinkable = linkableOrgNrs.length === items.length;
-
   // `linkHref === null` means this surface has no authenticated destination at all (#1572: the
-  // guest demo). The ad links go to `/jobb`, an `(app)/` segment and therefore in
-  // PROTECTED_PREFIXES, so rendering them there would hand a guest a link to `/logga-in` --
-  // the same failure `linkHref` was made required to prevent. One prop, one meaning.
+  // guest demo). One prop, one meaning: it gates the anchor link, the ad links and the rule
+  // dialog alike.
   const surfaceCanLink = linkHref !== null;
-
-  // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
-  const activeAdsHref =
-    surfaceCanLink && everyWatchLinkable && activeAds > 0
-      ? buildCompanyJobsHref(linkableOrgNrs, "all")
-      : null;
-  const matchingAdsHref =
-    surfaceCanLink && everyWatchLinkable && matchingAds !== null && matchingAds > 0
-      ? buildCompanyJobsHref(linkableOrgNrs, "matching")
-      : null;
-
-  // Shown only where a link would otherwise have rendered -- an account whose watches have no
-  // ads at all is not missing anything, so it stays quiet. Parity with the watch row, which
-  // explains the same absence per row.
-  const notLinkableCount = items.length - linkableOrgNrs.length;
-  const explainMissingLinks =
-    surfaceCanLink && notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+  const summary = summariseWatches(items, surfaceCanLink);
 
   return (
     <div className="jp-appsummary">
+      {headingNode}
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
           {t.rich("anchor", {
-            count: items.length,
-            active: activeAds,
+            count: summary.count,
+            active: summary.activeAds,
             // The accessible name is the visible text -- 2.5.3 Label in Name holds by
             // construction, and the plural lives in ONE key rather than a visible copy and an
             // aria copy that can drift. There is exactly one such link on the page and its
             // enclosing paragraph is the programmatic context 2.4.4 asks for, so no suffix is
             // owed here. The watch card is the opposite case and does carry one.
             lnk: (chunks) =>
-              activeAdsHref ? (
-                <Link href={activeAdsHref} className="jp-countlink" prefetch={false}>
+              summary.activeAdsHref ? (
+                <Link href={summary.activeAdsHref} className="jp-countlink" prefetch={false}>
                   {chunks}
                 </Link>
               ) : (
@@ -172,16 +151,16 @@ export function CompanySummary({
 
       {/* Ej bedömd matchning tiger helt: ingen nolla (dto:ns null är "inte bedömd", och
           en 0 vore falsk), och ingen nudge — den grenen sammanfaller med
-          `!hasStatedDesiredOccupation`, där SetupCallout redan står med samma mål. En
+          `!hasStatedDesiredOccupation`. En
           BEDÖMD nolla skrivs däremot alltid ut; att tysta ett mätt tal är issuets egen
           felklass. */}
-      {matchingAds !== null && (
+      {summary.matchingAds !== null && (
         <p className="jp-matchline tabular-nums">
           {t.rich("matching", {
-            count: matchingAds,
+            count: summary.matchingAds,
             lnk: (chunks) =>
-              matchingAdsHref ? (
-                <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
+              summary.matchingAdsHref ? (
+                <Link href={summary.matchingAdsHref} className="jp-countlink" prefetch={false}>
                   {chunks}
                 </Link>
               ) : (
@@ -206,7 +185,7 @@ export function CompanySummary({
         </p>
       )}
 
-      {explainMissingLinks && (
+      {summary.explainMissingLinks && (
         <p className="jp-transparency-note">
           <EyeOff size={16} aria-hidden="true" />
           <span>{t("notLinkable")}</span>
@@ -216,10 +195,10 @@ export function CompanySummary({
       {/* Utan den här raden går ett per-bevakningsfilter som tystar allt inte att skilja
           från "inget publicerat" — och sammanfattningen ställer nu volym intill just den
           tystnaden. */}
-      {filteredWatches > 0 && (
+      {summary.filteredWatches > 0 && (
         <p className="jp-transparency-note">
           <Filter size={16} aria-hidden="true" />
-          <span>{t("filter", { count: filteredWatches })}</span>
+          <span>{t("filter", { count: summary.filteredWatches })}</span>
         </p>
       )}
     </div>

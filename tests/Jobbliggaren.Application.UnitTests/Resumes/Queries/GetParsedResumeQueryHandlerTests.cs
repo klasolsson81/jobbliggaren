@@ -80,7 +80,7 @@ public class GetParsedResumeQueryHandlerTests
     private static async Task<ParsedResume> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -118,7 +118,7 @@ public class GetParsedResumeQueryHandlerTests
     public async Task Handle_ShouldReturnNull_WhenArtifactNotFound_AndNotLogCrossUser()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -135,7 +135,7 @@ public class GetParsedResumeQueryHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -186,19 +186,10 @@ public class GetParsedResumeQueryHandlerTests
             languages: ["Svenska"]);
 
     private async Task<ParsedResume> SeedHydratedAsync(
-        Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content,
-        string displayName = "Test User")
+        Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content)
     {
-        // Registered with a placeholder, then the column is written directly. Since #1117
-        // JobSeeker.Register refuses a personnummer-shaped display name (pinned in
-        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so the one case that needs such a name
-        // is asserting about a row written BEFORE that invariant landed — the invariant is
-        // forward-only, since EF materializes an existing row past the factory methods, and that
-        // legacy population is exactly what the DQ6 arm still stands on. The seam is uniform so
-        // there is one path to read rather than a branch on the caller's argument.
-        var seeker = JobSeeker.Register(_userId, "Seeded Owner", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
         var parsed = ParsedResume.Create(
             seeker.Id, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "raw text",
@@ -252,24 +243,5 @@ public class GetParsedResumeQueryHandlerTests
 
         result.ShouldNotBeNull();
         result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.IncompleteContent));
-    }
-
-    [Fact]
-    public async Task Handle_ShouldPassTheOwnersDisplayName_IntoTheGatesContentGuard()
-    {
-        // The DisplayName column added to this handler's owner projection, pinned at the unit
-        // level as well as end to end. A personnummer in the ACCOUNT NAME with a CLEAN file is
-        // the only input on which the gate's answer depends on that column, so this is the
-        // assertion that fails if the projection ever stops carrying it.
-        var db = CreateHydratedDb(CleanContent());
-        var parsed = await SeedHydratedAsync(db, CleanContent(), displayName: "Anna 811218-9876");
-
-        var result = await CreateSut(db).Handle(
-            new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.ShouldNotBeNull();
-        result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.PersonnummerInAccountName));
-        // The FILE is clean — so the reason cannot have come from the parse's own scan.
-        result.Personnummer.Found.ShouldBeFalse();
     }
 }

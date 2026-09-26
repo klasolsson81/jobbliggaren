@@ -7,10 +7,16 @@ using Jobbliggaren.Application.CompanyWatches.Commands.CreateCompanyWatchCriteri
 using Jobbliggaren.Application.CompanyWatches.Commands.DeleteCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Commands.UpdateCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
+using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionIdentity;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionMatchMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
 using Jobbliggaren.Application.CompanyWatches.Queries.PreviewCriterionMatchMagnitude;
+using Jobbliggaren.Application.CompanyWatches.Queries.ResolveOccupationDivisions;
+using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -32,13 +38,19 @@ public static class CompanyWatchCriteriaEndpoints
             .WithTags("CompanyWatchCriteria")
             .RequireAuthorization();
 
-        // "Mina bevakningar" (criteria) — a light per-user read, hard-capped at MaxPerUser rows →
-        // MeListRead, NOT the browse policy (distinct cost profile, distinct bucket; CTO G4 note).
+        // "Mina bevakningar" (criteria) — hard-capped at MaxPerUser rows, and since #1681 part 2 no
+        // longer a LIGHT read: every row carries a materialised ad count and a per-user graded
+        // matching count, so one request runs up to ~40 bounded statements plus a grading call.
+        // It therefore has its OWN bucket (2026-09-07, security-auditor's recommendation, Klas's
+        // decision) rather than MeListRead's — whose derivation is pure request amplification with
+        // no per-request backend-cost term, which is exactly how this cost got onto a 120/min budget
+        // unnoticed. The number and its full derivation live in
+        // RateLimitingOptions.CompanyWatchCriteriaList, and only there.
         group.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new ListCompanyWatchCriteriaQuery(), ct);
             return Results.Ok(result);
-        }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyWatchCriteriaListPolicy);
 
         // The SCB reference tree the picker renders (CTO Fork G2) — static per deploy, so the
         // taxonomy-endpoint mold applies verbatim: ETag + Cache-Control: private (auth-gated;
@@ -60,6 +72,23 @@ public static class CompanyWatchCriteriaEndpoints
 
             return Results.Ok(tree);
         }).RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // #1682 — a typed OCCUPATION word in the bransch picker: which occupation groups it denotes and
+        // where their employers sit by huvudgrupp, counted from our own ads. Here on the picker's own
+        // family, not under /job-ads/taxonomy: the data is register-derived and criterion-facing, and
+        // filing it as static taxonomy would dress a measurement as reference data (#560 bind 4 —
+        // senior-cto-advisor D3, 2026-09-14). q-shaped and client-debounced like /job-ads/facet-counts,
+        // so private, no-store (varies per word + corpus + auth) and its OWN bucket — the picker's
+        // second live read after preview-count, and a shared budget would let either starve the other
+        // (bulkhead). A missing/too-short q is a clean 400 from the validator. No {id} in the route:
+        // "occupation-divisions" cannot collide with the {id:guid}-constrained siblings.
+        group.MapGet("/occupation-divisions", async (
+            IMediator mediator, HttpContext http, string? q = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new ResolveOccupationDivisionsQuery(q ?? string.Empty), ct);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.OccupationDivisionsPolicy);
 
         // Create — the command binds straight from the body (CreateSavedSearchCommand parity):
         // { "criteria": { "sniCodes": [...], "municipalityCodes": [...] }, "label": "..." }.
@@ -95,7 +124,107 @@ public static class CompanyWatchCriteriaEndpoints
             if (magnitude is null)
                 return Results.NotFound();
 
-            return Results.Ok(new CompanyBrowseResponse(companies, magnitude));
+            // #1681 part 2 — the criterion's own codes and label ride along, so the detail page can
+            // render its heading WITHOUT calling the list route. That call used to be cheap; part 2
+            // gave every list row a materialised ad count and a per-user graded matching count, so
+            // the page came to fetch twenty criteria's graded counts to render one string. Composed
+            // here rather than added as a fifth route, because these four share one rate-limit
+            // bucket and the margin is bought by removing a call, not by adding one.
+            var identity = await mediator.Send(new GetCriterionIdentityQuery(id), ct);
+            if (identity is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CompanyBrowseResponse(companies, magnitude, identity));
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
+
+        // #1559 — the criterion's ACTIVE ads (the companies it matches, and what they are hiring
+        // for), mirroring the /companies split above: TWO mediator sends composed into one response
+        // (§2.3). The page's PagedResult.TotalCount is a PAGINATION quantity and is
+        // never rendered; the honest headline is the magnitude, with its OWN ceiling
+        // (CriterionAdMagnitudeDto.Ceiling — the ad question, not the company one). null → 404 for
+        // unknown AND cross-user ids alike. The magnitude re-check catches the race where the
+        // criterion is deleted between the two sends.
+        //
+        // #1656 (b) — `onlyMatching` pages the ads that match the CALLER instead of the whole set.
+        // The personal count rides along as `Matching` and is null when the caller did not ask: ADR
+        // 0120's own corollary, and the reason the member is nullable rather than absent (the wire
+        // shape must not vary with the filter). It is also what tells the surface which arm it is in.
+        // ⚠ Since #1681 part 2 the fall-through is NOT uniform: an unassessable caller still gets a
+        // real unfiltered list, but a criterion that is too broad or not yet materialised gets an
+        // EMPTY page, because the unfiltered browse now reads the materialised set. The magnitude
+        // carries those two states, and the surface branches on them before its empty state.
+        // #1656 (b) — `onlyMatching` pages the ads that match the CALLER instead of the whole set,
+        // and the personal count rides along as `Matching`, null when the caller did not ask (ADR
+        // 0120's corollary; nullable rather than absent, so the wire shape does not vary with the
+        // filter). The sends share one scoped resolver, so the register is read once however many of
+        // them run -- the composition can no longer measure the same fact twice.
+        //
+        // The BROWSE stays first: it is this route's own surface, and a cross-user probe must be
+        // recorded against it rather than against whichever send happened to be ordered ahead of it.
+        group.MapGet("/{id:guid}/ads", async (
+            Guid id, IMediator mediator, int page = 1, int pageSize = 20,
+            bool onlyMatching = false, CancellationToken ct = default) =>
+        {
+            var ads = await mediator.Send(
+                new BrowseCriterionAdsQuery(id, page, pageSize, onlyMatching), ct);
+            if (ads is null)
+                return Results.NotFound();
+
+            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
+            if (magnitude is null)
+                return Results.NotFound();
+
+            MyMatchingAdCountDto? matching = null;
+            if (onlyMatching)
+            {
+                matching = await mediator.Send(new GetMyMatchingAdCountForCriterionQuery(id), ct);
+                if (matching is null)
+                    return Results.NotFound();
+            }
+
+            // Same reason as /companies above: the heading is served from the route the page already
+            // calls, so no surface has to buy the whole criteria list for a label.
+            var identity = await mediator.Send(new GetCriterionIdentityQuery(id), ct);
+            if (identity is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude, matching, identity));
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
+
+        // #1559 — the ad magnitude ALONE, for the criterion detail page, which renders the number and
+        // links to /ads without reading a single ad. Deliberately not served by calling /ads with a
+        // one-row page: that is the "count-only caller passes PageSize: 1 and reads TotalCount"
+        // mechanism the browse port's own contract REVOKES, because under the pagination cap it
+        // reports MaxPage x 1 instead of the truth. Same browse cost profile as its siblings, so the
+        // same rate-limit bucket.
+        //
+        // (The port is named in that contract's docblock, not here: OrganizationNumberSurfacingGuard
+        // fails the build on an Api source that NAMES a raw-org.nr-producing port, because naming one
+        // is how an endpoint would inject it and bypass the handler's masking. The rule is a plain
+        // name scan, so it catches a mention in prose too — deliberately, since a guard that tries to
+        // tell prose from code is a guard with a hole in it.)
+        //
+        // #1656 (b) — it now COMPOSES a second send and answers BOTH ad questions at once: how many
+        // active ads the criterion has, and how many of them match the caller. Two questions, two
+        // DTOs, two doctrines (the first saturates at its ceiling, the second is exact or absent),
+        // one response — the §2.3 composition this endpoint family already uses twice above.
+        //
+        // Deliberately NOT a fifth route. The four routes on this group share ONE rate-limit bucket
+        // whose derivation is dated and security-auditor-owned; its own text says an ADDITIONAL call
+        // on these pages spends a token off the same allowance and that the margin is bought back by
+        // removing a call, not by raising the limit. Composing costs the detail page nothing.
+        group.MapGet("/{id:guid}/ad-count", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
+            if (magnitude is null)
+                return Results.NotFound();
+
+            var matching = await mediator.Send(new GetMyMatchingAdCountForCriterionQuery(id), ct);
+            if (matching is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CriterionAdCountResponse(magnitude, matching));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
         // The picker's live magnitude preview over an UNSAVED criterion (Fork G3's second
@@ -148,7 +277,31 @@ public static class CompanyWatchCriteriaEndpoints
     /// </summary>
     private sealed record CompanyBrowseResponse(
         PagedResult<CompanyBrowseDto> Companies,
-        CriterionMatchMagnitudeDto Magnitude);
+        CriterionMatchMagnitudeDto Magnitude,
+        CriterionIdentityDto Criterion);
+
+    /// <summary>
+    /// #1559 — the composed AD browse response, the exact sibling of <see cref="CompanyBrowseResponse"/>
+    /// and for the same reason: the page and the honest magnitude arrive as different members with
+    /// different documented meanings, so the FE cannot mistake the capped pagination count for the
+    /// number it renders.
+    /// </summary>
+    private sealed record CriterionAdBrowseResponse(
+        PagedResult<JobAdDto> Ads,
+        CriterionAdMagnitudeDto Magnitude,
+        MyMatchingAdCountDto? Matching,
+        CriterionIdentityDto Criterion);
+
+    /// <summary>
+    /// #1656 (b) — the criterion's two AD numbers side by side: how many active ads exist, and how
+    /// many of them match the caller. Separate members because they are separate questions with
+    /// separate honesty rules — <see cref="CriterionAdMagnitudeDto"/> saturates and renders "10 000+",
+    /// <see cref="MyMatchingAdCountDto"/> is exact or absent and never carries a "+". One shared type
+    /// would let a surface render one where it means the other.
+    /// </summary>
+    private sealed record CriterionAdCountResponse(
+        CriterionAdMagnitudeDto Ads,
+        MyMatchingAdCountDto Matching);
 
     private sealed record UpdateCriterionBody(string? Label, UpdateCriterionCriteriaBody? Criteria);
 

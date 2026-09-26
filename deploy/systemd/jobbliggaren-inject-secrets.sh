@@ -127,7 +127,7 @@ readonly -a SCALEWAY_SECRET_KEYS=(
 # CanDeliver is an unconditional `true`, so AuthOptionsValidator's sender interlock passes; and
 # every send site fails per-message and silently by design. The stack stays green while mail
 # stops — and after the registration gate opens, a locked-out user's only recovery channel is the
-# mail that never comes, with kontakt@ a measured blackhole behind it.
+# mail that never comes.
 #
 # TWO HALVES, AND ONLY ONE OF THEM IS THIS FILE'S (senior-cto-advisor, binding 2026-08-16).
 #
@@ -311,6 +311,10 @@ scaleway_credentials_required() {
 # NEITHER MAY TOUCH DOCKER. Both run at boot, when dockerd may not be up; they stat files and
 # read deploy/.env, and nothing else. The file-name arrays stay in this one file so that adding
 # a secret remains the whole change on the host side, for either destination.
+if [[ "${1:-}" == "--redis" ]]; then
+  [[ $# -eq 1 ]] || die "use --redis on its own"
+  exec bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --inject
+fi
 if [[ "${1:-}" == "--check" ]]; then
   # Same guard, and the same spelling, as the --check-host branch below and as
   # jobbliggaren-backup.sh's --check. Measured 2026-08-13 in debian:trixie-slim against the state
@@ -329,6 +333,10 @@ if [[ "${1:-}" == "--check" ]]; then
   # most needs a true one — the same defect #1328 measured, where a shared predicate made the
   # crash-loop sentence false for the host-only set.
   expiring=0
+
+  # A FOURTH FLAG, for the same reason as the second: a provider that cannot deliver stops api ALONE
+  # (#1735). The `missing` summary names api AND worker, and the worker has no delivery rule.
+  api_refuses=0
 
   # A THIRD FLAG, AND THE THIRD SUMMARY BELOW IS WHY IT IS NOT `missing` (#1319, #1320). A posture
   # fault means every secret is present and readable, the stack is serving, and mail is fine —
@@ -504,6 +512,16 @@ if [[ "${1:-}" == "--check" ]]; then
     missing=1
   fi
 
+  # compose runs api with ASPNETCORE_ENVIRONMENT=Production, where an unset or Console provider is
+  # NullEmailSender and AuthOptionsValidator refuses to boot on a sender that cannot deliver.
+  if [[ "$env_provider" == "console" ]]; then
+    log "UNDELIVERABLE: EMAIL_PROVIDER is unset or Console in ${ENV_FILE}. In Production that is"
+    log "         NullEmailSender, which cannot deliver, and api refuses to START on it"
+    log "         (AuthOptionsValidator, #1735). Set EMAIL_PROVIDER=Scaleway with its"
+    log "         credentials, per deploy/.env.example."
+    api_refuses=1
+  fi
+
   if scaleway_credentials_required; then
     for key in "${SCALEWAY_SECRET_KEYS[@]}"; do
       if ! has_usable_content "${SECRETS_DIR}/${key}"; then
@@ -571,9 +589,8 @@ if [[ "${1:-}" == "--check" ]]; then
       if (( remaining_days <= 0 )); then
         log "EXPIRED: the Scaleway API key expired on ${expiry}."
         log "         Outbound mail is failing SILENTLY right now — api and worker are healthy,"
-        log "         --check finds every file present, and each send fails per-message. If the"
-        log "         registration gate is open, account confirmation and password reset are both"
-        log "         dead and the published rights channel does not receive."
+        log "         --check finds every file present, and each send fails per-message. Every"
+        log "         login is a mailed code or link, so no one can log in."
         expiring=1
       elif (( remaining_days <= EXPIRY_NOTICE_DAYS )); then
         # NOTICE, NOT A FAULT — and it deliberately does NOT set `expiring`, so this run still
@@ -609,6 +626,10 @@ if [[ "${1:-}" == "--check" ]]; then
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
   fi
 
+  if [[ $api_refuses -ne 0 && $missing -eq 0 ]]; then
+    log "The provider line above stops api alone: api will crash-loop by design while worker serves."
+  fi
+
   # ITS OWN SENTENCE, AND THE DISTINCTION IS THE POINT: in this state the stack is HEALTHY. An
   # operator who reads the crash-loop summary above and then finds api serving would conclude the
   # alarm is wrong and learn to discount it — which is how a real one gets ignored later.
@@ -641,8 +662,11 @@ if [[ "${1:-}" == "--check" ]]; then
     log "prevent. It exits non-zero because systemctl --failed is this box's only fault surface."
   fi
 
-  if [[ $missing -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
+  if [[ $missing -ne 0 || $api_refuses -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
     exit 1
+  fi
+  if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
+    bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check || exit 1
   fi
   log "all secrets present in ${SECRETS_DIR}"
   exit 0

@@ -37,7 +37,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
     private async Task<HttpClient> AuthedClientAsync(CancellationToken ct)
     {
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -67,7 +67,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
     // Seeds a JobSeeker for the user (never-visited → null watermark) against REAL Postgres.
     private static async Task SeedSeekerAsync(AppDbContext db, Guid userId, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Watermark User", ClockAt(T0)).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
     }
@@ -94,8 +94,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = await AuthedClientAsync(ct);
 
-        // The registered user already has a JobSeeker (RegisterCommandHandler auto-provisions
-        // one) → MarkJobsSeen succeeds with 204 (not NotFound/400).
+        // The registered user already has a JobSeeker → MarkJobsSeen succeeds with 204 (not NotFound/400).
         var seen = await client.PostAsync("/api/v1/me/jobs/seen", content: null, ct);
         seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 

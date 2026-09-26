@@ -5,11 +5,6 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
-using Jobbliggaren.Infrastructure.Identity;
-using Jobbliggaren.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
@@ -37,7 +32,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     {
         var client = f.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            f, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -45,7 +40,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
@@ -198,8 +193,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         // runs the whole Tier-2 chain on the READ side — compose the transport DTO from the
         // decrypted parse, scan it, and ask Resume.CreateFromParsed. Measured on this fixture:
         // confidence comes back Confident, so Tier 1 passed and Tier 2 is genuinely what
-        // produced the answer. That is also what makes the DisplayName column added to this
-        // handler's owner projection load-bearing rather than decorative.
+        // produced the answer.
         //
         // Producible by production, not seeded: an experience heading followed by a role line
         // with no employer line is what the segmenter yields for a CV that lists a title without
@@ -233,82 +227,45 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
     }
 
-    [Fact]
-    public async Task GET_parsed_reports_PersonnummerInAccountName_when_the_ACCOUNT_NAME_carries_one_and_the_FILE_does_not()
+    private static async Task<JsonElement> MasterPersonalInfoAsync(
+        HttpClient client, string resumeId, CancellationToken ct)
     {
-        // The one case where the read path's answer depends on the account display name, and
-        // therefore the only test that can prove the DisplayName column added to this handler's
-        // owner projection is actually wired through. It was found by mutation: replacing
-        // `owner.DisplayName` with string.Empty survived every other test in this file, because
-        // no other fixture's verdict changes when the person name changes.
-        //
-        // THE ACTOR THAT PRODUCED THIS STATE: rows written before the #1117 invariant landed.
-        // No current path in src/ can produce it — JobSeeker.Register and UpdateDisplayName now
-        // refuse a personnummer-shaped display name, and that refusal is pinned one project over
-        // in Jobbliggaren.Domain.UnitTests (JobSeekerTests, the
-        // Register/UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure theories).
-        // So the account is registered through the real endpoint with a CLEAN name, and the
-        // column is then written directly, exactly as a pre-invariant row sits in the database
-        // today: the invariant is forward-only, because EF materializes an existing row through
-        // the private constructor and past the factory methods. That population is precisely
-        // what the DQ6 arm still stands on, which is why the arm was kept rather than retired
-        // with the write path.
-        //
-        // The DOCX below is a clean CV the parser reads fine, so the parse itself is NOT flagged
-        // — the composed content is, at DQ6, which is exactly the population the import scan
-        // cannot cover (the display name is the one text the composition adds over the raw
-        // superset the import already scanned).
+        var get = await client.GetAsync($"/api/v1/resumes/{resumeId}", ct);
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        return (await get.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("versions")[0].GetProperty("content").GetProperty("personalInfo");
+    }
+
+    [Fact]
+    public async Task Import_for_an_account_without_a_name_promotes_and_the_canonical_review_misses_no_name()
+    {
+        // #1741 / ADR 0142 D7, the substance of #734 row 7. An account without a name is what the
+        // passwordless consent step registers (CompleteLoginChallengeCommandHandler); before #1741
+        // its every import stayed pending on IncompleteContent.
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
-        var email = $"parsed-{Guid.NewGuid():N}@jobbliggaren.test";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client,
-            email: email,
-            displayName: "Anna Andersson",
-            ct: ct);
+            _factory, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await userManager.FindByEmailAsync(email)
-                ?? throw new InvalidOperationException("Registered user not found.");
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            // Keyed on THIS account's user id, never on the display name: the fixture shares a
-            // collection, so a name-matched lookup could bind another test's seeker.
-            var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == user.Id, ct);
-            db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = $"Anna {ValidPersonnummer}";
-            await db.SaveChangesAsync(ct);
-        }
-
-        var docx = CvDocxFixtures.BuildDocx(
-            "Anna Andersson", "anna@example.com",
-            "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
-            "Utbildning", "Civilingenjör - KTH", "2015-2020",
-            "Kompetenser", "C#, PostgreSQL");
-        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        // B3 grades the name only once e-mail and phone are present, so this CV carries both.
+        using var form = FileForm(CvDocxFixtures.ConfidentSwedishDeveloperCv(), "cv.docx", DocxContentType);
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
-        import.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        import.StatusCode.ShouldBe(HttpStatusCode.Created);
         var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
-        importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
-        // Its OWN token since PR C (CTO-bind D2): PersonnummerPresent would drive copy telling
-        // the user to remove a number from a file that has none.
-        importJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerInAccountName");
-        // The FILE is clean. Only the composed content is not.
-        importJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
-        var id = importJson.GetProperty("parsedResumeId").GetString()!;
+        importJson.GetProperty("outcome").GetString().ShouldBe("Promoted");
+        var resumeId = importJson.GetProperty("resumeId").GetString()!;
 
-        var get = await client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+        (await MasterPersonalInfoAsync(client, resumeId, ct))
+            .GetProperty("fullName").ValueKind.ShouldBe(JsonValueKind.Null);
 
-        get.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
-        getJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerInAccountName");
-        // Reading the reason off the parse's own scan would have said "nothing found" here, so
-        // this also pins that the read path evaluates the GATE and not the stored flag.
-        getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
-        // And the account name is not echoed back on the way out.
-        (await get.Content.ReadAsStringAsync(ct)).ShouldNotContain(ValidPersonnummer);
+        var review = await client.GetAsync($"/api/v1/resumes/{resumeId}/review?profile=Ats", ct);
+        review.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await review.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("verdicts").EnumerateArray()
+            .Single(v => v.GetProperty("criterionId").GetString() == "B3")
+            .GetProperty("verdict").GetString().ShouldBe("Pass");
     }
 
     [Fact]

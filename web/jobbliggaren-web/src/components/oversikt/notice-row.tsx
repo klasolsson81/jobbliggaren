@@ -3,26 +3,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, RotateCcw, X } from "lucide-react";
-import type { ReactNode } from "react";
+import type { NoticeData, NoticeKind } from "./notice-types";
 
-export type NoticeKind = "info" | "warning" | "brand" | "success";
-
-export interface NoticeData {
-  readonly id: string;
-  readonly kind: NoticeKind;
-  readonly label: string;
-  readonly text: ReactNode;
-  readonly cta: string;
-  readonly href: string;
-  readonly time: string;
-  /**
-   * F4-12 PR-B (ADR 0076): en notis kan vara icke-avfärdbar (default `true`).
-   * `false` på den persistenta setup-nudgen — den ska inte gå att markera som
-   * läst, den löses upp först när användaren angett ett yrke. Då renderas
-   * ingen dismiss-knapp (X).
-   */
-  readonly dismissible?: boolean;
-}
+// The contract lives in the RSC-safe ./notice-types; re-exported so existing importers of this
+// module keep resolving.
+export type { NoticeData, NoticeKind };
 
 interface NoticeRowProps {
   readonly notice: NoticeData;

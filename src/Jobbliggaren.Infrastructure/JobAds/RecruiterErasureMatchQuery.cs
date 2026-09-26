@@ -116,7 +116,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// an Art. 17 answer rather than corrupting one.
     /// </para>
     /// <para>
-    /// <b>Not throttled, deliberately.</b> <c>SessionStoreUnavailableLog</c> throttles because a
+    /// <b>Not throttled, deliberately.</b> <c>StoreUnavailableLog</c> throttles because a
     /// Redis outage makes EVERY request take its path; this one runs a handful of times per year, so
     /// there is nothing to flood and a throttle could swallow the only run that ever warns.
     /// </para>
@@ -928,8 +928,8 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
 
         var patterns = WrittenFormPatterns(identifier);
 
-        // Three columns, four registry keys: `preferences` is the OwnsOne(...).ToJson() container
-        // and `Language` is a JSON property inside it, so the third arm searches both.
+        // `preferences` is the OwnsOne(...).ToJson() container
+        // and `Language` is a JSON property inside it, so the second arm searches both.
         //
         // No lifecycle predicate. A soft-deleted profile IS a reachable state — account deletion
         // soft-deletes and AccountHardDeleter only reaps rows past a 30-day window — and we hold the
@@ -946,8 +946,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM job_seekers
-            WHERE lower(display_name) LIKE ANY({patterns})
-               OR EXISTS (
+            WHERE EXISTS (
                     SELECT 1
                     FROM jsonb_path_query(match_preferences, '$.**') AS v
                     WHERE jsonb_typeof(v) NOT IN ('object', 'array')

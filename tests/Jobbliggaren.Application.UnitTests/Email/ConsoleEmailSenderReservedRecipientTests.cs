@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
@@ -69,38 +70,17 @@ public class ConsoleEmailSenderReservedRecipientTests
                 CancellationToken.None),
             CarriesProbe: true),
 
-        new(nameof(IEmailSender.SendEmailChangeConfirmationAsync), "email-change-confirmation",
-            (s, to) => s.SendEmailChangeConfirmationAsync(
-                to,
-                new EmailChangeConfirmationEmail(Guid.Empty, to, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
         new(nameof(IEmailSender.SendEmailChangedNotificationAsync), "email-changed-notification",
             (s, to) => s.SendEmailChangedNotificationAsync(to, CancellationToken.None),
             CarriesProbe: false),
 
-        new(nameof(IEmailSender.SendEmailConfirmationAsync), "email-confirmation",
-            (s, to) => s.SendEmailConfirmationAsync(
+        new(nameof(IEmailSender.SendLoginChallengeAsync), "login-challenge",
+            (s, to) => s.SendLoginChallengeAsync(
                 to,
-                new EmailConfirmationEmail(Guid.Empty, BodyProbe),
+                new LoginChallengeEmail.CodeAndLink(
+                    LoginCode.FromRaw(BodyProbe), LoginLinkToken.FromRaw("link-token")),
                 CancellationToken.None),
             CarriesProbe: true),
-
-        new(nameof(IEmailSender.SendAccountExistsNoticeAsync), "account-exists-notice",
-            (s, to) => s.SendAccountExistsNoticeAsync(to, CancellationToken.None),
-            CarriesProbe: false),
-
-        new(nameof(IEmailSender.SendPasswordResetAsync), "password-reset",
-            (s, to) => s.SendPasswordResetAsync(
-                to,
-                new PasswordResetEmail(Guid.Empty, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
-        new(nameof(IEmailSender.SendPasswordChangedNoticeAsync), "password-changed-notice",
-            (s, to) => s.SendPasswordChangedNoticeAsync(to, CancellationToken.None),
-            CarriesProbe: false),
     ];
 
     public static TheoryData<string> AllKinds()
@@ -176,8 +156,43 @@ public class ConsoleEmailSenderReservedRecipientTests
         eventId.Id.ShouldBe(3008);
     }
 
+    // #1737 — the table above has one case per IEmailSender METHOD, and SendLoginChallengeAsync's carries a
+    // login code. The new-account variant rides the same method with a code that leads to an ACCOUNT, so the
+    // gate is measured for it as well.
+    [Fact]
+    public async Task NewAccountCode_ToANonReservedRecipient_WithholdsTheCodeAndTheRecipient()
+    {
+        var (sender, log) = Create();
+
+        await sender.SendLoginChallengeAsync(
+            NonReservedRecipient, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(BodyProbe)),
+            CancellationToken.None);
+
+        var (level, eventId, message, properties) = log.Records.ShouldHaveSingleItem();
+        var emitted = message + " " + string.Join(" ", properties.Select(p => $"{p.Key}={p.Value}"));
+        emitted.ShouldNotContain(NonReservedRecipient);
+        emitted.ShouldNotContain(BodyProbe);
+        level.ShouldBe(LogLevel.Warning);
+        eventId.Id.ShouldBe(3008);
+    }
+
+    [Fact]
+    public async Task NewAccountCode_ToAReservedRecipient_LogsTheBodyWithItsCode()
+    {
+        var (sender, log) = Create();
+
+        await sender.SendLoginChallengeAsync(
+            ReservedRecipient, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(BodyProbe)),
+            CancellationToken.None);
+
+        var (level, eventId, message, _) = log.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Information);
+        eventId.Id.ShouldBe(3001);
+        message.ShouldContain(BodyProbe);
+    }
+
     // ---------------------------------------------------------------------------------------
-    // 2. Growth of the surface. A ninth IEmailSender method added outside the gate must fail a
+    // 2. Growth of the surface. A new IEmailSender method added outside the gate must fail a
     //    test rather than pass silently: a guard that closes today's members does not close
     //    tomorrow's.
     // ---------------------------------------------------------------------------------------
@@ -186,7 +201,7 @@ public class ConsoleEmailSenderReservedRecipientTests
     public void EveryEmailSenderMethod_HasACaseInThisFile()
     {
         // !IsSpecialName drops the CanDeliver getter without depending on a Send* naming
-        // convention a ninth method need not follow.
+        // convention a new method need not follow.
         var declared = typeof(IEmailSender).GetMethods()
             .Where(m => !m.IsSpecialName)
             .Select(m => m.Name)

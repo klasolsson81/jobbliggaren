@@ -39,10 +39,9 @@ name: jobbliggaren-prod
 # it has one home: log-sink.md §4. Read that row before treating either as a bound; why this line
 # stopped asserting it is ADR 0024's Amendment 2026-08-23 (#1170).
 # A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
-# That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
-# defensible, but the number needs a write rate and there is no write rate until there are
-# users. The box's daemon config sets the same 10m x 3; this makes the artefact carry it too,
-# for anyone running the stack elsewhere.
+# Demoting this layer is what finally makes a smaller max-size defensible, but the number
+# needs a write rate. The box's daemon config sets the same 10m x 3; this makes the artefact
+# carry it too, for anyone running the stack elsewhere.
 x-logging: &logging
   driver: json-file
   options:
@@ -120,7 +119,6 @@ x-migrate-app-connection: &migrate-app-connection
 x-app-connections: &app-connections
   ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?}"
   ConnectionStrings__HangfireStorage: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_worker;Password=${POSTGRES_WORKER_PASSWORD:?}"
-  ConnectionStrings__Redis: "redis:6379"
 
 # Outbound email (#183). Carried by api and worker — the two services that call
 # AddEmailSender — and by nothing else.
@@ -163,7 +161,7 @@ x-app-connections: &app-connections
 #
 # Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
 # is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000
-# and every confirmation link in a real send would point at the reader's own machine. Its
+# and every login link in a real send would point at the reader's own machine. Its
 # only consumers are the e-mail templates.
 x-app-email: &app-email
   Email__Provider: ${EMAIL_PROVIDER:-Console}
@@ -189,7 +187,7 @@ x-app-email: &app-email
 # WHAT THIS IS NOT: network isolation. An earlier draft of this comment said a compromised api or
 # worker "cannot reach the query API over the network at all", and that is measured FALSE
 # (2026-08-11, Seq on its own bridge with no `ports:`): containers on a user-defined bridge reach
-# each other by default — inter-container communication is on, `stack` is not segmented — so a
+# each other by default — the permitted API/Worker-Seq bridges allow every listening peer port — so a
 # sibling gets HTTP 200 from `seq:80`. What actually holds, measured in the same run: the query
 # API on 80 answers **401** without authentication, and 5341 carries **no** query API at all
 # (**404**). So the split is real and the defence is AUTHENTICATION, not topology. The 401 is the
@@ -292,7 +290,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [caddy-web, caddy-egress]
 
   # ==============================================================
   # Next.js — the only thing Caddy proxies to (Option B)
@@ -330,7 +328,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [caddy-web, web-api]
 
   # ==============================================================
   # Application
@@ -349,19 +347,18 @@ services:
       # The bridge subnet declared under `networks:` below. ForwardedHeadersConfig
       # fail-stops a Production boot on an empty value, which is why the committed
       # appsettings.Production.json leaves it empty and the value is injected here.
-      ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+      ForwardedHeaders__KnownNetworks__0: ${JBL_WEB_API_SUBNET:?Set the reviewed web-api bridge CIDR}
+      ConnectionStrings__Redis_FILE: /run/redis-persistent/connection
+      ConnectionStrings__VolatileRedis_FILE: /run/redis-volatile/connection
       # Registration gate (#734). Absent knob renders `false` — AuthOptions' own default, and
-      # the posture the box has today: POST /auth/register answers 503, so no NEW account can
-      # be created. Both flags are passed, not just the gate: AuthOptionsValidator is the single
-      # home of which combinations are legal, and passing only the gate would leave the operator
-      # unable to satisfy a rule the boot enforces. Inline rather than a shared anchor because the worker
+      # the posture the box has today: POST /auth/challenge/complete answers 503, so no NEW account
+      # can be created. Inline rather than a shared anchor because the worker
       # consumes no Auth__* at all — every host-specific key in this file is already inline,
       # while x-app-email and x-app-seq are anchors precisely because both hosts read them.
       # The default is pinned by DeployComposeRegistrationGateTests, since an open default
       # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
-      Auth__RequireEmailConfirmation: ${AUTH_REQUIRE_EMAIL_CONFIRMATION:-false}
       # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
       # (docs/runbooks/release-checklist.md 2.7). Default pinned by
       # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an
@@ -378,7 +375,7 @@ services:
       # #1350 — where the Data-Protection keyring is persisted, matched by the writable volume
       # below. Unset means the framework default, i.e. the container's writable layer, which is
       # the defect: every recreate mints a fresh keyring and silently invalidates every
-      # outstanding activation, password-reset and change-email link. The Api reads the key name
+      # outstanding login challenge and grant. The Api reads the key name
       # from DependencyInjection.DataProtectionKeyPathConfigKey; DeployComposeDataProtectionTests
       # pins that this value and the mount destination stay the same path.
       # NOT passed to `worker`: it mints and validates no DataProtector tokens and must not
@@ -388,6 +385,18 @@ services:
       - *app-secrets-entry
       # Writable, unlike the secrets mount: the keyring is written by the app, not injected.
       - dataprotection_keys:/keys
+      - type: bind
+        source: /run/jobbliggaren/redis/api-persistent
+        target: /run/redis-persistent
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /run/jobbliggaren/redis/api-volatile
+        target: /run/redis-volatile
+        read_only: true
+        bind:
+          create_host_path: false
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
     # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a
@@ -404,7 +413,7 @@ services:
     healthcheck:
       # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the
       # probe is a bash /dev/tcp socket against the strict readiness endpoint — which
-      # checks Postgres CanConnect and Redis PING and answers 503 until both are up.
+      # checks Postgres CanConnect and a PING on each Redis instance, and answers 503 until all three are up.
       test:
         - CMD
         - bash
@@ -419,13 +428,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # On `api` alone: the worker composes no store that runs on it.
+      redis-volatile:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [web-api, api-postgres, api-redis, api-volatile, api-seq, api-egress]
 
   worker:
     image: ghcr.io/klasolsson81/jobbliggaren-worker:${IMAGE_TAG:-latest}
@@ -441,6 +453,7 @@ services:
       # default rather than on anything this file declared. The api service below keeps
       # ASPNETCORE_ENVIRONMENT because it IS a WebApplication.
       DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__Redis_FILE: /run/redis-persistent/connection
       DOTNET_gcServer: "0"
       # The ingestion gate, and it is deliberately NOT flipped in the shipped Production overlay.
       # That overlay keeps IngestEnabled=false and JobSourceIngestGateConfigurationTests pins it,
@@ -460,7 +473,17 @@ services:
       # unmeasured half is the wake-and-page chain), and a NEW grant covers the state WITH real
       # data. Point 3.5 carries the ruling and its grounds.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
-    volumes: *app-secrets-mount
+    volumes:
+      - *app-secrets-entry
+      - type: bind
+        source: /run/jobbliggaren/redis/worker-persistent
+        target: /run/redis-persistent
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
     mem_limit: 1024m
     memswap_limit: 1024m
     # Hangfire's ShutdownTimeout is 25 s (HangfireWorkerOptions), sized to sit just under
@@ -468,8 +491,12 @@ services:
     # 10 s, which would kill the process 15 s early — so the value is set here rather than
     # inherited. Raising ShutdownTimeoutSeconds means raising this in the same change.
     stop_grace_period: 30s
-    # No healthcheck: the Worker hosts no HTTP surface, so there is nothing to probe
-    # that is not already covered by the restart policy.
+    healthcheck:
+      test: ["CMD", "dotnet", "Jobbliggaren.Worker.dll", "--readiness-probe"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -481,7 +508,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [worker-postgres, worker-redis, worker-seq, worker-egress]
 
   # Oneshot schema migration. It gates api and worker mechanically via
   # `service_completed_successfully`, so ordering holds on every `up`, not only on the
@@ -525,7 +552,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: "no"
-    networks: [stack]
+    networks: [migrate-postgres]
 
   # The rotation, as its own service under a profile so `up` never starts it and `schema` never
   # carries the secrets mount. #198 M-3.
@@ -558,7 +585,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: "no"
-    networks: [stack]
+    networks: [rewrap-postgres]
 
   # ==============================================================
   # Data
@@ -608,6 +635,15 @@ services:
       - max_wal_size=4GB
       - -c
       - min_wal_size=1GB
+      # An ERROR is logged with its DETAIL, and DETAIL names the CONSTRAINT KEY VALUES —
+      # `Key (col, col)=(v, v) already exists` — into a container log whose LIVE segment
+      # `jobbliggaren-logprune` cannot reach. The retention argument is not re-made here:
+      # the x-logging header above owns it, and log-sink.md §4 is its one home.
+      # `terse` excludes DETAIL, HINT, QUERY and CONTEXT from every logged message.
+      # NOT log_min_error_statement=fatal — that drops STATEMENT and leaves DETAIL, which is
+      # the half naming the values (security-auditor 2026-09-03).
+      - -c
+      - log_error_verbosity=terse
     environment:
       POSTGRES_DB: jobbliggaren
       POSTGRES_USER: postgres
@@ -629,7 +665,7 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [api-postgres, worker-postgres, migrate-postgres, rewrap-postgres]
 
   redis:
     # BUMPING THIS TAG ALSO REQUIRES an edit to UPSTREAM_ALLOWLIST in
@@ -645,6 +681,8 @@ services:
     # writes loudly instead, which is the failure we can see.
     command:
       - redis-server
+      - --aclfile
+      - /run/redis-policy/users.acl
       - --maxmemory
       - 400mb
       - --maxmemory-policy
@@ -653,9 +691,16 @@ services:
       - "yes"
     volumes:
       - redis_data:/data
+      - type: bind
+        source: /run/jobbliggaren/redis/persistent
+        target: /run/redis-policy
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./redis/healthcheck.sh:/usr/local/bin/redis-healthcheck:ro
     mem_limit: 512m
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "/usr/local/bin/redis-healthcheck", "health-persistent", "/run/redis-policy/health-password"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -664,7 +709,65 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [api-redis, worker-redis]
+
+  redis-volatile:
+    # Built for the login challenge's TTL-bounded keys (ADR 0142 D1): challenge records, the address
+    # index and the rate budgets. NOTHING THIS SERVICE HOLDS MAY REACH A DISK. The closed-registration
+    # mail states how long an address is kept, so a key's TTL has to be its whole lifetime — which it
+    # is not on `redis` above, where an expired key stays in the AOF until the next rewrite.
+    #
+    # Application ACLs deny persistence and administrative commands. The filesystem remains a
+    # second boundary if a host operator changes policy: /data is a sized tmpfs under a read-only
+    # root, and the only binds carry read-only policy/health material. No writable persistent mount
+    # reaches this instance. The actual Compose flags drive VolatileRedisPersistenceProbeTests.
+    #
+    # SAME TAG AS `redis`, and that block's UPSTREAM_ALLOWLIST note is this tag's home too: the two
+    # move together, or each gets its own allowlist entry.
+    image: redis:8.6-alpine
+    container_name: jobbliggaren-redis-volatile
+    # `noeviction`, not an evicting policy: a flood would otherwise evict a target's budget key,
+    # which is a budget reset the attacker chooses. A full instance refuses login writes instead.
+    command:
+      - redis-server
+      - --aclfile
+      - /run/redis-policy/users.acl
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - type: bind
+        source: /run/jobbliggaren/redis/volatile
+        target: /run/redis-policy
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./redis/healthcheck.sh:/usr/local/bin/redis-healthcheck:ro
+    read_only: true
+    tmpfs:
+      - /data:size=16m
+    # mem_limit >= 2 x maxmemory + the tmpfs, and the relation is a security condition rather than
+    # tuning (ADR 0142, lapse trigger 5). A flood that meets the cgroup limit before Redis's own
+    # refusal is a SIGKILL, a restart, and every budget counter reset on the attacker's schedule.
+    mem_limit: 160m
+    # The dataset never reaches a disk through Redis. Without this line it could through swap.
+    memswap_limit: 160m
+    healthcheck:
+      test: ["CMD", "sh", "/usr/local/bin/redis-healthcheck", "health-volatile", "/run/redis-policy/health-password"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    restart: unless-stopped
+    networks: [api-volatile]
 
   # ==============================================================
   # Structured log sink — #1175 (B). Reachable ONLY on the internal network.
@@ -731,20 +834,82 @@ services:
       - no-new-privileges:true
     logging: *logging
     restart: unless-stopped
-    networks: [stack]
+    networks: [api-seq, worker-seq]
 
 networks:
-  stack:
+  caddy-web:
     driver: bridge
-    # The subnet is FIXED because a value derived from it is configuration: the API's
-    # ForwardedHeaders__KnownNetworks__0 above must equal this CIDR, and a Docker-assigned
-    # pool address would change under it. The bridge is named so the host's nftables
-    # forward rules can match on the interface rather than on a generated name.
+    internal: true
     driver_opts:
-      com.docker.network.bridge.name: br-jbl
+      com.docker.network.bridge.name: br-jp-0
+  web-api:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-1
     ipam:
       config:
-        - subnet: 172.28.0.0/24
+        - subnet: ${JBL_WEB_API_SUBNET:?Set the reviewed web-api bridge CIDR}
+  api-postgres:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-2
+  worker-postgres:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-3
+  migrate-postgres:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-4
+  rewrap-postgres:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-5
+  api-redis:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-6
+  worker-redis:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-7
+  api-volatile:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-8
+  api-seq:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-9
+  worker-seq:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-10
+  caddy-egress:
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-11
+  api-egress:
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-12
+  worker-egress:
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.name: br-jp-13
 
 volumes:
   caddy_data:
@@ -755,8 +920,8 @@ volumes:
   # /run/jobbliggaren/, which is RAM-backed (ADR 0050 B-1) and would lose the keys on every
   # reboot while looking repaired; and rather than a database-backed store, which would put the
   # keys into the pg_dump artefact the backup ships off-box (jobbliggaren-backup.sh dumps
-  # Postgres and no Docker volume). Deleting this volume invalidates outstanding activation,
-  # reset and change-email links and nothing else — they are 24h or shorter and re-requestable.
+  # Postgres and no Docker volume). Deleting this volume invalidates outstanding login
+  # challenges and grants and nothing else — they are short-lived and re-requestable.
   dataprotection_keys:
   # The sink's event store. It holds application events in PLAINTEXT on this box's disk —
   # `UserId`, `CorrelationId`, IP addresses and whatever else a log statement carries — which

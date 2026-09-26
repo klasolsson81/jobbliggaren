@@ -22,6 +22,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    employerList: [],
     remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],

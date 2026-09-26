@@ -100,10 +100,10 @@ public sealed class LayoutCorpusEmitterTests
 
     /// <summary>
     /// The highest-priority PII control in this PR, measured rather than promised. One case authors
-    /// a synthetic personnummer in the CV body and one in the account display name, precisely so
-    /// the personnummer gates fire; the report must report that they fired without ever carrying
-    /// the value. Asserted over the WHOLE lexicon list, because that list is what every existing
-    /// leak sweep in this project enumerates — a value added there is covered here for free.
+    /// a synthetic personnummer in the CV body, so the personnummer gate fires; the report must say
+    /// that one was authored without ever carrying the value. Asserted over the WHOLE lexicon list,
+    /// because that list is what every existing leak sweep in this project enumerates — a value
+    /// added there is covered here for free.
     /// </summary>
     [Fact]
     public void Report_NeverRendersASynthethicPersonnummer()
@@ -116,7 +116,6 @@ public sealed class LayoutCorpusEmitterTests
                 {
                     SyntheticPersonnummer = SwedishCorpusLexicon.FakePersonnummer[0],
                 },
-                AccountDisplayName = "Konto Kontosson " + SwedishCorpusLexicon.FakePersonnummer[1],
             },
         };
 
@@ -187,10 +186,9 @@ public sealed class LayoutCorpusEmitterTests
     /// user-typed <c>NameOverride</c>) but not in this corpus, which always resolves the label
     /// from a generated default that carries no personnummer.</para>
     ///
-    /// <para>This is the pin the defect proved was missing. #1060 PR C added
-    /// <c>PersonnummerInAccountName</c> and this file had nothing that noticed; the token fell to a
-    /// catch-all that printed five `no verdict` cells, and the suite stayed green because
-    /// <c>IsWellFormed</c> accepted them.</para></summary>
+    /// <para>This is the pin the defect proved was missing. #1060 PR C added a gate token (retired
+    /// since) and this file had nothing that noticed; the token fell to a catch-all that printed five
+    /// `no verdict` cells, and the suite stayed green because <c>IsWellFormed</c> accepted them.</para></summary>
     [Theory]
     [MemberData(nameof(ReachableGateStates))]
     public void Ladder_ForEveryReachableBlock_NamesOneRungAndIsWellFormed(
@@ -210,10 +208,10 @@ public sealed class LayoutCorpusEmitterTests
     }
 
     /// <summary>The exhaustiveness half, and it is what makes the theory above a MECHANISM rather
-    /// than four instances: every declared enum member must appear in the case list. A fifth member
+    /// than four instances: every declared enum member must appear in the case list. A new member
     /// fails HERE, at the enum, before anyone has to notice one wrong cell in an ~800-line
     /// artifact. No count is written down — the same reason
-    /// <c>AutoPromoteBlockReason_IsTheLockedFourMemberSet</c> writes none.
+    /// <c>AutoPromoteBlockReason_IsTheLockedMemberSet</c> writes none.
     ///
     /// <para>Its subject is <c>AutoPromoteBlockReason</c>, a PRODUCTION type, so it sits outside the
     /// assert rule's three categories and is argued rather than assumed — the convention
@@ -289,6 +287,21 @@ public sealed class LayoutCorpusEmitterTests
         }).ShouldContain("**gate ladder malformed:** `case-ladder`");
     }
 
+    [Fact]
+    public void Ladder_ForADq6Block_IsUnresolved_BecauseNoPublicDiscriminatorNamesIt()
+    {
+        // A DQ6 hit returns PersonnummerPresent with neither the parse flag nor a label hit, and
+        // the corpus has no public call that proves DQ6 fired. Attributing it by remainder is the
+        // elimination the ladder refuses, so it reddens the instrument instead.
+        var ladder = GateLadder.From(
+            AutoPromoteBlockReason.PersonnummerPresent, promoted: false, promoteFaulted: false,
+            pnrFoundOnParse: false, pnrInResolvedLabel: false);
+
+        ladder.Select(c => c.State)
+            .ShouldBe(Enumerable.Repeat(GateState.Unresolved, GateLadder.RungHeaders.Count));
+        GateLadder.IsWellFormed(ladder).ShouldBeFalse();
+    }
+
     /// <summary>The UNMAPPED-token path — the one line this PR's whole claim rests on, and the one
     /// nothing was running.
     ///
@@ -303,17 +316,10 @@ public sealed class LayoutCorpusEmitterTests
     /// does carry <c>_ =&gt; (block: null, promoted: false, faulted: false)</c> — but
     /// <c>AutoPromoteOutcome</c> is a CLOSED discriminated union (private constructor, exactly
     /// <c>Promoted</c> and <c>LeftPending</c>, "nothing outside this file can add a case"), so that
-    /// arm cannot be entered today, for the same reason the ladder's own <c>_</c> cannot.</para>
+    /// arm cannot be entered today.</para>
     ///
-    /// <para><b>There is a SECOND ingress, and it is not the union opening.</b>
-    /// <c>PersonnummerPresent</c> with both discriminators false also lands here — the handler said
-    /// the gate fired and neither observable the corpus recomputes agrees. That is a DIVERGENCE
-    /// between product and instrument, and it is exactly the case where a confident "DQ6 blocked"
-    /// used to be printed. Naming one ingress and implying it is the only one would be this PR's
-    /// own defect class.</para>
-    ///
-    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS before either
-    /// ingress opens, and PR C is this corpus's measured proof that closure expires. The mutation is
+    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS, and PR C is
+    /// this corpus's measured proof that closure expires. The mutation is
     /// the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green until this
     /// test existed.</para></summary>
     [Fact]
@@ -513,37 +519,23 @@ public sealed class LayoutCorpusEmitterTests
         markdown.ShouldContain("**byte proofs held:** `case-crashed`, `case-alpha`");
     }
 
-    /// <summary>The `(false, true)` arm of the authored-personnummer column: a CLEAN body whose
-    /// ACCOUNT name carries one. Unexercised until now, and the row it would have mislabelled is
-    /// `pdf-clean-body-pnr-in-account-name` — the only case that reaches the DQ6 rung. "pnr
-    /// authored: none" beside a blocked DQ6 cell is this PR's own incident #2, on its own case.
-    /// The value itself is never printed; the arm says only that one was authored and where.</summary>
     [Fact]
-    public void Report_ForACleanBodyWithAPersonnummerInTheAccountName_SaysWhereItWasAuthored()
+    public void Report_ForACleanBody_SaysNoPersonnummerWasAuthored()
     {
-        var clean = Observation("case-account-pnr");
+        var clean = Observation("case-clean-body");
         var markdown = LayoutCorpusReport.Build(Data() with
         {
             Cases =
             [
                 clean with
                 {
-                    Case = clean.Case with
-                    {
-                        Model = CvModel.Swedish with { SyntheticPersonnummer = null },
-                        AccountDisplayName = "Konto Kontosson "
-                            + SwedishCorpusLexicon.FakePersonnummer[1],
-                    },
+                    Case = clean.Case with { Model = CvModel.Swedish with { SyntheticPersonnummer = null } },
                 },
             ],
         });
 
         var (header, row) = TableRow(markdown, "| Case | Confidence overall | ");
-        Cell(header, row, "pnr authored (body / account)")
-            .ShouldBe("account name (synthetic, not printed)");
-
-        foreach (var pnr in SwedishCorpusLexicon.FakePersonnummer)
-            markdown.ShouldNotContain(pnr);
+        Cell(header, row, "pnr authored").ShouldBe("none");
     }
 
     private static int Cells(string row) => row.Split('|').Length;
@@ -840,7 +832,6 @@ public sealed class LayoutCorpusEmitterTests
             { AutoPromoteBlockReason.PersonnummerPresent, true, false, 0 },   // G1  parse flag
             { AutoPromoteBlockReason.ParseNotConfident, false, false, 1 },    // G2  confidence
             { AutoPromoteBlockReason.PersonnummerPresent, false, true, 2 },   // G2b label scan
-            { AutoPromoteBlockReason.PersonnummerInAccountName, false, false, 3 }, // G3a DQ6
             { AutoPromoteBlockReason.IncompleteContent, false, false, 4 },    // G3b buildability
         };
 

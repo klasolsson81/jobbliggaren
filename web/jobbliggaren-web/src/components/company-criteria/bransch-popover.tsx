@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { JobbToolbarPopover } from "@/components/job-ads/jobb-toolbar-popover";
 import { CriterionPicker } from "./criterion-picker";
+import { resolveOccupationDivisions } from "@/lib/company-criteria/resolve-occupation-divisions";
 import {
   decomposeSelection,
   flattenCriterionOptions,
@@ -32,7 +33,7 @@ import {
  *     identity is the Platsbanken two-column cascade, and would do it inside another lane's surface.
  *
  * `CriterionPicker` already answers both, is already reviewed, and already ships on the sibling browse
- * surface (Smarta bevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:
+ * surface (Branschbevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:
  * two sibling surfaces answering "which branches exist in the register?" must not answer it with two
  * different controls. CTO bind: `docs/reviews/2026-07-28-foretag-sok-pr5-bransch-form-cto.md`.
  *
@@ -123,14 +124,14 @@ export function BranschPopover({
           // `help` STAYS. The panel header says "Välj bransch", which names the control but not its
           // mechanics: that a checkbox on a parent selects its whole subtree, and that more than one
           // branch can be picked. One click here can select 52 codes, and after #999 this is the only
-          // sentence on /foretag/sok that says so. `filterHint` is the one dropped instead — it sat
-          // under a field already labelled "Sök bransch" and paid no rent (finding 9).
+          // sentence on /foretag/sok that says so.
           help={tc("sniHelp")}
           filterLabel={tc("sniFilterLabel")}
           groupAria={tc("sniGroupAria")}
           expandAria={(name) => tc("sniExpandAria", { name })}
           collapseAria={(name) => tc("sniCollapseAria", { name })}
           optionsUnavailable={t("branschUnavailable")}
+          resolveOccupations={resolveOccupationDivisions}
         />
       </div>
     </JobbToolbarPopover>

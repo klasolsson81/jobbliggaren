@@ -4,6 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
@@ -27,7 +30,7 @@ public class MeTests(ApiFactory factory)
     public async Task GET_me_with_valid_session_returns_user_info()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me", ct);
@@ -50,7 +53,7 @@ public class MeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"me-email-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email: email, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me", ct);
@@ -61,17 +64,39 @@ public class MeTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_me_profile_with_valid_session_returns_profile()
+    public async Task GET_me_profile_carries_no_display_name()
     {
+        // ADR 0142 D7: the account has no name, so the profile does not carry the key.
         var ct = TestContext.Current.CancellationToken;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, displayName: "Me User", ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me/profile", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("displayName").GetString().ShouldBe("Me User");
+        json.TryGetProperty("displayName", out _).ShouldBeFalse();
+        json.GetProperty("language").GetString().ShouldBe("sv");
+    }
+
+    [Fact]
+    public async Task PATCH_me_profile_ignores_a_display_name_key_in_the_body()
+    {
+        // The command carries only the language, and the endpoint binds it directly, so a stray key
+        // is dropped by the serializer.
+        var ct = TestContext.Current.CancellationToken;
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+
+        var response = await _client.PatchAsJsonAsync(
+            "/api/v1/me/profile", new { displayName = "Nytt Namn", language = "en" }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        seeker.Preferences.Language.ShouldBe("en");
     }
 }

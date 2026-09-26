@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
 using Microsoft.Extensions.Logging;
@@ -18,8 +19,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// security-auditor Major without turning a single line red (code-reviewer Major D1, 2026-08-09).
 /// </para>
 /// <para>
-/// <b>The pair is the test.</b> A lone Warning assertion passes against a class that put all six
-/// kinds at Warning, and a lone Debug assertion passes against one that put all six at Debug. Only
+/// <b>The pair is the test.</b> A lone Warning assertion passes against a class that put every
+/// kind at Warning, and a lone Debug assertion passes against one that put every kind at Debug. Only
 /// asserting both sides of the split proves there IS a split.
 /// </para>
 /// </summary>
@@ -79,8 +80,8 @@ public class NullEmailSenderSuppressionLogTests
         // One consequential kind and one notification kind, through the real methods rather than
         // the private log helpers — a pin on the helper would not catch a call site wired to the
         // wrong one, which is the mistake this split makes possible.
-        await sender.SendEmailConfirmationAsync(
-            "user@example.com", new EmailConfirmationEmail(Guid.NewGuid(), "tok"), ct);
+        await sender.SendLoginChallengeAsync(
+            "user@example.com", new LoginChallengeEmail.RegistrationClosed(), ct);
         await sender.SendMatchNotificationEmailAsync(
             "user@example.com",
             new MatchNotificationEmail(MatchNotificationKind.Direct, null, [], 0),
@@ -99,37 +100,20 @@ public class NullEmailSenderSuppressionLogTests
     }
 
     [Theory]
-    [InlineData("email-confirmation")]
     [InlineData("email-changed-notification")]
-    [InlineData("account-exists-notice")]
-    [InlineData("email-change-confirmation")]
-    [InlineData("password-reset")]
-    [InlineData("password-changed-notice")]
+    [InlineData("login-challenge")]
     public async Task EveryAccountLifecycleKind_LogsAtWarning(string expectedKind)
     {
         var (sender, log) = Create();
         var ct = CancellationToken.None;
-        var userId = Guid.NewGuid();
 
-        // All six, so the mapping is pinned kind by kind rather than by one representative. Three are
-        // UNREACHABLE in production, but by TWO different mechanisms and the distinction matters:
-        //   · email-change-confirmation and password-reset — their callers READ CanDeliver and refuse
-        //     before minting or sending (#1087, #1171).
-        //   · password-changed-notice — its caller has NO CanDeliver branch. It is unreachable
-        //     INDIRECTLY: no reset token can be minted while the sender cannot deliver, so the event
-        //     this notice reports cannot occur (the same trigger-unreachability argument
-        //     security-auditor accepted 2026-08-09 for the old-address notice).
-        // All three are raised at Warning anyway: if one ever fires, an invariant broke, which is a
-        // louder event than a missing provider, not a quieter one.
-        await sender.SendEmailConfirmationAsync(
-            "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
+        // Every kind, so the mapping is pinned kind by kind rather than by one representative.
+        // login-challenge is UNREACHABLE in production — its callers READ CanDeliver and refuse before
+        // minting or sending (#1735). It is raised at Warning anyway: if it ever fires, an invariant
+        // broke, which is a louder event than a missing provider, not a quieter one.
         await sender.SendEmailChangedNotificationAsync("old@example.com", ct);
-        await sender.SendAccountExistsNoticeAsync("taken@example.com", ct);
-        await sender.SendEmailChangeConfirmationAsync(
-            "new@example.com", new EmailChangeConfirmationEmail(userId, "new@example.com", "tok"), ct);
-        await sender.SendPasswordResetAsync(
-            "user@example.com", new PasswordResetEmail(userId, "tok"), ct);
-        await sender.SendPasswordChangedNoticeAsync("user@example.com", ct);
+        await sender.SendLoginChallengeAsync(
+            "user@example.com", new LoginChallengeEmail.RegistrationClosed(), ct);
 
         var record = log.Records
             .Where(r => r.Message.Contains(expectedKind, StringComparison.Ordinal))
@@ -153,25 +137,27 @@ public class NullEmailSenderSuppressionLogTests
         var (sender, log) = Create();
         const string Recipient = "stranded.person@example.com";
         const string Token = "opaque-url-safe-token"; // gitleaks:allow
-        var userId = Guid.NewGuid();
+        const string Code = "042917";
 
-        await sender.SendEmailConfirmationAsync(
-            Recipient, new EmailConfirmationEmail(userId, Token), CancellationToken.None);
+        await sender.SendLoginChallengeAsync(
+            Recipient,
+            new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw(Code), LoginLinkToken.FromRaw(Token)),
+            CancellationToken.None);
 
         var record = log.Records.ShouldHaveSingleItem();
         record.Message.ShouldNotContain(Recipient);
         record.Message.ShouldNotContain(Token);
-        record.Message.ShouldNotContain(userId.ToString());
-        record.Message.ShouldContain("email-confirmation");
+        record.Message.ShouldNotContain(Code);
+        record.Message.ShouldContain("login-challenge");
 
         // Every structured value, not only the ones the template happens to render.
         var values = record.State.Select(kv => kv.Value?.ToString() ?? string.Empty).ToList();
         values.ShouldNotContain(v => v.Contains(Recipient, StringComparison.Ordinal));
         values.ShouldNotContain(v => v.Contains(Token, StringComparison.Ordinal));
-        values.ShouldNotContain(v => v.Contains(userId.ToString(), StringComparison.Ordinal));
+        values.ShouldNotContain(v => v.Contains(Code, StringComparison.Ordinal));
 
         // The state must actually carry something, or the three assertions above are vacuous
         // against an empty list — the failure mode a `state as ... ?? []` fallback introduces.
-        record.State.ShouldContain(kv => kv.Key == "EmailKind" && Equals(kv.Value, "email-confirmation"));
+        record.State.ShouldContain(kv => kv.Key == "EmailKind" && Equals(kv.Value, "login-challenge"));
     }
 }

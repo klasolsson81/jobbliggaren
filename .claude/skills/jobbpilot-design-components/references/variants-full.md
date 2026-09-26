@@ -77,10 +77,10 @@ Civic spec — **two ratified systems, name which** (ADR 0052 Amendment 2026-07-
 shadcn `Input` height **44px** (no size prop; `SelectTrigger` sm 36) per ADR 0038;
 `.jp-input` height **48px** per HANDOVER-v3 §5.2 via ADR 0052 (its `sm` 40 is ratified but UNIMPLEMENTED — no such class).
 `border-radius: 6px` (`var(--jp-r-md)`),
-`bg-surface-primary` (white in light), font 16px. Beskrivande
-placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint
-nedanför bär informationen. Auth-formulärens format-placeholders
-(`din.email@exempel.se`) behålls (syntaxmönster med stark label-kontext).
+`bg-surface-primary` (white in light), font 16px. Ingen
+exempel-placeholder i något inmatningsfält (ADR 0038 amendment 2026-05-17) — label
+ovanför och, bara när fältet annars avvisar det användaren skriver, hint nedanför bär
+informationen (DESIGN.md §8 regel 3).
 
 ### States
 
@@ -107,8 +107,11 @@ Required indicator: asterisk `*` after label text in `text-danger-600`.
 ```
 font-size: text-body-sm (14px)
 margin-top: mt-1 (4px)
-color: text-text-secondary
+color: text-text-primary (DESIGN.md §4 — a hint is an instruction, not metadata)
 ```
+
+Only when the field would otherwise reject what a first-time user types (DESIGN.md §8
+rule 3); an email field has none.
 
 ---
 
@@ -119,7 +122,7 @@ color: text-text-secondary
 ```
 bg-surface-primary
 border border-border-default
-rounded-md (4px)
+rounded-md
 p-4
 ```
 
@@ -221,7 +224,7 @@ Application status → Badge variant mapping:
 
 ```
 Overlay:  bg-black/45
-Panel:    bg-surface-primary rounded-lg (6px) border border-border-default
+Panel:    bg-surface-primary rounded-lg border border-border-default
 Header:   px-6 pt-6 pb-0
 Body:     px-6 py-4
 Footer:   px-6 pb-6 flex justify-end gap-2
@@ -396,9 +399,9 @@ grid 1.4fr 1fr 1fr 1fr auto; gap 16px; align-items end; padding 18px 0
 background transparent; border 0
 border-top 1px border; border-bottom 1px border; border-radius 0
 field: flex column gap 6px; label 14px/500 text-secondary;
-       hint mono 13px text-secondary (ADR 0038 — informationsbärande
-       hint är aldrig tertiary). Inga beskrivande placeholder-exempel
-       i sök-/filterfält — label + hint bär informationen.
+       Inga beskrivande placeholder-exempel
+       i sök-/filterfält — labeln bär informationen, hinten bara när
+       fältet annars avvisar det användaren skriver (DESIGN.md §8).
 ```
 
 ### `.jp-banner` (3px brand left border)
@@ -406,7 +409,7 @@ field: flex column gap 6px; label 14px/500 text-secondary;
 ```
 flex; gap 12px; padding 14px 16px
 bg brand-50; border 1px brand-100; border-left 3px brand-600
-border-radius var(--jp-r-md) (4px)
+border-radius var(--jp-r-md)
 title 16px/500 text-primary; text 14px text-secondary
 cta brand-700 underlined
 ```

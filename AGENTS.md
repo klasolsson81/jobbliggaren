@@ -7,6 +7,11 @@
 > `CLAUDE.md` §11 first — it sits there for budget reasons, not because it is
 > CC-specific.
 
+**Session start (CC and Codex):** before changing files, read `CLAUDE.md`
+§§1.5, 6.5 and 9, then `docs/runbooks/session-protocol.md`. They govern startup,
+worktree isolation and reviews. Codex follows that runbook's tool mapping;
+Claude hooks are not evidence that Codex ran a check.
+
 ## 1. Identity
 
 Jobbliggaren is a Swedish job-application manager built as a **civic utility** —
@@ -212,7 +217,7 @@ for data fetching (a page's **initial data** — see §4 for the delivered poll 
 short-lived-client-read shapes, which this does not reach) · `console.log` in production · emoji in UI copy ·
 exclamation marks (civic tone) · gradients/drop shadows > `shadow-sm`/glow/
 glassmorphism — **sole exception:** the hero plate's dark-green gradient
-(`--jp-hero-gradient`, scoped per ADR 0068) · radius > 6px except pills/badges
+(`--jp-hero-gradient`, scoped per ADR 0068) · radius > 8px except pills/badges
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv/`) · direct DOM manipulation.
 

@@ -28,36 +28,33 @@ so the run distribution (flake rate, duration) can be observed first.
 **Ratcheting to blocking** — making the workflow a required check, or folding it into
 `ci.needs` — is a later, **explicit Klas decision**. Never make it blocking silently.
 
-## The flag conflict and the confirmed-login seam (the core design)
+## Seeding and logging in: the two Development seams (the core design)
 
-`Auth:RequireEmailConfirmation` is host-startup-bound (env
-`Auth__RequireEmailConfirmation`), with no per-request toggle:
+Every login is a mailed code (ADR 0142), and the login challenge's budgets apply: the
+same address asking again inside 60 seconds gets a challenge with no record, and mails to
+addresses without an account are capped at 20 per 24 hours. A run seeds more accounts than
+that cap allows, so the suite seeds and logs in through two **dev-only** seams:
 
-- The `loginAs` specs (`applications`/`cv`/`delete-account`/`jobb`) need a
-  **confirmed** user (they wait for `/mig`).
-- `auth.spec.ts` (#791/#733) needs the flag **ON** and an **unconfirmed** user
-  (register-202 panel + login-403 gate + resend).
+- `POST /api/v1/dev/accounts {email}` → `DevSeedAccountCommand` → opens the account through
+  `AccountRegistrar`, the writer `/auth/challenge/complete` uses, so a seeded account is the
+  state a registration produces. 204 with no body when the login resolves the address to an
+  active account; 404 for an address that is not on an RFC-reserved domain; 409 for one whose
+  account a login cannot sign in to. No credential, no mail.
+- `POST /api/v1/dev/login-code {email}` → the code the last challenge mail to that reserved
+  address carried, taken once.
+- **Two independent structural gates, both keyed on `IsDevelopment()`:** the endpoints are
+  mapped only in Development (`Program.cs`), and their ports (`IDevSeedableAddressPolicy`,
+  `IDevLoginCodeReader`) are DI-registered only in Development
+  (`DependencyInjection.AddDevOnlyTestingSupport`). In any deployed environment the routes
+  404 and the commands' dependencies cannot resolve (fail-closed).
+- Guardrail: `ProductionStartupSmokeTests` asserts the `/api/v1/dev/*` group 404s in
+  Production — a **hard merge gate** (CLAUDE.md §12). **REMOVE BEFORE LAUNCH** alongside
+  `reset-my-data`.
 
-CI runs **one** backend with the flag **ON** (launch-representative). To let the
-`loginAs` specs get a confirmed user without a real email round-trip, a **dev-only,
-Mediator-routed confirmed-login seam** exists:
-
-- `POST /api/v1/dev/confirm-email` → `ConfirmEmailDevCommand` →
-  `IDevEmailConfirmer.ForceConfirmByEmailAsync` (sets `EmailConfirmed = true`, no
-  token). Returns 204 / 400 (empty) / 404 (unknown).
-- **Two independent structural gates, both keyed on `IsDevelopment()`:** the endpoint
-  is mapped only in Development (`Program.cs`), and `IDevEmailConfirmer` is
-  DI-registered only in Development
-  (`DependencyInjection.AddDevOnlyTestingSupport`). In any deployed environment the
-  route 404s and the command's dependency cannot resolve (fail-closed).
-- Guardrail: `ProductionStartupSmokeTests` asserts the whole `/api/v1/dev/*` group
-  404s in Production — a **hard merge gate** (CLAUDE.md §12). **REMOVE BEFORE LAUNCH**
-  alongside `reset-my-data`.
-
-Helper wiring (`tests/e2e/helpers/auth.ts`): the `loginAs` specs seed via
-`ensureConfirmedTestUser` (register → `confirmTestUser` → login). `auth.spec.ts`
-keeps `ensureTestUser` (register-only, stays unconfirmed) — do **not** fold confirm
-into `ensureTestUser`.
+Helper wiring (`tests/e2e/helpers/auth.ts`): specs seed with `seedTestUser` / `seedAccount`
+and log in through the UI with `loginAs` (address, then the code from the seam), once per
+address. `seedResumeViaApi` borrows the logged-in context's session cookie rather than
+logging in a second time.
 
 ## Frontend: a production build, not `pnpm dev`
 

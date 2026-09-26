@@ -48,6 +48,7 @@
 | Frontend bundler | Turbopack | bundlad med Next 16.2 | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
+| OTP-fält | input-otp (via shadcn/ui InputOTP) | 1.x | MIT, inga runtime-beroenden. Ritar sex rutor bakom ETT riktigt `<input>` (`autocomplete="one-time-code"`), så etikett, värde, inklistring och tabbstopp förblir ett element. Injicerar en `<style>` vid körning (kräver `style-src 'unsafe-inline'`). Klas-beslut 2026-09-24 ("Sex rutor, riv ADR-raden"); formen i ADR 0142 Page form, Amendment 2026-09-24 (9) |
 | Styling | Tailwind CSS | 4.x | **CSS-first-config:** `@import "tailwindcss"` + `@theme {}` i `globals.css`. **Det finns ingen `tailwind.config.ts`** — ADR 0015 Beslut 1 avvisade hybrid-läget (Alt C), och dess §Kontext, öppen fråga 1, pekar ut just den här raden som källan till missförståndet. Truth-sync #1154 |
 | Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra); ADR 0042 Beslut C (impl-notat 2026-05-17) avvisade den för typeahead-ytan. Mönstren — inklusive BFF-undantaget för binär uppladdning och poll-vägen — bor i §10.2. Truth-sync #1154 |
 | Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #1154 |
@@ -129,7 +130,7 @@
 > upphävd, men av ett annat direktiv och med **vald** ersättare — sedan 2026-08-15
 > **Scaleway Transactional Email i `fr-par`** (ADR 0131; AWS SES var ersättaren
 > 2026-08-08 till 2026-08-15 och föll när AWS permanent vägrade häva sandbox-läget),
-> ägd av #183 — se §13.4. Faktisk
+> ägd av §13.4 (#183 stängd 2026-09-06). Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -141,9 +142,9 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars; Api:n vägrar boota på den sedan #1735, Worker:n kör på den) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
-| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
+| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (ADR 0049 `Amendment 2026-08-09`, `master-key-ops.md`; [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) stängd 2026-09-06) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
@@ -514,15 +515,20 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 ### 6.2 Endpoints (grupperade per kontext)
 
 **Auth**
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/challenge`
+- `POST /api/v1/auth/challenge/verify`
+- `POST /api/v1/auth/link`
+- `POST /api/v1/auth/challenge/complete`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/reset-password`
-- `POST /api/v1/auth/verify-email`
-- `POST /api/v1/auth/oauth/google`
-- `POST /api/v1/auth/oauth/microsoft`
+- `POST /api/v1/auth/reauth`
+- `POST /api/v1/auth/reauth/verify`
+- `POST /api/v1/auth/change-email`
+- `POST /api/v1/auth/change-email/verify`
+- `POST /api/v1/auth/change-email/confirm`
+- `POST /api/v1/auth/oauth/{provider}/start`
+- `POST /api/v1/auth/oauth/{provider}/callback`
+- `GET /api/v1/auth/oauth/providers`
 
 **Me / profil**
 - `GET /api/v1/me`
@@ -604,7 +610,6 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/admin/users/{id}`
 - `POST /api/v1/admin/users/{id}/suspend`
 - `POST /api/v1/admin/users/{id}/unsuspend`
-- `POST /api/v1/admin/users/{id}/reset-password`
 - `POST /api/v1/admin/users/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
@@ -630,8 +635,9 @@ user_roles, roles, role_claims, user_claims, user_logins, user_tokens
 job_seekers
   id (uuid PK)
   user_id (uuid FK users)
-  display_name (text)
   preferences (jsonb)            -- flexibel VO
+  terms_accepted_at (timestamptz null)                    -- ADR 0142 D6: avtalsstämpel, null bara före del 1b
+  terms_version, privacy_policy_version (varchar(20) null) -- all-or-nothing: ck_job_seekers_terms_all_or_none
   created_at, updated_at, deleted_at (soft delete)
 
 resumes
@@ -1070,8 +1076,6 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
       /integritet
     /(auth)
       /logga-in
-      /registrera
-      /glomt-losenord
     /(app)                     -- autentiserat
       /layout.tsx             -- app shell, navigation
       /instrumentpanel        -- dashboard
@@ -1093,7 +1097,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
       /brev                   -- cover letters
       /foretag                -- companies + contacts
       /kalender               -- upcoming events
-      /installningar
+      /mina-sidor
         /profil
         /integrationer        -- Gmail, Calendar
         /aviseringar
@@ -1164,7 +1168,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 (Klas-beslut 2026-08-22, nedskrivet 2026-08-28: *"Allt på sidan måste översättas just nu
 till både svenska och engelska. Appen riktar sig till Sverige och svenska arbetsmarknaden,
 men alla kanske inte förstår svenska."*). `en` är nåbar för varje inloggad användare —
-`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i footern och i `/installningar` —
+`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i `/mina-sidor` —
 så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hypotes.
 
 - **Svenska är standardspråket** (`defaultLocale`) och tonen sätts på svenska; engelskan är
@@ -1214,10 +1218,12 @@ Roles lagras i `user_roles` (Identity).
   token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
 - **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
   och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
+- **Inloggning** är en mejlad kod eller länk (ADR 0142); lösenordsvägarna togs bort i del 5a.
 - **Livslängder** (`SessionStoreOptions`, sanningskälla — inte dupliceras utan läsas där):
-  *Session* (vanlig inloggning) 24 h sliding / 24 h absolut, ingen rotation. *Persistent*
-  ("Håll mig inloggad") 30 d sliding / 180 d absolut / id-rotation var 24:e timme. Den gamla
-  §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
+  varje inloggning ger *Persistent*, 30 d sliding / 180 d absolut / id-rotation var 24:e timme.
+  *Session* (24 h sliding / 24 h absolut, ingen rotation) mintas bara när ett adressbyte bekräftas
+  och den aktuella sessionen inte går att läsa. *Legacy* är vad en session skriven före profilerna
+  avkodas till. Den gamla §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
 - **Backend sätter inga cookies** (ADR 0018). Next.js-proxyn äger `__Host-`-cookien och
   ersätter dess värde när svaret bär `{ rotated: true }`.
 
@@ -1255,7 +1261,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 - Grön accent `#15603F` som enda interaktionsfärg (`--jp-accent-*`-ramp, ADR 0068 — ersätter tidigare myndighetsblå)
 - Inga emojis i UI, inga exklamationstecken, inga gradients (enda undantag: hero-plattans scopade gröna gradient, ADR 0068)
 - Rak svensk copy: kvantifierad information först
-- `border-radius` 6px-golv för rader/kort/knappar, 12px endast hero (ADR 0052), pills/badges undantagna
+- `border-radius`: golv för rader/kort/knappar, modal ett steg över, pills/badges undantagna (ADR 0052 Beslut 4 + Amendment 2026-07-26 (#1054), som tog bort 12px-hero-steget)
 - Exakta tokens (färg/typografi/spacing/radius) ägs av DESIGN.md + design-skills
 
 ---
@@ -1287,7 +1293,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **Secrets-hantering per miljö:**
 - `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
-- permanent miljö (netcup): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
+- permanent miljö (netcup): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk (ADR 0049 `Amendment 2026-08-09`; [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) stängd 2026-09-06)
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden
@@ -1384,9 +1390,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   defaulten som ett driftläge.)* **Statusen på grinden själv står i `release-checklist.md` §2.5
   punkt 1 och är oförändrat KVAR** — den här raden säger vad som körs, aldrig om det fick köras.
   Gäller **all** utgående e-post, inte bara
-  notiser: `EmailTemplates` har åtta sorter varav sex är kontolivscykel (bekräfta e-post,
-  byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
-  ändrat-lösenord-avisering). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
+  notiser. **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
   inte en ärvd:** avtalsparten är fransk, behandlingen sker i Frankrike, och den *krok* som
   gjorde SES-posten till en Kap. V-fråga — en EU-avtalspart under en **amerikansk** koncernmoder
   som kan nå uppgifterna (Schrems II / EDPB Rec. 01/2020) — saknas i en kedja som är fransk hela
@@ -1704,7 +1708,7 @@ byggt:
 
 **Backend — en netcup RS 1000 G12** (x86 AMD EPYC 9645, 4 dedikerade kärnor / 8 GB DDR5 ECC
 / 256 GB NVMe, Debian 13, Nürnberg). Hela backend-stacken kör i **Docker Compose** på boxen:
-.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis + **Caddy**
+.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis (två instanser: den durabla `redis` och `redis-volatile` utan persistens, ADR 0142 D1) + **Caddy**
 (reverse proxy, auto-TLS via Let's Encrypt **direkt**, HTTP-01/TLS-ALPN-01 — ingen DNS-01 och
 ingen CDN, Klas-beslut K3). **`mem_limit` sätts på varje tjänst, Postgres inklusive** — den
 tidigare hybrid-doktrinen ("generös/osatt på Postgres") vilade uttryckligen på att 16 GB löste
@@ -1792,7 +1796,7 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 
 `build.yml` (`ci`-aggregat):
 - Trigger: PR mot `main`, push till `main`
-- Jobs: backend build + test, frontend lint/typecheck/test, coverage-gate (ADR 0044)
+- Jobs: enumerated in `build.yml`'s `ci.needs` and nowhere else (ADR 0044 Beslut 4: a list of the tree goes stale, a rule does not)
 - Inga moln-anrop, inga deploys
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.

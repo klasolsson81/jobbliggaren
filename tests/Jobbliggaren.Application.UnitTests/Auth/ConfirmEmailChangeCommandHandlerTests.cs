@@ -1,141 +1,165 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
-using Microsoft.Extensions.Logging.Abstractions;
+using Jobbliggaren.TestSupport;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #679 CONFIRM step — pins the handler's security invariants. The OLD address is captured BEFORE the
-/// swap so the "your email was changed" notice reaches the previous owner (CTO-bind #4 / OWASP ASVS
-/// V2.5); a confirm rejection propagates the ONE uniform error unchanged (no account/enum oracle) and
-/// sends nothing; and the notice is strictly best-effort — a send failure must never fail (or roll
-/// back) a completed change, and a null old address simply skips the notice.
+/// The change-email confirm step (#679; a grant since #1739, ADR 0142 D5). The grant is redeemed with an assertion
+/// of this user AND this address, and nothing is moved until it redeems. The old address is read before the swap
+/// so the "your email was changed" notice reaches the previous owner (CTO-bind #4), and that notice is
+/// best-effort: it never fails a completed change.
 /// </summary>
-public class ConfirmEmailChangeCommandHandlerTests
+public sealed class ConfirmEmailChangeCommandHandlerTests
 {
     private const string OldEmail = "gammal.adress@example.se";
     private const string NewEmail = "ny.adress@example.se";
-    private const string UrlSafeToken = "opaque-url-safe-token"; // gitleaks:allow
+    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly GrantToken Grant = GrantToken.Generate();
 
-    private readonly IUserAccountService _service = Substitute.For<IUserAccountService>();
-    private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
+    private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
+    private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
+    private readonly IUserAccountService _accounts = Substitute.For<IUserAccountService>();
+    private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly RecordingLogger<ConfirmEmailChangeCommandHandler> _logger = new();
 
-    private ConfirmEmailChangeCommandHandler CreateHandler()
-        => new(_service, _emailSender, NullLogger<ConfirmEmailChangeCommandHandler>.Instance);
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static ConfirmEmailChangeCommand Command(Guid userId)
-        => new(userId, NewEmail, UrlSafeToken);
+    private static GrantAssertion Expected => GrantAssertion.Of(new GrantSubject.ChangeEmail(UserId, NewEmail));
+
+    public ConfirmEmailChangeCommandHandlerTests()
+    {
+        _currentUser.UserId.Returns(UserId);
+        _grants.RedeemAsync(Grant, Expected, Arg.Any<CancellationToken>())
+            .Returns(new GrantSubject.ChangeEmail(UserId, NewEmail));
+        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns(OldEmail);
+        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>()).Returns(Result.Success());
+    }
+
+    private ConfirmEmailChangeCommandHandler Sut() =>
+        new(_currentUser, _grants, _accounts, _sender, _logger);
+
+    private static ConfirmEmailChangeCommand Command => new(Grant.Reveal(), NewEmail);
 
     [Fact]
-    public async Task Handle_WithValidToken_ConfirmsAndNotifiesOldAddress()
+    public async Task A_redeemed_grant_moves_the_account_and_tells_the_old_address()
     {
-        var userId = Guid.NewGuid();
-        _service.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns(OldEmail);
-        _service.ConfirmChangeEmailAsync(userId, NewEmail, UrlSafeToken, Arg.Any<CancellationToken>())
-            .Returns(Result.Success());
-        var handler = CreateHandler();
-
-        var result = await handler.Handle(Command(userId), CancellationToken.None);
+        var result = await Sut().Handle(Command, Ct);
 
         result.IsSuccess.ShouldBeTrue();
-        // The target user id: the User.EmailChanged audit aggregate id AND the id the endpoint
-        // invalidates all sessions for (C6).
-        result.Value.ShouldBe(userId);
-
-        // The security notice goes to the OLD address captured before the swap, never the new one.
-        await _emailSender.Received(1).SendEmailChangedNotificationAsync(
-            OldEmail, Arg.Any<CancellationToken>());
-        await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            NewEmail, Arg.Any<CancellationToken>());
+        // The User.EmailChanged audit aggregate id AND the id the endpoint re-issues the session for.
+        result.Value.ShouldBe(UserId);
+        Received.InOrder(async () =>
+        {
+            await _grants.RedeemAsync(Grant, Expected, Arg.Any<CancellationToken>());
+            await _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>());
+            await _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
+            await _sender.SendEmailChangedNotificationAsync(OldEmail, Arg.Any<CancellationToken>());
+        });
+        await _sender.DidNotReceive().SendEmailChangedNotificationAsync(NewEmail, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenConfirmFails_PropagatesUniformErrorWithoutNotifying()
+    public async Task The_grant_is_asserted_for_the_sessions_user_and_the_commands_address()
     {
-        var userId = Guid.NewGuid();
-        _service.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns(OldEmail);
-        _service.ConfirmChangeEmailAsync(userId, NewEmail, UrlSafeToken, Arg.Any<CancellationToken>())
-            .Returns(Result.Failure(DomainError.Validation(
-                "Auth.InvalidEmailChangeToken", "Bekräftelselänken är ogiltig eller har gått ut.")));
-        var handler = CreateHandler();
+        // The handler compares nothing itself: the assertion is the whole binding, and the store refuses anything
+        // else as one answer.
+        await Sut().Handle(Command, Ct);
 
-        var result = await handler.Handle(Command(userId), CancellationToken.None);
+        await _grants.Received(1).RedeemAsync(
+            Grant,
+            Arg.Is<GrantAssertion>(a => a == Expected),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_unusable_grant_is_gone_and_moves_nothing()
+    {
+        _grants.RedeemAsync(Grant, Expected, Arg.Any<CancellationToken>()).Returns((GrantSubject?)null);
+
+        var result = await Sut().Handle(Command, Ct);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidEmailChangeToken");
-        // A failed confirm sends no notice (nothing changed to notify about).
-        await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailChangeGrantUnusable);
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
+        await _sender.DidNotReceiveWithAnyArgs().SendEmailChangedNotificationAsync(default!, Ct);
     }
 
     [Fact]
-    public async Task Handle_WhenOldAddressNoticeThrows_StillSucceeds()
+    public async Task A_refused_swap_propagates_its_error_and_notifies_nobody()
     {
-        var userId = Guid.NewGuid();
-        _service.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns(OldEmail);
-        _service.ConfirmChangeEmailAsync(userId, NewEmail, UrlSafeToken, Arg.Any<CancellationToken>())
-            .Returns(Result.Success());
-        _emailSender.SendEmailChangedNotificationAsync(
-                OldEmail, Arg.Any<CancellationToken>())
+        var taken = DomainError.Conflict(AuthErrorCodes.EmailTaken, AuthErrorCodes.EmailTakenMessage);
+        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>()).Returns(Result.Failure(taken));
+
+        var result = await Sut().Handle(Command, Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBe(taken);
+        await _sender.DidNotReceiveWithAnyArgs().SendEmailChangedNotificationAsync(default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_notice_that_throws_never_fails_the_completed_change_and_logs_no_address()
+    {
+        _sender.SendEmailChangedNotificationAsync(OldEmail, Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("e-post-transport nere")));
-        var handler = CreateHandler();
 
-        var result = await handler.Handle(Command(userId), CancellationToken.None);
+        var result = await Sut().Handle(Command, Ct);
 
-        // The change is committed; a best-effort notice failure is swallowed (logged) and never fails
-        // or rolls back the completed change — the recovery vector already moved.
         result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBe(userId);
+        result.Value.ShouldBe(UserId);
+
+        var entry = _logger.Records.ShouldHaveSingleItem();
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.EventId.Id.ShouldBe(4002);
+        entry.Message.ShouldContain(UserId.ToString());
+        entry.Message.ShouldNotContain(OldEmail);
+        entry.Message.ShouldNotContain(NewEmail);
     }
 
     [Fact]
-    public async Task Handle_WhenOldEmailIsNull_SucceedsWithoutNotifying()
+    public async Task No_old_address_skips_the_notice()
     {
-        var userId = Guid.NewGuid();
-        _service.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns((string?)null);
-        _service.ConfirmChangeEmailAsync(userId, NewEmail, UrlSafeToken, Arg.Any<CancellationToken>())
-            .Returns(Result.Success());
-        var handler = CreateHandler();
+        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns((string?)null);
 
-        var result = await handler.Handle(Command(userId), CancellationToken.None);
+        var result = await Sut().Handle(Command, Ct);
 
         result.IsSuccess.ShouldBeTrue();
-        // A null old address (user already gone from Identity's view) skips the notice — no throw.
-        await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _sender.DidNotReceiveWithAnyArgs().SendEmailChangedNotificationAsync(default!, Ct);
     }
 
     [Fact]
-    public async Task Handle_WithEmptyUserId_ReturnsFailureWithoutConfirming()
+    public async Task No_signed_in_user_is_refused_before_the_grant_is_redeemed()
     {
-        var handler = CreateHandler();
+        _currentUser.UserId.Returns((Guid?)null);
 
-        var result = await handler.Handle(
-            new ConfirmEmailChangeCommand(Guid.Empty, NewEmail, UrlSafeToken), CancellationToken.None);
+        var result = await Sut().Handle(Command, Ct);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidInput");
-        await _service.DidNotReceive().ConfirmChangeEmailAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        result.Error.Code.ShouldBe(AuthErrorCodes.NotAuthenticated);
+        await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public async Task Handle_WithMissingToken_ReturnsFailureWithoutConfirming(string? token)
+    [InlineData(null, NewEmail)]
+    [InlineData("", NewEmail)]
+    [InlineData("a-grant", null)]
+    [InlineData("a-grant", "")]
+    public async Task Missing_input_is_refused_before_the_grant_is_redeemed(string? grant, string? newEmail)
     {
-        var userId = Guid.NewGuid();
-        var handler = CreateHandler();
-
-        var result = await handler.Handle(
-            new ConfirmEmailChangeCommand(userId, NewEmail, token), CancellationToken.None);
+        var result = await Sut().Handle(new ConfirmEmailChangeCommand(grant, newEmail), Ct);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidInput");
-        await _service.DidNotReceive().ConfirmChangeEmailAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidInput);
+        await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
     }
 }

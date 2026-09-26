@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { pagedResultWithTotalPages } from "@/lib/dto/_helpers";
+import { jobAdDtoSchema } from "@/lib/dto/job-ads";
 
 /**
- * #560 PR-3 (CTO Fork G5/G6) — criteria-based company watches ("smarta bevakningar"). Zod mirrors of
+ * #560 PR-3 (CTO Fork G5/G6) — criteria-based company watches ("branschbevakningar"). Zod mirrors of
  * the backend DTOs served under `/api/v1/me/company-watch-criteria` (ADR 0020 single-source; backend
  * serialises camelCase). A criterion is a saved predicate over two RAW code axes — SNI branches and
  * kommun codes — LEAVES ONLY on the wire (the picker expands a section/division/whole-län selection to
@@ -17,45 +18,40 @@ import { pagedResultWithTotalPages } from "@/lib/dto/_helpers";
 
 // ── The saved criterion (GET /) ─────────────────────────────────────────────
 
-/**
- * One criterion as the owner sees it — RAW codes + the user's optional label (mirrors backend
- * `CompanyWatchCriterionDto`). The human display-label ("Dataprogrammering m.fl. · Stockholm m.fl.")
- * is deliberately NOT resolved server-side: the FE already holds the reference tree and derives it
- * there (`lib/company-criteria/display-label.ts`) — a second label authority could only drift.
- * `label` is null when the user gave the criterion no name.
- */
-export const companyWatchCriterionSchema = z.object({
-  id: z.string(),
-  sniCodes: z.array(z.string()),
-  municipalityCodes: z.array(z.string()),
-  label: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-export type CompanyWatchCriterion = z.infer<typeof companyWatchCriterionSchema>;
-
-/** `GET /company-watch-criteria` returns a bare array (unpaginated — hard-capped at 20 per user). */
-export const listCompanyWatchCriteriaResultSchema = z.array(companyWatchCriterionSchema);
-export type ListCompanyWatchCriteriaResult = z.infer<
-  typeof listCompanyWatchCriteriaResultSchema
->;
-
 // ── The SCB reference tree (GET /reference) ─────────────────────────────────
 
 // A single reference leaf/node: SCB code + Swedish name. Both required (the picker renders the name;
 // a missing name would render a blank checkbox row).
-const sniLeafSchema = z.object({ code: z.string(), name: z.string() });
+//
+// `aliases` (#1115) are search words the node's own name does not contain — SNI classifies activities,
+// so "systemutveckl" matched 0 of 944 names. Every level carries them, because an everyday word can
+// name a division as readily as one leaf.
+//
+// OPTIONAL, not defaulted, and the difference is a claim about the wire rather than ergonomics: during
+// a rolling deploy a new frontend talks to an old backend that has not shipped the asset, and the field
+// is then genuinely absent. Modelling it as always-present would make the type say something the wire
+// does not guarantee. Consumers read it through `?? []`, and the picker degrades to today's name-only
+// filter rather than to a parse error that would blank the whole control.
+const aliasesSchema = z.array(z.string()).optional();
+
+const sniLeafSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  aliases: aliasesSchema,
+});
 
 const sniDivisionSchema = z.object({
   code: z.string(),
   name: z.string(),
   leaves: z.array(sniLeafSchema),
+  aliases: aliasesSchema,
 });
 
 const sniSectionSchema = z.object({
   code: z.string(),
   name: z.string(),
   divisions: z.array(sniDivisionSchema),
+  aliases: aliasesSchema,
 });
 
 const kommunSchema = z.object({ code: z.string(), name: z.string() });
@@ -75,6 +71,9 @@ const lanSchema = z.object({
 export const criterionReferenceSchema = z.object({
   sniVersion: z.string(),
   kommunVersion: z.string(),
+  // Optional for the same rolling-deploy reason as `aliasesSchema`: an old backend sends neither.
+  aliasVersion: z.string().optional(),
+  demandVersion: z.string().optional(),
   sni: z.array(sniSectionSchema),
   lan: z.array(lanSchema),
 });
@@ -119,12 +118,33 @@ export const companyBrowseSchema = z.object({
 export type CompanyBrowse = z.infer<typeof companyBrowseSchema>;
 
 /**
+ * #1681 part 2 — the criterion's identity (codes + optional label), composed into the two detail
+ * routes so a heading costs no list read.
+ *
+ * Before part 2 the detail pages resolved their heading from `GET /company-watch-criteria`. Part 2
+ * gave every row of that list a materialised ad count and a per-user graded matching count, so the
+ * page came to fetch twenty criteria's graded counts to render one string. This carries what a
+ * heading actually needs and nothing else — the human display-label is still derived FE-side from
+ * the reference tree (`lib/company-criteria/display-label.ts`), because a second label authority
+ * could only drift.
+ */
+export const criterionIdentitySchema = z.object({
+  id: z.string(),
+  sniCodes: z.array(z.string()),
+  municipalityCodes: z.array(z.string()),
+  label: z.string().nullable(),
+});
+export type CriterionIdentity = z.infer<typeof criterionIdentitySchema>;
+
+/**
  * The composed browse response (mirrors the Api's `CompanyBrowseResponse`): the paginated page and the
  * honest magnitude, side by side — so the FE can never mistake the pagination `totalCount` for the
  * magnitude. `companies.totalCount` SATURATES at 2000 (max 100 pages × 20) and is a pagination
  * quantity ONLY; the honest headline number is `magnitude`.
  */
 export const companyBrowseResponseSchema = z.object({
+  // #1681 part 2 — the heading's source, so this page needs no list read. See criterionIdentitySchema.
+  criterion: criterionIdentitySchema,
   companies: pagedResultWithTotalPages(companyBrowseSchema),
   magnitude: criterionMagnitudeSchema,
 });
@@ -132,6 +152,140 @@ export type CompanyBrowseResponse = z.infer<typeof companyBrowseResponseSchema>;
 
 /** `POST /` returns the created criterion's id. */
 export const createCriterionResultSchema = z.object({ id: z.string() });
+
+// ── The criterion's ads (GET /{id}/ads, GET /{id}/ad-count) ─────────────────
+
+/**
+ * #1559 — the honest magnitude of a criterion's ACTIVE AD set (mirrors backend
+ * `CriterionAdMagnitudeDto`): how many active job ads the companies this criterion matches have
+ * right now. Structurally identical to {@link criterionMagnitudeSchema} and deliberately a SEPARATE
+ * schema: they answer different questions (ads vs companies) at their own ceilings, and one shared
+ * type would let a surface render one where it means the other. `formatMagnitude` takes either.
+ */
+export const criterionAdMagnitudeSchema = z
+  .object({
+    magnitude: z.number().int().nonnegative().nullable(),
+    saturated: z.boolean(),
+    // #1681 part 2 (ADR 0139) — the ad numbers are read from a MATERIALISED company set, so the
+    // question now has two ways of having no answer, and they are not the same answer:
+    //   `tooBroad`        — the criterion matched more companies than the breadth gate will
+    //                       materialise. A determinate refusal the user can act on by narrowing it.
+    //   `notMaterialised` — nothing has been computed for this criterion's CURRENT predicate yet.
+    //                       Ignorance, not refusal; it resolves itself on the next run, and telling
+    //                       the user to narrow the watch would be advice that cannot work.
+    // Rendering either as `0` is the dishonest zero this whole family is written against (ADR 0120).
+    tooBroad: z.boolean(),
+    notMaterialised: z.boolean(),
+  })
+  // The backend constructor rejects both combinations, so neither can arrive. The ACL boundary
+  // rejects them too, because the one way they could ever appear is the one that matters: a number
+  // standing beside a reason there is no number.
+  .refine((m) => !(m.tooBroad && m.notMaterialised), {
+    message: "tooBroad och notMaterialised utesluter varandra",
+  })
+  .refine((m) => (m.tooBroad || m.notMaterialised) === (m.magnitude === null), {
+    message: "ett tal finns exakt när frågan går att besvara",
+  });
+export type CriterionAdMagnitude = z.infer<typeof criterionAdMagnitudeSchema>;
+
+/**
+ * #1656 (b) — how many of the criterion's active ads match ME (>= Good), mirroring backend
+ * `MyMatchingAdCountDto`. Deliberately NOT a magnitude schema and deliberately carrying no
+ * `saturated`: this number is EXACT or ABSENT. The underlying ad set is refused rather than
+ * truncated when it grows too broad, so there is no "+" arm to render.
+ *
+ * Three states, and a surface must not collapse any two of them:
+ * - `count: n`, `tooBroad: false` — exactly n ads match. `0` is a real answer.
+ * - `count: null`, `tooBroad: false` — NOT ASSESSED (no stated occupation). Render the nudge,
+ *   never a zero. Same shape and same meaning as `companyWatchSchema.matchingAdCount`.
+ * - `count: null`, `tooBroad: true` — the watch is too broad to grade. Also never a zero.
+ *
+ * `nullable()`, never `optional()`: the wire shape does not vary with the answer (ADR 0120).
+ */
+export const myMatchingAdCountSchema = z
+  .object({
+    count: z.number().int().nonnegative().nullable(),
+    tooBroad: z.boolean(),
+    // #1681 part 2 — the fourth state. `count: null, tooBroad: false, notMaterialised: true` means
+    // the criterion's company set has not been computed for its CURRENT predicate, so there was
+    // nothing to grade. Distinct from NOT ASSESSED (which is about the user's profile) and from
+    // TOO BROAD (which is a refusal); all three are non-numbers and none of them is a zero.
+    notMaterialised: z.boolean(),
+  })
+  // The backend DTO rejects this combination in its constructor, so it cannot be produced. The ACL
+  // boundary rejects it too, because the one way it could ever arrive is the one that matters: a
+  // count computed over a TRUNCATED set, which is a floor. Rendering a floor as an exact number is
+  // the defect the refusal bound exists to prevent, and "cannot be shown" beats a wrong number.
+  .refine((m) => !((m.tooBroad || m.notMaterialised) && m.count !== null), {
+    message: "en vägran utesluter ett count",
+  })
+  .refine((m) => !(m.tooBroad && m.notMaterialised), {
+    message: "tooBroad och notMaterialised utesluter varandra",
+  });
+export type MyMatchingAdCount = z.infer<typeof myMatchingAdCountSchema>;
+
+/**
+ * #1656 (b) — the criterion's two AD numbers side by side (`GET /{id}/ad-count`): how many active
+ * ads exist, and how many of them match me. Two members because they are two questions with two
+ * honesty rules — `ads` saturates and may render "10 000+", `matching` is exact or absent.
+ */
+export const criterionAdCountResponseSchema = z.object({
+  ads: criterionAdMagnitudeSchema,
+  matching: myMatchingAdCountSchema,
+});
+export type CriterionAdCountResponse = z.infer<typeof criterionAdCountResponseSchema>;
+
+// ── The saved criterion (GET /) ────────────────────────────────────────────
+// Declared HERE, after the two ad schemas, because #1681 part 2 gave each criterion the same
+// two numbers the detail page shows and a const cannot be referenced before it is declared.
+// The wire order is unaffected; only this file's declaration order is.
+
+/**
+ * One criterion as the owner sees it — RAW codes + the user's optional label (mirrors backend
+ * `CompanyWatchCriterionDto`). The human display-label ("Dataprogrammering m.fl. · Stockholm m.fl.")
+ * is deliberately NOT resolved server-side: the FE already holds the reference tree and derives it
+ * there (`lib/company-criteria/display-label.ts`) — a second label authority could only drift.
+ * `label` is null when the user gave the criterion no name.
+ */
+export const companyWatchCriterionSchema = z.object({
+  id: z.string(),
+  sniCodes: z.array(z.string()),
+  municipalityCodes: z.array(z.string()),
+  label: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  // #1681 part 2 — the same two numbers the detail page shows, in the same shapes, so the list and
+  // the detail page cannot disagree about one watch. Klas: "samma siffror som redan finns på smarta
+  // bevakningar, och länkar så man kan se annonserna direkt".
+  ads: criterionAdMagnitudeSchema,
+  matching: myMatchingAdCountSchema,
+});
+export type CompanyWatchCriterion = z.infer<typeof companyWatchCriterionSchema>;
+
+/** `GET /company-watch-criteria` returns a bare array (unpaginated — hard-capped at 20 per user). */
+export const listCompanyWatchCriteriaResultSchema = z.array(companyWatchCriterionSchema);
+export type ListCompanyWatchCriteriaResult = z.infer<
+  typeof listCompanyWatchCriteriaResultSchema
+>;
+
+/**
+ * The composed ad-browse response (mirrors the Api's `CriterionAdBrowseResponse`): the paginated ad
+ * page and the honest ad magnitude, side by side — the same shape, and the same reason, as
+ * {@link companyBrowseResponseSchema}. `ads.totalCount` SATURATES at the pagination cap and is a
+ * pagination quantity ONLY; the headline number is `magnitude`.
+ */
+export const criterionAdBrowseResponseSchema = z.object({
+  ads: pagedResultWithTotalPages(jobAdDtoSchema),
+  magnitude: criterionAdMagnitudeSchema,
+  // `null` means the caller did not ask for the matching view (ADR 0120's corollary: null is "we
+  // did not ask", not an error). Present whenever `onlyMatching` was requested — including the two
+  // arms where the filter is INERT, which is how the page knows to explain itself instead of
+  // showing an unexplained unfiltered list.
+  matching: myMatchingAdCountSchema.nullable(),
+  // #1681 part 2 — same reason as the companies response.
+  criterion: criterionIdentitySchema,
+});
+export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
 
 // ── The wire predicate (create / update / preview input) ────────────────────
 
@@ -143,3 +297,43 @@ export interface CriterionPredicateInput {
   readonly sniCodes: ReadonlyArray<string>;
   readonly municipalityCodes: ReadonlyArray<string>;
 }
+
+/**
+ * #1682 — `GET /api/v1/me/company-watch-criteria/occupation-divisions?q=`: a typed OCCUPATION word
+ * resolved to the occupation groups it denotes and, per group, where that occupation's employers sit
+ * by SNI huvudgrupp, counted from our own ads. Codes only — the division names come from the
+ * reference tree the picker already holds (ADR 0137: a term that translates travels as a code).
+ * The three states are the wire form of the backend's `OccupationDivisionProfileState`; the nullable
+ * members are non-null exactly under the state that has them, and the schema does not re-encode
+ * that invariant — the renderer branches on `state` and never reads a number the state does not carry.
+ * Under `profiled` every ad is in exactly one of three places — `divisions`, `belowThreshold*` (real
+ * huvudgrupper under the share cut) or `withoutDivision*` (no huvudgrupp known) — so the surface can
+ * account for the whole denominator.
+ */
+export const divisionShareSchema = z.object({
+  code: z.string(),
+  adCount: z.number().int(),
+  sharePercent: z.number().int(),
+});
+export type DivisionShare = z.infer<typeof divisionShareSchema>;
+
+export const occupationDivisionCandidateSchema = z.object({
+  occupationGroupConceptId: z.string(),
+  label: z.string(),
+  matchedOn: z.string(),
+  state: z.enum(["profiled", "tooFewAds", "notProfiled"]),
+  totalAds: z.number().int().nullable(),
+  divisions: z.array(divisionShareSchema).nullable(),
+  belowThresholdAdCount: z.number().int().nullable(),
+  belowThresholdSharePercent: z.number().int().nullable(),
+  withoutDivisionAdCount: z.number().int().nullable(),
+  withoutDivisionSharePercent: z.number().int().nullable(),
+  profiledAt: z.string().nullable(),
+});
+export type OccupationDivisionCandidate = z.infer<typeof occupationDivisionCandidateSchema>;
+
+export const occupationDivisionsSchema = z.object({
+  word: z.string(),
+  occupations: z.array(occupationDivisionCandidateSchema),
+});
+export type OccupationDivisions = z.infer<typeof occupationDivisionsSchema>;

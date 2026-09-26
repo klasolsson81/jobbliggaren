@@ -707,10 +707,11 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
             var email = $"drill-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "RestoreDrillPass123!"))
+            (await userManager.CreateAsync(user))
                 .Succeeded.ShouldBeTrue("seed: the Identity user must be created");
 
-            var seeker = JobSeeker.Register(user.Id, "Restore Drill Seed", new FixedClock(deletedAt.AddDays(-1))).Value;
+            var clock = new FixedClock(deletedAt.AddDays(-1));
+            var seeker = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
             jsId = seeker.Id;

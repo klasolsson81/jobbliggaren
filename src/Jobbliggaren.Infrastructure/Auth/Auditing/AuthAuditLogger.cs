@@ -1,3 +1,6 @@
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -11,22 +14,10 @@ public sealed partial class AuthAuditLogger(
     IIpAnonymizer ipAnonymizer)
     : IAuthAuditLogger
 {
-    public void LoginSucceeded(Guid userId, string sessionIdPrefix)
+    public void LoginSucceeded(Guid userId, string sessionIdPrefix, LoginMethod method)
     {
         var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, resolvedIp, resolvedAgent);
-    }
-
-    public void LoginFailed(string emailHash)
-    {
-        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogLoginFailed(logger, "login_failed", emailHash, resolvedIp, resolvedAgent);
-    }
-
-    public void AccountLockedOut(string emailHash)
-    {
-        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogAccountLockedOut(logger, "account_locked_out", emailHash, resolvedIp, resolvedAgent);
+        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, method, resolvedIp, resolvedAgent);
     }
 
     public void LogoutSucceeded(Guid userId, string sessionIdPrefix)
@@ -35,24 +26,31 @@ public sealed partial class AuthAuditLogger(
         LogLogoutSucceeded(logger, "logout_succeeded", userId, sessionIdPrefix, resolvedIp);
     }
 
-    public void EmailConfirmationResent(Guid userId)
+    public void LoginChallengeIssued(
+        Guid userId, LoginChallengeKind challengeKind, string? ipAddress, string? userAgent)
     {
-        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogEmailConfirmationResent(logger, "email_confirmation_resent", userId, resolvedIp, resolvedAgent);
-    }
-
-    public void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent)
-    {
-        // Carried, not extracted. ExtractRequestContext() would return the "unknown" label here because
-        // the caller is a background service with no HttpContext — see the port's overload docs. The
-        // fallbacks match what ExtractRequestContext produces, so the two overloads write the same
-        // shape and a reader cannot tell which path wrote a line by its format alone.
-        LogPasswordResetRequested(
+        // Carried, not extracted. ExtractRequestContext() would return the "unknown" label here because the
+        // caller is the dispatch consumer, with no HttpContext. The fallbacks match what ExtractRequestContext
+        // produces, so a line's format does not tell which path wrote it.
+        LogLoginChallengeIssued(
             logger,
-            "password_reset_requested",
+            "login_challenge_issued",
             userId,
+            challengeKind,
             ipAddress ?? IIpAnonymizer.UnknownLabel,
             userAgent ?? string.Empty);
+    }
+
+    public void ReauthenticationSucceeded(Guid userId, GrantPurpose purpose)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogReauthenticationSucceeded(logger, "reauthentication_succeeded", userId, purpose, resolvedIp, resolvedAgent);
+    }
+
+    public void ReauthenticationFailed(Guid userId, GrantPurpose purpose)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogReauthenticationFailed(logger, "reauthentication_failed", userId, purpose, resolvedIp, resolvedAgent);
     }
 
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
@@ -73,34 +71,30 @@ public sealed partial class AuthAuditLogger(
     }
 
     [LoggerMessage(1001, LogLevel.Information,
-        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Ip={Ip} UserAgent={UserAgent}")]
+        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Method={Method} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogLoginSucceeded(
-        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, string ip, string userAgent);
-
-    [LoggerMessage(1002, LogLevel.Warning,
-        "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]
-    private static partial void LogLoginFailed(
-        ILogger logger, string auditEvent, string emailHash, string ip, string userAgent);
-
-    [LoggerMessage(1004, LogLevel.Warning,
-        "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]
-    private static partial void LogAccountLockedOut(
-        ILogger logger, string auditEvent, string emailHash, string ip, string userAgent);
+        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, LoginMethod method, string ip,
+        string userAgent);
 
     [LoggerMessage(1003, LogLevel.Information,
         "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Ip={Ip}")]
     private static partial void LogLogoutSucceeded(
         ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, string ip);
 
-    [LoggerMessage(1005, LogLevel.Information,
-        "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
-    private static partial void LogEmailConfirmationResent(
-        ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+    // #1735. UserId and the mail kind only — never the address, the code or the link.
+    [LoggerMessage(1011, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} ChallengeKind={ChallengeKind} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogLoginChallengeIssued(
+        ILogger logger, string auditEvent, Guid userId, LoginChallengeKind challengeKind, string ip, string userAgent);
 
-    // #1171. UserId only — never the address and never the token. The token is a bearer credential for
-    // the account until it is used, and this level reaches a durable sink (CLAUDE.md §11, #1208).
-    [LoggerMessage(1006, LogLevel.Information,
-        "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
-    private static partial void LogPasswordResetRequested(
-        ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+    // #1739. Never the address, the code or the grant.
+    [LoggerMessage(1019, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} Purpose={Purpose} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogReauthenticationSucceeded(
+        ILogger logger, string auditEvent, Guid userId, GrantPurpose purpose, string ip, string userAgent);
+
+    [LoggerMessage(1020, LogLevel.Warning,
+        "AuditEvent={AuditEvent} UserId={UserId} Purpose={Purpose} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogReauthenticationFailed(
+        ILogger logger, string auditEvent, Guid userId, GrantPurpose purpose, string ip, string userAgent);
 }

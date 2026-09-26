@@ -11,6 +11,7 @@ import type {
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 import {
   classifyOrtConcept,
   type OrtGranularity,
@@ -36,11 +37,6 @@ type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
  * Saknas hela `match`-propen (anonym / ingen träffdata) renderar anroparen
  * INGEN sektion alls (frånvaro, ej teater — ADR 0053).
  */
-
-// Kanonisk länk — IDENTISK med Översikt setup-nudgen (oversikt-page.tsx:181)
-// och /jobb-disclosuren. Texten resolveras via next-intl (`ui.match.settingsCta`,
-// SPOT med Översikt-/toolbar-disclosuren — ingen drift mellan ytor).
-const MATCH_SETTINGS_HREF = "/installningar#matchning";
 
 // CV-import-länk för signposten "ladda upp CV" (PR-B2). Samma route som
 // matchnings-kortets CV-förslag (importCvHref).
@@ -291,7 +287,7 @@ function unnamedEvidence(
 }
 
 /**
- * Vad Region-raden behöver utöver sin radmodell: register-posterna med sina
+ * Vad `regionFit`-raden behöver utöver sin radmodell: register-posterna med sina
  * concept-id kvar, plus kartan som klassar dem.
  *
  * ETT värde och inte två props — kartan utan posterna, eller posterna utan
@@ -306,8 +302,7 @@ type OrtEvidence = {
 
 /**
  * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan `ort`
- * faller raden tillbaka på den generiska "Du har:"/"Annonsen efterfrågar
- * även:"-formen (bakåtkompat / degraderad taxonomi).
+ * faller raden tillbaka på den generiska bevisformen (bakåtkompat).
  */
 function RegionFitEvidence({
   ort,
@@ -343,7 +338,12 @@ function RegionFitEvidence({
         // Oklassificerbart koncept: samma meningsram som syskonen, men med den
         // o-granulära termen "ort" — vi kan belägga att det ÄR en ort (raden är
         // ort-dimensionen), bara inte om det är en kommun eller ett län.
-        <span>{t("ort.matchedPlain", { items: matched.plain.join(", ") })}</span>
+        <span>
+          {t("ort.matchedPlain", {
+            count: matched.plain.length,
+            items: matched.plain.join(", "),
+          })}
+        </span>
       )}
       {missing.municipalities.length > 0 && (
         <span className="jp-modal__matchrow-missing">
@@ -359,7 +359,10 @@ function RegionFitEvidence({
       )}
       {missing.plain.length > 0 && (
         <span className="jp-modal__matchrow-missing">
-          {t("ort.missingPlain", { items: missing.plain.join(", ") })}
+          {t("ort.missingPlain", {
+            count: missing.plain.length,
+            items: missing.plain.join(", "),
+          })}
         </span>
       )}
     </>
@@ -369,7 +372,7 @@ function RegionFitEvidence({
 /**
  * Per-ska-krav-checklista (#5b, ADR 0079 / STEG 2) — visar VARJE krav annonsen
  * ställer med en uppfyllt/saknas-indikator per rad, i stället för den generiska
- * "Du har / Annonsen efterfrågar även"-formen. Komponerad FE-side ur de
+ * bevisformen. Komponerad FE-side ur de
  * redan-på-tråden `matched`/`missing`-arrayerna (CTO-dom FE-only — ingen
  * backend-ändring; varje matchad Display = uppfyllt krav, varje saknad = ej
  * uppfyllt). `matched` (✓, success-ink) först, sedan `missing` (NEUTRAL ink,
@@ -453,7 +456,7 @@ function MatchRow({
     detail.unnamedCount > 0
       ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
       : null;
-  // Granularitets-uppdelad bevisrad bara för Region OCH bara när beviset finns.
+  // Granularitets-uppdelad bevisrad bara för `regionFit` OCH bara när beviset finns.
   const useOrtGranularity = dimensionKey === "regionFit" && ort !== undefined;
   // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
   // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
@@ -467,6 +470,16 @@ function MatchRow({
   // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
   // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
   const isTitleDim = dimensionKey === "titleSimilarity";
+  // #1635 — en anställningsform är ett attribut hos tjänsten som arbetsgivaren
+  // sätter, inte en kvalifikation den sökande bär: annonsen ERBJUDER den. Egen
+  // ramfamilj i paritet med `ort.*`, aldrig den generiska ramens kompetens-verb.
+  const isEmploymentDim = dimensionKey === "employmentFit";
+  // #1627 — `alsoRequested` syftar tillbaka på `youHave`-spannet, som gatas på
+  // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
+  // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
+  // scorer-metoderna, och att grunda renderingen på det sammanfallet vore just
+  // härledningen ur (verdict, tomhet, dimension) som #1598/#1611 avvecklade.
+  const missingFrame = detail.matched.length > 0 ? "alsoRequested" : "requested";
 
   return (
     <div className="jp-modal__matchrow">
@@ -511,11 +524,17 @@ function MatchRow({
         ) : (
           <>
             {detail.matched.length > 0 && (
-              <span>{t("youHave", { items: detail.matched.join(", ") })}</span>
+              <span>
+                {t(isEmploymentDim ? "employment.matched" : "youHave", {
+                  items: detail.matched.join(", "),
+                })}
+              </span>
             )}
             {detail.missing.length > 0 && (
               <span className="jp-modal__matchrow-missing">
-                {t("alsoRequested", { items: detail.missing.join(", ") })}
+                {t(isEmploymentDim ? "employment.missing" : missingFrame, {
+                  items: detail.missing.join(", "),
+                })}
               </span>
             )}
           </>
@@ -538,7 +557,7 @@ export interface JobAdMatchSectionProps {
   /**
    * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län), härledd FE-side ur
    * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
-   * generiska bevisformen (bakåtkompat / degraderad taxonomi).
+   * generiska bevisformen (bakåtkompat).
    */
   ortGranularityByConceptId?: Record<string, OrtGranularity>;
 }
@@ -620,7 +639,7 @@ export function JobAdMatchSection({
             dimensionKey={key}
             detail={rows[key]}
             t={t}
-            // Granularitets-uppdelning bara för Region-raden (kommun vs län).
+            // Granularitets-uppdelning bara för `regionFit`-raden (kommun vs län).
             // Posterna kommer från `match.regionFit` och inte från radmodellen:
             // klassningen sker på concept-id, som `splitRegisterRow` inte bär.
             ort={

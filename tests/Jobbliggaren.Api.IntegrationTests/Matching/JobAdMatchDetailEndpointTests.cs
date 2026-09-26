@@ -71,7 +71,7 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
     }
@@ -245,7 +245,7 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
     // ---------------------------------------------------------------
     // Primary-CV seeding for the AUTHENTICATED user — the endpoint reads the
     // current user's primary CV, so the CV must hang off the REGISTERED user's
-    // JobSeeker (RegisterCommandHandler created it). We locate that seeker by the
+    // JobSeeker. We locate that seeker by the
     // unique occupation-group we stated, warm its DEK, then attach a primary
     // Resume whose Master content carries the given skill LABELS (encrypted).
     // ---------------------------------------------------------------

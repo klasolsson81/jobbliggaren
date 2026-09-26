@@ -37,7 +37,7 @@ public class GetParsedResumeMapperTests
             new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Degraded, []),
         ]);
 
-        var owner = JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id;
+        var owner = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value.Id;
         return ParsedResume.Create(
             owner, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Anna Andersson\nLedde teamet.", confidence,
@@ -111,7 +111,7 @@ public class GetParsedResumeMapperTests
             profile: null,
             experience: [new ParsedExperience(null, null, null, "Obekant rad ur CV:t")]);
         var confidence = ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed);
-        var owner = JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id;
+        var owner = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value.Id;
         var artifact = ParsedResume.Create(
             owner, "scan.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Obekant rad ur CV:t", confidence, PersonnummerScanOutcome.None, [],
@@ -151,7 +151,7 @@ public class GetParsedResumeMapperTests
             profile: null,
             preamble: preamble);
         var confidence = ParseConfidence.Failed(ParseFallbackReason.NoSectionsDetected);
-        var owner = JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id;
+        var owner = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value.Id;
         return ParsedResume.Create(
             owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Anna Andersson", confidence, scan ?? PersonnummerScanOutcome.None, [],

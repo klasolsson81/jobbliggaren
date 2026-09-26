@@ -72,6 +72,18 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
   });
 
+  // The actor: auto-promote composes the CV with no name (AutoPromoteContentMapper, #1741), so a
+  // canonical CV's personalInfo.fullName arrives as null. Pinned over the wire by
+  // GetParsedResumeEndpointTests.Import_for_an_account_without_a_name_promotes_and_the_canonical_review_misses_no_name.
+  // A null parses; an absent key is still refused by the test above.
+  it("accepts a null personalInfo.fullName", () => {
+    const nameless = {
+      ...validContent,
+      personalInfo: { ...validContent.personalInfo, fullName: null },
+    };
+    expect(resumeContentDtoSchema.parse(nameless).personalInfo.fullName).toBeNull();
+  });
+
   it("rejects when experience.startDate missing", () => {
     const broken = {
       ...validContent,

@@ -269,7 +269,6 @@ public static class ErasureCascadeRegistry
         // SQL arm over the whole container searches both, which is why both are claimed here.
         new("JobSeekerProfiles",
             [
-                "job_seekers.display_name",
                 "job_seekers.match_preferences",
                 "job_seekers.preferences",
                 "job_seekers.Language",
@@ -430,6 +429,26 @@ public static class ErasureCascadeRegistry
             ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
 
+            // #1681 (ADR 0139) — the criterion's two MATERIALISED tables. Both are written ONLY by
+            // CompanyWatchCriterionMaterialiser out of company_register; no request body, no user
+            // text, reaches either. See the written ground for why the org.nr column is a closed
+            // domain HERE while company_watches.organization_number one table over is searched.
+            ["company_watch_criterion_members.organization_number"] =
+                ErasureColumnDisposition.NotRecruiterData,
+            ["company_watch_criterion_materialisations.state"] =
+                ErasureColumnDisposition.NotRecruiterData,
+            // #1681 part 2 — the predicate fingerprint. A closed domain by construction rather than by
+            // convention: its ONLY writer is CompanyWatchCriterionMemberStore.ReplaceAsync, bound from
+            // CriteriaFingerprint.Of, which emits exactly 64 lower-case hex characters whatever it is
+            // given. No request body and no recruiter text can reach the column, and no value it can
+            // hold carries recruiter data even in principle.
+            //
+            // ⚠ This settles the Art. 17 disposition of the COLUMN. It does NOT settle whether this
+            // table belongs on the accepted restore-exposure list — that is ADR 0139 Klas-beviljande 3,
+            // still open and still the controller's (ADR 0139 Implementationsstatus).
+            ["company_watch_criterion_materialisations.criteria_fingerprint"] =
+                ErasureColumnDisposition.NotRecruiterData,
+
             // #1435 - company_watches left the wholesale-exclusion list. target_type is a two-value
             // enum persisted BY NAME and never bound from a request body; brand_group_id is gated
             // by BOTH a slug regex and a catalogue existence check on its only write path. Those
@@ -471,15 +490,19 @@ public static class ErasureCascadeRegistry
 
             // ── job_seekers: her own profile row, searched ───────────────────────────────────
             // #1435. The wholesale ground said "Not one column accepts free text ABOUT A THIRD
-            // PARTY". display_name accepts any Unicode under 200 chars that is not a personnummer;
-            // match_preferences accepts six lists of shape-validated tokens; and `Language` inside
+            // PARTY". match_preferences accepts six lists of shape-validated tokens; and `Language` inside
             // the `preferences` container accepts anything at all. `preferences` and `Language` are
             // the same bytes - the model reports the container column and the JSON property inside
             // it separately, and one arm over the whole container covers both.
-            ["job_seekers.display_name"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.match_preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.Language"] = ErasureColumnDisposition.MatchedHumanErases,
+
+            // ── job_seekers: the terms-acceptance stamp (#1736, ADR 0142 D6) ─────────────────
+            // Two version tokens whose sole write path is TermsAcceptance.AcceptCurrent — a Domain
+            // constant, the same shape as resume_files.pnr_consent_dialog_version. No user write path.
+            ["job_seekers.terms_version"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_seekers.privacy_policy_version"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── user-authored, DEK-ENCRYPTED: held, and NOT searchable ───────────────────────
             // Form A (ADR 0049 C3 / 0066) — the column carries `v1:<base64>` at rest, sealed under
@@ -608,6 +631,14 @@ public static class ErasureCascadeRegistry
             ["taxonomy_relations.source_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.related_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.kind"] = ErasureColumnDisposition.NotRecruiterData,
+            // #1682 (ADR 0141) — the occupation × SNI-division profile: an aggregate over job_ads ⋈
+            // company_register keyed on occupation-group concept id and huvudgrupp code, plus a
+            // one-row run record. No column can hold a recruiter's identifier — the codes are closed
+            // taxonomy/SNI values and profile_key is a constant — and the count an erased ad once
+            // contributed vanishes at the next rebuild, since Erased is outside the job's allow-list.
+            ["occupation_division_profiles.occupation_group_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["occupation_division_profiles.division_code"] = ErasureColumnDisposition.NotRecruiterData,
+            ["occupation_division_profile_runs.profile_key"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
@@ -729,19 +760,9 @@ public static class ErasureCascadeRegistry
                 + "written. That catalogue has no runtime mutation surface; it changes by PR only.",
 
             ["job_seekers:MatchedHumanErases"] =
-                "FOUR KEYS, THREE COLUMNS: `preferences` and `Language` are the same bytes - the "
+                "`preferences` and `Language` are the same bytes - the "
                 + "model reports the OwnsOne(...).ToJson() container column and the JSON property "
                 + "inside it separately, and one arm over the whole container covers both. "
-                + "display_name is plaintext varchar(200) with no converter. ValidateDisplayName "
-                + "refuses empty, over-length and a personnummer (#1117) and NOTHING else, so a "
-                + "recruiter's name typed into an account name persists. The table sat on the "
-                + "wholesale-exclusion list because this IS her own datum - but the admission rule "
-                + "is a CONJUNCTION, and its second half fails: the write path DOES receive a third "
-                + "party's free text. The remedy is not constructible without her, since the "
-                + "invariant refuses empty and a system does not rename a person; a human asks her. "
-                + "That invariant is also FORWARD-ONLY (EF materialises an existing row through the "
-                + "private constructor) with no backfill job, so rows written before it stand - "
-                + "which is a reason to SEARCH this column, never to trust it. "
                 + "match_preferences is jsonb holding six lists of up to 400 elements, every element "
                 + "gated by ^[A-Za-z0-9_-]{1,32} and by nothing else - no concept-id is resolved "
                 + "against any taxonomy table on that path. Same false ground, same shape, as "
@@ -751,6 +772,14 @@ public static class ErasureCascadeRegistry
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
                 + "No key is named in the SQL, so a member added to the container is searched the "
                 + "day it lands.",
+
+            ["job_seekers:NotRecruiterData"] =
+                "Closed domain: terms_version and privacy_policy_version are the version tokens of the "
+                + "Art. 6(1)(b) terms stamp (#1736, ADR 0142 D6). Their sole write path is "
+                + "TermsAcceptance.AcceptCurrent, which stamps two Domain constants; no request carries "
+                + "a version and no user text reaches either column. The same shape as "
+                + "resume_files.pnr_consent_dialog_version. terms_accepted_at is timestamptz and "
+                + "outside the text sweep.",
 
             ["application_notes:HeldButNotSearchable"] =
                 "HELD, AND WE CANNOT SEARCH IT. application_notes.content is encrypted at rest "
@@ -1016,6 +1045,38 @@ public static class ErasureCascadeRegistry
                 + "codes from fixed code lists. The criterion IS its codes; the only free-text column "
                 + "on this table is `label`, which is searched.",
 
+            ["company_watch_criterion_members:NotRecruiterData"] =
+                "Closed domain: `organization_number` is a ten-digit legal-entity org.nr, and the "
+                + "ground is NOT the one company_watches.organization_number uses one table over - "
+                + "THAT column is SEARCHED precisely because for an enskild firma an org.nr IS her "
+                + "personnummer. Here the same datum cannot arrive in `organization_number`, for two "
+                + "reasons that are independent and both pinned. (1) PROVENANCE: every value is "
+                + "copied from "
+                + "company_register, which is legal-entities-only at ingest (ADR 0091 - SCB is "
+                + "queried with Juridisk form != 10 and ScbLegalEntityFilter drops any pnr-shaped "
+                + "org.nr before persistence, pinned at the third-digit boundary). No user authors "
+                + "into this table at all; the only write path is the materialisation job. "
+                + "(2) THIS TABLE'S OWN GUARD: the job re-applies "
+                + "OrganizationNumber.IsPersonnummerShaped() at its own write boundary and DROPS + "
+                + "COUNTS the value class (CompanyWatchCriterionMemberFilter, unit-pinned at the same "
+                + "boundary, count surfaced on the state row). That second guard exists exactly so "
+                + "this ground does not rest on another subsystem's ingest invariant - the #454 "
+                + "lesson - and it is what makes 'a natural person's identifier cannot be here' a "
+                + "claim about THIS write path rather than about a neighbour's. Neither reason is "
+                + "'we judged it unlikely': both are read off the write path.",
+
+            ["company_watch_criterion_materialisations:NotRecruiterData"] =
+                "Closed domain, per column. `state` is the two-member MaterialisationState enum "
+                + "(Materialised / TooBroad) stored BY NAME (HasConversion<string>, max 20), written "
+                + "only by the materialisation job from a value it computed itself. "
+                + "`criteria_fingerprint` (#1681 part 2) is a fixed-width digest: its only writer is "
+                + "CompanyWatchCriterionMemberStore.ReplaceAsync, bound from CriteriaFingerprint.Of, "
+                + "which emits exactly 64 lower-case hex characters whatever it is given - so the "
+                + "column's domain is [0-9a-f]{64} by construction, not by convention, and no "
+                + "recruiter text can be represented in it even in principle. No request body binds "
+                + "either column, and the remaining four are the criterion_id key, two counts and a "
+                + "timestamp.",
+
             ["taxonomy_concepts:NotRecruiterData"] =
                 "Closed domain: concept_id / parent_concept_id are taxonomy identifiers, label is "
                 + "the taxonomy's own display label, and kind is the concept-type enum stored by "
@@ -1026,5 +1087,20 @@ public static class ErasureCascadeRegistry
                 "Closed domain: source_concept_id / related_concept_id are taxonomy identifiers "
                 + "and kind is the relation-type enum stored by name, from the same taxonomy sync "
                 + "as taxonomy_concepts. Ids and enum names only.",
+
+            ["occupation_division_profiles:NotRecruiterData"] =
+                "Closed domain (#1682, ADR 0141): occupation_group_concept_id is copied from "
+                + "job_ads.occupation_group_concept_id (a taxonomy identifier) and division_code is "
+                + "LEFT(sni_codes[1], 2) from company_register or one of two non-digit sentinels. The "
+                + "only write path is OccupationDivisionProfileStore.RebuildAsync, a GROUP BY over "
+                + "those two columns - no user, no free text and no ad text can reach the table, and "
+                + "an ad an erasure removed stops contributing at the next rebuild because Erased is "
+                + "outside the job's status allow-list.",
+
+            ["occupation_division_profile_runs:NotRecruiterData"] =
+                "Closed domain (#1682, ADR 0141): profile_key is the single constant "
+                + "OccupationDivisionProfileRun.CurrentKey, written only by the same RebuildAsync "
+                + "upsert; the other columns are a timestamp and five integer counters. Nothing on "
+                + "the row can hold an identifier.",
         };
 }

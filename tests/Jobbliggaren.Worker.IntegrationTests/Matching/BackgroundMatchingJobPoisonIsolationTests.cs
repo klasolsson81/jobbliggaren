@@ -322,7 +322,7 @@ $fn$ LANGUAGE plpgsql;";
         var clock = new FixedClock(Now);
 
         var userId = Guid.NewGuid();
-        var jobSeeker = JobSeeker.Register(userId, "Poison-isolation seed", clock).Value;
+        var jobSeeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
 
         var prefs = MatchPreferences.Create(
             preferredOccupationGroups: [OccupationGroup],

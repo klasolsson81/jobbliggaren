@@ -12,6 +12,7 @@
 docs/current-work.md
 docs/current-work-archive.md
 docs/steg-tracker.md
+docs/steg-tracker-archive.md
 
 # docs/tech-debt.md + docs/tech-debt-archive.md were REMOVED from this list
 # 2026-08-02 (ADR 0121, PR #1173) when the TD register was retired.

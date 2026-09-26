@@ -6,6 +6,7 @@
     "ansokningar": "Mina ansökningar",
     "foretag": "Företag",
     "cv": "CV",
+    "minaSidor": "Mina sidor",
     "brandHome": "Jobbliggaren, startsida"
   },
   "header": {
@@ -23,8 +24,7 @@
     "empty": "Inga nya aviseringar."
   },
   "userMenu": {
-    "ariaLabel": "Användarmeny",
-    "installningar": "Inställningar",
+    "signedInAs": "Inloggad som",
     "senasteSokningar": "Senaste sökningar",
     "sparadeAnnonser": "Sparade annonser",
     "minaMatchningar": "Mina matchningar",
@@ -37,7 +37,6 @@
     "navAriaLabel": "Meny",
     "close": "Stäng",
     "closeAriaLabel": "Stäng meny",
-    "installningar": "Inställningar",
     "granskning": "Granskning"
   },
   "modal": {
@@ -59,7 +58,6 @@
     "en": "English"
   },
   "dev": {
-    "note": "Utvecklarverktyg, aktiveras med en flagga och tas bort före lansering.",
     "resetButton": "Dev: återställ dina testdata (tas bort före lansering)",
     "confirmTitle": "Återställ dina testdata?",
     "confirmBody": "Ditt CV, dina matchningsval, sparade annonser, senaste sökningar och dina matchningar tas bort. Kontot, dina ansökningar, dina bevakningar och dina sparade sökningar påverkas inte. Det går inte att ångra.",

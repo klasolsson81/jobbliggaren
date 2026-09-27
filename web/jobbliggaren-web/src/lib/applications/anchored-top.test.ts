@@ -3,7 +3,14 @@ import { anchoredDialogStyle, clampAnchoredTop } from "./anchored-top";
 
 describe("anchoredDialogStyle", () => {
   it("anchors the top and keeps only the X centring, overriding the primitive's translate", () => {
-    expect(anchoredDialogStyle(120)).toEqual({ top: "120px", translate: "-50% 0" });
+    expect(anchoredDialogStyle(120)).toMatchObject({ top: "120px", translate: "-50% 0" });
+  });
+
+  it("stops the dialog at the clamp's bottom gutter and scrolls the rest inside it", () => {
+    expect(anchoredDialogStyle(588)).toMatchObject({
+      maxHeight: "calc(100dvh - 588px - 16px)",
+      overflowY: "auto",
+    });
   });
 
   it("never sets a transform, which would compose with the primitive's translate (#1850)", () => {

@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+const ANCHOR_GUTTER = 16;
+
 /**
  * Vertical near-click anchoring for the /ansokningar action dialogs
  * ("Slutför och skicka" / "Logga uppföljning" — design §9: never a fixed top
@@ -22,7 +24,7 @@ export interface AnchoredTopOptions {
 export function clampAnchoredTop(
   clientY: number,
   viewportHeight: number,
-  { gutter = 16, offset = 240, minVisible = 120 }: AnchoredTopOptions = {},
+  { gutter = ANCHOR_GUTTER, offset = 240, minVisible = 120 }: AnchoredTopOptions = {},
 ): number {
   const lowerBound = gutter;
   const upperBound = Math.max(gutter, viewportHeight - gutter - minVisible);
@@ -35,9 +37,19 @@ export function clampAnchoredTop(
  * The dialog primitive centres with Tailwind's `-translate-x-1/2 -translate-y-1/2`,
  * which set the `translate` property, so this overrides `translate` itself. A
  * `transform` would compose with it instead and move the dialog twice (#1850).
+ * The clamp keeps only `minVisible` of the dialog on screen, and a fixed dialog
+ * cannot be scrolled into view, so the height stops at the bottom gutter and the
+ * content scrolls inside it.
  */
 export function anchoredDialogStyle(
   top: number | null | undefined,
 ): CSSProperties | undefined {
-  return top != null ? { top: `${top}px`, translate: "-50% 0" } : undefined;
+  return top != null
+    ? {
+        top: `${top}px`,
+        translate: "-50% 0",
+        maxHeight: `calc(100dvh - ${top}px - ${ANCHOR_GUTTER}px)`,
+        overflowY: "auto",
+      }
+    : undefined;
 }

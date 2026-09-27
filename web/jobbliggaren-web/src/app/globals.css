@@ -7739,8 +7739,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 @media (max-width: 768px) {
   .jp-apptable__th,
-  .jp-apptable__sortbtn,
-  .jp-apptable__cell { height: 44px; }
+  .jp-apptable__sortbtn { height: 44px; }
+  .jp-apptable__cell { height: 45px; }
 }
 /* Lank-overlay: rolltiteln ar radens ENDA <a>, strackt over hela <tr>
    (position:relative pa raden = containing block). Modifierat klick = fullsida. */

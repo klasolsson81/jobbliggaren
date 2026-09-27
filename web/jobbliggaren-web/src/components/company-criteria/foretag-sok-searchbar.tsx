@@ -72,7 +72,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * search (`namn` + hidden `sni`/`kommun` from the applied URL); the org.nr branch and both filter
  * popovers require JS.
  *
- * HYDRATION SPLIT (2026-07-26, the `/jobb` mirror — `jobb-hero-search.tsx:545-568`, `:641-643`).
+ * HYDRATION SPLIT (2026-07-26, the `/jobb` mirror — `jobb-hero-search.tsx`).
  * Once hydrated the visible input is NAMELESS and a hidden input carries the APPLIED name (the
  * `namn` prop, which has already passed the server gate), so a native GET can only ever re-submit a
  * value that was already accepted — never whatever is currently typed. Before hydration the input
@@ -1009,7 +1009,7 @@ export function ForetagSokSearchbar({
             mounted with its content already in place is not reliably announced (the same trap is
             documented in `jobb-hero-search.tsx`), which is why this is not rendered conditionally. */}
         {/* `role="status"` alongside `aria-live` matches the precedent this mirrors
-            (`jobb-hero-search.tsx:634`) and brings `aria-atomic="true"` with it, so a partial update
+            (`jobb-hero-search.tsx`) and brings `aria-atomic="true"` with it, so a partial update
             is read as one sentence rather than in fragments. */}
         <p role="status" aria-live="polite" className="sr-only">
           {announcement}

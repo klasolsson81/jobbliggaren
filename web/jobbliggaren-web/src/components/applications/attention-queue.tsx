@@ -153,11 +153,12 @@ interface AttentionQueueRowProps {
 }
 
 /**
- * En rad i kön (#1827 M1). Rad 1: signalens kicker i dess färg + värdet som
- * urgens-hjälparen räknar fram för signalen (en signal utan värde visar bara
- * kickern). Rad 2: titeln (radens enda länk, sträckt över raden med ::after) och
- * företaget. Till höger radens §11-CTA:er. Status, dagar i steget, händelseraden
- * och bråttom-taggen bär Lista-raden, inte kön.
+ * A row in the queue (#1827 M1). Line 1: the signal's kicker in its colour + the
+ * value the urgency helper derives for the signal (a signal without a value shows
+ * only the kicker). Line 2: the title (the row's only link, stretched over the row
+ * with ::after) and the company. On the right, the row's §11 CTAs. Status, days in
+ * the step, the event line and the urgency tag are carried by the Lista row, not
+ * the queue.
  */
 function AttentionQueueRow({
   signal,

@@ -62,7 +62,7 @@ public static class MeEndpoints
         // (first opt-in immutable Art. 7(1); opt-out records the Art. 7(3) withdrawal). The digest
         // cadence is not part of this contract (PUT /digest-cadence). The current state is READ via
         // GET /profile (the JobSeekerProfileDto projection) — no dedicated read endpoint.
-        // MeWritePolicy (user-owned mutation, parity /match-preferences). 204 / Problem 400.
+        // MeWritePolicy (user-owned mutation, parity /match-preferences).
         group.MapPut("/background-match-notification-consent", async (
             UpdateNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
         {
@@ -75,7 +75,7 @@ public static class MeEndpoints
 
         // ADR 0087 D2 — the digest cadence the two notification consents share and neither owns:
         // PUT = idempotent set of {cadence}, carrying no consent value. READ via GET /profile.
-        // MeWritePolicy (user-owned mutation). 204 / Problem 400.
+        // MeWritePolicy (user-owned mutation).
         group.MapPut("/digest-cadence", async (
             SetDigestCadenceCommand command, IMediator mediator, CancellationToken ct) =>
         {
@@ -95,7 +95,7 @@ public static class MeEndpoints
         // is SHARED with background-match (ADR 0087 D2) and set via /digest-cadence, so it is NOT
         // part of this contract. Without this endpoint the shipped follow-notification rail (PR-4)
         // is unreachable. MeWritePolicy (user-owned mutation, parity
-        // /background-match-notification-consent). 204 / Problem 400.
+        // /background-match-notification-consent).
         group.MapPut("/followed-company-notification-consent", async (
             UpdateFollowedCompanyNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
         {

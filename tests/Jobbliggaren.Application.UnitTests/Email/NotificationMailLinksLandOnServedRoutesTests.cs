@@ -57,10 +57,8 @@ public class NotificationMailLinksLandOnServedRoutesTests
     }
 
     /// <summary>
-    /// Every path a sent notification mail has carried as its settings link: <c>/mina-sidor</c> until #1891,
-    /// <c>/mina-sidor/notiser</c> since. The test above follows only the link the templates build today, so
-    /// once the link moves, nothing else holds the old path (security-auditor, #1891 row 14). A later change
-    /// of the link adds its old path here.
+    /// The test above follows only the link the templates build today, so once the link moves, nothing
+    /// else holds the old path (security-auditor, #1891 row 14).
     /// </summary>
     public static TheoryData<string> PathsSentMailsCarry => new() { "/mina-sidor", "/mina-sidor/notiser" };
 

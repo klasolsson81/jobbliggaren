@@ -26,7 +26,7 @@ const AUTO_CLOSE_MS = 8_000;
  * both the pipeline island and the intercepting-route detail modal publish to
  * the same surface; reused by PR 8 drag + PR 10 bulk).
  *
- * - Status toast: "{company}: {from} → {to}" + Ångra (--jp-gold, underlined) + ✕.
+ * - Status toast: "{company}: {from} → {to}" + Ångra (underlined) + ✕.
  *   Undo = a compensating inverse TransitionTo(previous) via the SAME audited
  *   server action (ADR 0092 D3) — it appends a new timeline row and resets the
  *   day counter; it does NOT erase history (honest-copy bind: the toast claims

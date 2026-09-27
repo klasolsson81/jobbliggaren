@@ -66,3 +66,29 @@ Specificering av `IAppDbContext`:
 - `JobbPilot.Application` — definierar `IAppDbContext`-interface
 - `JobbPilot.Infrastructure` — implementerar `AppDbContext : DbContext, IAppDbContext`
 - Architecture tests — verifierar att inget `Repository`-suffix finns i Application eller Infrastructure (utom eventuella Specification-klasser)
+
+## Amendment 2026-09-27 (ADR 0146)
+
+**Trigger:** ADR 0146's replay policy — `UnitOfWorkBehavior` clearing tracked state and re-running a
+command on a fresh read after a lost optimistic-concurrency race on `job_seekers`.
+
+`IAppDbContext` gains one new member, `ClearTracking()`, beside `Detach` (`IAppDbContext.cs:49-66`).
+It maps to `ChangeTracker.Clear()` and detaches every tracked entity, not just one: after a
+`DbUpdateConcurrencyException`, `UnitOfWorkBehavior` calls it (`UnitOfWorkBehavior.cs:44`) before
+re-running the pipeline, so the re-read materialises fresh rows instead of resolving back to the
+stale tracked instance — and the failed attempt's tracked audit row with it — via EF's identity
+resolution.
+
+**What does not change:** the original decision's sentence *"Exponerar inget EF Core-specifikt utöver
+det (inga `ChangeTracker`, `Database`, etc. i interfacet)"* still holds, for the tracker **as an
+object**. `IAppDbContext` exposes no `ChangeTracker` property, no `Database` property, and nothing
+else EF-Core-shaped beyond `DbSet<T>`, `SaveChangesAsync`, `Detach` and now `ClearTracking`.
+`ClearTracking()` is a narrow, named operation on the tracker — not the tracker itself — the same
+shape `Detach(object entity)` already was. The same PR shows the boundary from the other side:
+`AccountHardDeleter`, which already holds the concrete `AppDbContext` rather than the port, calls
+`db.ChangeTracker.Clear()` directly in its own catch clause (`AccountHardDeleter.cs:315-320`) without
+going through `IAppDbContext` at all — the tracker as an object stays off the port regardless of
+which side of it a caller sits on.
+
+**Referenser:** ADR 0146 D2, D4; `IAppDbContext.cs:49-66`; `UnitOfWorkBehavior.cs:44`;
+`AccountHardDeleter.cs:315-320`.

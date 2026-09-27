@@ -3114,9 +3114,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
    bakåt", §8.4). Additiv — bas-etiketten orörd. */
 .jp-section-label--row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.jp-section-label--row .jp-btn {
+  white-space: nowrap;
 }
 .jp-section-label__hint {
   margin-left: 8px;

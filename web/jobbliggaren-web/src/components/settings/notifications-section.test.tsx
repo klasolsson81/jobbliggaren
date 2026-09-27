@@ -168,6 +168,17 @@ describe("NotificationsSection — the background-match consent", () => {
     expect(groupOf(alert)).toBe(groupOf(toggle));
     expect(screen.queryByText(SAVED)).not.toBeInTheDocument();
   });
+
+  it("adds the refusal to the switch's description while it is shown", async () => {
+    consentMock.mockResolvedValue({ success: false, error: "nej" });
+    const user = userEvent.setup();
+    renderSection();
+    const toggle = screen.getByRole("switch", { name: MATCH });
+
+    await user.click(toggle);
+
+    await waitFor(() => expect(toggle).toHaveAccessibleDescription(`${MATCH_CONSENT} nej`));
+  });
 });
 
 describe("NotificationsSection — the shared cadence", () => {
@@ -205,6 +216,22 @@ describe("NotificationsSection — the shared cadence", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("nej");
     expect(groupOf(alert)).toBe(groupOf(screen.getByRole("radiogroup", { name: CADENCE })));
+  });
+
+  it("describes the selector with a refusal while it is open, and drops the refusal when it closes", async () => {
+    consentMock.mockResolvedValue({ success: false, error: "nej" });
+    const user = userEvent.setup();
+    renderSection({ follow: true });
+    const selector = screen.getByRole("radiogroup", { name: CADENCE });
+
+    await user.click(screen.getByRole("radio", { name: "Dagligen" }));
+    await waitFor(() => expect(selector).toHaveAccessibleDescription("nej"));
+
+    await user.click(screen.getByRole("switch", { name: FOLLOW }));
+
+    await waitFor(() => expect(followConsentMock).toHaveBeenCalledWith({ enabled: false }));
+    expect(screen.queryByText("nej")).not.toBeInTheDocument();
+    expect(selector).toHaveAccessibleDescription("Slå på någon av notiserna för att välja.");
   });
 });
 
@@ -253,7 +280,7 @@ describe("NotificationsSection — one write at a time to the consent endpoint",
 
   it("keeps another control's receipt while a new write is pending", async () => {
     const user = userEvent.setup();
-    renderSection({ match: true });
+    renderSection({ match: true, follow: true });
     await user.click(screen.getByRole("radio", { name: "Dagligen" }));
     const cadenceReceipt = await screen.findByText(SAVED);
 
@@ -362,6 +389,24 @@ describe("NotificationsSection — focus comes back to the control that saved", 
     await act(async () => save.settle({ success: true }));
 
     await waitFor(() => expect(screen.getByRole("radio", { name: "Dagligen" })).toHaveFocus());
+  });
+
+  it("ends on the switch operated last when two writes overlap", async () => {
+    const consentSave = held();
+    const followSave = held();
+    consentMock.mockReturnValue(consentSave.promise);
+    followConsentMock.mockReturnValue(followSave.promise);
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(screen.getByRole("switch", { name: MATCH }));
+    document.documentElement.focus();
+    await user.click(screen.getByRole("switch", { name: FOLLOW }));
+    document.documentElement.focus();
+    await act(async () => consentSave.settle({ success: true }));
+    await act(async () => followSave.settle({ success: true }));
+
+    await waitFor(() => expect(screen.getByRole("switch", { name: FOLLOW })).toHaveFocus());
   });
 
   it("leaves focus alone when the user has moved on", async () => {

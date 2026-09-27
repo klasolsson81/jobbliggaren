@@ -56,6 +56,9 @@ export function NotificationsSection({
   const t = useTranslations("settings");
   const tp = useTranslations("pages.minaSidor");
   const cadenceHintId = useId();
+  const matchErrorId = useId();
+  const followErrorId = useId();
+  const cadenceErrorId = useId();
 
   const [matchEnabled, setMatchEnabled] = useState(initialMatchEnabled);
   const [followEnabled, setFollowEnabled] = useState(initialFollowEnabled);
@@ -75,11 +78,8 @@ export function NotificationsSection({
   const cadenceGroup = useRef<HTMLDivElement>(null);
 
   // A control is `disabled` while its write is pending, and Chromium then drops focus to <body>
-  // (#1391 measurement). When the write settles, focus goes back to the control that started it,
-  // saved or refused, so a keyboard or screen-reader user stays where they were. Nothing moves if
-  // focus went somewhere else in the meantime.
-  const consentReturnRef = useFocusReturn(isSavingConsent);
-  const followReturnRef = useFocusReturn(isSavingFollow);
+  // (#1391 measurement).
+  const returnRef = useFocusReturn(isSavingConsent || isSavingFollow);
 
   const cadenceOptions: ReadonlyArray<SegmentOption<DigestCadence>> = [
     { value: "Daily", label: t("backgroundMatch.cadenceDaily") },
@@ -93,7 +93,7 @@ export function NotificationsSection({
     revert: () => void,
     report: (outcome: WriteOutcome | null) => void,
   ) {
-    consentReturnRef.current = group.current;
+    returnRef.current = group.current;
     report(null);
     startConsentSave(async () => {
       const result = await updateNotificationConsentAction(next);
@@ -109,6 +109,7 @@ export function NotificationsSection({
   function onMatchToggle(nextEnabled: boolean) {
     const previous = matchEnabled;
     setMatchEnabled(nextEnabled);
+    if (!nextEnabled && !followEnabled) setCadenceOutcome(null);
     saveConsent(
       { enabled: nextEnabled, cadence },
       matchGroup,
@@ -130,9 +131,10 @@ export function NotificationsSection({
 
   function onFollowToggle(nextEnabled: boolean) {
     const previous = followEnabled;
-    followReturnRef.current = followGroup.current;
+    returnRef.current = followGroup.current;
     setFollowOutcome(null);
     setFollowEnabled(nextEnabled);
+    if (!nextEnabled && !matchEnabled) setCadenceOutcome(null);
     startFollowSave(async () => {
       const result = await updateFollowedCompanyNotificationConsentAction({
         enabled: nextEnabled,
@@ -157,8 +159,9 @@ export function NotificationsSection({
           checked={matchEnabled}
           onChange={onMatchToggle}
           disabled={isSavingConsent}
+          describedBy={matchOutcome?.ok === false ? matchErrorId : undefined}
         />
-        <Outcome outcome={matchOutcome} />
+        <Outcome id={matchErrorId} outcome={matchOutcome} />
       </div>
 
       <div ref={followGroup} className="jp-settings-group">
@@ -168,15 +171,19 @@ export function NotificationsSection({
           checked={followEnabled}
           onChange={onFollowToggle}
           disabled={isSavingFollow}
+          describedBy={followOutcome?.ok === false ? followErrorId : undefined}
         />
-        <Outcome outcome={followOutcome} />
+        <Outcome id={followErrorId} outcome={followOutcome} />
       </div>
 
       <div ref={cadenceGroup} className="jp-settings-group jp-settings-field">
         <span className="jp-settings-field__label">{t("backgroundMatch.cadenceLabel")}</span>
         <Segment
           aria-label={t("backgroundMatch.cadenceLabel")}
-          aria-describedby={cadenceOpen ? undefined : cadenceHintId}
+          aria-describedby={joinIds(
+            !cadenceOpen && cadenceHintId,
+            cadenceOutcome?.ok === false && cadenceErrorId,
+          )}
           value={cadence}
           onChange={onCadenceChange}
           options={cadenceOptions}
@@ -187,7 +194,7 @@ export function NotificationsSection({
             {t("backgroundMatch.cadenceHintDisabled")}
           </p>
         )}
-        <Outcome outcome={cadenceOutcome} />
+        <Outcome id={cadenceErrorId} outcome={cadenceOutcome} />
       </div>
     </section>
   );
@@ -216,19 +223,29 @@ function useFocusReturn(pending: boolean): RefObject<HTMLDivElement | null> {
  * settings cards have shipped since #1391: a refusal is an assertive alert, otherwise a polite status
  * that stays mounted so a later receipt is announced.
  */
-function Outcome({ outcome }: { outcome: WriteOutcome | null }) {
+function Outcome({ id, outcome }: { id: string; outcome: WriteOutcome | null }) {
   const t = useTranslations("settings");
   const format = useFormatter();
   if (outcome?.ok === false) {
     return (
-      <p role="alert" className="text-body-sm text-danger-600">
+      <p id={id} role="alert" className="jp-settings-group__message text-body-sm text-danger-600">
         {outcome.error}
       </p>
     );
   }
   return (
-    <p role="status" aria-live="polite" className="text-body-sm text-text-secondary">
+    <p
+      role="status"
+      aria-live="polite"
+      className="jp-settings-group__message text-body-sm text-text-secondary"
+    >
       {outcome?.ok ? t("savedAt", { time: formatTime(format, outcome.at) }) : ""}
     </p>
   );
+}
+
+/** The ids of the texts that describe a control, or nothing when none is shown. */
+function joinIds(...ids: ReadonlyArray<string | false>): string | undefined {
+  const shown = ids.filter((id): id is string => id !== false);
+  return shown.length > 0 ? shown.join(" ") : undefined;
 }

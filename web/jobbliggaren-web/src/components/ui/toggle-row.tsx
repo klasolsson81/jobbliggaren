@@ -22,6 +22,8 @@ interface ToggleRowProps {
   checked: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
+  /** Id of further text that describes the switch while it is shown, such as a refused save. */
+  describedBy?: string;
 }
 
 export function ToggleRow({
@@ -30,6 +32,7 @@ export function ToggleRow({
   checked,
   onChange,
   disabled = false,
+  describedBy,
 }: ToggleRowProps) {
   const labelId = useId();
   const descriptionId = useId();
@@ -50,7 +53,10 @@ export function ToggleRow({
         role="switch"
         aria-checked={checked}
         aria-labelledby={labelId}
-        aria-describedby={description ? descriptionId : undefined}
+        aria-describedby={
+          [description ? descriptionId : undefined, describedBy].filter(Boolean).join(" ") ||
+          undefined
+        }
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className="jp-togglerow__switch"

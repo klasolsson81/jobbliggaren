@@ -26,7 +26,7 @@ import type {
   PipelineGroupDto,
 } from "@/lib/dto/applications";
 
-// Synliga kort per kolumn innan "Visa N fler" (design §6). Enkel konstant, ingen
+// Synliga kort per kolumn innan "Visa N till" (design §6). Enkel konstant, ingen
 // config — bara den visuella kapningen; inget döljs permanent.
 const COLUMN_CARD_CAP = 4;
 
@@ -217,7 +217,7 @@ interface BoardColumnProps {
 /**
  * En kolumn (aktivt steg) eller mini-zon (terminal). Samma chassi: 3px toppband
  * i statusfärg (getStatusVariantKey — SAMMA SSOT som rail/status-taggar, ingen
- * drift), mono-namn + antal, kap 4 kort + "Visa N fler", drop-target-
+ * drift), mono-namn + antal, kap 4 kort + "Visa N till", drop-target-
  * highlight via `data-over`. `variant="zone"` ger kompakta kort.
  */
 function BoardColumn({
@@ -258,9 +258,10 @@ function BoardColumn({
     >
       <div className="jp-board-col__head">
         <span className="jp-board-col__name jp-mono">{label}</span>
-        {/* #805 punkt 2: antalet inline "(N)" intill kolumnnamnet (var tidigare
-            en chip-pill) → samma form som Lista/Alla-vyerna (3-vy-konsekvens). */}
-        <span className="jp-board-col__count">({apps.length})</span>
+        {/* #805 punkt 2: antalet inline intill kolumnnamnet (var tidigare en
+            chip-pill), utan parentes (#1827) → samma form som Lista/Alla-vyerna
+            (3-vy-konsekvens). */}
+        <span className="jp-board-col__count">{apps.length}</span>
       </div>
       <div className="jp-board-col__list">
         {apps.length === 0 ? (

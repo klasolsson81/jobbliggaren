@@ -271,7 +271,7 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
         attentionSignal: "DraftDeadlineApproaching",
       })
     );
-    const tag = screen.getByText("Deadline 1 juni");
+    const tag = screen.getByText("Sista ansökningsdag 1 juni");
     expect(tag).toHaveAttribute("data-urgency", "warning");
   });
 

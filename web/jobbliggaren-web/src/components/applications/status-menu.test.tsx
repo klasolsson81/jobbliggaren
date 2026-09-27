@@ -54,8 +54,8 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     await user.click(screen.getByRole("button", { name: "Byt status" }));
 
     const menu = await screen.findByRole("menu");
-    expect(screen.getByText("Flytta till · Aktiv väg")).toBeInTheDocument();
-    expect(screen.getByText("Avslut & vilande")).toBeInTheDocument();
+    expect(screen.getByText("Aktiva steg")).toBeInTheDocument();
+    expect(screen.getByText("Avslut och vilande")).toBeInTheDocument();
     // 10 status-byten + 1 destruktiv "Radera ansökan" (#782). De 10 status-
     // posterna bär färgpricken; delete-posten gör det inte (Trash2-ikon).
     expect(menu.querySelectorAll("[data-slot='dropdown-menu-item']")).toHaveLength(

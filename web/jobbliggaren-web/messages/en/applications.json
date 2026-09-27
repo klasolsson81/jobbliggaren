@@ -74,13 +74,13 @@
     },
     "statusMenu": {
       "trigger": "Change status",
-      "groupActive": "Move to · Active path",
-      "groupClosed": "Closed & dormant",
+      "groupActive": "Active steps",
+      "groupClosed": "Closed and dormant",
       "currentSuffix": "current status",
       "delete": "Delete application"
     },
     "urgency": {
-      "deadline": "Deadline {date}",
+      "deadline": "Application deadline {date}",
       "waitDays": "{days} days without reply",
       "sinceInterview": "{days} days since the interview"
     },
@@ -126,7 +126,7 @@
       "emptyBody": "Select another tab or create a new application.",
       "attentionTitle": "Needs action",
       "sectionShownOfTotal": "showing {shown} of {total}",
-      "showMore": "Show more ({count})"
+      "showMore": "Show {count} more"
     },
     "queue": {
       "title": "Needs action",

@@ -33,7 +33,7 @@ interface AttentionItem {
   application: ApplicationDto;
 }
 
-// Rader synliga innan "Visa fler" (design 2a §4: "Max 4 kort synliga
+// Rader synliga innan "Visa N till" (design 2a §4: "Max 4 kort synliga
 // (tweakbart)"). Enkel konstant, ingen config — gäller bara den visuella
 // kapningen; inget som kräver åtgärd döljs permanent (knappen expanderar).
 const VISIBLE_ROW_CAP = 4;

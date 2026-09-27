@@ -3716,9 +3716,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-section__toggle .jp-section__count {
-  /* #805 punkt 2: antalet sitter nu inline "Skickad (1)" intill etiketten (var
+  /* #805 punkt 2: antalet sitter nu inline "Skickad 1" intill etiketten (var
      margin-left:auto = långt till höger). Liten negativ marginal drar bort en
-     del av head-gapet (10px) så "(1)" binder tätt till statusnamnet. */
+     del av head-gapet (10px) så antalet binder tätt till statusnamnet. */
   margin-left: -4px;
 }
 .jp-section__chevron {
@@ -7490,7 +7490,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-bottom: 8px;
 }
 .jp-board-col__name {
-  /* #805 punkt 2: krymper men växer inte (0 1 auto) så antalet "(N)" sitter
+  /* #805 punkt 2: krymper men växer inte (0 1 auto) så antalet sitter
      adjacent intill namnet i stället för att pushas till kolumnens högerkant. */
   flex: 0 1 auto;
   min-width: 0;
@@ -7501,9 +7501,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-board-col__count {
-  /* #805 punkt 2: inline "(N)"-text intill kolumnnamnet (var en surface-3-chip;
-     ett värde inramat i en låda bryter mot "information är design", regel 2).
-     Samma tabular-(N)-form som Lista/Alla-räknarna → 3-vy-konsekvens. */
+  /* #805 punkt 2: antalet som inline-text intill kolumnnamnet (var en
+     surface-3-chip; ett värde inramat i en låda bryter mot "information är
+     design", regel 2). Samma tabular-form som Lista/Alla-räknarna → 3-vy-
+     konsekvens. */
   flex: 0 0 auto;
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-semibold);

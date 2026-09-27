@@ -8,8 +8,8 @@ import type { ApplicationDto } from "@/lib/dto/applications";
  * CLAUDE.md §5 / ADR 0071): these helpers never decide WHETHER something needs
  * attention. They only turn the already-decided `attentionSignal` plus the raw
  * DTO scalars (`lastStatusChangeAt`, `lastFollowUpAt`, `jobAd.expiresAt`) into
- * the display numbers the design shows ("N dagar i steget", "N DGR UTAN SVAR",
- * "DEADLINE 6 JULI"). Data-grounded or omitted — a missing scalar (deploy-skew)
+ * the display numbers the design shows ("N dagar i steget", "N dgr utan svar",
+ * "Sista ansökningsdag 6 juli"). Data-grounded or omitted — a missing scalar (deploy-skew)
  * yields null, never a fabricated value (§5).
  */
 
@@ -59,7 +59,7 @@ export function urgencyTagFor(
 ): UrgencyTag | null {
   switch (application.attentionSignal) {
     case "DraftDeadlineApproaching": {
-      // Prototyp: "DEADLINE 6 JULI" (warning). Datakälla = annonsens sista
+      // "Sista ansökningsdag 6 juli" (warning). Datakälla = annonsens sista
       // ansökningsdag; saknas den (manuell ansökan utan datum) → ingen tagg.
       const dateIso = application.jobAd?.expiresAt ?? null;
       return dateIso != null

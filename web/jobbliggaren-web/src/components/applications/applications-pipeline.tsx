@@ -173,10 +173,11 @@ export function ApplicationsPipeline({
           </h2>
           {/* I Tavla bär boardets egen verktygsrad antalet ("N ansökningar ·
               N aktiva") — undvik dubbelräkning i rubriken. */}
-          {/* #805 punkt 2: inline "(N)" intill rubriken — samma form som
-              status-sektionerna och Tavla-kolumnerna (3-vy-konsekvens). */}
+          {/* #805 punkt 2: antalet inline intill rubriken, utan parentes som
+              "Kräver åtgärd 6" (#1827) — samma form som status-sektionerna och
+              Tavla-kolumnerna (3-vy-konsekvens). */}
           {view === "lista" && (
-            <span className="jp-section__count">({shownTotal})</span>
+            <span className="jp-section__count">{shownTotal}</span>
           )}
         </div>
 

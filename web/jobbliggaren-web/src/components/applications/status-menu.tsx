@@ -23,7 +23,7 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 
 /**
  * "Byt status ▾"-menyn (#630 PR 7, design §5): 250px popover med grupperna
- * "FLYTTA TILL · AKTIV VÄG" (6 steg) och "AVSLUT & VILANDE" (Accepterad/Nekad/
+ * "Aktiva steg" (6 steg) och "Avslut och vilande" (Accepterad/Nekad/
  * Återtagen + Ghosted). Färgprick (2px-radie kvadrat i stegets statusfärg,
  * samma status-tokens som taggen — WCAG 1.4.1: färgen FÖRSTÄRKER etiketten,
  * bär den aldrig) + namn + ✓ på nuvarande. Alla 10 val alltid tillgängliga —

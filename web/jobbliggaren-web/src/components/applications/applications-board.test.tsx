@@ -177,11 +177,11 @@ describe("ApplicationsBoard — layout", () => {
     ).toBeInTheDocument();
   });
 
-  it("kolumn kapar vid 4 kort + 'Visa 2 fler', expanderar vid klick", () => {
+  it("kolumn kapar vid 4 kort + 'Visa 2 till', expanderar vid klick", () => {
     renderBoard(makeGroups({ Submitted: 6 }));
     const column = screen.getByRole("group", { name: "Skickad" });
     expect(within(column).getAllByRole("article")).toHaveLength(4);
-    const more = within(column).getByRole("button", { name: "Visa 2 fler" });
+    const more = within(column).getByRole("button", { name: "Visa 2 till" });
     fireEvent.click(more);
     expect(within(column).getAllByRole("article")).toHaveLength(6);
   });

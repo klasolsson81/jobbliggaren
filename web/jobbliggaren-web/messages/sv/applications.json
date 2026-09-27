@@ -74,13 +74,13 @@
     },
     "statusMenu": {
       "trigger": "Byt status",
-      "groupActive": "Flytta till · Aktiv väg",
-      "groupClosed": "Avslut & vilande",
+      "groupActive": "Aktiva steg",
+      "groupClosed": "Avslut och vilande",
       "currentSuffix": "nuvarande status",
       "delete": "Radera ansökan"
     },
     "urgency": {
-      "deadline": "Deadline {date}",
+      "deadline": "Sista ansökningsdag {date}",
       "waitDays": "{days} dgr utan svar",
       "sinceInterview": "{days} dgr sedan intervjun"
     },
@@ -126,7 +126,7 @@
       "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
       "attentionTitle": "Kräver åtgärd",
       "sectionShownOfTotal": "visar {shown} av {total}",
-      "showMore": "Visa fler ({count})"
+      "showMore": "Visa {count} till"
     },
     "queue": {
       "title": "Kräver åtgärd",
@@ -194,7 +194,7 @@
       "terminalGroup": "Avslut och vilande"
     },
     "board": {
-      "showMore": "Visa {count} fler",
+      "showMore": "Visa {count} till",
       "showFewer": "Visa färre",
       "emptyColumn": "Inga ansökningar här",
       "emptyZone": "Tomt",

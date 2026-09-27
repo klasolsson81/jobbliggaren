@@ -7,7 +7,7 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { useApplicationPending } from "./application-actions";
 import { ApplicationRow } from "./application-row";
 
-// Synliga rader per ÖPPEN statussektion innan "Visa fler" (design 2a §5). Enkel
+// Synliga rader per ÖPPEN statussektion innan "Visa N till" (design 2a §5). Enkel
 // konstant, ingen config.
 const SECTION_ROW_CAP = 10;
 
@@ -63,7 +63,7 @@ export function StatusSection({
   const rows = expanded ? applications : applications.slice(0, SECTION_ROW_CAP);
   const hiddenCount = shown - rows.length;
 
-  // "Visa fler" → expandera + flytta fokus till sektions-headen, eftersom knappen
+  // "Visa N till" → expandera + flytta fokus till sektions-headen, eftersom knappen
   // försvinner när alla rader visas (annars tappas fokus). Design §5.
   const onShowMore = () => {
     setExpanded(true);
@@ -100,11 +100,12 @@ export function StatusSection({
             aria-hidden="true"
           />
           <span className="jp-section__title-text">{label}</span>
-          {/* #805 punkt 2: antalet inline "Skickad (1)" intill etiketten (var
-              tidigare långt till höger via margin-left:auto). Samma inline-(N)-
-              form som "Alla ansökningar (N)" och Tavla-kolumnerna → de tre
-              vyerna läser konsistent. */}
-          <span className="jp-section__count">({shown})</span>
+          {/* #805 punkt 2: antalet inline "Skickad 1" intill etiketten (var
+              tidigare långt till höger via margin-left:auto), utan parentes
+              (#1827). Samma form som "Alla ansökningar" och Tavla-kolumnerna →
+              de tre vyerna läser konsistent. Mellanslaget hålls i knappens namn
+              ("Skickad 1"); flex-layouten ritar det inte. */}{" "}
+          <span className="jp-section__count">{shown}</span>
         </button>
       </h3>
 

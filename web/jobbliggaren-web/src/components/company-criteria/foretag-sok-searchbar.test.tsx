@@ -327,7 +327,7 @@ describe("ForetagSokSearchbar — the filter change is announced (WCAG 4.1.3)", 
    * React bails out on `Object.is`, the DOM never mutates, and `aria-live` never fires — so every
    * change after the first is TOTAL SILENCE to a screen reader (WCAG 4.1.3). Chromium, before the
    * fix: ticking Upplands Väsby then Vallentuna announced "Filtret Ort eller län är tillagt."
-   * twice. `jobb-hero-search.tsx:370-379` documents the same trap in prose.
+   * twice. `jobb-hero-search.tsx` documents the same trap in prose.
    *
    * Two picks in a row is exactly the sequence `useOptimistic` cannot survive in jsdom, so this
    * asserts on the STRINGS PUSHED TO THE REGION rather than on the resulting selection: each pick

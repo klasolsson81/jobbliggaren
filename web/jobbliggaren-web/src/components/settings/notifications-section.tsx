@@ -18,6 +18,8 @@ import { Segment, type SegmentOption } from "@/components/ui/segment";
 /** The outcome of one write, owned by the control that started it (#1391). */
 type WriteOutcome = { ok: true; at: Date } | { ok: false; error: string };
 
+const SECTION_ID = "notiser";
+
 /** A switch, or the checked option of a segment: the control a group's write started from. */
 const GROUP_CONTROL = '[role="switch"], [role="radiogroup"] button[aria-checked="true"]';
 
@@ -73,6 +75,7 @@ export function NotificationsSection({
   const [followOutcome, setFollowOutcome] = useState<WriteOutcome | null>(null);
   const [cadenceOutcome, setCadenceOutcome] = useState<WriteOutcome | null>(null);
 
+  const sectionRef = useRef<HTMLElement>(null);
   const matchGroup = useRef<HTMLDivElement>(null);
   const followGroup = useRef<HTMLDivElement>(null);
   const cadenceGroup = useRef<HTMLDivElement>(null);
@@ -80,6 +83,10 @@ export function NotificationsSection({
   // A control is `disabled` while its write is pending, and Chromium then drops focus to <body>
   // (#1391 measurement).
   const returnRef = useFocusReturn(isSavingConsent || isSavingFollow);
+
+  useEffect(() => {
+    if (window.location.hash === `#${SECTION_ID}`) sectionRef.current?.scrollIntoView();
+  }, []);
 
   const cadenceOptions: ReadonlyArray<SegmentOption<DigestCadence>> = [
     { value: "Daily", label: t("backgroundMatch.cadenceDaily") },
@@ -149,7 +156,7 @@ export function NotificationsSection({
   }
 
   return (
-    <section className="jp-card" id="notiser">
+    <section ref={sectionRef} className="jp-card" id={SECTION_ID}>
       <h2 className="jp-card__title">{tp("sections.notiser")}</h2>
 
       <div ref={matchGroup} className="jp-settings-group">

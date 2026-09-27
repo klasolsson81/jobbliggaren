@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ActionResult } from "@/lib/actions/_action-result";
@@ -421,5 +421,34 @@ describe("NotificationsSection — focus comes back to the control that saved", 
     await act(async () => save.settle({ success: true }));
 
     expect(elsewhere).toHaveFocus();
+  });
+});
+
+describe("NotificationsSection — arriving under #notiser", () => {
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  afterEach(() => {
+    window.history.replaceState(null, "", window.location.pathname);
+  });
+
+  it("brings the card into view when the page opens under its fragment", () => {
+    window.history.replaceState(null, "", "#notiser");
+    renderSection();
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(
+      screen.getByRole("heading", { level: 2, name: "Notiser" }).closest("section"),
+    );
+  });
+
+  it("leaves the page where it is under any other address", () => {
+    renderSection();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

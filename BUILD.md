@@ -446,8 +446,7 @@ Tio statusar. **ADR 0092 D3: övergångar är fria** — `Application.Transition
 vilken status som helst som mål (framåt, bakåt eller Ghosted). Den tidigare
 tillståndsmaskin-grinden (`CanTransitionTo` som kastade) är ersatt av ångra-toast +
 full audit + den append-only `StatusChange`-tidslinjen, så varje byte är spårbart och
-ångringsbart. Grafen nedan är nu **enbart rådgivande** (`RecommendedNextStatuses`) — den
-driver UI-hinten ("Flytta till {nästa steg}" + avsluta/parkera-alternativen), aldrig en
+ångringsbart. Grafen nedan är nu **enbart rådgivande** (`RecommendedNextStatuses`), aldrig en
 grind. Detta löser #566 (saknade övergångar + drift blir irrelevant när alla byten tillåts).
 
 ```csharp

@@ -41,8 +41,6 @@ internal static class GoogleIdentities
     public static async Task<ExternalLoginProof> ProofAsync(string userInfoJson)
     {
         var identity = await ReadAsync(userInfoJson);
-        return identity.Address is ExternalAddress.Authoritative { Email: var email }
-            ? new ExternalLoginProof(email, identity.Provider, identity.Subject)
-            : throw new InvalidOperationException("This shape does not verify its address.");
+        return new ExternalLoginProof(identity.Email, identity.Provider, identity.Subject);
     }
 }

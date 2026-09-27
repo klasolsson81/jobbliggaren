@@ -29,7 +29,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// flow's challenge and redirect URI, and the callback completes it. Every identity is a documented userinfo shape
 /// read by the adapter itself. The #1744 acceptance rows are marked.
 /// <para>
-/// #1745: this stays the provider-neutral file and Google's; GitHub's code-bound path is <c>GitHubFirstLoginTests</c>.
+/// #1745: this stays the provider-neutral file and Google's; GitHub's login end to end is <c>GitHubLoginTests</c>.
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -429,8 +429,6 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
 
         body.GetProperty("outcome").GetString().ShouldBe("consentRequired");
-        // #1745: Google's answer is the outcome union, byte for byte as before; never the code step's members, so the
-        // web's callback continuation is unchanged for Google (senior-cto-advisor 1d, F10 not triggered).
         body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
             .ShouldBe(["grantToken", "next", "outcome"]);
         body.GetProperty("next").GetString().ShouldBe("/cv");

@@ -40,28 +40,17 @@ const MAX_NEXT_LENGTH = 512;
  */
 const via = z.enum(EXTERNAL_PROVIDER_KEYS).optional();
 
-const codePhase = z
-  .strictObject({
-    phase: z.literal("code"),
-    challengeId: z.string().min(1).max(64),
-    /**
-     * The address as typed, or the provider's echo when `via` is set. Shown back on the code step and
-     * used to request a new code; never read back as proof of anything.
-     */
-    email: z.string().min(1).max(256),
-    next: z.string().max(MAX_NEXT_LENGTH),
-    /** Epoch seconds of the mint. The cookie's lifetime and the resend cooldown count from it. */
-    sentAt: z.number().int().nonnegative(),
-    /** Set once the backend has answered 410 for this challenge; survives a reload. */
-    dead: z.enum(["expired", "burned"]).optional(),
-    /** #1745 — the provider the code step was reached through. */
-    via,
-    /** The pending-link grant the code's verification redeems; only a code typed here binds the login. */
-    linkGrant: z.string().min(1).max(64).optional(),
-  })
-  .refine((flow) => (flow.via === undefined) === (flow.linkGrant === undefined), {
-    message: "a provider's code phase carries its pending link, and no other code phase does",
-  });
+const codePhase = z.strictObject({
+  phase: z.literal("code"),
+  challengeId: z.string().min(1).max(64),
+  /** The address as typed. Shown back on the code step and used to request a new code. */
+  email: z.string().min(1).max(256),
+  next: z.string().max(MAX_NEXT_LENGTH),
+  /** Epoch seconds of the mint. The cookie's lifetime and the resend cooldown count from it. */
+  sentAt: z.number().int().nonnegative(),
+  /** Set once the backend has answered 410 for this challenge; survives a reload. */
+  dead: z.enum(["expired", "burned"]).optional(),
+});
 
 /** No address and no challenge id: the grant is a bearer, and the account is created on what it proved. */
 const consentPhase = z.strictObject({

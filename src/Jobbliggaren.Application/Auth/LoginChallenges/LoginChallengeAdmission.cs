@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 
 /// <summary>
 /// The gates a login challenge passes before it is minted, and the hand-off to the dispatch consumer (ADR 0142 D2):
-/// one home for every path that sends a login code (#1735; #1745 added the provider path). It never reads the
+/// one home for every path that sends a login code (#1735). It never reads the
 /// account: nothing it takes could, which a test pins transitively, so its cost and its answer are the same for every
 /// well-formed address. Everything that depends on the account happens in the dispatch consumer.
 /// </summary>

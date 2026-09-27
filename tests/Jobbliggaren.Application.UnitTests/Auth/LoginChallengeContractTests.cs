@@ -51,23 +51,6 @@ public sealed class LoginChallengeContractTests
             .IsValid.ShouldBeFalse();
     }
 
-    // #1745 — the pending-link grant a provider login left: optional, and when present a grant token's bound, as
-    // complete's. It is the one limit on the Redis key an unauthenticated caller can name here.
-    [Theory]
-    [InlineData(null, true)]
-    [InlineData("g", true)]
-    [InlineData("gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", true)]
-    [InlineData("", false)]
-    [InlineData("ggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", false)]
-    public void A_pending_link_grant_is_optional_and_bounded_when_present(string? linkGrant, bool valid)
-    {
-        linkGrant?.Length.ShouldBeOneOf(1, 64, 0, 65);
-
-        new VerifyLoginChallengeCommandValidator()
-            .Validate(new VerifyLoginChallengeCommand(ValidId, "042917", linkGrant))
-            .IsValid.ShouldBe(valid);
-    }
-
     [Theory]
     [InlineData("")]
     [InlineData(null)]

@@ -20,10 +20,6 @@ const STATE = "k3Qm9xZ0aB1cD2eF3gH4iJ5kL6mN7oP8qR9sT0uV1wX";
 const CODE = "4/0AVGzR1scripted-code";
 const GRANT = "grant-token-that-must-stay-in-a-strict-cookie";
 const SESSION = "session-id-that-must-stay-in-a-strict-cookie";
-const CHALLENGE = "challenge-id-that-must-stay-in-a-strict-cookie";
-const LINK_GRANT = "link-grant-that-must-stay-in-a-strict-cookie";
-const ECHO = "anna.github@example.com";
-const NOW = 1_800_000_000;
 
 function callback(
   query: Record<string, string>,
@@ -106,13 +102,13 @@ describe("the external login callback", () => {
   });
 
   describe("with a bound state", () => {
-    it("relays the code, the state and the client's address to the api", async () => {
+    it.each(["google", "github"])("relays the code, the state and the client's address to the api, for %s", async (provider) => {
       const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });
 
-      await callback(ok);
+      await callback(ok, { provider });
 
       const [url, init] = fetchMock.mock.calls[0]!;
-      expect(url).toBe("http://test-backend/api/v1/auth/oauth/google/callback");
+      expect(url).toBe(`http://test-backend/api/v1/auth/oauth/${provider}/callback`);
       expect(JSON.parse(String(init?.body))).toEqual({ code: CODE, state: STATE });
       expect((init?.headers as Record<string, string>)["x-forwarded-for"]).toBe("203.0.113.9");
     });
@@ -140,27 +136,30 @@ describe("the external login callback", () => {
       expect(await targetOf(await callback(ok))).toBe("/oversikt");
     });
 
-    it("keeps the grant in the strict flow cookie, says the step was reached through Google, and continues to the terms", async () => {
+    it.each(["google", "github"])("keeps the grant in the strict flow cookie, says the step was reached through %s, and continues to the terms", async (provider) => {
       backendAnswers(200, { outcome: "consentRequired", grantToken: GRANT, next: "/cv" });
 
-      const response = await callback(ok);
+      const response = await callback(ok, { provider });
 
-      expect(flowOf(response)).toEqual({ phase: "consent", grantToken: GRANT, next: "/cv", via: "google" });
+      expect(flowOf(response)).toEqual({ phase: "consent", grantToken: GRANT, next: "/cv", via: provider });
       expect(setCookie(response, "__Host-jobbliggaren_login")).toMatch(/SameSite=strict/i);
       expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
       expect(await targetOf(response)).toBe("/logga-in/villkor");
     });
 
     it.each([
-      [{ outcome: "registrationClosed" }],
-      [{ outcome: "accountUnavailable" }],
-      [{ outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
-    ])("shows an outcome on the code step, reached through Google (%o)", async (result) => {
+      ["google", { outcome: "registrationClosed" }],
+      ["google", { outcome: "accountUnavailable" }],
+      ["google", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
+      ["github", { outcome: "registrationClosed" }],
+      ["github", { outcome: "accountUnavailable" }],
+      ["github", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
+    ])("shows an outcome on the code step, reached through %s (%o)", async (provider, result) => {
       backendAnswers(200, result);
 
-      const response = await callback(ok);
+      const response = await callback(ok, { provider });
 
-      expect(flowOf(response)).toEqual({ phase: "outcome", result, via: "google" });
+      expect(flowOf(response)).toEqual({ phase: "outcome", result, via: provider });
       expect(await targetOf(response)).toBe("/logga-in/kod");
       expectStateCookieCleared(response);
     });
@@ -201,76 +200,6 @@ describe("the external login callback", () => {
 
       expect(response.status).toBe(200);
       expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "google" });
-    });
-  });
-
-  // The api's `codeRequired` body: `AuthEndpoints`' `ExternalCodeRequiredBody`, which
-  // `CompleteExternalLoginCommandHandler` answers when GitHub's asserted address has no link yet.
-  describe("when a provider's address has no link yet", () => {
-    const codeRequired = { outcome: "codeRequired", challengeId: CHALLENGE, linkGrant: LINK_GRANT, email: ECHO };
-
-    beforeEach(() => vi.spyOn(Date, "now").mockReturnValue(NOW * 1000));
-    afterEach(() => vi.restoreAllMocks());
-
-    it("writes the code phase with its pending link into the strict flow cookie, and continues to the code step in the same document", async () => {
-      const fetchMock = backendAnswers(200, { ...codeRequired, next: "/cv" });
-
-      const response = await callback(ok, { provider: "github" });
-
-      expect(fetchMock.mock.calls[0]![0]).toBe("http://test-backend/api/v1/auth/oauth/github/callback");
-      expect(flowOf(response)).toEqual({
-        phase: "code",
-        challengeId: CHALLENGE,
-        email: ECHO,
-        next: "/cv",
-        sentAt: NOW,
-        via: "github",
-        linkGrant: LINK_GRANT,
-      });
-      const flow = setCookie(response, "__Host-jobbliggaren_login") ?? "";
-      expect(flow).toMatch(/SameSite=strict/i);
-      expect(flow).toMatch(/Max-Age=900/);
-      expect(flow).toMatch(/HttpOnly/);
-      expect(flow).toMatch(/Secure/);
-      expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
-      expect(response.status).toBe(200);
-      expect(response.headers.get("location")).toBeNull();
-      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(await targetOf(response)).toBe("/logga-in/kod");
-      expectStateCookieCleared(response);
-    });
-
-    it("never writes the challenge id, the pending link or the address into the document", async () => {
-      backendAnswers(200, { ...codeRequired, next: "/cv" });
-
-      const html = await (await callback(ok, { provider: "github" })).text();
-
-      for (const secret of [CODE, STATE, CHALLENGE, LINK_GRANT, ECHO]) expect(html).not.toContain(secret);
-    });
-
-    // A flow started without a path: the api leaves `next` out, never sends it as null.
-    it("stores no path when the api echoes none", async () => {
-      backendAnswers(200, codeRequired);
-
-      const response = await callback(ok, { provider: "github" });
-
-      expect(flowOf(response)).toMatchObject({ phase: "code", next: "", via: "github", linkGrant: LINK_GRANT });
-    });
-
-    // Declared unreachable: `ExternalCodeRequiredBody` always carries all four members. Only safe degradation is
-    // asserted: a code phase without its pending link, or without its challenge, is never written.
-    it.each([
-      ["without its pending link", { outcome: "codeRequired", challengeId: CHALLENGE, email: ECHO }],
-      ["without its challenge id", { outcome: "codeRequired", linkGrant: LINK_GRANT, email: ECHO }],
-      ["without its address", { outcome: "codeRequired", challengeId: CHALLENGE, linkGrant: LINK_GRANT }],
-    ])("says the login was not completed on a code step %s", async (_, body) => {
-      backendAnswers(200, body);
-
-      const response = await callback(ok, { provider: "github" });
-
-      expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "github" });
-      expect(await targetOf(response)).toBe("/logga-in");
-      expectStateCookieCleared(response);
     });
   });
 

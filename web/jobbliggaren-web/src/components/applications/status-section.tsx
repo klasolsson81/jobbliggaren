@@ -77,8 +77,7 @@ export function StatusSection({
       className="jp-section jp-section--group scroll-mt-6"
     >
       {/* h3: statusgrupperna är subsektioner under "Alla ansökningar" (h2) —
-          korrekt rubrikutline (design-reviewer Minor 3). Class-baserad styling,
-          så nivåbytet är visuellt neutralt. */}
+          korrekt rubrikutline (design-reviewer Minor 3). */}
       <h3 className="jp-section__heading">
         <button
           ref={headRef}

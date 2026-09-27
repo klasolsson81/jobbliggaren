@@ -3705,6 +3705,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   letter-spacing: -0.01em;
   color: var(--jp-heading-2);
 }
+/* Statusgrupperna är h3 under sektionens h2 och läses en nivå under den
+   (DESIGN.md §4, #1827 M4). */
+.jp-section__toggle--group .jp-section__title-text {
+  font-size: var(--text-h3);
+  color: var(--jp-ink-1);
+}
 .jp-section__toggle .jp-section__count {
   /* #805 punkt 2: antalet sitter nu inline "Skickad (1)" intill etiketten (var
      margin-left:auto = långt till höger). Liten negativ marginal drar bort en

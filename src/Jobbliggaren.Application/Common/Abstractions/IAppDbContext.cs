@@ -55,4 +55,13 @@ public interface IAppDbContext
     /// implementationen leverantörs-agnostisk.
     /// </summary>
     void Detach(object entity);
+
+    /// <summary>
+    /// Detaches every tracked entity, so the next query materialises fresh rows (ADR 0146, an
+    /// ADR 0009 amendment). <c>UnitOfWorkBehavior</c> calls it after a concurrency conflict, before
+    /// it re-runs the command: identity resolution would otherwise hand the re-run the same stale
+    /// instance, and the failed attempt's Added audit row with it. The ChangeTracker itself stays
+    /// off this port.
+    /// </summary>
+    void ClearTracking();
 }

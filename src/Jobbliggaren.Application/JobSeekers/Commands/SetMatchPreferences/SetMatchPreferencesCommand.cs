@@ -47,7 +47,7 @@ public sealed record SetMatchPreferencesCommand(
     // dimension (omit ⇒ false). Feeds ONLY the facet-hard notis count (GetMyMatchCount),
     // never the scorer (ADR 0079 never-grade-coupled, F1).
     bool PreferredRemote = false)
-    : ICommand<Result>, IAuthenticatedRequest;
+    : ICommand<Result>, IAuthenticatedRequest, IReplayOnConcurrencyConflict;
 
 /// <summary>
 /// Wire-shape for one per-occupation experience overlay entry (ADR 0079-amendment). An

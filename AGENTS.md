@@ -80,7 +80,7 @@ list here is a snapshot — the test file is authoritative.
 **2. Port.** Application reaches the database only through `IAppDbContext`,
 which exposes `DbSet<T>` per aggregate root and `SaveChangesAsync` — and
 deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut) — plus
-`Detach`. Ordinary
+`Detach` and `ClearTracking` (ADR 0146). Ordinary
 core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
 `AsNoTracking` (§3.6 default), `Include`, `IgnoreQueryFilters`, `ToListAsync`,
 `ExecuteUpdate`/`ExecuteDelete`, `EF.Property`, `DbUpdateException`.

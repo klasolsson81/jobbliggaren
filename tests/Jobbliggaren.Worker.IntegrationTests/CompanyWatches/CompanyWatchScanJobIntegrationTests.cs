@@ -585,6 +585,69 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         hit.CompanyWatchId.Value.ShouldBe(watchId);
     }
 
+    // ADR 0146 — the job_seekers row carries an xmin token, so a write on a user's row while that user
+    // is scanned fails the scan's commit. That user is scanned once more in a fresh child scope, and
+    // nothing of the failed attempt reaches another user's commit (the #751 shape). The concurrent
+    // write is the user opening /foretag mid-scan (SetLastSeenFollowedAds), run from the tokenizer:
+    // the scan calls it between its load of the row and its commit, and only for a user holding an
+    // enskild follow, so only A's scan reaches it.
+    [Fact]
+    public async Task RunAsync_WhenAUsersRowIsWrittenMidScan_ThatUserIsScannedAgain_AndTheOtherUserStillCommits()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Every follower already in the shared container is scanned up to Now first, so none of them
+        // reads the ads below (ingested at Now) and hands A's org.nr to the tokenizer.
+        await RunJobAsync(ct);
+
+        var pnrA = UniquePersonnummerShapedOrgNr();
+        var abB = UniqueAbOrgNr();
+        var (userA, _) = await SeedConsentingUserAsync(ct);
+        var (userB, _) = await SeedConsentingUserAsync(ct);
+        await FollowViaExecutorAsync(userA, pnrA, ct);
+        await SeedWatchAsync(userB, abB, ct);
+        var adA = await SeedAdWithOrgNrAsync(pnrA, "Enskild Firma Andersson", ct);
+        var adB = await SeedAdWithOrgNrAsync(abB, "Bolaget AB", ct);
+
+        var scansOfA = 0;
+        var tokenizer = new WritingTokenizer(
+            _fixture.Services.GetRequiredService<IProtectedIdentityTokenizer>(),
+            orgNr =>
+            {
+                if (orgNr == pnrA && ++scansOfA == 1)
+                    MarkFollowedAdsSeen(userA);
+            });
+
+        await RunJobAsync(ct, tokenizer: tokenizer);
+
+        scansOfA.ShouldBe(2);
+        (await GetHitsAsync(userA, ct)).ShouldHaveSingleItem().JobAdId.ShouldBe(adA);
+        var seekerA = await GetSeekerAsync(userA, ct);
+        seekerA.LastCompanyWatchScanAt.ShouldBe(Now);
+        seekerA.LastSeenFollowedAdsAt.ShouldBe(Now);
+        (await GetHitsAsync(userB, ct)).ShouldHaveSingleItem().JobAdId.ShouldBe(adB);
+        (await GetSeekerAsync(userB, ct)).LastCompanyWatchScanAt.ShouldBe(Now);
+    }
+
+    private void MarkFollowedAdsSeen(Guid userId)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = db.JobSeekers.Single(js => js.UserId == userId);
+        seeker.SetLastSeenFollowedAds(Now, new FixedClock(Now));
+        db.SaveChanges();
+    }
+
+    // Synchronous because the seam is: Tokenize returns the token.
+    private sealed class WritingTokenizer(IProtectedIdentityTokenizer inner, Action<string> onTokenize)
+        : IProtectedIdentityTokenizer
+    {
+        public string Tokenize(string organizationNumber)
+        {
+            onTokenize(organizationNumber);
+            return inner.Tokenize(organizationNumber);
+        }
+    }
+
     [Fact]
     public async Task FollowViaExecutor_RefollowEnskildAfterUnfollow_KeepsExactlyOnePhysicalRow()
     {
@@ -906,13 +969,16 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         return jobAd.Id;
     }
 
-    private async Task RunJobAsync(CancellationToken ct, IBrandGroupProvider? brandGroups = null)
+    private async Task RunJobAsync(
+        CancellationToken ct,
+        IBrandGroupProvider? brandGroups = null,
+        IProtectedIdentityTokenizer? tokenizer = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var sp = scope.ServiceProvider;
         var job = new CompanyWatchScanJob(
-            sp.GetRequiredService<AppDbContext>(),
-            sp.GetRequiredService<IProtectedIdentityTokenizer>(),
+            _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            tokenizer ?? sp.GetRequiredService<IProtectedIdentityTokenizer>(),
             // Default to the fixture's real provider (the EMPTY shipped catalogue); a group test passes a
             // synthetic catalogue so its members are deterministic.
             brandGroups ?? sp.GetRequiredService<IBrandGroupProvider>(),

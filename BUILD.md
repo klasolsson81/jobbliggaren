@@ -508,7 +508,6 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `Authorization: Bearer <sessionId>` för alla skyddade endpoints (opakt session-id, INTE en JWT — se §11.2; truth-sync #569/#827)
 - Pagination: `?page=1&pageSize=20`, response wrappar med `{ items, page, pageSize, totalCount }`
 - Error response: Problem Details (RFC 7807), alltid `application/problem+json`
-- ETag + If-Match för optimistic concurrency på aggregate-updates
 - `X-Correlation-Id` header propageras genom alla lager
 
 ### 6.2 Endpoints (grupperade per kontext)

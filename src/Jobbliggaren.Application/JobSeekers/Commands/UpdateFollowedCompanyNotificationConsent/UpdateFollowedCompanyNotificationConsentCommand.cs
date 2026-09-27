@@ -44,7 +44,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNoti
 /// </summary>
 public sealed record UpdateFollowedCompanyNotificationConsentCommand([property: JsonRequired] bool Enabled)
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
-      IAuditPayloadCommand<Result<Guid>>
+      IAuditPayloadCommand<Result<Guid>>, IReplayOnConcurrencyConflict
 {
     // Stable, append-only event name (audit queries depend on it). One event type for both
     // directions; a row with no payload was written before the payload was added (2026-09-27).

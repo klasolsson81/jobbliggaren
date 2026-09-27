@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 
@@ -16,4 +17,5 @@ namespace Jobbliggaren.Application.Matching.Commands.MarkMatchesSeen;
 /// swallowed). Null (no body / an empty match list / deploy-skew from an older FE) falls back to
 /// clock-now in the handler — the old behaviour, safe when there is nothing newer to preserve.
 /// </param>
-public sealed record MarkMatchesSeenCommand(DateTimeOffset? SeenThrough) : ICommand<Result>;
+public sealed record MarkMatchesSeenCommand(DateTimeOffset? SeenThrough)
+    : ICommand<Result>, IReplayOnConcurrencyConflict;

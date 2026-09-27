@@ -40,6 +40,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 
+    public void ClearTracking() => ChangeTracker.Clear();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // #884 / ADR 0110 — EF-modelled rather than raw CREATE COLLATION, so it lives in the model

@@ -136,8 +136,7 @@
       "showFewer": "Show fewer"
     },
     "all": {
-      "title": "All applications",
-      "noResults": "No applications match the search or filter."
+      "title": "All applications"
     },
     "controls": {
       "searchAriaLabel": "Search applications",

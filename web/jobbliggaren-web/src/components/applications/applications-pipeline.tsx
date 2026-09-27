@@ -214,7 +214,9 @@ export function ApplicationsPipeline({
             />
 
             {sections.length === 0 ? (
-              <div className="jp-allapps__empty">{tUi("all.noResults")}</div>
+              <p className="jp-allapps__empty" role="status">
+                {tUi("table.empty")}
+              </p>
             ) : (
               sections.map((section) => (
                 <Fragment key={section.status}>

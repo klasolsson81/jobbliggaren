@@ -333,7 +333,8 @@ describe("ApplicationsPipeline — sök", () => {
     expect(document.getElementById("status-Rejected-list")).toBeNull();
   });
 
-  it("sök som inte matchar visar tomläge för Alla ansökningar", async () => {
+  // #1827 M6: the miss names the next step, in the Tabell's words.
+  it("sök som inte matchar visar tomläget med nästa steg", async () => {
     const user = userEvent.setup();
     renderPipeline(makePipeline({ Submitted: 1 }));
 
@@ -341,11 +342,9 @@ describe("ApplicationsPipeline — sök", () => {
       screen.getByRole("searchbox", { name: "Sök bland ansökningar" }),
       "zzz-ingen-traff",
     );
-    expect(
-      within(getAllApps()).getByText(
-        "Inga ansökningar matchar sökningen eller filtret.",
-      ),
-    ).toBeInTheDocument();
+    expect(within(getAllApps()).getByRole("status")).toHaveTextContent(
+      "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
+    );
   });
 });
 
@@ -379,15 +378,13 @@ describe("ApplicationsPipeline — tomt öråt", () => {
   it("tomma grupper: kön visar tomläge och listan visar tomläge", () => {
     renderPipeline(makePipeline({}));
 
-    // Kön alltid närvarande (2a) — med streckat tomläge.
+    // Kön alltid närvarande (2a) — med sitt tomläge.
     expect(
       within(getQueue()).getByText("Inget kräver åtgärd just nu."),
     ).toBeInTheDocument();
-    expect(
-      within(getAllApps()).getByText(
-        "Inga ansökningar matchar sökningen eller filtret.",
-      ),
-    ).toBeInTheDocument();
+    expect(within(getAllApps()).getByRole("status")).toHaveTextContent(
+      "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
+    );
   });
 });
 

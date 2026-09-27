@@ -7184,7 +7184,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 16px;
   padding: 20px 22px;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-allapps__restkicker {
   /* Superordinat grupp-eyebrow (delar Lista i aktiva vs avslut/vilande). Läses

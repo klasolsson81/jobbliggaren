@@ -136,8 +136,7 @@
       "showFewer": "Visa färre"
     },
     "all": {
-      "title": "Alla ansökningar",
-      "noResults": "Inga ansökningar matchar sökningen eller filtret."
+      "title": "Alla ansökningar"
     },
     "controls": {
       "searchAriaLabel": "Sök bland ansökningar",

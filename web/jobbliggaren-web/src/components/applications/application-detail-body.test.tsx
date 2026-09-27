@@ -64,7 +64,7 @@ const snapshot: AdSnapshotDto = {
 describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   it("renders the status block with STATUS label + value + the describedby id", () => {
     const { container } = render(
-      <ApplicationDetailBody application={makeDetail()} now={NOW} />,
+      <ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />,
     );
     expect(screen.getByText("Status")).toBeInTheDocument();
     // Scopat: "Skickad" förekommer nu även i stegväljaren (PR 7).
@@ -78,7 +78,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   // ── §8.3–8.5 statusmaskineriet (PR 7) ──────────────────────────────────
   it("renders the primary CTA, the 7-step picker and the park buttons in §8 order", () => {
     const { container } = render(
-      <ApplicationDetailBody application={makeDetail()} now={NOW} />,
+      <ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />,
     );
     // §8.3: primär-CTA mot nästa steg (Submitted → Bekräftad).
     expect(
@@ -109,6 +109,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     // now 05-05 − changedAt 05-02 = 3 days.
@@ -138,6 +139,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     // Senaste = the newest PAST event = the Draft→Submitted transition (colon-free
@@ -150,7 +152,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   });
 
   it("OMITS the day-count when no status change is recorded (never fabricate, §5)", () => {
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(screen.queryByText(/i steget/)).not.toBeInTheDocument();
     // The created event is still present in the timeline.
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
@@ -175,6 +177,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     // #805 punkt 5: sektionsetiketten bär en InfoDialog-"?" (aria-expanded) utanför
@@ -191,7 +194,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
 
   // K3 (Klas 2026-09-26, keep planning): both follow-up affordances render in the body.
   it("offers both logging a follow-up and planning one", () => {
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(
       screen.getByRole("button", { name: "Logga uppföljning" }),
     ).toBeInTheDocument();
@@ -236,6 +239,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     const next = screen.getByText(/Nästa uppföljning/);
@@ -243,19 +247,19 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   });
 
   it("shows no next follow-up when none is waiting for its outcome", () => {
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(screen.queryByText(/Nästa uppföljning/)).not.toBeInTheDocument();
   });
 
   it("uses the body's empty follow-up copy", () => {
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(
       screen.getByText(/Inga uppföljningar ännu/),
     ).toBeInTheDocument();
   });
 
   it("keeps notes interactive (add-note affordance present)", () => {
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(
       screen.getByRole("button", { name: "Lägg till anteckning" }),
     ).toBeInTheDocument();
@@ -274,6 +278,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     expect(screen.getByText("Ringde rekryteraren")).toBeInTheDocument();
@@ -284,12 +289,13 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       <ApplicationDetailBody
         application={makeDetail({ coverLetter: "Hej, jag söker tjänsten." })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     expect(screen.getByText("Personligt brev")).toBeInTheDocument();
     expect(screen.getByText("Hej, jag söker tjänsten.")).toBeInTheDocument();
 
-    rerender(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    rerender(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     expect(screen.queryByText("Personligt brev")).not.toBeInTheDocument();
   });
 
@@ -305,6 +311,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       <ApplicationDetailBody
         application={makeDetail({ preservedAd: snapshot })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     // Ad is live → out-link to the source, no preserved panel.
@@ -325,6 +332,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           preservedAd: snapshot,
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     expect(
@@ -349,6 +357,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           preservedAd: null,
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     expect(screen.queryByText("Om annonsen")).not.toBeInTheDocument();
@@ -394,6 +403,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           ],
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     const followUpList = screen
@@ -419,6 +429,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
           coverLetter: "Hej, jag söker tjänsten.",
         })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     for (const name of [
@@ -445,6 +456,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       <ApplicationDetailBody
         application={makeDetail({ preservedAd: snapshot })}
         now={NOW}
+        titleLevel={2}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
@@ -457,7 +469,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
 
   it("moves directly when the application has no saved copy", async () => {
     vi.mocked(transitionStatusAction).mockClear();
-    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} titleLevel={2} />);
     fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
 
     await waitFor(() =>

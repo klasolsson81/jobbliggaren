@@ -81,7 +81,11 @@ export default async function AnsokanDetailPage({ params }: Props) {
               </div>
             </header>
             <div className="jp-modal__body">
-              <ApplicationDetailBody application={application} now={new Date()} />
+              <ApplicationDetailBody
+                application={application}
+                now={new Date()}
+                titleLevel={1}
+              />
             </div>
             <div className="jp-modal__foot">
               <span className="jp-modal__foot__spacer" />

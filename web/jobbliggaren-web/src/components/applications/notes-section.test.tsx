@@ -17,7 +17,7 @@ const baseNote = (overrides: Partial<NoteDto> = {}): NoteDto => ({
 describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
   it("renderar kompakt vy med första raden synlig och resten dold", () => {
     render(
-      <NotesSection applicationId="app-1" notes={[baseNote()]} />,
+      <NotesSection applicationId="app-1" titleLevel={2} notes={[baseNote()]} />,
     );
     expect(screen.getByText("Första raden av en anteckning")).toBeInTheDocument();
     expect(
@@ -27,7 +27,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
 
   it("klick på kompakt rad expanderar och visar full text", () => {
     render(
-      <NotesSection applicationId="app-1" notes={[baseNote()]} />,
+      <NotesSection applicationId="app-1" titleLevel={2} notes={[baseNote()]} />,
     );
     // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?"-trigger (även
     // aria-expanded) utanför listan → scopa rad-queryn till <ul role="list">.
@@ -46,6 +46,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <NotesSection
         applicationId="app-1"
+        titleLevel={2}
         notes={[
           baseNote({ id: "n1", content: "Not A" }),
           baseNote({ id: "n2", content: "Not B" }),
@@ -62,7 +63,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
 
   it("Esc-tangent kollapsar aktiv expanderad rad", () => {
     render(
-      <NotesSection applicationId="app-1" notes={[baseNote()]} />,
+      <NotesSection applicationId="app-1" titleLevel={2} notes={[baseNote()]} />,
     );
     // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?"-trigger (även
     // aria-expanded) utanför listan → scopa rad-queryn till <ul role="list">.
@@ -78,7 +79,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("default visar 'Lägg till anteckning'-knappen, ej form", () => {
-    render(<NotesSection applicationId="app-1" notes={[]} />);
+    render(<NotesSection applicationId="app-1" titleLevel={2} notes={[]} />);
     expect(
       screen.getByRole("button", { name: /Lägg till anteckning/ }),
     ).toBeInTheDocument();
@@ -87,7 +88,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("klick på Lägg till-knapp expanderar form, Avbryt kollapsar", () => {
-    render(<NotesSection applicationId="app-1" notes={[]} />);
+    render(<NotesSection applicationId="app-1" titleLevel={2} notes={[]} />);
     fireEvent.click(
       screen.getByRole("button", { name: /Lägg till anteckning/ }),
     );
@@ -97,7 +98,7 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("renderar empty-state när inga anteckningar", () => {
-    render(<NotesSection applicationId="app-1" notes={[]} />);
+    render(<NotesSection applicationId="app-1" titleLevel={2} notes={[]} />);
     expect(screen.getByText("Inga anteckningar ännu.")).toBeInTheDocument();
   });
 });

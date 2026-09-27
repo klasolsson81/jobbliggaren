@@ -24,6 +24,7 @@ const OUTCOME_TAG: Record<FollowUpOutcome, string> = {
 interface FollowUpsSectionProps {
   applicationId: string;
   followUps: ReadonlyArray<FollowUpDto>;
+  titleLevel: 1 | 2;
   /**
    * #630 PR 7 (CTO-bind 6b, komposition): valfri header-yta bredvid
    * sektionsrubriken — detaljkroppen monterar sin Logga uppföljning-knapp
@@ -53,11 +54,13 @@ interface FollowUpsSectionProps {
 export function FollowUpsSection({
   applicationId,
   followUps,
+  titleLevel,
   headerAction,
 }: FollowUpsSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const FormHeading = titleLevel === 1 ? "h2" : "h3";
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -131,9 +134,9 @@ export function FollowUpsSection({
           </button>
         ) : (
           <div className="jp-disclosure-body">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
+            <FormHeading className="mb-3 text-body font-medium text-text-primary">
               {tUi("followUps.addHeading")}
-            </h3>
+            </FormHeading>
             <AddFollowUpForm
               applicationId={applicationId}
               onSuccess={() => setAddOpen(false)}

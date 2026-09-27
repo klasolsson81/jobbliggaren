@@ -55,7 +55,11 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen
               över panelens max-height. */}
           <div className="jp-modal__body">
-            <ApplicationDetailBody application={application} now={new Date()} />
+            <ApplicationDetailBody
+              application={application}
+              now={new Date()}
+              titleLevel={2}
+            />
           </div>
         </ApplicationModalShell>
       );

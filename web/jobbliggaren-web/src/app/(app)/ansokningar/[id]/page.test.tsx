@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createTranslator, createFormatter } from "next-intl";
 import svPages from "../../../../../messages/sv/pages.json";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -132,6 +132,20 @@ describe("/ansokningar/[id] — the full page renders the one detail body (#699)
     ).toBeInTheDocument();
     expect(container.querySelectorAll(".jp-steppicker__step")).toHaveLength(7);
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("puts the open forms' headings one level below the h1", async () => {
+    getApplicationById.mockResolvedValue({ kind: "ok", data: makeDetail() });
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Planera uppföljning" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till anteckning" }));
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Planera uppföljning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Lägg till anteckning" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the back link above and puts delete and back in its foot", async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createTranslator, createFormatter } from "next-intl";
 import svPages from "../../../../../../messages/sv/pages.json";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -141,6 +141,23 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     // Undertiteln är företaget, utan internt #id (#1827 Minor 8).
     expect(screen.getByText("Volvo")).toHaveClass("jp-modal__company");
     expect(screen.queryByText(/#aaaaaaaa/)).not.toBeInTheDocument();
+  });
+
+  it("puts the open forms' headings one level below the modal's h2", async () => {
+    getApplicationById.mockResolvedValue({ kind: "ok", data: makeDetail() });
+    await renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Planera uppföljning" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till anteckning" }));
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Backend-utvecklare" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Planera uppföljning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Lägg till anteckning" }),
+    ).toBeInTheDocument();
   });
 
   // #805-3 SANNINGSKORRIGERING: detta test triggade tidigare borta-läget med

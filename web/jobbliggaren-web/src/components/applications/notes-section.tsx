@@ -11,6 +11,7 @@ import type { NoteDto } from "@/lib/types/applications";
 interface NotesSectionProps {
   applicationId: string;
   notes: ReadonlyArray<NoteDto>;
+  titleLevel: 1 | 2;
 }
 
 /**
@@ -24,10 +25,15 @@ interface NotesSectionProps {
  *    inline. Lyckad spar eller Avbryt → kollapsa.
  *  - Esc kollapsar aktiv editor / aktiv expanderad rad.
  */
-export function NotesSection({ applicationId, notes }: NotesSectionProps) {
+export function NotesSection({
+  applicationId,
+  notes,
+  titleLevel,
+}: NotesSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const FormHeading = titleLevel === 1 ? "h2" : "h3";
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -97,9 +103,9 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
           </button>
         ) : (
           <div className="jp-disclosure-body">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
+            <FormHeading className="mb-3 text-body font-medium text-text-primary">
               {tUi("notes.addHeading")}
-            </h3>
+            </FormHeading>
             <AddNoteForm
               applicationId={applicationId}
               onSuccess={() => setAddOpen(false)}

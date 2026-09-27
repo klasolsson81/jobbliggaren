@@ -21,6 +21,7 @@ interface ApplicationDetailBodyProps {
   application: ApplicationDetailDto;
   /** Server-computed reference time for "N dagar i steget" (per-request). */
   now: Date;
+  titleLevel: 1 | 2;
 }
 
 /**
@@ -41,6 +42,7 @@ interface ApplicationDetailBodyProps {
 export function ApplicationDetailBody({
   application,
   now,
+  titleLevel,
 }: ApplicationDetailBodyProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
@@ -161,6 +163,7 @@ export function ApplicationDetailBody({
       <FollowUpsSection
         applicationId={application.id}
         followUps={application.followUps}
+        titleLevel={titleLevel}
         headerAction={
           <LogFollowUpButton
             applicationId={application.id}
@@ -186,7 +189,11 @@ export function ApplicationDetailBody({
       </section>
 
       {/* Anteckningar (§8.9) — behåll befintlig interaktiv NotesSection. */}
-      <NotesSection applicationId={application.id} notes={application.notes} />
+      <NotesSection
+        applicationId={application.id}
+        notes={application.notes}
+        titleLevel={titleLevel}
+      />
 
       {/* Personligt brev — läs-prosa, behålls (ingen mutationsyta). */}
       {application.coverLetter && (

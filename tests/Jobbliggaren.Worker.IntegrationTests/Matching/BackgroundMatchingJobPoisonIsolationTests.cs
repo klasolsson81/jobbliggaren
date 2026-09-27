@@ -203,7 +203,12 @@ public class BackgroundMatchingJobPoisonIsolationTests(WorkerTestFixture fixture
         IMatchProfileBuilder profileBuilder, IMatchScorer scorer, CancellationToken ct)
     {
         var scopeFactory = new OverridingScopeFactory(
-            _fixture.Services.GetRequiredService<IServiceScopeFactory>(), profileBuilder, scorer);
+            _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            new Dictionary<Type, object>
+            {
+                [typeof(IMatchProfileBuilder)] = profileBuilder,
+                [typeof(IMatchScorer)] = scorer,
+            });
         var job = new BackgroundMatchingJob(
             scopeFactory,
             Substitute.For<IEmailSender>(),
@@ -373,43 +378,7 @@ $fn$ LANGUAGE plpgsql;";
         return jobSeeker.LastMatchScanAt;
     }
 
-    // ─────────────────────────── SUT scope factory + clock ───────────────────────────
-
-    // Wraps the fixture's REAL root IServiceScopeFactory: each child scope resolves everything from a
-    // REAL DI scope EXCEPT IMatchProfileBuilder / IMatchScorer, which are the test substitutes. Lets
-    // the job run its production per-user child-scope resolution path while the two matching
-    // collaborators are controlled — the db reads/writes still hit real Postgres.
-    private sealed class OverridingScopeFactory(
-        IServiceScopeFactory inner,
-        IMatchProfileBuilder profileBuilder,
-        IMatchScorer scorer) : IServiceScopeFactory
-    {
-        public IServiceScope CreateScope() =>
-            new OverridingScope(inner.CreateScope(), profileBuilder, scorer);
-
-        private sealed class OverridingScope(
-            IServiceScope innerScope,
-            IMatchProfileBuilder profileBuilder,
-            IMatchScorer scorer) : IServiceScope, IServiceProvider, IAsyncDisposable
-        {
-            public IServiceProvider ServiceProvider => this;
-
-            public object? GetService(Type serviceType) =>
-                serviceType == typeof(IMatchProfileBuilder) ? profileBuilder
-                : serviceType == typeof(IMatchScorer) ? scorer
-                : innerScope.ServiceProvider.GetService(serviceType);
-
-            public void Dispose() => innerScope.Dispose();
-
-            public async ValueTask DisposeAsync()
-            {
-                if (innerScope is IAsyncDisposable ad)
-                    await ad.DisposeAsync();
-                else
-                    innerScope.Dispose();
-            }
-        }
-    }
+    // ─────────────────────────── SUT clock ───────────────────────────
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {

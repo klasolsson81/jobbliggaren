@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
@@ -44,6 +45,13 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 /// batch — TD-25 pattern).
 /// </para>
 /// <para>
+/// <b>Child scope per user (ADR 0146, parity <c>BackgroundMatchingJob</c> #751):</b> every user's scan
+/// runs against its own <see cref="IAppDbContext"/>, so a failed save's Added/Modified entities die
+/// with that user's scope instead of being written again by the next user's save. The row's xmin
+/// token makes such a failure ordinary — any write on the row while the user is scanned — so the
+/// user is scanned once more in a fresh scope.
+/// </para>
+/// <para>
 /// <b>GDPR (ADR 0087 D8 / CLAUDE.md §5 — highest-priority guard):</b> a sole-prop (enskild firma)
 /// org.nr can equal a personnummer, so this job NEVER logs an org.nr (its LoggerMessages carry only
 /// counts + opaque user ids). It does NOT dispatch email — the reused <c>DigestDispatchJob</c>
@@ -51,7 +59,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 /// </para>
 /// </summary>
 public sealed partial class CompanyWatchScanJob(
-    IAppDbContext db,
+    IServiceScopeFactory scopeFactory,
     IProtectedIdentityTokenizer tokenizer,
     IBrandGroupProvider brandGroups,
     IDateTimeProvider clock,
@@ -72,10 +80,15 @@ public sealed partial class CompanyWatchScanJob(
         // (Art. 6(1)(a)) at DISPATCH, never here. Supersedes ADR 0087 D5's scan-time consent gate
         // (explicit supersession #2, Klas-ratified). The CompanyWatches query filter excludes
         // soft-deleted/unfollowed rows, so DISTINCT UserId over it IS the active-follower set.
-        var followerUserIds = await db.CompanyWatches
-            .Select(w => w.UserId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        List<Guid> followerUserIds;
+        await using (var dueSetScope = scopeFactory.CreateAsyncScope())
+        {
+            followerUserIds = await dueSetScope.ServiceProvider.GetRequiredService<IAppDbContext>()
+                .CompanyWatches
+                .Select(w => w.UserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+        }
 
         LogFollowers(logger, followerUserIds.Count);
 
@@ -86,7 +99,15 @@ public sealed partial class CompanyWatchScanJob(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                totalHits += await ScanUserAsync(userId, now, cancellationToken);
+                try
+                {
+                    totalHits += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    LogUserRetried(logger, userId);
+                    totalHits += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -105,7 +126,14 @@ public sealed partial class CompanyWatchScanJob(
         LogComplete(logger, processedUsers, totalHits);
     }
 
-    private async Task<int> ScanUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    private async Task<int> ScanUserInOwnScopeAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
+        await using var userScope = scopeFactory.CreateAsyncScope();
+        return await ScanUserAsync(
+            userScope.ServiceProvider.GetRequiredService<IAppDbContext>(), userId, now, ct);
+    }
+
+    private async Task<int> ScanUserAsync(IAppDbContext db, Guid userId, DateTimeOffset now, CancellationToken ct)
     {
         // Tracked load — the watermark advance must persist in the SAME unit of work as the hit
         // inserts (atomicity).
@@ -316,6 +344,10 @@ public sealed partial class CompanyWatchScanJob(
     [LoggerMessage(Level = LogLevel.Warning,
         Message = "CompanyWatchScanJob: scan failed for user {UserId} — isolated, will retry next run")]
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "CompanyWatchScanJob: user {UserId}'s row changed during the scan — scanning it once more")]
+    private static partial void LogUserRetried(ILogger logger, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "CompanyWatchScanJob: done — {Processed} users scanned, {TotalHits} new follow hits persisted")]

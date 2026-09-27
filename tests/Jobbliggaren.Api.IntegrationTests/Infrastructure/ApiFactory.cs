@@ -52,6 +52,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private readonly LoginChallengeFaults _loginChallengeFaults = new();
 
+    // ADR 0146 — disarmed unless a race test arms it; registered on the host's own AppDbContext.
+    private readonly JobSeekerSaveRace _jobSeekerSaveRace = new();
+
+    /// <summary>ADR 0146 — holds one user's job_seekers write until a second request has committed.</summary>
+    internal JobSeekerSaveRace JobSeekerSaveRace => _jobSeekerSaveRace;
+
     // #1744 — Google's two server-side endpoints, scripted. The only thing the external-login path stubs.
     private readonly ScriptedGoogle _google = new();
 
@@ -176,6 +182,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     // DbContext config is separate and unaffected).
                     .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(
+                        _jobSeekerSaveRace,
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor>(),
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldDecryptionMaterializationInterceptor>()));
 

@@ -34,7 +34,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent
 /// </summary>
 public sealed record UpdateNotificationConsentCommand([property: JsonRequired] bool Enabled)
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
-      IAuditPayloadCommand<Result<Guid>>
+      IAuditPayloadCommand<Result<Guid>>, IReplayOnConcurrencyConflict
 {
     // Stable, append-only event name (audit queries depend on it). Provenance (2026-09-27): until
     // the digest cadence got its own command (JobSeeker.DigestCadenceUpdated), a cadence save was

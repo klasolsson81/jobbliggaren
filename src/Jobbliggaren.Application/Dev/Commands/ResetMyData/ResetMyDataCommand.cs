@@ -47,7 +47,8 @@ namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 /// a success, which is why the aggregate audited here is the User.
 /// </summary>
 public sealed record ResetMyDataCommand
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
+      IReplayOnConcurrencyConflict
 {
     public string EventType => "User.DataReset";
     public string AggregateType => "User";

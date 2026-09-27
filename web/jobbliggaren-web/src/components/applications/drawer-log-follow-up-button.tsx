@@ -48,10 +48,7 @@ export function DrawerLogFollowUpButton({
             top:
               typeof window === "undefined"
                 ? null
-                : clampAnchoredTop(anchorY, window.innerHeight, {
-                    offset: 170,
-                    minVisible: 240,
-                  }),
+                : clampAnchoredTop(anchorY, window.innerHeight),
           });
         }}
       >

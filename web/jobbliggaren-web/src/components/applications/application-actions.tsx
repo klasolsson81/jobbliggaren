@@ -16,22 +16,12 @@ import { FinishDraftDialog } from "./finish-draft-dialog";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 import { DeleteApplicationDialog } from "./delete-application-dialog";
 
-/**
- * Dialogens topp ankras ~170px ovanför klickpunkten (design §9 — "aldrig fast
- * topposition"). Klampad mot viewporten via clampAnchoredTop (CTO-bind 5, DRY).
- */
-const DIALOG_ANCHOR_OFFSET = 170;
-const DIALOG_MIN_VISIBLE = 240;
-
 /** Klick-Y → klampad dialogtopp (ren modul-funktion — stabil över renders). */
 function anchoredTop(anchorY: number | null): number | null {
   if (anchorY == null || anchorY <= 0 || typeof window === "undefined") {
     return null;
   }
-  return clampAnchoredTop(anchorY, window.innerHeight, {
-    offset: DIALOG_ANCHOR_OFFSET,
-    minVisible: DIALOG_MIN_VISIBLE,
-  });
+  return clampAnchoredTop(anchorY, window.innerHeight);
 }
 
 interface DialogState {

@@ -126,8 +126,8 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 
 **Civic-utility patterns (v2, `.jp-*`-systemet i globals.css):**
 - `.jp-table--flat` — ledger-tabell. Ingen zebra-stripe, inga inramade celler, hairlines mellan rader, fetare topp/botten-linje
-- `.jp-attentionqueue` — prioriterad lyft-lista (Ansökningar). Återanvänder ledger-raden `.jp-app`; lede max 68ch, hairlines, ingen låda
-- `.jp-pipeline` — kanban som ledger-rader, kolumner åtskilda av `border-strong`, INGA floating cards
+- `.jp-attentionqueue` — Kräver åtgärd-kön (Ansökningar): liggarrader i en `<ol>`, hairline mellan raderna, ingen låda per ärende, radfamiljens länk-overlay (en länk per rad). Rad 1: signalkickern i mono-versaler (§4:s rung) i signalens statusfärg, aldrig accentgrönt, och värdet i sans `tabular-nums`; rad 2: titel och företag; handlingarna till höger (under raden vid ≤720px). Tom kö = en ink-1-rad.
+- `.jp-board` — Tavlan, ADR 0092 D1:s kanban: sex stegkolumner (`.jp-board-col`, `border-strong` och ett 3px toppband i statusfärg) med de fyra terminalzonerna som en rad under dem; korten (`.jp-board-card`) har hairline-kant och ingen skugga. Griden scrollar i x-led när den inte får plats, sidan aldrig.
 - `.jp-statusDot` (förstaval i tabeller — prick + text, ingen bg) vs `.jp-pill` (accent vid entitet — färgad 50-bg + prick + text)
 - `.jp-matchchip` — namngiven matchningsgrad (Toppmatch/Stark/Bra/Grundmatch),
   plus `--related` "Relaterat yrke", som är en egen grad men får den **neutrala**

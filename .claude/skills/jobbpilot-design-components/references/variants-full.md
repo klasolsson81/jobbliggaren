@@ -299,34 +299,34 @@ last row td:  border-bottom 2px border-strong (thicker bottom rule)
 NO zebra. NO celled/per-cell borders. Hairlines between rows only; the frame is
 the 2px top/bottom rule.
 
-### `.jp-attentionqueue` (row feed, no box)
+### `.jp-attentionqueue` (ledger rows, no box)
 
 ```
 container:  margin-top 8px
-lede:       margin 10px 0 14px; 14px; max-width 68ch
-row:        the SHARED ledger row `.jp-app` — the queue adds no row of its own
-more:       ghost button (`.jp-btn .jp-btn--secondary`)
-empty:      dashed box (20/22px padding, --jp-border-strong, r-md)
+list:       <ol>, no list style
+row:        grid (1fr | actions); padding 12px 16px; hairline (--jp-border)
+            between rows; hover --jp-surface-3 + inset 3px accent-700 edge;
+            the row family's link overlay (one link per row)
+signal:     kicker mono caps (--text-overline, bold, 0.08em) in the signal's
+            status colour (success/warning/info), never accent green;
+            value sans --text-caption / medium / tabular-nums / ink-1
+line:       title (h3 link) + company (--text-ui / medium / ink-1)
+actions:    right; under the row at <=720px
+empty:      one ink-1 line (--text-body-sm), no box
 ```
 
-No card, no shadow — hairlines come from the shared row. Lede capped at 68ch
-(newspaper column).
-
-### `.jp-pipeline` / `.jp-col` / `.jp-appRow` (kanban as ledger)
+### `.jp-board` / `.jp-board-col` / `.jp-board-card` (Tavla, ADR 0092 D1)
 
 ```
-pipeline:   grid repeat(4, minmax(0,1fr)); gap 0; border-top 1px border
-col:        transparent; border-right 1px border-STRONG (column divider,
-            stronger than row hairlines); min-height 360px
-col:last-child:  no right border
-col__head:  flex; padding 12px 14px 10px; border-bottom 1px border;
-            title 14px/500, count 13px text-secondary
-appRow:     padding 12px 14px; border-bottom 1px hairline; transparent
-appRow:hover:    bg surface-tertiary + inset 2px 0 border-strong
-.jp-appCard:     display:none  (legacy — floating cards removed)
+grid:       repeat(6, minmax(140px, 1fr)); gap 12px; overflow-x auto
+terminal:   the four zones as one row under the columns (grid-column 1 / -1)
+col:        surface-2; 1.5px --jp-border-strong; 3px top band in the
+            status colour; r-md; padding 10px
+card:       surface; 1px --jp-border; r-md; padding 10px 11px; NO shadow;
+            hover --jp-border-strong
 ```
 
-NO floating cards. Columns are visually separated by `--jp-border-strong`.
+The grid scrolls horizontally when it does not fit; the page never does.
 
 ### `.jp-statusDot` (default in tables)
 

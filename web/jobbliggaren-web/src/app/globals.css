@@ -7638,13 +7638,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.jp-board-card__adremoved {
+  display: flex;
+}
 .jp-board-card__foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
-.jp-board-card__foot .jp-tag {
+.jp-board-card__foot .jp-tag,
+.jp-board-card__adremoved .jp-tag {
   white-space: normal;
   max-width: 100%;
 }

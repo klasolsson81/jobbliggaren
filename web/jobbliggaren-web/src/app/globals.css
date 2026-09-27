@@ -3868,7 +3868,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-statusmenu__dot[data-status-variant="success"] { background: var(--jp-success); }
 .jp-statusmenu__dot[data-status-variant="warning"] { background: var(--jp-warning); }
 .jp-statusmenu__dot[data-status-variant="danger"]  { background: var(--jp-danger); }
-/* Drawerns statusmaskineri (design §8.3–8.5). */
+/* Detaljens statusmaskineri (design §8.3–8.5). Primär-CTA:n har .jp-btn:s höjd
+   (DESIGN.md §6, ingen tredje höjd på chassit). */
 .jp-drawer-actions {
   display: flex;
   flex-direction: column;
@@ -3876,7 +3877,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-drawer-cta {
   width: 100%;
-  height: 38px;
   justify-content: center;
 }
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
@@ -3918,6 +3918,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   opacity: 0.55;
   cursor: default;
 }
+/* Touch floor (DESIGN.md §5). */
+@media (max-width: 768px) {
+  .jp-steppicker__step { min-height: 44px; }
+}
 .jp-steppicker__circle {
   display: inline-flex;
   align-items: center;
@@ -3954,7 +3958,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-transform: uppercase;
   color: var(--jp-accent-700);
 }
-/* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar; Nekad = dangertext;
+/* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar på .jp-btn--sm-steget
+   (DESIGN.md §6, ingen tredje höjd; 44px vid ≤768 enligt §5); Nekad = dangertext;
    aktiv markeras (aria-pressed) och är disabled. */
 .jp-parkrow {
   display: flex;
@@ -3964,14 +3969,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-parkbtn {
   flex: 1;
   min-width: 0;
-  height: 34px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-sm);
-  font-size: var(--text-caption);
+  font-size: var(--jp-control-fs);
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
   cursor: pointer;
@@ -3991,6 +3996,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-color: var(--jp-border-strong);
 }
 .jp-parkbtn--danger { color: var(--jp-danger); }
+@media (max-width: 768px) {
+  .jp-parkbtn { min-height: 44px; }
+}
 
 /* ── CV cards ────────────────────────────────────── */
 .jp-cvgrid {

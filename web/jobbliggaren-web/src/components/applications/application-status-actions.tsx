@@ -30,7 +30,7 @@ interface ApplicationStatusActionsProps {
  * Klient-ö renderad av den RSC-ägda ApplicationDetailBody (serialiserbara props
  * över gränsen):
  *
- *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) — Ghosted:
+ *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800) — Ghosted:
  *    "Återaktivera som Skickad" (prototyp-facit); terminala: ingen CTA.
  *  - §8.4 Stegväljare: de 7 stegen på aktiva vägen, KLICKBARA ÄVEN BAKÅT =
  *    direkt transition (ADR 0092 D3 fria byten; nuvarande steg disabled —

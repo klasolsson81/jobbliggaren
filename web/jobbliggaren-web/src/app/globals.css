@@ -4390,7 +4390,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    understruken; ✕ stänger. Fel-toasten (aria-assertive) är danger-fylld. */
 .jp-toast__msg { min-width: 0; }
 /* Ångra och ✕ får träffytor på 32px (44px vid ≤768, DESIGN.md §5) genom padding som
-   en negativ marginal tar ut, så glyferna står kvar där de stod. */
+   en negativ marginal tar ut. */
 .jp-toast__undo {
   background: transparent;
   border: 0;
@@ -4422,7 +4422,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 @media (max-width: 768px) {
   .jp-toast { gap: 16px; }
-  .jp-toast__undo { padding: 12px 0; margin: -12px 0; min-height: 44px; }
+  .jp-toast__undo { padding: 12px 4px; margin: -12px -4px; min-height: 44px; }
   .jp-toast__close { padding: 14px; margin: -12px; }
 }
 .jp-toast__undo:focus-visible,
@@ -7662,7 +7662,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-bottom: 2px solid var(--jp-border-strong);
   white-space: nowrap;
 }
-.jp-apptable__th--check { padding: 0 0 0 14px; }
+.jp-apptable__th--check { position: relative; }
 /* Sorterbart huvud: knappen ARVER kontrolltext-stilen och fyller cellen — hela
    ytan klickbar (Fitts), aria-sort pa th bar semantiken. */
 .jp-apptable__th--sortable { padding: 0; }
@@ -7709,7 +7709,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-apptable__row:last-child .jp-apptable__cell { border-bottom: 0; }
 .jp-apptable__row:hover .jp-apptable__cell { background: var(--jp-surface-2); }
 .jp-apptable__row[data-selected] .jp-apptable__cell { background: var(--jp-accent-50); }
-.jp-apptable__cell--check { padding-right: 0; }
 /* Interaktiva zoner lyfts ovanfor rad-overlayn (samma a11y-monster som
    .jp-app__rowlink) sa checkbox/statusmeny/nasta steg-lanken aldrig
    nastlas i ankaret. */
@@ -7731,7 +7730,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline-offset: 2px;
 }
 /* Etiketten runt kryssrutan fyller cellen, så hela cellen är träffytan (DESIGN.md §5). */
-.jp-apptable__th--check { position: relative; }
 .jp-apptable__checklabel {
   position: absolute;
   inset: 0;
@@ -7739,6 +7737,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   padding-left: 14px;
   cursor: pointer;
+}
+@media (max-width: 768px) {
+  .jp-apptable__th,
+  .jp-apptable__sortbtn,
+  .jp-apptable__cell { height: 44px; }
 }
 /* Lank-overlay: rolltiteln ar radens ENDA <a>, strackt over hela <tr>
    (position:relative pa raden = containing block). Modifierat klick = fullsida. */
@@ -7947,6 +7950,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   cursor: pointer;
   padding: 0;
+  position: relative;
 }
 .jp-statusmenu__minitrigger:hover {
   border-color: var(--jp-accent-700);
@@ -7959,7 +7963,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-statusmenu__minitrigger:disabled { opacity: 0.55; cursor: default; }
 /* Träffyta 32px (44px vid ≤768, DESIGN.md §5) utan att den synliga 22px-rutan växer. */
-.jp-statusmenu__minitrigger { position: relative; }
 .jp-statusmenu__minitrigger::before {
   content: "";
   position: absolute;

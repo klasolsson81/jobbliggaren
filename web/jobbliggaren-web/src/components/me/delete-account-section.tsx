@@ -48,7 +48,7 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
             the message alone, since nested live regions announce twice. */}
         <div ref={targetRef} tabIndex={-1}>
           {heading}
-          <p role="status" className="text-body text-text-primary [overflow-wrap:anywhere]">
+          <p role="status" className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
             {outcome.kind === "refused"
               ? t.rich("account.delete.mailOff", { mail: mailLink })
               : outcome.error}

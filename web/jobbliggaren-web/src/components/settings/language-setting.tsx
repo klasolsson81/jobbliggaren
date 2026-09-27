@@ -37,17 +37,20 @@ export function LanguageSetting({ initialLanguage }: { initialLanguage: string }
   const [isPending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<WriteOutcome | null>(null);
 
-  // Focus the control the message belongs to, so a keyboard or screen-reader user lands on it
-  // instead of only hearing that something is wrong. The segment is `disabled` while the save is
-  // pending, which drops focus to <body>, and `Segment`'s own restore effect is gated on the group
-  // already holding focus. `isPending` is in the guard: `focus()` on a disabled element does nothing.
+  // The segment is `disabled` while the save is pending, which drops focus to <body>, and `Segment`'s
+  // own restore effect is gated on the group already holding focus. So once the save settles, focus
+  // goes back to the checked option: after a refusal always, since the message belongs to it, and
+  // after a receipt only if focus was lost. `isPending` is in the guard: `focus()` on a disabled
+  // element does nothing.
   const error = outcome?.ok === false ? outcome.error : null;
   useEffect(() => {
-    if (!error || isPending) return;
+    if (outcome === null || isPending) return;
+    const active = document.activeElement;
+    if (outcome.ok && active !== null && active !== document.body) return;
     groupRef.current
       ?.querySelector<HTMLButtonElement>('[role="radiogroup"] button[aria-checked="true"]')
       ?.focus();
-  }, [error, isPending]);
+  }, [outcome, isPending]);
 
   const options: ReadonlyArray<SegmentOption<LanguageValue>> = [
     { value: "sv", label: t("display.languageSwedish") },

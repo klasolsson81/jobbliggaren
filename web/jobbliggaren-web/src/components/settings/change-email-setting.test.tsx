@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { ChangeEmailSetting } from "./change-email-setting";
 
-// #1740 — the card of change-email by two codes (Klas 2026-09-22): the address is checked when
-// "Fortsätt" is pressed, the shared dialog re-authenticates, and the card takes the code mailed to the
+// #1740 — the setting for change-email by two codes (Klas 2026-09-22): the address is checked when
+// "Fortsätt" is pressed, the shared dialog re-authenticates, and the setting takes the code mailed to the
 // new address. `render` is auto-wrapped in the Swedish catalogue.
 
 const requestEmailChangeMock =
@@ -43,7 +43,7 @@ async function reauthenticate(user: User, typed = NEW) {
   await user.click(within(dialog).getByRole("button", { name: "Bekräfta koden" }));
 }
 
-/** Reaches the card's own code step and returns its field. */
+/** Reaches the setting's own code step and returns its field. */
 async function toCodeStep(user: User) {
   await reauthenticate(user);
   return screen.findByLabelText("Kod till den nya adressen");
@@ -119,7 +119,7 @@ describe("ChangeEmailSetting", () => {
     expect(dialog).toHaveTextContent(`skickar vi en sexsiffrig kod till ${CURRENT}`);
   });
 
-  it("takes the second code in the card once the dialog has re-authenticated, focus on its field", async () => {
+  it("takes the second code in the setting once the dialog has re-authenticated, focus on its field", async () => {
     const user = userEvent.setup();
     render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
@@ -405,7 +405,7 @@ describe("ChangeEmailSetting", () => {
       expect(screen.getByRole("button", { name: "Fortsätt" })).toBeInTheDocument();
     });
 
-    it("replaces the card with the delivered panel when mail stops after the code", async () => {
+    it("replaces the form with the delivered panel when mail stops after the code", async () => {
       const mailOff = `E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Din adress är oförändrad. Försök igen senare. ${SPENT}`;
       requestEmailChangeMock.mockResolvedValue({ ok: false, kind: "refused", error: mailOff });
       const user = userEvent.setup();
@@ -442,7 +442,7 @@ describe("ChangeEmailSetting", () => {
     });
   });
 
-  it("replaces the card with the delivered panel when no mail can be delivered", async () => {
+  it("replaces the form with the delivered panel when no mail can be delivered", async () => {
     requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "refused" });
     const user = userEvent.setup();
     render(<ChangeEmailSetting currentEmail={CURRENT} />);
@@ -455,7 +455,6 @@ describe("ChangeEmailSetting", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod."
     );
-    // The promise of two codes is not repeated above its own denial.
     expect(screen.queryByText(/När adressen är bytt loggas du ut/)).not.toBeInTheDocument();
     const heading = screen.getByRole("heading", { level: 3, name: "Byt e-postadress" });
     await waitFor(() => expect(heading.parentElement).toHaveFocus());

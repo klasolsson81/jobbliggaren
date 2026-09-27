@@ -22,8 +22,6 @@ describe("MinaSidorNav", () => {
     );
   });
 
-  // Bare /mina-sidor is Matchning: the header's user menu, MATCH_SETTINGS_HREF and every mail sent
-  // before #1891 open it, so it must stay the section's own URL.
   it.each(SECTIONS)("marks %s as the current page and no other", (section, label) => {
     render(<MinaSidorNav active={section} />);
     const nav = screen.getByRole("navigation", { name: "Mina sidor" });

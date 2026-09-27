@@ -110,6 +110,54 @@ describe("LanguageSetting", () => {
     expect(document.activeElement).toBeEnabled();
   });
 
+  it("gives focus back to the checked option after a save that dropped it", async () => {
+    let resolveSave!: (result: ActionResult) => void;
+    updateMyProfileActionMock.mockReturnValue(
+      new Promise<ActionResult>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderSetting();
+    const english = screen.getByRole("radio", { name: "English" });
+
+    await user.click(english);
+    expect(english).toBeDisabled();
+    document.documentElement.focus();
+    expect(document.activeElement).toBe(document.body);
+
+    await act(async () => {
+      resolveSave({ success: true });
+    });
+    await screen.findByText(/^Sparat/);
+    await waitFor(() => expect(document.activeElement).toBe(english));
+    expect(english).toHaveAttribute("aria-checked", "true");
+    expect(english).toBeEnabled();
+  });
+
+  it("leaves focus where it was moved while the save was pending", async () => {
+    let resolveSave!: (result: ActionResult) => void;
+    updateMyProfileActionMock.mockReturnValue(
+      new Promise<ActionResult>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderSetting();
+    const elsewhere = document.createElement("button");
+    document.body.appendChild(elsewhere);
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    elsewhere.focus();
+
+    await act(async () => {
+      resolveSave({ success: true });
+    });
+    await screen.findByText(/^Sparat/);
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
   it("renders the receipt beside the segment that saved (#1391)", async () => {
     const user = userEvent.setup();
     renderSetting();

@@ -395,7 +395,7 @@ export function MatchPreferencesCard({
 
   if (degraded) {
     return (
-      <section className="jp-card" id="matchning">
+      <section className="jp-card">
         <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
         <p className="text-body-sm text-text-primary">
           {t("matchPrefs.degraded")}
@@ -433,7 +433,7 @@ export function MatchPreferencesCard({
   };
 
   return (
-    <section className="jp-card jp-matchprefs" id="matchning">
+    <section className="jp-card jp-matchprefs">
       <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
 
       <div className="jp-matchprefs__facets">

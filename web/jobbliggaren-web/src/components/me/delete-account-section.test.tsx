@@ -55,6 +55,19 @@ describe("DeleteAccountSection", () => {
     await waitFor(() => expect(heading.parentElement).toHaveFocus());
   });
 
+  it("sends a lapsed session to the login page and back to Sekretess och data", async () => {
+    requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "notLoggedIn" });
+    const user = userEvent.setup();
+    render(<DeleteAccountSection currentEmail={ADDRESS} />);
+
+    await request(user);
+
+    expect(await screen.findByRole("link", { name: "Logga in" })).toHaveAttribute(
+      "href",
+      "/logga-in?next=/mina-sidor/sekretess"
+    );
+  });
+
   it("claims nothing when the outcome is unknown: a reload link, and the control is gone", async () => {
     const unknown = "Vi kan inte se om kontot raderades. Ladda om sidan.";
     deleteAccountActionMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: unknown });

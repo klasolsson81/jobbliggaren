@@ -71,7 +71,7 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
 
   // "Nästa steg"-kolumnen (design §7): moveToNext renderas som kompakt
   // "→ {nästa}" (170px-kolumnen); Draft/Ghosted-specialen behåller sina
-  // etiketter ("Slutför och skicka" / "Återaktivera"). SAMMA action-källa som
+  // etiketter ("Markera som Skickad" / "Återaktivera"). SAMMA action-källa som
   // Lista-raden (useRowActions, Fork 4) — bara labeln är tabell-kontextad.
   const nextStep = defaultPrimaryFor(application);
   const nextStepLabel =

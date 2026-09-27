@@ -13,6 +13,7 @@ import { showApplicationToast } from "@/lib/applications/toast-store";
 import { clampAnchoredTop } from "@/lib/applications/anchored-top";
 import { needsTerminalMoveConfirmation } from "@/lib/applications/status";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
+import { adIdentityOf } from "./ad-identity";
 import { FinishDraftDialog } from "./finish-draft-dialog";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 import { DeleteApplicationDialog } from "./delete-application-dialog";
@@ -73,7 +74,7 @@ export interface ApplicationActionsValue {
     move: () => void,
     returnFocusTo?: HTMLElement | null,
   ) => void;
-  /** "Slutför och skicka"-dialogen (utkast, design §9). anchorY = klickets viewport-Y. */
+  /** "Markera som Skickad"-dialogen (utkast, design §9). anchorY = klickets viewport-Y. */
   openFinishDraft: (application: ApplicationDto, anchorY: number | null) => void;
   /** "Logga uppföljning"-dialogen (design §9). anchorY = klickets viewport-Y. */
   openLogFollowUp: (application: ApplicationDto, anchorY: number | null) => void;
@@ -137,7 +138,9 @@ export function useApplicationPending(): ReadonlySet<string> {
 
 /** Visningsnamn för toasten "{company}: …" — företag, annars radens korta id. */
 export function applicationDisplayName(application: ApplicationDto): string {
-  return application.jobAd?.company ?? `#${application.id.slice(0, 8)}`;
+  return (
+    adIdentityOf(application.jobAd).company ?? `#${application.id.slice(0, 8)}`
+  );
 }
 
 /**
@@ -288,8 +291,8 @@ export function ApplicationActionsProvider({
           open
           onOpenChange={closeDialog}
           applicationId={dialog.application.id}
-          contextTitle={dialog.application.jobAd?.title ?? null}
-          contextCompany={dialog.application.jobAd?.company ?? null}
+          contextTitle={adIdentityOf(dialog.application.jobAd).title}
+          contextCompany={adIdentityOf(dialog.application.jobAd).company}
           toastCompany={applicationDisplayName(dialog.application)}
           top={dialog.top}
         />

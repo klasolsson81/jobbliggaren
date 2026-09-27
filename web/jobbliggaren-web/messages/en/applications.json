@@ -68,7 +68,7 @@
       "fallbackTitle": "Application #{shortId}",
       "moveToNext": "Move to {status}",
       "reactivate": "Reactivate",
-      "finishAndSend": "Finish and send",
+      "finishAndSend": "Mark as Sent",
       "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}",
       "latestEvent": "{event} on {date}"
     },
@@ -107,10 +107,9 @@
       "save": "Save follow-up"
     },
     "finishDraft": {
-      "title": "Finish and send",
-      "body": "The application moves to Sent and the wait time counts from today.",
-      "applyBy": "Apply by",
-      "send": "Send application"
+      "title": "Mark as Sent?",
+      "applyBy": "Application deadline",
+      "send": "Mark as Sent"
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",

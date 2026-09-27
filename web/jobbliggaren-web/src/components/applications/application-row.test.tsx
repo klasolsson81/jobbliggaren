@@ -313,18 +313,39 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     });
   });
 
-  it("Utkast-radens primär är 'Slutför och skicka' och öppnar DIALOGEN (mellansteg, §9)", async () => {
+  // #892: an erased ad without a snapshot has an empty identity; the toast names the
+  // application by its short id instead of an empty company.
+  it("ett byte på en raderad annons utan kopia namnger ansökan med kort-id i toasten", async () => {
+    renderRow(
+      makeApplication({
+        jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    );
+    await waitFor(() =>
+      expect(getApplicationToastSnapshot()).toMatchObject({
+        kind: "statusChange",
+        company: "#11111111",
+      }),
+    );
+  });
+
+  it("Utkast-radens primär är 'Markera som Skickad' och öppnar DIALOGEN (mellansteg, §9)", async () => {
     renderRow(makeApplication({ status: "Draft" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Slutför och skicka" })
+      screen.getByRole("button", { name: "Markera som Skickad" })
     );
-    // Dialogen öppnas — ingen transition förrän "Skicka ansökan".
-    expect(
-      await screen.findByRole("button", { name: "Skicka ansökan" })
-    ).toBeInTheDocument();
+    // Dialogen öppnas — ingen transition förrän dess egen knapp.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Markera som Skickad?",
+    });
     expect(transitionStatusAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Skicka ansökan" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Markera som Skickad" })
+    );
     await waitFor(() =>
       expect(transitionStatusAction).toHaveBeenCalledWith(
         "11111111-2222-3333-4444-555555555555",

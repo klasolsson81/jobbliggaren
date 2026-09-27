@@ -68,7 +68,7 @@
       "fallbackTitle": "Ansökan #{shortId}",
       "moveToNext": "Flytta till {status}",
       "reactivate": "Återaktivera",
-      "finishAndSend": "Slutför och skicka",
+      "finishAndSend": "Markera som Skickad",
       "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}",
       "latestEvent": "{event} den {date}"
     },
@@ -107,10 +107,9 @@
       "save": "Spara uppföljning"
     },
     "finishDraft": {
-      "title": "Slutför och skicka",
-      "body": "Ansökan flyttas till Skickad och väntetiden räknas från idag.",
-      "applyBy": "Sök senast",
-      "send": "Skicka ansökan"
+      "title": "Markera som Skickad?",
+      "applyBy": "Sista ansökningsdag",
+      "send": "Markera som Skickad"
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",

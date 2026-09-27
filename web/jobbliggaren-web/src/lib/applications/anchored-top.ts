@@ -6,7 +6,7 @@ const ANCHOR_MIN_VISIBLE = 240;
 
 /**
  * Vertical near-click anchoring for the /ansokningar action dialogs
- * ("Slutför och skicka" / "Logga uppföljning" — design §9: never a fixed top
+ * ("Markera som Skickad" / "Logga uppföljning" — design §9: never a fixed top
  * position; on a long page a fixed-top surface leaves the user staring at only
  * the scrim). The surface's top edge sits `ANCHOR_OFFSET`px ABOVE the pointer's
  * viewport Y, CLAMPED to the viewport: at least `ANCHOR_GUTTER` from the top,

@@ -33,7 +33,7 @@ export type DefaultRowAction = RowAction & {
 
 /**
  * Delad SSOT för radens DEFAULT-primär-CTA (design §5, prototyp-facit): utkast →
- * "Slutför och skicka"-dialogen (mellansteg §9); Ghosted → "Återaktivera"
+ * "Markera som Skickad"-dialogen (mellansteg §9); Ghosted → "Återaktivera"
  * (→ Skickad); annars "Flytta till {nästa}"; terminala → ingen. Extraherad ur
  * `ApplicationRow` (#630 PR 7) så Lista-raden OCH Tabell-vyns "Nästa steg"-kolumn
  * (#630 PR 10) delar EN härledning (CLAUDE.md §9.1 DRY, senior-cto-advisor Fork

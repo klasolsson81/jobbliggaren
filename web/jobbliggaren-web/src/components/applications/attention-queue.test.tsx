@@ -410,17 +410,39 @@ describe("AttentionQueue", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("DraftDeadlineApproaching-raden: 'Slutför och skicka' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {
+  // #892: the follow-up dialog names the application; an erased ad without a snapshot has an
+  // empty identity, so it falls back to the short id instead of " · ".
+  it("'Följ upp' på en raderad annons utan kopia namnger ansökan med kort-id", async () => {
+    const user = userEvent.setup();
+    const erased = makeApplication({
+      id: "erased-1-0000-0000-000000000000",
+      attentionSignal: "NoResponseNudge",
+      jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
+    });
+    const groups: PipelineGroupDto[] = PIPELINE_ORDER.map((status) => ({
+      status,
+      count: status === "Submitted" ? 1 : 0,
+      applications: status === "Submitted" ? [erased] : [],
+    }));
+    renderQueue(groups);
+
+    await user.click(screen.getByRole("button", { name: "Följ upp" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Logga uppföljning" }),
+    ).toHaveAccessibleDescription("Ansökan #erased-1");
+  });
+
+  it("DraftDeadlineApproaching-raden: 'Markera som Skickad' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ Draft: 1 }, { Draft: ["DraftDeadlineApproaching"] }),
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Slutför och skicka" }),
+      screen.getByRole("button", { name: "Markera som Skickad" }),
     );
     expect(
-      await screen.findByRole("button", { name: "Skicka ansökan" }),
+      await screen.findByRole("dialog", { name: "Markera som Skickad?" }),
     ).toBeInTheDocument();
     expect(transitionStatusAction).not.toHaveBeenCalled();
   });

@@ -377,6 +377,6 @@ Every catalogue row above is pinned whole, sv and en, in `web/jobbliggaren-web/s
   link stands outside the folded part and shows without a click; (iii) at least 13 px, at least 4.5:1 against the
   surface it stands on in both themes, and underlined; (iv) the presence test lands in the same PR as any change to
   the gate.
-- For both of row 10's keys a test now pins that the link renders with and without contacts. The panel's runs
+- For both of row 10's keys a test now pins that the link renders with and without contacts. The panel's test runs
   through `SourceAdSection`, the one gate both detail contexts render, and was shown red against the former
   `contacts.length > 0` gate before the gate changed.

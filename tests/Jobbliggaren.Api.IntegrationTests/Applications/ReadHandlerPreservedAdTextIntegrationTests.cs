@@ -1,5 +1,6 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Attention;
+using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Applications.Queries;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
@@ -9,6 +10,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -19,10 +21,11 @@ using DomainApplication = Jobbliggaren.Domain.Applications.Application;
 namespace Jobbliggaren.Api.IntegrationTests.Applications;
 
 // #1827: ApplicationDto.HasPreservedAdText in the two list read handlers. Every state is
-// produced by the actor production uses: the capture at apply time (CreateFromJobAd), a
-// manual application (no snapshot), TransitionTo a terminal status (the minimisation) and
-// TransitionTo back out of it (Undo, which never restores the text). Each test reads both
-// handlers, so a projection dropped from one of them fails here.
+// produced by the actor production uses: the apply command's handler (the capture), a
+// manual application (no snapshot), TransitionTo a terminal status on the saved aggregate
+// (the minimisation, written as an UPDATE) and TransitionTo back out of it (Undo, which
+// never restores the text). Each test reads both handlers, so a projection dropped from one
+// of them fails here.
 [Collection("Api")]
 public class ReadHandlerPreservedAdTextIntegrationTests
 {
@@ -50,10 +53,8 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = await SeedSeekerAsync(db, clock, _userId);
-        var app = CreateFromSeededJobAd(db, seeker, clock);
-        db.Applications.Add(app);
-        await db.SaveChangesAsync(CancellationToken.None);
+        await SeedSeekerAsync(db, clock, _userId);
+        await ApplyToSeededJobAdAsync(db, clock);
 
         var (list, pipeline) = await ReadBothAsync(db, clock);
 
@@ -89,12 +90,11 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = await SeedSeekerAsync(db, clock, _userId);
-        var app = CreateFromSeededJobAd(db, seeker, clock);
-        app.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+        await SeedSeekerAsync(db, clock, _userId);
+        var app = await ApplyToSeededJobAdAsync(db, clock);
         app.TransitionTo(ApplicationStatus.Rejected, clock).IsSuccess.ShouldBeTrue();
-        db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
 
         var (list, pipeline) = await ReadBothAsync(db, clock);
 
@@ -109,13 +109,13 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = await SeedSeekerAsync(db, clock, _userId);
-        var app = CreateFromSeededJobAd(db, seeker, clock);
-        app.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+        await SeedSeekerAsync(db, clock, _userId);
+        var app = await ApplyToSeededJobAdAsync(db, clock);
         app.TransitionTo(ApplicationStatus.Rejected, clock).IsSuccess.ShouldBeTrue();
-        app.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
-        db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
+        app.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
 
         var (list, pipeline) = await ReadBothAsync(db, clock);
 
@@ -133,10 +133,10 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         return seeker;
     }
 
-    // The snapshot is captured from the seeded ad's own fields, as
-    // CreateApplicationFromJobAdCommandHandler does.
-    private static DomainApplication CreateFromSeededJobAd(
-        AppDbContext db, JobSeeker seeker, IDateTimeProvider clock)
+    // Applies through the command handler production runs, then returns the saved
+    // aggregate, still tracked, for the transitions that follow.
+    private async Task<DomainApplication> ApplyToSeededJobAdAsync(
+        AppDbContext db, IDateTimeProvider clock)
     {
         var jobAd = JobAd.Create(
             "Backend-utvecklare",
@@ -148,21 +148,15 @@ public class ReadHandlerPreservedAdTextIntegrationTests
             null,
             clock).Value;
         db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
 
-        var snapshot = AdSnapshot.Capture(
-            jobAd.Title,
-            jobAd.Company.Name,
-            jobAd.MunicipalityConceptId,
-            jobAd.Url,
-            jobAd.Source.Value,
-            jobAd.PublishedAt,
-            jobAd.ExpiresAt,
-            jobAd.Description,
-            jobAd.Contacts,
-            clock.UtcNow);
+        var created = await new CreateApplicationFromJobAdCommandHandler(db, _currentUser, clock)
+            .Handle(new CreateApplicationFromJobAdCommand(jobAd.Id.Value), CancellationToken.None);
+        created.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
 
-        return DomainApplication.CreateFromJobAd(
-            seeker.Id, jobAd.Id, snapshot, coverLetter: null, clock).Value;
+        var id = new Jobbliggaren.Domain.Applications.ApplicationId(created.Value);
+        return await db.Applications.FirstAsync(a => a.Id == id, CancellationToken.None);
     }
 
     private async Task<(ApplicationDto List, ApplicationDto Pipeline)> ReadBothAsync(

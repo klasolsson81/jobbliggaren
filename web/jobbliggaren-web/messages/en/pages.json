@@ -578,7 +578,6 @@
         },
         "title": "Enter the code",
         "resting": "If there is an email from Jobbliggaren, follow the instructions in it. If the email contains a code, enter it here. The code is valid for 15 minutes.",
-        "restingProvider": "If there is an email from Jobbliggaren, follow the instructions in it. If the email contains a code, enter it here. It is the code that links {provider} to your account. The code is valid for 15 minutes.",
         "codeLabel": "Six-digit code",
         "codeHint": "Check your spam folder too.",
         "submit": "Confirm the code",
@@ -588,9 +587,7 @@
         "lastAttempt": "One attempt left. After that you need to request a new code.",
         "expired": "That code can no longer be used. Send a new code and try again.",
         "burned": "You have entered the wrong code three times, so the code can no longer be used. If the email contains a login link you can use that instead, otherwise send a new code.",
-        "burnedProvider": "You have entered the wrong code three times, so the code can no longer be used. Send a new code.",
         "youEntered": "You entered {email}.",
-        "providerAddress": "The address in your {provider} account is {email}.",
         "resend": {
           "button": "Send new code",
           "sending": "Sending…",

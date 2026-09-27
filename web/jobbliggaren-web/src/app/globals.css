@@ -7128,8 +7128,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: baseline;
   gap: 2px 10px;
 }
-/* Färgen förstärker, texten bär signalen (WCAG 1.4.1). Aldrig grön: grönt är
-   interaktion och grad. */
+/* Färgen förstärker, texten bär signalen (WCAG 1.4.1). Aldrig accentgrönt, som är
+   interaktion och grad: färgen är signalens status-bucket. */
 .jp-attentionqueue__kicker {
   font-family: var(--jp-font-mono);
   font-size: var(--text-overline);

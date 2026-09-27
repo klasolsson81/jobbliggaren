@@ -46,13 +46,15 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
   );
 
   return (
-    <div>
+    <section aria-labelledby="jp-detail-notes-title">
       {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten (samma doktrin som
           uppföljningar) — förklarar att en anteckning är privat och inte
           påverkar väntetiden/åtgärdskön (till skillnad från en uppföljning). */}
       <div className="jp-section-label jp-section-label--row">
         <span className="jp-labelhelp">
-          {tUi("notes.sectionLabel")}
+          {/* The region is named by this span alone, so the "?" trigger stays
+              out of the name. */}
+          <span id="jp-detail-notes-title">{tUi("notes.sectionLabel")}</span>
           <InfoDialog
             title={tUi("notes.help.title")}
             paragraphs={[tUi("notes.help.p1"), tUi("notes.help.p2")]}
@@ -105,7 +107,7 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

@@ -110,8 +110,8 @@ export function ApplicationStatusActions({
       )}
 
       {/* §8.4 Stegväljare — 7 steg, även bakåt. */}
-      <section aria-labelledby="jp-drawer-steps-label">
-        <div className="jp-section-label" id="jp-drawer-steps-label">
+      <section aria-labelledby="jp-detail-steps-label">
+        <div className="jp-section-label" id="jp-detail-steps-label">
           {tUi("drawer.flowLabel")}{" "}
           <span className="jp-section-label__hint">
             {tUi("drawer.flowHint")}
@@ -156,8 +156,8 @@ export function ApplicationStatusActions({
       </section>
 
       {/* §8.5 Avsluta eller parkera. */}
-      <section aria-labelledby="jp-drawer-park-label">
-        <div className="jp-section-label" id="jp-drawer-park-label">
+      <section aria-labelledby="jp-detail-park-label">
+        <div className="jp-section-label" id="jp-detail-park-label">
           {tUi("drawer.parkLabel")}
         </div>
         <div className="jp-parkrow">

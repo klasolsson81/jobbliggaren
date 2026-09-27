@@ -178,8 +178,8 @@ export function ApplicationDetailBody({
 
       {/* Tidslinje (§8.8) — REALA händelser, nyast först, alltid öppen. Ingen
           updatedAt-syntes. */}
-      <section aria-labelledby="jp-drawer-timeline-title">
-        <div className="jp-section-label" id="jp-drawer-timeline-title">
+      <section aria-labelledby="jp-detail-timeline-title">
+        <div className="jp-section-label" id="jp-detail-timeline-title">
           {tUi("detail.timelineLabel")}
         </div>
         <TimelineList events={timeline} />
@@ -190,14 +190,14 @@ export function ApplicationDetailBody({
 
       {/* Personligt brev — läs-prosa, behålls (ingen mutationsyta). */}
       {application.coverLetter && (
-        <div>
-          <div className="jp-section-label">
+        <section aria-labelledby="jp-detail-cover-letter-title">
+          <div className="jp-section-label" id="jp-detail-cover-letter-title">
             {tUi("detail.coverLetterLabel")}
           </div>
           <p className="jp-modal__description jp-detail-prose">
             {application.coverLetter}
           </p>
-        </div>
+        </section>
       )}
     </>
   );

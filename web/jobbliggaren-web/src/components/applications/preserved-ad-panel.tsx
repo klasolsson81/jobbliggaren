@@ -124,8 +124,11 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
       {/* Annonstexten. Vid description == null (terminal status →
           retention-minimering) visas EJ en tom kropp: en kort, neutral
           not förklarar att texten rensats men metadatan finns kvar. */}
-      <div style={{ marginTop: "16px" }}>
-        <div className="jp-section-label">
+      <section
+        aria-labelledby="jp-preserved-ad-text-title"
+        style={{ marginTop: "16px" }}
+      >
+        <div className="jp-section-label" id="jp-preserved-ad-text-title">
           {tUi("preservedAd.descriptionLabel")}
         </div>
         {preservedAd.description ? (
@@ -139,7 +142,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {preservedAd.contacts.length > 0 && (
         <div className="mt-4">

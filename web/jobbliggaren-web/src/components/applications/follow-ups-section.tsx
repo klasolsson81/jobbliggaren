@@ -68,14 +68,18 @@ export function FollowUpsSection({
   );
 
   return (
-    <div>
+    <section aria-labelledby="jp-detail-followups-title">
       <div className="jp-section-label jp-section-label--row">
         {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten förklarar
             skillnaden uppföljning vs anteckning (inline-help-doktrin, #408).
             Uppföljning = du agerade → väntetiden räknas om; anteckning =
             privat minnesanteckning utan tidseffekt. */}
         <span className="jp-labelhelp">
-          {tUi("followUps.sectionLabel")}
+          {/* The region is named by this span alone, so the "?" trigger stays
+              out of the name. */}
+          <span id="jp-detail-followups-title">
+            {tUi("followUps.sectionLabel")}
+          </span>
           <InfoDialog
             title={tUi("followUps.help.title")}
             paragraphs={[tUi("followUps.help.p1"), tUi("followUps.help.p2")]}
@@ -129,7 +133,7 @@ export function FollowUpsSection({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

@@ -358,6 +358,35 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("Status")).toBeInTheDocument();
   });
 
+  // #1827 B4: every section is a region named by its label alone. The "?" help trigger sits
+  // beside the label, and a name that swallowed it would read "Uppföljningar Vad är detta? …".
+  it("names each section by its label alone", () => {
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+          preservedAd: snapshot,
+          coverLetter: "Hej, jag söker tjänsten.",
+        })}
+        now={NOW}
+      />,
+    );
+    for (const name of [
+      "Uppföljningar",
+      "Tidslinje",
+      "Anteckningar",
+      "Personligt brev",
+      "Annonstext",
+    ]) {
+      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    }
+    expect(
+      within(screen.getByRole("region", { name: "Annonstext" })).getByText(
+        "Sparad annonstext.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   // #1827: the body gates a terminal move on the saved copy's text. The copy is projected even
   // while the ad is active, so the live-ad case is the one that proves the wiring.
   it("asks before a terminal move when the saved copy has text, even while the ad is live", () => {

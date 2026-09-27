@@ -100,7 +100,6 @@ names, not class sets.
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
   /* Shadows (v3 — undantag: popover/modal får skugga) */
-  --jp-shadow-card:  0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08);
   --jp-shadow-modal: 0 30px 80px rgba(8,23,48,0.35);
 
@@ -145,7 +144,6 @@ names, not class sets.
   /* --jp-focus omdefinieras EJ: var(--jp-accent-700) resolvar själv
      till #6EE7A8 via accent-skiftet. Hero-tokens omdefinieras EJ
      (gradienten är tema-stabil). */
-  --jp-shadow-card:  0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4);
   --jp-shadow-modal: 0 30px 80px rgba(0,0,0,0.7);
 }

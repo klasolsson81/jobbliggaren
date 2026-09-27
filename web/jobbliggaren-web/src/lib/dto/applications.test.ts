@@ -196,6 +196,35 @@ describe("applicationDtoSchema — lastStatusChangeAt/lastFollowUpAt (PR 7)", ()
   });
 });
 
+// ── #1827 — the list says whether the saved copy still holds its text ────────
+describe("applicationDtoSchema — hasPreservedAdText (#1827)", () => {
+  it("passes the backend's boolean through", () => {
+    for (const value of [true, false]) {
+      const parsed = applicationDtoSchema.safeParse({
+        ...baseApplication,
+        hasPreservedAdText: value,
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.hasPreservedAdText).toBe(value);
+    }
+  });
+
+  it("deploy skew: an older response without the field parses as unknown", () => {
+    const parsed = applicationDtoSchema.safeParse(baseApplication);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.hasPreservedAdText).toBeUndefined();
+  });
+
+  it("rejects a non-boolean value", () => {
+    expect(
+      applicationDtoSchema.safeParse({
+        ...baseApplication,
+        hasPreservedAdText: "true",
+      }).success,
+    ).toBe(false);
+  });
+});
+
 // ── #842 PR4 — the preserved snapshot carries frozen recruiter contacts ──────
 describe("adSnapshotDtoSchema (#842 PR4)", () => {
   const base = {

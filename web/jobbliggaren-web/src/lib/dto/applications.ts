@@ -88,6 +88,11 @@ export const applicationDtoSchema = z.object({
   // scalar ger utelämnad siffra, aldrig ett fabricerat värde (§5).
   lastStatusChangeAt: z.string().optional(),
   lastFollowUpAt: z.string().nullable().optional(),
+  // #1827: whether the saved ad copy still holds its text, which a move to
+  // Accepterad, Nekad or Återtagen deletes for good (the backend derives it; only
+  // the backend can tell a minimised copy after an undo). .optional() for deploy
+  // skew: a missing value means "unknown", never "no text".
+  hasPreservedAdText: z.boolean().optional(),
   // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
   // application needs action now, computed ONCE on the backend by
   // ApplicationAttentionEvaluator (the SSOT) and serialized by NAME. The FE only

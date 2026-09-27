@@ -3065,8 +3065,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-disclosure-row__date {
   flex-shrink: 0;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-3);
 }
 .jp-disclosure-row__chevron {
   flex-shrink: 0;
@@ -3186,12 +3184,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-status-block[data-status-variant="neutral"] {
   border-left-color: var(--jp-ink-3);
 }
-/* Status label — uppercase key line, coloured per status variant. */
+/* Status label — a mono caps kicker on DESIGN.md §4's rung (11px, 0.08em),
+   coloured per status variant. */
 .jp-status-block__label {
-  font-size: var(--text-caption);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   margin-bottom: 2px;
   color: var(--jp-ink-2);
 }
@@ -3223,10 +3223,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
-.jp-status-block__next-date {
-  color: var(--jp-ink-1);
-  font-weight: var(--jp-fw-semibold);
-}
 
 .jp-timeline__list {
   list-style: none;
@@ -3243,9 +3239,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-timeline__date {
   /* Längsta sv-SE month:"short"-datum ("30 sep. 2026") får aldrig
-     wrappa/trunkeras (F5 design-reviewer M2). ink-2 not ink-3 (#344 §5). */
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
+     wrappa/trunkeras (F5 design-reviewer M2). */
   width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -3253,6 +3247,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-timeline__label {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-regular);
+}
+
+/* The detail's dates (DESIGN.md §4 inline data, #1827 M3): sans with tabular
+   figures, caption/medium, ink-2. Never mono, never ink-3. */
+.jp-timeline__date,
+.jp-disclosure-row__date,
+.jp-status-block__next-date,
+.jp-detail-date {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 
 /* Cover-letter / detail prose readability cap (was inline maxWidth:"68ch"). */

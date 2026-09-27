@@ -132,7 +132,7 @@ function NoteRow({ note, expanded, onToggle }: NoteRowProps) {
         onClick={onToggle}
       >
         <span className="jp-disclosure-row__note">{firstLine}</span>
-        <span className="jp-disclosure-row__date jp-mono">
+        <span className="jp-disclosure-row__date">
           {createdAtLabel}
         </span>
         <ChevronDown

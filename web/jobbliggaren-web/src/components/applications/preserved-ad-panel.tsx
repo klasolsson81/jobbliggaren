@@ -86,7 +86,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.published")}
             </dt>
-            <dd className="jp-modal__matchrow-evidence jp-mono">
+            <dd className="jp-detail-date">
               {preservedPublished}
             </dd>
           </div>
@@ -97,7 +97,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.applyBy")}
             </dt>
-            <dd className="jp-modal__matchrow-evidence jp-mono">
+            <dd className="jp-detail-date">
               {preservedExpires}
             </dd>
           </div>

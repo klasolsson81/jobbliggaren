@@ -185,7 +185,7 @@ function FollowUpRow({
         {noteFirstLine && (
           <span className="jp-disclosure-row__note">{noteFirstLine}</span>
         )}
-        <span className="jp-disclosure-row__date jp-mono">{scheduledLabel}</span>
+        <span className="jp-disclosure-row__date">{scheduledLabel}</span>
         <ChevronDown
           size={16}
           className="jp-disclosure-row__chevron"
@@ -206,7 +206,7 @@ function FollowUpRow({
                 <dd className="text-text-primary">
                   {outcomeLabel}
                   {outcomeAt && (
-                    <span className="ml-2 font-mono text-text-secondary">
+                    <span className="jp-detail-date ml-2">
                       ({outcomeAt})
                     </span>
                   )}

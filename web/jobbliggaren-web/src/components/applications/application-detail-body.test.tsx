@@ -358,6 +358,54 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("Status")).toBeInTheDocument();
   });
 
+  // #1827 M3 (DESIGN.md §4): a date the user reads is sans with tabular figures, never mono.
+  // Every date the body renders is on screen here: the timeline, a follow-up row and its
+  // expanded outcome date, a note row, the preserved copy's dates and the next follow-up.
+  it("renders its dates in sans: the only mono left is the step picker's caps chip", () => {
+    const { container } = render(
+      <ApplicationDetailBody
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+          preservedAd: { ...snapshot, expiresAt: "2026-05-30T08:00:00Z" },
+          followUps: [
+            {
+              id: "f-answered",
+              channel: "Email",
+              scheduledAt: "2026-05-02T08:00:00Z",
+              note: null,
+              outcome: "Responded",
+              outcomeAt: "2026-05-03T08:00:00Z",
+              createdAt: "2026-05-02T08:00:00Z",
+            },
+            {
+              id: "f-next",
+              channel: "Phone",
+              scheduledAt: "2026-05-12T08:00:00Z",
+              note: null,
+              outcome: "Pending",
+              outcomeAt: null,
+              createdAt: "2026-05-04T08:00:00Z",
+            },
+          ],
+          notes: [
+            { id: "n1", content: "Ringde", createdAt: "2026-05-04T08:00:00Z" },
+          ],
+        })}
+        now={NOW}
+      />,
+    );
+    const followUpList = screen
+      .getAllByRole("list")
+      .find((list) => within(list).queryByText("Svar mottaget") != null);
+    fireEvent.click(
+      within(followUpList!).getAllByRole("button", { expanded: false })[1]!,
+    );
+    expect(screen.getByText("(3 maj 2026)")).toBeInTheDocument();
+
+    const mono = [...container.querySelectorAll(".jp-mono, .font-mono")];
+    expect(mono.map((el) => el.textContent)).toEqual(["Nu"]);
+  });
+
   // #1827 B4: every section is a region named by its label alone. The "?" help trigger sits
   // beside the label, and a name that swallowed it would read "Uppföljningar Vad är detta? …".
   it("names each section by its label alone", () => {

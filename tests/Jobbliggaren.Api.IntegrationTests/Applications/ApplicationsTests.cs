@@ -180,6 +180,7 @@ public class ApplicationsTests(ApiFactory factory)
         var signal = draftApp.GetProperty("attentionSignal");
         signal.ValueKind.ShouldBe(JsonValueKind.String);
         signal.GetString().ShouldBe("None");
+        draftApp.GetProperty("hasPreservedAdText").GetBoolean().ShouldBeFalse();
     }
 
     [Fact]

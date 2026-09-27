@@ -1304,8 +1304,11 @@ sets these in GitHub's console at activation, and §3d's reading records them.
   **The sixteenth stands and `StartBudget` drops to 30 per minute** (`security-auditor`, 2026-09-27,
   `docs/reviews/2026-09-27-1745-pr2-budget-security-auditor.md`). The ceiling is the fixed quantity, since it is what
   reserves fifteen sixteenths for the code path's live data, and N is derived from it. N stays above AuthWrite's
-  per-source limit (20 per minute, configured in `RateLimitingOptions`). If legitimate load needs more starts,
-  `maxmemory` is raised under trigger 5's sizing relation; the fraction is never raised.
+  per-source limit (20 per minute, configured in `RateLimitingOptions`) as an average rate, not at a window edge: both
+  windows are fixed, so one client address can spend up to twice that limit inside one budget window and empty the
+  budget for the rest of it. That stops external login and never code login, as the budget is built to, and no N the
+  ceiling admits holds against a second address. If legitimate load needs more starts, `maxmemory` is raised under
+  trigger 5's sizing relation; the fraction is never raised.
 - Measured 2026-09-27 at 30 per minute, through the production stores: 330 flows took 1 211 864 bytes and 330 grants
   1 232 032, so 630 records at 3733 bytes bound 2 351 790 of 67 108 864 (3.5 %). Regenerated after a build by
   `dotnet tests/Jobbliggaren.Api.IntegrationTests/bin/Debug/net10.0/Jobbliggaren.Api.IntegrationTests.dll -method "*The_start_path_at_its_budget_bound*" -showLiveOutput`.

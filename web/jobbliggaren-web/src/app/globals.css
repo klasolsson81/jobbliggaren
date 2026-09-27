@@ -7422,23 +7422,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-/* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px
+/* Grid: sex 1fr-kolumner, terminalzonerna som en rad om fyra under dem (#1827 M5:
+   en sjunde spalt gav 141px breda kolumner vid 1136). Kolumnerna klampar vid 140px
    och griden scrollar horisontellt nar den inte far plats (sidan scrollar aldrig
    i x-led). */
 .jp-board__grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr)) 218px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 12px;
   align-items: stretch;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
-/* Terminal-spalten: fyra mini-zoner, staplade. */
 .jp-board__terminal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
   min-width: 0;
 }
 
@@ -7475,7 +7476,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-board-col__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -7489,9 +7490,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--jp-ink-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .jp-board-col__count {
   /* #805 punkt 2: inline "(N)"-text intill kolumnnamnet (var en surface-3-chip;
@@ -7555,7 +7553,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   padding: 10px 11px;
-  box-shadow: var(--jp-shadow-card);
   cursor: grab;
 }
 .jp-board-card:hover {
@@ -7581,6 +7578,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-semibold);
   line-height: 1.3;
   color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -7626,6 +7624,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 6px;
 }
+.jp-board-card__foot .jp-tag {
+  white-space: normal;
+  max-width: 100%;
+}
 .jp-board-card__days {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-medium);
@@ -7633,13 +7635,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 /* StatusMenu (tangentbords-/no-drag-vagen) z-lyft ovanfor lank-overlay:en sa
-   den inte nastlas i ankaret; kompakt trigger pa det smala kortet. */
+   den inte nastlas i ankaret. */
 .jp-board-card__menu {
   position: relative;
   z-index: 1;
 }
-.jp-board-card__menu .jp-rowbtn--ink {
-  padding: 2px 6px;
+/* "Byt status" needs a 154px column at its full padding. The grid guarantees that from a
+   1065px viewport (six columns and five gaps, the container's padding, and a 17px classic
+   scrollbar), so below it the button keeps its narrow padding (#1827 M5). */
+@media (max-width: 1064px) {
+  .jp-board-card__menu .jp-rowbtn--ink {
+    padding: 2px 6px;
+  }
 }
 
 /* ── Tabell-vyn (#630 PR 10, design §7): volymvyn — sorterbar, bulk, 50/sida ──

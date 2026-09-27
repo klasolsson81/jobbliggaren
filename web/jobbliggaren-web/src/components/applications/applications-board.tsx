@@ -217,7 +217,7 @@ interface BoardColumnProps {
 /**
  * En kolumn (aktivt steg) eller mini-zon (terminal). Samma chassi: 3px toppband
  * i statusfärg (getStatusVariantKey — SAMMA SSOT som rail/status-taggar, ingen
- * drift), mono-namn + antal-chip, kap 4 kort + "Visa N fler", drop-target-
+ * drift), mono-namn + antal, kap 4 kort + "Visa N fler", drop-target-
  * highlight via `data-over`. `variant="zone"` ger kompakta kort.
  */
 function BoardColumn({
@@ -243,7 +243,7 @@ function BoardColumn({
       className="jp-board-col"
       // role="group" (ej implicit region-landmark): 10 kolumner/zoner skulle
       // annars bli 10 landmarks = brus i skärmläsarens landmark-meny. aria-label
-      // (fullt stegnamn) bevaras, så AT täcker de trunkerade huvudena (a11y-skill).
+      // (stegnamnet) namnger gruppen.
       role="group"
       data-variant={variant}
       data-over={isOver || undefined}
@@ -257,12 +257,7 @@ function BoardColumn({
       onDrop={dropProps.onDrop}
     >
       <div className="jp-board-col__head">
-        {/* De smala kolumnerna kan trunkera de langa stegnamnen ("Intervju
-            bokad"); title ger full text vid hover (sektionens aria-label bar
-            redan hela namnet for skarmlasare). */}
-        <span className="jp-board-col__name jp-mono" title={label}>
-          {label}
-        </span>
+        <span className="jp-board-col__name jp-mono">{label}</span>
         {/* #805 punkt 2: antalet inline "(N)" intill kolumnnamnet (var tidigare
             en chip-pill) → samma form som Lista/Alla-vyerna (3-vy-konsekvens). */}
         <span className="jp-board-col__count">({apps.length})</span>

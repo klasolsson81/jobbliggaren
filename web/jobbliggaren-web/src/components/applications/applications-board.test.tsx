@@ -129,6 +129,14 @@ describe("ApplicationsBoard — layout", () => {
     }
   });
 
+  // #1827 M5: a long step name wraps inside its column; a title attribute reached a mouse only.
+  it("kolumnnamnen bär inget title-attribut", () => {
+    renderBoard(makeGroups({ Submitted: 1 }));
+    for (const name of document.querySelectorAll(".jp-board-col__name")) {
+      expect(name).not.toHaveAttribute("title");
+    }
+  });
+
   it("toppband keyar off getStatusVariantKey (SAMMA SSOT som rail/tagg)", () => {
     renderBoard(makeGroups({ Submitted: 1 }));
     // Submitted → STATUS_BADGE_VARIANT Info → "info" (#683, design §11).

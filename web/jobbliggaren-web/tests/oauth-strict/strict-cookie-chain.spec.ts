@@ -131,3 +131,25 @@ test("(vi) nothing after the callback carries its code or state in a Referer, no
   }
   expect(elsewhere).toEqual([]);
 });
+
+test("(vii) refresh blocked: the link appears after the hold, and its click carries the Strict session", async ({
+  page,
+}) => {
+  // #1746, DESIGN.md §11.6: the document holds its content invisible for two seconds. The actor in operation is a
+  // browser that blocks the meta refresh (Firefox's accessibility.blockautorefresh); answering the refresh's
+  // navigation with 204 is this test's mechanism, since a 204 leaves the document where it is in every engine.
+  await page.route("**/oversikt", (route) => route.fulfill({ status: 204 }));
+  await startWithGoogle(page, "signedIn");
+  await page.locator("#approve").click();
+  await page.waitForURL(`**${CALLBACK_PATH}**`);
+
+  const link = page.getByRole("link", { name: "Fortsätt" });
+  await expect(link).toBeHidden();
+  await expect(link).toBeVisible({ timeout: 6_000 });
+
+  await page.unroute("**/oversikt");
+  await link.click();
+  await expect.poll(() => afterCallback().find((r) => r.path === "/oversikt")).toBeDefined();
+  expect(afterCallback().find((r) => r.path === "/oversikt")!.cookies[SESSION_COOKIE]).toBe(SESSION_ID);
+});
+

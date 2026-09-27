@@ -40,7 +40,7 @@ interface ApplicationsBoardProps {
 /**
  * Tavla-vyn (#630 PR 8, design §6, ADR 0092 D1) — kanban över SAMMA
  * `PipelineGroupDto[]` som Lista (D2). Sex kolumner (aktiva steg) +
- * högerspalt med fyra terminal-mini-zoner. Drag släpper = statusbyte.
+ * fyra terminal-mini-zoner. Drag släpper = statusbyte.
  *
  * Optimistisk flytt (Klas-bekräftad, ADR 0092 Livscykel-amendment 2026-07-06):
  * boardet äger en board-scoped `useOptimistic` som flyttar kortet till

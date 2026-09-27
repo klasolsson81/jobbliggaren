@@ -14,9 +14,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// the provider exactly when the client id is set (GoogleIdentityProviderGateTests owns the gate's own rows). The Worker
 /// composes none of it, with or without a client.
 /// <para>
-/// #1745, 6b PR 1's inertness pin in the composition (dotnet-architect R7, K1): a full GitHub client registers no
-/// GitHub adapter, binds no GitHub options and names no GitHub client, in the Api or the Worker. Google is the
-/// control: the same configuration does register it. 6b PR 2's gate turns these rows round.
+/// #1745: GitHub's gate registers GitHub from its own client id, independent of Google's, and the Worker composes
+/// neither (test-writer reading §6, the composition rows).
 /// </para>
 /// </summary>
 public sealed class ExternalLoginCompositionTests
@@ -71,7 +70,7 @@ public sealed class ExternalLoginCompositionTests
     }
 
     [Fact]
-    public void The_Api_registers_no_github_adapter_even_with_a_full_github_client()
+    public void The_Api_registers_both_providers_from_two_full_clients()
     {
         var services = new ServiceCollection();
 
@@ -80,23 +79,25 @@ public sealed class ExternalLoginCompositionTests
 
         services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider))
             .Select(d => d.ImplementationType)
-            .ShouldBe([typeof(GoogleIdentityProvider)]);
-        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
+        services.ShouldContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
         NamedClients(services).ShouldContain(GoogleIdentityProvider.HttpClientName);
-        NamedClients(services).ShouldNotContain(GitHubIdentityProvider.HttpClientName);
+        NamedClients(services).ShouldContain(GitHubIdentityProvider.HttpClientName);
+        services.Count(d => d.ServiceType == typeof(ExternalLoginCallbacks)).ShouldBe(1);
     }
 
     [Fact]
-    public void The_Api_registers_nothing_of_github_from_a_github_client_alone()
+    public void The_Api_registers_github_alone_from_its_own_client()
     {
         var services = new ServiceCollection();
 
         services.AddIdentityAndSessions(
             Configuration(withVolatileRedis: true, withGoogleClient: false, withGitHubClient: true));
 
-        services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
-        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
-        services.ShouldNotContain(d => d.ServiceType == typeof(ExternalLoginCallbacks));
+        services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider)).ShouldHaveSingleItem()
+            .ImplementationType.ShouldBe(typeof(GitHubIdentityProvider));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GoogleOAuthOptions>));
+        services.Count(d => d.ServiceType == typeof(ExternalLoginCallbacks)).ShouldBe(1);
     }
 
     [Fact]

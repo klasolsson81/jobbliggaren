@@ -33,9 +33,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// Every premise is minted by production: the flow by the start route, the GitHub identity by the real
 /// <see cref="GitHubIdentityProvider"/> over <see cref="ScriptedGitHub"/> (a documented <c>/user</c> and
 /// <c>/user/emails</c> shape), and every code and link is read out of the mail the dispatch consumer sent
-/// (the <c>LoginChallengeProofTests</c> pattern). The one premise production does not yet produce is GitHub being
-/// registered on a host: in 6b PR 1 <see cref="ApiFactory"/> builds it by hand, and its actor is
-/// <c>AddGitHubIdentityProvider</c>, the gate 6b PR 2 adds.
+/// (the <c>LoginChallengeProofTests</c> pattern).
 /// </para>
 /// </summary>
 [Collection("Api")]

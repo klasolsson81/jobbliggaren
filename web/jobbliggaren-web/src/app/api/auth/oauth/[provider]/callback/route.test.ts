@@ -205,9 +205,7 @@ describe("the external login callback", () => {
   });
 
   // The api's `codeRequired` body: `AuthEndpoints`' `ExternalCodeRequiredBody`, which
-  // `CompleteExternalLoginCommandHandler` answers when GitHub's asserted address has no link yet. The api answers
-  // it for "github" once `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider` (#1745 PR 2) registers the
-  // adapter; in PR 1 no composition does.
+  // `CompleteExternalLoginCommandHandler` answers when GitHub's asserted address has no link yet.
   describe("when a provider's address has no link yet", () => {
     const codeRequired = { outcome: "codeRequired", challengeId: CHALLENGE, linkGrant: LINK_GRANT, email: ECHO };
 

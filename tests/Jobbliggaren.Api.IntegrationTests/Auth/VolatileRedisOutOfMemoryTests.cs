@@ -1,11 +1,14 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -135,6 +138,13 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
     /// and each flow lives <see cref="ExternalLoginPolicy.StateTtl"/>, so no more flows than written here are ever
     /// live at once. Each carries the longest path the start validator admits, in the character the JSON writer
     /// escapes to six bytes, through the production store.
+    /// <para>
+    /// #1745 (dotnet-architect N4c): a callback can leave one pending-link grant (purpose 5), written by
+    /// <c>PendingLinkChallenge</c> through the production grant store, which pads every grant to one length. It takes
+    /// its flow (GETDEL) before, so a start holds one record at a time, first the flow and then the grant: the starts
+    /// that can hold one now are those of both lifetimes and one window. The bound is that count times the larger
+    /// record, each measured here.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task The_start_path_at_its_budget_bound_takes_at_most_a_sixteenth_of_the_instance()
@@ -153,14 +163,28 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         var server = admin.GetServer(admin.GetEndPoints().Single());
         var before = await MemoryAsync(server, "used_memory");
 
+        var grants = new RedisGrantStore(
+            _connection, new EphemeralDataProtectionProvider(), NullLogger<RedisGrantStore>.Instance);
+        var proof = await GitHubIdentities.AssertedProofAsync(
+            GitHubApiShapes.User(58323117, "budget-gh"), GitHubApiShapes.Emails.PrimaryVerified("budget@example.se"));
+        var pending = new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject);
+
         for (var i = 0; i < live; i++)
             await flows.PutAsync(new OAuthFlow(provider, PkceVerifier.Generate(), next), Ct);
+        var afterFlows = await MemoryAsync(server, "used_memory");
+        for (var i = 0; i < live; i++)
+            await grants.IssueAsync(pending, Ct);
+        var afterGrants = await MemoryAsync(server, "used_memory");
 
-        var taken = await MemoryAsync(server, "used_memory") - before;
+        var records = budget.Limit
+                      * ((int)Math.Ceiling((ExternalLoginPolicy.StateTtl + LoginChallengePolicy.GrantTtl) / budget.Window) + 1);
+        var perRecord = Math.Max(afterFlows - before, afterGrants - afterFlows) / live;
+        var bound = records * perRecord;
         var maxmemory = await MemoryAsync(server, "maxmemory");
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{live} flows took {taken} of {maxmemory} bytes ({100.0 * taken / maxmemory:F1} %)");
-        taken.ShouldBeLessThanOrEqualTo(maxmemory / 16);
+            $"{live} flows took {afterFlows - before} bytes, {live} pending-link grants {afterGrants - afterFlows}; "
+            + $"{records} records at {perRecord} bytes bound {bound} of {maxmemory} ({100.0 * bound / maxmemory:F1} %)");
+        bound.ShouldBeLessThanOrEqualTo(maxmemory / 16);
         await _store.PutAsync(
             new NewLoginChallenge(ChallengeId.Generate(), "after-flows@example.com", ChallengeCredentials.CodeAndLink, true),
             Ct);

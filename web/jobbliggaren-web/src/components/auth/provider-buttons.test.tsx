@@ -71,8 +71,7 @@ describe("ProviderButtons with Google active", () => {
 });
 
 // `active` is the api's providers list: `RegisteredProviders.Keys`, in `ExternalProviderKey.Known` order
-// (google, github). GitHub is on it once `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider`
-// (#1745 PR 2) registers the adapter; in PR 1 no composition does.
+// (google, github).
 describe("ProviderButtons with GitHub active", () => {
   it("makes the GitHub row a link to its start with its own mark, Google and LinkedIn staying inactive", () => {
     const { container } = render(<ProviderButtons active={["github"]} />);

@@ -121,8 +121,7 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
 
-        // #1745 — a full Google and GitHub client in the environment, as compose passes them on the box. Google is the
-        // control for the inertness row: the same composition that registers it registers no GitHub in 6b PR 1.
+        // #1745 — a full Google and GitHub client in the environment, as compose passes them on the box.
         Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", "configured-client-id");
         Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", "configured-client-secret");
         Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientId", "configured-github-client-id");
@@ -339,17 +338,16 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     }
 
     [Fact]
-    public void No_github_adapter_is_composed_in_Production_env_even_with_a_full_github_client()
+    public void Both_providers_are_composed_in_Production_env_from_their_clients()
     {
-        // #1745, 6b PR 1's inertness pin in Production (dotnet-architect R7, test-writer reading §4). Read before the
-        // neutraliser (Minor H), with Google as the control: the composition that registers Google from its client
-        // registers no GitHub, and nothing binds GitHub's options. 6b PR 2's gate turns this round.
+        // #1745: read before the neutraliser (test-writer Minor H), so this is the Production composition's own
+        // registration from the clients compose passes on the box.
         var configuration = _factory.Services.GetRequiredService<IConfiguration>();
         configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe("configured-github-client-id");
         configuration["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
 
-        _factory.ComposedExternalProviders.ShouldNotBeNull().ShouldBe([typeof(GoogleIdentityProvider)]);
-        _factory.Services.GetServices<IConfigureOptions<GitHubOAuthOptions>>().ShouldBeEmpty();
+        _factory.ComposedExternalProviders.ShouldNotBeNull()
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
     }
 
     // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture

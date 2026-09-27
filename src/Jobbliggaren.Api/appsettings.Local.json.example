@@ -44,13 +44,13 @@
 
   "Auth": {
     "OAuth": {
-      "//": "OPTIONAL (#1744). Blank or absent, no external login exists: the providers list is empty and",
-      "//1": "/logga-in shows its provider rows inactive. A Google ClientId registers Google, and the Api then",
-      "//2": "refuses to start, naming the key, unless ClientSecret is set and Email:BaseUrl is https, or http",
-      "//3": "to a loopback host in Development. The client's authorized redirect URI must be exactly",
-      "//4": "{Email:BaseUrl}/api/auth/oauth/google/callback, e.g. http://localhost:3000/api/auth/oauth/google/callback.",
-      "//5": "Use a Google client made for localhost, never the box's (security-auditor m-8). Never commit values.",
-      "//6": "To enable it, add a Google object here with ClientId and ClientSecret. Leave it out rather than blank."
+      "//": "OPTIONAL (#1744, #1745). Blank or absent, no external login exists: the providers list is empty",
+      "//1": "and /logga-in shows its provider rows inactive. A Google or GitHub ClientId registers that provider,",
+      "//2": "and the Api then refuses to start, naming the key, unless its ClientSecret is set and Email:BaseUrl",
+      "//3": "is https, or http to a loopback host in Development. The client's redirect (callback) URI must be",
+      "//4": "exactly {Email:BaseUrl}/api/auth/oauth/{google|github}/callback, e.g. http://localhost:3000/api/auth/oauth/github/callback.",
+      "//5": "Use clients made for localhost, never the box's (security-auditor m-8). Never commit values.",
+      "//6": "To enable one, add a Google or GitHub object here with ClientId and ClientSecret. Leave it out rather than blank."
     }
   },
 

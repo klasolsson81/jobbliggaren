@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ApplicationStatusActions } from "./application-status-actions";
 import {
   dismissApplicationToast,
@@ -287,5 +294,44 @@ describe("ApplicationStatusActions — the terminal-move confirmation", () => {
       expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Rejected"),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each(["Escape", "Avbryt", "Stäng"] as const)(
+    "returns focus to the control that opened the confirmation after %s",
+    async (close) => {
+      const user = userEvent.setup();
+      renderWithCopy("Submitted", true);
+      const rejected = screen.getByRole("button", { name: "Nekad" });
+      await user.click(rejected);
+      expect(
+        screen.getByRole("dialog", { name: "Markera som Nekad?" }),
+      ).toBeInTheDocument();
+
+      if (close === "Escape") await user.keyboard("{Escape}");
+      else await user.click(screen.getByRole("button", { name: close }));
+
+      await waitFor(() => expect(rejected).toHaveFocus());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("leaves focus on the pressed control after the confirmation, as a direct move does", async () => {
+    transitionStatusAction.mockImplementation(() => new Promise<never>(() => {}));
+    const user = userEvent.setup();
+    renderWithCopy("Submitted", true);
+    const withdrawn = screen.getByRole("button", { name: "Återtagen" });
+    await user.click(withdrawn);
+
+    await user.click(
+      screen.getByRole("button", { name: "Markera som Återtagen" }),
+    );
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Withdrawn"),
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(withdrawn).toBeDisabled();
+    expect(withdrawn).toHaveFocus();
   });
 });

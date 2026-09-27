@@ -57,4 +57,22 @@ describe("DeleteApplicationButton (#782 — detalj-footer)", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  it.each(["Escape", "Avbryt"] as const)(
+    "returns focus to the delete button after %s",
+    async (close) => {
+      const user = userEvent.setup();
+      render(<DeleteApplicationButton applicationId="app-1" />);
+      const opener = screen.getByRole("button", { name: "Radera ansökan" });
+      await user.click(opener);
+      const dialog = await screen.findByRole("dialog");
+
+      if (close === "Escape") await user.keyboard("{Escape}");
+      else await user.click(within(dialog).getByRole("button", { name: close }));
+
+      await waitFor(() => expect(opener).toHaveFocus());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(deleteApplicationActionMock).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { deleteApplicationAction } from "@/lib/actions/applications";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 
 interface DeleteApplicationDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function DeleteApplicationDialog({
   const tUi = useTranslations("applications.ui");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { onCloseAutoFocus } = useReturnFocus(open);
 
   function confirm() {
     setError(null);
@@ -67,7 +69,7 @@ export function DeleteApplicationDialog({
         }
       }}
     >
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{tUi("delete.confirmTitle")}</DialogTitle>
           <DialogDescription>{tUi("delete.confirmBody")}</DialogDescription>

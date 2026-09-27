@@ -2,6 +2,7 @@
 
 // Client Component: a controlled Radix Dialog, opened from the status controls' click handlers.
 
+import { flushSync } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { applicationStatusLabel } from "@/lib/applications/status";
 import type { ApplicationStatus } from "@/lib/dto/applications";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 
 interface TerminalMoveDialogProps {
   open: boolean;
@@ -39,10 +41,11 @@ export function TerminalMoveDialog({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const status = applicationStatusLabel(t, target);
+  const { onCloseAutoFocus, returnFocus } = useReturnFocus(open);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{tUi("terminalMove.title", { status })}</DialogTitle>
           <DialogDescription>{tUi("terminalMove.body")}</DialogDescription>
@@ -61,7 +64,8 @@ export function TerminalMoveDialog({
             variant="destructive"
             size="sm"
             onClick={() => {
-              onOpenChange(false);
+              flushSync(() => onOpenChange(false));
+              returnFocus();
               onConfirm();
             }}
           >

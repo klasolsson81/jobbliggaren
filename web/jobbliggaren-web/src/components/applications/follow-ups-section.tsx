@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -11,61 +11,60 @@ import {
   followUpOutcomeLabel,
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
-import type { FollowUpDto } from "@/lib/types/applications";
+import type { FollowUpDto, FollowUpOutcome } from "@/lib/types/applications";
+
+// The outcome reads as a square status tag on the existing variants (#1827 Minor 9).
+const OUTCOME_TAG: Record<FollowUpOutcome, string> = {
+  Pending: "status-info",
+  Responded: "status-success",
+  NoResponse: "status-neutral",
+  Logged: "status-neutral",
+};
 
 interface FollowUpsSectionProps {
   applicationId: string;
   followUps: ReadonlyArray<FollowUpDto>;
-  /**
-   * Read-mode (#630 PR 6 detail surface): render the follow-ups as a static
-   * list only — no expand, no inline "Lägg till", no record-outcome form.
-   * Capability-gating, not a separate component: the "present follow-ups"
-   * responsibility is unchanged. Default false = the full interactive
-   * disclosure (full-page / current behaviour, unchanged).
-   */
-  readOnly?: boolean;
+  titleLevel: 1 | 2;
+  canPlan: boolean;
   /**
    * #630 PR 7 (CTO-bind 6b, komposition): valfri header-yta bredvid
-   * sektionsrubriken — detaljmodalen monterar sin "+ Lägg till"-knapp (öppnar
-   * "Logga uppföljning"-dialogen, Klas-låst §8.6) HÄR utan att sektionen får
-   * mutationsansvar; den förblir ren presentation.
+   * sektionsrubriken — detaljkroppen monterar sin Logga uppföljning-knapp
+   * (Klas-låst §8.6) HÄR utan att sektionen får mutationsansvar; den förblir
+   * ren presentation.
    */
   headerAction?: React.ReactNode;
-  /** Valfri tomläges-text (detaljmodalen använder §8.6-copyn); default = befintlig. */
-  emptyLabel?: string;
 }
 
 /**
  * Disclosure-sektion för uppföljningar (Klas pre-F6 Prompt 4 2026-05-20).
  *
  * Mönster:
- *  - Kompakt rad per uppföljning: kanal + datum (höger) + utfall-badge +
- *    första raden av anteckning. Klick expanderar.
+ *  - Kompakt rad per uppföljning: kanal + utfall + första raden av anteckning +
+ *    datum (höger). Klick expanderar.
  *  - Endast EN rad expanderad åt gången (single-expand-id i state).
  *  - Pending-uppföljning expanderad → RecordFollowUpOutcomeForm inline.
- *  - Låst utfall (Responded/NoResponse) expanderad → plain text (utfall +
- *    outcome-datum + full anteckning), ingen dropdown.
- *  - "Lägg till uppföljning" är en knapp som default; klick → form expanderar
+ *  - Satt utfall expanderad → plain text (utfall + outcome-datum + full
+ *    anteckning), ingen dropdown.
+ *  - "Planera uppföljning" är en knapp som default; klick → form expanderar
  *    inline. Lyckad spar eller Avbryt → kollapsa.
  *  - Esc kollapsar aktiv editor / aktiv expanderad rad.
  *
  * All API-/validerings-logik oförändrad — wrappar AddFollowUpForm och
- * RecordFollowUpOutcomeForm. Tidslinjen ovan i ApplicationDetail hanteras
- * separat (Klas-direktiv: oförändrad).
+ * RecordFollowUpOutcomeForm.
  */
 export function FollowUpsSection({
   applicationId,
   followUps,
-  readOnly = false,
+  titleLevel,
+  canPlan,
   headerAction,
-  emptyLabel,
 }: FollowUpsSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const FormHeading = titleLevel === 1 ? "h2" : "h3";
 
   useEffect(() => {
-    if (readOnly) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setExpandedId(null);
@@ -74,7 +73,7 @@ export function FollowUpsSection({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [readOnly]);
+  }, []);
 
   const sorted = [...followUps].sort(
     (a, b) =>
@@ -82,15 +81,18 @@ export function FollowUpsSection({
   );
 
   return (
-    <div>
+    <section aria-labelledby="jp-detail-followups-title">
       <div className="jp-section-label jp-section-label--row">
         {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten förklarar
             skillnaden uppföljning vs anteckning (inline-help-doktrin, #408).
-            Ligger i den DELADE sektionen så både detaljsidan och drawern får
-            den. Uppföljning = du agerade → väntetiden räknas om; anteckning =
+            Uppföljning = du agerade → väntetiden räknas om; anteckning =
             privat minnesanteckning utan tidseffekt. */}
         <span className="jp-labelhelp">
-          {tUi("followUps.sectionLabel")}
+          {/* The region is named by this span alone, so the "?" trigger stays
+              out of the name. */}
+          <span id="jp-detail-followups-title">
+            {tUi("followUps.sectionLabel")}
+          </span>
           <InfoDialog
             title={tUi("followUps.help.title")}
             paragraphs={[tUi("followUps.help.p1"), tUi("followUps.help.p2")]}
@@ -103,7 +105,7 @@ export function FollowUpsSection({
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-primary">
-          {emptyLabel ?? tUi("followUps.empty")}
+          {tUi("followUps.emptyDrawer")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2" role="list">
@@ -112,8 +114,7 @@ export function FollowUpsSection({
               key={fu.id}
               followUp={fu}
               applicationId={applicationId}
-              readOnly={readOnly}
-              expanded={!readOnly && expandedId === fu.id}
+              expanded={expandedId === fu.id}
               onToggle={() =>
                 setExpandedId((prev) => (prev === fu.id ? null : fu.id))
               }
@@ -123,7 +124,7 @@ export function FollowUpsSection({
         </ul>
       )}
 
-      {!readOnly && (
+      {canPlan && (
         <div className="mt-4">
           {!addOpen ? (
             <button
@@ -131,13 +132,14 @@ export function FollowUpsSection({
               className="jp-btn jp-btn--secondary"
               onClick={() => setAddOpen(true)}
             >
+              <Plus className="size-4" aria-hidden="true" />
               {tUi("followUps.add")}
             </button>
           ) : (
             <div className="jp-disclosure-body">
-              <h3 className="mb-3 text-body font-medium text-text-primary">
+              <FormHeading className="mb-3 text-body font-medium text-text-primary">
                 {tUi("followUps.addHeading")}
-              </h3>
+              </FormHeading>
               <AddFollowUpForm
                 applicationId={applicationId}
                 onSuccess={() => setAddOpen(false)}
@@ -147,7 +149,7 @@ export function FollowUpsSection({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -157,7 +159,6 @@ interface FollowUpRowProps {
   expanded: boolean;
   onToggle: () => void;
   onClose: () => void;
-  readOnly?: boolean;
 }
 
 function FollowUpRow({
@@ -166,7 +167,6 @@ function FollowUpRow({
   expanded,
   onToggle,
   onClose,
-  readOnly = false,
 }: FollowUpRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
@@ -183,44 +183,24 @@ function FollowUpRow({
     ? (followUp.note.split(/\r?\n/)[0] ?? null)
     : null;
 
-  // Shared row summary (channel + outcome pill + note first line + date).
-  const summary = (
-    <>
-      <span className="jp-disclosure-row__primary">{channel}</span>
-      <span
-        className={`jp-pill jp-pill--${recorded ? (followUp.outcome === "Responded" ? "success" : "neutral") : "info"} jp-disclosure-row__pill`}
-      >
-        <span className="jp-pill__dot" aria-hidden="true" />
-        {outcomeLabel}
-      </span>
-      {noteFirstLine && (
-        <span className="jp-disclosure-row__note">{noteFirstLine}</span>
-      )}
-      <span className="jp-disclosure-row__date jp-mono">{scheduledLabel}</span>
-    </>
-  );
-
-  // Read-mode (#630 PR 6): a static, non-interactive list row — no expand button,
-  // no chevron, no record form. Same visual as the disclosure summary (DRY).
-  if (readOnly) {
-    return (
-      <li>
-        <div className="jp-disclosure-row jp-disclosure-row--static">
-          {summary}
-        </div>
-      </li>
-    );
-  }
-
   return (
     <li>
       <button
         type="button"
-        className="jp-disclosure-row"
+        className="jp-disclosure-row jp-disclosure-row--followup"
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        {summary}
+        <span className="jp-disclosure-row__head">
+          <span className="jp-disclosure-row__primary">{channel}</span>
+          <span className="jp-tag" data-tag={OUTCOME_TAG[followUp.outcome]}>
+            {outcomeLabel}
+          </span>
+        </span>
+        {noteFirstLine && (
+          <span className="jp-disclosure-row__note">{noteFirstLine}</span>
+        )}
+        <span className="jp-disclosure-row__date">{scheduledLabel}</span>
         <ChevronDown
           size={16}
           className="jp-disclosure-row__chevron"
@@ -241,7 +221,7 @@ function FollowUpRow({
                 <dd className="text-text-primary">
                   {outcomeLabel}
                   {outcomeAt && (
-                    <span className="ml-2 font-mono text-text-secondary">
+                    <span className="jp-detail-date ml-2">
                       ({outcomeAt})
                     </span>
                   )}

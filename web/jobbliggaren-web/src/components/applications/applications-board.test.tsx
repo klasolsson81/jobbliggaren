@@ -266,7 +266,7 @@ describe("ApplicationsBoard — drag & drop (statusbyte)", () => {
   it("misslyckad flytt publicerar error-toasten (optimistiken auto-återgår)", async () => {
     vi.mocked(transitionStatusAction).mockResolvedValueOnce({
       success: false,
-      error: "Statusbytet misslyckades.",
+      error: "Statusbytet misslyckades. Försök igen.",
     });
     renderBoard(makeGroups({ Submitted: 1 }));
     const card = within(
@@ -282,7 +282,7 @@ describe("ApplicationsBoard — drag & drop (statusbyte)", () => {
     await waitFor(() =>
       expect(showApplicationToast).toHaveBeenCalledWith({
         kind: "error",
-        message: "Statusbytet misslyckades.",
+        message: "Statusbytet misslyckades. Försök igen.",
       }),
     );
   });

@@ -5,14 +5,14 @@ import type { AdSnapshotDto, JobAdSummaryDto } from "@/lib/types/applications";
 
 /**
  * SourceAdSection — #805-3 (Beslut B). Guarden som avgör vad en ansökan får
- * SÄGA om källans annons bor på ETT ställe (SPOT), delad av fullsidan
- * (`ApplicationDetail`) och modalkroppen (`ApplicationDrawerBody`).
+ * SÄGA om källans annons bor på ETT ställe (SPOT), renderad av detaljkroppen
+ * (`ApplicationDetailBody`) i modalen och på fullsidan.
  *
- * De två ytornas sviter pinnar att komponenten är INKOPPLAD. Denna svit pinnar
- * dess TILLSTÅNDSRUM uttömmande. Skälet är rotorsaken själv: när guardens
- * grenar bara täcks transitivt — och ojämnt (drawern tunnare än detaljen) —
- * räcker det att ingen yta råkar rendera en gren för att den ska kunna vara fel
- * i två releaser utan att en enda test bli röd. Guarden har egna tester nu.
+ * Kroppens svit pinnar att komponenten är INKOPPLAD. Denna svit pinnar dess
+ * TILLSTÅNDSRUM uttömmande. Skälet är rotorsaken själv: när guardens grenar
+ * bara täcks transitivt räcker det att ingen yta råkar rendera en gren för att
+ * den ska kunna vara fel i två releaser utan att en enda test bli röd. Guarden
+ * har egna tester nu.
  *
  * Axlarna: `jobAd` (null | rad) × `jobAdId` (länkad | manuell) × `status`
  * (Active | icke-Active | saknad) × `url` (null | satt) × `preservedAd`.
@@ -117,6 +117,50 @@ describe("SourceAdSection (#805-3, Beslut B)", () => {
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
 
+  // #1827 Minor 10: the saved copy's notice is a plain line, and its rows pair a label with a
+  // value (the three-column row is the match section's).
+  it("ARKIVERAD + bevarad kopia → noten är en rad utan ruta, raderna parar etikett och värde", () => {
+    const { container } = render(
+      <SourceAdSection
+        jobAd={makeJobAd({ status: "Archived" })}
+        preservedAd={snapshot}
+      />
+    );
+
+    expect(
+      screen.getByText(/Kopian är från/).closest(".jp-modal__match")
+    ).toBeNull();
+    const rows = container.querySelectorAll(".jp-modal__matchrow");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row).toHaveClass("jp-modal__matchrow--pair");
+    }
+  });
+
+  // A closing move (Accepted, Rejected, Withdrawn) runs `AdSnapshot.WithoutAdBody()` in
+  // `Application.TransitionTo`, which drops the copy's text and its contacts together.
+  it("ARKIVERAD + minimerad kopia → metadata och minimeringsnoten, ingen annonstext", () => {
+    render(
+      <SourceAdSection
+        jobAd={makeJobAd({ status: "Archived" })}
+        preservedAd={{ ...snapshot, description: null, contacts: [] }}
+      />
+    );
+
+    expect(
+      screen.getByText("Om annonsen (sparad kopia)")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Stockholm")).toBeInTheDocument();
+    expect(
+      screen.getByText("Annonstexten raderades när ansökan avslutades.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Vi söker en utvecklare med erfarenhet av distribuerade system."
+      )
+    ).not.toBeInTheDocument();
+  });
+
   it("RADERAD (Erased) → behandlas som borta (default-deny, inte den naiva inversen !== Archived)", () => {
     // Domänen har TRE statusvärden (Active | Archived | Erased — det writerlösa
     // Expired retirerades i #886), och Art. 17-tombstonens status når den här
@@ -215,5 +259,51 @@ describe("SourceAdSection (#805-3, Beslut B)", () => {
       />
     );
     expect(container.firstChild).toBeNull();
+  });
+});
+
+// ADR 0144 D4 row 10 on the preserved-ad panel (security-auditor, #1827 form round S1-S2): the recruiter-notice link
+// renders where the panel shows the copy's text or its contact block, with or without contacts. A contact person's
+// name can sit in the text, where no regex reaches it, so a gate on `contacts.length` misses the text carrier.
+describe("the recruiter-notice link on the preserved-ad panel (ADR 0144 D4 row 10)", () => {
+  const notice = {
+    name: "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.",
+  };
+
+  it("renders beside the copy's text when the copy has no contacts", () => {
+    render(
+      <SourceAdSection
+        jobAd={makeJobAd({ status: "Archived" })}
+        preservedAd={snapshot}
+      />
+    );
+    expect(screen.getByRole("link", notice)).toHaveAttribute(
+      "href",
+      "/kontaktperson-i-annons"
+    );
+  });
+
+  it("renders with the contact block when the copy has a contact", () => {
+    render(
+      <SourceAdSection
+        jobAd={makeJobAd({ status: "Archived" })}
+        preservedAd={{
+          ...snapshot,
+          contacts: [
+            {
+              name: "Erik Holm",
+              role: "Enhetschef",
+              email: "erik.holm@example.com",
+              phone: null,
+              isDerived: false,
+            },
+          ],
+        }}
+      />
+    );
+    expect(screen.getByRole("link", notice)).toHaveAttribute(
+      "href",
+      "/kontaktperson-i-annons"
+    );
   });
 });

@@ -51,7 +51,7 @@ interface ApplicationsBoardProps {
  *
  * `transition()` från providern kan inte äga overlay-livstiden (den kör en egen
  * inre `startTransition` och är fire-and-forget), så boardet använder syskon-
- * mönstret (`drawer-status-actions`): `transitionStatusAction` +
+ * mönstret (`application-status-actions`): `transitionStatusAction` +
  * `showApplicationToast` DIREKT i boardets egna `startTransition(async …)` —
  * SAMMA auditerade server-action, SAMMA toast-store, INGEN ny mutation/audit/
  * toast-väg (DRY, en auditerad transition, en ångra-toast).

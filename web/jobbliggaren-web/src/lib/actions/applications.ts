@@ -284,6 +284,7 @@ export async function addFollowUpAction(
     return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
+  revalidatePath("/ansokningar");
   revalidatePath(`/ansokningar/${applicationId}`);
   return { success: true };
 }
@@ -435,6 +436,7 @@ export async function recordFollowUpOutcomeAction(
     return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
+  revalidatePath("/ansokningar");
   revalidatePath(`/ansokningar/${applicationId}`);
   return { success: true };
 }

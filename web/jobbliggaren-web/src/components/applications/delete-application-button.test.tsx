@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DeleteApplicationButton } from "./delete-application-button";
 import type { ActionResult } from "@/lib/actions/_action-result";
@@ -26,8 +26,12 @@ describe("DeleteApplicationButton (#782 — detalj-footer)", () => {
     const user = userEvent.setup();
     render(<DeleteApplicationButton applicationId="app-1" />);
 
-    await user.click(screen.getByRole("button", { name: "Ta bort ansökan" }));
     await user.click(screen.getByRole("button", { name: "Radera ansökan" }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Radera ansökan",
+      }),
+    );
 
     await waitFor(() =>
       expect(deleteApplicationActionMock).toHaveBeenCalledWith("app-1")
@@ -38,15 +42,37 @@ describe("DeleteApplicationButton (#782 — detalj-footer)", () => {
   it("navigerar INTE vid misslyckad radering", async () => {
     deleteApplicationActionMock.mockResolvedValue({
       success: false,
-      error: "Det gick inte att ta bort ansökan.",
+      error: "Det gick inte att radera ansökan. Försök igen.",
     });
     const user = userEvent.setup();
     render(<DeleteApplicationButton applicationId="app-1" />);
 
-    await user.click(screen.getByRole("button", { name: "Ta bort ansökan" }));
     await user.click(screen.getByRole("button", { name: "Radera ansökan" }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Radera ansökan",
+      }),
+    );
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(pushMock).not.toHaveBeenCalled();
   });
+
+  it.each(["Escape", "Avbryt"] as const)(
+    "returns focus to the delete button after %s",
+    async (close) => {
+      const user = userEvent.setup();
+      render(<DeleteApplicationButton applicationId="app-1" />);
+      const opener = screen.getByRole("button", { name: "Radera ansökan" });
+      await user.click(opener);
+      const dialog = await screen.findByRole("dialog");
+
+      if (close === "Escape") await user.keyboard("{Escape}");
+      else await user.click(within(dialog).getByRole("button", { name: close }));
+
+      await waitFor(() => expect(opener).toHaveFocus());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(deleteApplicationActionMock).not.toHaveBeenCalled();
+    },
+  );
 });

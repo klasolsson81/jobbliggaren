@@ -44,7 +44,7 @@ import type { ReactElement } from "react";
  * `@media (max-width: 720px)`, `width: 100%` + `align-items: stretch`. A fallback that
  * passes stacked rows into the unmodified base class lays them out as a wrapping ROW at
  * every width, so the band disagrees with the page by a whole row —
- * `ansokningar/loading.tsx` records what that cost when it did not.
+ * `ansokningar/(list)/loading.tsx` records what that cost when it did not.
  *
  * It is a boolean rather than a class-name string because the modifier space is ONE:
  * `--stacked` is the only `__aside` modifier in `globals.css`, scoped there to this one

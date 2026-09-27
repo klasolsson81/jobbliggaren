@@ -21,7 +21,7 @@
     "followUpOutcome": {
       "Pending": "Awaiting reply",
       "Responded": "Reply received",
-      "NoResponse": "No reply",
+      "NoResponse": "No reply received",
       "Logged": "Contact logged"
     },
     "source": {
@@ -40,16 +40,13 @@
       "channelPlaceholder": "Select channel",
       "dateLabel": "Date",
       "noteLabel": "Note (optional)",
-      "noteHint": "Max 1,000 characters.",
-      "submit": "Add follow-up"
+      "submit": "Plan follow-up"
     },
     "addNote": {
       "label": "Note",
       "submit": "Save note"
     },
     "detail": {
-      "fallbackTitle": "Application #{shortId}",
-      "createdPrefix": "Created",
       "statusLabel": "Status",
       "nextFollowUp": "Next follow-up:",
       "daysInStep": "{days, plural, =0 {less than a day in this step} one {# day in this step} other {# days in this step}}",
@@ -89,6 +86,7 @@
     },
     "queueCta": {
       "readOffer": "Read the offer",
+      "recordOutcome": "Record outcome",
       "accept": "Accept",
       "followUp": "Follow up",
       "followUpAgain": "Follow up again",
@@ -224,11 +222,10 @@
     },
     "followUps": {
       "sectionLabel": "Follow-ups",
-      "empty": "No follow-ups recorded.",
       "emptyDrawer": "No follow-ups yet.",
-      "add": "+ Add follow-up",
-      "addLog": "+ Add",
-      "addHeading": "Add follow-up",
+      "add": "Plan follow-up",
+      "addLog": "Log follow-up",
+      "addHeading": "Plan follow-up",
       "outcomeLabel": "Outcome:",
       "noteLabel": "Note:",
       "help": {
@@ -258,13 +255,13 @@
       "applyBy": "Application deadline",
       "source": "Source",
       "descriptionLabel": "Ad text",
-      "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept.",
+      "minimizedNotice": "The ad text was deleted when the application was closed.",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
     "notes": {
       "sectionLabel": "Notes",
       "empty": "No notes yet.",
-      "add": "+ Add note",
+      "add": "Add note",
       "addHeading": "Add note",
       "help": {
         "title": "Note or follow-up?",
@@ -277,30 +274,10 @@
       "notice": "The outcome cannot be changed once it has been saved.",
       "outcomeLabel": "Outcome",
       "outcomePlaceholder": "Select outcome",
-      "optionResponded": "Reply received",
-      "optionNoResponse": "No reply",
       "save": "Save outcome",
       "confirmQuestion": "Save the outcome <b>{outcome}</b>?",
       "savingOutcome": "Saving…",
       "saveOutcome": "Save {outcome}"
-    },
-    "statusEdit": {
-      "title": "Status",
-      "currentStatus": "Current status:",
-      "closedNotice": "This application is closed and cannot be changed.",
-      "markAs": "Mark as {status}",
-      "chooseInstruction": "Select a new status.",
-      "destructiveNotice": "{status} closes the application. This cannot be undone without manual action.",
-      "save": "Save",
-      "confirmTitle": "Mark as {status}?",
-      "confirmBody": "This cannot be undone without manual action.",
-      "confirmFallback": "Confirm"
-    },
-    "withdraw": {
-      "action": "Withdraw application",
-      "confirmTitle": "Withdraw application?",
-      "confirmBody": "The application is closed and cannot be changed further without manual action.",
-      "withdrawing": "Withdrawing…"
     },
     "delete": {
       "action": "Delete application",
@@ -309,6 +286,11 @@
       "deleting": "Deleting…",
       "confirmButton": "Delete application"
     },
+    "terminalMove": {
+      "title": "Mark as {status}?",
+      "body": "The ad text and any contact details in the saved copy are deleted and do not come back if you undo.",
+      "confirm": "Mark as {status}"
+    },
     "actions": {
       "notLoggedIn": "You are not logged in.",
       "invalidJobAdId": "Invalid ad ID.",
@@ -316,12 +298,12 @@
       "serverUnreachable": "Could not reach the server. Try again.",
       "createFromJobAdFailed": "Could not register the application.",
       "createApplicationFailed": "Could not save the application.",
-      "transitionFailed": "The status change failed.",
+      "transitionFailed": "The status change failed. Try again.",
       "addFollowUpFailed": "Could not save the follow-up. Try again.",
       "logFollowUpFailed": "Could not log the follow-up.",
       "addNoteFailed": "Could not save the note. Try again.",
       "recordOutcomeFailed": "Could not record the outcome.",
-      "deleteFailed": "The application could not be deleted."
+      "deleteFailed": "The application could not be deleted. Try again."
     },
     "adRemoved": {
       "tag": "The ad has been removed"

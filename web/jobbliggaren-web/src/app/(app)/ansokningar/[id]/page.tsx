@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
-import { ApplicationDetail } from "@/components/applications/application-detail";
-import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
+import { applicationDetailHeader } from "@/lib/applications/header";
+import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
+import { ApplicationLoadError } from "@/components/applications/application-load-error";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
-import { getAllowedTransitions } from "@/lib/applications/status";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -36,60 +36,49 @@ interface Props {
 /**
  * Fullsida för en ansökan (`/ansokningar/[id]`). Renderas vid hard-nav /
  * sidladdning / delad länk. Vid soft-nav från listan fångar
- * `@modal/(.)ansokningar/[id]` istället och visar samma `ApplicationDetail`
- * i modal (ADR 0053 — en presentationskomponent, två kontexter). Speglar
- * F3 `/jobb/[id]/page.tsx` exakt: samma `.jp-modal`-panel utan
- * skugga/animation/max-höjd, .jp-container/.jp-page-wrap.
+ * `@modal/(.)ansokningar/[id]` istället. Båda renderar samma
+ * `ApplicationDetailBody` under samma `applicationDetailHeader` (ADR 0053 —
+ * en presentationskomponent, två kontexter). Fullsidan lägger till sin
+ * tillbakalänk, sin h1 och sin fot. Speglar F3 `/jobb/[id]/page.tsx`: samma
+ * `.jp-modal`-panel utan skugga/animation/max-höjd, .jp-container/.jp-page.
  *
  * notFound (okänt id) → Next `notFound()`. unauthorized → `/logga-in`.
- * rateLimited/error → civil felruta.
+ * rateLimited/error → det delade felblocket, under tillbakalänken.
  */
 export default async function AnsokanDetailPage({ params }: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const format = await getFormatter();
   const { id } = await params;
   const result = await getApplicationById(id);
 
   switch (result.kind) {
     case "ok": {
       const application = result.data;
-      const canWithdraw = getAllowedTransitions(
-        application.status
-      ).includes("Withdrawn");
+      const { title, subtitle } = applicationDetailHeader(application, t, format);
 
       return (
         <div className="jp-container jp-page">
-          <Link
-            href="/ansokningar"
-            className="jp-btn jp-btn--ghost jp-btn--sm"
-          >
-            <ChevronLeft size={14} aria-hidden="true" />{" "}
-            {t("ansokningar.detail.backLink")}
-          </Link>
-          <div
-            className="jp-modal"
-            style={{
-              width: "100%",
-              maxWidth: 760,
-              maxHeight: "none",
-              marginInline: "auto",
-              marginTop: 16,
-              boxShadow: "none",
-              animation: "none",
-            }}
-          >
-            <ApplicationDetail application={application} />
+          <BackLink label={t("ansokningar.detail.backLink")} />
+          <div className="jp-modal jp-modal--page">
+            <header className="jp-modal__head">
+              <div style={{ flex: 1 }}>
+                <h1 className="jp-modal__title">{title}</h1>
+                <p className="jp-modal__company">{subtitle}</p>
+              </div>
+            </header>
+            <div className="jp-modal__body">
+              <ApplicationDetailBody
+                application={application}
+                now={new Date()}
+                titleLevel={1}
+              />
+            </div>
             <div className="jp-modal__foot">
               <span className="jp-modal__foot__spacer" />
-              {/* #782 (ADR 0104) — always available (deletion has no transition
-                  precondition, unlike Withdraw). "Ta bort ansökan" = HARD remove;
-                  "Återta ansökan" = keep as a terminal status. */}
               <DeleteApplicationButton applicationId={application.id} />
-              {canWithdraw && (
-                <WithdrawApplicationButton applicationId={application.id} />
-              )}
               <Link
                 href="/ansokningar"
                 className="jp-btn jp-btn--secondary"
@@ -108,18 +97,14 @@ export default async function AnsokanDetailPage({ params }: Props) {
     case "rateLimited":
       return (
         <div className="jp-container jp-page">
-          <div
-            role="alert"
-            className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
-          >
-            <p className="text-body font-medium text-warning-700">
-              {t("common.rateLimitedTitle")}
-            </p>
-            <p className="mt-1 text-body-sm text-warning-700">
-              {t("common.rateLimitedBody", {
+          <BackLink label={t("ansokningar.detail.backLink")} />
+          <div className="mt-4">
+            <ApplicationLoadError
+              title={t("common.rateLimitedTitle")}
+              body={t("common.rateLimitedBody", {
                 seconds: result.retryAfterSeconds,
               })}
-            </p>
+            />
           </div>
         </div>
       );
@@ -127,13 +112,22 @@ export default async function AnsokanDetailPage({ params }: Props) {
     case "error":
       return (
         <div className="jp-container jp-page">
-          <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-            <p className="text-body font-medium">
-              {t("ansokningar.detail.loadErrorTitle")}
-            </p>
-            <p className="mt-1 text-body-sm">{t("common.errorBodyReload")}</p>
+          <BackLink label={t("ansokningar.detail.backLink")} />
+          <div className="mt-4">
+            <ApplicationLoadError
+              title={t("ansokningar.detail.loadErrorTitle")}
+              body={t("common.errorBodyReload")}
+            />
           </div>
         </div>
       );
   }
+}
+
+function BackLink({ label }: { label: string }) {
+  return (
+    <Link href="/ansokningar" className="jp-btn jp-btn--ghost jp-btn--sm">
+      <ChevronLeft size={14} aria-hidden="true" /> {label}
+    </Link>
+  );
 }

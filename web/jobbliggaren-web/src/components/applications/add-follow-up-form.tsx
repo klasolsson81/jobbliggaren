@@ -68,10 +68,6 @@ const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
   note: "follow-up-note",
 };
 
-// The note's hint states the length cap its refusal is about, so a refused note is described by the
-// hint AND its own message rather than by the message alone.
-const NOTE_HINT_ID = "follow-up-note-hint";
-
 /**
  * React Hook Form owns all three values, and that ownership is the point.
  *
@@ -141,16 +137,13 @@ export function AddFollowUpForm({
     return errors[name] !== undefined && refused.has(name);
   }
 
-  function fieldA11y(name: keyof FormValues, hintId?: string) {
+  function fieldA11y(name: keyof FormValues) {
     const invalid = isRefused(name);
-    const describedBy = [
-      hintId,
-      invalid ? `${FIELD_ELEMENT_IDS[name]}-error` : undefined,
-    ].filter((id) => id !== undefined);
     return {
       "aria-invalid": invalid || undefined,
-      "aria-describedby":
-        describedBy.length > 0 ? describedBy.join(" ") : undefined,
+      "aria-describedby": invalid
+        ? `${FIELD_ELEMENT_IDS[name]}-error`
+        : undefined,
     };
   }
 
@@ -305,21 +298,13 @@ export function AddFollowUpForm({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={FIELD_ELEMENT_IDS.note}>{tUi("addFollowUp.noteLabel")}</Label>
-        {/* The hint is kept alongside the message rather than replaced by it — the length cap it
-            states is exactly what the refusal is about. */}
         <Textarea
           id={FIELD_ELEMENT_IDS.note}
           rows={2}
           disabled={isPending}
-          {...fieldA11y("note", NOTE_HINT_ID)}
+          {...fieldA11y("note")}
           {...register("note")}
         />
-        <p
-          id={NOTE_HINT_ID}
-          className="text-body-sm text-text-primary"
-        >
-          {tUi("addFollowUp.noteHint")}
-        </p>
         {fieldError("note")}
       </div>
       {errors.root && (

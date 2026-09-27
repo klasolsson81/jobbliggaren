@@ -39,14 +39,11 @@ interface TimelineSource {
  * outcome event when the outcome is non-Pending and has an `outcomeAt`) + each
  * recorded status change.
  *
- * ADR 0092 D4 / CLAUDE.md §5 (never fabricate): the previous ApplicationDetail
- * synthesised a status event from `updatedAt` — that is RETIRED here. A status
- * event is emitted ONLY from a recorded `StatusChange` (a transition the system
- * actually logged), never inferred from `updatedAt`. Sorted by the raw ISO
- * timestamp (stable), not by a formatted date string.
- *
- * Shared by the read-mode detail-modal body and the full-page ApplicationDetail
- * so the timeline is one knowledge piece in one place (DRY / SPOT).
+ * ADR 0092 D4 / CLAUDE.md §5 (never fabricate): the detail once synthesised a
+ * status event from `updatedAt` — that is RETIRED here. A status event is emitted
+ * ONLY from a recorded `StatusChange` (a transition the system actually logged),
+ * never inferred from `updatedAt`. Sorted by the raw ISO timestamp (stable), not
+ * by a formatted date string.
  */
 export function composeTimeline(source: TimelineSource): TimelineEvent[] {
   const events: TimelineEvent[] = [{ at: source.createdAt, kind: "created" }];
@@ -85,7 +82,7 @@ export function composeTimeline(source: TimelineSource): TimelineEvent[] {
 }
 
 /**
- * "N dagar i detta steg" — whole days since the LATEST recorded status transition
+ * "N dagar i steget" — whole days since the LATEST recorded status transition
  * (the moment the current step began). Returns `null` when no transition has been
  * recorded (pre-timeline applications; the backend does not backfill) — the caller
  * then OMITS the day-count rather than deriving one from `updatedAt` (§5: a

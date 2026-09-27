@@ -54,10 +54,11 @@ interface AttentionQueueProps {
  * PR 7 (Klas-låst 2026-07-05, PR5-bind A1 infriad): varje kort bär nu sin
  * §11-CTA — primär + ev. sekundär — som OVERRIDE:ar radens default-primär
  * (urgens-åtgärden ÄR kortets handling; "Flytta till nästa" vore fel affordans
- * här, prototyp-facit). Statusmenyn utelämnas på kortet. "Läs erbjudandet"
- * öppnar detaljmodalen (soft-nav → intercepting route, samma väg som radklicket);
- * "Följ upp"/"Slutför och skicka" öppnar §9-dialogerna; "Markera …"/"Acceptera"
- * är direktbyten med ångra-toast (ADR 0092 D3). Raden visar också urgens-tagg +
+ * här, prototyp-facit). Statusmenyn utelämnas på kortet. "Läs erbjudandet" och
+ * "Registrera utfall" öppnar detaljmodalen (soft-nav → intercepting route, samma
+ * väg som radklicket); "Följ upp"/"Slutför och skicka" öppnar §9-dialogerna;
+ * "Markera …"/"Acceptera" är direktbyten med ångra-toast (ADR 0092 D3). Raden
+ * visar också urgens-tagg +
  * "N dagar i steget" (list-DTO:ns scalars sedan PR 3 — aldrig fabricerat).
  *
  * 2a-doktrin (ADR 0092 supersederar ADR 0085 §343): kön DUPLICERAR — appen
@@ -89,13 +90,13 @@ export const AttentionQueue = memo(function AttentionQueue({
     card: AttentionCard,
   ): { primary: RowAction; secondary?: RowAction } => {
     const app = card.application;
-    const openPanel: RowAction = {
-      label: tUi("queueCta.readOffer"),
+    const openDetail = (label: string): RowAction => ({
+      label,
       onClick: () => {
         // Samma väg som radklicket: soft-nav → den centrerade route-modalen.
         router.push(`/ansokningar/${app.id}`);
       },
-    };
+    });
     const followUp = (label: string): RowAction => ({
       label,
       onClick: (e) => openLogFollowUp(app, anchorY(e)),
@@ -107,14 +108,16 @@ export const AttentionQueue = memo(function AttentionQueue({
     switch (card.signal) {
       case "OfferAwaitingReply":
         return {
-          primary: openPanel,
+          primary: openDetail(tUi("queueCta.readOffer")),
           secondary: {
             label: tUi("queueCta.accept"),
             onClick: () => transition(app, "Accepted"),
           },
         };
       case "OverdueFollowUp":
-        return { primary: followUp(tUi("queueCta.followUp")) };
+        // The signal is a Pending follow-up past its date, and logging a new
+        // contact leaves it Pending; its outcome form lives in the detail.
+        return { primary: openDetail(tUi("queueCta.recordOutcome")) };
       case "DraftDeadlineApproaching":
         return {
           primary: {

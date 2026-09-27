@@ -300,8 +300,7 @@ export function TemplateBuilder({
           {/* Radix-primitiven (samma som ui/radio-group.tsx bygger på) ger
               role=radiogroup/radio, aria-checked, roving tabindex och piltangenter.
               Vi använder primitiven direkt eftersom ui/radio-group.tsx hårdkodar en
-              label + prick-layout som ett kort inte kan bära — den lämnas orörd så
-              inga andra konsumenter regrerar.
+              label + prick-layout som ett kort inte kan bära.
               Katalogens hex sätts EN gång på gruppen som datakanal; varje schematik
               läser den via fill: var(--jp-mallcard-accent) → swatch och schematik
               kan aldrig visa olika färg. */}

@@ -11,7 +11,7 @@ vi.mock("@/lib/actions/applications", () => ({
     addNoteActionMock(formData),
 }));
 
-const SUBMIT = "Spara notering";
+const SUBMIT = "Spara anteckning";
 
 describe("AddNoteForm", () => {
   beforeEach(() => {
@@ -34,12 +34,12 @@ describe("AddNoteForm", () => {
     const user = userEvent.setup();
     render(<AddNoteForm applicationId="app-1" />);
 
-    await user.type(screen.getByLabelText("Notering"), "Ringde rekryteraren");
+    await user.type(screen.getByLabelText("Anteckning"), "Ringde rekryteraren");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     await screen.findByRole("alert");
     await waitFor(() => {
-      expect(screen.getByLabelText("Notering")).toHaveValue("ekot fran servern");
+      expect(screen.getByLabelText("Anteckning")).toHaveValue("ekot fran servern");
     });
   });
 
@@ -56,7 +56,7 @@ describe("AddNoteForm", () => {
     const user = userEvent.setup();
     render(<AddNoteForm applicationId="app-1" />);
 
-    await user.type(screen.getByLabelText("Notering"), "Ringde rekryteraren");
+    await user.type(screen.getByLabelText("Anteckning"), "Ringde rekryteraren");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     const alert = await screen.findByRole("alert");
@@ -73,11 +73,11 @@ describe("AddNoteForm", () => {
     const user = userEvent.setup();
     render(<AddNoteForm applicationId="app-1" onSuccess={onSuccess} />);
 
-    await user.type(screen.getByLabelText("Notering"), "Ringde rekryteraren");
+    await user.type(screen.getByLabelText("Anteckning"), "Ringde rekryteraren");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(screen.getByLabelText("Notering")).toHaveValue("");
+    expect(screen.getByLabelText("Anteckning")).toHaveValue("");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -11,9 +11,10 @@ const { updateMyProfileActionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/actions/me", () => ({
   updateMyProfileAction: updateMyProfileActionMock,
-  // The Notiser card's own two actions (#1891).
+  // The Notiser card's own three actions (#1891).
   updateNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
   updateFollowedCompanyNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
+  updateDigestCadenceAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 // The language Segment switches the UI locale via the cookie server action +

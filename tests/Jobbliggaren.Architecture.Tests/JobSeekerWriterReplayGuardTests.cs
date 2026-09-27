@@ -74,10 +74,7 @@ public class JobSeekerWriterReplayGuardTests
     [Fact]
     public void A_marked_command_handler_takes_no_port_that_acts_before_the_commit()
     {
-        var markedHandlers = typeof(IAppDbContext).Assembly.GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false } && HandlesAMarkedCommand(type))
-            .ToList();
-        markedHandlers.ShouldContain(typeof(UpdateNotificationConsentCommandHandler));
+        var markedHandlers = MarkedHandlers();
 
         var offending = markedHandlers
             .SelectMany(handler => handler.GetConstructors()
@@ -91,6 +88,42 @@ public class JobSeekerWriterReplayGuardTests
             "A replayed handler runs again after a conflict, so a port that acts before the commit (a "
             + "mail, a job, a Redis write) would act once per attempt: " + string.Join(", ", offending));
     }
+
+    // The port the handler keeps is the unit of work's own, and it can still commit on its own: a save,
+    // or ExecuteUpdate/ExecuteDelete, which run at once. Either leaves a write behind a conflicting
+    // attempt, so a 409 would no longer mean nothing was written.
+    [Fact]
+    public void A_marked_command_handler_never_commits_ahead_of_the_unit_of_work()
+    {
+        using var module = ModuleDefinition.ReadModule(typeof(IAppDbContext).Assembly.Location);
+
+        var committing = MarkedHandlers()
+            .Where(handler => MethodsIncludingNestedTypes(module.GetType(handler.FullName!)).Any(CommitsOnItsOwn))
+            .Select(handler => handler.Name)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        committing.ShouldBeEmpty(
+            "These marked handlers commit before the unit of work does: " + string.Join(", ", committing));
+    }
+
+    private static List<Type> MarkedHandlers()
+    {
+        var markedHandlers = typeof(IAppDbContext).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && HandlesAMarkedCommand(type))
+            .ToList();
+        markedHandlers.ShouldContain(typeof(UpdateNotificationConsentCommandHandler));
+        return markedHandlers;
+    }
+
+    private static bool CommitsOnItsOwn(MethodDefinition method) =>
+        method.HasBody
+        && method.Body.Instructions.Any(instruction =>
+            (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
+            && instruction.Operand is MethodReference target
+            && (target.Name is "SaveChanges" or "SaveChangesAsync"
+                || target.Name.StartsWith("ExecuteUpdate", StringComparison.Ordinal)
+                || target.Name.StartsWith("ExecuteDelete", StringComparison.Ordinal)));
 
     private static bool HandlesAMarkedCommand(Type type) =>
         type.GetInterfaces().Any(contract =>

@@ -25,8 +25,7 @@ interface ApplicationStatusActionsProps {
 }
 
 /**
- * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5; panelen är sedan
- * 2026-07-10 den centrerade route-modalen, ADR 0092 Livscykel-amendment).
+ * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5).
  * Klient-ö renderad av den RSC-ägda ApplicationDetailBody (serialiserbara props
  * över gränsen):
  *

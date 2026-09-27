@@ -119,7 +119,10 @@ public sealed class GetPipelineQueryHandler(
                     f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
                 // ADR 0092 D5: denormalised last-follow-up scalar (lockstep with
                 // GetApplications) — drives effectiveWaitDays in the evaluator.
-                r.a.LastFollowUpAt))
+                r.a.LastFollowUpAt,
+                // #1827: the owned snapshot's own column, no join (lockstep with
+                // GetApplications).
+                r.a.AdSnapshot != null && r.a.AdSnapshot.Description != null))
             .ToListAsync(cancellationToken);
 
         // #343 (ADR 0085 §3, CTO Option a): stamp the attention signal in-memory over

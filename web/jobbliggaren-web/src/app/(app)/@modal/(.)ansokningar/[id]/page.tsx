@@ -3,7 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { adIdentityOf } from "@/components/applications/ad-identity";
-import { ApplicationDrawerBody } from "@/components/applications/application-drawer-body";
+import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { formatDate } from "@/lib/i18n/format";
 
@@ -31,10 +31,10 @@ interface PageProps {
  * presentationen byts drawer→modal.
  *
  * RSC: server-fetch här; endast modal-chromet (ApplicationModalShell) +
- * mutationsöarna (NotesSection) är "use client". ApplicationDrawerBody-trädet
- * (namnet är ett PR 6-arv; kroppen är presentationsagnostisk) förblir Server
- * Component (passeras som children — serialiserbart RSC-träd, ingen funktion
- * över gränsen). Strikt läs-läge: ingen Withdraw/status-mutation.
+ * mutationsöarna (NotesSection) är "use client". ApplicationDetailBody-trädet
+ * (kroppen är presentationsagnostisk) förblir Server Component (passeras som
+ * children — serialiserbart RSC-träd, ingen funktion över gränsen). Strikt
+ * läs-läge: ingen Withdraw/status-mutation.
  */
 export default async function InterceptedAnsokanModal({ params }: PageProps) {
   const user = await getServerSession();
@@ -103,7 +103,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen
               över panelens max-height. */}
           <div className="jp-modal__body">
-            <ApplicationDrawerBody application={application} now={new Date()} />
+            <ApplicationDetailBody application={application} now={new Date()} />
           </div>
         </ApplicationModalShell>
       );

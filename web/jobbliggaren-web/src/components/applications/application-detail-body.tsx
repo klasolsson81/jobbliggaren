@@ -1,8 +1,8 @@
 import { useTranslations } from "next-intl";
 import { adIdentityOf } from "@/components/applications/ad-identity";
-import { DrawerLogFollowUpButton } from "@/components/applications/drawer-log-follow-up-button";
-import { DrawerStatusActions } from "@/components/applications/drawer-status-actions";
+import { ApplicationStatusActions } from "@/components/applications/application-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
+import { LogFollowUpButton } from "@/components/applications/log-follow-up-button";
 import { NotesSection } from "@/components/applications/notes-section";
 import { SourceAdSection } from "@/components/applications/source-ad-section";
 import { TimelineList } from "@/components/applications/timeline-list";
@@ -16,20 +16,20 @@ import {
 import { composeTimeline, daysInCurrentStep } from "@/lib/applications/timeline";
 import type { ApplicationDetailDto } from "@/lib/types/applications";
 
-interface ApplicationDrawerBodyProps {
+interface ApplicationDetailBodyProps {
   application: ApplicationDetailDto;
   /** Server-computed reference time for "N dagar i detta steg" (per-request). */
   now: Date;
 }
 
 /**
- * ApplicationDrawerBody — detail panel content (#630 PR 6 läs-läge; PR 7 gör
- * den interaktiv per design §8; "Drawer"-namnet är ett PR 6-arv — sedan
- * 2026-07-10 renderas kroppen i den centrerade ApplicationModalShell, ADR 0092
- * Livscykel-amendment). Server Component rendered as children of the client
- * ApplicationModalShell (the shell owns the head: role + company + close);
- * mutationsmaskineriet är KLIENT-öar som får serialiserbara props
- * (DrawerStatusActions, DrawerLogFollowUpButton, NotesSection).
+ * ApplicationDetailBody — detail panel content (#630 PR 6 läs-läge; PR 7 gör
+ * den interaktiv per design §8; sedan 2026-07-10 renderas kroppen i den
+ * centrerade ApplicationModalShell, ADR 0092 Livscykel-amendment). Server
+ * Component rendered as children of the client ApplicationModalShell (the shell
+ * owns the head: role + company + close); mutationsmaskineriet är KLIENT-öar som
+ * får serialiserbara props (ApplicationStatusActions, LogFollowUpButton,
+ * NotesSection).
  *
  * §8 order: status block → primär-CTA + stegväljare + AVSLUTA ELLER PARKERA
  * (PR 7, §8.3–8.5) → UPPFÖLJNINGAR (statisk lista + "+ Lägg till" →
@@ -41,10 +41,10 @@ interface ApplicationDrawerBodyProps {
  * StatusChanges (composeTimeline / daysInCurrentStep); the retired `updatedAt`
  * synthesis is never used here (§5, never fabricate a transition).
  */
-export function ApplicationDrawerBody({
+export function ApplicationDetailBody({
   application,
   now,
-}: ApplicationDrawerBodyProps) {
+}: ApplicationDetailBodyProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
 
@@ -133,7 +133,7 @@ export function ApplicationDrawerBody({
 
       {/* Statusmaskineriet (§8.3–8.5, PR 7): primär-CTA + stegväljare +
           AVSLUTA ELLER PARKERA — klient-ö, direktbyten med ångra-toast. */}
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={application.id}
         status={application.status}
         displayName={displayName}
@@ -147,7 +147,7 @@ export function ApplicationDrawerBody({
         readOnly
         emptyLabel={tUi("followUps.emptyDrawer")}
         headerAction={
-          <DrawerLogFollowUpButton
+          <LogFollowUpButton
             applicationId={application.id}
             contextTitle={adTitle ?? preservedAd?.title ?? null}
             contextCompany={adCompany ?? preservedAd?.company ?? null}

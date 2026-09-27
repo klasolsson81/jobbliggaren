@@ -30,7 +30,7 @@ interface ApplicationDetailProps {
  * ApplicationDetail — ren presentational Server Component (ingen "use
  * client"). Delas av fullsidan (`/ansokningar/[id]`) och gäst-modalen
  * (`(guest)/gast/@modal/(.)ansokningar/[id]`). Den inloggade /ansokningar-
- * routens `@modal`-slot renderar numera en DRAWER (ApplicationDrawerBody, #630
+ * routens `@modal`-slot renderar numera en DRAWER (ApplicationDetailBody, #630
  * PR 6 / ADR 0092 D7) — den läge-avskalade motsvarigheten till denna full-
  * interaktiva vy; de delar tidslinje- och preserved-ad-kunskapen (composeTimeline
  * / TimelineList / PreservedAdPanel), inte layouten.

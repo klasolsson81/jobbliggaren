@@ -109,8 +109,8 @@ export function applicationDisplayName(application: ApplicationDto): string {
  * Mutations-UX per CTO-bind 1: await server action → revalidatePath-driven
  * server-recompute (attention/grupper är BE-SSOT — ingen optimistisk
  * grupp-flytt), pending-state per rad under tiden. Detaljmodalen har sina egna
- * öar (DrawerStatusActions — PR 6-arvsnamn) — samma actions, samma toast-store,
- * ingen delad React-state behövs över träden.
+ * öar (ApplicationStatusActions) — samma actions, samma toast-store, ingen delad
+ * React-state behövs över träden.
  */
 export function ApplicationActionsProvider({
   children,

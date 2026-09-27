@@ -13,7 +13,7 @@ import {
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import type { ApplicationStatus } from "@/lib/dto/applications";
 
-interface DrawerStatusActionsProps {
+interface ApplicationStatusActionsProps {
   applicationId: string;
   status: ApplicationStatus;
   /** Visningsnamn för toasten ("{company}: {från} → {till}"). */
@@ -21,10 +21,10 @@ interface DrawerStatusActionsProps {
 }
 
 /**
- * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5; "Drawer"-namnet
- * är ett PR 6-arv — panelen är sedan 2026-07-10 den centrerade route-modalen,
- * ADR 0092 Livscykel-amendment). Klient-ö renderad av den RSC-ägda
- * ApplicationDrawerBody (serialiserbara props över gränsen):
+ * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5; panelen är sedan
+ * 2026-07-10 den centrerade route-modalen, ADR 0092 Livscykel-amendment).
+ * Klient-ö renderad av den RSC-ägda ApplicationDetailBody (serialiserbara props
+ * över gränsen):
  *
  *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) — Ghosted:
  *    "Återaktivera som Skickad" (prototyp-facit); terminala: ingen CTA.
@@ -38,11 +38,11 @@ interface DrawerStatusActionsProps {
  * route) → ångra-toast (kompenserande invers, CTO-bind 3). Fel visas inline i
  * panelen (role="alert").
  */
-export function DrawerStatusActions({
+export function ApplicationStatusActions({
   applicationId,
   status,
   displayName,
-}: DrawerStatusActionsProps) {
+}: ApplicationStatusActionsProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const [error, setError] = useState<string | null>(null);

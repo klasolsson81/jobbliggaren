@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { ApplicationDrawerBody } from "./application-drawer-body";
+import { ApplicationDetailBody } from "./application-detail-body";
 import type {
   AdSnapshotDto,
   ApplicationDetailDto,
 } from "@/lib/types/applications";
 
-// Client islands inside the body (NotesSection add form, DrawerStatusActions,
-// DrawerLogFollowUpButton) consume the actions.
+// Client islands inside the body (NotesSection add form, ApplicationStatusActions,
+// LogFollowUpButton) consume the actions.
 vi.mock("@/lib/actions/applications", () => ({
   addNoteAction: vi.fn().mockResolvedValue({ success: true }),
   addFollowUpAction: vi.fn().mockResolvedValue({ success: true }),
@@ -60,10 +60,10 @@ const snapshot: AdSnapshotDto = {
   capturedAt: "2026-04-12T08:00:00Z",
 };
 
-describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
+describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   it("renders the status block with STATUS label + value + the describedby id", () => {
     const { container } = render(
-      <ApplicationDrawerBody application={makeDetail()} now={NOW} />,
+      <ApplicationDetailBody application={makeDetail()} now={NOW} />,
     );
     expect(screen.getByText("Status")).toBeInTheDocument();
     // Scopat: "Skickad" förekommer nu även i stegväljaren (PR 7).
@@ -77,7 +77,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   // ── §8.3–8.5 statusmaskineriet (PR 7) ──────────────────────────────────
   it("renders the primary CTA, the 7-step picker and the park buttons in §8 order", () => {
     const { container } = render(
-      <ApplicationDrawerBody application={makeDetail()} now={NOW} />,
+      <ApplicationDetailBody application={makeDetail()} now={NOW} />,
     );
     // §8.3: primär-CTA mot nästa steg (Submitted → Bekräftad).
     expect(
@@ -101,7 +101,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
 
   it("derives 'N dagar i detta steg' from a REAL recorded status change", () => {
     render(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({
           statusChanges: [
             { from: "Draft", to: "Submitted", changedAt: "2026-05-02T08:00:00Z" },
@@ -118,7 +118,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
 
   it("shows the latest PAST event as 'Senaste', never a future-scheduled follow-up", () => {
     render(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({
           statusChanges: [
             { from: "Draft", to: "Submitted", changedAt: "2026-05-02T08:00:00Z" },
@@ -149,7 +149,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   });
 
   it("OMITS the day-count when no status change is recorded (never fabricate, §5)", () => {
-    render(<ApplicationDrawerBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(screen.queryByText(/i detta steg/)).not.toBeInTheDocument();
     // The created event is still present in the timeline.
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
 
   it("renders follow-ups as a static read-only list (no add affordance)", () => {
     render(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({
           followUps: [
             {
@@ -198,14 +198,14 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   });
 
   it("uses the §8.6 empty copy in the drawer (button explains the wait reset)", () => {
-    render(<ApplicationDrawerBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(
       screen.getByText(/Inga uppföljningar ännu/),
     ).toBeInTheDocument();
   });
 
   it("keeps notes interactive (add-note affordance present)", () => {
-    render(<ApplicationDrawerBody application={makeDetail()} now={NOW} />);
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(screen.getByText("+ Lägg till anteckning")).toBeInTheDocument();
   });
 
@@ -219,7 +219,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   // triggers on the field production actually writes: `jobAd.status`.
   it("shows the preserved-ad panel ONLY when the source ad is no longer active", () => {
     const { rerender } = render(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({ preservedAd: snapshot })}
         now={NOW}
       />,
@@ -236,7 +236,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
 
     // Ad archived → no link (it would be dead), preserved copy instead.
     rerender(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({
           jobAd: { ...makeDetail().jobAd!, status: "Archived" },
           preservedAd: snapshot,
@@ -259,7 +259,7 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   // wiring of the one case the drawer previously never constructed.
   it("renders no source-ad surface when the application has no ad row at all", () => {
     render(
-      <ApplicationDrawerBody
+      <ApplicationDetailBody
         application={makeDetail({
           jobAd: null,
           jobAdId: null,

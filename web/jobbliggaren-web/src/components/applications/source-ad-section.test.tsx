@@ -6,7 +6,7 @@ import type { AdSnapshotDto, JobAdSummaryDto } from "@/lib/types/applications";
 /**
  * SourceAdSection — #805-3 (Beslut B). Guarden som avgör vad en ansökan får
  * SÄGA om källans annons bor på ETT ställe (SPOT), delad av fullsidan
- * (`ApplicationDetail`) och modalkroppen (`ApplicationDrawerBody`).
+ * (`ApplicationDetail`) och modalkroppen (`ApplicationDetailBody`).
  *
  * De två ytornas sviter pinnar att komponenten är INKOPPLAD. Denna svit pinnar
  * dess TILLSTÅNDSRUM uttömmande. Skälet är rotorsaken själv: när guardens

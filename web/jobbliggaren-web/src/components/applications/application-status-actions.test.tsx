@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { DrawerStatusActions } from "./drawer-status-actions";
+import { ApplicationStatusActions } from "./application-status-actions";
 import {
   dismissApplicationToast,
   getApplicationToastSnapshot,
@@ -21,10 +21,10 @@ beforeEach(() => {
   dismissApplicationToast();
 });
 
-describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
+describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
   it("primär-CTA:n flyttar till nästa steg och publicerar ångra-toasten", async () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Submitted"
         displayName="Volvo"
@@ -51,7 +51,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("Ghosted: CTA:n är 'Återaktivera som Skickad' (prototyp-facit)", async () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Ghosted"
         displayName="Volvo"
@@ -67,7 +67,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("terminala statusar: ingen primär-CTA, men stegväljare + park kvarstår", () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Rejected"
         displayName="Volvo"
@@ -83,7 +83,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("stegväljaren byter status DIREKT, även bakåt (fria byten, D3)", async () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Interviewing"
         displayName="Volvo"
@@ -98,7 +98,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("nuvarande steg är disabled med aria-current (self-transition = no-op)", () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Submitted"
         displayName="Volvo"
@@ -112,7 +112,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("klarade steg markeras done; framtida är klickbara", () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Interviewing"
         displayName="Volvo"
@@ -129,7 +129,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
 
   it("park-knappen Ghosted transitionerar och Nekad bär dangertext-klassen", async () => {
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Submitted"
         displayName="Volvo"
@@ -150,7 +150,7 @@ describe("DrawerStatusActions (§8.3–8.5, #630 PR 7)", () => {
       error: "Statusbytet misslyckades.",
     } as never);
     render(
-      <DrawerStatusActions
+      <ApplicationStatusActions
         applicationId={APP_ID}
         status="Submitted"
         displayName="Volvo"

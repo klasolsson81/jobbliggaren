@@ -849,74 +849,93 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
-echo "-- the Google client secret is conditional on its client id or its pointer (#1744)"
+echo "-- each login provider's client secret is conditional on its client id or its pointer (#1744, #1745)"
 #
 # Bound to the file name and the pointer line, never to the exit code, for the reason the Scaleway
 # block states. Each case starts from the delivering box, so no mail line answers first, and each
-# asserts api ALONE: the worker never reads a Google key.
-readonly GOOGLE_FILE="Auth__OAuth__Google__ClientSecret"
+# asserts api ALONE: the worker never reads a provider's key. One call per row of the script's
+# OAUTH_CLIENT_SECRETS.
+oauth_client_cases() {   # oauth_client_cases <secret file> <env prefix> <sample client id>
+  local file="$1" prefix="$2" sample_id="$3" trigger
 
-seed_delivering_box
-run_check || true
-if ! grep -qE "$GOOGLE_FILE|AUTH_OAUTH_GOOGLE" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   a box without a Google client demands nothing for it"
-else
-  fail=$((fail + 1)); echo "  FAIL a box without a Google client demanded its secret" >&2
-  sed 's/^/       /' "$TMPROOT/out" >&2
-fi
-
-for trigger in "AUTH_OAUTH_GOOGLE_CLIENT_ID=gate.apps.googleusercontent.com" \
-               "AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE=/run/app-secrets/$GOOGLE_FILE"; do
   seed_delivering_box
-  printf '%s\n' "$trigger" >> "$ENV_FIXTURE"
   run_check || true
-  if grep -qF "MISSING: $SECRETS/$GOOGLE_FILE" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   ${trigger%%=*} alone demands $GOOGLE_FILE"
+  if ! grep -qE "$file|AUTH_OAUTH_${prefix}" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   a box without a $prefix client demands nothing for it"
   else
-    fail=$((fail + 1)); echo "  FAIL ${trigger%%=*} alone did not demand $GOOGLE_FILE" >&2
+    fail=$((fail + 1)); echo "  FAIL a box without a $prefix client demanded its secret" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
-  # Mode-gated: where chmod is ignored the directory branch sets the blocking counter first, and
-  # its api-and-worker summary would answer instead of this one.
-  if [ "$MODE_ENFORCED" = "yes" ]; then
-    if grep -qF "stops api alone" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out"; then
-      pass=$((pass + 1)); echo "  ok   and it stops api alone, never api and worker"
+
+  for trigger in "AUTH_OAUTH_${prefix}_CLIENT_ID=$sample_id" \
+                 "AUTH_OAUTH_${prefix}_CLIENT_SECRET_FILE=/run/app-secrets/$file"; do
+    seed_delivering_box
+    printf '%s\n' "$trigger" >> "$ENV_FIXTURE"
+    run_check || true
+    if grep -qF "MISSING: $SECRETS/$file" "$TMPROOT/out"; then
+      pass=$((pass + 1)); echo "  ok   ${trigger%%=*} alone demands $file"
     else
-      fail=$((fail + 1)); echo "  FAIL ${trigger%%=*} was not summarised as api alone" >&2
+      fail=$((fail + 1)); echo "  FAIL ${trigger%%=*} alone did not demand $file" >&2
       sed 's/^/       /' "$TMPROOT/out" >&2
     fi
-  else
-    skipped=$((skipped + 1))
-    echo "  SKIP the api-alone summary for ${trigger%%=*}: this filesystem does not honour chmod."
-  fi
-done
+    # Mode-gated: where chmod is ignored the directory branch sets the blocking counter first, and
+    # its api-and-worker summary would answer instead of this one.
+    if [ "$MODE_ENFORCED" = "yes" ]; then
+      if grep -qF "stops api alone" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out"; then
+        pass=$((pass + 1)); echo "  ok   and it stops api alone, never api and worker"
+      else
+        fail=$((fail + 1)); echo "  FAIL ${trigger%%=*} was not summarised as api alone" >&2
+        sed 's/^/       /' "$TMPROOT/out" >&2
+      fi
+    else
+      skipped=$((skipped + 1))
+      echo "  SKIP the api-alone summary for ${trigger%%=*}: this filesystem does not honour chmod."
+    fi
+  done
 
-seed_delivering_box
-printf '%s' "seeded-value-for-$GOOGLE_FILE" > "$SECRETS/$GOOGLE_FILE"
-printf '%s\n' "AUTH_OAUTH_GOOGLE_CLIENT_ID=gate.apps.googleusercontent.com" >> "$ENV_FIXTURE"
-run_check || true
-if grep -qF "MISSING: AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE is unset" "$TMPROOT/out" \
-  && ! grep -qF "MISSING: $SECRETS/$GOOGLE_FILE" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   a client id whose secret is present but whose pointer is unset is named"
-else
-  fail=$((fail + 1)); echo "  FAIL a client id without its pointer was not named" >&2
-  sed 's/^/       /' "$TMPROOT/out" >&2
-fi
-
-seed_delivering_box
-printf '%s' "seeded-value-for-$GOOGLE_FILE" > "$SECRETS/$GOOGLE_FILE"
-printf '%s\n' "AUTH_OAUTH_GOOGLE_CLIENT_ID=gate.apps.googleusercontent.com" \
-  "AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE=/run/app-secrets/$GOOGLE_FILE" >> "$ENV_FIXTURE"
-if [ "$MODE_ENFORCED" = "yes" ]; then
-  expect_check 0 "a configured Google client with its secret and pointer is a pass"
-else
+  seed_delivering_box
+  printf '%s' "seeded-value-for-$file" > "$SECRETS/$file"
+  printf '%s\n' "AUTH_OAUTH_${prefix}_CLIENT_ID=$sample_id" >> "$ENV_FIXTURE"
   run_check || true
-  if ! grep -qE "MISSING: .*($GOOGLE_FILE|AUTH_OAUTH_GOOGLE)" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   a configured Google client with its secret and pointer reports nothing for it"
+  if grep -qF "MISSING: AUTH_OAUTH_${prefix}_CLIENT_SECRET_FILE is unset" "$TMPROOT/out" \
+    && ! grep -qF "MISSING: $SECRETS/$file" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   a $prefix client id whose secret is present but whose pointer is unset is named"
   else
-    fail=$((fail + 1)); echo "  FAIL a present Google secret was still reported missing" >&2
+    fail=$((fail + 1)); echo "  FAIL a $prefix client id without its pointer was not named" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
+
+  seed_delivering_box
+  printf '%s' "seeded-value-for-$file" > "$SECRETS/$file"
+  printf '%s\n' "AUTH_OAUTH_${prefix}_CLIENT_ID=$sample_id" \
+    "AUTH_OAUTH_${prefix}_CLIENT_SECRET_FILE=/run/app-secrets/$file" >> "$ENV_FIXTURE"
+  if [ "$MODE_ENFORCED" = "yes" ]; then
+    expect_check 0 "a configured $prefix client with its secret and pointer is a pass"
+  else
+    run_check || true
+    if ! grep -qE "MISSING: .*($file|AUTH_OAUTH_${prefix})" "$TMPROOT/out"; then
+      pass=$((pass + 1)); echo "  ok   a configured $prefix client with its secret and pointer reports nothing for it"
+    else
+      fail=$((fail + 1)); echo "  FAIL a present $prefix secret was still reported missing" >&2
+      sed 's/^/       /' "$TMPROOT/out" >&2
+    fi
+  fi
+}
+
+oauth_client_cases "Auth__OAuth__Google__ClientSecret" "GOOGLE" "gate.apps.googleusercontent.com"
+oauth_client_cases "Auth__OAuth__GitHub__ClientSecret" "GITHUB" "gate-github-client-id"
+
+# The two providers are independent: one configured client never demands the other's secret.
+seed_delivering_box
+printf '%s' "seeded-value-for-Auth__OAuth__GitHub__ClientSecret" > "$SECRETS/Auth__OAuth__GitHub__ClientSecret"
+printf '%s\n' "AUTH_OAUTH_GITHUB_CLIENT_ID=gate-github-client-id" \
+  "AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__GitHub__ClientSecret" >> "$ENV_FIXTURE"
+run_check || true
+if ! grep -qE "Auth__OAuth__Google__ClientSecret|AUTH_OAUTH_GOOGLE" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a configured GitHub client demands nothing for Google"
+else
+  fail=$((fail + 1)); echo "  FAIL a configured GitHub client demanded Google's secret" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 echo "-- A RETIRED PROVIDER NAME IS A BOOT REFUSAL, NOT A QUIETER CONSOLE (#183, E1 b71c14de)"

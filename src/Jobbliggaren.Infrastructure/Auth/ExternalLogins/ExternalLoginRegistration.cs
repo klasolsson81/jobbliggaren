@@ -18,7 +18,8 @@ internal static class ExternalLoginRegistration
     internal static IServiceCollection AddExternalIdentityProviders(
         this IServiceCollection services,
         IConfiguration configuration) =>
-        services.AddGoogleIdentityProvider(configuration);
+        services.AddGoogleIdentityProvider(configuration)
+            .AddGitHubIdentityProvider(configuration);
 
     internal static IServiceCollection AddExternalLoginCallbacks(
         this IServiceCollection services,

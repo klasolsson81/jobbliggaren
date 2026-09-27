@@ -124,8 +124,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Auth:OAuth:Google:ClientId", GoogleClientId);
         builder.UseSetting("Auth:OAuth:Google:ClientSecret", "test-google-client-secret"); // gitleaks:allow
 
-        // #1745 — a full GitHub client too, as a developer's appsettings.Local.json can carry one. In 6b PR 1 no
-        // composition reads it (ExternalLoginEndpointsTests pins that this host's composition registers no GitHub).
+        // #1745 — a full GitHub client too, as a developer's appsettings.Local.json can carry one.
         builder.UseSetting("Auth:OAuth:GitHub:ClientId", GitHubClientId);
         builder.UseSetting("Auth:OAuth:GitHub:ClientSecret", GitHubClientSecret);
 
@@ -246,10 +245,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test
             // reaches Google. The redirect base is the host's own Email:BaseUrl.
             //
-            // #1745 — and the REAL GitHub adapter over ScriptedGitHub, built by hand here because in 6b PR 1 no
-            // composition registers it: the actor that registers GitHub on a host is AddGitHubIdentityProvider, the gate
-            // 6b PR 2 adds (the 6a PR S precedent, where this list held Google while no composition did). Every GitHub
-            // endpoint row therefore rests on a registration PR 2 produces, and PR 2 re-measures them on its gate.
+            // #1745 — and the REAL GitHub adapter over ScriptedGitHub. Both stand in for what the gates compose on
+            // this host from its client ids (ExternalLoginEndpointsTests pins that composition).
             services.RemoveAll<RegisteredProviders>();
             services.AddSingleton(sp =>
             {

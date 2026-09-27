@@ -13,8 +13,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetCompanyWatchFilter
 /// <b>Full-replace, and an empty selection means "clear".</b> The user's intent is one thing —
 /// "make this watch's filter be what I just selected" — and an empty selection is a VALUE of that
 /// intent, not a second intent (SRP is about change-reasons, not branch count). This mirrors the
-/// shipped settings idiom (<c>UpdateFollowedCompanyNotificationConsentCommand</c>, and
-/// BackgroundMatchCard's idempotent full-replace). The domain's "a present spec always narrows"
+/// shipped settings idiom (<c>UpdateFollowedCompanyNotificationConsentCommand</c>). The domain's
+/// "a present spec always narrows"
 /// invariant survives because the HANDLER maps transport to domain (empty selection →
 /// <c>ClearFilter()</c>, i.e. the canonical NULL) — the model does not bend to the form's shape.
 /// One endpoint, so the FE never has to decide which one an empty form calls (which would create

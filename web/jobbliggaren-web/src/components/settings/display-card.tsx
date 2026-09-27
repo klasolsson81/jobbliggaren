@@ -89,7 +89,7 @@ export function DisplayCard({
         </p>
       </div>
 
-      {/* Mutually exclusive live regions, the shape `background-match-card.tsx` ships:
+      {/* Mutually exclusive live regions:
           a failure is an assertive alert, otherwise a polite receipt. */}
       <div className="mt-4">
         {error ? (

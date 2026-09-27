@@ -44,6 +44,41 @@
   color: var(--jp-ink-1);
   margin: 0;
 }
+/* A group of controls inside one settings card (#1891, the Notiser card): a hairline above
+   every group but the first, each group carrying its own receipt or refusal (#1391). */
+.jp-settings-group + .jp-settings-group {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+/* Inside a group the group sets the spacing, so ToggleRow's own row padding goes. */
+.jp-settings-group > .jp-togglerow {
+  padding-block: 0;
+}
+.jp-togglerow + .jp-settings-group__message {
+  margin-top: 8px;
+}
+
+/* ToggleRow's switch is 36×20, so an invisible ::before gives it the house hit area without
+   the glyph growing: 32px in-app, 44px at ≤768 (DESIGN.md §5; #1885's idiom). The insets count
+   from the padding box (34×18), because the switch's 1px border sits outside it. The base rule
+   lives in globals.css; every ToggleRow renders under (app), so this one is scoped here. */
+.jp-togglerow__switch::before {
+  content: "";
+  position: absolute;
+  inset: -7px 0;
+}
+@media (max-width: 768px) {
+  .jp-togglerow__switch::before {
+    inset: -13px -5px;
+  }
+}
+
+/* The selected option's focus ring sits on its own fill, so it takes the on-fill colour. The base
+   rule lives in globals.css; every Segment renders under (app), so this one is scoped here. */
+.jp-segment__opt[data-active="true"]:focus-visible {
+  outline-color: var(--jp-on-fill);
+}
 
 /* ── Matchnings-summeringskort: facet-grupper + add-rad ──
    (samma RE-BIND §1.1/§1.6). Hairlines mellan facet-grupperna (--jp-border-soft,

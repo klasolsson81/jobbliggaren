@@ -358,3 +358,28 @@ local-only, with its follow-ups of 2026-09-25 and 2026-09-26):
   presented as the advertiser's own statement.
 
 Every catalogue row above is pinned whole, sv and en, in `web/jobbliggaren-web/src/lib/i18n/legally-bound-copy.test.ts`.
+
+## Amendment 2026-09-27 — #1891 PR 1: rows 7 and 8 as signed
+
+`security-auditor` signed the Notiser card's consent texts in #1891's pre-code form round on 2026-09-27 (her report,
+`docs/reviews/2026-09-27-1891-form-security.md`, promoted with that PR because the session ran in a cloud container
+whose local files do not outlive it). Each switch now carries its whole consent text as its description, visible without
+a click and in its `aria-describedby` both on and off. The two `intro` keys are struck; their bound elements moved into
+the descriptions:
+
+- Row 7: `settings.backgroundMatch.toggleDescription`, sv "Slår du på det samtycker du till att vi varje natt matchar nya
+  annonser mot din profil och mejlar dig toppmatchningar direkt och starka i en sammanfattning. Bra matchningar visas
+  bara i din matchningslista. Du kan stänga av det när som helst.", en "Turning this on means you consent to us matching
+  new job ads against your profile every night and emailing you top matches right away and strong ones in a summary.
+  Good matches appear only in your match list. You can turn this off at any time." `settings.backgroundMatch.intro` is
+  struck.
+- Row 8: `settings.followedCompanyNotifications.toggleDescription`, sv "Nya annonser från företag du följer visas alltid
+  i appen. Slår du på det samtycker du till att vi också mejlar dem till dig. Du kan dra tillbaka samtycket när som
+  helst genom att stänga av det här.", en "New ads from companies you follow always appear in the app. Turning this on
+  means you consent to us also emailing them to you. You can withdraw your consent at any time by turning this off."
+  `settings.followedCompanyNotifications.intro` is struck.
+
+`legally-bound-copy.test.ts` pins the catalogue, which cannot see a bound string stop rendering, so a component test
+(`notifications-section.test.tsx`) pins each switch's accessible description to its bound string, on and off. Row 14's
+new link target and a new row for the export's contact route were signed in the same round and land with #1891's second
+PR, which amends this record for them.

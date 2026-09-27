@@ -12,10 +12,8 @@ import { updateMyProfileAction } from "@/lib/actions/me";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { SkillGroup } from "@/lib/dto/skills";
-import type { DigestCadence } from "@/lib/dto/me";
 import { DisplayCard } from "./display-card";
-import { BackgroundMatchCard } from "./background-match-card";
-import { FollowedCompanyNotificationsCard } from "./followed-company-notifications-card";
+import { NotificationsSection } from "./notifications-section";
 import { MatchPreferencesCard } from "./match-preferences-card";
 import { AccountCards } from "./account-cards";
 
@@ -66,7 +64,7 @@ type WriteOutcome = { ok: true; at: Date } | { ok: false; error: string };
  *  - Telefon-fält INTE renderat (DTO saknar `phone`)
  *  - TD-115 (2026-06-25): the legacy "Aviseringar"-kort (EmailNotifications +
  *    WeeklySummary toggles) was REMOVED — those flags gated no email path and
- *    were retired. The live notification surface is BackgroundMatchCard below.
+ *    were retired. The live notification surface is NotificationsSection below.
  *  - "Exportera mina data" + "Radera konto" hänvisar till befintliga flöden
  *    (DeleteAccountSection) eller stub-handler
  */
@@ -85,20 +83,6 @@ export function SettingsForm({
   );
   const [isPending, startTransition] = useTransition();
   const [languageOutcome, setLanguageOutcome] = useState<WriteOutcome | null>(null);
-
-  /**
-   * Bevakning F4 (#803): de två notis-kortens DELADE tillstånd bor här, inte i
-   * korten. Kadensen driver båda utskicken (ADR 0087 D2) och följ-flaggan avgör
-   * om kadens-väljaren är åtkomlig — så båda värdena har två läsare och därmed
-   * exakt EN ägare (SSOT). Varje kort behåller sin EGEN save/endpoint; det är
-   * bara sanningen som är delad, aldrig skrivvägen.
-   */
-  const [cadence, setCadence] = useState<DigestCadence>(
-    initialProfile.digestCadence === "Daily" ? "Daily" : "Weekly",
-  );
-  const [followEnabled, setFollowEnabled] = useState<boolean>(
-    initialProfile.followedCompanyNotificationsEnabled,
-  );
 
   async function applyChange(
     changed: UpdateMyProfileInput,
@@ -174,29 +158,12 @@ export function SettingsForm({
           initialOccupationExperience={initialProfile.preferredOccupationExperience}
           degraded={taxonomy === null}
         />
-        {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).
-            Äger sin EGEN action/endpoint (PUT /me/notification-consent) — INTE
-            det delade applyChange/updateMyProfile-flödet — så ett consent-spar
-            aldrig blandas med profil-skrivet. Pre-fyller från profilen.
-            Bevakning F4: kadensen är delad (D2) → kontrollerad härifrån, och
-            väljaren öppnas så snart någon av de två kanalerna är på. */}
-        <BackgroundMatchCard
-          initialEnabled={initialProfile.backgroundMatchNotificationsEnabled}
-          cadence={cadence}
-          onCadenceChange={setCadence}
-          followEnabled={followEnabled}
-        />
-        {/* Bevakning F4 (#803, RF-12=12C): notiser om följda företag. Den
-            kanoniska Art. 7(3)-withdrawal-ytan för E-POST-kanalen (in-app-rälen
-            går oavsett — 6(1)(b) efter 7C). Egen action/endpoint
-            (PUT /me/followed-company-notification-consent). Placerad direkt
-            efter matchnings-kortet: de två delar kadens, och adjacensen är vad
-            som gör kadens-hänvisningen hittbar även när gridden kollapsar till
-            en kolumn. INGEN kadens-kontroll här (ett värde, en kontroll). */}
-        <FollowedCompanyNotificationsCard
-          enabled={followEnabled}
-          onEnabledChange={setFollowEnabled}
-          cadence={cadence}
+        {/* #1891: both notification consents and the cadence they share, in one card that owns
+            all three values and keeps each consent's own endpoint. */}
+        <NotificationsSection
+          initialMatchEnabled={initialProfile.backgroundMatchNotificationsEnabled}
+          initialFollowEnabled={initialProfile.followedCompanyNotificationsEnabled}
+          initialCadence={initialProfile.digestCadence}
         />
       </div>
 

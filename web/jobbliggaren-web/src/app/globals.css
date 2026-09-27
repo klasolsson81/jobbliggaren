@@ -7360,10 +7360,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-top-color: var(--jp-border);
   opacity: 0.55;
 }
-/* Vald cell (aktivt stegfilter) — accent-yta, vinner över terminal-ytan. */
+/* Vald cell (aktivt stegfilter) — accent-yta, vinner över terminal-ytan. Fyllningen
+   ensam mäter 1,14:1 mot vitt, så stapeln i nederkanten bär markeringen (DESIGN.md §3,
+   WCAG 1.4.11; #1827 B6). */
 .jp-steprail__cell[aria-pressed="true"],
 .jp-steprail__cell[data-terminal="true"][aria-pressed="true"] {
   background: var(--jp-accent-50);
+  box-shadow: inset 0 -3px 0 var(--jp-accent-700);
 }
 .jp-steprail__cell:focus-visible {
   outline: 2px solid var(--jp-accent-700);

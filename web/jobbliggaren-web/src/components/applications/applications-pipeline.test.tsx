@@ -15,7 +15,7 @@ import type {
 // next/link renderas som <a> i jsdom utan extra mock.
 
 // #630 PR 7: ön bär nu ApplicationActionsProvider (mutations-plumbing) och
-// kökorten soft-navigerar — mocka server actions + router-sömmarna så
+// köraderna soft-navigerar — mocka server actions + router-sömmarna så
 // list-/kö-testerna förblir rena presentation-tester.
 vi.mock("@/lib/actions/applications", () => ({
   transitionStatusAction: vi.fn(async () => ({ success: true as const })),

@@ -264,7 +264,7 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(screen.getByText("14 dgr utan svar")).toBeInTheDocument();
   });
 
-  it("renderar DEADLINE-taggen UTAN år (facit §11 — signalen fyrar ≤7 dgr kvar)", () => {
+  it("renderar sista-ansökningsdag-taggen UTAN år (facit §11 — signalen fyrar ≤7 dgr kvar)", () => {
     renderRow(
       makeApplication({
         status: "Draft",

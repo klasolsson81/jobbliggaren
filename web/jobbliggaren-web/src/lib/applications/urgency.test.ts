@@ -73,7 +73,7 @@ describe("effectiveWaitDays (ADR 0092 D5-klockan)", () => {
 });
 
 describe("urgencyTagFor (design §11 — signal är SSOT, taggen är display)", () => {
-  it("DraftDeadlineApproaching → DEADLINE-tagg (warning) ur annonsens datum", () => {
+  it("DraftDeadlineApproaching → sista-ansökningsdag-tagg (warning) ur annonsens datum", () => {
     const tag = urgencyTagFor(
       makeApplication({
         status: "Draft",

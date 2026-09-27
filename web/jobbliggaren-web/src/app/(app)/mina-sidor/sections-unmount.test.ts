@@ -6,6 +6,6 @@ import nextConfig from "../../../../next.config";
 // `cacheComponents` is off: on, it keeps recently left routes mounted and hidden, state included.
 describe("the /mina-sidor sections", () => {
   it("are unmounted when left, so cacheComponents stays off", () => {
-    expect(nextConfig.cacheComponents ?? false).toBe(false);
+    expect(nextConfig.cacheComponents).toBe(false);
   });
 });

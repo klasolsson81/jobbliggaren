@@ -18,8 +18,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http;
-using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
 
@@ -141,8 +139,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     [Fact]
     public async Task The_providers_list_names_every_registered_provider_in_the_known_order_and_is_publicly_cacheable()
     {
-        // Acceptance: the registered keys; the [] half is GoogleIdentityProviderGateTests'. In 6b PR 1 GitHub's half of
-        // this list measures ApiFactory's hand-built registration (its actor is 6b PR 2's gate), not a composition.
+        // Acceptance: the registered keys; the [] half is each gate test's.
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -151,22 +148,17 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     }
 
     [Fact]
-    public void The_Development_composition_registers_google_from_its_client_id_and_never_github()
+    public void The_Development_composition_registers_each_provider_from_its_client_id()
     {
         // The host's scripted adapters reach the handlers through RegisteredProviders alone, so this is the
-        // composition's own registration, made by the gate from the client id in this host's configuration.
-        // #1745, 6b PR 1's inertness pin in Development (test-writer reading §4): the host carries a full GitHub
-        // client too, and the composition registers no GitHub adapter, binds no GitHub options and names no client.
+        // composition's own registration, made by each gate from the client id in this host's configuration: the
+        // actor behind every endpoint row on this host.
         var configuration = factory.Services.GetRequiredService<IConfiguration>();
+        configuration["Auth:OAuth:Google:ClientId"].ShouldBe(ApiFactory.GoogleClientId);
         configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe(ApiFactory.GitHubClientId);
 
-        factory.Services.GetServices<IExternalIdentityProvider>().ShouldHaveSingleItem()
-            .ShouldBeOfType<GoogleIdentityProvider>();
-        factory.Services.GetServices<IConfigureOptions<GitHubOAuthOptions>>().ShouldBeEmpty();
-        factory.Services.GetServices<IConfigureOptions<HttpClientFactoryOptions>>()
-            .OfType<ConfigureNamedOptions<HttpClientFactoryOptions>>()
-            .Select(options => options.Name)
-            .ShouldNotContain(GitHubIdentityProvider.HttpClientName);
+        factory.Services.GetServices<IExternalIdentityProvider>().Select(provider => provider.GetType())
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)]);
     }
 
     [Fact]

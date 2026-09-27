@@ -54,6 +54,16 @@ describe("globals.css — the global link colour rule (#1352)", () => {
     }
   });
 
+  // #1827 K1 (Klas: "Bläck"): the /ansokningar titles keep their own ink, hover included; at
+  // (0,1,0) their colour loses to this rule's (0,1,1) unless they are exempt here.
+  it("exempts the /ansokningar title links in the queue, Lista, Tavla and Tabell", () => {
+    for (const rule of LINK_RULES) {
+      for (const title of [".jp-app__rowlink", ".jp-board-card__link", ".jp-apptable__rowlink"]) {
+        expect(rule).toContain(title);
+      }
+    }
+  });
+
   it("carries the exemption in ONE :not(), never two chained", () => {
     for (const rule of LINK_RULES) {
       const selector = rule.slice(0, rule.indexOf("{"));

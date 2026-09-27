@@ -24,6 +24,8 @@ interface DeleteApplicationDialogProps {
    * list surfaces omit it (the revalidatePath server-recompute drops the row).
    */
   onDeleted?: () => void;
+  /** Where focus returns when the dialog closes, when its opener has unmounted by then. */
+  returnFocusTo?: HTMLElement | null;
 }
 
 /**
@@ -40,11 +42,12 @@ export function DeleteApplicationDialog({
   onOpenChange,
   applicationId,
   onDeleted,
+  returnFocusTo = null,
 }: DeleteApplicationDialogProps) {
   const tUi = useTranslations("applications.ui");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const { onCloseAutoFocus } = useReturnFocus(open);
+  const { onCloseAutoFocus } = useReturnFocus(open, returnFocusTo);
 
   function confirm() {
     setError(null);

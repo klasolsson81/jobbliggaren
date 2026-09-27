@@ -150,7 +150,7 @@ export function ApplicationDetailBody({
       </div>
 
       {/* Statusmaskineriet (§8.3–8.5, PR 7): primär-CTA + stegväljare +
-          AVSLUTA ELLER PARKERA — klient-ö, direktbyten med ångra-toast. */}
+          AVSLUTA ELLER PARKERA — klient-ö. */}
       <ApplicationStatusActions
         applicationId={application.id}
         status={application.status}

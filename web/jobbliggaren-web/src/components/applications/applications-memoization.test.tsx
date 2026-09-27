@@ -20,11 +20,13 @@ import { transitionStatusAction } from "@/lib/actions/applications";
 
 /**
  * #747 (perf-audit d1/d2) — render-count fitness function för memoiseringen av
- * ansöknings-trädet. Oraklet är BETEENDE, inte struktur: två rena per-render-
+ * ansöknings-trädet. Oraklet är BETEENDE, inte struktur: rena per-render-
  * bieffekter räknas via modul-wrappers.
  *
- *   - `daysInStatus` anropas EXAKT en gång per renderad rad (ApplicationRow rad 93,
- *     ApplicationsTableRow rad 61) → antal anrop = antal rad-renderingar.
+ *   - `daysInStatus` anropas EXAKT en gång per renderad rad (ApplicationRow,
+ *     ApplicationsTableRow) → antal anrop = antal rad-renderingar.
+ *   - `urgencyTagFor` anropas EXAKT en gång per renderad körad (#1827 M1: köraden
+ *     visar inga dagar i steget, så den räknas på sitt värde i stället).
  *   - `getStatusVariantKey` anropas en gång per stegrail-cell → en delta > 0 på ett
  *     sök-tangenttryck betyder att StepRail re-renderade (rad-menyerna skippar via
  *     rad-memon, så deltan isolerar railen).
@@ -36,7 +38,7 @@ import { transitionStatusAction } from "@/lib/actions/applications";
  * grind vakuös (reference_count_only_oracle_needs_asymmetric_seed).
  */
 
-const counters = vi.hoisted(() => ({ days: 0, variant: 0 }));
+const counters = vi.hoisted(() => ({ days: 0, urgency: 0, variant: 0 }));
 
 // Server actions + router-sömmarna mockas → rena presentation-tester (samma
 // mönster som applications-pipeline.test.tsx / applications-table.test.tsx).
@@ -71,6 +73,10 @@ vi.mock("@/lib/applications/urgency", async (importActual) => {
     daysInStatus: (...args: Parameters<typeof actual.daysInStatus>) => {
       counters.days++;
       return actual.daysInStatus(...args);
+    },
+    urgencyTagFor: (...args: Parameters<typeof actual.urgencyTagFor>) => {
+      counters.urgency++;
+      return actual.urgencyTagFor(...args);
     },
   };
 });
@@ -158,6 +164,7 @@ function makeGroups(
 
 beforeEach(() => {
   counters.days = 0;
+  counters.urgency = 0;
   counters.variant = 0;
 });
 
@@ -214,7 +221,7 @@ describe("#747 memoisering — pipeline (d2)", () => {
     expect(counters.days).toBe(0);
   });
 
-  it("sök re-renderar INTE kö-kortens rader (memo(AttentionQueue))", () => {
+  it("sök re-renderar INTE köns rader (memo(AttentionQueue))", () => {
     // Två apps i en icke-default-öppen status (Acknowledged) med fyrande signal →
     // syns i kön; list-sektionen är kollapsad initialt (0 list-rader).
     render(
@@ -227,9 +234,10 @@ describe("#747 memoisering — pipeline (d2)", () => {
         initialView="lista"
       />,
     );
-    // Kön renderar 2 kort; Acknowledged-sektionen kollapsad → inga list-rader.
-    expect(counters.days).toBe(2);
-    counters.days = 0;
+    // Kön renderar 2 rader; Acknowledged-sektionen kollapsad → inga list-rader,
+    // så urgencyTagFor räknar bara köns rader.
+    expect(counters.urgency).toBe(2);
+    counters.urgency = 0;
 
     // Icke-matchande sök → list-sektionen förblir tom; kön är sök-invariant.
     fireEvent.change(screen.getByRole("searchbox"), {
@@ -237,8 +245,8 @@ describe("#747 memoisering — pipeline (d2)", () => {
     });
 
     // +0: kön skippar via memo (groups/now stabila). Utan memo(AttentionQueue)
-    // re-renderar kön → cardActions ger nya primaryAction → dess rader re-renderar → +2.
-    expect(counters.days).toBe(0);
+    // re-renderar kön, och dess rader (inte memo-lindade) med den → +2.
+    expect(counters.urgency).toBe(0);
   });
 
   it("sök re-renderar INTE stegrailen (memo(StepRail) + useCallback(toggleFilter))", () => {

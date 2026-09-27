@@ -4,7 +4,6 @@ import type { MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { applicationStatusLabel, nextStepOf } from "@/lib/applications/status";
 import { useApplicationActions } from "./application-actions";
-import type { RowAction } from "./application-row";
 import type {
   ApplicationDto,
   ApplicationStatus,
@@ -17,6 +16,12 @@ function anchorY(event: MouseEvent<HTMLButtonElement>): number {
   return event.clientY > 0
     ? event.clientY
     : event.currentTarget.getBoundingClientRect().top;
+}
+
+/** A row CTA: the row's default primary (useRowActions) or a queue row's §11 CTA. */
+export interface RowAction {
+  label: string;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
 /**
@@ -33,16 +38,16 @@ export type DefaultRowAction = RowAction & {
 
 /**
  * Delad SSOT för radens DEFAULT-primär-CTA (design §5, prototyp-facit): utkast →
- * "Slutför och skicka"-dialogen (mellansteg §9); Ghosted → "Återaktivera"
+ * "Markera som Skickad"-dialogen (mellansteg §9); Ghosted → "Återaktivera"
  * (→ Skickad); annars "Flytta till {nästa}"; terminala → ingen. Extraherad ur
  * `ApplicationRow` (#630 PR 7) så Lista-raden OCH Tabell-vyns "Nästa steg"-kolumn
  * (#630 PR 10) delar EN härledning (CLAUDE.md §9.1 DRY, senior-cto-advisor Fork
  * 4). Ren presentations-mappning (vilken knapp/länk visas) — ALDRIG en
  * transitions-grind; backend tillåter alla byten (ADR 0092 D3).
  *
- * OBS: kökortets signal→CTA-karta (`attention-queue.tsx` `cardActions`) är ETT
- * ANNAT kunskapsstycke (signal-nyckel, urgens-driven) och foldas medvetet INTE in
- * här — olika förändringsskäl (SRP/CCP, senior-cto-advisor Fork 4).
+ * OBS: köradens signal→CTA-karta (`AttentionQueueRow` i `attention-queue.tsx`) är
+ * ETT ANNAT kunskapsstycke (signal-nyckel, urgens-driven) och foldas medvetet INTE
+ * in här — olika förändringsskäl (SRP/CCP, senior-cto-advisor Fork 4).
  */
 export function useRowActions() {
   const t = useTranslations("applications.enums");

@@ -129,6 +129,14 @@ describe("ApplicationsBoard — layout", () => {
     }
   });
 
+  // #1827 M5: a long step name wraps inside its column; a title attribute reached a mouse only.
+  it("kolumnnamnen bär inget title-attribut", () => {
+    renderBoard(makeGroups({ Submitted: 1 }));
+    for (const name of document.querySelectorAll(".jp-board-col__name")) {
+      expect(name).not.toHaveAttribute("title");
+    }
+  });
+
   it("toppband keyar off getStatusVariantKey (SAMMA SSOT som rail/tagg)", () => {
     renderBoard(makeGroups({ Submitted: 1 }));
     // Submitted → STATUS_BADGE_VARIANT Info → "info" (#683, design §11).
@@ -143,7 +151,7 @@ describe("ApplicationsBoard — layout", () => {
     );
   });
 
-  it("kortet visar roll, företag och 'N DGR'", () => {
+  it("kortet visar roll, företag och 'N dgr'", () => {
     renderBoard(makeGroups({ Submitted: 1 }));
     const column = screen.getByRole("group", { name: "Skickad" });
     expect(within(column).getByText("Submitted-titel-0")).toBeInTheDocument();
@@ -169,11 +177,11 @@ describe("ApplicationsBoard — layout", () => {
     ).toBeInTheDocument();
   });
 
-  it("kolumn kapar vid 4 kort + 'Visa 2 fler', expanderar vid klick", () => {
+  it("kolumn kapar vid 4 kort + 'Visa 2 till', expanderar vid klick", () => {
     renderBoard(makeGroups({ Submitted: 6 }));
     const column = screen.getByRole("group", { name: "Skickad" });
     expect(within(column).getAllByRole("article")).toHaveLength(4);
-    const more = within(column).getByRole("button", { name: "Visa 2 fler" });
+    const more = within(column).getByRole("button", { name: "Visa 2 till" });
     fireEvent.click(more);
     expect(within(column).getAllByRole("article")).toHaveLength(6);
   });
@@ -183,6 +191,8 @@ describe("ApplicationsBoard — layout", () => {
     // 3 totalt, 2 aktiva (Accepted är terminal).
     expect(screen.getByText(/3 ansökningar/)).toBeInTheDocument();
     expect(screen.getByText(/2 aktiva/)).toBeInTheDocument();
+    // #1827 M2: "Byt status" on every card is the visible way; no hint explains dragging.
+    expect(screen.queryByText(/Dra ett kort/)).not.toBeInTheDocument();
   });
 
   it("varje kort bär StatusMenu (tangentbords-/no-drag-vägen)", () => {
@@ -285,5 +295,112 @@ describe("ApplicationsBoard — drag & drop (statusbyte)", () => {
         message: "Statusbytet misslyckades. Försök igen.",
       }),
     );
+  });
+});
+
+// #1827 item 10: a drop on Accepterad, Nekad or Återtagen deletes the saved copy's text,
+// which undo does not bring back, so it asks first whenever the copy may have text.
+describe("ApplicationsBoard — drops on the terminal zones (#1827)", () => {
+  function groupsWith(flag: boolean | undefined): PipelineGroupDto[] {
+    return makeGroups({ Submitted: 1 }).map((group) => ({
+      ...group,
+      applications: group.applications.map((a) => ({
+        ...a,
+        hasPreservedAdText: flag,
+      })),
+    }));
+  }
+
+  function dropOn(zone: string) {
+    const card = within(screen.getByRole("group", { name: "Skickad" })).getByRole(
+      "article",
+    );
+    const dt = dataTransferFor("Submitted-0");
+    fireEvent.dragStart(card, { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole("group", { name: zone }), { dataTransfer: dt });
+  }
+
+  // `hidden`: while the dialog is open, Radix hides the rest of the page from the
+  // accessibility tree.
+  const cardsIn = (name: string) =>
+    within(screen.getByRole("group", { name, hidden: true })).queryAllByRole(
+      "article",
+      { hidden: true },
+    );
+
+  it.each([
+    ["Accepterad", "Accepted"],
+    ["Nekad", "Rejected"],
+    ["Återtagen", "Withdrawn"],
+  ] as const)(
+    "a drop on %s moves the card only once the confirmation is given",
+    async (zone, target) => {
+      // Never settles, so the optimistic move stays visible once it has started.
+      vi.mocked(transitionStatusAction).mockReturnValueOnce(new Promise(() => {}));
+      renderBoard(groupsWith(true));
+      dropOn(zone);
+
+      const dialog = await screen.findByRole("dialog", {
+        name: `Markera som ${zone}?`,
+      });
+      expect(dialog).toHaveAccessibleDescription(
+        "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      );
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+      expect(cardsIn("Skickad")).toHaveLength(1);
+      expect(cardsIn(zone)).toHaveLength(0);
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: `Markera som ${zone}` }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", target),
+      );
+      expect(cardsIn(zone)).toHaveLength(1);
+      expect(cardsIn("Skickad")).toHaveLength(0);
+    },
+  );
+
+  it("Avbryt moves nothing", async () => {
+    renderBoard(groupsWith(true));
+    dropOn("Nekad");
+
+    const dialog = await screen.findByRole("dialog", { name: "Markera som Nekad?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+    expect(cardsIn("Skickad")).toHaveLength(1);
+    expect(cardsIn("Nekad")).toHaveLength(0);
+  });
+
+  it("a missing flag (deploy skew) asks with the fallback body", async () => {
+    renderBoard(groupsWith(undefined));
+    dropOn("Nekad");
+
+    expect(
+      await screen.findByRole("dialog", { name: "Markera som Nekad?" }),
+    ).toHaveAccessibleDescription(
+      "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("a copy without text moves at once", () => {
+    renderBoard(groupsWith(false));
+    dropOn("Nekad");
+
+    expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", "Rejected");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("a drop on Inget svar never asks: Ghosted keeps the copy", () => {
+    renderBoard(groupsWith(true));
+    dropOn("Inget svar");
+
+    expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", "Ghosted");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

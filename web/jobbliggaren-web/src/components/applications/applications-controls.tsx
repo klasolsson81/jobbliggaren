@@ -8,7 +8,7 @@ import type { ApplicationsView } from "@/lib/applications/view";
 interface ApplicationsControlsProps {
   query: string;
   onQueryChange: (value: string) => void;
-  // Etikett för den aktiva stegfilter-chipen ("FILTER: SKICKAD ✕"); null = inget
+  // Etikett för den aktiva stegfilter-chipen ("Filter: Skickad ✕"); null = inget
   // aktivt filter → ingen chip (även Tavla skickar null — stegfiltret gäller ej där).
   activeFilterLabel: string | null;
   onClearFilter: () => void;

@@ -90,3 +90,30 @@ describe("/ansokningar loading fallback (#1467)", () => {
     ).not.toBeNull();
   });
 });
+
+// #1827 M6: below the hero the fallback takes the list's bound form, in the list's own classes.
+describe("/ansokningar loading fallback — the list's form (#1827 M6)", () => {
+  it("draws the queue as ledger rows, the controls, the rail's ten cells and framed rows under group heads", () => {
+    const { container } = render(<Loading />);
+    const page = container.querySelector(".jp-container.jp-page")!;
+
+    expect(page.querySelectorAll(".jp-attentionqueue ol > li.jp-attentionqueue__row").length).toBeGreaterThan(0);
+    expect(page.querySelector(".jp-allapps .jp-appcontrols")).not.toBeNull();
+    expect(page.querySelectorAll(".jp-steprail__cells > .jp-steprail__cell")).toHaveLength(10);
+    const groups = page.querySelectorAll(".jp-allapps > .jp-section");
+    expect(groups.length).toBeGreaterThan(0);
+    for (const group of groups) {
+      expect(group.querySelector(":scope > .jp-section__head")).not.toBeNull();
+      expect(group.querySelectorAll(".jp-applist > .jp-app.jp-app--actions").length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the whole list shape out of the accessibility tree and out of the pointer's reach", () => {
+    const { container } = render(<Loading />);
+    const page = container.querySelector(".jp-container.jp-page")!;
+    expect(page).toHaveAttribute("aria-hidden", "true");
+    expect(page).toHaveClass("pointer-events-none");
+    // No control stands in the placeholder: the real ones arrive with the page.
+    expect(page.querySelectorAll("button, a, input")).toHaveLength(0);
+  });
+});

@@ -13,10 +13,11 @@ import { fileURLToPath } from "node:url";
  * apply, because unlayered CSS beats every `@layer utilities` rule regardless of specificity.
  *
  * The distinction encoded here is the one the sweep found: switching the outline off is legitimate
- * when the element draws its own ring on a focus state, and a defect when it does not. Three homes
+ * when the element draws its own ring on a focus state, and a defect when it does not. Four homes
  * switch off and replace — `.jp-hero__input` (its row has `overflow: hidden`, which clips an outward
- * ring, so it draws an inward one), `.jp-app__rowlink` (paired with `.jp-job__rowlink` since #1828)
- * and `.jp-apptable__rowlink` (both move the ring to the stretched `::after`). Three switched off and
+ * ring, so it draws an inward one), `.jp-app__rowlink` (paired with `.jp-job__rowlink` since #1828),
+ * `.jp-apptable__rowlink` and `.jp-board-card__link` (the three move the ring to the stretched
+ * `::after`). Three switched off and
  * replaced nothing: `.jp-input`,
  * `.jp-sortfield__select` and `.jp-appcontrols__input`. Measured for #1450 on 2026-08-23, their
  * residual indicator read 2.16:1 (border state change) and 1.28:1 (glow, 1.29:1 on the third) against
@@ -193,6 +194,7 @@ describe("focus ring — switching it off always carries a replacement (#1450)",
     ).toEqual([
       ".jp-app__rowlink:focus-visible, .jp-job__rowlink:focus-visible { outline }",
       ".jp-apptable__rowlink:focus-visible { outline }",
+      ".jp-board-card__link:focus-visible { outline }",
       ".jp-hero__input { outline }",
     ]);
   });

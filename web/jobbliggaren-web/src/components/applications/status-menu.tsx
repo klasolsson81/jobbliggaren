@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import {
@@ -22,7 +23,7 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 
 /**
  * "Byt status ▾"-menyn (#630 PR 7, design §5): 250px popover med grupperna
- * "FLYTTA TILL · AKTIV VÄG" (6 steg) och "AVSLUT & VILANDE" (Accepterad/Nekad/
+ * "Aktiva steg" (6 steg) och "Avslut och vilande" (Accepterad/Nekad/
  * Återtagen + Ghosted). Färgprick (2px-radie kvadrat i stegets statusfärg,
  * samma status-tokens som taggen — WCAG 1.4.1: färgen FÖRSTÄRKER etiketten,
  * bär den aldrig) + namn + ✓ på nuvarande. Alla 10 val alltid tillgängliga —
@@ -53,6 +54,7 @@ export function StatusMenu({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const { transition, deleteApplication } = useApplicationActions();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const renderItem = (status: ApplicationStatus) => {
     const current = status === application.status;
@@ -60,7 +62,7 @@ export function StatusMenu({
       <DropdownMenuItem
         key={status}
         disabled={current || pending}
-        onSelect={() => transition(application, status)}
+        onSelect={() => transition(application, status, triggerRef.current)}
       >
         <span
           className="jp-statusmenu__dot"
@@ -85,6 +87,7 @@ export function StatusMenu({
       <DropdownMenuTrigger asChild>
         {compact ? (
           <button
+            ref={triggerRef}
             type="button"
             className="jp-statusmenu__minitrigger"
             disabled={pending}
@@ -94,6 +97,7 @@ export function StatusMenu({
           </button>
         ) : (
           <button
+            ref={triggerRef}
             type="button"
             className="jp-rowbtn jp-rowbtn--ink"
             disabled={pending}
@@ -133,7 +137,7 @@ export function StatusMenu({
           // repo-precedens ui/select.tsx (design-reviewer Major 1, #782).
           className="text-danger-700 focus:bg-danger-50 focus:text-danger-700"
           disabled={pending}
-          onSelect={() => deleteApplication(application)}
+          onSelect={() => deleteApplication(application, triggerRef.current)}
         >
           <Trash2 size={16} aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate">

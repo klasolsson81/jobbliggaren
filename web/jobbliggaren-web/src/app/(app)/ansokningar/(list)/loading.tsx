@@ -1,13 +1,19 @@
 import { useTranslations } from "next-intl";
 import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
 
+// The queue shows at most four rows before "Visa N till" (VISIBLE_ROW_CAP).
+const QUEUE_ROWS = [0, 1, 2, 3] as const;
+const RAIL_CELLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+const GROUPS = [0, 1] as const;
+const GROUP_ROWS = [0, 1] as const;
+
 /**
  * Route-level loading state for /ansokningar (#739 — finding
  * `p1-no-loading-tsx-any-primary-route` P0). Paints the pagehero + the
- * applications-list ledger shape immediately on navigation, instead of freezing
+ * applications list's shape immediately on navigation, instead of freezing
  * the previous page.
  *
- * Re-uses `jp-pagehero` + `jp-section` structural classes. Scoped to the `(list)` route
+ * Re-uses `jp-pagehero` and the list's own structural classes. Scoped to the `(list)` route
  * group, so it is never the fallback of `/ansokningar/[id]` (the `cv/(hub)` precedent,
  * #1385). sr-only `role="status"` announces; visuals decorative. Sync RSC.
  *
@@ -56,26 +62,75 @@ export default function Loading() {
         }
       />
 
-      <div className="jp-container jp-page" aria-hidden="true">
-        <section className="jp-section">
-          <div className="jp-section__head">
-            <span className="jp-skeleton block h-5 w-48" />
-            <span className="jp-skeleton block h-4 w-12" />
+      {/* The list's bound form in its own classes (#1827 M6): the queue's ledger rows, the
+          controls, the rail's ten cells, and group heads over framed Lista rows. The rows'
+          classes carry hover states, which a placeholder must not answer. */}
+      <div className="jp-container jp-page pointer-events-none" aria-hidden="true">
+        <section className="jp-attentionqueue">
+          <div className="jp-section__head jp-section__head--strong">
+            <span className="jp-skeleton block h-6 w-40" />
           </div>
-          <div className="flex flex-col gap-4">
-            {[0, 1, 2, 3, 4].map((row) => (
-              <div
-                key={row}
-                className="flex items-center justify-between gap-4"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <span className="jp-skeleton block h-4 w-1/2 max-w-full" />
-                  <span className="jp-skeleton block h-3 w-1/3 max-w-full" />
+          <ol className="jp-attentionqueue__list">
+            {QUEUE_ROWS.map((row) => (
+              <li key={row} className="jp-attentionqueue__row">
+                <div className="jp-attentionqueue__body">
+                  <span className="jp-skeleton block h-3 w-40" />
+                  <span className="jp-skeleton mt-2 block h-6 w-80 max-w-full" />
                 </div>
-                <span className="jp-skeleton block h-4 w-20 shrink-0" />
-              </div>
+                <span className="jp-skeleton block h-9 w-36 [@media(max-width:768px)]:h-11" />
+              </li>
             ))}
+          </ol>
+        </section>
+
+        <section className="jp-allapps">
+          <div className="jp-section__head jp-section__head--strong">
+            <span className="jp-skeleton block h-6 w-48" />
           </div>
+          <div className="jp-appcontrols">
+            <div className="jp-appcontrols__search">
+              <span className="jp-skeleton block h-(--jp-control-h) w-full" />
+            </div>
+            <div className="jp-appcontrols__vy">
+              <span className="jp-skeleton block h-(--jp-control-h) w-56" />
+            </div>
+          </div>
+          <div className="jp-steprail">
+            <div className="jp-steprail__labelrow">
+              <span className="jp-skeleton block h-5 w-32" />
+            </div>
+            <div className="jp-steprail__cells">
+              {RAIL_CELLS.map((cell) => (
+                <div key={cell} className="jp-steprail__cell">
+                  <span className="jp-skeleton block h-5 w-6" />
+                  <span className="jp-skeleton block h-3 w-14 max-w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {GROUPS.map((group) => (
+            <section key={group} className="jp-section">
+              <div className="jp-section__head jp-section__toggle">
+                <span className="jp-skeleton block h-5 w-36" />
+              </div>
+              <div className="jp-applist">
+                {GROUP_ROWS.map((row) => (
+                  <div key={row} className="jp-app jp-app--actions">
+                    <div className="jp-job__body">
+                      <span className="jp-skeleton block h-6 w-64 max-w-full" />
+                      <span className="jp-skeleton mt-1.5 block h-5 w-40 max-w-full" />
+                      <span className="jp-skeleton mt-2 block h-5 w-56 max-w-full" />
+                      <span className="jp-skeleton mt-1 block h-4 w-48 max-w-full" />
+                    </div>
+                    <div className="jp-app__actions jp-app__actions--row">
+                      <span className="jp-skeleton block h-9 w-36 [@media(max-width:768px)]:h-11" />
+                      <span className="jp-skeleton block h-9 w-28 [@media(max-width:768px)]:h-11" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </section>
       </div>
     </>

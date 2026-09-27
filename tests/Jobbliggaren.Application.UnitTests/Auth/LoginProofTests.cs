@@ -401,12 +401,15 @@ public sealed class LoginProofTests
         await _sessions.Received(1).CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task A_first_inbox_proof_writes_one_audit_row_and_revokes_before_it_grants()
+    [Theory]
+    [InlineData(LoginMethod.Link)]
+    [InlineData(LoginMethod.GitHub)]
+    public async Task A_first_inbox_proof_writes_one_audit_row_and_revokes_before_it_grants(LoginMethod method)
     {
+        // GitHub's row: its flag confirms an older unconfirmed account and revokes its sessions (ADR 0142 Amendment (18)).
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
 
-        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Link, Ct);
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), method, Ct);
 
         var row = _db.AuditLogEntries.Local.ShouldHaveSingleItem();
         row.EventType.ShouldBe(PasswordlessSessionGrant.InboxProvenAuditEventType);
@@ -417,7 +420,7 @@ public sealed class LoginProofTests
         {
             _sessions.InvalidateAllForUserAsync(_userId, CancellationToken.None);
             _sessions.CreateAsync(_userId, SessionLifetime.Persistent, CancellationToken.None);
-            _audit.LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Link);
+            _audit.LoginSucceeded(_userId, Arg.Any<string>(), method);
         });
     }
 
@@ -601,6 +604,30 @@ public sealed class LoginProofTests
         await TheProviderSpellingIsRefusedAsync(folded, account);
     }
 
+    [Theory]
+    [InlineData(false, typeof(LoginOutcome.RegistrationClosed))]
+    [InlineData(true, typeof(LoginOutcome.AccountUnavailable))]
+    public async Task A_github_proof_that_differs_by_a_folding_character_is_refused_and_links_nothing(
+        bool registrationsOpen, Type expected)
+    {
+        // #1779 for GitHub, where it is reachable: the GitHub adapter's own rule admits the folded spelling as it
+        // arrives, asserted first.
+        _lookup.FindAccountAsync(FoldedEmail, Arg.Any<CancellationToken>())
+            .Returns(new LoginAccount(_userId, Email));
+        await WithProfileAsync();
+        var proof = await GitHubIdentities.ProofAsync(
+            GitHubApiShapes.User(58323117, "folded-gh"), GitHubApiShapes.Emails.PrimaryVerified(FoldedEmail));
+        proof.Email.Value.ShouldBe(FoldedEmail);
+
+        (await Outcome(registrationsOpen).ResolveExternalAsync(proof, Ct)).ShouldBeOfType(expected);
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.GitHub));
+    }
+
     private async Task TheProviderSpellingIsRefusedAsync(string providerSpelling, string account)
     {
         _lookup.FindAccountAsync(providerSpelling, Arg.Any<CancellationToken>())
@@ -689,5 +716,24 @@ public sealed class LoginProofTests
         var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
         eventId.ShouldBe(1025);
         message.ShouldContain(nameof(LoginMethod.Google));
+    }
+
+    [Fact]
+    public async Task A_github_link_another_account_won_in_the_meantime_opens_no_session()
+    {
+        await WithProfileAsync();
+        _externalWriter.LinkAsync(
+                Arg.Any<Guid>(), ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.LinkedToAnotherUser);
+        var proof = await GitHubIdentities.ProofAsync(
+            GitHubApiShapes.User(58323117, "person-gh"), GitHubApiShapes.Emails.PrimaryVerified(Email));
+
+        (await Outcome().ResolveExternalAsync(proof, Ct)).ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1025);
+        message.ShouldContain(nameof(LoginMethod.GitHub));
     }
 }

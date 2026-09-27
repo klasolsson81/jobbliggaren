@@ -305,8 +305,8 @@ describe("/logga-in/villkor", () => {
   });
 
   it.each<["google" | "github", string]>([
-    ["google", "Kontot skapas på e-postadressen i Google-kontot du valde."],
-    ["github", "Kontot skapas på e-postadressen i GitHub-kontot du valde."],
+    ["google", "Kontot skapas på den primära e-postadressen i Google-kontot du valde."],
+    ["github", "Kontot skapas på den primära e-postadressen i GitHub-kontot du valde."],
   ])("says the account is created on the address of the %s account, not one confirmed by a code", async (via, line) => {
     mocks.readLoginFlow.mockResolvedValue({ ...consent, via });
 

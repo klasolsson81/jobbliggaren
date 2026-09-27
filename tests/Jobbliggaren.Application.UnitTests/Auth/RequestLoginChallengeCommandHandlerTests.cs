@@ -11,10 +11,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
 /// The login challenge's request path (ADR 0142 D2). Its answer may not depend on the address beyond its
-/// format, so the tests pin the ORDER of the gates and that a refused gate spends nothing further. Since #1745 the
-/// gates are <see cref="LoginChallengeAdmission"/>'s, the one home both the typed path and the provider path use;
-/// that nothing either path reaches can read an account is pinned transitively in
-/// <c>LoginProofChainTests.Neither_path_that_sends_a_login_code_can_reach_an_account</c> (dotnet-architect R6.1, V3).
+/// format, so the tests pin the ORDER of the gates and that a refused gate spends nothing further.
 /// </summary>
 public sealed class RequestLoginChallengeCommandHandlerTests
 {

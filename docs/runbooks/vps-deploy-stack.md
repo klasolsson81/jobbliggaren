@@ -631,7 +631,7 @@ in that window is refused without a transfer to Google.
 ### GitHub login (#1745)
 
 The same shape as Google's above: a merge makes GitHub login possible, and keys on this box make it
-live. Two things differ. GitHub's address is never an inbox proof, yet it binds a login in one click
+live. Two things differ. GitHub is never the mailbox, yet its address binds a login in one click
 as Google's does, by Klas's decision over `security-auditor`'s M-1, which stands (ADR 0142 Amendment
 (18)). And GitHub is a second transfer to a third country, with its own Chapter V entry.
 

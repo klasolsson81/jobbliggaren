@@ -603,7 +603,7 @@
         },
         "title": "Create your account",
         "identification": "The account is created for the email address you just confirmed with the code.",
-        "identificationProvider": "The account is created for the email address of the {provider} account you chose.",
+        "identificationProvider": "The account is created for the primary email address of the {provider} account you chose.",
         "termsLabel": "I accept the <terms>terms of use</terms>.",
         "termsHint": "The links open in a new tab.",
         "privacySibling": "We process your data in accordance with the <privacy>privacy policy</privacy>.",

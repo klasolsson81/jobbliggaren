@@ -366,7 +366,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     // ---------- E: /user/emails, the address rule (primary && verified, and nothing else) ----------
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAssertThePrimary_WhenItIsTheOneVerifiedAddress()
+    public async Task ExchangeAsync_ShouldAdmitThePrimary_WhenItIsTheOneVerifiedAddress()
     {
         var exchange = await ExchangeWithEmailsAsync(GitHubApiShapes.Emails.PrimaryVerified(Primary));
 
@@ -383,7 +383,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAssertThePrimaryAndNeverTheNoreplyAddress_WhenTheNoreplyEntryComesFirst()
+    public async Task ExchangeAsync_ShouldAdmitThePrimaryAndNeverTheNoreplyAddress_WhenTheNoreplyEntryComesFirst()
     {
         var exchange = await ExchangeWithEmailsAsync(
             GitHubApiShapes.Emails.PrimaryVerifiedWithNoreply(Primary, Id, Login));
@@ -392,7 +392,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAssertThePrimary_WhenAnUnverifiedSecondaryComesFirst()
+    public async Task ExchangeAsync_ShouldAdmitThePrimary_WhenAnUnverifiedSecondaryComesFirst()
     {
         var exchange = await ExchangeWithEmailsAsync(
             GitHubApiShapes.Emails.PrimaryVerifiedWithUnverifiedSecondary(Primary, "ny@annan.example"));
@@ -401,7 +401,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAssertThePrimaryAndNeverThePublicProfileAddress()
+    public async Task ExchangeAsync_ShouldAdmitThePrimaryAndNeverThePublicProfileAddress()
     {
         var exchange = await ExchangeAsync(
             User(publicEmail: "publik@firma.example"), GitHubApiShapes.Emails.PrimaryVerified(Primary));
@@ -542,7 +542,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAssertAnAddressThatOnlyContainsTheNoreplyDomain()
+    public async Task ExchangeAsync_ShouldAdmitAnAddressThatOnlyContainsTheNoreplyDomain()
     {
         // Kills a Contains or an EndsWith over the whole address: this domain is not GitHub's.
         const string lookalike = "anna@users.noreply.github.com.evil.example";

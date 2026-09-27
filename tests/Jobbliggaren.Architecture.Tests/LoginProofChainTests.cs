@@ -8,7 +8,6 @@ using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
-using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -179,6 +178,25 @@ public sealed class LoginProofChainTests
         ConsumersOf(typeof(LoginChallengeAdmission)).ShouldBe([typeof(RequestLoginChallengeCommandHandler).FullName!]);
 
     [Fact]
+    public void A_provider_login_can_reach_no_login_code()
+    {
+        // #1745 (ADR 0142 Amendment (18)): a provider login sends no code. Its handler reaches nothing that admits,
+        // mints, stores or mails one, and only the gates hand a code to the dispatch consumer.
+        var reached = ReachedFrom(typeof(CompleteExternalLoginCommandHandler));
+
+        Type[] forbidden =
+        [
+            typeof(LoginChallengeAdmission), typeof(ILoginChallengeDispatcher), typeof(LoginChallengeIssuer),
+            typeof(ILoginChallengeStore), typeof(IEmailSender),
+        ];
+        reached.Intersect(forbidden).ShouldBeEmpty();
+
+        // The control: the walk reaches the outcome function, so the absences above are not an empty walk's.
+        reached.ShouldContain(typeof(LoginProofOutcome));
+        ConsumersOf(typeof(ILoginChallengeDispatcher)).ShouldBe([typeof(LoginChallengeAdmission).FullName!]);
+    }
+
+    [Fact]
     public void A_code_verification_takes_no_address_so_the_cookies_echo_is_never_input()
     {
         // security-auditor V-1: the flow cookie is unsigned, so the address it echoes must have no way in.
@@ -222,6 +240,34 @@ public sealed class LoginProofChainTests
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs: 1",
             "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs: 1",
         ]);
+
+    // #1745 (ADR 0142 Amendment (18), dotnet-architect): which address qualifies is each adapter's own rule, so a
+    // provider is named only by its adapter. A handler branch on the provider would name it elsewhere.
+    [Fact]
+    public void Only_the_provider_adapters_name_a_provider_in_source()
+    {
+        var srcRoot = Path.Combine(RepoRoot(), "src");
+        Directory.Exists(srcRoot).ShouldBeTrue($"src root not found: {srcRoot}");
+        var named = new Regex(@"\bExternalProviderKey\s*\.\s*(?:" + string.Join("|", ProviderMembers()) + @")\b");
+
+        Directory
+            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Where(path => named.IsMatch(File.ReadAllText(path)))
+            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(
+            [
+                "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs",
+                "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+            ]);
+    }
+
+    // Every provider the key type declares, read from the type, so a new provider is scanned without editing this.
+    private static IEnumerable<string> ProviderMembers() =>
+        typeof(ExternalProviderKey).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(ExternalProviderKey))
+            .Select(field => field.Name);
 
     private static List<string> MakersInSource(string typeName)
     {

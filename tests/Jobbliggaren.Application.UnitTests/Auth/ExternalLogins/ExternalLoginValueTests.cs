@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using FluentValidation.TestHelper;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Validation;
+using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
@@ -155,6 +158,50 @@ public class VerifiedEmailTests
     [Fact]
     public void ToString_ShouldPrintNoPartOfTheAddress_WhenInterpolated() =>
         $"{VerifiedEmail.TryCreate("anna@firma.example")}".ShouldNotContain("anna");
+
+    public static TheoryData<string> Candidates() => new()
+    {
+        "anna@firma.example",
+        "Anna.Berg@firma.example",
+        "a@b",
+        "björn@firma.example",
+        "o'brien@firma.example",
+        "anna",
+        "@firma.example",
+        "anna@",
+        "anna@firma@example",
+        "anna berg@firma.example",
+        "anna" + (char)7 + "berg@firma.example",
+        "anna@firma.example" + (char)10,
+        "a" + (char)0x200B + "b@firma.example",
+        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length) + "@x.example",
+        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length + 1) + "@x.example",
+    };
+
+    [Theory]
+    [MemberData(nameof(Candidates))]
+    public void An_address_the_github_adapter_admits_is_one_the_request_validator_admits(string candidate)
+    {
+        // An account born on a GitHub address must be able to log in by code once GitHub is gone (ADR 0142
+        // Amendment (18)). The adapter admits exactly StorableAddress.IsStorable and then VerifiedEmail.TryCreate
+        // (GitHubIdentityProvider.TryPrimaryVerified), so whatever that pair admits the typed path's validator admits.
+        if (!StorableAddress.IsStorable(candidate) || VerifiedEmail.TryCreate(candidate) is null)
+            return;
+
+        new RequestLoginChallengeCommandValidator().TestValidate(new RequestLoginChallengeCommand(candidate))
+            .ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void The_implication_table_holds_candidates_the_adapter_admits_and_ones_it_refuses()
+    {
+        // The control for the row above: an implication over a table the adapter refuses entirely is vacuous.
+        var admitted = Candidates().Select(row => row.Data)
+            .Count(c => StorableAddress.IsStorable(c) && VerifiedEmail.TryCreate(c) is not null);
+
+        admitted.ShouldBeGreaterThan(3);
+        admitted.ShouldBeLessThan(Candidates().Count);
+    }
 }
 
 public class ExternalProviderKeyTests

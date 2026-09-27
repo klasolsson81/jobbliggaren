@@ -603,7 +603,7 @@
         },
         "title": "Skapa ditt konto",
         "identification": "Kontot skapas på den e-postadress du nyss bekräftade med koden.",
-        "identificationProvider": "Kontot skapas på e-postadressen i {provider}-kontot du valde.",
+        "identificationProvider": "Kontot skapas på den primära e-postadressen i {provider}-kontot du valde.",
         "termsLabel": "Jag godkänner <terms>användarvillkoren</terms>.",
         "termsHint": "Länkarna öppnas i en ny flik.",
         "privacySibling": "Vi behandlar dina uppgifter enligt <privacy>integritetspolicyn</privacy>.",

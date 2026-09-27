@@ -24,7 +24,6 @@ public class ExternalLoginMirrorWireContractTests
     private const string AppRoot = "web/jobbliggaren-web/src/app";
     private const string ProvidersModule = "web/jobbliggaren-web/src/lib/api/oauth-providers.ts";
     private const string StartRouteModule = "web/jobbliggaren-web/src/app/api/auth/oauth/[provider]/start/route.ts";
-    private const string CallbackRouteModule = "web/jobbliggaren-web/src/app/api/auth/oauth/[provider]/callback/route.ts";
 
     [Fact]
     public void The_web_knows_exactly_the_backends_provider_keys()

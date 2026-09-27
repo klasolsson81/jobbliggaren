@@ -102,13 +102,13 @@ describe("the external login callback", () => {
   });
 
   describe("with a bound state", () => {
-    it("relays the code, the state and the client's address to the api", async () => {
+    it.each(["google", "github"])("relays the code, the state and the client's address to the api, for %s", async (provider) => {
       const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });
 
-      await callback(ok);
+      await callback(ok, { provider });
 
       const [url, init] = fetchMock.mock.calls[0]!;
-      expect(url).toBe("http://test-backend/api/v1/auth/oauth/google/callback");
+      expect(url).toBe(`http://test-backend/api/v1/auth/oauth/${provider}/callback`);
       expect(JSON.parse(String(init?.body))).toEqual({ code: CODE, state: STATE });
       expect((init?.headers as Record<string, string>)["x-forwarded-for"]).toBe("203.0.113.9");
     });
@@ -136,27 +136,30 @@ describe("the external login callback", () => {
       expect(await targetOf(await callback(ok))).toBe("/oversikt");
     });
 
-    it("keeps the grant in the strict flow cookie, says the step was reached through Google, and continues to the terms", async () => {
+    it.each(["google", "github"])("keeps the grant in the strict flow cookie, says the step was reached through %s, and continues to the terms", async (provider) => {
       backendAnswers(200, { outcome: "consentRequired", grantToken: GRANT, next: "/cv" });
 
-      const response = await callback(ok);
+      const response = await callback(ok, { provider });
 
-      expect(flowOf(response)).toEqual({ phase: "consent", grantToken: GRANT, next: "/cv", via: "google" });
+      expect(flowOf(response)).toEqual({ phase: "consent", grantToken: GRANT, next: "/cv", via: provider });
       expect(setCookie(response, "__Host-jobbliggaren_login")).toMatch(/SameSite=strict/i);
       expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
       expect(await targetOf(response)).toBe("/logga-in/villkor");
     });
 
     it.each([
-      [{ outcome: "registrationClosed" }],
-      [{ outcome: "accountUnavailable" }],
-      [{ outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
-    ])("shows an outcome on the code step, reached through Google (%o)", async (result) => {
+      ["google", { outcome: "registrationClosed" }],
+      ["google", { outcome: "accountUnavailable" }],
+      ["google", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
+      ["github", { outcome: "registrationClosed" }],
+      ["github", { outcome: "accountUnavailable" }],
+      ["github", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
+    ])("shows an outcome on the code step, reached through %s (%o)", async (provider, result) => {
       backendAnswers(200, result);
 
-      const response = await callback(ok);
+      const response = await callback(ok, { provider });
 
-      expect(flowOf(response)).toEqual({ phase: "outcome", result, via: "google" });
+      expect(flowOf(response)).toEqual({ phase: "outcome", result, via: provider });
       expect(await targetOf(response)).toBe("/logga-in/kod");
       expectStateCookieCleared(response);
     });

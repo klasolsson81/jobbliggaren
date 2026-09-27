@@ -99,8 +99,7 @@ public class GrantAssertionTests
     [InlineData(6)]
     public void GrantPurpose_ShouldNeverDefineARetiredNumber_WhenAMemberIsAdded(int retired)
     {
-        // #1745 (ADR 0142 Amendment (18)): 5 and 6 were PR #1882's pending provider link and its consent. A build that
-        // shipped them persisted records under those numbers, so a new member reusing one would open such a record.
+        // #1745 (ADR 0142 Amendment (18)): 5 and 6 were PR #1882's pending provider link and its consent.
         Enum.IsDefined(typeof(GrantPurpose), retired).ShouldBeFalse();
     }
 

@@ -1071,7 +1071,7 @@ by `senior-cto-advisor`, and read again by the first three and `test-writer` aga
 (`docs/reviews/2026-09-26-1745-form-{security-auditor,dotnet-architect,design-reviewer,test-writer,cto}.md` and
 `…-form-reading-{security-auditor,dotnet-architect,test-writer}.md`). D8's GitHub parenthesis and the Apple-WebKit
 residual's closing measurement are corrected in place; this block records why. The form below is superseded by Klas's
-decision in Amendment 2026-09-27 (18) and deleted from the code; it stays here as the record of what #1882 built.*
+decision in Amendment 2026-09-27 (18); it stays here as the record of what #1882 built.*
 
 **Klas answered on 2026-09-26.** Each question was put to him verbatim through AskUserQuestion, and the sent text was
 measured as a substring of its source.
@@ -1403,7 +1403,7 @@ Amendment (17)'s start-path sentences are corrected in place; this block records
   which is Major 2's case. No further question is owed. The M-7 grant of the registration flip points here.
 
 **The form (`senior-cto-advisor`, 2026-09-27).**
-- The GitHub adapter makes a `VerifiedEmail`, as Google's does, and `ExternalIdentity` is D8's
+- The GitHub adapter makes a `VerifiedEmail`, as Google's does, and `ExternalIdentity` is Amendment (14)'s
   `(Provider, Subject, VerifiedEmail Email)` again. `ExternalAddress`, `AssertedEmail` and `AssertedLoginProof` are
   deleted: a union with one live arm is collapsed. Which address qualifies is each adapter's own rule: Google's is
   authority (Amendment (14)), GitHub's is Klas's decision.
@@ -2717,7 +2717,7 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in two PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 one click,
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in three PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 one click,
 by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)) · **6c** #1746 LinkedIn
 (its code after 6b PR 1) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,

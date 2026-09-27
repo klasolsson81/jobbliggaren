@@ -23,7 +23,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <summary>
 /// #1745 (ADR 0142 Amendment (18)) — a GitHub login end to end, against real Postgres and Redis. GitHub's verified
 /// primary address takes Google's path in one click: an account it names is linked and signed in, and a new one waits
-/// only for the terms. That no code is ever sent on this path is <c>LoginProofChainTests</c>'s structural pin.
+/// only for the terms. That no code is ever sent on this path is pinned structurally by
+/// <c>LoginProofChainTests.A_provider_login_can_reach_no_login_code</c>.
 /// <para>
 /// Every premise is minted by production: the flow by the start route, and the GitHub identity by the real
 /// <see cref="GitHubIdentityProvider"/> over <see cref="ScriptedGitHub"/> (a documented <c>/user</c> and

@@ -518,6 +518,28 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
         (await _store.RedeemAsync(control, EitherRegistration, Ct)).ShouldNotBeNull();
     }
 
+    /// <summary>
+    /// #1745 (ADR 0142 Amendment (18)): a record of retired purpose 5 or 6. The actor is PR #1882's grant store,
+    /// retired; <c>GrantAssertionTests.GrantPurpose_ShouldNeverDefineARetiredNumber_WhenAMemberIsAdded</c> pins that
+    /// the current writer defines neither number. The record is written by hand under its own sub-purpose, and the
+    /// test asserts only that the read side refuses it.
+    /// </summary>
+    [Theory]
+    [InlineData(5)]
+    [InlineData(6)]
+    public async Task A_record_of_a_retired_purpose_redeems_to_nothing(int retired)
+    {
+        var token = GrantToken.Generate();
+        var control = GrantToken.Generate();
+        await WriteByHandAsync(
+            token, subPurpose: retired.ToString(CultureInfo.InvariantCulture),
+            new { p = retired, e = "a@b.se", pr = "github", s = "58323117" });
+        await WriteByHandAsync(control, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "github", s = "58323117" });
+
+        (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(control, EitherRegistration, Ct)).ShouldNotBeNull();
+    }
+
     [Fact]
     public async Task The_unreadable_payload_line_is_written_only_when_no_asserted_purpose_opens_it()
     {

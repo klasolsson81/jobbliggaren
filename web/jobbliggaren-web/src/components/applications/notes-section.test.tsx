@@ -101,4 +101,13 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     render(<NotesSection applicationId="app-1" titleLevel={2} notes={[]} />);
     expect(screen.getByText("Inga anteckningar ännu.")).toBeInTheDocument();
   });
+
+  it("keeps its rows out of the follow-up row's two-line form", () => {
+    render(<NotesSection applicationId="app-1" titleLevel={2} notes={[baseNote()]} />);
+    const row = within(screen.getByRole("list")).getByRole("button", {
+      expanded: false,
+    });
+    expect(row).not.toHaveClass("jp-disclosure-row--followup");
+    expect(row.querySelector(".jp-disclosure-row__head")).toBeNull();
+  });
 });

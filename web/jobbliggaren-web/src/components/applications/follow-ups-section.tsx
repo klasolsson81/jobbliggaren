@@ -187,13 +187,15 @@ function FollowUpRow({
     <li>
       <button
         type="button"
-        className="jp-disclosure-row"
+        className="jp-disclosure-row jp-disclosure-row--followup"
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        <span className="jp-disclosure-row__primary">{channel}</span>
-        <span className="jp-tag" data-tag={OUTCOME_TAG[followUp.outcome]}>
-          {outcomeLabel}
+        <span className="jp-disclosure-row__head">
+          <span className="jp-disclosure-row__primary">{channel}</span>
+          <span className="jp-tag" data-tag={OUTCOME_TAG[followUp.outcome]}>
+            {outcomeLabel}
+          </span>
         </span>
         {noteFirstLine && (
           <span className="jp-disclosure-row__note">{noteFirstLine}</span>

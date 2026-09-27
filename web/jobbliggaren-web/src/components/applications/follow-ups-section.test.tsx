@@ -192,3 +192,54 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("FollowUpsSection — the row's parts (#1827, the two-line form at ≤560 px)", () => {
+  const renderRows = () =>
+    render(
+      <FollowUpsSection
+        applicationId="app-1"
+        titleLevel={2}
+        canPlan
+        followUps={[
+          pendingFollowUp({ id: "p" }),
+          respondedFollowUp({ id: "r", note: null }),
+        ]}
+      />,
+    );
+  const rows = () =>
+    within(screen.getByRole("list")).getAllByRole("button", { expanded: false });
+  const parts = (row: HTMLElement) =>
+    [
+      ...row.querySelectorAll(
+        ".jp-disclosure-row__primary, .jp-tag, .jp-disclosure-row__note, .jp-disclosure-row__date",
+      ),
+    ].map((el) => el.textContent);
+
+  it("groups the channel and the outcome at the head of each follow-up row", () => {
+    renderRows();
+    expect(rows()).toHaveLength(2);
+    for (const row of rows()) {
+      expect(row).toHaveClass("jp-disclosure-row", "jp-disclosure-row--followup");
+      const head = row.firstElementChild;
+      expect(head).toHaveClass("jp-disclosure-row__head");
+      expect([...head!.children].map((el) => el.className)).toEqual([
+        "jp-disclosure-row__primary",
+        "jp-tag",
+      ]);
+    }
+  });
+
+  it("keeps the reading order channel, outcome, note, date, and the name read from it", () => {
+    renderRows();
+    const [withNote, withoutNote] = rows();
+    expect(parts(withNote!)).toEqual([
+      "E-post",
+      "Inväntar svar",
+      "Skickade påminnelse om CV-uppdatering",
+      "15 maj 2026",
+    ]);
+    expect(parts(withoutNote!)).toEqual(["Telefon", "Svar mottaget", "10 maj 2026"]);
+    expect(withNote).toHaveAccessibleName(parts(withNote!).join(""));
+    expect(withoutNote).toHaveAccessibleName(parts(withoutNote!).join(""));
+  });
+});

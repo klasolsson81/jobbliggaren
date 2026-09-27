@@ -3082,6 +3082,36 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-shrink: 0;
   color: var(--jp-ink-3);
 }
+.jp-disclosure-row__head {
+  display: contents;
+}
+@media (max-width: 560px) {
+  .jp-disclosure-row--followup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "head head chevron"
+      "note date chevron";
+    row-gap: 4px;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__head {
+    grid-area: head;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    min-width: 0;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__note {
+    grid-area: note;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__date {
+    grid-area: date;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__chevron {
+    grid-area: chevron;
+  }
+}
 .jp-disclosure-body {
   padding: 14px 16px 16px 16px;
   border: 1px solid var(--jp-border);

@@ -7664,7 +7664,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-apptable__th--check { position: relative; }
 /* Sorterbart huvud: knappen ARVER kontrolltext-stilen och fyller cellen — hela
    ytan klickbar (Fitts), aria-sort pa th bar semantiken. */
-.jp-apptable__th--sortable { padding: 0; }
+.jp-apptable__th--sortable { padding: 0; position: relative; }
 .jp-apptable__sortbtn {
   display: inline-flex;
   align-items: center;

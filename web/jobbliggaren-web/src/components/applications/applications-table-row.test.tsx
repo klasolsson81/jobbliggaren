@@ -86,7 +86,7 @@ describe("ApplicationsTableRow removed-ad marker (#892)", () => {
     expect(marker).toHaveClass("jp-tag");
   });
 
-  it("visar mono-id-fallback-titel + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
+  it("visar id-fallback-titel + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
     renderRow(
       makeApplication({
         jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
@@ -111,6 +111,17 @@ describe("ApplicationsTableRow removed-ad marker (#892)", () => {
   it("visar INGEN markör för en levande annons", () => {
     renderRow(makeApplication());
     expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+});
+
+// #1827 M3: the "Senaste händelse" date is inline data in sans (DESIGN.md §4).
+describe("ApplicationsTableRow inline data (#1827 M3)", () => {
+  it("skriver händelsedatumet i sans, utan mono", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-apptable__eventdate")).toHaveTextContent(
+      "10 maj 2026",
+    );
+    expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
   });
 });
 

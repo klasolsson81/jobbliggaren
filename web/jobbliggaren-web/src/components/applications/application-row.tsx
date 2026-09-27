@@ -76,7 +76,6 @@ export const ApplicationRow = memo(function ApplicationRow({
   // identitet (eller TOM identitet utan snapshot) + status "Erased"; markören
   // nedan är andra halvan av fixen (identitet utan dödssignal ser levande ut).
   const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
-  const hasIdentity = adTitle != null;
   const title =
     adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
@@ -107,9 +106,7 @@ export const ApplicationRow = memo(function ApplicationRow({
   return (
     <article className="jp-app jp-app--actions">
       <div className="jp-job__body">
-        <h3
-          className={hasIdentity ? "jp-app__title" : "jp-app__title jp-mono"}
-        >
+        <h3 className="jp-app__title">
           <Link
             href={`/ansokningar/${application.id}`}
             className="jp-app__rowlink"

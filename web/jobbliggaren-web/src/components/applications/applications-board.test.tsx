@@ -143,7 +143,7 @@ describe("ApplicationsBoard — layout", () => {
     );
   });
 
-  it("kortet visar roll, företag och 'N DGR'", () => {
+  it("kortet visar roll, företag och 'N dgr'", () => {
     renderBoard(makeGroups({ Submitted: 1 }));
     const column = screen.getByRole("group", { name: "Skickad" });
     expect(within(column).getByText("Submitted-titel-0")).toBeInTheDocument();

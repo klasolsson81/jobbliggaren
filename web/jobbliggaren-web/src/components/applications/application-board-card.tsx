@@ -26,7 +26,7 @@ interface ApplicationBoardCardProps {
 
 /**
  * Tavla-kort (#630 PR 8, design §6) — kompakt, `cursor: grab`, HTML5-draggable.
- * Roll (max 2 rader) + företag + fotrad "N DGR" (mono) + ev. bråttom-tagg.
+ * Roll (max 2 rader) + företag + fotrad "N dgr" + ev. bråttom-tagg.
  * Kolumnen ÄR statusen, så kortet visar ingen status-tagg (till skillnad från
  * Lista-raden).
  *
@@ -63,7 +63,6 @@ export function ApplicationBoardCard({
   const { jobAd, status } = application;
   // #892: strukturell identitet + borttagen-markör (lockstep med List-raden).
   const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
-  const hasIdentity = adTitle != null;
   const title =
     adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
@@ -94,13 +93,7 @@ export function ApplicationBoardCard({
       }}
     >
       <div className="jp-board-card__body">
-        <h3
-          className={
-            hasIdentity
-              ? "jp-board-card__role"
-              : "jp-board-card__role jp-mono"
-          }
-        >
+        <h3 className="jp-board-card__role">
           <Link
             href={`/ansokningar/${application.id}`}
             className="jp-board-card__link"
@@ -150,7 +143,7 @@ export function ApplicationBoardCard({
       {!compact && (
         <div className="jp-board-card__foot">
           {daysLabel != null && (
-            <span className="jp-board-card__days jp-mono">{daysLabel}</span>
+            <span className="jp-board-card__days">{daysLabel}</span>
           )}
           {urgencyLabel != null && urgency != null && (
             <span className="jp-tag" data-urgency={urgency.variant}>

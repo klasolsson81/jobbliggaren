@@ -119,11 +119,19 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(screen.getByText("Volvo")).toBeInTheDocument();
   });
 
-  it("faller tillbaka till mono 'Ansökan #<8>' när jobAd är null", () => {
+  // #1827 M3: a title is never mono (DESIGN.md §4), the fallback included.
+  it("faller tillbaka till 'Ansökan #<8>' i sans när jobAd är null", () => {
     renderRow(makeApplication({ jobAd: null, jobAdId: null }));
     const fallback = screen.getByText("Ansökan #11111111");
     expect(fallback).toBeInTheDocument();
-    expect(fallback.closest("h3")).toHaveClass("jp-mono");
+    expect(fallback.closest("h3")).not.toHaveClass("jp-mono");
+  });
+
+  it("renderar dagar, händelserad och titel i sans (#1827 M3)", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-app__days")).toBeInTheDocument();
+    expect(container.querySelector(".jp-app__eventline")).toBeInTheDocument();
+    expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
   });
 
   // #892 (CTO R1): en raderad annons visar den BEVARADE snapshot-identiteten
@@ -143,14 +151,14 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
 
   // #892 (CTO R5): raderad UTAN snapshot → TOM identitet på wiren (aldrig
   // "[raderad]"-literalen) → strukturell fallback-rendering + markör.
-  it("renderar mono-fallback + markör vid raderad annons utan snapshot (tom identitet)", () => {
+  it("renderar id-fallback + markör vid raderad annons utan snapshot (tom identitet)", () => {
     renderRow(
       makeApplication({
         jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
       }),
     );
     const fallback = screen.getByText("Ansökan #11111111");
-    expect(fallback.closest("h3")).toHaveClass("jp-mono");
+    expect(fallback.closest("h3")).not.toHaveClass("jp-mono");
     expect(screen.getByText("Annonsen är borttagen")).toBeInTheDocument();
     expect(screen.queryByText("[raderad]")).toBeNull();
   });

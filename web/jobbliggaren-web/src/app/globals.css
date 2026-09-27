@@ -3800,10 +3800,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 8px;
 }
 .jp-app__days {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-  white-space: nowrap;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+  white-space: nowrap;
 }
 /* Väntesignal (Tabell-facit, isWaitingSignal): dagarna varnar när
    attention-signalen firar — ALDRIG en klient-dagströskel. */
@@ -3815,7 +3816,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
    informationsbärande (§4), inte mono. */
 .jp-app__eventline {
   margin-top: 4px;
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-2);
 }
 .jp-app__actions--row {
@@ -7598,14 +7601,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-sm);
 }
 .jp-board-card__company {
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .jp-board-card__subline {
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7618,12 +7621,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 6px;
 }
 .jp-board-card__days {
-  font-size: var(--text-micro);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 /* StatusMenu (tangentbords-/no-drag-vagen) z-lyft ovanfor lank-overlay:en sa
    den inte nastlas i ankaret; kompakt trigger pa det smala kortet. */
@@ -7789,7 +7790,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-apptable__company {
   display: block;
-  font-size: var(--text-micro);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7817,8 +7818,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: nowrap;
 }
 .jp-apptable__eventdate {
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 .jp-apptable__nextlink {
   background: transparent;

@@ -358,3 +358,25 @@ local-only, with its follow-ups of 2026-09-25 and 2026-09-26):
   presented as the advertiser's own statement.
 
 Every catalogue row above is pinned whole, sv and en, in `web/jobbliggaren-web/src/lib/i18n/legally-bound-copy.test.ts`.
+
+## Amendment 2026-09-27 — #1827: row 10's reading for the preserved-ad panel
+
+`security-auditor` ruled on the panel key in #1827's pre-code form round on 2026-09-26 (her report,
+`docs/reviews/2026-09-26-1827-form-security.md`, local-only, S1 and S2); #699's PR applies it:
+
+- Row 10: `applications.ui.preservedAd.recruiterNoticeLink` renders on the preserved-ad panel with or without
+  contacts, wherever the panel renders the copy's text or its contact block, visible without a click, pointing at
+  `/kontaktperson-i-annons`. A contact person's name can stand in the text, where no scrub reaches it, so the contacts
+  alone do not decide. Where the copy is minimised (no text and no block), row 10 binds nothing on the panel. The gate
+  reads the copy's content, never the application's status: minimisation runs only on Accepted, Rejected and
+  Withdrawn, Ghosted keeps text and contacts, and a reactivated application keeps its minimised copy.
+- A move of the panel's line needs no new signature on four conditions: (i) the link is a sibling of
+  `RecruiterContactBlock`, never inside it, directly after the block, or directly after the ad text when no block
+  renders (directly before the block's place also passes); (ii) never behind the ?-help, an expander, `<details>` or
+  a tooltip, and never in or after `.jp-modal__foot`; if the text, the block or the whole panel is ever folded, the
+  link stands outside the folded part and shows without a click; (iii) at least 13 px, at least 4.5:1 against the
+  surface it stands on in both themes, and underlined; (iv) the presence test lands in the same PR as any change to
+  the gate.
+- For both of row 10's keys a test now pins that the link renders with and without contacts. The panel's runs
+  through `SourceAdSection`, the one gate both detail contexts render, and was shown red against the former
+  `contacts.length > 0` gate before the gate changed.

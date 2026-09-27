@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MatchList } from "./match-list";
 import type { MatchList as MatchListData } from "@/lib/dto/me-matches";
 
@@ -22,13 +22,21 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
 
     expect(screen.getByText("Du har inga matchningar än")).toBeInTheDocument();
     // #423: copyn får inte påstå att bara ett angivet yrke räcker. Den måste
-    // nämna BÅDA villkoren — opt-in-kontrollen (av som standard) OCH yrket — så
-    // en användare på standardvägen inte tror att hen kvalificerar och väntar
-    // förgäves. ADR 0080: konstatera villkoret, värva inte (ingen nudge/banner).
-    const emptyBody = screen.getByText(/Bakgrundsmatchningen körs varje natt/);
-    expect(emptyBody).toHaveTextContent(/Matchningsnotiser under Mina sidor/);
-    expect(emptyBody).toHaveTextContent(/avstängt som standard/);
-    expect(emptyBody).toHaveTextContent(/angett vilka yrken du söker inom/);
+    // nämna BÅDA villkoren — att matchningen slås på OCH yrket — så en användare
+    // på standardvägen inte tror att hen kvalificerar och väntar förgäves.
+    // ADR 0080: konstatera villkoret, värva inte (ingen nudge/banner). #1891:
+    // varje villkor länkar dit där det uppfylls.
+    const emptyBody = screen.getByText(/Matchningen körs varje natt/);
+    expect(emptyBody).toHaveTextContent(/när du har slagit på den under Notiser/);
+    expect(emptyBody).toHaveTextContent(/angett yrken under Matchning/);
+    expect(within(emptyBody).getByRole("link", { name: "Notiser" })).toHaveAttribute(
+      "href",
+      "/mina-sidor#notiser"
+    );
+    expect(within(emptyBody).getByRole("link", { name: "Matchning" })).toHaveAttribute(
+      "href",
+      "/mina-sidor#matchning"
+    );
     // Ingen lista renderas.
     expect(screen.queryByRole("list")).toBeNull();
   });

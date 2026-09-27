@@ -531,7 +531,7 @@
     "newBadgeAriaLabel": "match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
-    "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for.",
+    "emptyBody": "Matching runs every night once you have turned it on under <notiser>Notifications</notiser> and entered occupations under <matchning>Matching</matchning>.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches",
@@ -546,6 +546,9 @@
     "profileLoadError": "Your matching choices, notifications and language could not be loaded right now. Try reloading the page in a moment.",
     "meta": {
       "title": "My pages"
+    },
+    "sections": {
+      "notiser": "Notifications"
     }
   },
   "auth": {

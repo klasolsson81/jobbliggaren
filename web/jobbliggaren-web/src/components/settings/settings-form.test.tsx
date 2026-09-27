@@ -11,8 +11,9 @@ const { updateMyProfileActionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/actions/me", () => ({
   updateMyProfileAction: updateMyProfileActionMock,
-  // ADR 0080 Vag 4 PR-6: BackgroundMatchCard:s egen action.
+  // The Notiser card's own two actions (#1891).
   updateNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
+  updateFollowedCompanyNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 // The language Segment switches the UI locale via the cookie server action +
@@ -70,19 +71,16 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       .map((h) => h.textContent);
     // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen.
     // `taxonomy={null}` → kortet degraderar men behåller sin h2-rubrik.
-    // #1740 (design-reviewer D4): the two notice cards follow Matchning in column 1, because
+    // #1740 (design-reviewer D4): the notice card follows Matchning in column 1, because
     // background matching reads that profile; column 2 is the account, ending in the
     // destructive card and Logga ut.
     // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
     // WeeklySummary) togs bort — de styrde ingen e-postväg.
-    // Bevakning F4 (#803): "Notiser om företag du följer" ligger DIREKT efter
-    // Matchningsnotiser. Adjacensen är funktionell, inte estetisk: de två delar
-    // digest-kadens (ADR 0087 D2), vars kontroll bara finns i det förra kortet —
-    // och DOM-ordningen håller även när gridden kollapsar till en kolumn.
+    // #1891: both consents and the cadence they share are ONE card, Notiser, so the
+    // cadence sits under both switches and no text points from one card to another.
     expect(headings).toEqual([
       "Matchning",
-      "Matchningsnotiser",
-      "Notiser om företag du följer",
+      "Notiser",
       "Visning",
       "Byt e-postadress",
       "Sekretess och data",
@@ -157,11 +155,10 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
         initialSkillGroups={[]}
       />,
     );
-    // Följ-notis-kortet visar takten som TEXT och pekar på matchnings-kortet.
-    // Två kontroller för ett värde vore garanterad drift.
+    // Two controls for one value would be guaranteed drift.
     expect(
       screen.getAllByRole("radiogroup", {
-        name: "Hur ofta vill du få sammanfattningen",
+        name: "Sammanfattning via e-post",
       }),
     ).toHaveLength(1);
   });

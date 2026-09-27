@@ -103,3 +103,27 @@ describe("/ansokningar — a failed list read keeps the hero (#1827 M6)", () => 
     expect(alert).toHaveTextContent("Försök igen om 30 sekunder.");
   });
 });
+
+// #1827 Minor 14: "Ny ansökan" stands in the hero, so the empty state offers one step, finding
+// a job, as its primary button.
+describe("/ansokningar — the empty page (#1827 Minor 14)", () => {
+  beforeEach(() => {
+    getServerSession.mockReset();
+    getPipeline.mockReset();
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+  });
+
+  it("offers 'Sök jobb' as its one primary action, beside the hero's 'Ny ansökan'", async () => {
+    getPipeline.mockResolvedValue({ kind: "ok", data: [] });
+    const { container } = await renderPage();
+
+    const empty = container.querySelector(".jp-empty")!;
+    expect(empty).toHaveTextContent("Inga ansökningar ännu");
+    const actions = empty.querySelectorAll("a");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toHaveAccessibleName("Sök jobb");
+    expect(actions[0]).toHaveAttribute("href", "/jobb");
+    expect(actions[0]).toHaveClass("jp-btn", "jp-btn--primary");
+    expect(screen.getByRole("link", { name: "Ny ansökan" })).toBeInTheDocument();
+  });
+});

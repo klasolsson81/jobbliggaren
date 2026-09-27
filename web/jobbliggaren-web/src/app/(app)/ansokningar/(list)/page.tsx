@@ -54,13 +54,12 @@ export default async function AnsokningarPage() {
 
       content =
         total === 0 ? (
+          // "Ny ansökan" stands in the hero above, so the empty state offers the one
+          // step it does not: finding a job (#1827 Minor 14, ADR 0068 G3).
           <div className="jp-empty">
             <div className="jp-empty__title">{t("ansokningar.emptyTitle")}</div>
             <div className="jp-empty__actions">
-              <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
-                <Plus size={14} aria-hidden="true" /> {t("ansokningar.emptyCreateFirst")}
-              </Link>
-              <Link href="/jobb" className="jp-btn jp-btn--ghost">
+              <Link href="/jobb" className="jp-btn jp-btn--primary">
                 <Search size={14} aria-hidden="true" /> {t("ansokningar.emptySearchFirst")}
               </Link>
             </div>

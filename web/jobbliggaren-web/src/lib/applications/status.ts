@@ -299,7 +299,7 @@ export const ATTENTION_SIGNAL_ORDER: Exclude<
 /**
  * Colour bucket for the queue row's signal kicker, emitted as a `data-signal`
  * attribute the `.jp-attentionqueue__kicker` CSS resolves to a status token.
- * NEVER green (green = interaction/grade, design-reviewer bind), mirroring
+ * NEVER accent green (green = interaction/grade, design-reviewer bind), mirroring
  * design §11 "Urgensregler": offer → success, the overdue/draft-deadline pair →
  * warning, the no-response trio (ghost-suggest, no-response nudge, silent-after-
  * interview) → info. Colour only REINFORCES; the kicker's text carries the meaning

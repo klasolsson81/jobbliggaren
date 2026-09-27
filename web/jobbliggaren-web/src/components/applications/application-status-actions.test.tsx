@@ -122,6 +122,22 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
     expect(current).toHaveTextContent("Nu");
   });
 
+  it("names the step picker by its label alone and keeps the hint visible beside it", () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    const steps = screen.getByRole("region", { name: "Flytta i flödet" });
+    expect(steps).toHaveTextContent("Även bakåt");
+    expect(
+      screen.getByRole("region", { name: "Avsluta eller parkera" }),
+    ).toBeInTheDocument();
+  });
+
   it("klarade steg markeras done; framtida är klickbara", () => {
     render(
       <ApplicationStatusActions

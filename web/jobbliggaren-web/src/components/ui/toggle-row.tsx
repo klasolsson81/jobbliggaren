@@ -4,8 +4,8 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 
 /**
- * ToggleRow — label vänster, on/off-switch höger. Klick på hela raden togglar
- * (W3C-pattern: button som rätt-storlek-target).
+ * ToggleRow — label vänster, on/off-switch höger. Klick på switchen togglar; dess
+ * träffyta (32px, 44px vid ≤768) är ett osynligt ::before i `(app)/app.css` (#1891).
  *
  * Switch-mönster (utan extern dep, civic-utility-stil per §5.1/§5.2): native
  * `<button role="switch" aria-checked>` med visuell track + thumb. Inga

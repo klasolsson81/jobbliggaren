@@ -26,18 +26,15 @@ describe("settings i18n-paritet (sv ↔ en)", () => {
     expect(leafPaths(enSettings)).toEqual(leafPaths(svSettings));
   });
 
-  it("backgroundMatch-kortets nycklar finns i båda katalogerna (ADR 0080 PR-6)", () => {
+  it("the Notiser card's background-match keys are in both catalogues (ADR 0080 PR-6, #1891)", () => {
     const required = [
-      "backgroundMatch.title",
-      "backgroundMatch.intro",
+      "savedAt",
       "backgroundMatch.toggleLabel",
       "backgroundMatch.toggleDescription",
       "backgroundMatch.cadenceLabel",
       "backgroundMatch.cadenceDaily",
       "backgroundMatch.cadenceWeekly",
-      "backgroundMatch.cadenceHint",
       "backgroundMatch.cadenceHintDisabled",
-      "backgroundMatch.savedAt",
       "backgroundMatch.errors.notLoggedIn",
       "backgroundMatch.errors.invalidInput",
       "backgroundMatch.errors.saveFailed",

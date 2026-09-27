@@ -86,6 +86,17 @@ beforeEach(() => {
   setWatchFilterMock.mockResolvedValue({ success: true });
 });
 
+// #1891: the Notiser card no longer repeats this (senior-cto-advisor, 2026-09-27), so the place where
+// the filter is set is where a user learns it narrows the mails as well as the in-app notices.
+describe("WatchFilterDialog — the filter's reach", () => {
+  it("says, where the filter is set, that it applies in the app and by email", () => {
+    render(<Host />);
+    expect(screen.getByRole("dialog", { name: DIALOG_TITLE })).toHaveAccessibleDescription(
+      /Filtret gäller notiserna, i appen och via e-post\./
+    );
+  });
+});
+
 describe("WatchFilterDialog — the two geo axes never cross (the load-bearing wire pin)", () => {
   it("'Hela länet' sparas som ETT läns-id i regions — aldrig expanderat till länets kommuner", async () => {
     // THE regression this pins: someone "helpfully" expands a whole-län pick into the län's ~49

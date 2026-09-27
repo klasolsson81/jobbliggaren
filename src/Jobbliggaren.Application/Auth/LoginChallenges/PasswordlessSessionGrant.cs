@@ -23,13 +23,11 @@ public sealed class PasswordlessSessionGrant(
     /// <summary>The <c>audit_log</c> event for a first passwordless proof of an unconfirmed address.</summary>
     public const string InboxProvenAuditEventType = "User.InboxProvenByLogin";
 
-    public async Task<SessionDto> GrantAsync(
-        LoginSubject.Active subject, LoginMethod method, SessionEvidence evidence, CancellationToken ct)
+    public async Task<SessionDto> GrantAsync(LoginSubject.Active subject, LoginMethod method, CancellationToken ct)
     {
-        // A found provider link proves no inbox now, so it never confirms an address (ADR 0127 refused a bare
-        // force-confirm): only this login's own proof of the inbox reaches the recorder.
-        if (evidence == SessionEvidence.InboxProven
-            && await inboxProof.RecordAsync(subject.UserId, ct) == InboxProof.FirstProofRecorded)
+        var proof = await inboxProof.RecordAsync(subject.UserId, ct);
+
+        if (proof == InboxProof.FirstProofRecorded)
         {
             // The address is confirmed and every earlier session is revoked, a change to the account's security
             // state on a known user id, so it is an audit_log row, not an ops line; the row is written after

@@ -9,15 +9,13 @@ namespace Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 /// <summary>
 /// #1744 — completes a provider login (ADR 0142 D8), in this order: the provider must be registered, the state
 /// must name a live flow started for THAT provider (taken once), and the provider must accept the code with the
-/// flow's verifier. Only then is the identity read. An authoritative address reaches the outcome function the code
-/// and the link share; an asserted one (#1745, Amendment (16)) opens a session only through a link a code bound, and
-/// otherwise only chooses where a code is sent.
+/// flow's verifier. Only then is the identity read, and only the <see cref="VerifiedEmail"/> the adapter admitted
+/// reaches the outcome function the code and the link share.
 /// </summary>
 public sealed partial class CompleteExternalLoginCommandHandler(
     RegisteredProviders providers,
     IOAuthStateStore states,
     LoginProofOutcome outcome,
-    PendingLinkChallenge pendingLinks,
     ILogger<CompleteExternalLoginCommandHandler> logger)
     : ICommandHandler<CompleteExternalLoginCommand, Result<ExternalLoginCompletion>>
 {
@@ -44,19 +42,10 @@ public sealed partial class CompleteExternalLoginCommandHandler(
 
         return exchange switch
         {
-            ExternalExchange.Identified { Identity: var identity } => identity.Address switch
-            {
-                ExternalAddress.Authoritative authoritative => Decided(
-                    await outcome.ResolveExternalAsync(
-                        new ExternalLoginProof(authoritative.Email, identity.Provider, identity.Subject),
-                        cancellationToken),
-                    flow.Next),
-                ExternalAddress.Asserted asserted => await AssertedAsync(
-                    new AssertedLoginProof(asserted.Email, identity.Provider, identity.Subject),
-                    flow.Next,
-                    cancellationToken),
-                _ => Unusable(),
-            },
+            ExternalExchange.Identified { Identity: var identity } => Result.Success(new ExternalLoginCompletion(
+                await outcome.ResolveExternalAsync(
+                    new ExternalLoginProof(identity.Email, identity.Provider, identity.Subject), cancellationToken),
+                flow.Next)),
 
             // Nothing is linked and no grant is issued.
             ExternalExchange.AddressRefused => Result.Failure<ExternalLoginCompletion>(DomainError.Validation(
@@ -65,24 +54,6 @@ public sealed partial class CompleteExternalLoginCommandHandler(
             _ => Unusable(),
         };
     }
-
-    // A found link decides as Google's login does; without one, nothing about any account is read, and the answer is
-    // the code step whether the address has an account or not.
-    private async Task<Result<ExternalLoginCompletion>> AssertedAsync(
-        AssertedLoginProof proof, string? next, CancellationToken ct)
-    {
-        if (await outcome.ResolveFoundLinkAsync(proof, ct) is { } decided)
-            return Decided(decided, next);
-
-        var requested = await pendingLinks.RequestAsync(proof, ct);
-        return requested.IsFailure
-            ? Result.Failure<ExternalLoginCompletion>(requested.Error)
-            : Result.Success<ExternalLoginCompletion>(new ExternalLoginCompletion.CodeRequired(
-                requested.Value.ChallengeId, requested.Value.LinkGrant, proof.Address, next));
-    }
-
-    private static Result<ExternalLoginCompletion> Decided(LoginOutcome decided, string? next) =>
-        Result.Success<ExternalLoginCompletion>(new ExternalLoginCompletion.Decided(decided, next));
 
     private static Result<ExternalLoginCompletion> Unusable() => Result.Failure<ExternalLoginCompletion>(
         DomainError.Gone(AuthErrorCodes.ExternalLoginUnusable, AuthErrorCodes.ExternalLoginUnusableMessage));

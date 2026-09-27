@@ -11,10 +11,7 @@ const NOW = 1_800_000_000;
 
 const mocks = vi.hoisted(() => ({
   readLoginFlow: vi.fn(),
-  writeLoginFlow: vi.fn(),
-  clearLoginFlow: vi.fn(),
   getSessionId: vi.fn(),
-  setSessionCookie: vi.fn(),
   getExternalLoginProviders: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
@@ -28,17 +25,9 @@ vi.mock("next-intl/server", () => ({
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/auth/login-flow-cookie", () => ({
   readLoginFlow: mocks.readLoginFlow,
-  writeLoginFlow: mocks.writeLoginFlow,
-  clearLoginFlow: mocks.clearLoginFlow,
   nowEpochSeconds: () => NOW,
 }));
-vi.mock("@/lib/auth/session", () => ({
-  getSessionId: mocks.getSessionId,
-  setSessionCookie: mocks.setSessionCookie,
-}));
-// For the real `verifyCode` the consent row below runs; no page reads either.
-vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://backend.test" } }));
-vi.mock("@/lib/http/forwarded-headers", () => ({ forwardedHeaders: async () => ({}) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionId: mocks.getSessionId }));
 vi.mock("@/lib/api/oauth-providers", () => ({
   getExternalLoginProviders: mocks.getExternalLoginProviders,
 }));
@@ -63,12 +52,6 @@ const code: Extract<LoginFlow, { phase: "code" }> = {
   next: "",
   sentAt: NOW - 20,
 };
-// What the callback writes when the api answers `codeRequired` (`callback/route.test.ts` pins the write).
-const providerCode: Extract<LoginFlow, { phase: "code" }> = {
-  ...code,
-  via: "github",
-  linkGrant: "link-grant-1",
-};
 const consent: LoginFlow = { phase: "consent", grantToken: "grant-1", next: "" };
 const closed: LoginFlow = { phase: "outcome", result: { outcome: "registrationClosed" } };
 
@@ -83,7 +66,6 @@ const redirectOf = async (page: () => Promise<unknown>): Promise<string> => {
 
 beforeEach(() => {
   mocks.readLoginFlow.mockReset().mockResolvedValue(null);
-  mocks.writeLoginFlow.mockReset();
   // `null`, never `undefined`: that is what the real `getSessionId` answers with no cookie. A
   // stub returning `undefined` once hid a page that treated every visitor as logged in.
   mocks.getSessionId.mockReset().mockResolvedValue(null);
@@ -215,15 +197,12 @@ describe("/logga-in", () => {
 });
 
 describe("/logga-in/kod", () => {
-  it.each<[string, LoginFlow, string]>([
-    ["a typed address", code, "Ange koden"],
-    ["a provider's address", providerCode, "Logga in med GitHub"],
-  ])("rests on an instruction, never on a claim that a mail was sent or to whom, for %s", async (_label, flow, h1) => {
-    mocks.readLoginFlow.mockResolvedValue(flow);
+  it("rests on an instruction, never on a claim that a mail was sent or to whom", async () => {
+    mocks.readLoginFlow.mockResolvedValue(code);
 
     render(await LoggaInKodPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: h1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Ange koden" })).toBeInTheDocument();
     const resting = screen.getByText(/Finns det ett mejl från Jobbliggaren följer du instruktionerna i det\./);
     expect(resting).not.toHaveTextContent(/skickat|anna@example\.com/);
   });
@@ -240,55 +219,6 @@ describe("/logga-in/kod", () => {
     const order = [typed, screen.getByRole("button", { name: "Skicka ny kod" }), screen.getByRole("button", { name: "Byt e-postadress" })];
     expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  describe("reached through GitHub", () => {
-    beforeEach(() => mocks.readLoginFlow.mockResolvedValue(providerCode));
-
-    it("is titled by the provider, in the h1 and the document title", async () => {
-      render(await LoggaInKodPage());
-
-      expect(screen.getByRole("heading", { level: 1, name: "Logga in med GitHub" })).toBeInTheDocument();
-      expect(await kodMetadata()).toMatchObject({ title: "Logga in med GitHub" });
-    });
-
-    it("says the code is what links GitHub to the account", async () => {
-      render(await LoggaInKodPage());
-
-      expect(
-        screen.getByText(
-          "Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en kod skriver du in den här. Det är koden som kopplar GitHub till ditt konto. Koden gäller i 15 minuter."
-        )
-      ).toBeInTheDocument();
-    });
-
-    // The user typed nothing here: "Du angav" would claim otherwise.
-    it("shows the address as the GitHub account's, away from the sentence about the mail", async () => {
-      render(await LoggaInKodPage());
-
-      const address = screen.getByText("Adressen i ditt GitHub-konto är anna@example.com.");
-      expect(screen.queryByText(/Du angav/)).not.toBeInTheDocument();
-      expect(screen.getByText(/^Finns det ett mejl från Jobbliggaren/)).not.toContainElement(address);
-      const order = [
-        address,
-        screen.getByRole("button", { name: "Skicka ny kod" }),
-        screen.getByRole("button", { name: "Byt e-postadress" }),
-      ];
-      expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    // `verifyCode`'s 410 arm keeps the pending link on the dead code (`challenge-actions.test.ts`).
-    it("keeps the provider's title and address line for a dead code", async () => {
-      mocks.readLoginFlow.mockResolvedValue({ ...providerCode, sentAt: NOW - 300, dead: "expired" });
-
-      render(await LoggaInKodPage());
-
-      expect(screen.getByRole("heading", { level: 1, name: "Logga in med GitHub" })).toBeInTheDocument();
-      expect(screen.queryByLabelText("Sexsiffrig kod")).not.toBeInTheDocument();
-      expect(screen.getByText("Adressen i ditt GitHub-konto är anna@example.com.")).toBeInTheDocument();
-      expect(screen.queryByText(/Du angav/)).not.toBeInTheDocument();
-    });
   });
 
   it("hands the resend button the seconds left of the cooldown, counted from the mint", async () => {
@@ -317,13 +247,16 @@ describe("/logga-in/kod", () => {
     }
   );
 
-  it("titles an outcome reached through a provider by the provider, never by a code", async () => {
-    mocks.readLoginFlow.mockResolvedValue({ ...closed, via: "google" });
+  it.each<["google" | "github", string]>([
+    ["google", "Logga in med Google"],
+    ["github", "Logga in med GitHub"],
+  ])("titles an outcome reached through %s by the provider, never by a code", async (via, title) => {
+    mocks.readLoginFlow.mockResolvedValue({ ...closed, via });
 
     render(await LoggaInKodPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: "Logga in med Google" })).toBeInTheDocument();
-    expect(await kodMetadata()).toMatchObject({ title: "Logga in med Google" });
+    expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+    expect(await kodMetadata()).toMatchObject({ title });
   });
 
   it.each<[string, LoginFlow | null]>([
@@ -371,51 +304,17 @@ describe("/logga-in/villkor", () => {
     expect(container.textContent).not.toMatch(/@/);
   });
 
-  it("says the account is created on the address of the provider account, not one confirmed by a code", async () => {
-    mocks.readLoginFlow.mockResolvedValue({ ...consent, via: "google" });
+  it.each<["google" | "github", string]>([
+    ["google", "Kontot skapas på den primära e-postadressen i Google-kontot du valde."],
+    ["github", "Kontot skapas på den primära e-postadressen i GitHub-kontot du valde."],
+  ])("says the account is created on the address of the %s account, not one confirmed by a code", async (via, line) => {
+    mocks.readLoginFlow.mockResolvedValue({ ...consent, via });
 
     const { container } = render(await LoggaInVillkorPage());
 
-    expect(
-      screen.getByText("Kontot skapas på e-postadressen i Google-kontot du valde.")
-    ).toBeInTheDocument();
+    expect(screen.getByText(line)).toBeInTheDocument();
     expect(screen.queryByText(/bekräftade med koden/)).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/@/);
-  });
-
-  // The consent phase the real `verifyCode` writes after a code GitHub's flow sent: the code proved the
-  // address, so the step names the code and never the provider.
-  it("says a code confirmed the address when a provider's code led here", async () => {
-    const { verifyCode } = await vi.importActual<typeof import("@/lib/auth/challenge-actions")>(
-      "@/lib/auth/challenge-actions"
-    );
-    mocks.readLoginFlow.mockResolvedValue(providerCode);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(JSON.stringify({ outcome: "consentRequired", grantToken: "grant-9" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
-      )
-    );
-    const formData = new FormData();
-    formData.set("code", "123456");
-
-    try {
-      expect(await redirectOf(() => verifyCode(null, formData))).toBe("/logga-in/villkor");
-    } finally {
-      vi.unstubAllGlobals();
-    }
-    mocks.readLoginFlow.mockResolvedValue(mocks.writeLoginFlow.mock.lastCall![0]);
-
-    const { container } = render(await LoggaInVillkorPage());
-
-    expect(
-      screen.getByText("Kontot skapas på den e-postadress du nyss bekräftade med koden.")
-    ).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/GitHub|@/);
   });
 
   it("renders an outcome of complete in place of the form", async () => {

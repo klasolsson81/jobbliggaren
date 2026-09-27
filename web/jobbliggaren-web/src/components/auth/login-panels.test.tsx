@@ -77,16 +77,6 @@ describe("DeadCodePanel", () => {
       "Innehåller mejlet en inloggningslänk kan du använda den i stället"
     );
   });
-
-  it("names only a new code for a burned code reached through a provider (#1745, design Minor 2)", () => {
-    render(<DeadCodePanel reason="burned" linksProvider />);
-
-    const panel = screen.getByRole("status");
-    expect(panel).toHaveTextContent(
-      "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Skicka en ny kod."
-    );
-    expect(panel).not.toHaveTextContent(/inloggningslänk/);
-  });
 });
 
 describe("LoginFlowNotice", () => {

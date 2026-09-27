@@ -9,7 +9,6 @@ import { toExternalProviderKey, type ExternalProviderKey } from "@/lib/auth/exte
 import { clearLoginFlow, clearOAuthState, setLoginFlow } from "@/lib/auth/external-login-responses";
 import { cookieSafeNext, type LoginFlow } from "@/lib/auth/login-flow";
 import { LOGIN_CODE_PATH, LOGIN_CONSENT_PATH, LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
-import { nowEpochSeconds } from "@/lib/auth/login-flow-cookie";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { SESSION_COOKIE_ATTRIBUTES } from "@/lib/auth/session";
 import { loginOutcomeSchema } from "@/lib/dto/login-challenge";
@@ -22,17 +21,6 @@ const CODE_STEP = LOGIN_CODE_PATH;
 const CONSENT_STEP = LOGIN_CONSENT_PATH;
 
 const echoedNextSchema = z.object({ next: z.string().optional() });
-
-/**
- * #1745 — a provider's asserted address with no link yet, and the pending link. The address is an
- * echo for the code step to show, never proof of anything.
- */
-const codeRequiredSchema = z.object({
-  outcome: z.literal("codeRequired"),
-  challengeId: z.string().min(1).max(64),
-  linkGrant: z.string().min(1).max(64),
-  email: z.string().min(1).max(256),
-});
 
 /** What the document sends the browser on to, and what the response sets beside it. */
 type Landing = {
@@ -81,26 +69,9 @@ async function land(provider: ExternalProviderKey, request: NextRequest): Promis
   if (!res.ok) return notCompleted(provider);
 
   const body: unknown = await res.json().catch(() => null);
-  const next = echoedNextSchema.safeParse(body).data?.next ?? "";
-
-  const codeRequired = codeRequiredSchema.safeParse(body);
-  if (codeRequired.success) {
-    return {
-      target: CODE_STEP,
-      flow: {
-        phase: "code",
-        challengeId: codeRequired.data.challengeId,
-        email: codeRequired.data.email,
-        next: cookieSafeNext(next),
-        sentAt: nowEpochSeconds(),
-        via: provider,
-        linkGrant: codeRequired.data.linkGrant,
-      },
-    };
-  }
-
   const outcome = loginOutcomeSchema.safeParse(body);
   if (!outcome.success) return notCompleted(provider);
+  const next = echoedNextSchema.safeParse(body).data?.next ?? "";
 
   switch (outcome.data.outcome) {
     case "signedIn":

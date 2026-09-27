@@ -4,10 +4,9 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// Records a first passwordless proof of an account's inbox (#1735, security-auditor Q21/Q-S3): the
 /// confirmation and the stamp rotation are ONE write. Reachable only from
 /// <see cref="PasswordlessSessionGrant"/>, after a verified code, a consumed link, or a provider's
-/// <c>VerifiedEmail</c> that is the account's own address (#1744, ADR 0142 D8: the provider is authoritative for
-/// the mailbox) — never on a provider login found linked to the account (<see cref="SessionEvidence.BoundLink"/>,
-/// #1745), and never a bare force-confirm (ADR 0127 refused exactly that); an architecture test pins the single
-/// consumer.
+/// <c>VerifiedEmail</c> that is the account's own address (#1744, ADR 0142 D8: Google as the mailbox's authority; #1745,
+/// GitHub's verified primary address by Klas's decision, Amendment (18)) — never a bare force-confirm (ADR 0127
+/// refused exactly that); an architecture test pins the single consumer.
 /// </summary>
 public interface IInboxProofRecorder
 {

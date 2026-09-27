@@ -9,10 +9,9 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 
 /// <summary>
-/// #1737 — the last step of registering by a proven inbox (ADR 0142 D3), since #1744 by a provider's proof (D8),
-/// and since #1745 by a code that carried a provider login waiting to be linked (Amendment (16)). Every refusal of
-/// the grant is one answer, and the session is opened by the outcome function the proof handlers share, so this
-/// handler does not reach the session grant. A pending-link grant is never redeemed here: only a code binds.
+/// #1737 — the last step of registering by a proven inbox (ADR 0142 D3), and since #1744 by a provider's proof
+/// (D8). Every refusal of the grant is one answer, and the session is opened by the outcome function the proof
+/// handlers share, so this handler does not reach the session grant.
 /// </summary>
 public sealed class CompleteLoginChallengeCommandHandler(
     IOptions<AuthOptions> authOptions,
@@ -34,18 +33,16 @@ public sealed class CompleteLoginChallengeCommandHandler(
                 AuthErrorCodes.RegistrationsClosed, AuthErrorCodes.RegistrationsClosedMessage));
         }
 
-        // One redemption for any registration grant: the store takes the token once, whichever it is.
+        // One redemption for either registration grant: the store takes the token once, whichever it is.
         var subject = await grants.RedeemAsync(
             GrantToken.FromRaw(command.GrantToken!),
-            GrantAssertion.Bearer(
-                GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal, GrantPurpose.LoginCompleteWithLink),
+            GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal),
             cancellationToken);
 
         return subject switch
         {
             GrantSubject.LoginComplete { ProvenEmail: var email } => await CompleteByCodeAsync(email, cancellationToken),
             GrantSubject.LoginCompleteExternal external => await CompleteByProviderAsync(external, cancellationToken),
-            GrantSubject.LoginCompleteWithLink withLink => await CompleteByCodeWithLinkAsync(withLink, cancellationToken),
             _ => GrantUnusable(),
         };
     }
@@ -92,25 +89,6 @@ public sealed class CompleteLoginChallengeCommandHandler(
         // The outcome links the login, writes its audit row, and then opens the session. A link another account
         // won after the check above is answered there. From here on CancellationToken.None, as above.
         return Result.Success(await outcome.ResolveExternalAsync(proof, CancellationToken.None));
-    }
-
-    private async Task<Result<LoginOutcome>> CompleteByCodeWithLinkAsync(
-        GrantSubject.LoginCompleteWithLink withLink, CancellationToken ct)
-    {
-        if (!await claim.TryClaimAsync(withLink.ProvenEmail, ct))
-            return GrantUnusable();
-
-        // The code proved the address, so it earns the account as a code does; the link is added by the outcome only
-        // where it can be, and an identifier another account holds costs the link, never the account.
-        if (await subjects.ResolveAsync(withLink.ProvenEmail, ct) is LoginSubject.NoAccount)
-        {
-            var opened = await registrar.OpenAsync(withLink.ProvenEmail, ct);
-            if (opened.IsFailure)
-                return Result.Failure<LoginOutcome>(opened.Error);
-        }
-
-        // From here on CancellationToken.None, as above.
-        return Result.Success(await outcome.ResolveCodeBoundLinkAsync(withLink, CancellationToken.None));
     }
 
     private static Result<LoginOutcome> GrantUnusable() => Result.Failure<LoginOutcome>(

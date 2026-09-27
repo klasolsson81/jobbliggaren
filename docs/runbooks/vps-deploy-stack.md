@@ -631,9 +631,9 @@ in that window is refused without a transfer to Google.
 ### GitHub login (#1745)
 
 The same shape as Google's above: a merge makes GitHub login possible, and keys on this box make it
-live. Two things differ. GitHub's address is never an inbox proof, so the first GitHub login of an
-account needs a code to that address (ADR 0142 Amendment (16)). And GitHub is a second transfer to a
-third country, with its own Chapter V entry.
+live. Two things differ. GitHub is never the mailbox, yet its address binds a login in one click
+as Google's does, by Klas's decision over `security-auditor`'s M-1, which stands (ADR 0142 Amendment
+(18)). And GitHub is a second transfer to a third country, with its own Chapter V entry.
 
 **Before the keys.** Each condition is read on the day, never inherited:
 
@@ -649,7 +649,7 @@ third country, with its own Chapter V entry.
    sentence naming the controller. If any lapse condition in the register's GitHub entry has fired, the
    keys are not placed.
 3. **The volatile ACL.** Nothing new: GitHub's flows use the flow-store and start-budget selectors
-   Google's activation required, and its pending-link grants the grant selector code login uses. Diff
+   Google's activation required, and its consent grants the grant selector Google's use. Diff
    `deploy/redis/*.acl.template` between the box's git and the merge commit; it is expected to be
    unchanged.
 4. **The GitHub OAuth App** (security-auditor m-4). A separate OAuth App for this box, never the one a
@@ -688,13 +688,12 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
 If the reading does not show `github`, both `.env` lines are removed and api is re-created.
 The next amendment of ADR 0142 transcribes the comment.
 
-**Expected on the first login.** GitHub's primary, verified address chooses where a code goes. If an
-account holds that address, the callback answers with the code step, headed "Logga in med GitHub",
-and the code typed in the same browser links GitHub. That login is recorded as `Method=Code`, beside
-one `User.ExternalLoginLinked` row and one `github` row in `AspNetUserLogins`. The next GitHub login
-goes straight in, as `Method=GitHub`. The link in the mail signs in without linking. If no account
-holds the address, the code leads to "registration closed" while registration is shut. Registration is
-never opened for this: that is the M-7 flip.
+**Expected on the first login.** GitHub's primary, verified address names the account, as Google's
+does, and no code is sent. If an account holds that address, the callback signs in and links GitHub:
+`login_succeeded … Method=GitHub`, one `User.ExternalLoginLinked` row and one `github` row in
+`AspNetUserLogins`. The next GitHub login finds the link. If no account holds the address, the callback
+answers "registration closed" while registration is shut. Registration is never opened for this: that
+is the M-7 flip, and opening it makes `security-auditor`'s Major 2 under Amendment (18) Blocker class.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google.
 

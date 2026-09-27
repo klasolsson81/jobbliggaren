@@ -139,10 +139,10 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
     /// live at once. Each carries the longest path the start validator admits, in the character the JSON writer
     /// escapes to six bytes, through the production store.
     /// <para>
-    /// #1745 (dotnet-architect N4c): a callback can leave one pending-link grant (purpose 5), written by
-    /// <c>PendingLinkChallenge</c> through the production grant store, which pads every grant to one length. It takes
-    /// its flow (GETDEL) before, so a start holds one record at a time, first the flow and then the grant: the starts
-    /// that can hold one now are those of both lifetimes and one window. The bound is that count times the larger
+    /// #1745 (dotnet-architect N4c): a callback for an address with no account leaves one consent grant (purpose 4),
+    /// written by <c>LoginProofOutcome</c> through the production grant store, which pads every grant to one length.
+    /// It takes its flow (GETDEL) before, so a start holds one record at a time, first the flow and then the grant:
+    /// the starts that can hold one are those of both lifetimes and one window. The bound is that count times the larger
     /// record, each measured here.
     /// </para>
     /// </summary>
@@ -165,15 +165,15 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
 
         var grants = new RedisGrantStore(
             _connection, new EphemeralDataProtectionProvider(), NullLogger<RedisGrantStore>.Instance);
-        var proof = await GitHubIdentities.AssertedProofAsync(
+        var proof = await GitHubIdentities.ProofAsync(
             GitHubApiShapes.User(58323117, "budget-gh"), GitHubApiShapes.Emails.PrimaryVerified("budget@example.se"));
-        var pending = new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject);
+        var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject);
 
         for (var i = 0; i < live; i++)
             await flows.PutAsync(new OAuthFlow(provider, PkceVerifier.Generate(), next), Ct);
         var afterFlows = await MemoryAsync(server, "used_memory");
         for (var i = 0; i < live; i++)
-            await grants.IssueAsync(pending, Ct);
+            await grants.IssueAsync(consent, Ct);
         var afterGrants = await MemoryAsync(server, "used_memory");
 
         var records = budget.Limit
@@ -182,7 +182,7 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         var bound = records * perRecord;
         var maxmemory = await MemoryAsync(server, "maxmemory");
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{live} flows took {afterFlows - before} bytes, {live} pending-link grants {afterGrants - afterFlows}; "
+            $"{live} flows took {afterFlows - before} bytes, {live} consent grants {afterGrants - afterFlows}; "
             + $"{records} records at {perRecord} bytes bound {bound} of {maxmemory} ({100.0 * bound / maxmemory:F1} %)");
         bound.ShouldBeLessThanOrEqualTo(maxmemory / 16);
         await _store.PutAsync(

@@ -53,7 +53,6 @@ public sealed class ExternalLoginCompositionTests
         services.ShouldContain(d => d.ServiceType == typeof(IExternalLoginLookup));
         services.ShouldContain(d => d.ServiceType == typeof(IExternalLoginWriter));
         services.ShouldContain(d => d.ServiceType == typeof(ExternalLoginLinker));
-        services.ShouldContain(d => d.ServiceType == typeof(PendingLinkChallenge));
         services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider)).ShouldHaveSingleItem()
             .ImplementationType.ShouldBe(typeof(GoogleIdentityProvider));
     }
@@ -113,7 +112,6 @@ public sealed class ExternalLoginCompositionTests
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalLoginLookup));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalLoginWriter));
         services.ShouldNotContain(d => d.ServiceType == typeof(ExternalLoginLinker));
-        services.ShouldNotContain(d => d.ServiceType == typeof(PendingLinkChallenge));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
         services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
     }

@@ -248,7 +248,6 @@
   --jp-btn-px: 18px;
 
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
-  --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
   --jp-shadow-modal: 0 30px 80px rgba(8, 23, 48, 0.35);
 
@@ -378,7 +377,6 @@
   /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
      resolvar själv till #6EE7A8 i dark via accent-skiftet ovan. */
 
-  --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --jp-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.7);
 }
@@ -7234,7 +7232,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-appcontrols__input {
   width: 100%;
-  height: 38px;
+  height: var(--jp-control-h);
   padding: 0 12px 0 36px;
   border: 1px solid var(--jp-border-strong);
   border-radius: var(--jp-r-sm);
@@ -7255,10 +7253,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-accent-700);
   border-radius: var(--jp-r-sm);
   background: var(--jp-accent-50);
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--jp-accent-900);
 }
 /* Hit-arean fyller chipens 32px-höjd × 32px (a11y-skillens 32×32-golv,
@@ -7403,6 +7399,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 10px;
   margin-left: auto;
+}
+/* The view switcher stands beside the search field at the filter row's one height
+   (--jp-control-h, DESIGN.md §6); .jp-segment is shared, so the height is scoped here.
+   A min-height, so the options' own 44px touch floor still wins at ≤768px. */
+.jp-appcontrols__vy .jp-segment {
+  min-height: var(--jp-control-h);
+  align-items: stretch;
 }
 .jp-vylabel {
   font-size: var(--text-overline);
@@ -7674,7 +7677,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
-  box-shadow: var(--jp-shadow-card);
   overflow-x: auto;
 }
 .jp-apptable {

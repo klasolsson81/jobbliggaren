@@ -41,15 +41,6 @@ describe("ProviderButtons with Google active", () => {
     );
   });
 
-  it("is described by the line the page names", () => {
-    render(<ProviderButtons active={["google"]} describedBy="login-persistence" />);
-
-    expect(screen.getByRole("link", { name: "Fortsätt med Google" })).toHaveAttribute(
-      "aria-describedby",
-      "login-persistence"
-    );
-  });
-
   it("draws the provider's own mark on the active row only, hidden from the accessibility tree", () => {
     const { container } = render(<ProviderButtons active={["google"]} />);
 
@@ -140,14 +131,36 @@ describe("ProviderButtons with Google and GitHub active", () => {
     ]);
   });
 
-  it("describes both rows by the line the page names, and puts neither in a form", () => {
-    render(<ProviderButtons active={["google", "github"]} describedBy="login-persistence" />);
+  // #1746: the persistence line left /logga-in (ADR 0142 Amendment (19)), so no row points at it.
+  it("describes neither row, and puts neither in a form", () => {
+    render(<ProviderButtons active={["google", "github"]} />);
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(2);
     for (const link of links) {
-      expect(link).toHaveAttribute("aria-describedby", "login-persistence");
+      expect(link).not.toHaveAttribute("aria-describedby");
       expect(link.closest("form")).toBeNull();
     }
+  });
+
+  // Klas's note on the rows (#1746). jsdom lays nothing out, so the geometry is measured rendered (DoD 4); this
+  // pins that every active row is one shape and every inactive row another, with the mark before the text.
+  it("gives every active row one shape and every inactive row another, the mark before the text", () => {
+    const { unmount } = render(<ProviderButtons active={["google", "github"]} />);
+
+    const links = screen.getAllByRole("link");
+    expect(new Set(links.map((link) => link.className)).size).toBe(1);
+    expect(links[0]!.className).toContain("justify-center");
+    for (const link of links) {
+      expect(link.firstElementChild).toHaveAttribute("aria-hidden", "true");
+      expect(link.lastElementChild).toHaveTextContent(/^Fortsätt med /);
+    }
+    unmount();
+
+    render(<ProviderButtons />);
+    const inactive = screen.getAllByRole("button");
+    expect(inactive).toHaveLength(3);
+    expect(new Set(inactive.map((button) => button.className)).size).toBe(1);
+    expect(inactive[0]!.className).toContain("justify-between");
   });
 });

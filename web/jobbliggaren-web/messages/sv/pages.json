@@ -559,7 +559,6 @@
           "title": "Logga in eller skapa konto"
         },
         "title": "Logga in eller skapa konto",
-        "lede": "Du loggar in med en kod som vi skickar till din e-postadress.",
         "emailLabel": "E-postadress",
         "privacyHint": "Så behandlar vi din e-postadress: <privacy>integritetspolicyn</privacy>.",
         "emailRequired": "Skriv in din e-postadress.",
@@ -573,7 +572,7 @@
           "github": "Fortsätt med GitHub",
           "comingSoon": "Kommer snart"
         },
-        "orEmail": "Eller fortsätt med e-post"
+        "or": "eller"
       },
       "code": {
         "meta": {

@@ -120,7 +120,7 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     expect(current!.textContent).toContain("nuvarande status");
   });
 
-  it("val i menyn gör en direkt transition (även bakåt/terminal-hopp)", async () => {
+  it("val av ett steg gör en direkt transition, även bakåt", async () => {
     const user = userEvent.setup();
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Byt status" }));
@@ -147,5 +147,112 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
         ".jp-statusmenu__dot[data-status-variant='brand']",
       ).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+// #1827 item 10: a move to Accepterad, Nekad or Återtagen deletes the saved copy's text,
+// which undo does not bring back, so the list asks first whenever the copy may have text.
+describe("StatusMenu — terminal moves ask first (#1827)", () => {
+  const BODY =
+    "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.";
+  const FALLBACK =
+    "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.";
+
+  async function choose(
+    label: string,
+    overrides: Partial<ApplicationDto>,
+  ): Promise<ReturnType<typeof userEvent.setup>> {
+    const user = userEvent.setup();
+    renderMenu(makeApplication(overrides));
+    await user.click(screen.getByRole("button", { name: "Byt status" }));
+    await user.click(await screen.findByRole("menuitem", { name: label }));
+    return user;
+  }
+
+  it.each([
+    ["Accepterad", "Accepted"],
+    ["Nekad", "Rejected"],
+    ["Återtagen", "Withdrawn"],
+  ] as const)(
+    "%s with text in the copy: the dialog states what is deleted, and only its button moves",
+    async (label, target) => {
+      const user = await choose(label, { hasPreservedAdText: true });
+
+      const dialog = await screen.findByRole("dialog", {
+        name: `Markera som ${label}?`,
+      });
+      expect(dialog).toHaveAccessibleDescription(BODY);
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+
+      await user.click(
+        within(dialog).getByRole("button", { name: `Markera som ${label}` }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(
+          "11111111-2222-3333-4444-555555555555",
+          target,
+        ),
+      );
+    },
+  );
+
+  it.each(["Accepterad", "Nekad", "Återtagen"])(
+    "%s with the flag missing (deploy skew): asks, with the fallback body",
+    async (label) => {
+      await choose(label, { hasPreservedAdText: undefined });
+
+      expect(
+        await screen.findByRole("dialog", { name: `Markera som ${label}?` }),
+      ).toHaveAccessibleDescription(FALLBACK);
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["Accepterad", "Accepted"],
+    ["Nekad", "Rejected"],
+    ["Återtagen", "Withdrawn"],
+  ] as const)(
+    "%s with no text in the copy: moves at once, nothing to confirm",
+    async (label, target) => {
+      await choose(label, { hasPreservedAdText: false });
+
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(
+          "11111111-2222-3333-4444-555555555555",
+          target,
+        ),
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("Inget svar never asks: Ghosted keeps the copy", async () => {
+    await choose("Inget svar", { hasPreservedAdText: true });
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "11111111-2222-3333-4444-555555555555",
+        "Ghosted",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("Avbryt moves nothing and returns focus to the menu's trigger", async () => {
+    const user = await choose("Nekad", { hasPreservedAdText: true });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Markera som Nekad?",
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Byt status" })).toHaveFocus(),
+    );
   });
 });

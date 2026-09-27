@@ -23,6 +23,24 @@ describe("TerminalMoveDialog (#1827 — the consequence before a terminal move)"
     ).toBeInTheDocument();
   });
 
+  it("states what happens if there is a copy when the caller cannot tell (#1827)", () => {
+    render(
+      <TerminalMoveDialog
+        open
+        onOpenChange={vi.fn()}
+        target="Accepted"
+        onConfirm={vi.fn()}
+        copyTextUnknown
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Markera som Accepterad?" }),
+    ).toHaveAccessibleDescription(
+      "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
   it("confirming closes the dialog and hands the move to the caller", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

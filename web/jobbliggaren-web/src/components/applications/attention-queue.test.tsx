@@ -327,7 +327,7 @@ describe("AttentionQueue", () => {
     ).toBeInTheDocument();
   });
 
-  it("OfferAwaitingReply-raden: 'Läs erbjudandet' öppnar panelen; 'Acceptera' är direkt transition", async () => {
+  it("OfferAwaitingReply-raden: 'Läs erbjudandet' öppnar detaljmodalen", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ OfferReceived: 1 }, { OfferReceived: ["OfferAwaitingReply"] }),
@@ -337,6 +337,66 @@ describe("AttentionQueue", () => {
     expect(routerPush).toHaveBeenCalledWith(
       "/ansokningar/OfferReceived-0-0000-0000-000000000000",
     );
+  });
+
+  // #1827 item 10: accepting deletes the saved copy's text, which undo does not bring back.
+  it.each([
+    [
+      true,
+      "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+    ],
+    [
+      undefined,
+      "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    ],
+  ])(
+    "OfferAwaitingReply-raden: 'Acceptera' asks first when the flag is %s, and moves on confirm",
+    async (flag, body) => {
+      const user = userEvent.setup();
+      const groups = makePipeline(
+        { OfferReceived: 1 },
+        { OfferReceived: ["OfferAwaitingReply"] },
+      ).map((group) => ({
+        ...group,
+        applications: group.applications.map((a) => ({
+          ...a,
+          hasPreservedAdText: flag,
+        })),
+      }));
+      renderQueue(groups);
+
+      await user.click(screen.getByRole("button", { name: "Acceptera" }));
+      const dialog = await screen.findByRole("dialog", {
+        name: "Markera som Accepterad?",
+      });
+      expect(dialog).toHaveAccessibleDescription(body);
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "Markera som Accepterad" }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(
+          "OfferReceived-0-0000-0000-000000000000",
+          "Accepted",
+        ),
+      );
+    },
+  );
+
+  it("OfferAwaitingReply-raden: 'Acceptera' moves at once when the copy has no text", async () => {
+    const user = userEvent.setup();
+    const groups = makePipeline(
+      { OfferReceived: 1 },
+      { OfferReceived: ["OfferAwaitingReply"] },
+    ).map((group) => ({
+      ...group,
+      applications: group.applications.map((a) => ({
+        ...a,
+        hasPreservedAdText: false,
+      })),
+    }));
+    renderQueue(groups);
 
     await user.click(screen.getByRole("button", { name: "Acceptera" }));
     await waitFor(() =>
@@ -345,6 +405,7 @@ describe("AttentionQueue", () => {
         "Accepted",
       ),
     );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("DraftDeadlineApproaching-raden: 'Slutför och skicka' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {

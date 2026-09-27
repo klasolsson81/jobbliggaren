@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ApplicationActionsProvider } from "./application-actions";
 import { ApplicationRow } from "./application-row";
 import {
@@ -334,6 +334,49 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
         "Submitted"
       )
     );
+  });
+
+  // #1827 item 10: "Flytta till Accepterad" deletes the saved copy's text when it has one.
+  it.each([true, undefined])(
+    "'Flytta till Accepterad' asks first when the flag is %s",
+    async (flag) => {
+      renderRow(
+        makeApplication({ status: "OfferReceived", hasPreservedAdText: flag }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Flytta till Accepterad" }),
+      );
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "Markera som Accepterad?",
+      });
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Markera som Accepterad" }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(
+          "11111111-2222-3333-4444-555555555555",
+          "Accepted",
+        ),
+      );
+    },
+  );
+
+  it("'Flytta till Accepterad' moves at once when the copy has no text", async () => {
+    renderRow(
+      makeApplication({ status: "OfferReceived", hasPreservedAdText: false }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Accepterad" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "11111111-2222-3333-4444-555555555555",
+        "Accepted",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("terminala rader har ingen primär-knapp men behåller statusmenyn", () => {

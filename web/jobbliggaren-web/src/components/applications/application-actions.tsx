@@ -11,10 +11,12 @@ import {
 import { transitionStatusAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import { clampAnchoredTop } from "@/lib/applications/anchored-top";
+import { needsTerminalMoveConfirmation } from "@/lib/applications/status";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { FinishDraftDialog } from "./finish-draft-dialog";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 import { DeleteApplicationDialog } from "./delete-application-dialog";
+import { TerminalMoveDialog } from "./terminal-move-dialog";
 
 /** Klick-Y → klampad dialogtopp (ren modul-funktion — stabil över renders). */
 function anchoredTop(anchorY: number | null): number | null {
@@ -34,15 +36,43 @@ type DialogState =
       kind: "delete";
       application: ApplicationDto;
       returnFocusTo: HTMLElement | null;
+    }
+  | {
+      kind: "terminalMove";
+      application: ApplicationDto;
+      target: ApplicationStatus;
+      move: () => void;
+      returnFocusTo: HTMLElement | null;
     };
 
 export interface ApplicationActionsValue {
   /**
-   * Direkt statusbyte (design §9 "direktbyten utan dialog"): persistas
-   * omedelbart via den auditerade servern-actionen; vid framgång publiceras
-   * ångra-toasten (ADR 0092 D3 — ångra är en kompenserande invers transition).
+   * Statusbyte (design §9 "direktbyten utan dialog"): persistas omedelbart via
+   * den auditerade servern-actionen; vid framgång publiceras ångra-toasten (ADR
+   * 0092 D3 — ångra är en kompenserande invers transition). A move that deletes
+   * the saved copy's text asks first, through `confirmMove`; `returnFocusTo` is
+   * where focus goes when that question closes, for a menu item that has
+   * unmounted by then.
    */
-  transition: (application: ApplicationDto, target: ApplicationStatus) => void;
+  transition: (
+    application: ApplicationDto,
+    target: ApplicationStatus,
+    returnFocusTo?: HTMLElement | null,
+  ) => void;
+  /**
+   * Runs `move` at once, or after the TerminalMoveDialog when a move to Accepterad,
+   * Nekad or Återtagen may delete the saved copy's text, which undo does not bring
+   * back (ADR 0047 point 3). The list knows only `hasPreservedAdText`, and a missing
+   * flag (deploy skew) is unknown, never "no text": that move asks with the fallback
+   * body. The board hands its optimistic move here, so the move starts only after the
+   * confirmation, and a cancel runs nothing.
+   */
+  confirmMove: (
+    application: ApplicationDto,
+    target: ApplicationStatus,
+    move: () => void,
+    returnFocusTo?: HTMLElement | null,
+  ) => void;
   /** "Slutför och skicka"-dialogen (utkast, design §9). anchorY = klickets viewport-Y. */
   openFinishDraft: (application: ApplicationDto, anchorY: number | null) => void;
   /** "Logga uppföljning"-dialogen (design §9). anchorY = klickets viewport-Y. */
@@ -113,7 +143,7 @@ export function applicationDisplayName(application: ApplicationDto): string {
 /**
  * ApplicationActionsProvider (#630 PR 7) — äger mutations-plumbingen för
  * pipeline-öns action-affordanser (radknappar, statusmeny, köradernas CTA):
- * transition + toast + de TVÅ dialogerna som EN instans vardera på öns nivå
+ * transition + toast + dialogerna som EN instans vardera på öns nivå
  * (prototypens `dialog {kind, appId, top}`-modell — aldrig N monterade dialoger).
  *
  * Mutations-UX per CTO-bind 1: await server action → revalidatePath-driven
@@ -133,9 +163,8 @@ export function ApplicationActionsProvider({
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [, startTransition] = useTransition();
 
-  const transition = useCallback(
+  const runTransition = useCallback(
     (application: ApplicationDto, target: ApplicationStatus) => {
-      if (target === application.status) return;
       setPendingIds((prev) => new Set(prev).add(application.id));
       startTransition(async () => {
         const result = await transitionStatusAction(application.id, target);
@@ -160,6 +189,44 @@ export function ApplicationActionsProvider({
     [],
   );
 
+  const confirmMove = useCallback(
+    (
+      application: ApplicationDto,
+      target: ApplicationStatus,
+      move: () => void,
+      returnFocusTo: HTMLElement | null = null,
+    ) => {
+      if (
+        needsTerminalMoveConfirmation(
+          target,
+          application.hasPreservedAdText !== false,
+        )
+      ) {
+        setDialog({ kind: "terminalMove", application, target, move, returnFocusTo });
+        return;
+      }
+      move();
+    },
+    [],
+  );
+
+  const transition = useCallback(
+    (
+      application: ApplicationDto,
+      target: ApplicationStatus,
+      returnFocusTo: HTMLElement | null = null,
+    ) => {
+      if (target === application.status) return;
+      confirmMove(
+        application,
+        target,
+        () => runTransition(application, target),
+        returnFocusTo,
+      );
+    },
+    [confirmMove, runTransition],
+  );
+
   const openFinishDraft = useCallback(
     (application: ApplicationDto, anchorY: number | null) => {
       setDialog({ kind: "finishDraft", application, top: anchoredTop(anchorY) });
@@ -182,16 +249,17 @@ export function ApplicationActionsProvider({
   );
 
   // Bara de stabila funktionerna — pendingIds är UTE ur denna value (d4). Alla
-  // deps är useCallback([]) → value:n är referens-stabil över öns livstid, så
-  // ingen `useApplicationActions`-konsument re-renderar vid ett statusbyte.
+  // deps är useCallback över stabila deps → value:n är referens-stabil över öns
+  // livstid, så ingen `useApplicationActions`-konsument re-renderar vid ett statusbyte.
   const value = useMemo<ApplicationActionsValue>(
     () => ({
       transition,
+      confirmMove,
       openFinishDraft,
       openLogFollowUp,
       deleteApplication,
     }),
-    [transition, openFinishDraft, openLogFollowUp, deleteApplication],
+    [transition, confirmMove, openFinishDraft, openLogFollowUp, deleteApplication],
   );
 
   const closeDialog = (open: boolean) => {
@@ -231,6 +299,16 @@ export function ApplicationActionsProvider({
           open
           onOpenChange={closeDialog}
           applicationId={dialog.application.id}
+          returnFocusTo={dialog.returnFocusTo}
+        />
+      )}
+      {dialog?.kind === "terminalMove" && (
+        <TerminalMoveDialog
+          open
+          onOpenChange={closeDialog}
+          target={dialog.target}
+          onConfirm={dialog.move}
+          copyTextUnknown={dialog.application.hasPreservedAdText === undefined}
           returnFocusTo={dialog.returnFocusTo}
         />
       )}

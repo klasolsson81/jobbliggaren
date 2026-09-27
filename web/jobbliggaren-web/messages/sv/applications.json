@@ -188,7 +188,8 @@
       "clear": "Rensa urval",
       "barAriaLabel": "Massåtgärder för markerade ansökningar",
       "confirmTitle": "{count, plural, one {Markera # ansökan} other {Markera # ansökningar}} som {status}?",
-      "confirmBody": "{count, plural, one {En ansökan avslutas} other {# ansökningar avslutas}}. Du kan ångra direkt efteråt, men inte senare utan manuell åtgärd.",
+      "confirmBody": "{withText, plural, one {Annonstexten och eventuella kontaktuppgifter i en sparad kopia raderas} other {Annonstexterna och eventuella kontaktuppgifter i # sparade kopior raderas}} och kommer inte tillbaka om du ångrar.",
+      "confirmBodyFallback": "Har ansökningarna sparade kopior av annonserna raderas deras text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
       "confirmCta": "Markera {status}",
       "confirming": "Markerar…"
     },
@@ -290,6 +291,7 @@
     "terminalMove": {
       "title": "Markera som {status}?",
       "body": "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      "bodyFallback": "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
       "confirm": "Markera som {status}"
     },
     "actions": {

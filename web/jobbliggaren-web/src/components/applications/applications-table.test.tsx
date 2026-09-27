@@ -379,3 +379,51 @@ describe("ApplicationsTable — tomt + varningsfärgning", () => {
     expect(stepOf("Neutral")).not.toHaveAttribute("data-waiting");
   });
 });
+
+// #1827 item 10: "Markera Nekad" states what it deletes, counted off the selected rows'
+// hasPreservedAdText; the title and the button stay.
+describe("ApplicationsTable — bulk 'Markera Nekad' states what it deletes (#1827)", () => {
+  function rowsWith(...flags: (boolean | undefined)[]): ApplicationDto[] {
+    return fiveRows()
+      .slice(0, flags.length)
+      .map((row, i) => ({ ...row, hasPreservedAdText: flags[i] }));
+  }
+
+  async function openBulkReject(rows: ApplicationDto[]) {
+    const user = userEvent.setup();
+    renderTable(rows);
+    await user.click(screen.getByRole("checkbox", { name: "Markera alla på sidan" }));
+    await user.click(screen.getByRole("button", { name: "Markera Nekad" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("counts the copies with text: one", async () => {
+    const dialog = await openBulkReject(rowsWith(true, false));
+    expect(dialog).toHaveAccessibleName("Markera 2 ansökningar som Nekad?");
+    expect(dialog).toHaveAccessibleDescription(
+      "Annonstexten och eventuella kontaktuppgifter i en sparad kopia raderas och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("counts the copies with text: several", async () => {
+    const dialog = await openBulkReject(rowsWith(true, true, false));
+    expect(dialog).toHaveAccessibleDescription(
+      "Annonstexterna och eventuella kontaktuppgifter i 2 sparade kopior raderas och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("any missing flag (deploy skew) gives the fallback body", async () => {
+    const dialog = await openBulkReject(rowsWith(true, undefined));
+    expect(dialog).toHaveAccessibleDescription(
+      "Har ansökningarna sparade kopior av annonserna raderas deras text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("no copy with text and no flag missing: the dialog has no description", async () => {
+    const dialog = await openBulkReject(rowsWith(false, false));
+
+    expect(dialog).toHaveAccessibleName("Markera 2 ansökningar som Nekad?");
+    expect(dialog).not.toHaveAttribute("aria-describedby");
+    expect(dialog.querySelector("[data-slot='dialog-description']")).toBeNull();
+  });
+});

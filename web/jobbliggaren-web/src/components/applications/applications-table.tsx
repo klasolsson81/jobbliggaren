@@ -174,6 +174,16 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
   };
 
   const rejectedLabel = applicationStatusLabel(t, "Rejected");
+  // What "Markera Nekad" deletes, read off the rows' `hasPreservedAdText` alone: one
+  // missing flag (deploy skew) makes the count unknown, and with no copy holding text
+  // the dialog has nothing to say beyond its title (DESIGN.md §8 rule 2).
+  const selectedFlags = selectedRows.map((row) => row.hasPreservedAdText);
+  const withText = selectedFlags.filter((flag) => flag === true).length;
+  const confirmBody = selectedFlags.some((flag) => flag === undefined)
+    ? tUi("bulk.confirmBodyFallback")
+    : withText > 0
+      ? tUi("bulk.confirmBody", { withText })
+      : null;
 
   return (
     <div className="jp-apptable-wrap">
@@ -301,9 +311,9 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
                 status: rejectedLabel,
               })}
             </DialogTitle>
-            <DialogDescription>
-              {tUi("bulk.confirmBody", { count: selectedRows.length })}
-            </DialogDescription>
+            {confirmBody != null && (
+              <DialogDescription>{confirmBody}</DialogDescription>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button

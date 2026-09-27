@@ -62,7 +62,7 @@ export function StatusMenu({
       <DropdownMenuItem
         key={status}
         disabled={current || pending}
-        onSelect={() => transition(application, status)}
+        onSelect={() => transition(application, status, triggerRef.current)}
       >
         <span
           className="jp-statusmenu__dot"

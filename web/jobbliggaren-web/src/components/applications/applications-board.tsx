@@ -15,7 +15,10 @@ import {
 } from "@/lib/applications/board-model";
 import { transitionStatusAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
-import { applicationDisplayName } from "./application-actions";
+import {
+  applicationDisplayName,
+  useApplicationActions,
+} from "./application-actions";
 import { ApplicationBoardCard } from "./application-board-card";
 import type {
   ApplicationDto,
@@ -41,7 +44,9 @@ interface ApplicationsBoardProps {
  *
  * Optimistisk flytt (Klas-bekräftad, ADR 0092 Livscykel-amendment 2026-07-06):
  * boardet äger en board-scoped `useOptimistic` som flyttar kortet till
- * målkolumnen OMEDELBART vid släpp; servern förblir SSOT — den SAMMA auditerade
+ * målkolumnen OMEDELBART vid släpp. A drop that may delete the saved copy's text
+ * goes through the provider's `confirmMove` first, so that move starts only after
+ * the confirmation (#1827). Servern förblir SSOT — den SAMMA auditerade
  * `transitionStatusAction` persistar och `revalidatePath` rekoncilierar (nya
  * `groups` → `base` re-deriveras → overlay:en kastas). Vid fel avancerar servern
  * aldrig → overlay:en auto-återgår + error-toasten (samma toast-store som Lista).
@@ -68,6 +73,7 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
 
   const [buckets, addMove] = useOptimistic(base, applyBoardMove);
   const [, startTransition] = useTransition();
+  const { confirmMove } = useApplicationActions();
 
   // Board-lokal DnD-UI-state (ingen optimism): vilket kort dras, vilken kolumn
   // pekaren är över.
@@ -83,7 +89,6 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
   };
 
   const moveCard = (application: ApplicationDto, target: ApplicationStatus) => {
-    if (application.status === target) return; // samma kolumn = no-op (transition-vaktens paritet)
     startTransition(async () => {
       addMove({ id: application.id, to: target });
       const result = await transitionStatusAction(application.id, target);
@@ -120,7 +125,9 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
       setDragId(null);
       if (!id) return;
       const application = findApp(id);
-      if (application != null) moveCard(application, status);
+      // Samma kolumn = no-op (transition-vaktens paritet).
+      if (application == null || application.status === status) return;
+      confirmMove(application, status, () => moveCard(application, status));
     },
   });
 

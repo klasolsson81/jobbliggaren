@@ -287,3 +287,110 @@ describe("ApplicationsBoard — drag & drop (statusbyte)", () => {
     );
   });
 });
+
+// #1827 item 10: a drop on Accepterad, Nekad or Återtagen deletes the saved copy's text,
+// which undo does not bring back, so it asks first whenever the copy may have text.
+describe("ApplicationsBoard — drops on the terminal zones (#1827)", () => {
+  function groupsWith(flag: boolean | undefined): PipelineGroupDto[] {
+    return makeGroups({ Submitted: 1 }).map((group) => ({
+      ...group,
+      applications: group.applications.map((a) => ({
+        ...a,
+        hasPreservedAdText: flag,
+      })),
+    }));
+  }
+
+  function dropOn(zone: string) {
+    const card = within(screen.getByRole("group", { name: "Skickad" })).getByRole(
+      "article",
+    );
+    const dt = dataTransferFor("Submitted-0");
+    fireEvent.dragStart(card, { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole("group", { name: zone }), { dataTransfer: dt });
+  }
+
+  // `hidden`: while the dialog is open, Radix hides the rest of the page from the
+  // accessibility tree.
+  const cardsIn = (name: string) =>
+    within(screen.getByRole("group", { name, hidden: true })).queryAllByRole(
+      "article",
+      { hidden: true },
+    );
+
+  it.each([
+    ["Accepterad", "Accepted"],
+    ["Nekad", "Rejected"],
+    ["Återtagen", "Withdrawn"],
+  ] as const)(
+    "a drop on %s moves the card only once the confirmation is given",
+    async (zone, target) => {
+      // Never settles, so the optimistic move stays visible once it has started.
+      vi.mocked(transitionStatusAction).mockReturnValueOnce(new Promise(() => {}));
+      renderBoard(groupsWith(true));
+      dropOn(zone);
+
+      const dialog = await screen.findByRole("dialog", {
+        name: `Markera som ${zone}?`,
+      });
+      expect(dialog).toHaveAccessibleDescription(
+        "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      );
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+      expect(cardsIn("Skickad")).toHaveLength(1);
+      expect(cardsIn(zone)).toHaveLength(0);
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: `Markera som ${zone}` }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", target),
+      );
+      expect(cardsIn(zone)).toHaveLength(1);
+      expect(cardsIn("Skickad")).toHaveLength(0);
+    },
+  );
+
+  it("Avbryt moves nothing", async () => {
+    renderBoard(groupsWith(true));
+    dropOn("Nekad");
+
+    const dialog = await screen.findByRole("dialog", { name: "Markera som Nekad?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+    expect(cardsIn("Skickad")).toHaveLength(1);
+    expect(cardsIn("Nekad")).toHaveLength(0);
+  });
+
+  it("a missing flag (deploy skew) asks with the fallback body", async () => {
+    renderBoard(groupsWith(undefined));
+    dropOn("Nekad");
+
+    expect(
+      await screen.findByRole("dialog", { name: "Markera som Nekad?" }),
+    ).toHaveAccessibleDescription(
+      "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("a copy without text moves at once", () => {
+    renderBoard(groupsWith(false));
+    dropOn("Nekad");
+
+    expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", "Rejected");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("a drop on Inget svar never asks: Ghosted keeps the copy", () => {
+    renderBoard(groupsWith(true));
+    dropOn("Inget svar");
+
+    expect(transitionStatusAction).toHaveBeenCalledWith("Submitted-0", "Ghosted");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});

@@ -22,11 +22,11 @@ const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
 // The load-cycle region, located STRUCTURALLY rather than by counting. A hydrated `/jobb` carries
 // four polite regions, not two: this one, the hero search's tag announcement
-// (`jobb-hero-search.tsx:668`), the typeahead's suggestion count (`job-ad-typeahead.tsx:287`,
-// mounted behind `hydrated`) and the shell's header stats (`header-stats.tsx:219`, a `<span>`).
+// (`jobb-hero-search.tsx`), the typeahead's suggestion count (`job-ad-typeahead.tsx`)
+// and the shell's header stats (`header-stats.tsx:219`, a `<span>`).
 // An earlier version of this file asserted `toHaveCount(1)` on the non-atomic selector and PASSED
-// in CI — by racing hydration and measuring the pre-hydration DOM, where the typeahead is not yet
-// mounted. A green test measuring the wrong state, on a `continue-on-error` lane. Three reviewers
+// in CI — by racing hydration and measuring the pre-hydration DOM.
+// A green test measuring the wrong state, on a `continue-on-error` lane. Three reviewers
 // found it independently.
 //
 // The scoping below cannot race: `section[aria-labelledby="jobb-results-title"]` is server-rendered

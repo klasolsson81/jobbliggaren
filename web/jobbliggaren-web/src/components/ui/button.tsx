@@ -4,8 +4,10 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+// Touch floor (DESIGN.md §5): at ≤768 px every size step is at least 44 px tall, and every icon step
+// at least 44 px wide.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-body leading-6 font-medium whitespace-nowrap transition-colors duration-75 outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-body leading-6 font-medium whitespace-nowrap transition-colors duration-75 outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [@media(max-width:768px)]:min-h-11",
   {
     variants: {
       variant: {
@@ -34,6 +36,12 @@ const buttonVariants = cva(
         "icon-lg": "size-11",
       },
     },
+    compoundVariants: [
+      {
+        size: ["icon", "icon-xs", "icon-sm", "icon-lg"],
+        class: "[@media(max-width:768px)]:min-w-11",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

@@ -414,8 +414,7 @@ PR, which amends this record for them.
 - Row 14: the notification mails' settings link is `{BaseUrl}/mina-sidor/notiser` in both templates
   (`EmailTemplates.MatchNotification`, `EmailTemplates.FollowedCompanyNotification`) and in both parts,
   text and HTML. The "Du får detta för att …" paragraphs are unchanged. The template tests pin the new
-  link exactly in both parts. Mails sent before #1891 keep `/mina-sidor`, which stays a page, and
-  `NotificationMailLinksLandOnServedRoutesTests` holds every path a sent mail has carried.
+  link exactly in both parts.
 - Row 19 (new): `settings.privacy.contactRoute`, sv "Vill du ha en kopia av dina data kan du mejla
   <mail>kontakt@jobbliggaren.se</mail>.", en "If you want a copy of your data, email
   <mail>kontakt@jobbliggaren.se</mail>.", visible at the export button without a click while the

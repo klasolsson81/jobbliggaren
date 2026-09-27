@@ -3,15 +3,15 @@
 **Date:** 2026-09-27
 **Status:** Accepted
 **Deciders:** Klas Olsson (the three directive answers below, 2026-09-27, via `AskUserQuestion`) ·
-`senior-cto-advisor` (D1–D5, `docs/reviews/2026-09-27-1891-form-cto.md`) · `security-auditor`
+`senior-cto-advisor` (`docs/reviews/2026-09-27-1891-form-cto.md`) · `security-auditor`
 (the row 7/8/14 signatures and the new row-19 export-contact line, `docs/reviews/2026-09-27-1891-form-security.md`) ·
 `design-reviewer` (the shell and menu form, one Blocker and four Majors,
 `docs/reviews/2026-09-27-1891-form-design.md`)
 **Related:** [#1891](https://github.com/klasolsson81/jobbliggaren/issues/1891) ·
 [PR #1896](https://github.com/klasolsson81/jobbliggaren/pull/1896) (PR 1 of #1891, merged) ·
 #1903, #1908, #1911 (merged between PR 1 and PR 2; D3) · ADR 0054 (header-menu shell boundary —
-unchanged by this ADR) · ADR 0057 (Decision 2 superseded here; Decision 1 already superseded by
-ADR 0142; Decisions 3–6 continue) · ADR 0142 (Amendment
+unchanged by this ADR) · ADR 0057 (Decision 2 superseded in part here; Decision 1 already
+superseded by ADR 0142) · ADR 0142 (Amendment
 (5) — the two-column page this ADR replaces; Amendment (6) — the pointer-style precedent for how
 that correction is recorded) · ADR 0144 (Decision 4 rows 7, 8, 14, and the new row 19) · ADR 0047
 (design-reviewer's flow-comprehension mandate) · ADR 0053 (the `@modal` intercepting-route
@@ -37,7 +37,7 @@ ADR 0142's passwordless-auth epic retired that page. Its Amendment (5) (#1740, p
 2026-09-22) replaced `/installningar` with `/mina-sidor` — rebuilt as a V3-native page, but still
 one page, in two columns: column 1 held Matchning, Matchningsnotiser and Notiser om företag du
 följer; column 2 held Visning, Byt e-postadress, Sekretess och data and Logga ut.
-`SettingsForm` carried over as column 2's shared orchestrator. `/installningar` and `/mig` became
+`/installningar` and `/mig` became
 permanent 308s to `/mina-sidor`, because the Art. 7(3) withdrawal link in every notification mail
 already sent pointed at one of them and no measurement can show that no inbox still holds one
 (security-auditor, at Amendment (5)).
@@ -86,7 +86,7 @@ beside the section's own content, inside `.jp-settings-layout`.
 
 The menu itself is content-width furniture, not shell chrome: a 232px column under the pagehero,
 scoped to these four routes only, never the product's own destinations (those stay in the header,
-ADR 0054). The current item is marked by ink-1 weight, semibold and a 3px left bar, with no
+ADR 0054). The current item is marked by ink-1, semibold and a 3px left bar, with no
 background fill (a filled current-item row is the app-sidebar's own idiom, and is exactly what the
 furniture/shell boundary below has to keep out). Section content itself is capped at 688px
 (`.jp-settings-section`), so a switch never sits ~600px from its label. At ≤900px the menu
@@ -94,7 +94,7 @@ collapses into one wrapping row, the same form `.jp-subnav` already uses at the 
 and Logga ut — which is otherwise part of the menu, under a hairline — drops out of it entirely,
 since the header's user menu already carries Logga ut at every width.
 
-Each section is a real, bookmarkable, shareable URL. `proxy.ts`'s `safeRedirectPath` carries a
+Each section is a real, bookmarkable, shareable URL. `safeRedirectPath` carries a
 `next=` through a login redirect to any of the four unchanged, while a crafted
 `//evil.example/mina-sidor` is rewritten to `/oversikt` (security-auditor, measured against
 `safe-redirect.ts` directly, 2026-09-27) — a guarantee neither a query parameter nor a hash
@@ -117,25 +117,24 @@ rule, on the same ground.
 
 The menu (`.jp-settingsnav`) is furniture inside this one route family, the way the CV guide's
 step rail (`.jp-guide__rail`) is furniture inside its own family — not the shell sidebar ADR 0054
-Decision 3 forbids. ADR 0054 governs where the product's *own* destinations live (the header); it
-says nothing about a single page's own sections, and this ADR does not amend it. DESIGN.md §5 and
+Decision 3 forbids. ADR 0054 governs where the product's *own* destinations live (the header); this
+ADR does not amend it. DESIGN.md §5 and
 §6 now say so explicitly (delivered on this branch): §5 points from "ingen sidebar (ADR 0054)" to
 §6's own boundary line, and §6 names `.jp-settingsnav` as page furniture, citing this ADR by
 number, so the next reviewer meets the boundary in the design system itself rather than having to
 infer it from a 232px column.
 
-`/mina-sidor` stays a page forever, and `/mina-sidor/notiser` becomes a second permanent mail
+`/mina-sidor` stays a page, and `/mina-sidor/notiser` becomes a second permanent mail
 target: renaming either needs a fresh 308 with no removal condition, the same rule Amendment (5)
 already applied to `/installningar` and `/mig` — a mail already sent cannot be recalled, and no
 measurement can show that no inbox still holds one. `NotificationMailLinksLandOnServedRoutesTests`
 is the register: its `PathsSentMailsCarry` theory already names both `/mina-sidor` and
-`/mina-sidor/notiser`, and grows by one entry the day either link moves again.
+`/mina-sidor/notiser`.
 
-ADR 0057's Decision 2 — one `SettingsForm` orchestrating every card — is superseded here: this PR
-deletes `SettingsForm` along with the two-column page it orchestrated. Decision 1 (already
-superseded by ADR 0142) stays superseded; Decisions 3–6 — direct-apply on every change, the shared
-`Segment`/`ToggleRow` primitives, no stubbed fields — are untouched and continue: every section
-here still applies changes directly, through the same primitives, one action per control.
+ADR 0057's Decision 2 is superseded in part — its one `SettingsForm` orchestrating every card: this
+PR deletes `SettingsForm` along with the two-column page it orchestrated. Decision 1 (already
+superseded by ADR 0142) stays superseded. Every section here still applies changes directly,
+through the same primitives, one action per control.
 
 Klas's second answer below — keep the data-export button, marked "Kommer snart" rather than
 hidden — is recorded here in full, because ADR 0057 Decision 3 and its rejected Alternative C
@@ -214,7 +213,7 @@ the menu.
 ### Alt A — Four static routes, no `layout.tsx` — selected
 
 Per D1. **For:** a section survives a login redirect through `next=`; matches the established
-`/foretag`/`cv/(hub)` route-group pattern, so all six existing fitness functions apply unmodified
+`/foretag`/`cv/(hub)` route-group pattern, so all existing fitness functions apply unmodified
 and no guard needs rewriting; one page fetches only what its own section needs (Matchning reads
 the profile, taxonomy and skills; Sekretess reads only the session); a real, unique document title
 per section (WCAG 2.4.2); #1740's S1 finding (a live change-email challenge surviving where it
@@ -229,7 +228,7 @@ it.
 
 RFC 3986 §3.3–3.4: the sections are hierarchical children of Mina sidor and belong in the path, not
 the query string. A query parameter survives the login redirect only by breaching a
-security-pinned invariant of `next` (`proxy.test.ts:387-400`'s personnummer scrubbing); a bare
+security-pinned invariant of `next` (`proxy.test.ts:387-400`); a bare
 `#hash` never reaches the server at all and is lost across the same redirect. The mailed Art. 7(3)
 withdrawal link is exactly this kind of deep link from a logged-out inbox, so it is the case Alt B
 would fail first.
@@ -261,10 +260,9 @@ gain over four literal folders.
 - Every section is a real, bookmarkable, shareable, deep-linkable URL that survives a login
   redirect — the guarantee ADR 0142's own withdrawal-link argument already assumed a settings
   surface would have.
-- No new guard code: the route shape matches `/foretag` and `cv/(hub)`, so the six existing fitness
+- The route shape matches `/foretag` and `cv/(hub)`, so the existing fitness
   functions (including `v3-native-routes.test.ts`) apply unchanged.
-- A live change-email challenge cannot leak across sections (#1740 S1), by construction, not by a
-  manual unmount effect that a future edit could remove.
+- A live change-email challenge cannot leak across sections (#1740 S1), by construction.
 - The menu/shell boundary is written down in DESIGN.md §6, naming this ADR, rather than left for
   the next reviewer to infer from a 232px column that could otherwise be misread as ADR 0037's
   shell sidebar returning.
@@ -281,8 +279,7 @@ gain over four literal folders.
 ### Negative
 
 - `/mina-sidor` and `/mina-sidor/notiser` are now permanent URLs with no removal condition — the
-  same standing maintenance obligation `/installningar` and `/mig` already carry as 308 targets,
-  one link deeper (a served page rather than a redirect).
+  same standing maintenance obligation `/installningar` and `/mig` already carry.
 - A section switch drops focus to the document body, and a change-email challenge in flight is
   dropped on leaving Konto, costing a fresh mail if the user returns to finish it. Accepted per
   Alt A's trade-off; no mitigation is planned.
@@ -315,9 +312,8 @@ gain over four literal folders.
   expired-but-not-yet-cleared session cookie — not introduced by #1891, filed as #1893).
 - `design-reviewer`'s form-round verdict: 1 Blocker (the Notiser switches' hit area, addressed in
   PR 1) and 4 Majors (Logga ut hidden at ≤900px, section content capped at 688px, the
-  `matchningar.emptyBody` copy fix, and the DESIGN.md §6 pointer this ADR's D2 describes), each
-  addressed in PR 2. Of its five Minors, `ToggleRow`'s description colour is #1894; PR 2 addresses
-  the other four.
+  `matchningar.emptyBody` copy fix, and the DESIGN.md §6 pointer this ADR's D2 describes). Of its
+  five Minors, `ToggleRow`'s description colour is #1894; PR 2 addresses the other four.
 
 ## References
 
@@ -326,8 +322,8 @@ gain over four literal folders.
 - `docs/reviews/2026-09-27-1891-form-cto.md`, `-security.md`, `-design.md`
 - ADR 0047, 0053, 0054, 0057, 0142, 0144
 - Martin, *Clean Architecture* (2017), ch. 7 and 13; *Clean Code* (2008), ch. 2
-- Fowler, *Refactoring*, 2nd ed. (2018), ch. 3, 4 and 8
+- Fowler, *Refactoring*, 2nd ed. (2018), ch. 4
 - Winters, Manshreck & Wright, *Software Engineering at Google* (2020), ch. 9
 - RFC 3986 §3.3–3.4
-- GDPR Art. 4(11), 7(1)–(3), 12(2), 15, 20; EDPB Guidelines 05/2020 v1.1 p. 114
+- GDPR Art. 7(3), 12(2), 15, 20
 - WCAG 2.4.2

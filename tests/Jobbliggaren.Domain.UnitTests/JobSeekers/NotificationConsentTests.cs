@@ -54,6 +54,32 @@ public class NotificationConsentTests
         NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBeFalse();
     }
 
+    [Fact]
+    public void BackgroundMatch_WithdrawnWhileFollowedCompanyStaysGranted_OnlyFollowedCompanyIsSatisfied()
+    {
+        var seeker = NewSeeker();
+        seeker.UpdateNotificationConsent(enabled: true, Later(1));
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, Later(1));
+
+        seeker.UpdateNotificationConsent(enabled: false, Later(2));
+
+        NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBeFalse();
+        NotificationConsent.FollowedCompany.IsSatisfiedBy(seeker).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void FollowedCompany_WithdrawnWhileBackgroundMatchStaysGranted_OnlyBackgroundMatchIsSatisfied()
+    {
+        var seeker = NewSeeker();
+        seeker.UpdateNotificationConsent(enabled: true, Later(1));
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, Later(1));
+
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: false, Later(2));
+
+        NotificationConsent.FollowedCompany.IsSatisfiedBy(seeker).ShouldBeFalse();
+        NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBeTrue();
+    }
+
     // Whether the account still exists is the JobSeeker query filter's to decide, not the consent's.
     [Fact]
     public void BothSpecifications_OnASoftDeletedAccount_KeepTheConsentItHad()

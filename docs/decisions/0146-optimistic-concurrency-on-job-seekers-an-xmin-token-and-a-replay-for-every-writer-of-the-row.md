@@ -197,8 +197,8 @@ expression. Every decision site reads through one of the two: the three due sets
 (`DigestDispatchJob.cs:95`, `:144`; `BackgroundMatchingJob.cs:86`) and the scan's per-attempt check
 (`BackgroundMatchingJob.cs:172`, D5) — so no two of them can drift apart (GDPR Art. 5(1)(d)).
 `DigestDispatchJob` also reads the pass's consent again, through `ConsentStillGrantedAsync`
-(`:329-334` — an `EXISTS` through the `JobSeeker` query filter, so a soft-deleted account holds no
-consent and nothing is tracked), before it claims a user's rows (match pass `:252`, follow pass
+(`:329-334` — an `EXISTS` through the `JobSeeker` query filter, so a soft-deleted account reads as not
+consenting and nothing is tracked), before it claims a user's rows (match pass `:252`, follow pass
 `:531`), and, in the follow pass, again before it builds the CV-derived profile for an `OnlyMatched`
 watch (`:426`, before `BuildFullForUserIdAsync` at `:429`). A consent that has ended by either read
 claims nothing, sends nothing and logs nothing; the rows stay Pending. F6 required deleting, not
@@ -213,7 +213,7 @@ and not a CLAUDE.md §9.6 (3) accepted-risk ADR.
 **F8.** E8's second sentence lapses when this PR merges with U1–U4 green in CI; R1 and the F6
 deletions above replace it.
 
-**The tracker clear.** D5's remedy — clearing the tracker through D4's `ClearTracking()` — also
+**The tracker clear.** D5's remedy — clearing the tracker — also
 applies to `DigestDispatchJob`: one `IAppDbContext` serves the whole run, so each pass's per-user loop
 clears it in a `finally` (`:119-124` match pass, `:166-170` follow pass). Before this, a
 claim whose `SaveChangesAsync` threw left that user's rows Modified in the shared context, and the

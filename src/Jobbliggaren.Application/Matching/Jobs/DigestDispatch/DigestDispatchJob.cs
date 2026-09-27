@@ -324,8 +324,8 @@ public sealed partial class DigestDispatchJob(
             match.MarkSent(clock);
     }
 
-    // An EXISTS through the JobSeeker query filter: a soft-deleted account holds no consent, and
-    // nothing is tracked.
+    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as not consenting,
+    // and nothing is tracked.
     private Task<bool> ConsentStillGrantedAsync(
         Specification<JobSeeker> consent, Guid userId, CancellationToken ct) =>
         db.JobSeekers
@@ -638,7 +638,7 @@ public sealed partial class DigestDispatchJob(
     private static partial void LogDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "DigestDispatchJob: digest failed for user {UserId} — isolated, will retry next run")]
+        Message = "DigestDispatchJob: digest failed for user {UserId} — isolated")]
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,
@@ -675,7 +675,7 @@ public sealed partial class DigestDispatchJob(
     private static partial void LogFollowDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "DigestDispatchJob (follow): digest failed for user {UserId} — isolated, will retry next run")]
+        Message = "DigestDispatchJob (follow): digest failed for user {UserId} — isolated")]
     private static partial void LogFollowUserFailed(ILogger logger, Exception ex, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,

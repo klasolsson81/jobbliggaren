@@ -157,7 +157,6 @@ $fn$ LANGUAGE plpgsql;";
         await db.Database.ExecuteSqlRawAsync(createTrigger, ct);
     }
 
-    // No CancellationToken: a leaked trigger would fail later tests in the shared collection.
     private async Task DropPoisonTriggerAsync(string table)
     {
         using var scope = _fixture.Services.CreateScope();

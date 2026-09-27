@@ -27,12 +27,10 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 /// Postgres. The due set is read once at the start of a pass, so a consent that ends after it must
 /// still stop that user: no claim, no email, the rows left Pending.
 /// <para>
-/// Two seekers share each test, and the consent of whichever is reached second is ended while the
-/// first is dispatched, so the order of the due set does not matter. The consent is ended by the
-/// aggregate's own methods in a context of their own: a withdrawal, or the soft delete that
-/// <c>DeleteAccountCommandHandler</c> performs. A soft-deleted account keeps its Identity user
-/// until the hard delete, so the address still resolves and only the JobSeeker query filter can
-/// stop the send.
+/// The consent is ended by the aggregate's own methods in a context of their own: a withdrawal, or
+/// the soft delete that <c>DeleteAccountCommandHandler</c> performs. A soft-deleted account keeps its
+/// Identity user until the hard delete, so the address still resolves and only the JobSeeker query
+/// filter can stop the send.
 /// </para>
 /// </summary>
 [Collection("Worker")]
@@ -179,6 +177,37 @@ public class DigestDispatchJobConsentRecheckTests(WorkerTestFixture fixture)
         await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
             other.Email, Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>());
         (await HitStatusAsync(other == a ? hitA : hitB, ct)).ShouldBe(FollowedCompanyAdHitStatus.Pending);
+    }
+
+    [Fact]
+    public async Task RunAsync_FollowPass_WhenConsentIsWithdrawnDuringTheProfileBuild_ThatUserIsNeitherClaimedNorEmailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(matchConsent: false, followConsent: true, ct);
+        var hit = await SeedFollowHitAsync(seeker.UserId, onlyMatched: true, ct);
+
+        RecordingProfileBuilder? profileBuilder = null;
+        var emailSender = Substitute.For<IEmailSender>();
+
+        await RunJobAsync(
+            emailSender,
+            real => profileBuilder = new RecordingProfileBuilder(real, userId =>
+            {
+                if (userId == seeker.UserId)
+                {
+                    EndConsent(userId, ConsentEnd.Withdrawal, s =>
+                        s.UpdateFollowedCompanyNotificationConsent(enabled: false, new FixedClock(Now)));
+                }
+            }),
+            ct);
+
+        profileBuilder.ShouldNotBeNull();
+        profileBuilder.BuiltFor.ShouldContain(seeker.UserId);
+        await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
+            seeker.Email, Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>());
+        (await HitStatusAsync(hit, ct)).ShouldBe(FollowedCompanyAdHitStatus.Pending);
+        (await ReadSeekerIgnoringTheQueryFilterAsync(seeker.UserId, ct))
+            .Preferences.FollowedCompanyNotificationConsentWithdrawnAt.ShouldNotBeNull();
     }
 
     // ─────────────────────────── SUT ───────────────────────────

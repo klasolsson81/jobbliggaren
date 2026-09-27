@@ -42,7 +42,7 @@ describe("DeleteApplicationButton (#782 — detalj-footer)", () => {
   it("navigerar INTE vid misslyckad radering", async () => {
     deleteApplicationActionMock.mockResolvedValue({
       success: false,
-      error: "Det gick inte att ta bort ansökan.",
+      error: "Det gick inte att radera ansökan. Försök igen.",
     });
     const user = userEvent.setup();
     render(<DeleteApplicationButton applicationId="app-1" />);

@@ -36,7 +36,7 @@ describe("toast-store (#630 PR 7, design §10)", () => {
     });
     const second = showApplicationToast({
       kind: "error",
-      message: "Statusbytet misslyckades.",
+      message: "Statusbytet misslyckades. Försök igen.",
     });
     expect(second).toBeGreaterThan(first);
     expect(getApplicationToastSnapshot()).toMatchObject({ kind: "error" });

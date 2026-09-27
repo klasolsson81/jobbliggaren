@@ -398,7 +398,7 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
   it("misslyckad transition publicerar fel-toast, ingen ångra-toast", async () => {
     transitionStatusAction.mockResolvedValueOnce({
       success: false as const,
-      error: "Statusbytet misslyckades.",
+      error: "Statusbytet misslyckades. Försök igen.",
     } as never);
     renderRow(makeApplication());
     fireEvent.click(
@@ -407,7 +407,7 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     await waitFor(() =>
       expect(getApplicationToastSnapshot()).toMatchObject({
         kind: "error",
-        message: "Statusbytet misslyckades.",
+        message: "Statusbytet misslyckades. Försök igen.",
       })
     );
   });

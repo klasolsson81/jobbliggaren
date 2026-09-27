@@ -39,7 +39,7 @@
       "channelLabel": "Kanal",
       "channelPlaceholder": "Välj kanal",
       "dateLabel": "Datum",
-      "noteLabel": "Anteckning (valfritt)",
+      "noteLabel": "Anteckning (valfri)",
       "submit": "Lägg till uppföljning"
     },
     "addNote": {
@@ -298,12 +298,12 @@
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "createFromJobAdFailed": "Kunde inte registrera ansökan.",
       "createApplicationFailed": "Kunde inte spara ansökan.",
-      "transitionFailed": "Statusbytet misslyckades.",
+      "transitionFailed": "Statusbytet misslyckades. Försök igen.",
       "addFollowUpFailed": "Kunde inte spara uppföljningen. Försök igen.",
       "logFollowUpFailed": "Kunde inte logga uppföljningen.",
       "addNoteFailed": "Kunde inte spara anteckningen. Försök igen.",
       "recordOutcomeFailed": "Kunde inte registrera utfallet.",
-      "deleteFailed": "Det gick inte att ta bort ansökan."
+      "deleteFailed": "Det gick inte att radera ansökan. Försök igen."
     },
     "adRemoved": {
       "tag": "Annonsen är borttagen"

@@ -79,7 +79,7 @@ describe("ApplicationToastHost — bulk-toast + grupp-ångra (#630 PR 10)", () =
   it("(c) misslyckad ångra → fel-toast ersätter (assertiv region)", async () => {
     batchTransitionAction.mockResolvedValueOnce({
       success: false,
-      error: "Statusbytet misslyckades.",
+      error: "Statusbytet misslyckades. Försök igen.",
     });
     render(<ApplicationToastHost />);
     showBatchToast();
@@ -90,7 +90,7 @@ describe("ApplicationToastHost — bulk-toast + grupp-ångra (#630 PR 10)", () =
       expect(getApplicationToastSnapshot()?.kind).toBe("error"),
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Statusbytet misslyckades.",
+      "Statusbytet misslyckades. Försök igen.",
     );
   });
 });

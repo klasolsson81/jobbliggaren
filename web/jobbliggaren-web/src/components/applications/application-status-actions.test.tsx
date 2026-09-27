@@ -177,7 +177,7 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
   it("fel visas inline i panelen (role=alert), ingen toast", async () => {
     transitionStatusAction.mockResolvedValueOnce({
       success: false as const,
-      error: "Statusbytet misslyckades.",
+      error: "Statusbytet misslyckades. Försök igen.",
     } as never);
     render(
       <ApplicationStatusActions
@@ -191,7 +191,7 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
       screen.getByRole("button", { name: "Flytta till Bekräftad" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Statusbytet misslyckades.",
+      "Statusbytet misslyckades. Försök igen.",
     );
     expect(getApplicationToastSnapshot()).toBeNull();
   });

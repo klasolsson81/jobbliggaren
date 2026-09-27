@@ -298,12 +298,12 @@
       "serverUnreachable": "Could not reach the server. Try again.",
       "createFromJobAdFailed": "Could not register the application.",
       "createApplicationFailed": "Could not save the application.",
-      "transitionFailed": "The status change failed.",
+      "transitionFailed": "The status change failed. Try again.",
       "addFollowUpFailed": "Could not save the follow-up. Try again.",
       "logFollowUpFailed": "Could not log the follow-up.",
       "addNoteFailed": "Could not save the note. Try again.",
       "recordOutcomeFailed": "Could not record the outcome.",
-      "deleteFailed": "The application could not be deleted."
+      "deleteFailed": "The application could not be deleted. Try again."
     },
     "adRemoved": {
       "tag": "The ad has been removed"

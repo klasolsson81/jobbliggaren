@@ -86,7 +86,7 @@ vi.mock("@/components/ui/select", () => ({
 }));
 
 const SUBMIT = "Lägg till uppföljning";
-const NOTE = "Anteckning (valfritt)";
+const NOTE = "Anteckning (valfri)";
 
 describe("AddFollowUpForm", () => {
   beforeEach(() => {
@@ -201,7 +201,7 @@ describe("AddFollowUpForm", () => {
     const alerts = await screen.findAllByRole("alert");
     expect(alerts.map((a) => a.textContent)).toEqual([
       "Välj en kanal.",
-      "Anteckning får vara max 1 000 tecken.",
+      "Anteckningen får vara max 1 000 tecken.",
     ]);
     expect(addFollowUpActionMock).not.toHaveBeenCalled();
 
@@ -244,7 +244,7 @@ describe("AddFollowUpForm", () => {
     // The note was not corrected, so its refusal stands. Clearing is per field, not per form.
     expect(note).toHaveAttribute("aria-invalid", "true");
     expect(
-      screen.getByText("Anteckning får vara max 1 000 tecken."),
+      screen.getByText("Anteckningen får vara max 1 000 tecken."),
     ).toBeInTheDocument();
   });
 
@@ -267,7 +267,7 @@ describe("AddFollowUpForm", () => {
 
     expect(note).not.toHaveAttribute("aria-invalid");
     expect(
-      screen.queryByText("Anteckning får vara max 1 000 tecken.")
+      screen.queryByText("Anteckningen får vara max 1 000 tecken.")
     ).not.toBeInTheDocument();
     expect(note).not.toHaveAttribute("aria-describedby");
 

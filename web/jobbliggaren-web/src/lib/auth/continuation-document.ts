@@ -12,14 +12,13 @@
  * reflected, and the target is escaped for the attribute it is written into.
  *
  * One constant style (DESIGN.md §11.6, #1746) paints the app's canvas and holds the content
- * invisible for two seconds, so a working refresh shows only the background; a browser that blocks
- * the refresh shows the link once the hold ends.
+ * invisible for two seconds; a browser that blocks the refresh shows the link once the hold ends.
  */
 
 /**
  * The document's only style. Each colour is the light value of the token DESIGN.md §11.6 names, and
  * the font is the system tail of `--jp-font-sans`. It fetches nothing and interpolates nothing. The
- * content is hidden only inside the animation, so a style that is refused leaves the page visible.
+ * content is hidden only inside the animation.
  */
 export const CONTINUATION_STYLE = [
   ':root{color-scheme:light;background:#F4F6FA;color:#0C1A2E;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}',

@@ -143,8 +143,7 @@ describe("ProviderButtons with Google and GitHub active", () => {
     }
   });
 
-  // Klas's note on the rows (#1746). jsdom lays nothing out, so the geometry is measured rendered (DoD 4); this
-  // pins that every active row is one shape and every inactive row another, with the mark before the text.
+  // Klas's note on the rows (#1746). jsdom lays nothing out, so the geometry is measured rendered (DoD 4).
   it("gives every active row one shape and every inactive row another, the mark before the text", () => {
     const { unmount } = render(<ProviderButtons active={["google", "github"]} />);
 

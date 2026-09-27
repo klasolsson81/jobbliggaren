@@ -85,7 +85,7 @@ describe("/logga-in", () => {
     const providers = screen.getByRole("heading", { level: 2, name: "Andra sätt att logga in" });
     expect(heading.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(field.compareDocumentPosition(providers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // #1746, Klas: "Helt onödig". The element after the h1 is the form, with nothing between.
+    // #1746, Klas: "Helt onödig".
     expect(heading.nextElementSibling).toBe(container.querySelector("form"));
     expect(screen.queryByText(/Du loggar in med en kod/)).not.toBeInTheDocument();
     // Fortsätt is the screen's only solid primary; the provider rows are outline.
@@ -142,7 +142,7 @@ describe("/logga-in", () => {
     beforeEach(() => mocks.getExternalLoginProviders.mockResolvedValue(["google"]));
 
     it("puts the providers first, then 'eller' and the address, with no persistence line and no lede", async () => {
-      render(await page());
+      const { container } = render(await page());
 
       const order = [
         screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" }),
@@ -151,6 +151,7 @@ describe("/logga-in", () => {
         screen.getByLabelText("E-postadress"),
       ];
       for (let i = 1; i < order.length; i++) expect(follows(order[i - 1]!, order[i]!)).toBe(true);
+      expect(screen.getByText("eller").parentElement?.nextElementSibling).toBe(container.querySelector("form"));
       // ADR 0142 Amendment (19): removed by Klas's decision; security-auditor's Major 4 stands.
       expect(screen.queryByText(/Du förblir inloggad/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Du loggar in med en kod/)).not.toBeInTheDocument();

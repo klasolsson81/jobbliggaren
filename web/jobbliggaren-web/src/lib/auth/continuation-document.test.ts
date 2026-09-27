@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildContinuationDocument, CONTINUATION_STYLE, escapeHtml } from "./continuation-document";
+import { safeRedirectPath } from "./safe-redirect";
 
 const DOC = {
   lang: "sv",
@@ -37,6 +38,22 @@ function normalise(css: string): string {
   }
   out += css.slice(at);
   return out.replace(/[ ]+/g, " ").toLowerCase();
+}
+
+/** The style's rules, one per line as the constant writes them: selector, then property to value. At-rules are skipped. */
+function rulesOf(css: string): Map<string, Map<string, string>> {
+  const rules = new Map<string, Map<string, string>>();
+  for (const line of css.split("\n")) {
+    const open = line.indexOf("{");
+    if (open < 0 || line.startsWith("@")) continue;
+    const declarations = new Map<string, string>();
+    for (const declaration of line.slice(open + 1, line.lastIndexOf("}")).split(";")) {
+      const colon = declaration.indexOf(":");
+      if (colon > 0) declarations.set(declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim());
+    }
+    rules.set(line.slice(0, open).trim(), declarations);
+  }
+  return rules;
 }
 
 describe("the continuation document", () => {
@@ -92,10 +109,11 @@ describe("the continuation document", () => {
     expect(doc.querySelector("main h1")?.textContent).toBe(DOC.heading);
   });
 
-  it("escapes the target for the attributes it is written into", () => {
+  it("keeps a target the redirect guard never produces inside the attributes it is written into", () => {
     const hostile = `/cv?a="><script>x</script>&b='`;
     const doc = parse(buildContinuationDocument({ ...DOC, target: hostile }));
 
+    expect(safeRedirectPath(hostile)).not.toMatch(/["<>]/);
     expect(doc.querySelectorAll("script")).toHaveLength(0);
     expect(doc.querySelector("a")?.getAttribute("href")).toBe(hostile);
     expect(doc.querySelector('meta[http-equiv="refresh"]')?.getAttribute("content")).toBe(`0;url=${hostile}`);
@@ -114,18 +132,16 @@ describe("the continuation document's style", () => {
     expect(index).toBeGreaterThan(1);
   });
 
-  it("writes the same style whatever the document is given, and no input can close it", () => {
+  it("writes the same style whatever the document is given", () => {
     const other = {
       lang: "en",
       title: "Log in with GitHub | Jobbliggaren",
       heading: "Log in with GitHub",
       continueLabel: "Continue",
-      target: "/oversikt?x=</style><script>alert(1)</script>",
+      target: "/oversikt",
     };
-    const hostileHtml = buildContinuationDocument(other);
 
-    expect(styleOf(hostileHtml)).toBe(styleOf(buildContinuationDocument(DOC)));
-    expect(parse(hostileHtml).querySelectorAll("script")).toHaveLength(0);
+    expect(styleOf(buildContinuationDocument(other))).toBe(styleOf(buildContinuationDocument(DOC)));
   });
 
   it("requests nothing through the style: no url, no image function, no import and no font face", () => {
@@ -141,17 +157,29 @@ describe("the continuation document's style", () => {
     expect(CONTINUATION_STYLE).not.toContain(String.fromCharCode(92));
   });
 
-  it("hides the content only inside the animation, so a refused style leaves the page visible", () => {
+  it("hides main, the body's only element, through one step-end animation and nothing else", () => {
+    const body = parse(buildContinuationDocument(DOC)).body;
     const css = normalise(CONTINUATION_STYLE);
     const keyframes = css.indexOf("@keyframes");
     expect(keyframes).toBeGreaterThanOrEqual(0);
     // The keyframes block is the only nested block in the constant: it ends at the first "}}" after it opens.
     const outside = css.slice(0, keyframes) + css.slice(css.indexOf("}}", keyframes) + 2);
 
+    expect([...body.children].map((element) => element.tagName)).toEqual(["MAIN"]);
     for (const hiding of ["visibility:hidden", "opacity:0", "display:none"]) {
       expect(outside.replace(/ /g, "")).not.toContain(hiding);
     }
-    expect(css).toContain("animation:jbl-hold 2s step-end");
+    expect(css).toContain("\n@keyframes jbl-hold{from,to{visibility:hidden}}\n");
+    expect(rulesOf(css).get("main")?.get("animation")).toBe("jbl-hold 2s step-end");
+    expect(css.match(/animation/g)).toHaveLength(1);
+  });
+
+  it("hides nothing outside the style: no hidden attribute and no style attribute", () => {
+    expect(parse(buildContinuationDocument(DOC)).querySelectorAll("[hidden], [style]")).toHaveLength(0);
+  });
+
+  it("keeps the hold under reduced motion: the style has no prefers-reduced-motion rule", () => {
+    expect(normalise(CONTINUATION_STYLE)).not.toContain("prefers-reduced-motion");
   });
 });
 
@@ -191,23 +219,37 @@ describe("the continuation document's style mirrors the design tokens", () => {
     return value;
   }
 
-  // One row per literal: the tokens it copies. A literal without a row fails, and so does a row without a literal.
-  const MIRROR: ReadonlyArray<readonly [string, readonly string[]]> = [
-    ["#f4f6fa", ["--jp-canvas", "--jp-surface-2"]],
-    ["#0c1a2e", ["--jp-ink-1"]],
-    ["#133f73", ["--jp-heading-1"]],
-    ["#15603f", ["--jp-accent-700"]],
+  // One row per colour declaration: its selector, its property, its literal and the tokens the literal copies.
+  const MIRROR: ReadonlyArray<readonly [string, string, string, readonly string[]]> = [
+    [":root", "background", "#f4f6fa", ["--jp-canvas", "--jp-surface-2"]],
+    [":root", "color", "#0c1a2e", ["--jp-ink-1"]],
+    ["h1", "color", "#133f73", ["--jp-heading-1"]],
+    ["a", "color", "#15603f", ["--jp-accent-700"]],
+    ["a:focus-visible", "outline", "#15603f", ["--jp-accent-700"]],
   ];
 
-  it("gives every colour literal a token row, and every row a literal", () => {
-    const literals = new Set(normalise(CONTINUATION_STYLE).match(/#[0-9a-f]{3,8}/g) ?? []);
+  it("writes each colour literal where its row says, and no literal anywhere else", () => {
+    const css = normalise(CONTINUATION_STYLE);
+    const rules = rulesOf(css);
 
-    expect([...literals].sort()).toEqual(MIRROR.map(([hex]) => hex).sort());
+    for (const [selector, property, hex] of MIRROR) expect(rules.get(selector)?.get(property)).toContain(hex);
+    expect(css.match(/#[0-9a-f]{3,8}/g)).toHaveLength(MIRROR.length);
   });
 
-  it.each(MIRROR)("copies %s from the light value of %j", (hex, names) => {
+  it("writes no colour through a function: the style calls none", () => {
+    expect(normalise(CONTINUATION_STYLE)).not.toContain("(");
+  });
+
+  it.each(MIRROR)("%s %s: %s is the light value of %j", (_selector, _property, hex, names) => {
     const tokens = lightTokens();
     for (const name of names) expect(resolved(tokens, name)).toBe(hex);
+  });
+
+  it("is light only while theme-provider.tsx keeps dark mode off", () => {
+    const provider = readFileSync(resolve(HERE, "../../components/theme-provider.tsx"), "utf-8");
+
+    expect(rulesOf(normalise(CONTINUATION_STYLE)).get(":root")?.get("color-scheme")).toBe("light");
+    expect(provider).toContain("const DARK_MODE_ENABLED: boolean = false;");
   });
 
   it("uses the system tail of --jp-font-sans, after the web font", () => {

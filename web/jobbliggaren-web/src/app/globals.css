@@ -3067,6 +3067,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-disclosure-row__date {
   flex-shrink: 0;
+  margin-left: auto;
 }
 .jp-disclosure-row__chevron {
   flex-shrink: 0;

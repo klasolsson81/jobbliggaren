@@ -89,7 +89,7 @@ describe("addNoteAction — every failure arm echoes the submitted note back", (
 
     expect(result).toEqual({
       success: false,
-      error: "Notering får vara max 5 000 tecken.",
+      error: "Anteckningen får vara max 5 000 tecken.",
       values: { content: tooLong },
     });
     expect(fetchMock).not.toHaveBeenCalled();

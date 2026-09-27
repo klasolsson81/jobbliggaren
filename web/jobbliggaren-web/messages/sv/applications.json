@@ -212,13 +212,14 @@
     },
     "attention": {
       "reason": {
-        "OfferAwaitingReply": "Erbjudande väntar på svar.",
-        "OverdueFollowUp": "Uppföljningen har passerat sin tid.",
-        "DraftDeadlineApproaching": "Utkastet stänger snart för ansökan.",
-        "GhostSuggested": "Inget svar på länge.",
-        "NoResponseNudge": "Dags att följa upp.",
-        "SilentAfterInterview": "Tyst efter intervjun."
-      }
+        "OfferAwaitingReply": "Erbjudande",
+        "OverdueFollowUp": "Uppföljning försenad",
+        "DraftDeadlineApproaching": "Sista ansökningsdag",
+        "GhostSuggested": "Väntar på svar",
+        "NoResponseNudge": "Väntar på svar",
+        "SilentAfterInterview": "Väntar på svar efter intervjun"
+      },
+      "days": "{days, plural, one {# dag} other {# dagar}}"
     },
     "followUps": {
       "sectionLabel": "Uppföljningar",

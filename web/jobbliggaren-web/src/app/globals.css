@@ -7064,7 +7064,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ══ Mina ansökningar 2a — Lista + delad chrome (#630 PR 5, ADR 0092) ═══════
-   "Kräver åtgärd"-kö (åtgärdskort-rutnät) + kontrollrad (sök + filterchip) +
+   "Kräver åtgärd"-kö (liggarrader) + kontrollrad (sök + filterchip) +
    stegrail "ALLA 10 STEG" + "Alla ansökningar"-Lista. Endast befintliga
    --jp-*-tokens (DESIGN.md §14 — inga nya hex/radier). Rad-chassit (.jp-app)
    återbrukas orört; stegrailens toppkant-färg keyar off data-status-variant,
@@ -7082,62 +7082,92 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 
-/* ── Kräver åtgärd-kön ── */
+/* ── Kräver åtgärd-kön (#1827 M1) ──
+   Liggarrader, ingen låda per ärende (DESIGN.md §6): hairline mellan raderna och
+   radfamiljens länk-overlay (.jp-app__rowlink sträcker titeln över raden, så raden
+   är positionerad). Rad 1 = signalkickern i Översiktens form + värdet, rad 2 =
+   titel + företag, CTA:erna till höger. */
 .jp-attentionqueue {
   margin-top: 8px;
 }
-.jp-actioncard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
-  gap: 12px;
-}
-@media (max-width: 680px) {
-  .jp-actioncard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.jp-actioncard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.jp-actioncard__reason {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.jp-attentionqueue__list {
+  list-style: none;
   margin: 0;
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
+  padding: 0;
+}
+.jp-attentionqueue__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 12px 16px;
+  transition: background-color 80ms;
+}
+.jp-attentionqueue__row + .jp-attentionqueue__row {
+  border-top: 1px solid var(--jp-border);
+}
+.jp-attentionqueue__row:hover {
+  background: var(--jp-surface-3);
+  box-shadow: inset 3px 0 0 var(--jp-accent-700);
+}
+.jp-attentionqueue__body {
+  min-width: 0;
+}
+.jp-attentionqueue__signal {
+  margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+/* Färgen förstärker, texten bär signalen (WCAG 1.4.1). Aldrig grön: grönt är
+   interaktion och grad. */
+.jp-attentionqueue__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.jp-attentionqueue__kicker[data-signal="success"] { color: var(--jp-success); }
+.jp-attentionqueue__kicker[data-signal="warning"] { color: var(--jp-warning); }
+.jp-attentionqueue__kicker[data-signal="info"]    { color: var(--jp-info); }
+.jp-attentionqueue__value {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1);
 }
-.jp-actioncard__text {
-  max-width: 68ch;
+.jp-attentionqueue__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
 }
-/* Liten färgkodad indikator — färgen REINFORCERAR, texten bär meningen.
-   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
-.jp-actioncard__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-ink-3);
+.jp-attentionqueue__company {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
 }
-.jp-actioncard__reason[data-signal="success"] .jp-actioncard__dot {
-  background: var(--jp-success);
+/* Ovanpå länk-overlayn, så knapparna aldrig nästlas i ankaret. */
+.jp-attentionqueue__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
-.jp-actioncard__reason[data-signal="warning"] .jp-actioncard__dot {
-  background: var(--jp-warning);
-}
-.jp-actioncard__reason[data-signal="info"] .jp-actioncard__dot {
-  background: var(--jp-info);
+@media (max-width: 720px) {
+  .jp-attentionqueue__row { grid-template-columns: minmax(0, 1fr); }
+  .jp-attentionqueue__actions { justify-content: flex-start; }
 }
 .jp-attentionqueue__empty {
-  padding: 20px 22px;
-  border: 1px dashed var(--jp-border-strong);
-  border-radius: var(--jp-r-md);
+  margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-attentionqueue__more {
   margin-top: 12px;

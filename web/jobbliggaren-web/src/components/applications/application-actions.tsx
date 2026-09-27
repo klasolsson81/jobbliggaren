@@ -112,7 +112,7 @@ export function applicationDisplayName(application: ApplicationDto): string {
 
 /**
  * ApplicationActionsProvider (#630 PR 7) — äger mutations-plumbingen för
- * pipeline-öns action-affordanser (radknappar, statusmeny, kökortens CTA):
+ * pipeline-öns action-affordanser (radknappar, statusmeny, köradernas CTA):
  * transition + toast + de TVÅ dialogerna som EN instans vardera på öns nivå
  * (prototypens `dialog {kind, appId, top}`-modell — aldrig N monterade dialoger).
  *

@@ -344,28 +344,6 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     ).toBeInTheDocument();
   });
 
-  // Kökortets override (§11): urgens-CTA:n ersätter default-primären och
-  // statusmenyn utelämnas (prototyp-facit).
-  it("respekterar primaryAction/secondaryAction-overrides + showStatusMenu={false}", () => {
-    const primary = vi.fn();
-    const secondary = vi.fn();
-    renderRow(makeApplication(), {
-      primaryAction: { label: "Följ upp", onClick: primary },
-      secondaryAction: { label: "Markera som Inget svar", onClick: secondary },
-      showStatusMenu: false,
-    });
-    expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Byt status" })
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Följ upp" }));
-    expect(primary).toHaveBeenCalledTimes(1);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Markera som Inget svar" })
-    );
-    expect(secondary).toHaveBeenCalledTimes(1);
-  });
-
   // Radlänken är en ren soft-nav-länk (route-modalen, ADR 0053) — inget
   // klick-ankare (drawer-ankaret pensionerades med drawern, 2026-07-10).
   it("radlänken pekar på detaljroutens href utan klick-sidoeffekter", () => {

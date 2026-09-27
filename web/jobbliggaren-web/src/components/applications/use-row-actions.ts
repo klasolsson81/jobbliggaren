@@ -40,9 +40,9 @@ export type DefaultRowAction = RowAction & {
  * 4). Ren presentations-mappning (vilken knapp/länk visas) — ALDRIG en
  * transitions-grind; backend tillåter alla byten (ADR 0092 D3).
  *
- * OBS: kökortets signal→CTA-karta (`attention-queue.tsx` `cardActions`) är ETT
- * ANNAT kunskapsstycke (signal-nyckel, urgens-driven) och foldas medvetet INTE in
- * här — olika förändringsskäl (SRP/CCP, senior-cto-advisor Fork 4).
+ * OBS: köradens signal→CTA-karta (`AttentionQueueRow` i `attention-queue.tsx`) är
+ * ETT ANNAT kunskapsstycke (signal-nyckel, urgens-driven) och foldas medvetet INTE
+ * in här — olika förändringsskäl (SRP/CCP, senior-cto-advisor Fork 4).
  */
 export function useRowActions() {
   const t = useTranslations("applications.enums");

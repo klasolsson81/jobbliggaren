@@ -161,7 +161,7 @@ export function ApplicationsPipeline({
   return (
     // #630 PR 7: providern äger mutations-plumbingen (transition + toast +
     // dialogerna som EN instans vardera) för radknappar, statusmeny och
-    // kökortens CTA (CTO-bind: server-recompute via revalidatePath, ingen
+    // köradernas CTA (CTO-bind: server-recompute via revalidatePath, ingen
     // optimistisk grupp-flytt).
     <ApplicationActionsProvider>
       <AttentionQueue groups={groups} now={now} />

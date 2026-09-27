@@ -14,7 +14,7 @@ import type {
 
 const FIXED_NOW = new Date("2026-05-20T12:00:00Z");
 
-// #630 PR 7: kortens CTA muterar via providerns server actions och "Läs
+// #630 PR 7: radernas CTA muterar via providerns server actions och "Läs
 // erbjudandet" soft-navigerar till detaljmodalen — mocka båda sömmarna.
 const transitionStatusAction = vi.hoisted(() =>
   vi.fn(async () => ({ success: true as const })),
@@ -103,7 +103,7 @@ beforeEach(() => {
 });
 
 describe("AttentionQueue", () => {
-  it("lyfter ansökningar med fyrande signal som åtgärdskort med orsaksrad", () => {
+  it("lyfter ansökningar med fyrande signal som liggarrader i en ordnad lista (#1827 M1)", () => {
     renderQueue(
       makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
     );
@@ -112,22 +112,111 @@ describe("AttentionQueue", () => {
     expect(
       within(queue).getByRole("heading", { name: "Kräver åtgärd" }),
     ).toHaveAttribute("id", "attention-heading");
+    const rows = within(queue).getAllByRole("listitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.parentElement?.tagName).toBe("OL");
     expect(
-      within(queue).getByText("Uppföljningen har passerat sin tid."),
+      within(rows[0]!).getByText("Uppföljning försenad"),
     ).toBeInTheDocument();
-    // Kortet bär den återbrukade raden (en länk → detalj).
-    expect(within(queue).getByRole("link")).toBeInTheDocument();
+    // Radens enda länk är titeln (länk-overlayn); företaget står bredvid.
+    expect(within(rows[0]!).getAllByRole("link")).toHaveLength(1);
+    expect(within(rows[0]!).getByText("Volvo")).toBeInTheDocument();
   });
 
-  it("färgbucket sätts på orsaksraden (warning för OverdueFollowUp)", () => {
+  it("signalkickern bär signalens färg-bucket (warning för OverdueFollowUp)", () => {
     renderQueue(
       makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
     );
-    const reason = document.querySelector(".jp-actioncard__reason");
-    expect(reason).toHaveAttribute("data-signal", "warning");
+    expect(screen.getByText("Uppföljning försenad")).toHaveAttribute(
+      "data-signal",
+      "warning",
+    );
   });
 
-  it("ordnar korten på signalprioritet (offer → overdue → nudge)", () => {
+  // lastStatusChangeAt 2026-05-10 mot FIXED_NOW 2026-05-20 → 10 dagar; annonsens
+  // sista ansökningsdag 2026-06-01. Erbjudande och försenad uppföljning har inget
+  // värde i list-DTO:n och visar bara kickern.
+  it.each([
+    ["NoResponseNudge", "Submitted", "Väntar på svar", "10 dagar"],
+    ["GhostSuggested", "Submitted", "Väntar på svar", "10 dagar"],
+    [
+      "SilentAfterInterview",
+      "Interviewing",
+      "Väntar på svar efter intervjun",
+      "10 dagar",
+    ],
+    ["DraftDeadlineApproaching", "Draft", "Sista ansökningsdag", "1 juni"],
+    ["OfferAwaitingReply", "OfferReceived", "Erbjudande", null],
+    ["OverdueFollowUp", "Submitted", "Uppföljning försenad", null],
+  ] as const)(
+    "%s: kickern följs av urgens-hjälparens värde, eller står ensam",
+    (signal, status, kicker, value) => {
+      const { container } = renderQueue(
+        makePipeline({ [status]: 1 }, { [status]: [signal] }),
+      );
+      const row = container.querySelector(".jp-attentionqueue__row")!;
+      expect(row.querySelector(".jp-attentionqueue__kicker")).toHaveTextContent(
+        kicker,
+      );
+      const valueEl = row.querySelector(".jp-attentionqueue__value");
+      if (value == null) expect(valueEl).toBeNull();
+      else expect(valueEl).toHaveTextContent(value);
+    },
+  );
+
+  it("länkens beskrivning är kicker, värde och företag", () => {
+    renderQueue(
+      makePipeline({ Submitted: 1 }, { Submitted: ["NoResponseNudge"] }),
+    );
+    expect(
+      screen.getByRole("link", {
+        name: "Submitted-titel-0",
+        description: "Väntar på svar, 10 dagar, Volvo",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("köraden bär varken statustagg, dagar i steget, händelserad eller bråttom-tagg", () => {
+    const { container } = renderQueue(
+      makePipeline({ Submitted: 1 }, { Submitted: ["NoResponseNudge"] }),
+    );
+    const row = container.querySelector(".jp-attentionqueue__row")!;
+    expect(row.querySelector("[data-tag]")).toBeNull();
+    expect(row.querySelector("[data-urgency]")).toBeNull();
+    expect(row.textContent).not.toMatch(/i steget|Ansökan skickad/);
+  });
+
+  // #892 (CTO R1): en raderad annons bär den bevarade identiteten, som utan
+  // borttagen-markören skulle se levande ut; kön visar markören som Lista-raden.
+  it("en raderad annons behåller borttagen-markören i köraden och i beskrivningen", () => {
+    const erased = makeApplication({
+      id: "erased-0",
+      attentionSignal: "NoResponseNudge",
+      jobAd: {
+        ...jobAd,
+        title: "Bevarad roll",
+        company: "Bevarat AB",
+        status: "Erased",
+      },
+    });
+    const groups: PipelineGroupDto[] = PIPELINE_ORDER.map((status) => ({
+      status,
+      count: status === "Submitted" ? 1 : 0,
+      applications: status === "Submitted" ? [erased] : [],
+    }));
+    renderQueue(groups);
+
+    expect(screen.getByText("Annonsen är borttagen")).toHaveClass("jp-tag");
+    expect(
+      screen.getByRole("link", {
+        name: "Bevarad roll",
+        description:
+          "Väntar på svar, 10 dagar, Bevarat AB, Annonsen är borttagen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("ordnar raderna på signalprioritet (offer → overdue → nudge)", () => {
     renderQueue(
       makePipeline(
         { Submitted: 1, OfferReceived: 1, Acknowledged: 1 },
@@ -147,7 +236,7 @@ describe("AttentionQueue", () => {
     expect(titles[2]).toContain("Submitted-titel-0");
   });
 
-  it("kapar till 4 synliga kort och expanderar med 'Visa N till'", async () => {
+  it("kapar till 4 synliga rader och expanderar med 'Visa N till'", async () => {
     const user = userEvent.setup();
     const signals = Array.from(
       { length: 6 },
@@ -164,12 +253,11 @@ describe("AttentionQueue", () => {
     ).toBeInTheDocument();
   });
 
-  it("tom kö: streckat tomläge, inga kort", () => {
+  it("tom kö: en rad text, ingen lista", () => {
     renderQueue(makePipeline({ Submitted: 2 }));
 
-    expect(
-      screen.getByText("Inget kräver åtgärd just nu."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Inget kräver åtgärd just nu.").tagName).toBe("P");
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     // Rubriken finns kvar (2a — kön är alltid synlig).
     expect(
@@ -194,11 +282,11 @@ describe("AttentionQueue", () => {
     ).toBeInTheDocument();
   });
 
-  // ── §11 kort-CTA (PR 7, Klas-låst: ingår) ────────────────────────────────
+  // ── §11 rad-CTA (PR 7, Klas-låst: ingår) ────────────────────────────────
 
   // #1827 B1: the signal is a Pending follow-up past its date, and only its outcome clears it,
   // so the card opens the detail, where the outcome form is, instead of logging a new contact.
-  it("OverdueFollowUp-kortet: primär 'Registrera utfall' öppnar detaljmodalen; ingen statusmeny", async () => {
+  it("OverdueFollowUp-raden: primär 'Registrera utfall' öppnar detaljmodalen; ingen statusmeny", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
@@ -218,7 +306,7 @@ describe("AttentionQueue", () => {
     expect(logFollowUpAction).not.toHaveBeenCalled();
   });
 
-  it("GhostSuggested-kortet: 'Markera som Inget svar' är en direkt transition till Ghosted", async () => {
+  it("GhostSuggested-raden: 'Markera som Inget svar' är en direkt transition till Ghosted", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ Submitted: 1 }, { Submitted: ["GhostSuggested"] }),
@@ -239,7 +327,7 @@ describe("AttentionQueue", () => {
     ).toBeInTheDocument();
   });
 
-  it("OfferAwaitingReply-kortet: 'Läs erbjudandet' öppnar panelen; 'Acceptera' är direkt transition", async () => {
+  it("OfferAwaitingReply-raden: 'Läs erbjudandet' öppnar panelen; 'Acceptera' är direkt transition", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ OfferReceived: 1 }, { OfferReceived: ["OfferAwaitingReply"] }),
@@ -259,7 +347,7 @@ describe("AttentionQueue", () => {
     );
   });
 
-  it("DraftDeadlineApproaching-kortet: 'Slutför och skicka' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {
+  it("DraftDeadlineApproaching-raden: 'Slutför och skicka' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ Draft: 1 }, { Draft: ["DraftDeadlineApproaching"] }),

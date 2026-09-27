@@ -80,7 +80,7 @@ export function urgencyTagFor(
         : null;
     }
     // OfferAwaitingReply: daterad "SVAR SENAST"-tagg kräver svarsfristfältet
-    // (deferrat, ADR 0092 D5) — kortets orsaksrad bär signalen. OverdueFollowUp:
+    // (deferrat, ADR 0092 D5) — köradens kicker bär signalen. OverdueFollowUp:
     // ingen daterad tagg i designens taggfamilj.
     default:
       return null;

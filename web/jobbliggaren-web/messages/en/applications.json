@@ -212,13 +212,14 @@
     },
     "attention": {
       "reason": {
-        "OfferAwaitingReply": "Offer awaiting your reply.",
-        "OverdueFollowUp": "Follow-up is past due.",
-        "DraftDeadlineApproaching": "Draft deadline is approaching.",
-        "GhostSuggested": "No reply for a long time.",
-        "NoResponseNudge": "Time to follow up.",
-        "SilentAfterInterview": "Silent since the interview."
-      }
+        "OfferAwaitingReply": "Offer",
+        "OverdueFollowUp": "Follow-up overdue",
+        "DraftDeadlineApproaching": "Application deadline",
+        "GhostSuggested": "Awaiting reply",
+        "NoResponseNudge": "Awaiting reply",
+        "SilentAfterInterview": "Awaiting reply after the interview"
+      },
+      "days": "{days, plural, one {# day} other {# days}}"
     },
     "followUps": {
       "sectionLabel": "Follow-ups",

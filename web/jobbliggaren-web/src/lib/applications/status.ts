@@ -78,7 +78,7 @@ export function isActivePipelineStatus(status: ApplicationStatus): boolean {
 
 /**
  * Den aktiva vägens 7 steg (design §8.4): de 6 aktiva pipeline-stegen + målet
- * Accepterad. Detta är detaljmodalens stegväljare — INTE PIPELINE_ORDER (10,
+ * Accepterad. Detta är detaljkroppens stegväljare — INTE PIPELINE_ORDER (10,
  * railen) och inte ACTIVE_PIPELINE_STATUSES (6, Lista-partitionen). SSOT för
  * "nästa steg"-härledningen nedan.
  */
@@ -101,7 +101,7 @@ export const STATUS_MENU_CLOSED_GROUP: ApplicationStatus[] = [
 ];
 
 /**
- * Detaljmodalens "AVSLUTA ELLER PARKERA"-knappar (design §8.5): Nekad
+ * Detaljkroppens "AVSLUTA ELLER PARKERA"-knappar (design §8.5): Nekad
  * (dangertext), Återtagen, Ghosted. Accepterad nås via stegväljarens steg 7,
  * inte här.
  */

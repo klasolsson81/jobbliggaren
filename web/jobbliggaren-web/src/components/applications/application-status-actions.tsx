@@ -38,7 +38,7 @@ interface ApplicationStatusActionsProps {
  *  - §8.5 AVSLUTA ELLER PARKERA: Nekad (dangertext) / Återtagen / Ghosted.
  *
  * Alla byten: persist-immediately via den auditerade servern-actionen →
- * revalidatePath server-recompute (CTO-bind 1; detaljmodalen re-renderas i sin
+ * revalidatePath server-recompute (CTO-bind 1; detaljen re-renderas i sin
  * route) → ångra-toast (kompenserande invers, CTO-bind 3). Fel visas inline i
  * panelen (role="alert"). Ett byte som raderar den sparade kopians text frågar
  * först (TerminalMoveDialog), eftersom ångra inte tar tillbaka texten.

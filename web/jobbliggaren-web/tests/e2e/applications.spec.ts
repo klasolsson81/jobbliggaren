@@ -5,24 +5,20 @@ import { loggedInTest } from "./helpers/session";
 const RUN_ID = Date.now();
 const test = loggedInTest(RUN_ID);
 
-// UX-ÄNDRINGS-MAPPNING (STOPP 3b — /ansokningar-omarbetning):
+// UX-ÄNDRINGS-MAPPNING:
 //
-// 1. "Ändra status"-disclosure-knappen är BORTTAGEN. StatusEditCard är
-//    persistent (ingen inline-expand — Klas: bröt flödet). Gamla selektorn
-//    `button[name="Ändra status"]` ersätts av:
-//      - 1-övergångsfall (Utkast→Skickad): enskild knapp "Markera som Skickad"
-//      - fler-övergångsfall: radiogrupp + [Spara] (Variant A, disabled tills
-//        val ≠ nuvarande status)
-//    Scenariointentionen (skapa→lista→detalj→status-flöde) bevaras; bara
-//    selektorerna anpassas. Ingen täckning försvagas.
+// 1. Detaljen är EN kropp i modalen och på fullsidan (#699, #1827). Det gamla
+//    statusformuläret på fullsidan (region "Status", radiogrupp, "Markera som
+//    Skickad") finns inte längre. Statusblocket visar nuvarande status
+//    (`.jp-status-block__value`), och bytena görs med primär-CTA:n ("Flytta till
+//    {nästa}"), stegväljaren och parkeringsraden, med ångra-toast. Ett byte till
+//    Accepterad, Nekad eller Återtagen frågar först bara när den sparade kopian har
+//    text; en manuell ansökan har ingen kopia och flyttar direkt. Selektorerna följer
+//    kroppen, så scenarierna håller i båda kontexterna.
 //
 // 2. Tom /ansokningar/ny-submit redirectar EJ längre — Jobbtitel + Företag
 //    är `required` (klientvalidering). Alla skapa-scenarier fyller därför
 //    dessa fält. Ett nytt scenario verifierar att tom submit stannar kvar.
-//
-// 3. Status-regionen exponeras via aria-labelledby="status-edit-title"
-//    (rubriktext "Status") — `getByRole("region", { name: "Status" })`
-//    fungerar fortsatt eftersom det tillgängliga namnet är "Status".
 
 const NEW_TITLE = "Backend-utvecklare";
 const NEW_COMPANY = "Volvo";
@@ -112,8 +108,7 @@ test.describe("Skapa ansökan (/ny-ansokan)", () => {
 
   test("skapar ansökan och redirectar till detaljvy", async ({ page }) => {
     await createApplication(page);
-    const statusRegion = page.getByRole("region", { name: "Status" });
-    await expect(statusRegion).toContainText("Utkast");
+    await expect(page.locator(".jp-status-block__value")).toHaveText("Utkast");
   });
 
   test("skapar ansökan med personligt brev", async ({ page }) => {
@@ -125,9 +120,10 @@ test.describe("Skapa ansökan (/ny-ansokan)", () => {
       .fill("Jag söker tjänsten och är väl lämpad.");
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
+    await expect(page.locator(".jp-status-block__value")).toHaveText("Utkast");
     await expect(
-      page.getByRole("region", { name: "Status" })
-    ).toContainText("Utkast");
+      page.getByRole("region", { name: "Personligt brev" })
+    ).toContainText("Jag söker tjänsten och är väl lämpad.");
   });
 
   test("visar länk tillbaka till pipeline", async ({ page }) => {
@@ -141,42 +137,35 @@ test.describe("Detaljvy (/ansokningar/[id])", () => {
     await createApplication(page);
   });
 
-  test("visar ansökningens status som Utkast i Status-regionen", async ({
+  test("visar ansökningens status som Utkast i statusblocket", async ({
     page,
   }) => {
-    const statusRegion = page.getByRole("region", { name: "Status" });
-    await expect(statusRegion).toContainText("Nuvarande status:");
-    await expect(statusRegion).toContainText("Utkast");
+    await expect(page.locator(".jp-status-block__value")).toHaveText("Utkast");
   });
 
-  test("visar enskild knapp 'Markera som Skickad' (ingen disclosure längre)", async ({
+  test("visar primär-CTA:n 'Flytta till Skickad' för ett utkast", async ({
     page,
   }) => {
-    // Utkast har exakt en övergång → enskild primär knapp, ingen radiogrupp.
     await expect(
-      page.getByRole("button", { name: "Markera som Skickad" })
+      page.getByRole("button", { name: "Flytta till Skickad" })
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Ändra status" })
-    ).toHaveCount(0);
   });
 
-  // Noteringsfältet ligger bakom "+ Lägg till anteckning"-disclosuren i
-  // Anteckningar-sektionen (#805/#818) — det är inte längre ett alltid-synligt
-  // formulär. Scenariointentionen (skriv notering → spara → syns) är oförändrad.
-  test("visar formulär för att lägga till notering", async ({ page }) => {
+  // Anteckningsfältet ligger bakom "Lägg till anteckning"-disclosuren i
+  // Anteckningar-sektionen (#805/#818) — det är inte ett alltid-synligt formulär.
+  test("visar formulär för att lägga till anteckning", async ({ page }) => {
     await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await expect(
-      page.getByRole("textbox", { name: "Notering" })
+      page.getByRole("textbox", { name: "Anteckning", exact: true })
     ).toBeVisible();
   });
 
-  test("kan lägga till en notering", async ({ page }) => {
+  test("kan lägga till en anteckning", async ({ page }) => {
     await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await page
-      .getByRole("textbox", { name: "Notering" })
+      .getByRole("textbox", { name: "Anteckning", exact: true })
       .fill("Intressant tjänst, bra matchning.");
-    await page.getByRole("button", { name: "Spara notering" }).click();
+    await page.getByRole("button", { name: "Spara anteckning" }).click();
     await expect(
       page.getByText("Intressant tjänst, bra matchning.")
     ).toBeVisible();
@@ -184,51 +173,38 @@ test.describe("Detaljvy (/ansokningar/[id])", () => {
 });
 
 test.describe("Statusövergång", () => {
-  test("kan övergå från Utkast till Skickad via enskild knapp", async ({
+  test("kan övergå från Utkast till Skickad via primär-CTA:n", async ({
     page,
   }) => {
     await createApplication(page);
 
-    const statusRegion = page.getByRole("region", { name: "Status" });
-    await page
-      .getByRole("button", { name: "Markera som Skickad" })
-      .click();
-    await expect(statusRegion).toContainText("Skickad");
+    await page.getByRole("button", { name: "Flytta till Skickad" }).click();
+    await expect(page.locator(".jp-status-block__value")).toHaveText(
+      "Skickad"
+    );
+    await expect(page.getByRole("button", { name: "Ångra" })).toBeVisible();
   });
 
-  test("destruktiv övergång (Nekad) kräver bekräftelse i dialog", async ({
+  // En manuell ansökan har ingen sparad kopia, så inget raderas och Nekad frågar inte.
+  // Frågan före ett avslut visas bara när kopian har text (TerminalMoveDialog).
+  test("parkeringsradens Nekad flyttar en manuell ansökan direkt, med ångra-toast", async ({
     page,
   }) => {
     await createApplication(page);
 
-    const statusRegion = page.getByRole("region", { name: "Status" });
-    // Utkast → Skickad (enskild knapp)
-    await page
-      .getByRole("button", { name: "Markera som Skickad" })
-      .click();
-    await expect(statusRegion).toContainText("Skickad");
-
-    // Skickad ger flera övergångar → radiogrupp + [Spara] (Variant A).
-    await page.getByRole("radio", { name: "Nekad" }).click();
-    await page.getByRole("button", { name: "Spara" }).click();
-
-    // Destruktiv → Dialog-bekräftelse innan action.
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "Nekad", exact: true }).click();
+    await expect(page.locator(".jp-status-block__value")).toHaveText("Nekad");
     await expect(
-      page.getByRole("heading", { name: "Markera som Nekad?" })
-    ).toBeVisible();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Markera som Nekad" })
-      .click();
-    await expect(statusRegion).toContainText("Nekad");
+      page.getByRole("dialog", { name: "Markera som Nekad?" })
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Ångra" })).toBeVisible();
   });
 
   // #565 — OCKLUSIONS-REPRON, OMPEKAD (#813). Invarianten är oförändrad: en dialog som
   // öppnas INIFRÅN radklicks-modalen måste ligga ovanpå scrimen och vara KLICKBAR.
   //
-  // Den gamla klickvägen finns inte kvar (statusbytet i modalen är numera direktbyte med
-  // ångra-toast, ingen bekräftelsedialog), men den ockluderande ytan gör det: den
+  // Den gamla klickvägen finns inte kvar (statusbytet i modalen frågar numera bara inför
+  // ett avslut som raderar den sparade kopians text), men den ockluderande ytan gör det: den
   // intercepting-routen lever (`app/(app)/@modal/(.)ansokningar/[id]`), `.jp-modal-scrim`
   // ligger på z-80, och dialoger öppnas fortfarande inifrån modalkroppen — bl.a. den här
   // (Logga uppföljning) och anteckningarnas hjälpdialog. Alltså två överlägg, alltså
@@ -267,14 +243,14 @@ test.describe("Statusövergång", () => {
     await expect(page.locator(".jp-modal-scrim")).toBeVisible();
 
     // Öppna uppföljnings-dialogen INIFRÅN modalen. Den portaleras till <body> — SYSKON
-    // till modalpanelen, inte barn. Shellen har också role="dialog"; disambiguera på titeln.
-    // exact: "+ Lägg till" är prefix till "+ Lägg till anteckning" (strict-mode-krock).
+    // till modalpanelen, inte barn. Shellen har också role="dialog" och bär knappen med
+    // samma text, så dialogen tas på sitt tillgängliga namn (titeln), inte på text.
     await page
-      .getByRole("button", { name: "+ Lägg till", exact: true })
+      .getByRole("button", { name: "Logga uppföljning", exact: true })
       .click();
-    const followUpDialog = page
-      .getByRole("dialog")
-      .filter({ hasText: "Logga uppföljning" });
+    const followUpDialog = page.getByRole("dialog", {
+      name: "Logga uppföljning",
+    });
     await expect(followUpDialog).toBeVisible();
 
     // OCKLUSIONS-GUARDEN — mät ocklusion, inte tal.
@@ -322,9 +298,7 @@ test.describe("Statusövergång", () => {
     ).toBe(true);
 
     // Dialogen är också FUNKTIONELL inifrån modalen. Assertera preconditionen först —
-    // annars är "tomlägestexten är borta" vakuöst sant. Modalen renderar `emptyDrawer`,
-    // INTE `empty` (den senare finns aldrig i modalens DOM — en tidigare version av det här
-    // testet asserterade just den och kunde därför inte falla).
+    // annars är "tomlägestexten är borta" vakuöst sant.
     const emptyDrawer = page.getByText("Inga uppföljningar ännu.");
     await expect(emptyDrawer).toBeVisible();
 

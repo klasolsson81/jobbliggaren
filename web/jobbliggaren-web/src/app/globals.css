@@ -3109,7 +3109,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-source-ad__note {
   color: var(--jp-ink-1);
 }
-/* #630 PR 7: rubrikrad med höger-yta (drawerns "+ Lägg till" i UPPFÖLJNINGAR,
+/* #630 PR 7: rubrikrad med höger-yta (kroppens "Logga uppföljning" i UPPFÖLJNINGAR,
    §8.6) resp. inline-hjälptext (stegväljarens "klicka på ett steg, även
    bakåt", §8.4). Additiv — bas-etiketten orörd. */
 .jp-section-label--row {
@@ -3709,7 +3709,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── 2a action-affordanser (#630 PR 7, design §5/§8/§11) ─────────
    Radens 3-zons-grid, länk-overlay, radknappar, statusmeny, bråttom-taggar
-   och drawerns statusmaskineri. ADDITIVA modifiers/element — det delade
+   och detaljens statusmaskineri. ADDITIVA modifiers/element — det delade
    bas-chassit .jp-job,.jp-app är orört (PR5-bind E / CTO-bind 6). */
 .jp-app--actions {
   position: relative;

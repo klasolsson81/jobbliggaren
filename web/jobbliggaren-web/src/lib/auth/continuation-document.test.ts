@@ -232,7 +232,9 @@ describe("the continuation document's style mirrors the design tokens", () => {
     const css = normalise(CONTINUATION_STYLE);
     const rules = rulesOf(css);
 
-    for (const [selector, property, hex] of MIRROR) expect(rules.get(selector)?.get(property)).toContain(hex);
+    for (const [selector, property, hex] of MIRROR) {
+      expect(rules.get(selector)?.get(property)?.match(/#[0-9a-f]+/g)).toEqual([hex]);
+    }
     expect(css.match(/#[0-9a-f]{3,8}/g)).toHaveLength(MIRROR.length);
   });
 

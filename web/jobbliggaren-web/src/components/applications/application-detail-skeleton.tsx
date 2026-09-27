@@ -19,7 +19,7 @@ export function ApplicationDetailSkeleton({ label }: { label: string }) {
         {label}
       </span>
       <div aria-hidden="true">
-        <span className="jp-skeleton block h-9 w-56 max-w-full" />
+        <span className="jp-skeleton block h-9 w-56 max-w-full [@media(max-width:768px)]:h-11" />
         <div
           className="jp-modal"
           style={{
@@ -52,7 +52,7 @@ export function ApplicationDetailSkeleton({ label }: { label: string }) {
                   {STEP_ROWS.map((row) => (
                     <div
                       key={row}
-                      className="flex h-9 items-center gap-2.5 px-2 max-md:h-11"
+                      className="flex h-9 items-center gap-2.5 px-2 [@media(max-width:768px)]:h-11"
                     >
                       <span className="jp-skeleton block size-6 shrink-0" />
                       <span className="jp-skeleton block h-4 w-32" />
@@ -66,7 +66,7 @@ export function ApplicationDetailSkeleton({ label }: { label: string }) {
                   {PARK_BUTTONS.map((button) => (
                     <span
                       key={button}
-                      className="jp-skeleton block h-9 flex-1 max-md:h-11"
+                      className="jp-skeleton block h-9 flex-1 [@media(max-width:768px)]:h-11"
                     />
                   ))}
                 </div>

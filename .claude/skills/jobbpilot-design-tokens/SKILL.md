@@ -248,7 +248,7 @@ dokumenterade undantag bär `/* guard-allow: <skäl> */`.
 400–800 loaded, family 200–900; replaces Hanken Grotesk — higher x/cap ratio
 0.736 vs 0.707 + USWDS/CSN civic pedigree, #549 WS4, ADR 0091); JetBrains
 Mono → `--font-mono` (unchanged). Never Inter/Roboto/Arial/system-ui as
-primary; never mono for body, headings, or button text. Never
+primary (except the continuation document, DESIGN.md §11.6); never mono for body, headings, or button text. Never
 `text-xl`/`text-2xl` — always the semantic token class.
 
 ---

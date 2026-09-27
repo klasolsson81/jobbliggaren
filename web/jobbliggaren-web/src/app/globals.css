@@ -7618,9 +7618,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
 }
 .jp-board-card__link:focus-visible {
-  outline: 2px solid var(--jp-focus);
-  outline-offset: 2px;
-  border-radius: var(--jp-r-sm);
+  outline: none;
+}
+.jp-board-card__link:focus-visible::after {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
 }
 .jp-board-card__company {
   font-size: var(--text-body-sm);

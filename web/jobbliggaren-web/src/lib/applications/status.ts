@@ -113,7 +113,7 @@ export const PARK_STATUSES: ApplicationStatus[] = [
 
 /**
  * The statuses whose move drops the saved copy's ad text and contacts: the domain's
- * `IsTerminal` (`src/Jobbliggaren.Domain/Applications/Application.cs`, `IsTerminal`, :311-314),
+ * `IsTerminal` (`src/Jobbliggaren.Domain/Applications/Application.cs`),
  * which `TransitionTo` runs `AdSnapshot.WithoutAdBody()` on. Undo restores the status, never the
  * copy (ADR 0092 D3 invariant 3). Ghosted is not in it: it keeps the copy.
  */

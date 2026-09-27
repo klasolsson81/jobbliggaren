@@ -5,8 +5,9 @@ const test = loggedInTest(Date.now());
 
 // #1787 — the field is on screen and editable before React attaches to it. These cases decide
 // when hydration happens instead of racing it: the app's script chunks are either refused (no
-// JavaScript at all) or held back until the term has been typed.
-const CHUNKS = /\/_next\/static\/chunks\//;
+// JavaScript at all) or held back until the term has been typed. Scripts only: the stylesheets
+// live in the same directory, and a held stylesheet blocks the parser before the field renders.
+const CHUNKS = /\/_next\/static\/chunks\/[^?]*\.js(\?|$)/;
 const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
 test.describe("/jobb — a term typed before hydration (#1787)", () => {

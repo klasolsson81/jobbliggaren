@@ -288,8 +288,26 @@ describe("NotificationsSection — the shared cadence", () => {
     expect(selector).not.toHaveAccessibleDescription("nej");
   });
 
-  // A refused grant closes the selector it had opened; the cadence saved meanwhile keeps its value,
-  // and its receipt goes with the period it belonged to.
+  it("shows a cadence refusal that lands after the selector closed and reopened through the other switch", async () => {
+    const save = held();
+    cadenceMock.mockReturnValue(save.promise);
+    const user = userEvent.setup();
+    renderSection({ follow: true });
+    const selector = screen.getByRole("radiogroup", { name: CADENCE });
+
+    await user.click(screen.getByRole("radio", { name: "Dagligen" }));
+    await user.click(screen.getByRole("switch", { name: FOLLOW }));
+    await user.click(screen.getByRole("switch", { name: MATCH }));
+    await waitFor(() => expect(consentMock).toHaveBeenCalledWith({ enabled: true }));
+    await act(async () => save.settle({ success: false, error: "nej" }));
+
+    const alert = within(groupOf(selector)!).getByRole("alert");
+    expect(alert).toHaveTextContent("nej");
+    expect(selector).toHaveAccessibleDescription("nej");
+    expect(screen.getByRole("radio", { name: "Veckovis" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  // A refused grant closes the selector it had opened; the cadence saved meanwhile keeps its value.
   it("drops the cadence receipt when a refused grant closes the selector again", async () => {
     const grant = held();
     consentMock.mockReturnValue(grant.promise);

@@ -19,9 +19,6 @@ import { Segment, type SegmentOption } from "@/components/ui/segment";
 /** The outcome of one write, owned by the control that started it (#1391). */
 type WriteOutcome = { ok: true; at: Date } | { ok: false; error: string };
 
-/** A cadence outcome, tagged with the selector's open period its write started in. */
-type CadenceOutcome = WriteOutcome & { period: number };
-
 const SECTION_ID = "notiser";
 
 /** A switch, or the checked option of a segment: the control a group's write started from. */
@@ -68,7 +65,6 @@ export function NotificationsSection({
   // receipt of the control that started it.
   const [matchOutcome, setMatchOutcome] = useState<WriteOutcome | null>(null);
   const [followOutcome, setFollowOutcome] = useState<WriteOutcome | null>(null);
-  const [cadenceOutcome, setCadenceOutcome] = useState<CadenceOutcome | null>(null);
 
   const sectionRef = useRef<HTMLElement>(null);
   const matchGroup = useRef<HTMLDivElement>(null);
@@ -89,15 +85,15 @@ export function NotificationsSection({
   ];
   const cadenceOpen = matchEnabled || followEnabled;
 
-  // The selector opens and closes with the switches, reverts included, and each change starts a new
-  // period. A cadence write can only start while the selector is open, and its message shows only in
-  // the period it started in: never under a closed selector, and a reply that lands after the
-  // selector closed is dropped.
-  const [cadencePeriod, setCadencePeriod] = useState({ open: cadenceOpen, period: 0 });
-  if (cadencePeriod.open !== cadenceOpen) {
-    setCadencePeriod({ open: cadenceOpen, period: cadencePeriod.period + 1 });
+  // Opening or closing the selector clears its message; a reply shows only if the selector is open
+  // when it lands.
+  const [cadenceView, setCadenceView] = useState<{ open: boolean; outcome: WriteOutcome | null }>({
+    open: cadenceOpen,
+    outcome: null,
+  });
+  if (cadenceView.open !== cadenceOpen) {
+    setCadenceView({ open: cadenceOpen, outcome: null });
   }
-  const cadenceMessage = cadenceOutcome?.period === cadencePeriod.period ? cadenceOutcome : null;
 
   function onMatchToggle(nextEnabled: boolean) {
     const previous = matchEnabled;
@@ -135,18 +131,16 @@ export function NotificationsSection({
 
   function onCadenceChange(nextCadence: DigestCadence) {
     const previous = cadence;
-    const { period } = cadencePeriod;
     returnRef.current = cadenceGroup.current;
-    setCadenceOutcome(null);
+    setCadenceView((view) => ({ ...view, outcome: null }));
     setCadence(nextCadence);
     startCadenceSave(async () => {
       const result = await updateDigestCadenceAction({ cadence: nextCadence });
-      if (result.success) {
-        setCadenceOutcome({ ok: true, at: new Date(), period });
-      } else {
-        setCadence(previous);
-        setCadenceOutcome({ ok: false, error: result.error, period });
-      }
+      if (!result.success) setCadence(previous);
+      const outcome: WriteOutcome = result.success
+        ? { ok: true, at: new Date() }
+        : { ok: false, error: result.error };
+      setCadenceView((view) => (view.open ? { ...view, outcome } : view));
     });
   }
 
@@ -184,7 +178,7 @@ export function NotificationsSection({
           aria-label={t("backgroundMatch.cadenceLabel")}
           aria-describedby={joinIds(
             !cadenceOpen && cadenceHintId,
-            cadenceMessage?.ok === false && cadenceErrorId,
+            cadenceView.outcome?.ok === false && cadenceErrorId,
           )}
           value={cadence}
           onChange={onCadenceChange}
@@ -196,7 +190,7 @@ export function NotificationsSection({
             {t("backgroundMatch.cadenceHintDisabled")}
           </p>
         )}
-        <Outcome id={cadenceErrorId} outcome={cadenceMessage} />
+        <Outcome id={cadenceErrorId} outcome={cadenceView.outcome} />
       </div>
     </section>
   );

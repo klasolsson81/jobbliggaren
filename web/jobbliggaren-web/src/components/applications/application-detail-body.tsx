@@ -137,6 +137,8 @@ export function ApplicationDetailBody({
         applicationId={application.id}
         status={application.status}
         displayName={displayName}
+        // The copy is projected even while the ad is active, so the detail always knows.
+        copyHasText={preservedAd?.description != null}
       />
 
       {/* Uppföljningar (§8.6) — statisk lista; "+ Lägg till" öppnar

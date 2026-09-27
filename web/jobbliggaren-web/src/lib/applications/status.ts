@@ -127,6 +127,30 @@ export const PARK_STATUSES: ApplicationStatus[] = [
 ];
 
 /**
+ * The statuses whose move drops the saved copy's ad text and contacts: the domain's
+ * `IsTerminal` (`src/Jobbliggaren.Domain/Applications/Application.cs`, `IsTerminal`, :311-314),
+ * which `TransitionTo` runs `AdSnapshot.WithoutAdBody()` on. Undo restores the status, never the
+ * copy (ADR 0092 D3 invariant 3). Ghosted is not in it: it keeps the copy.
+ */
+export const MINIMISING_STATUSES: readonly ApplicationStatus[] = [
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+];
+
+/**
+ * Whether a move to `target` shows its consequence before it runs: it would delete the saved
+ * copy's text, which undo does not bring back. `copyHasText` is what the caller knows about the
+ * copy; nothing is lost when it has no text, so the move then runs directly.
+ */
+export function needsTerminalMoveConfirmation(
+  target: ApplicationStatus,
+  copyHasText: boolean,
+): boolean {
+  return copyHasText && MINIMISING_STATUSES.includes(target);
+}
+
+/**
  * "Flytta till {nästa steg}"-källan (design §5/§8.3, prototypens nextOf —
  * facit): nästa steg på den aktiva vägen; Ghosted → Skickad (återaktivering).
  * Terminala (Accepterad/Nekad/Återtagen) har inget nästa steg → ingen primär

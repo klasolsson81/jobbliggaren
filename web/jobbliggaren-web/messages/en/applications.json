@@ -309,6 +309,11 @@
       "deleting": "Deleting…",
       "confirmButton": "Delete application"
     },
+    "terminalMove": {
+      "title": "Mark as {status}?",
+      "body": "The ad text and any contact details in the saved copy are deleted and do not come back if you undo.",
+      "confirm": "Mark as {status}"
+    },
     "actions": {
       "notLoggedIn": "You are not logged in.",
       "invalidJobAdId": "Invalid ad ID.",

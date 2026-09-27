@@ -309,6 +309,11 @@
       "deleting": "Tar bort…",
       "confirmButton": "Radera ansökan"
     },
+    "terminalMove": {
+      "title": "Markera som {status}?",
+      "body": "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      "confirm": "Markera som {status}"
+    },
     "actions": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidJobAdId": "Ogiltigt annons-ID.",

@@ -7,17 +7,21 @@ import { transitionStatusAction } from "@/lib/actions/applications";
 import {
   ACTIVE_PATH_STATUSES,
   applicationStatusLabel,
+  needsTerminalMoveConfirmation,
   nextStepOf,
   PARK_STATUSES,
 } from "@/lib/applications/status";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import type { ApplicationStatus } from "@/lib/dto/applications";
+import { TerminalMoveDialog } from "./terminal-move-dialog";
 
 interface ApplicationStatusActionsProps {
   applicationId: string;
   status: ApplicationStatus;
   /** Visningsnamn för toasten ("{company}: {från} → {till}"). */
   displayName: string;
+  /** Whether the saved copy still has its ad text, which a move to a terminal status deletes. */
+  copyHasText: boolean;
 }
 
 /**
@@ -36,17 +40,22 @@ interface ApplicationStatusActionsProps {
  * Alla byten: persist-immediately via den auditerade servern-actionen →
  * revalidatePath server-recompute (CTO-bind 1; detaljmodalen re-renderas i sin
  * route) → ångra-toast (kompenserande invers, CTO-bind 3). Fel visas inline i
- * panelen (role="alert").
+ * panelen (role="alert"). Ett byte som raderar den sparade kopians text frågar
+ * först (TerminalMoveDialog), eftersom ångra inte tar tillbaka texten.
  */
 export function ApplicationStatusActions({
   applicationId,
   status,
   displayName,
+  copyHasText,
 }: ApplicationStatusActionsProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirmTarget, setConfirmTarget] = useState<ApplicationStatus | null>(
+    null,
+  );
 
   const currentIndex = ACTIVE_PATH_STATUSES.indexOf(status);
 
@@ -69,6 +78,15 @@ export function ApplicationStatusActions({
     });
   };
 
+  const request = (target: ApplicationStatus) => {
+    if (target === status || isPending) return;
+    if (needsTerminalMoveConfirmation(target, copyHasText)) {
+      setConfirmTarget(target);
+      return;
+    }
+    move(target);
+  };
+
   const next = nextStepOf(status);
   const ctaLabel =
     status === "Ghosted"
@@ -85,7 +103,7 @@ export function ApplicationStatusActions({
           type="button"
           className="jp-btn jp-btn--primary jp-drawer-cta"
           disabled={isPending}
-          onClick={() => move(next)}
+          onClick={() => request(next)}
         >
           {ctaLabel}
         </button>
@@ -117,7 +135,7 @@ export function ApplicationStatusActions({
                   data-state={stepState}
                   disabled={stepState === "current" || isPending}
                   aria-current={stepState === "current" ? "step" : undefined}
-                  onClick={() => move(step)}
+                  onClick={() => request(step)}
                 >
                   <span className="jp-steppicker__circle" aria-hidden="true">
                     {stepState === "done" ? <Check size={14} /> : index + 1}
@@ -156,7 +174,7 @@ export function ApplicationStatusActions({
                 }
                 aria-pressed={active}
                 disabled={active || isPending}
-                onClick={() => move(park)}
+                onClick={() => request(park)}
               >
                 {applicationStatusLabel(t, park)}
               </button>
@@ -169,6 +187,17 @@ export function ApplicationStatusActions({
         <p role="alert" className="text-body-sm text-danger-600">
           {error}
         </p>
+      )}
+
+      {confirmTarget != null && (
+        <TerminalMoveDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirmTarget(null);
+          }}
+          target={confirmTarget}
+          onConfirm={() => move(confirmTarget)}
+        />
       )}
     </div>
   );

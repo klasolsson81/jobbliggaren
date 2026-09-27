@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { transitionStatusAction } from "@/lib/actions/applications";
 import { ApplicationDetailBody } from "./application-detail-body";
 import type {
   AdSnapshotDto,
@@ -275,5 +276,37 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
     // The rest of the drawer still renders (the guard degrades, it does not gate).
     expect(screen.getByText("Status")).toBeInTheDocument();
+  });
+
+  // #1827: the body gates a terminal move on the saved copy's text. The copy is projected even
+  // while the ad is active, so the live-ad case is the one that proves the wiring.
+  it("asks before a terminal move when the saved copy has text, even while the ad is live", () => {
+    vi.mocked(transitionStatusAction).mockClear();
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({ preservedAd: snapshot })}
+        now={NOW}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Markera som Nekad?" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("moves directly when the application has no saved copy", async () => {
+    vi.mocked(transitionStatusAction).mockClear();
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "Rejected",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

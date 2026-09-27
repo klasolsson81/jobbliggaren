@@ -8,8 +8,12 @@ import {
   getAllowedTransitions,
   isDestructiveTransition,
   isWaitingSignal,
+  needsTerminalMoveConfirmation,
+  ACTIVE_PIPELINE_STATUSES,
   ALLOWED_TRANSITIONS,
   CHANNEL_KEYS,
+  MINIMISING_STATUSES,
+  PIPELINE_ORDER,
   STATUS_BADGE_VARIANT,
 } from "./status";
 import { followUpOutcomeSchema } from "@/lib/dto/applications";
@@ -178,6 +182,35 @@ describe("2a action-konstanter (#630 PR 7)", () => {
   it("PARK_STATUSES = Nekad/Återtagen/Ghosted (§8.5 — Accepterad nås via stegväljaren)", async () => {
     const { PARK_STATUSES } = await import("./status");
     expect(PARK_STATUSES).toEqual(["Rejected", "Withdrawn", "Ghosted"]);
+  });
+});
+
+// ── The terminal-move confirmation (#1827, ADR 0092 D3 invariant 3) ──────────
+describe("MINIMISING_STATUSES and needsTerminalMoveConfirmation", () => {
+  it("mirrors the domain's IsTerminal exactly: Accepted, Rejected, Withdrawn, and not Ghosted", () => {
+    expect(MINIMISING_STATUSES).toEqual(["Accepted", "Rejected", "Withdrawn"]);
+  });
+
+  it("asks for every minimising target when the copy has text", () => {
+    for (const target of MINIMISING_STATUSES) {
+      expect(needsTerminalMoveConfirmation(target, true)).toBe(true);
+    }
+  });
+
+  it("does not ask for Ghosted, which keeps the copy", () => {
+    expect(needsTerminalMoveConfirmation("Ghosted", true)).toBe(false);
+  });
+
+  it("does not ask for a non-terminal target", () => {
+    for (const target of ACTIVE_PIPELINE_STATUSES) {
+      expect(needsTerminalMoveConfirmation(target, true)).toBe(false);
+    }
+  });
+
+  it("does not ask when the copy has no text to lose", () => {
+    for (const target of PIPELINE_ORDER) {
+      expect(needsTerminalMoveConfirmation(target, false)).toBe(false);
+    }
   });
 });
 

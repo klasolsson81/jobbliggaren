@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { applicationDetailHeader } from "@/lib/applications/header";
 import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
+import { ApplicationLoadError } from "@/components/applications/application-load-error";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
@@ -42,7 +43,7 @@ interface Props {
  * `.jp-modal`-panel utan skugga/animation/max-höjd, .jp-container/.jp-page.
  *
  * notFound (okänt id) → Next `notFound()`. unauthorized → `/logga-in`.
- * rateLimited/error → civil felruta.
+ * rateLimited/error → det delade felblocket, under tillbakalänken.
  */
 export default async function AnsokanDetailPage({ params }: Props) {
   const user = await getServerSession();
@@ -60,13 +61,7 @@ export default async function AnsokanDetailPage({ params }: Props) {
 
       return (
         <div className="jp-container jp-page">
-          <Link
-            href="/ansokningar"
-            className="jp-btn jp-btn--ghost jp-btn--sm"
-          >
-            <ChevronLeft size={14} aria-hidden="true" />{" "}
-            {t("ansokningar.detail.backLink")}
-          </Link>
+          <BackLink label={t("ansokningar.detail.backLink")} />
           <div
             className="jp-modal"
             style={{
@@ -109,18 +104,14 @@ export default async function AnsokanDetailPage({ params }: Props) {
     case "rateLimited":
       return (
         <div className="jp-container jp-page">
-          <div
-            role="alert"
-            className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
-          >
-            <p className="text-body font-medium text-warning-700">
-              {t("common.rateLimitedTitle")}
-            </p>
-            <p className="mt-1 text-body-sm text-warning-700">
-              {t("common.rateLimitedBody", {
+          <BackLink label={t("ansokningar.detail.backLink")} />
+          <div className="mt-4">
+            <ApplicationLoadError
+              title={t("common.rateLimitedTitle")}
+              body={t("common.rateLimitedBody", {
                 seconds: result.retryAfterSeconds,
               })}
-            </p>
+            />
           </div>
         </div>
       );
@@ -128,13 +119,22 @@ export default async function AnsokanDetailPage({ params }: Props) {
     case "error":
       return (
         <div className="jp-container jp-page">
-          <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
-            <p className="text-body font-medium">
-              {t("ansokningar.detail.loadErrorTitle")}
-            </p>
-            <p className="mt-1 text-body-sm">{t("common.errorBodyReload")}</p>
+          <BackLink label={t("ansokningar.detail.backLink")} />
+          <div className="mt-4">
+            <ApplicationLoadError
+              title={t("ansokningar.detail.loadErrorTitle")}
+              body={t("common.errorBodyReload")}
+            />
           </div>
         </div>
       );
   }
+}
+
+function BackLink({ label }: { label: string }) {
+  return (
+    <Link href="/ansokningar" className="jp-btn jp-btn--ghost jp-btn--sm">
+      <ChevronLeft size={14} aria-hidden="true" /> {label}
+    </Link>
+  );
 }

@@ -181,4 +181,34 @@ describe("/ansokningar/[id] — the full page renders the one detail body (#699)
     expect(heading).not.toHaveClass("jp-mono");
     expect(screen.getByText("Skapad 1 maj 2026")).toBeInTheDocument();
   });
+
+  // #1827 M6: a failed read keeps the way back, and every failure renders the one error block.
+  it("a rate-limited read shows the error block under the back link", async () => {
+    getApplicationById.mockResolvedValue({
+      kind: "rateLimited",
+      retryAfterSeconds: 30,
+    });
+    await renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Tillbaka till ansökningar" }),
+    ).toHaveAttribute("href", "/ansokningar");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("För många förfrågningar");
+    expect(alert).toHaveTextContent("Försök igen om 30 sekunder.");
+  });
+
+  it("a failed read shows the same error block under the back link", async () => {
+    getApplicationById.mockResolvedValue({ kind: "error" });
+    await renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Tillbaka till ansökningar" }),
+    ).toHaveAttribute("href", "/ansokningar");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Kunde inte ladda ansökan");
+    expect(alert).toHaveTextContent(
+      "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
+    );
+  });
 });

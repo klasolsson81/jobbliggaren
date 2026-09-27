@@ -1,9 +1,9 @@
 /**
- * Skeleton for the full-page detail routes `/jobb/[id]` and `/ansokningar/[id]`
- * (#739 — the loading half of finding `g1-jobad-detail-open-serial-stages`, and
- * the P0 dead-click fix for the two full-page detail segments).
+ * Skeleton for the full-page detail route `/jobb/[id]` (#739 — the loading half of
+ * finding `g1-jobad-detail-open-serial-stages`, and the P0 dead-click fix for the
+ * two full-page detail segments).
  *
- * Both detail pages render the same envelope — a `.jp-container.jp-page` holding
+ * The detail page renders its envelope — a `.jp-container.jp-page` holding
  * a non-floating `.jp-modal` (maxWidth 760, no shadow/animation) with
  * `__head` / `__body` / `__foot`. Re-using that envelope's exact classes and the
  * inline width style keeps the shape stable so real content does not shift in.

@@ -11,9 +11,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent
 /// TRACKED so the <c>UnitOfWorkBehavior</c> persists the change, delegates the GDPR consent stamping
 /// to the aggregate (<c>JobSeeker.UpdateNotificationConsent</c> — first opt-in immutable, opt-out
 /// records the withdrawal time), and echoes the JobSeeker id via <see cref="Result{T}"/> so
-/// <c>AuditBehavior</c> can write the audit_log row (ADR 0022). The Worker's dispatch filter
-/// (enabled AND withdrawn-null) honours the result on the next nightly scan; withdrawal stops
-/// dispatch immediately. NO AI/LLM, no PII.
+/// <c>AuditBehavior</c> can write the audit_log row (ADR 0022). NO AI/LLM, no PII.
 /// </summary>
 public sealed class UpdateNotificationConsentCommandHandler(
     IAppDbContext db,

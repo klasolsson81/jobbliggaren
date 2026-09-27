@@ -12,8 +12,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNoti
 /// consent stamping to the aggregate (<c>JobSeeker.UpdateFollowedCompanyNotificationConsent</c> —
 /// first opt-in immutable Art. 7(1), opt-out records the Art. 7(3) withdrawal time), and echoes the
 /// JobSeeker id via <see cref="Result{T}"/> so <c>AuditBehavior</c> can write the audit_log row
-/// (ADR 0022). The Worker's follow-dispatch filter (enabled AND withdrawn-null) honours the result
-/// on the next nightly pass; withdrawal stops company-follow dispatch immediately. NO AI/LLM, no PII.
+/// (ADR 0022). NO AI/LLM, no PII.
 /// </summary>
 public sealed class UpdateFollowedCompanyNotificationConsentCommandHandler(
     IAppDbContext db,

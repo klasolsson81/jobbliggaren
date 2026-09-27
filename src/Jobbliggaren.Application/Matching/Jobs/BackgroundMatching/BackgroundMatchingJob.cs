@@ -74,8 +74,7 @@ public sealed partial class BackgroundMatchingJob(
     {
         var now = clock.UtcNow;
 
-        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. A withdrawal stops
-        // dispatch immediately (the filter excludes withdrawn users). Default OFF → most rows
+        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. Default OFF → most rows
         // are excluded; the set is small, so a per-user loop is fine for the $16-VPS MVP.
         // Own short scope (#751): a one-shot projection — no context needs to outlive it, so
         // the job class holds no DbContext at all.

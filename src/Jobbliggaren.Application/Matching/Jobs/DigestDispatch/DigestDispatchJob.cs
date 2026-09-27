@@ -25,8 +25,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not
 /// withdrawn — identical to the background-match scan (NOT the company-follow scan, which under 7C
-/// creates hits for every active follower — see the follow-pass section below). A withdrawal stops
-/// dispatch immediately (its Pending rows are simply never picked up).
+/// creates hits for every active follower — see the follow-pass section below).
 /// </para>
 /// <para>
 /// <b>Idempotent claim-then-send:</b> HTTP is not transactional, so per user the sequence is

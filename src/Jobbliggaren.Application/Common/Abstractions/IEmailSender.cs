@@ -81,7 +81,7 @@ public interface IEmailSender
     /// är icke-PII (jobbtitlar + företag + grad-labels, aldrig en siffra/CV-data); mottagar-
     /// adressen bärs separat i <paramref name="toEmail"/>. Mallen lägger en OBLIGATORISK
     /// inställnings-/avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen
-    /// (opt-in OFF default, withdrawal stoppar omedelbart — ADR 0080 Beslut 5).
+    /// (opt-in OFF default — ADR 0080 Beslut 5).
     /// <para>
     /// Dubbel-leverans förhindras av claim-then-send-spinen (<c>NotificationStatus</c>
     /// Pending→Queued→Sent) plus <c>StrandedMatchReaperJob</c>, som markerar en strandad
@@ -102,7 +102,7 @@ public interface IEmailSender
     /// surfas aldrig; följnings-mejlet visar det publika företagsNAMNET). Mottagar-adressen bärs
     /// separat i <paramref name="toEmail"/>; mallen lägger en OBLIGATORISK inställnings-/
     /// avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen (den SEPARATA
-    /// FollowedCompanyNotificationsEnabled-flaggan, opt-in OFF default, withdrawal stoppar omedelbart).
+    /// FollowedCompanyNotificationsEnabled-flaggan, opt-in OFF default).
     /// <para>
     /// Dubbel-leverans förhindras av samma claim-then-send-spine som matchnings-vägen (ADR 0124).
     /// </para>

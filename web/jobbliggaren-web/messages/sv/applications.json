@@ -40,7 +40,7 @@
       "channelPlaceholder": "Välj kanal",
       "dateLabel": "Datum",
       "noteLabel": "Anteckning (valfri)",
-      "submit": "Lägg till uppföljning"
+      "submit": "Planera uppföljning"
     },
     "addNote": {
       "label": "Anteckning",
@@ -223,9 +223,9 @@
     "followUps": {
       "sectionLabel": "Uppföljningar",
       "emptyDrawer": "Inga uppföljningar ännu.",
-      "add": "Lägg till uppföljning",
+      "add": "Planera uppföljning",
       "addLog": "Logga uppföljning",
-      "addHeading": "Lägg till uppföljning",
+      "addHeading": "Planera uppföljning",
       "outcomeLabel": "Utfall:",
       "noteLabel": "Anteckning:",
       "help": {

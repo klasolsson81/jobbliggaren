@@ -85,7 +85,7 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: () => null,
 }));
 
-const SUBMIT = "Lägg till uppföljning";
+const SUBMIT = "Planera uppföljning";
 const NOTE = "Anteckning (valfri)";
 
 describe("AddFollowUpForm", () => {

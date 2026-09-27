@@ -196,7 +196,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       screen.getByRole("button", { name: "Logga uppföljning" }),
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Lägg till uppföljning" }),
+      screen.getByRole("button", { name: "Planera uppföljning" }),
     );
     expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
   });

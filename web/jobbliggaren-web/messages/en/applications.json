@@ -40,7 +40,7 @@
       "channelPlaceholder": "Select channel",
       "dateLabel": "Date",
       "noteLabel": "Note (optional)",
-      "submit": "Add follow-up"
+      "submit": "Plan follow-up"
     },
     "addNote": {
       "label": "Note",
@@ -223,9 +223,9 @@
     "followUps": {
       "sectionLabel": "Follow-ups",
       "emptyDrawer": "No follow-ups yet.",
-      "add": "Add follow-up",
+      "add": "Plan follow-up",
       "addLog": "Log follow-up",
-      "addHeading": "Add follow-up",
+      "addHeading": "Plan follow-up",
       "outcomeLabel": "Outcome:",
       "noteLabel": "Note:",
       "help": {

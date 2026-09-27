@@ -112,18 +112,18 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("default visar 'Lägg till uppföljning'-knappen, ej form", () => {
+  it("default visar 'Planera uppföljning'-knappen, ej form", () => {
     render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
     expect(
-      screen.getByRole("button", { name: /Lägg till uppföljning/ }),
+      screen.getByRole("button", { name: /Planera uppföljning/ }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
-  it("klick på Lägg till-knapp expanderar form, Avbryt kollapsar", () => {
+  it("klick på Planera-knapp expanderar form, Avbryt kollapsar", () => {
     render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Lägg till uppföljning/ }),
+      screen.getByRole("button", { name: /Planera uppföljning/ }),
     );
     expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));

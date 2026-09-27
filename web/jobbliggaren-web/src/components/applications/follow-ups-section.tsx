@@ -43,7 +43,7 @@ interface FollowUpsSectionProps {
  *  - Pending-uppföljning expanderad → RecordFollowUpOutcomeForm inline.
  *  - Satt utfall expanderad → plain text (utfall + outcome-datum + full
  *    anteckning), ingen dropdown.
- *  - "Lägg till uppföljning" är en knapp som default; klick → form expanderar
+ *  - "Planera uppföljning" är en knapp som default; klick → form expanderar
  *    inline. Lyckad spar eller Avbryt → kollapsa.
  *  - Esc kollapsar aktiv editor / aktiv expanderad rad.
  *

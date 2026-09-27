@@ -26,6 +26,7 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
 {
     private const string CadencePath = "/api/v1/me/digest-cadence";
     private const string ConsentPath = "/api/v1/me/background-match-notification-consent";
+    private const string FollowPath = "/api/v1/me/followed-company-notification-consent";
 
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -98,13 +99,29 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = await AuthenticateAsync(ct);
-        (await _client.PutAsJsonAsync(CadencePath, new { cadence = "Daily" }, ct))
-            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var jobSeekerId = (await ReadSeekerAsync(userId, ct)).Id.Value;
+        var auditBefore = (await ReadAuditEntriesAsync(jobSeekerId, ct)).Count;
 
         var put = await _client.PutAsJsonAsync(CadencePath, new { }, ct);
 
         put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await ReadSeekerAsync(userId, ct)).Preferences.DigestCadence.ShouldBe(DigestCadence.Daily);
+        (await ReadSeekerAsync(userId, ct)).Preferences.DigestCadence.ShouldBe(DigestCadence.Weekly);
+        (await ReadAuditEntriesAsync(jobSeekerId, ct)).Count.ShouldBe(auditBefore);
+    }
+
+    [Fact]
+    public async Task PUT_digest_cadence_with_an_undefined_number_returns_400_and_writes_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        var jobSeekerId = (await ReadSeekerAsync(userId, ct)).Id.Value;
+        var auditBefore = (await ReadAuditEntriesAsync(jobSeekerId, ct)).Count;
+
+        var put = await _client.PutAsJsonAsync(CadencePath, new { cadence = 99 }, ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ReadSeekerAsync(userId, ct)).Preferences.DigestCadence.ShouldBe(DigestCadence.Weekly);
+        (await ReadAuditEntriesAsync(jobSeekerId, ct)).Count.ShouldBe(auditBefore);
     }
 
     // The defect's own sequence, end to end: consent given, then withdrawn; the row is read; then a
@@ -118,10 +135,18 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await _client.PutAsJsonAsync(ConsentPath, new { enabled = false }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await _client.PutAsJsonAsync(FollowPath, new { enabled = true }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await _client.PutAsJsonAsync(FollowPath, new { enabled = false }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var withdrawn = (await ReadSeekerAsync(userId, ct)).Preferences;
+        withdrawn.DigestCadence.ShouldBe(DigestCadence.Weekly);
         withdrawn.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
         withdrawn.NotificationConsentAt.ShouldNotBeNull();
         withdrawn.NotificationConsentWithdrawnAt.ShouldNotBeNull();
+        withdrawn.FollowedCompanyNotificationsEnabled.ShouldBeFalse();
+        withdrawn.FollowedCompanyNotificationConsentAt.ShouldNotBeNull();
+        withdrawn.FollowedCompanyNotificationConsentWithdrawnAt.ShouldNotBeNull();
 
         var put = await _client.PutAsJsonAsync(CadencePath, new { cadence = "Daily" }, ct);
         put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -131,6 +156,10 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
         after.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
         after.NotificationConsentAt.ShouldBe(withdrawn.NotificationConsentAt);
         after.NotificationConsentWithdrawnAt.ShouldBe(withdrawn.NotificationConsentWithdrawnAt);
+        after.FollowedCompanyNotificationsEnabled.ShouldBeFalse();
+        after.FollowedCompanyNotificationConsentAt.ShouldBe(withdrawn.FollowedCompanyNotificationConsentAt);
+        after.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBe(
+            withdrawn.FollowedCompanyNotificationConsentWithdrawnAt);
     }
 
     [Fact]
@@ -141,6 +170,7 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
         (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var consented = (await ReadSeekerAsync(userId, ct)).Preferences;
+        consented.DigestCadence.ShouldBe(DigestCadence.Weekly);
 
         var put = await _client.PutAsJsonAsync(CadencePath, new { cadence = "Daily" }, ct);
         put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -152,8 +182,6 @@ public class DigestCadenceEndpointTests(ApiFactory factory)
         after.NotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
-    // The cadence contract carries no consent value: a stray `enabled` is not bound, so a cadence
-    // request cannot give (or re-give) a consent.
     [Fact]
     public async Task PUT_digest_cadence_with_a_stray_enabled_leaves_the_consent_unchanged()
     {

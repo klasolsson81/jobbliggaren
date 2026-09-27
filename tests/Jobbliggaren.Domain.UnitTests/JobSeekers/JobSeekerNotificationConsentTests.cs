@@ -113,7 +113,7 @@ public class JobSeekerNotificationConsentTests
     {
         // The Art. 7(3) record is the moment the consent was withdrawn, not the latest click on an
         // already-off switch. Simplifying the on->off guard into an unconditional `withdrawnAt = now`
-        // would restamp it while every other test here stayed green.
+        // would restamp it.
         var seeker = NewSeeker();
         var consentAt = Later(1);
         var withdrawnAt = Later(4);

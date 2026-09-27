@@ -105,21 +105,6 @@ public class SetDigestCadenceCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithUndefinedCadence_ReturnsTheAggregatesValidationFailure()
-    {
-        var db = TestAppDbContextFactory.Create();
-        await SeedSeekerAsync(db, _userId);
-
-        var result = await HandlerWith(db, ClockT1).Handle(
-            new SetDigestCadenceCommand((DigestCadence)99), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("JobSeeker.DigestCadenceInvalid");
-        db.JobSeekers.Single(js => js.UserId == _userId).Preferences.DigestCadence
-            .ShouldBe(DigestCadence.Weekly);
-    }
-
-    [Fact]
     public async Task Handle_IsOwnerScoped_DoesNotTouchOtherUsersCadence()
     {
         var db = TestAppDbContextFactory.Create();

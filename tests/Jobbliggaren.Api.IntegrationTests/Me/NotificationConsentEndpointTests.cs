@@ -161,8 +161,6 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
-    // The consent contract carries no cadence: a stray key is not bound, so it cannot move the
-    // cadence.
     [Fact]
     public async Task PUT_consent_with_a_stray_cadence_leaves_the_cadence_unchanged()
     {

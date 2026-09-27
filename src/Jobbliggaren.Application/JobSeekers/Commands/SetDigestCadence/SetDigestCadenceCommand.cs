@@ -13,9 +13,9 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
 /// aggregate's <see cref="JobSeeker.SetDigestCadence"/> refuses an undefined value. A body without
 /// <c>cadence</c> is a 400, never a bound default.
 /// <para>
-/// <b>Auditable (ADR 0022, GDPR Art. 5(2)/30):</b> parity every other owner-scoped JobSeeker
-/// self-mutation — <c>AuditBehavior</c> writes one <c>audit_log</c> row on success. The handler echoes
-/// the JobSeeker id via <see cref="Result{T}"/> so <see cref="ExtractAggregateId"/> can read it.
+/// <b>Auditable (ADR 0022, GDPR Art. 5(2)/30):</b> <c>AuditBehavior</c> writes one <c>audit_log</c>
+/// row on success. The handler echoes the JobSeeker id via <see cref="Result{T}"/> so
+/// <see cref="ExtractAggregateId"/> can read it.
 /// </para>
 /// </summary>
 public sealed record SetDigestCadenceCommand([property: JsonRequired] DigestCadence Cadence)

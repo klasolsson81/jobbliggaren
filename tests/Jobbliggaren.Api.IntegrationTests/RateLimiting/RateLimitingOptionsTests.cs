@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Microsoft.Extensions.Configuration;
 using Shouldly;
 
@@ -30,6 +31,20 @@ public class RateLimitingOptionsTests
 
         sut.AuthWrite.PermitLimit.ShouldBe(20);
         sut.AuthWrite.WindowSeconds.ShouldBe(60);
+    }
+
+    /// <summary>
+    /// #1745 (dotnet-architect N1; security-auditor's condition 4, ADR 0142 Amendment (17)) — the floor under the
+    /// external-login start budget. The start sits under the per-source AuthWrite limit, so a budget at or below it lets
+    /// one source spend every start there is.
+    /// </summary>
+    [Fact]
+    public void The_start_budget_stays_above_one_sources_auth_write_rate()
+    {
+        var authWrite = new RateLimitingOptions().AuthWrite;
+
+        (ExternalLoginPolicy.StartBudget.Limit / ExternalLoginPolicy.StartBudget.Window.TotalSeconds)
+            .ShouldBeGreaterThan(authWrite.PermitLimit / (double)authWrite.WindowSeconds);
     }
 
     [Fact]

@@ -122,7 +122,8 @@ public class JobSeekerFollowedCompanyConsentTests
     {
         var seeker = NewSeeker();
         // Establish a background-match consent with a specific cadence first.
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, Later(1));
+        seeker.UpdateNotificationConsent(enabled: true, Later(1));
+        seeker.SetDigestCadence(DigestCadence.Daily, Later(1));
 
         // Toggling the company-follow consent must leave the background-match flag/timestamps and
         // the SHARED cadence untouched (ADR 0087 D2/D5).
@@ -142,8 +143,8 @@ public class JobSeekerFollowedCompanyConsentTests
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, Later(1));
 
         // Toggling the background-match consent must not disturb the company-follow consent.
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, Later(2));
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, Later(3));
+        seeker.UpdateNotificationConsent(enabled: true, Later(2));
+        seeker.UpdateNotificationConsent(enabled: false, Later(3));
 
         seeker.Preferences.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
         seeker.Preferences.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBeNull();

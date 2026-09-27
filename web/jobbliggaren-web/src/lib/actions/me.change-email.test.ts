@@ -33,6 +33,7 @@ vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
 vi.mock("@/lib/api/me", () => ({
   updateNotificationConsent: vi.fn(),
   updateFollowedCompanyNotificationConsent: vi.fn(),
+  updateDigestCadence: vi.fn(),
 }));
 
 import { confirmEmailChangeAction, requestEmailChangeAction } from "./me";

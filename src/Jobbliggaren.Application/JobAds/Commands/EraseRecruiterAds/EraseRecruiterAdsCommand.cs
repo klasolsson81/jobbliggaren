@@ -73,7 +73,7 @@ public sealed record EraseRecruiterAdsCommand(
 
     /// <summary>
     /// The accountability record (Art. 5(2)/30) — written to <c>audit_log.payload</c>, a jsonb
-    /// column that has existed since ADR 0022 and that no command has ever written.
+    /// column that has existed since ADR 0022.
     /// </summary>
     /// <remarks>
     /// <b>The identifier is HMAC'd, never stored.</b> Recording the recruiter's email in the audit

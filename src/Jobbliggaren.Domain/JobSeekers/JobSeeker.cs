@@ -113,9 +113,10 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         return Result.Success(jobSeeker);
     }
 
-    public void UpdatePreferences(Preferences preferences, IDateTimeProvider clock)
+    /// <summary>Sets the account's locale.</summary>
+    public void ChangeLanguage(string language, IDateTimeProvider clock)
     {
-        Preferences = preferences;
+        Preferences = Preferences with { Language = language };
         UpdatedAt = clock.UtcNow;
     }
 
@@ -127,8 +128,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// revocation proof). Withdrawal stops dispatch immediately (the Worker filters on
     /// enabled AND withdrawn-null). Audit-logged via the pipeline.
     /// </summary>
-    public void UpdateNotificationConsent(
-        bool enabled, DigestCadence cadence, IDateTimeProvider clock)
+    public void UpdateNotificationConsent(bool enabled, IDateTimeProvider clock)
     {
         var now = clock.UtcNow;
         var consentAt = Preferences.NotificationConsentAt;
@@ -149,11 +149,28 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         Preferences = Preferences with
         {
             BackgroundMatchNotificationsEnabled = enabled,
-            DigestCadence = cadence,
             NotificationConsentAt = consentAt,
             NotificationConsentWithdrawnAt = withdrawnAt,
         };
         UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// ADR 0087 D2 — sets the digest cadence the two notification consents share. Not refused while
+    /// both consents are off: a cadence without a consent sends nothing. The same value is a no-op.
+    /// </summary>
+    public Result SetDigestCadence(DigestCadence cadence, IDateTimeProvider clock)
+    {
+        if (!Enum.IsDefined(cadence))
+            return Result.Failure(DomainError.Validation(
+                "JobSeeker.DigestCadenceInvalid", "Okänt intervall för sammanfattningen."));
+
+        if (Preferences.DigestCadence == cadence)
+            return Result.Success();
+
+        Preferences = Preferences with { DigestCadence = cadence };
+        UpdatedAt = clock.UtcNow;
+        return Result.Success();
     }
 
     /// <summary>
@@ -325,8 +342,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 
     /// <summary>
     /// Sets the job-seeker's STATED job-search preferences (F4-12, ADR 0076).
-    /// Mirrors <see cref="UpdatePreferences"/>: replaces the value object + bumps
-    /// <see cref="UpdatedAt"/>. Raises NO domain event — there is no reactive
+    /// Replaces the value object + bumps <see cref="UpdatedAt"/>. Raises NO domain event — there is no reactive
     /// consumer (matching is compute-on-demand; CTO-bound). An empty
     /// <see cref="MatchPreferences"/> is valid (clears stated preferences).
     /// </summary>

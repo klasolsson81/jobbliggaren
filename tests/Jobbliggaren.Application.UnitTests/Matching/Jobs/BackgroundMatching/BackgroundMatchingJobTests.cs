@@ -64,7 +64,7 @@ public class BackgroundMatchingJobTests
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         // Opt-in ON, never withdrawn → inside the consenting set.
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, NowClock);
+        seeker.UpdateNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return userId;
@@ -225,8 +225,8 @@ public class BackgroundMatchingJobTests
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, NowClock);
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, NowClock);
+        seeker.UpdateNotificationConsent(enabled: true, NowClock);
+        seeker.UpdateNotificationConsent(enabled: false, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 

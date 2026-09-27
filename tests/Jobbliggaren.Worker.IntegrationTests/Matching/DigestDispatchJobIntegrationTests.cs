@@ -155,7 +155,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
         created.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         var jobSeeker = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock).Value;
-        jobSeeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, clock);
+        jobSeeker.UpdateNotificationConsent(enabled: true, clock);
         db.JobSeekers.Add(jobSeeker);
         await db.SaveChangesAsync(ct);
         return (user.Id, jobSeeker.Id);

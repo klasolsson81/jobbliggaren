@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
@@ -68,7 +69,7 @@ public class UpdateNotificationConsentCommandHandlerTests
         var handler = new UpdateNotificationConsentCommandHandler(db, currentUser, ClockT0);
 
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Weekly),
+            new UpdateNotificationConsentCommand(Enabled: true),
             CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
@@ -82,7 +83,7 @@ public class UpdateNotificationConsentCommandHandlerTests
         var handler = HandlerWith(db, ClockT0);
 
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Weekly),
+            new UpdateNotificationConsentCommand(Enabled: true),
             CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
@@ -90,14 +91,14 @@ public class UpdateNotificationConsentCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenEnabling_StampsConsentAndSetsCadence_AndEchoesJobSeekerId()
+    public async Task Handle_WhenEnabling_StampsConsent_AndEchoesJobSeekerId()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
         var handler = HandlerWith(db, ClockT1);
 
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Daily),
+            new UpdateNotificationConsentCommand(Enabled: true),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -105,7 +106,6 @@ public class UpdateNotificationConsentCommandHandlerTests
         result.Value.ShouldBe(seeker.Id.Value);
         var prefs = db.JobSeekers.Single(js => js.UserId == _userId).Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
-        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
         // Art. 7(1) — the opt-in evidence is stamped at the consent instant.
         prefs.NotificationConsentAt.ShouldBe(ClockT1.UtcNow);
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
@@ -117,13 +117,13 @@ public class UpdateNotificationConsentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
         // Pre-state: enabled at T1 (consent stamped).
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, ClockT1);
+        seeker.UpdateNotificationConsent(enabled: true, ClockT1);
         await db.SaveChangesAsync(CancellationToken.None);
 
         // Act: opt-out at T2.
         var handler = HandlerWith(db, ClockT2);
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: false, Cadence: DigestCadence.Weekly),
+            new UpdateNotificationConsentCommand(Enabled: false),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -142,48 +142,56 @@ public class UpdateNotificationConsentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
         // Enable at T0 (first opt-in evidence) → disable at T1 (withdrawal).
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, ClockT0);
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, ClockT1);
+        seeker.UpdateNotificationConsent(enabled: true, ClockT0);
+        seeker.UpdateNotificationConsent(enabled: false, ClockT1);
         await db.SaveChangesAsync(CancellationToken.None);
 
         // Act: re-enable at T2.
         var handler = HandlerWith(db, ClockT2);
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Daily),
+            new UpdateNotificationConsentCommand(Enabled: true),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(seeker.Id.Value);
         var prefs = db.JobSeekers.Single(js => js.UserId == _userId).Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
-        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
         // The IMMUTABLE first-opt-in evidence must NOT move on re-consent (Art. 7(1)).
         prefs.NotificationConsentAt.ShouldBe(ClockT0.UtcNow);
     }
 
-    [Fact]
-    public async Task Handle_WhenChangingCadenceWhileEnabled_UpdatesCadence_AndLeavesTimestampsUnchanged()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_LeavesDigestCadenceUnchanged(bool enabled)
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, ClockT0);
+        seeker.UpdateNotificationConsent(enabled: !enabled, ClockT0);
+        seeker.SetDigestCadence(DigestCadence.Daily, ClockT0);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        // Act: still enabled, only the cadence flips Weekly → Daily at T2.
-        var handler = HandlerWith(db, ClockT2);
-        var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Daily),
-            CancellationToken.None);
+        var result = await HandlerWith(db, ClockT2).Handle(
+            new UpdateNotificationConsentCommand(Enabled: enabled), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBe(seeker.Id.Value);
         var prefs = db.JobSeekers.Single(js => js.UserId == _userId).Preferences;
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBe(enabled);
         prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
-        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
-        // A cadence-only change does not re-stamp consent nor introduce a withdrawal.
-        prefs.NotificationConsentAt.ShouldBe(ClockT0.UtcNow);
-        prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
+    }
+
+    // The audit row records the user's act, not the resulting state: a switch turned off on an
+    // already-withdrawn consent changes nothing on Preferences and is still recorded as `false`.
+    [Theory]
+    [InlineData(true, "{\"enabled\":true}")]
+    [InlineData(false, "{\"enabled\":false}")]
+    public void BuildAuditPayload_RecordsTheRequestedEnabled(bool enabled, string expected)
+    {
+        var payload = new UpdateNotificationConsentCommand(Enabled: enabled).BuildAuditPayload(
+            Result.Success(Guid.NewGuid()), Substitute.For<IIdentifierPseudonymizer>());
+
+        payload.ShouldBe(expected);
     }
 
     [Fact]
@@ -196,7 +204,7 @@ public class UpdateNotificationConsentCommandHandlerTests
         var handler = HandlerWith(db, ClockT1);
 
         var result = await handler.Handle(
-            new UpdateNotificationConsentCommand(Enabled: true, Cadence: DigestCadence.Daily),
+            new UpdateNotificationConsentCommand(Enabled: true),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();

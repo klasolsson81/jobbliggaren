@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-6 — sets the current user's background-match notification consent + cadence.
+/// ADR 0080 Vag 4 PR-6 — sets the current user's background-match notification consent.
 /// Mirrors <c>DeleteAccountCommandHandler</c>'s owner-scoped audited shape: loads the JobSeeker
 /// TRACKED so the <c>UnitOfWorkBehavior</c> persists the change, delegates the GDPR consent stamping
 /// to the aggregate (<c>JobSeeker.UpdateNotificationConsent</c> — first opt-in immutable, opt-out
@@ -35,7 +35,7 @@ public sealed class UpdateNotificationConsentCommandHandler(
             return Result.Failure<Guid>(
                 DomainError.NotFound("JobSeeker", currentUser.UserId.Value));
 
-        jobSeeker.UpdateNotificationConsent(command.Enabled, command.Cadence, clock);
+        jobSeeker.UpdateNotificationConsent(command.Enabled, clock);
 
         // Echo the JobSeeker id for the audit row (AuditBehavior.ExtractAggregateId); the endpoint
         // discards the value and returns 204.

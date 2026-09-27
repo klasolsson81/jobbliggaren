@@ -18,9 +18,10 @@ import { writeLoginFlow } from "@/lib/auth/login-flow-cookie";
 import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
 import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
 import { type BoundCodeRefusal, verifyBoundCode } from "@/lib/auth/reauth-code";
-import { parseResponse } from "@/lib/dto/_helpers";
+import { parseResponse, type ApiResult } from "@/lib/dto/_helpers";
 import { boundChallengeSchema, reissuedSessionSchema } from "@/lib/dto/reauth";
 import {
+  updateDigestCadence,
   updateFollowedCompanyNotificationConsent,
   updateNotificationConsent,
 } from "@/lib/api/me";
@@ -33,6 +34,8 @@ import {
   type UpdateNotificationConsentInput,
   makeUpdateFollowedCompanyNotificationConsentSchema,
   type UpdateFollowedCompanyNotificationConsentInput,
+  makeUpdateDigestCadenceSchema,
+  type UpdateDigestCadenceInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -79,19 +82,15 @@ export async function updateMyProfileAction(
 }
 
 /**
- * ADR 0080 Vag 4 PR-6 — sparar användarens bakgrundsmatchnings-notis-consent
- * (opt-in-toggle + digest-kadens) via `PUT /api/v1/me/notification-consent`
- * (204 vid lyckat). Tunn transport runt `updateNotificationConsent`-BFF:en så
- * klient-ön aldrig läser backend direkt (server-only-gränsen bevaras; Bearer-
- * sessionen exponeras aldrig mot klienten) — samma mönster som
- * `match-preferences`-actionerna. safeParse → BFF-anrop → `ApiResult`→
- * `ActionResult`-mappning → `revalidatePath`.
+ * ADR 0080 Vag 4 PR-6 — saves the background-match notification consent. Thin
+ * transport around the `updateNotificationConsent` BFF so the client island never
+ * reaches the backend (the Bearer session stays server-side), the
+ * `match-preferences` actions' shape: safeParse → BFF call → `ApiResult` →
+ * `ActionResult` → `revalidatePath`.
  *
- * GDPR: ett opt-in är samtycke (Art. 6(1)(a)/7), ett opt-out drar tillbaka det
- * (Art. 7(3)) — Domänen äger consent-stämplingen; denna action är ren transport.
- * Idempotent full-replace; kadensen skickas alltid med (meningsfull endast när
- * `enabled`, men wire bär den oavsett). Revaliderar `/mina-sidor` så kortet
- * speglar det sparade läget.
+ * GDPR: switching it on is consent (Art. 6(1)(a)/7), switching it off withdraws it
+ * (Art. 7(3)); the Domain owns the consent stamping. Carries only `{ enabled }` —
+ * the digest cadence is `updateDigestCadenceAction`'s.
  */
 export async function updateNotificationConsentAction(
   input: UpdateNotificationConsentInput
@@ -100,35 +99,11 @@ export async function updateNotificationConsentAction(
   const t = await getTranslations("validation");
   const parsed = makeUpdateNotificationConsentSchema(t).safeParse(input);
   if (!parsed.success) {
-    return {
-      success: false,
-      error:
-        parsed.error.issues[0]?.message ??
-        ts("backgroundMatch.errors.invalidInput"),
-    };
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
   }
 
-  const result = await updateNotificationConsent(parsed.data);
-  switch (result.kind) {
-    case "ok":
-      revalidatePath("/mina-sidor");
-      return { success: true };
-    case "unauthorized":
-      return {
-        success: false,
-        error: ts("backgroundMatch.errors.notLoggedIn"),
-      };
-    case "rateLimited":
-      return {
-        success: false,
-        error: ts("backgroundMatch.errors.tooManyAttempts"),
-      };
-    default:
-      return {
-        success: false,
-        error: ts("backgroundMatch.errors.saveFailed"),
-      };
-  }
+  const result = await updateNotificationConsent({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
 }
 
 /**
@@ -137,11 +112,9 @@ export async function updateNotificationConsentAction(
  * channel: opting in is consent (Art. 6(1)(a)/7), switching it off withdraws it.
  * The Domain owns the consent stamping; this action is pure transport.
  *
- * Carries ONLY `{ enabled }` — the digest cadence is SHARED with the
- * background-match notifications (ADR 0087 D2) and is written by
- * `updateNotificationConsentAction`. After 7C the in-app follow-rail is
- * unaffected by this flag (Art. 6(1)(b) service); this gates the EMAIL channel
- * only. Revalidates `/mina-sidor` so the card mirrors the saved state.
+ * Carries only `{ enabled }` — the digest cadence is `updateDigestCadenceAction`'s.
+ * After 7C the in-app follow-rail is unaffected by this flag (Art. 6(1)(b)
+ * service); this gates the EMAIL channel only.
  */
 export async function updateFollowedCompanyNotificationConsentAction(
   input: UpdateFollowedCompanyNotificationConsentInput
@@ -153,32 +126,51 @@ export async function updateFollowedCompanyNotificationConsentAction(
   if (!parsed.success) {
     return {
       success: false,
-      error:
-        parsed.error.issues[0]?.message ??
-        ts("followedCompanyNotifications.errors.invalidInput"),
+      error: ts("followedCompanyNotifications.errors.invalidInput"),
     };
   }
 
-  const result = await updateFollowedCompanyNotificationConsent(parsed.data);
+  const result = await updateFollowedCompanyNotificationConsent({
+    enabled: parsed.data.enabled,
+  });
+  return notificationSettingOutcome(result, ts, "followedCompanyNotifications");
+}
+
+/**
+ * ADR 0087 D2 — saves the digest cadence the two consents share and neither owns.
+ * Carries only `{ cadence }`, never a consent value. Its failures read as the
+ * background-match settings' copy, which names no purpose.
+ */
+export async function updateDigestCadenceAction(
+  input: UpdateDigestCadenceInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateDigestCadenceSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateDigestCadence({ cadence: parsed.data.cadence });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+// Revalidates `/mina-sidor` so the card mirrors the saved state.
+function notificationSettingOutcome(
+  result: ApiResult<void>,
+  ts: Awaited<ReturnType<typeof getTranslations<"settings">>>,
+  copy: "backgroundMatch" | "followedCompanyNotifications"
+): ActionResult {
   switch (result.kind) {
     case "ok":
       revalidatePath("/mina-sidor");
       return { success: true };
     case "unauthorized":
-      return {
-        success: false,
-        error: ts("followedCompanyNotifications.errors.notLoggedIn"),
-      };
+      return { success: false, error: ts(`${copy}.errors.notLoggedIn`) };
     case "rateLimited":
-      return {
-        success: false,
-        error: ts("followedCompanyNotifications.errors.tooManyAttempts"),
-      };
+      return { success: false, error: ts(`${copy}.errors.tooManyAttempts`) };
     default:
-      return {
-        success: false,
-        error: ts("followedCompanyNotifications.errors.saveFailed"),
-      };
+      return { success: false, error: ts(`${copy}.errors.saveFailed`) };
   }
 }
 

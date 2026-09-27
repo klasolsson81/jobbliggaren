@@ -71,7 +71,8 @@ public class DigestDispatchJobTests
     {
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        seeker.UpdateNotificationConsent(enabled: true, cadence, NowClock);
+        seeker.SetDigestCadence(cadence, NowClock);
+        seeker.UpdateNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return userId;
@@ -85,8 +86,9 @@ public class DigestDispatchJobTests
     {
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        seeker.UpdateNotificationConsent(enabled: true, cadence, NowClock);
-        seeker.UpdateNotificationConsent(enabled: false, cadence, NowClock);
+        seeker.SetDigestCadence(cadence, NowClock);
+        seeker.UpdateNotificationConsent(enabled: true, NowClock);
+        seeker.UpdateNotificationConsent(enabled: false, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return userId;
@@ -485,14 +487,14 @@ public class DigestDispatchJobTests
     // profile per the architect Test-scope note.
 
     // A consenting FOLLOW user: the SEPARATE follow-email flag ON (never withdrawn), the shared cadence
-    // set via the background-match consent path (which stays OFF, so the match pass never fires here).
+    // set on its own (the background-match consent stays OFF, so the match pass never fires here).
     private static async Task<Guid> SeedFollowConsentingSeekerAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, DigestCadence cadence,
         CancellationToken ct)
     {
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        seeker.UpdateNotificationConsent(enabled: false, cadence, NowClock); // sets DigestCadence only
+        seeker.SetDigestCadence(cadence, NowClock);
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);

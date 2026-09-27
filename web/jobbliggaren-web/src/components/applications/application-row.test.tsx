@@ -14,7 +14,7 @@ import type {
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 
 // #630 PR 7: raden muterar via providerns server actions — mocka modulen
-// (samma idiom som status-edit-card.test) så klick kan verifieras utan nät.
+// så klick kan verifieras utan nät.
 const transitionStatusAction = vi.hoisted(() =>
   vi.fn(async () => ({ success: true as const })),
 );

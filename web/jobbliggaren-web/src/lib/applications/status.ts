@@ -29,21 +29,6 @@ export const STATUS_BADGE_VARIANT: Record<ApplicationStatus, BadgeVariant> = {
   Ghosted: "Neutral",
 };
 
-export const ALLOWED_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
-  Draft: ["Submitted"],
-  Submitted: ["Acknowledged", "Rejected", "Withdrawn"],
-  Acknowledged: ["InterviewScheduled", "Rejected", "Withdrawn"],
-  InterviewScheduled: ["Interviewing", "Withdrawn"],
-  Interviewing: ["OfferReceived", "Rejected", "Withdrawn"],
-  OfferReceived: ["Accepted", "Rejected", "Withdrawn"],
-  Accepted: [],
-  Rejected: [],
-  Withdrawn: [],
-  Ghosted: ["Submitted"],
-};
-
-export const DESTRUCTIVE_STATUSES: ApplicationStatus[] = ["Rejected", "Withdrawn"];
-
 /**
  * Fast pipeline-ordning. Single source of truth — speglar backend-
  * pipelinens grupp-ordning. Tidigare duplicerad som PIPELINE_ORDER i
@@ -267,14 +252,6 @@ export function applicationSourceLabel(
   return (APPLICATION_SOURCE_KEYS as readonly string[]).includes(source)
     ? t(`source.${source as ApplicationSourceKey}`)
     : source;
-}
-
-export function getAllowedTransitions(status: ApplicationStatus): ApplicationStatus[] {
-  return ALLOWED_TRANSITIONS[status] ?? [];
-}
-
-export function isDestructiveTransition(target: ApplicationStatus): boolean {
-  return DESTRUCTIVE_STATUSES.includes(target);
 }
 
 // ─── Attention feed (#343, ADR 0085) ──────────────────────────────────────

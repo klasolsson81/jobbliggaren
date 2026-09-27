@@ -3046,15 +3046,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-/* Read-mode static row (#630 PR 6 drawer): identiskt radchassi, ingen
-   interaktivitet (renderas på en div, ej en button). */
-.jp-disclosure-row--static {
-  cursor: default;
-}
-.jp-disclosure-row--static:hover {
-  background: transparent;
-  border-color: var(--jp-border-soft);
-}
 .jp-disclosure-row__primary {
   font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
@@ -3090,14 +3081,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: -1px;
 }
 
-/* ── ApplicationDetail — token-only section primitives (#344, ADR 0085 PR E) ──
+/* ── The application detail — token-only section primitives (#344, ADR 0085 PR E) ──
    Replaces the inline CSSProperties objects (SECTION_LABEL_STYLE), the inline
-   status-block styles and the inline timeline <ul>/<li> styles that lived in
-   application-detail.tsx. No magic px/colour in the TSX — every value rides a
-   --jp-* token. LIGHT mode only (ADR 0081). */
+   status-block styles and the inline timeline <ul>/<li> styles the detail used to
+   carry. No magic px/colour in the TSX — every value rides a --jp-* token.
+   LIGHT mode only (ADR 0081). */
 
-/* Shared section label — previously duplicated as SECTION_LABEL_STYLE in
-   application-detail / follow-ups-section / notes-section (DRY). */
+/* Shared section label — previously duplicated as SECTION_LABEL_STYLE in the
+   detail, follow-ups-section and notes-section (DRY). */
 .jp-section-label {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-bold);
@@ -3237,49 +3228,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-semibold);
 }
 
-/* Status / action separation (ADR 0047 — "where I am" vs "what I can do").
-   Hairline + spacing above the StatusEditCard so the system status block and
-   the action card read as two zones. Subtle, civic — no heavy divider. */
-.jp-status-action {
-  padding-top: 20px;
-  border-top: 1px solid var(--jp-border);
-}
-
-/* Timeline — collapsed-by-default native <details> disclosure (#344). Native
-   <details> keeps ApplicationDetail a Server Component (no client JS). The
-   summary is styled as a section label with a CSS-only chevron that rotates
-   when open. The native marker is removed. */
-.jp-timeline__summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  /* reuse section-label typography */
-  font-size: var(--text-caption);
-  font-weight: var(--jp-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--jp-ink-2);
-}
-.jp-timeline__summary::-webkit-details-marker {
-  display: none;
-}
-.jp-timeline__summary:focus-visible {
-  outline: 2px solid var(--jp-focus);
-  outline-offset: 2px;
-  border-radius: var(--jp-r-sm);
-}
-.jp-timeline__chevron {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  color: var(--jp-ink-3);
-  transition: transform 120ms ease;
-}
-.jp-timeline[open] .jp-timeline__summary .jp-timeline__chevron {
-  transform: rotate(90deg);
-}
 .jp-timeline__list {
   list-style: none;
   padding: 0;

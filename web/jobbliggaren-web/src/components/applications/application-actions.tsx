@@ -44,8 +44,8 @@ export interface ApplicationActionsValue {
   /**
    * #782 (ADR 0104) — "Ta bort ansökan": opens the destructive HARD-delete
    * confirm (ONE shared centered dialog on the island, never N per row). No
-   * anchorY — a destructive confirm is centered (WithdrawApplicationButton
-   * precedent), not click-anchored like the two dialogs above.
+   * anchorY — a destructive confirm is centered, not click-anchored like the two
+   * dialogs above.
    */
   deleteApplication: (application: ApplicationDto) => void;
 }

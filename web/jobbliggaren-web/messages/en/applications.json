@@ -48,8 +48,6 @@
       "submit": "Save note"
     },
     "detail": {
-      "fallbackTitle": "Application #{shortId}",
-      "createdPrefix": "Created",
       "statusLabel": "Status",
       "nextFollowUp": "Next follow-up:",
       "daysInStep": "{days, plural, =0 {less than a day in this step} one {# day in this step} other {# days in this step}}",
@@ -224,7 +222,6 @@
     },
     "followUps": {
       "sectionLabel": "Follow-ups",
-      "empty": "No follow-ups recorded.",
       "emptyDrawer": "No follow-ups yet.",
       "add": "+ Add follow-up",
       "addLog": "+ Add",
@@ -283,24 +280,6 @@
       "confirmQuestion": "Save the outcome <b>{outcome}</b>?",
       "savingOutcome": "Saving…",
       "saveOutcome": "Save {outcome}"
-    },
-    "statusEdit": {
-      "title": "Status",
-      "currentStatus": "Current status:",
-      "closedNotice": "This application is closed and cannot be changed.",
-      "markAs": "Mark as {status}",
-      "chooseInstruction": "Select a new status.",
-      "destructiveNotice": "{status} closes the application. This cannot be undone without manual action.",
-      "save": "Save",
-      "confirmTitle": "Mark as {status}?",
-      "confirmBody": "This cannot be undone without manual action.",
-      "confirmFallback": "Confirm"
-    },
-    "withdraw": {
-      "action": "Withdraw application",
-      "confirmTitle": "Withdraw application?",
-      "confirmBody": "The application is closed and cannot be changed further without manual action.",
-      "withdrawing": "Withdrawing…"
     },
     "delete": {
       "action": "Delete application",

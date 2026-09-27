@@ -48,8 +48,6 @@
       "submit": "Spara notering"
     },
     "detail": {
-      "fallbackTitle": "Ansökan #{shortId}",
-      "createdPrefix": "Skapad",
       "statusLabel": "Status",
       "nextFollowUp": "Nästa uppföljning:",
       "daysInStep": "{days, plural, =0 {mindre än en dag i detta steg} one {# dag i detta steg} other {# dagar i detta steg}}",
@@ -224,7 +222,6 @@
     },
     "followUps": {
       "sectionLabel": "Uppföljningar",
-      "empty": "Inga uppföljningar registrerade.",
       "emptyDrawer": "Inga uppföljningar ännu.",
       "add": "+ Lägg till uppföljning",
       "addLog": "+ Lägg till",
@@ -283,24 +280,6 @@
       "confirmQuestion": "Spara utfallet <b>{outcome}</b>?",
       "savingOutcome": "Sparar…",
       "saveOutcome": "Spara {outcome}"
-    },
-    "statusEdit": {
-      "title": "Status",
-      "currentStatus": "Nuvarande status:",
-      "closedNotice": "Den här ansökan är avslutad och kan inte ändras.",
-      "markAs": "Markera som {status}",
-      "chooseInstruction": "Välj ny status.",
-      "destructiveNotice": "{status} avslutar ansökan. Det går inte att ångra utan manuell åtgärd.",
-      "save": "Spara",
-      "confirmTitle": "Markera som {status}?",
-      "confirmBody": "Det går inte att ångra utan manuell åtgärd.",
-      "confirmFallback": "Bekräfta"
-    },
-    "withdraw": {
-      "action": "Återta ansökan",
-      "confirmTitle": "Återta ansökan?",
-      "confirmBody": "Ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
-      "withdrawing": "Återtar…"
     },
     "delete": {
       "action": "Ta bort ansökan",

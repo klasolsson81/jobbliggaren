@@ -25,14 +25,13 @@ interface PageProps {
  * Link /ansokningar/[id]) fångas här → CENTRERAD MODAL (ApplicationModalShell,
  * samma paradigm som `/jobb` och gäst-flödet — ADR 0053 gäller åter oinskränkt).
  * Hard-nav / refresh / delad länk träffar `/ansokningar/[id]/page.tsx`
- * (fullsidan, oförändrad — behåller ApplicationDetail + Withdraw). Server-
- * fetchen + titel-precedensen + feltaxonomin är oförändrade (DRY); endast
- * presentationen byts drawer→modal.
+ * (fullsidan), som renderar samma kropp under samma header
+ * (`applicationDetailHeader`).
  *
- * RSC: server-fetch här; endast modal-chromet (ApplicationModalShell) +
- * mutationsöarna (NotesSection) är "use client". ApplicationDetailBody-trädet
- * (kroppen är presentationsagnostisk) förblir Server Component (passeras som
- * children — serialiserbart RSC-träd, ingen funktion över gränsen).
+ * RSC: server-fetch här; endast modal-chromet (ApplicationModalShell) och
+ * kroppens mutationsöar är "use client". ApplicationDetailBody-trädet förblir
+ * Server Component (passeras som children — serialiserbart RSC-träd, ingen
+ * funktion över gränsen).
  */
 export default async function InterceptedAnsokanModal({ params }: PageProps) {
   const user = await getServerSession();

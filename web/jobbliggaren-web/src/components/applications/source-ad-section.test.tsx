@@ -5,14 +5,14 @@ import type { AdSnapshotDto, JobAdSummaryDto } from "@/lib/types/applications";
 
 /**
  * SourceAdSection — #805-3 (Beslut B). Guarden som avgör vad en ansökan får
- * SÄGA om källans annons bor på ETT ställe (SPOT), delad av fullsidan
- * (`ApplicationDetail`) och modalkroppen (`ApplicationDetailBody`).
+ * SÄGA om källans annons bor på ETT ställe (SPOT), renderad av detaljkroppen
+ * (`ApplicationDetailBody`) i modalen och på fullsidan.
  *
- * De två ytornas sviter pinnar att komponenten är INKOPPLAD. Denna svit pinnar
- * dess TILLSTÅNDSRUM uttömmande. Skälet är rotorsaken själv: när guardens
- * grenar bara täcks transitivt — och ojämnt (drawern tunnare än detaljen) —
- * räcker det att ingen yta råkar rendera en gren för att den ska kunna vara fel
- * i två releaser utan att en enda test bli röd. Guarden har egna tester nu.
+ * Kroppens svit pinnar att komponenten är INKOPPLAD. Denna svit pinnar dess
+ * TILLSTÅNDSRUM uttömmande. Skälet är rotorsaken själv: när guardens grenar
+ * bara täcks transitivt räcker det att ingen yta råkar rendera en gren för att
+ * den ska kunna vara fel i två releaser utan att en enda test bli röd. Guarden
+ * har egna tester nu.
  *
  * Axlarna: `jobAd` (null | rad) × `jobAdId` (länkad | manuell) × `status`
  * (Active | icke-Active | saknad) × `url` (null | satt) × `preservedAd`.

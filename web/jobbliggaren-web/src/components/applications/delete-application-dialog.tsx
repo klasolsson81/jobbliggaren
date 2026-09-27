@@ -29,11 +29,10 @@ interface DeleteApplicationDialogProps {
  * #782 (ADR 0104) — destructive confirm for the per-application HARD delete
  * ("Radera ansökan"). Controlled (open state owned by the caller) so the pipeline
  * island mounts ONE shared instance via ApplicationActionsProvider (never N per
- * row), and the detail footer reuses the same body. Reuses the EXACT shadcn Dialog
- * destructive-confirm idiom as WithdrawApplicationButton/StatusEditCard (ADR 0047:
- * the consequence is stated BEFORE the action; the confirm button is the specific
- * "Radera ansökan", never "Bekräfta"/"OK") — one destructive-confirm pattern, no
- * divergent flow. Irreversible by design (no undo), matching the copy.
+ * row), and the detail footer reuses the same body. The shadcn Dialog
+ * destructive-confirm idiom (ADR 0047: the consequence is stated BEFORE the action;
+ * the confirm button is the specific "Radera ansökan", never "Bekräfta"/"OK"), which
+ * TerminalMoveDialog follows too. Irreversible by design (no undo), matching the copy.
  */
 export function DeleteApplicationDialog({
   open,

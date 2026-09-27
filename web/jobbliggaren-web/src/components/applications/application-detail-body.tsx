@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { adIdentityOf } from "@/components/applications/ad-identity";
 import { ApplicationStatusActions } from "@/components/applications/application-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
@@ -14,32 +14,29 @@ import {
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";
 import { composeTimeline, daysInCurrentStep } from "@/lib/applications/timeline";
+import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDetailDto } from "@/lib/types/applications";
 
 interface ApplicationDetailBodyProps {
   application: ApplicationDetailDto;
-  /** Server-computed reference time for "N dagar i detta steg" (per-request). */
+  /** Server-computed reference time for "N dagar i steget" (per-request). */
   now: Date;
 }
 
 /**
- * ApplicationDetailBody — detail panel content (#630 PR 6 läs-läge; PR 7 gör
- * den interaktiv per design §8; sedan 2026-07-10 renderas kroppen i den
- * centrerade ApplicationModalShell, ADR 0092 Livscykel-amendment). Server
- * Component rendered as children of the client ApplicationModalShell (the shell
- * owns the head: role + company + close); mutationsmaskineriet är KLIENT-öar som
- * får serialiserbara props (ApplicationStatusActions, LogFollowUpButton,
+ * ApplicationDetailBody — the application detail, one body in both contexts (ADR 0053
+ * Beslut 2): the route modal renders it inside ApplicationModalShell, and the full page inside
+ * its own header and foot. A Server Component; the mutation machinery is client islands with
+ * serializable props (ApplicationStatusActions, FollowUpsSection, LogFollowUpButton,
  * NotesSection).
  *
- * §8 order: status block → primär-CTA + stegväljare + AVSLUTA ELLER PARKERA
- * (PR 7, §8.3–8.5) → UPPFÖLJNINGAR (statisk lista + "+ Lägg till" →
- * Logga-uppföljning-dialogen, Klas-låst §8.6) → ANNONSEN·SPARAD KOPIA
- * (fallback) → TIDSLINJE (real, newest-first, always open) → ANTECKNINGAR
- * (interactive) → cover letter.
+ * §8 order: status block → primary CTA + step picker + AVSLUTA ELLER PARKERA (§8.3–8.5) →
+ * UPPFÖLJNINGAR (logged and planned follow-ups, each Pending one with its outcome form) →
+ * ANNONSEN · SPARAD KOPIA → TIDSLINJE (newest first, always open) → ANTECKNINGAR → cover letter.
  *
- * The status block's day-count and the timeline derive from REAL recorded
- * StatusChanges (composeTimeline / daysInCurrentStep); the retired `updatedAt`
- * synthesis is never used here (§5, never fabricate a transition).
+ * The status block's day count and the timeline derive from REAL recorded StatusChanges
+ * (composeTimeline / daysInCurrentStep); the retired `updatedAt` synthesis is never used here
+ * (§5, never fabricate a transition).
  */
 export function ApplicationDetailBody({
   application,
@@ -47,6 +44,7 @@ export function ApplicationDetailBody({
 }: ApplicationDetailBodyProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const format = useFormatter();
 
   // ?? null: schemat är .nullable().optional() (deploy-skew-resiliens) → normalisera
   // en gång, så guarden nedströms bara har två fall att resonera om.
@@ -58,8 +56,8 @@ export function ApplicationDetailBody({
   // identitet på wiren; adIdentityOf normaliserar tomt → null så coalescingen
   // nedan aldrig väljer en tom sträng framför den sparade kopian/id-fallbacken.
   const { title: adTitle, company: adCompany } = adIdentityOf(jobAd);
-  // Toast-visningsnamn ("{company}: …"): företag (live → sparad kopia) före
-  // det korta id:t — samma precedens som drawer-headern.
+  // Toast display name ("{company}: …"): the company (live, then the saved copy)
+  // before the short id.
   const displayName =
     adCompany ??
     preservedAd?.company ??
@@ -73,7 +71,7 @@ export function ApplicationDetailBody({
   // "Senaste: {event}" — the newest event that has ACTUALLY happened (at <= now).
   // composeTimeline is newest-first, but a FUTURE-scheduled follow-up sorts to the
   // top by its scheduledAt — "senaste" must be present-anchored, never a future
-  // post (design-reviewer Major; this line is also the dialog's aria-describedby).
+  // post (design-reviewer Major; this line is also part of the modal's description).
   // The label mapping mirrors TimelineList; it is intentionally duplicated (rule of
   // three: only two call sites) because next-intl's namespace-scoped translator
   // types make a shared helper more friction than the small switch is worth.
@@ -105,12 +103,20 @@ export function ApplicationDetailBody({
 
   const hasMeta = days != null || latestLabel != null;
 
+  // The earliest follow-up still waiting for its outcome (K3, Klas 2026-09-26).
+  const nextFollowUp = application.followUps
+    .filter((fu) => fu.outcome === "Pending")
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+    )[0];
+  const nextFollowUpDate = formatDate(format, nextFollowUp?.scheduledAt);
+
   return (
     <>
       {/* Statusblock (§8.2) — 4px vänsterkant i statusfärg (.jp-status-block +
-          data-status-variant), STATUS-kicker + värde + underrad "N dagar i detta
-          steg · Senaste: {händelse}". id="jp-modal-desc" behålls OVILLKORLIGT
-          (drawer-shellens aria-describedby dinglar aldrig). */}
+          data-status-variant), STATUS-kicker + värde + underrader. id="jp-modal-desc"
+          renderas OVILLKORLIGT, så modalskalets aria-describedby aldrig dinglar. */}
       <div
         className="jp-modal__match jp-status-block"
         data-status-variant={variant}
@@ -128,6 +134,14 @@ export function ApplicationDetailBody({
                 tUi("detail.latestEvent", { event: latestLabel })}
             </div>
           )}
+          {nextFollowUpDate != null && (
+            <div className="jp-status-block__next">
+              {tUi("detail.nextFollowUp")}{" "}
+              <span className="jp-status-block__next-date">
+                {nextFollowUpDate}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -141,13 +155,12 @@ export function ApplicationDetailBody({
         copyHasText={preservedAd?.description != null}
       />
 
-      {/* Uppföljningar (§8.6) — statisk lista; "+ Lägg till" öppnar
-          Logga-uppföljning-dialogen (Klas-låst, prototyp-trogen). */}
+      {/* Uppföljningar (§8.6): "Logga uppföljning" i rubrikraden öppnar dialogen
+          (Klas-låst, prototyp-trogen); planeringen med kanal och datum ligger under
+          listan (K3). */}
       <FollowUpsSection
         applicationId={application.id}
         followUps={application.followUps}
-        readOnly
-        emptyLabel={tUi("followUps.emptyDrawer")}
         headerAction={
           <LogFollowUpButton
             applicationId={application.id}
@@ -160,12 +173,11 @@ export function ApplicationDetailBody({
 
       {/* Om annonsen (§8.7) — #805-3 (Beslut B). SourceAdSection äger guarden:
           live → utlänk till källans annons · borta → bevarad kopia (ADR 0086)
-          eller lugn not · manuell → länken användaren sparade. Delad med
-          fullsidan (SPOT). */}
+          eller lugn not · manuell → länken användaren sparade. */}
       <SourceAdSection jobAd={jobAd} preservedAd={preservedAd} />
 
-      {/* Tidslinje (§8.8) — REALA händelser, nyast först, alltid öppen (till
-          skillnad från fullsidans kollapsade <details>). Ingen updatedAt-syntes. */}
+      {/* Tidslinje (§8.8) — REALA händelser, nyast först, alltid öppen. Ingen
+          updatedAt-syntes. */}
       <section aria-labelledby="jp-drawer-timeline-title">
         <div className="jp-section-label" id="jp-drawer-timeline-title">
           {tUi("detail.timelineLabel")}

@@ -3,7 +3,7 @@ import { BrandSpinner } from "@/components/brand/brand-spinner";
 /**
  * ModalLoadingShell — pure RSC loading chrome for the @modal-slot intercepting
  * routes. Rendered by each `loading.tsx` as the Suspense fallback while the
- * server component (JobAdDetail / ApplicationDetail) streams in — so the modal
+ * server component (JobAdDetail / ApplicationDetailBody) streams in — so the modal
  * surface paints instantly with a BrandSpinner + Swedish status line, then the
  * real content swaps in ("open the empty surface instantly + spinner", logo
  * Fas 2 / ADR 0070).

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
-import { ApplicationDetail } from "@/components/applications/application-detail";
-import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
+import { applicationDetailHeader } from "@/lib/applications/header";
+import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
-import { getAllowedTransitions } from "@/lib/applications/status";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -36,10 +35,11 @@ interface Props {
 /**
  * Fullsida för en ansökan (`/ansokningar/[id]`). Renderas vid hard-nav /
  * sidladdning / delad länk. Vid soft-nav från listan fångar
- * `@modal/(.)ansokningar/[id]` istället och visar samma `ApplicationDetail`
- * i modal (ADR 0053 — en presentationskomponent, två kontexter). Speglar
- * F3 `/jobb/[id]/page.tsx` exakt: samma `.jp-modal`-panel utan
- * skugga/animation/max-höjd, .jp-container/.jp-page-wrap.
+ * `@modal/(.)ansokningar/[id]` istället. Båda renderar samma
+ * `ApplicationDetailBody` under samma `applicationDetailHeader` (ADR 0053 —
+ * en presentationskomponent, två kontexter). Fullsidan lägger till sin
+ * tillbakalänk, sin h1 och sin fot. Speglar F3 `/jobb/[id]/page.tsx`: samma
+ * `.jp-modal`-panel utan skugga/animation/max-höjd, .jp-container/.jp-page.
  *
  * notFound (okänt id) → Next `notFound()`. unauthorized → `/logga-in`.
  * rateLimited/error → civil felruta.
@@ -49,15 +49,14 @@ export default async function AnsokanDetailPage({ params }: Props) {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const format = await getFormatter();
   const { id } = await params;
   const result = await getApplicationById(id);
 
   switch (result.kind) {
     case "ok": {
       const application = result.data;
-      const canWithdraw = getAllowedTransitions(
-        application.status
-      ).includes("Withdrawn");
+      const { title, subtitle } = applicationDetailHeader(application, t, format);
 
       return (
         <div className="jp-container jp-page">
@@ -80,16 +79,18 @@ export default async function AnsokanDetailPage({ params }: Props) {
               animation: "none",
             }}
           >
-            <ApplicationDetail application={application} />
+            <header className="jp-modal__head">
+              <div style={{ flex: 1 }}>
+                <h1 className="jp-modal__title">{title}</h1>
+                <p className="jp-modal__company">{subtitle}</p>
+              </div>
+            </header>
+            <div className="jp-modal__body">
+              <ApplicationDetailBody application={application} now={new Date()} />
+            </div>
             <div className="jp-modal__foot">
               <span className="jp-modal__foot__spacer" />
-              {/* #782 (ADR 0104) — always available (deletion has no transition
-                  precondition, unlike Withdraw). "Ta bort ansökan" = HARD remove;
-                  "Återta ansökan" = keep as a terminal status. */}
               <DeleteApplicationButton applicationId={application.id} />
-              {canWithdraw && (
-                <WithdrawApplicationButton applicationId={application.id} />
-              )}
               <Link
                 href="/ansokningar"
                 className="jp-btn jp-btn--secondary"

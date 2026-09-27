@@ -156,7 +156,9 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
   });
 
-  it("renders follow-ups as a static read-only list (no add affordance)", () => {
+  // #699 / #1827 B1: the outcome form is reachable wherever the body renders, so a Pending
+  // follow-up that the queue flags as overdue can be closed where the queue sends the user.
+  it("expands a Pending follow-up row to its outcome form", () => {
     render(
       <ApplicationDetailBody
         application={makeDetail({
@@ -175,30 +177,77 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
         now={NOW}
       />,
     );
-    expect(screen.getByText("Pingade rekryteraren")).toBeInTheDocument();
-    // Raderna är statiska (ingen expand-knapp), och det SCHEMALAGDA formulärets
-    // "+ Lägg till uppföljning" finns inte i drawern (Klas-låst §8.6) — men
-    // "+ Lägg till" (Logga uppföljning-dialogen) finns i sektionsrubriken.
-    expect(
-      screen.queryByText("+ Lägg till uppföljning"),
-    ).not.toBeInTheDocument();
-    // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?" (aria-expanded)
-    // utanför listan, och drawern har flera role="list". Hitta uppföljningslistan
-    // via dess innehåll och verifiera att RADERNA i den är statiska (inga
-    // expand-knappar) i read-only-läget — "?" ligger i etiketten, utanför listan.
+    // #805 punkt 5: sektionsetiketten bär en InfoDialog-"?" (aria-expanded) utanför
+    // listan, och kroppen har flera role="list". Hitta uppföljningslistan via dess innehåll.
     const followUpList = screen
       .getAllByRole("list")
       .find((list) => within(list).queryByText("Pingade rekryteraren") != null);
     expect(followUpList).toBeDefined();
-    expect(
-      within(followUpList!).queryByRole("button", { expanded: false }),
-    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(followUpList!).getByRole("button", { expanded: false }),
+    );
+    expect(screen.getByLabelText("Utfall")).toBeInTheDocument();
+  });
+
+  // K3 (Klas 2026-09-26, keep planning): both follow-up affordances render in the body.
+  it("offers both logging a follow-up and planning one", () => {
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(
       screen.getByRole("button", { name: "+ Lägg till" }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "+ Lägg till uppföljning" }),
+    );
+    expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
   });
 
-  it("uses the §8.6 empty copy in the drawer (button explains the wait reset)", () => {
+  it("shows the earliest follow-up still waiting for its outcome as the next one", () => {
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({
+          followUps: [
+            {
+              id: "f-later",
+              channel: "Phone",
+              scheduledAt: "2026-05-20T08:00:00Z",
+              note: null,
+              outcome: "Pending",
+              outcomeAt: null,
+              createdAt: "2026-05-04T08:00:00Z",
+            },
+            {
+              id: "f-next",
+              channel: "Email",
+              scheduledAt: "2026-05-12T08:00:00Z",
+              note: null,
+              outcome: "Pending",
+              outcomeAt: null,
+              createdAt: "2026-05-04T08:00:00Z",
+            },
+            {
+              id: "f-answered",
+              channel: "Email",
+              scheduledAt: "2026-05-02T08:00:00Z",
+              note: null,
+              outcome: "Responded",
+              outcomeAt: "2026-05-03T08:00:00Z",
+              createdAt: "2026-05-02T08:00:00Z",
+            },
+          ],
+        })}
+        now={NOW}
+      />,
+    );
+    const next = screen.getByText(/Nästa uppföljning/);
+    expect(next).toHaveTextContent("Nästa uppföljning: 12 maj 2026");
+  });
+
+  it("shows no next follow-up when none is waiting for its outcome", () => {
+    render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    expect(screen.queryByText(/Nästa uppföljning/)).not.toBeInTheDocument();
+  });
+
+  it("uses the body's empty follow-up copy", () => {
     render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(
       screen.getByText(/Inga uppföljningar ännu/),
@@ -210,9 +259,40 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("+ Lägg till anteckning")).toBeInTheDocument();
   });
 
-  // #805-3: the drawer and the full page share ONE guard (SourceAdSection), so
-  // this pins that the shared component is actually wired in here too — the two
-  // surfaces cannot drift apart on what the application may claim about the ad.
+  it("renders the recorded notes", () => {
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({
+          notes: [
+            {
+              id: "n1",
+              content: "Ringde rekryteraren",
+              createdAt: "2026-05-04T08:00:00Z",
+            },
+          ],
+        })}
+        now={NOW}
+      />,
+    );
+    expect(screen.getByText("Ringde rekryteraren")).toBeInTheDocument();
+  });
+
+  it("renders the cover letter when there is one, and nothing in its place when there is not", () => {
+    const { rerender } = render(
+      <ApplicationDetailBody
+        application={makeDetail({ coverLetter: "Hej, jag söker tjänsten." })}
+        now={NOW}
+      />,
+    );
+    expect(screen.getByText("Personligt brev")).toBeInTheDocument();
+    expect(screen.getByText("Hej, jag söker tjänsten.")).toBeInTheDocument();
+
+    rerender(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
+    expect(screen.queryByText("Personligt brev")).not.toBeInTheDocument();
+  });
+
+  // #805-3: ONE guard (SourceAdSection) decides what the application may claim about the
+  // ad, so this pins that the body actually wires it in.
   //
   // Truth-correction: the archived case used to be triggered with `jobAd: null`,
   // a state production never reaches (JobAd.DeletedAt has no writer, #821) — so
@@ -252,12 +332,12 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
 
-  // The drawer's OWN new code in #805-3 is the `application.jobAd ?? null`
+  // The body's OWN code in #805-3 is the `application.jobAd ?? null`
   // normalisation (the schema is .nullable().optional()). A cover-letter-only
-  // application has no ad row at all — the drawer must hand `null` to the guard
+  // application has no ad row at all — the body must hand `null` to the guard
   // and render no ad surface, rather than crash on an undefined. The guard's own
   // branch matrix is exhausted in source-ad-section.test.tsx; this pins the
-  // wiring of the one case the drawer previously never constructed.
+  // wiring of the one case the body previously never constructed.
   it("renders no source-ad surface when the application has no ad row at all", () => {
     render(
       <ApplicationDetailBody
@@ -274,7 +354,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       screen.queryByText("Om annonsen (sparad kopia)"),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
-    // The rest of the drawer still renders (the guard degrades, it does not gate).
+    // The rest of the body still renders (the guard degrades, it does not gate).
     expect(screen.getByText("Status")).toBeInTheDocument();
   });
 

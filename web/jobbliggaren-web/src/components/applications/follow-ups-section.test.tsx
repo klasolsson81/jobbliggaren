@@ -132,9 +132,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
 
   it("renderar empty-state när inga uppföljningar", () => {
     render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
-    expect(
-      screen.getByText("Inga uppföljningar registrerade."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Inga uppföljningar ännu.")).toBeInTheDocument();
   });
 
   it("renderar första raden av anteckning i kompakt vy", () => {

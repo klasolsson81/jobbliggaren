@@ -5,12 +5,9 @@ import {
   channelLabel,
   followUpOutcomeLabel,
   applicationSourceLabel,
-  getAllowedTransitions,
-  isDestructiveTransition,
   isWaitingSignal,
   needsTerminalMoveConfirmation,
   ACTIVE_PIPELINE_STATUSES,
-  ALLOWED_TRANSITIONS,
   CHANNEL_KEYS,
   MINIMISING_STATUSES,
   PIPELINE_ORDER,
@@ -66,57 +63,6 @@ describe("STATUS_BADGE_VARIANT (#683, design §11)", () => {
       Withdrawn: "Neutral",
       Ghosted: "Neutral",
     });
-  });
-});
-
-describe("getAllowedTransitions", () => {
-  it("Draft can only transition to Submitted", () => {
-    expect(getAllowedTransitions("Draft")).toEqual(["Submitted"]);
-  });
-
-  it("Submitted can transition to Acknowledged, Rejected, Withdrawn", () => {
-    expect(getAllowedTransitions("Submitted")).toEqual(
-      expect.arrayContaining(["Acknowledged", "Rejected", "Withdrawn"])
-    );
-    expect(getAllowedTransitions("Submitted")).toHaveLength(3);
-  });
-
-  it("Accepted is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Accepted")).toHaveLength(0);
-  });
-
-  it("Rejected is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Rejected")).toHaveLength(0);
-  });
-
-  it("Withdrawn is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Withdrawn")).toHaveLength(0);
-  });
-
-  it("Ghosted can be reactivated to Submitted", () => {
-    expect(getAllowedTransitions("Ghosted")).toEqual(["Submitted"]);
-  });
-
-  it("covers all 10 statuses", () => {
-    expect(Object.keys(ALLOWED_TRANSITIONS)).toHaveLength(10);
-  });
-});
-
-describe("isDestructiveTransition", () => {
-  it("Rejected is destructive", () => {
-    expect(isDestructiveTransition("Rejected")).toBe(true);
-  });
-
-  it("Withdrawn is destructive", () => {
-    expect(isDestructiveTransition("Withdrawn")).toBe(true);
-  });
-
-  it("Submitted is not destructive", () => {
-    expect(isDestructiveTransition("Submitted")).toBe(false);
-  });
-
-  it("Accepted is not destructive", () => {
-    expect(isDestructiveTransition("Accepted")).toBe(false);
   });
 });
 

@@ -255,9 +255,7 @@ export function JobAdTypeahead({
       // on a focusable element outside) closes the popup (#295, APG combobox
       // dismissal). Selecting an option does not blur the input (its
       // `onMouseDown` preventDefault keeps focus), so a real selection is never
-      // mistaken for a focus-out. Pointer clicks on non-focusable areas are
-      // also covered by the document `mousedown` listener above; Escape is
-      // handled in `onKeyDown`.
+      // mistaken for a focus-out.
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           setOpen(false);

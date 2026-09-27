@@ -12,9 +12,14 @@ const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
 test.describe("/jobb — a term typed before hydration (#1787)", () => {
   test("without JavaScript, Sök submits the typed term as q", async ({ page }) => {
-    await page.route(CHUNKS, (route) => route.abort());
+    let refused = 0;
+    await page.route(CHUNKS, (route) => {
+      refused += 1;
+      return route.abort();
+    });
     await page.goto("/jobb");
     await page.getByLabel(SEARCH_FIELD_LABEL).fill("backend");
+    await expect.poll(() => refused).toBeGreaterThan(0);
     await page.getByRole("button", { name: "Sök", exact: true }).click();
     await page.waitForURL(/\/jobb\?q=backend(&|$)/);
   });
@@ -24,13 +29,16 @@ test.describe("/jobb — a term typed before hydration (#1787)", () => {
     const hydrationAllowed = new Promise<void>((resolve) => {
       allowHydration = resolve;
     });
+    let held = 0;
     await page.route(CHUNKS, async (route) => {
+      held += 1;
       await hydrationAllowed;
       await route.continue();
     });
     await page.goto("/jobb", { waitUntil: "domcontentloaded" });
     const field = page.getByLabel(SEARCH_FIELD_LABEL);
     await field.fill("backend");
+    await expect.poll(() => held).toBeGreaterThan(0);
 
     allowHydration();
     await expect(page.getByRole("combobox", { name: SEARCH_FIELD_LABEL })).toBeVisible();

@@ -22,9 +22,7 @@ describe("getExternalLoginProviders", () => {
     expect(init?.next).toEqual({ revalidate: 300 });
   });
 
-  // `RegisteredProviders.Keys`, in `ExternalProviderKey.Known` order. GitHub is on it once
-  // `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider` (#1745 PR 2) registers the adapter; in PR 1 no
-  // composition does.
+  // `RegisteredProviders.Keys`, in `ExternalProviderKey.Known` order.
   it("offers Google and GitHub when the api lists both", async () => {
     backendAnswers(200, '["google","github"]');
 

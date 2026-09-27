@@ -86,13 +86,15 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
   return (
     <tr className="jp-apptable__row" data-selected={selected || undefined}>
       <td className="jp-apptable__cell jp-apptable__cell--check">
-        <input
-          type="checkbox"
-          className="jp-apptable__check"
-          checked={selected}
-          onChange={() => onToggleSelect(application.id)}
-          aria-label={tUi("table.selectRowAriaLabel", { role: roleForLabel })}
-        />
+        <label className="jp-apptable__checklabel">
+          <input
+            type="checkbox"
+            className="jp-apptable__check"
+            checked={selected}
+            onChange={() => onToggleSelect(application.id)}
+            aria-label={tUi("table.selectRowAriaLabel", { role: roleForLabel })}
+          />
+        </label>
       </td>
 
       <td className="jp-apptable__cell jp-apptable__cell--role">

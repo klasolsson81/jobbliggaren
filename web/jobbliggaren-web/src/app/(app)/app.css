@@ -128,15 +128,11 @@
    överrids.) */
 .jp-matchdialog > button,
 .jp-stdmodal > button {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 24px;
+  right: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
   opacity: 1;
   color: var(--jp-ink-2);
   background: transparent;
@@ -468,14 +464,6 @@
   flex-direction: row;
   overflow: hidden;
 }
-/* Stäng-krysset (radix Close = enda direkt-barn-<button>): 36px, top/right 14. */
-.jp-wizard--rail > button {
-  top: 14px;
-  right: 14px;
-  width: 36px;
-  height: 36px;
-}
-
 /* ── Railen (272px): brand-rad + steg-lista + räknarkort ── */
 .jp-wizard__rail {
   flex: 0 0 272px;
@@ -1088,11 +1076,6 @@
   .jp-wizard--rail .jp-wizard__skip {
     display: inline-flex;
     align-items: center;
-    min-height: 44px;
-  }
-  /* Stäng-krysset ≥ 44px på mobil-sheeten (WCAG 2.5.5, facit §108-114). */
-  .jp-wizard--rail > button {
-    min-width: 44px;
     min-height: 44px;
   }
 }

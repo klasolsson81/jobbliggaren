@@ -320,8 +320,7 @@ col:        transparent; border-right 1px border-STRONG (column divider,
             stronger than row hairlines); min-height 360px
 col:last-child:  no right border
 col__head:  flex; padding 12px 14px 10px; border-bottom 1px border;
-            title 14px/500, count mono 13px text-secondary (ADR 0038 — mono
-            inline-data är aldrig tertiary)
+            title 14px/500, count 13px text-secondary
 appRow:     padding 12px 14px; border-bottom 1px hairline; transparent
 appRow:hover:    bg surface-tertiary + inset 2px 0 border-strong
 .jp-appCard:     display:none  (legacy — floating cards removed)

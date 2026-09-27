@@ -88,7 +88,6 @@ export function CriterionRow({ item, reference, adviceStatedByCaller }: Criterio
     <li>
       <article
         className="jp-job jp-job--static"
-        style={{ gridTemplateColumns: "1fr auto" }}
       >
         <div className="jp-job__body">
           <h3 className="jp-job__title">{heading}</h3>

@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { logFollowUpAction } from "@/lib/actions/applications";
+import { anchoredDialogStyle } from "@/lib/applications/anchored-top";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 
 export interface LogFollowUpDialogProps {
@@ -81,9 +82,7 @@ export function LogFollowUpDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="w-full max-w-[480px]"
-        // Nära-klick-position (§9): inline-style vinner över klassens
-        // top-1/2 + translate — X-centreringen behålls, Y ankras.
-        style={top != null ? { top: `${top}px`, transform: "translateX(-50%)" } : undefined}
+        style={anchoredDialogStyle(top)}
       >
         <DialogHeader>
           <DialogTitle>{tUi("logFollowUp.title")}</DialogTitle>

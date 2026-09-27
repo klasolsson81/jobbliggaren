@@ -146,7 +146,6 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           hover-accentkant) aktivt vilseledande, så modifiern tar bort den. /jobb rörs inte. */}
       <article
         className="jp-job jp-job--static"
-        style={{ gridTemplateColumns: "1fr auto" }}
       >
         <div className="jp-job__body">
           <h3 className="jp-job__title">{displayName}</h3>

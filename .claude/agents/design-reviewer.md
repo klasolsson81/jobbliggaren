@@ -23,8 +23,7 @@ Before every review read: the diff, the relevant DESIGN.md sections, the
 Visual reference: `C:\DOTNET-UTB\JobbPilotNEWDESIGN\Screenshots\*`.
 
 **Dark mode is a requirement.** Validate every change in BOTH themes — a change
-that only works in light is blocked. **Nav check:** active sidebar nav = 4px
-brand-blue left border on transparent background, never a background pill.
+that only works in light is blocked.
 
 **Tools:** `Read`, `Grep`, `Glob`, and `Bash` for local rendered measurement
 only — starting a local server, driving a headless browser, reading computed

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApplicationActionsProvider } from "./application-actions";
 import { StatusMenu } from "./status-menu";
@@ -79,6 +79,32 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     expect(transitionStatusAction).not.toHaveBeenCalled();
     expect(deleteApplicationAction).not.toHaveBeenCalled();
   });
+
+  // #1827 11c: the delete item unmounts with the menu before its dialog closes, so the
+  // dialog cannot return focus to the element that opened it.
+  it.each(["Avbryt", "Escape"])(
+    "focus returns to the menu's trigger when the delete dialog closes (%s)",
+    async (close) => {
+      const user = userEvent.setup();
+      renderMenu();
+      const trigger = screen.getByRole("button", { name: "Byt status" });
+      await user.click(trigger);
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Radera ansökan" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Radera ansökan?",
+      });
+
+      if (close === "Escape") await user.keyboard("{Escape}");
+      else await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(trigger).toHaveFocus());
+    },
+  );
 
   it("markerar nuvarande status med ✓ och gör den ovalbar (self-transition = no-op)", async () => {
     const user = userEvent.setup();

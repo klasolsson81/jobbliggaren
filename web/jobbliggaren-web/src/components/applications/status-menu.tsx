@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import {
@@ -53,6 +54,7 @@ export function StatusMenu({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const { transition, deleteApplication } = useApplicationActions();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const renderItem = (status: ApplicationStatus) => {
     const current = status === application.status;
@@ -85,6 +87,7 @@ export function StatusMenu({
       <DropdownMenuTrigger asChild>
         {compact ? (
           <button
+            ref={triggerRef}
             type="button"
             className="jp-statusmenu__minitrigger"
             disabled={pending}
@@ -94,6 +97,7 @@ export function StatusMenu({
           </button>
         ) : (
           <button
+            ref={triggerRef}
             type="button"
             className="jp-rowbtn jp-rowbtn--ink"
             disabled={pending}
@@ -133,7 +137,7 @@ export function StatusMenu({
           // repo-precedens ui/select.tsx (design-reviewer Major 1, #782).
           className="text-danger-700 focus:bg-danger-50 focus:text-danger-700"
           disabled={pending}
-          onSelect={() => deleteApplication(application)}
+          onSelect={() => deleteApplication(application, triggerRef.current)}
         >
           <Trash2 size={16} aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate">

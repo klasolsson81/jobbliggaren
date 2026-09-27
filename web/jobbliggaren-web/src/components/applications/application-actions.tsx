@@ -24,11 +24,17 @@ function anchoredTop(anchorY: number | null): number | null {
   return clampAnchoredTop(anchorY, window.innerHeight);
 }
 
-interface DialogState {
-  kind: "finishDraft" | "logFollowUp" | "delete";
-  application: ApplicationDto;
-  top: number | null;
-}
+type DialogState =
+  | {
+      kind: "finishDraft" | "logFollowUp";
+      application: ApplicationDto;
+      top: number | null;
+    }
+  | {
+      kind: "delete";
+      application: ApplicationDto;
+      returnFocusTo: HTMLElement | null;
+    };
 
 export interface ApplicationActionsValue {
   /**
@@ -45,9 +51,13 @@ export interface ApplicationActionsValue {
    * #782 (ADR 0104) — "Radera ansökan": opens the destructive HARD-delete
    * confirm (ONE shared centered dialog on the island, never N per row). No
    * anchorY — a destructive confirm is centered, not click-anchored like the two
-   * dialogs above.
+   * dialogs above. `returnFocusTo` is where focus goes when it closes: the menu
+   * item that opens it has unmounted by then.
    */
-  deleteApplication: (application: ApplicationDto) => void;
+  deleteApplication: (
+    application: ApplicationDto,
+    returnFocusTo?: HTMLElement | null,
+  ) => void;
 }
 
 const ApplicationActionsContext = createContext<ApplicationActionsValue | null>(
@@ -164,9 +174,12 @@ export function ApplicationActionsProvider({
     [],
   );
 
-  const deleteApplication = useCallback((application: ApplicationDto) => {
-    setDialog({ kind: "delete", application, top: null });
-  }, []);
+  const deleteApplication = useCallback(
+    (application: ApplicationDto, returnFocusTo: HTMLElement | null = null) => {
+      setDialog({ kind: "delete", application, returnFocusTo });
+    },
+    [],
+  );
 
   // Bara de stabila funktionerna — pendingIds är UTE ur denna value (d4). Alla
   // deps är useCallback([]) → value:n är referens-stabil över öns livstid, så
@@ -218,6 +231,7 @@ export function ApplicationActionsProvider({
           open
           onOpenChange={closeDialog}
           applicationId={dialog.application.id}
+          returnFocusTo={dialog.returnFocusTo}
         />
       )}
     </ApplicationActionsContext.Provider>

@@ -57,7 +57,7 @@ public static class MeEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
-        // ADR 0080 Vag 4 PR-6 — background-match notification consent (the /mina-sidor opt-in
+        // ADR 0080 Vag 4 PR-6 — background-match notification consent (the /mina-sidor/notiser opt-in
         // toggle). PUT = idempotent set of {enabled}; the aggregate owns the GDPR consent stamping
         // (first opt-in immutable Art. 7(1); opt-out records the Art. 7(3) withdrawal). The digest
         // cadence is not part of this contract (PUT /digest-cadence). The current state is READ via

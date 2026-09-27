@@ -32,7 +32,8 @@ description: >
 
 ## Usage rules
 
-1. **Never hardcode hex values** (except the provider mark, DESIGN.md §3) — the canonical palette is `--jp-*` defined
+1. **Never hardcode hex values** (except the provider mark, DESIGN.md §3, and the continuation document, DESIGN.md
+   §11.6) — the canonical palette is `--jp-*` defined
    once in `globals.css` `:root {}` (light) + `[data-theme="dark"] {}` (dark)
 2. **Never use Tailwind palette defaults** — `bg-slate-*`, `text-zinc-*`,
    `bg-gray-*` are all forbidden; use semantic token names
@@ -54,7 +55,7 @@ description: >
    `--jp-shadow-modal` (modal) — inga andra drop shadows
 8. **Dark mode is supported** (v3 mörk navy-grå canvas `#0B1525`, ljusa
    input-fält) — never hardcode a light-only color; let the `--jp-*` token
-   shift per theme
+   shift per theme (except the continuation document, DESIGN.md §11.6)
 
 ---
 

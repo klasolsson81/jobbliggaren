@@ -311,6 +311,22 @@ inför guldet och bär ingen sådan regel). Brand-signalen är den gröna
 
 ---
 
+## 11.6 Fortsättningsdokumentet
+
+Sidan som en extern inloggning landar på (`web/jobbliggaren-web/src/lib/auth/continuation-document.ts`, ADR 0142 D8)
+får inte hämta något medan URL:en bär `code` och `state`, så den läser inte `globals.css`. Två regler följs därför inte
+där.
+
+1. **Färgerna är hex-literaler** i sidans enda `<style>`, var och en det ljusa temats värde av en namngiven token:
+   `--jp-canvas` (samma värde som `--jp-surface-2`, som inloggningssidornas layout läser), `--jp-ink-1`,
+   `--jp-heading-1` och `--jp-accent-700`. Ett test jämför dem med `globals.css`, som i §11.5 punkt 1. Inga nya tokens.
+2. **Systemtypsnitt:** svansen av `--jp-font-sans` efter webbtypsnittet.
+
+Innehållet hålls osynligt i två sekunder av en animation, aldrig av grundstilen, så en fungerande vidarebefordran visar
+bara canvasfärgen. Länken är minst 44 px hög. Bara ljust tema medan `DARK_MODE_ENABLED` är `false`.
+
+---
+
 ## 12. Granskning
 
 Design-compliance verifieras av `design-reviewer`-agenten vid varje frontend-diff. Hennes auktoritet är denna fil + skills-detaljerna. Hon har veto-makt på design-frågor — ingen MVP-dispens, inget konsensus-override.

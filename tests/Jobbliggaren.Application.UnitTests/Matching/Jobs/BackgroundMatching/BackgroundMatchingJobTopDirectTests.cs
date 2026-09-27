@@ -96,7 +96,7 @@ public class BackgroundMatchingJobTopDirectTests
     {
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, NowClock);
+        seeker.UpdateNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return userId;

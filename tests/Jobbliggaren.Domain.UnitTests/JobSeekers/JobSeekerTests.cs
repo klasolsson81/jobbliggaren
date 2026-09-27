@@ -85,6 +85,23 @@ public class JobSeekerTests
         result.Value.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
     }
 
+    [Fact]
+    public void ChangeLanguage_SetsOnlyTheLanguage_AndBumpsUpdatedAt()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+        seeker.UpdateNotificationConsent(enabled: true, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1)));
+        seeker.UpdateNotificationConsent(enabled: false, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2)));
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3)));
+        seeker.SetDigestCadence(DigestCadence.Daily, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(4)));
+        var before = seeker.Preferences;
+        var clock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(5));
+
+        seeker.ChangeLanguage("en", clock);
+
+        seeker.Preferences.ShouldBe(before with { Language = "en" });
+        seeker.UpdatedAt.ShouldBe(clock.UtcNow);
+    }
+
     // ---------------------------------------------------------------
     // F6 Prompt 3 — PrimaryResumeId (ADR 0058 + senior-cto-advisor Alt A2)
     // ---------------------------------------------------------------

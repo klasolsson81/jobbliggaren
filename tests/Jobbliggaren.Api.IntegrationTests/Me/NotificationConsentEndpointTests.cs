@@ -15,22 +15,23 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 
 /// <summary>
 /// ADR 0080 Vag 4 PR-6 — the background-match notification consent endpoint
-/// <c>PUT /api/v1/me/notification-consent</c>, end-to-end on the wired API. Proves the full
-/// loop through REAL Postgres: the consent write persists into the <c>preferences</c> jsonb
+/// <c>PUT /api/v1/me/background-match-notification-consent</c>, end-to-end on the wired API. Proves
+/// the full loop through REAL Postgres: the consent write persists into the <c>preferences</c> jsonb
 /// (EF <c>OwnsOne(...).ToJson()</c>) and a fresh <c>GET /profile</c> reads it back through the
-/// projection — BY NAME on the wire (<c>backgroundMatchNotificationsEnabled</c> +
-/// <c>digestCadence</c>, the contract the settings page reads). The Domain consent-stamping
-/// invariants are pinned at the unit level (UpdateNotificationConsentCommandHandlerTests) and
-/// the owned-JSON back-compat at PreferencesConsentBackcompatTests; this file pins the WIRE:
-/// auth gate, status codes, the jsonb round-trip, and the Art. 7 evidence persisting to the row.
+/// projection — BY NAME on the wire (<c>backgroundMatchNotificationsEnabled</c>, the contract the
+/// settings page reads). The Domain consent-stamping invariants are pinned at the unit level
+/// (UpdateNotificationConsentCommandHandlerTests) and the owned-JSON back-compat at
+/// PreferencesConsentBackcompatTests; this file pins the WIRE: auth gate, status codes, the jsonb
+/// round-trip, the Art. 7 evidence persisting to the row, the audit row, and the retired route.
+/// The digest cadence has its own route (<see cref="DigestCadenceEndpointTests"/>).
 /// <para>
 /// <b>Audit gate (security-auditor Major, ADR 0022):</b> a consent change is accountability-
 /// relevant, so the command is <c>IAuditableCommand</c> and the pipeline's <c>AuditBehavior</c>
 /// must write exactly one <c>audit_log</c> row (EventType <c>JobSeeker.NotificationConsentUpdated</c>,
-/// AggregateType <c>JobSeeker</c>, AggregateId = the JobSeeker's Id, UserId = the actor). This is a
-/// pipeline concern, so it can only be proven where the behavior actually runs — here. A failure
-/// path (anonymous) writes NO row. Mirrors the audit-parity pattern in
-/// <see cref="Jobbliggaren.Api.IntegrationTests.Auditing.AuditLogIntegrationTests"/>.
+/// AggregateType <c>JobSeeker</c>, AggregateId = the JobSeeker's Id, UserId = the actor, payload =
+/// the requested <c>enabled</c>). This is a pipeline concern, so it can only be proven where the
+/// behavior actually runs — here. A failure path (anonymous) writes NO row. Mirrors the audit-parity
+/// pattern in <see cref="Jobbliggaren.Api.IntegrationTests.Auditing.AuditLogIntegrationTests"/>.
 /// </para>
 /// <para>
 /// Auth pattern mirrors <see cref="Jobbliggaren.Api.IntegrationTests.Matching.MeMatchCountEndpointTests"/>
@@ -41,6 +42,8 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 [Collection("Api")]
 public class NotificationConsentEndpointTests(ApiFactory factory)
 {
+    private const string ConsentPath = "/api/v1/me/background-match-notification-consent";
+
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
@@ -60,6 +63,14 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
         var response = await _client.GetAsync("/api/v1/me/profile", ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         return await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+    }
+
+    private async Task<Preferences> ReadPreferencesAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        return seeker.Preferences;
     }
 
     // The audit AggregateId is the JobSeeker's Id (the handler echoes it, not the user-id).
@@ -89,75 +100,44 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task PUT_notification_consent_anonymous_returns_401()
+    public async Task PUT_consent_anonymous_returns_401()
     {
         var ct = TestContext.Current.CancellationToken;
 
         // No Authorization header → RequireAuthorization rejects before the handler runs.
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" },
-            ct);
+        var response = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task PUT_notification_consent_authed_enable_returns_204_and_profile_reflects_it()
+    public async Task PUT_consent_authed_enable_returns_204_and_profile_reflects_it()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        // A fresh seeker projects the opt-in default: OFF / Weekly.
+        // A fresh seeker projects the opt-in default: OFF.
         var before = await GetProfileAsync(ct);
         before.GetProperty("backgroundMatchNotificationsEnabled").GetBoolean().ShouldBeFalse();
-        before.GetProperty("digestCadence").GetString().ShouldBe("Weekly");
 
-        var put = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" },
-            ct);
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct);
         put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // Reads back through real Postgres + the projection, by NAME on the wire.
         var after = await GetProfileAsync(ct);
         after.GetProperty("backgroundMatchNotificationsEnabled").GetBoolean().ShouldBeTrue();
-        after.GetProperty("digestCadence").GetString().ShouldBe("Weekly");
     }
 
     [Fact]
-    public async Task PUT_notification_consent_cadence_serializes_by_name_on_the_wire()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var put = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Daily" },
-            ct);
-        put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var after = await GetProfileAsync(ct);
-        // The wire form is the NAME, not the ordinal — JsonStringEnumConverter contract.
-        after.GetProperty("digestCadence").ValueKind.ShouldBe(JsonValueKind.String);
-        after.GetProperty("digestCadence").GetString().ShouldBe("Daily");
-    }
-
-    [Fact]
-    public async Task PUT_notification_consent_disable_after_enable_flips_profile_to_false()
+    public async Task PUT_consent_disable_after_enable_flips_profile_to_false()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         // Enable, then disable — the projection must reflect the final OFF state.
-        (await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" }, ct))
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        (await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = false, cadence = "Weekly" }, ct))
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = false }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var after = await GetProfileAsync(ct);
@@ -165,36 +145,61 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task PUT_notification_consent_enable_persists_consent_timestamp_to_the_row()
+    public async Task PUT_consent_enable_persists_consent_timestamp_to_the_row()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = await AuthenticateAsync(ct);
 
-        var put = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" },
-            ct);
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct);
         put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // Art. 7(1) evidence — the consent timestamp is persisted into the preferences jsonb
         // (the DTO deliberately does NOT project it, so verify directly against the row).
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var seeker = await db.JobSeekers.AsNoTracking()
-            .SingleAsync(js => js.UserId == userId, ct);
+        var prefs = await ReadPreferencesAsync(userId, ct);
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        prefs.NotificationConsentAt.ShouldNotBeNull();
+        prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
+    }
 
-        seeker.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
-        seeker.Preferences.DigestCadence.ShouldBe(DigestCadence.Weekly);
-        seeker.Preferences.NotificationConsentAt.ShouldNotBeNull();
-        seeker.Preferences.NotificationConsentWithdrawnAt.ShouldBeNull();
+    [Fact]
+    public async Task PUT_consent_with_a_stray_cadence_leaves_the_cadence_unchanged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true, cadence = "Daily" }, ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var prefs = await ReadPreferencesAsync(userId, ct);
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
+    }
+
+    // A missing `enabled` is refused, never bound to `false`: an empty body must not record a
+    // withdrawal nobody made.
+    [Fact]
+    public async Task PUT_consent_without_enabled_returns_400_and_records_no_withdrawal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { }, ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var prefs = await ReadPreferencesAsync(userId, ct);
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
     // security-auditor Major (ADR 0022) — a successful consent change writes exactly one audit_log
     // row via the pipeline's AuditBehavior. AggregateId = the JobSeeker's Id (the echoed Result
-    // value), UserId = the actor. Pins the grade gate: if the row does NOT appear (behavior
-    // ordering / ExtractAggregateId), this fails — it is the only place the behavior runs.
+    // value), UserId = the actor, payload = the requested `enabled`. Pins the grade gate: if the row
+    // does NOT appear (behavior ordering / ExtractAggregateId), this fails — it is the only place
+    // the behavior runs.
     [Fact]
-    public async Task PUT_notification_consent_on_success_writes_one_audit_row()
+    public async Task PUT_consent_on_success_writes_one_audit_row_carrying_the_requested_enabled()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = await AuthenticateAsync(ct);
@@ -204,10 +209,7 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
         // assert the DELTA from the consent PUT, not an absolute count of one.
         var before = await ReadAuditEntriesAsync(jobSeekerId, ct);
 
-        var put = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" },
-            ct);
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct);
         put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var after = await ReadAuditEntriesAsync(jobSeekerId, ct);
@@ -222,22 +224,44 @@ public class NotificationConsentEndpointTests(ApiFactory factory)
         entry.AggregateType.ShouldBe("JobSeeker");
         entry.AggregateId.ShouldBe(jobSeekerId);
         entry.UserId.ShouldBe(userId);
+        entry.Payload.ShouldNotBeNull();
+        using var payload = JsonDocument.Parse(entry.Payload!);
+        payload.RootElement.GetProperty("enabled").GetBoolean().ShouldBeTrue();
     }
 
     // Failure path (anonymous) — no audit row is written (RequireAuthorization rejects before the
     // pipeline runs). Cheap total-count delta on top of the 401 already asserted above.
     [Fact]
-    public async Task PUT_notification_consent_anonymous_writes_no_audit_row()
+    public async Task PUT_consent_anonymous_writes_no_audit_row()
     {
         var ct = TestContext.Current.CancellationToken;
         var before = await ReadAuditEntryCountAsync(ct);
 
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/notification-consent",
-            new { enabled = true, cadence = "Weekly" },
-            ct);
+        var response = await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         (await ReadAuditEntryCountAsync(ct)).ShouldBe(before);
+    }
+
+    // The combined {enabled, cadence} route is gone, with no transitional alias: a web build still
+    // calling it during a mixed web/API rollout gets a 404 and writes nothing, whichever image is
+    // older.
+    [Fact]
+    public async Task PUT_the_retired_notification_consent_route_returns_404_and_writes_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        var jobSeekerId = await ReadJobSeekerIdAsync(userId, ct);
+        var auditBefore = await ReadAuditEntriesAsync(jobSeekerId, ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/notification-consent", new { enabled = true, cadence = "Daily" }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var prefs = await ReadPreferencesAsync(userId, ct);
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
+        prefs.NotificationConsentAt.ShouldBeNull();
+        prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
+        (await ReadAuditEntriesAsync(jobSeekerId, ct)).Count.ShouldBe(auditBefore.Count);
     }
 }

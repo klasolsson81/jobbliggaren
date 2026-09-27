@@ -768,7 +768,7 @@ public static class ErasureCascadeRegistry
                 + "against any taxonomy table on that path. Same false ground, same shape, as "
                 + "company_watches.filter and the five recent_job_searches axes (#1425). "
                 + "Language has NO server-side validation at all: no validator class on "
-                + "UpdateMyProfileCommand, no guard in UpdatePreferences, no factory on the record, "
+                + "UpdateMyProfileCommand, no guard in ChangeLanguage, no factory on the record, "
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
                 + "No key is named in the SQL, so a member added to the container is searched the "
                 + "day it lands.",

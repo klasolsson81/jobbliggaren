@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNotificationConsent;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
@@ -172,7 +173,8 @@ public class UpdateFollowedCompanyNotificationConsentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
         // Pre-state: background-match consent enabled at T0 with a chosen cadence.
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, ClockT0);
+        seeker.UpdateNotificationConsent(enabled: true, ClockT0);
+        seeker.SetDigestCadence(DigestCadence.Daily, ClockT0);
         await db.SaveChangesAsync(CancellationToken.None);
 
         // Act: enable the follow consent at T2.
@@ -191,6 +193,19 @@ public class UpdateFollowedCompanyNotificationConsentCommandHandlerTests
         prefs.NotificationConsentAt.ShouldBe(ClockT0.UtcNow);
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
         prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
+    }
+
+    // The audit row records the user's act, not the resulting state (parity the background-match
+    // consent command).
+    [Theory]
+    [InlineData(true, "{\"enabled\":true}")]
+    [InlineData(false, "{\"enabled\":false}")]
+    public void BuildAuditPayload_RecordsTheRequestedEnabled(bool enabled, string expected)
+    {
+        var payload = new UpdateFollowedCompanyNotificationConsentCommand(Enabled: enabled).BuildAuditPayload(
+            Result.Success(Guid.NewGuid()), Substitute.For<IIdentifierPseudonymizer>());
+
+        payload.ShouldBe(expected);
     }
 
     [Fact]

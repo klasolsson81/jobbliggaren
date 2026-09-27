@@ -1664,7 +1664,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
     /// <summary>
     /// <c>Preferences.Language</c> has NO server-side validation anywhere: no validator class on the
-    /// command, no guard in <c>UpdatePreferences</c>, no factory on the record, and no
+    /// command, no guard in <c>ChangeLanguage</c>, no factory on the record, and no
     /// <c>varchar(N)</c> because it lives inside jsonb. That is why the container is searched whole
     /// rather than by key.
     /// <b>Mutation:</b> delete the <c>preferences</c> disjunct.
@@ -1681,7 +1681,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
             var seeker = await db.JobSeekers.SingleAsync(js => js.Id == seekerId, ct);
 
-            seeker.UpdatePreferences(seeker.Preferences with { Language = "Thorvaldsen" }, clock);
+            seeker.ChangeLanguage("Thorvaldsen", clock);
             await db.SaveChangesAsync(ct);
         }
 
@@ -1964,7 +1964,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
             // Language has no validator, no guard, no factory and no varchar(N) — #1446. That is
             // what lets this value exist at all, and why this arm has to survive it.
-            seeker.UpdatePreferences(seeker.Preferences with { Language = "Anna \"Bea\" Berg" }, clock);
+            seeker.ChangeLanguage("Anna \"Bea\" Berg", clock);
             await db.SaveChangesAsync(ct);
         }
 

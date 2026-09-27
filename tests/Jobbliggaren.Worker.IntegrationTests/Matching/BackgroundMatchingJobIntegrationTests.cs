@@ -614,11 +614,11 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         switch (consent)
         {
             case ConsentState.On:
-                jobSeeker.UpdateNotificationConsent(true, DigestCadence.Weekly, clock);
+                jobSeeker.UpdateNotificationConsent(true, clock);
                 break;
             case ConsentState.Withdrawn:
-                jobSeeker.UpdateNotificationConsent(true, DigestCadence.Weekly, clock);
-                jobSeeker.UpdateNotificationConsent(false, DigestCadence.Weekly, clock);
+                jobSeeker.UpdateNotificationConsent(true, clock);
+                jobSeeker.UpdateNotificationConsent(false, clock);
                 break;
             case ConsentState.Off:
             default:

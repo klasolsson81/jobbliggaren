@@ -60,7 +60,7 @@ unmarked command's conflict and any other `DbUpdateException` still propagate un
 order is unchanged (ADR 0008): `ReauthenticationBehavior` and `FieldEncryptionKeyPrefetchBehavior` sit
 outside `UnitOfWorkBehavior`, so a replay spends no re-auth grant and prefetches no key twice;
 `AuditBehavior` sits innermost and re-runs with the rest of the pipeline (ADR 0022), so a committed
-attempt writes exactly one audit row (`MediatorPipelineBehaviors.cs:29-47`).
+attempt writes exactly one audit row (`MediatorPipelineBehaviors.cs:29-54`).
 
 **D3 — every API writer of the row carries the marker.** Twelve command types carry
 `IReplayOnConcurrencyConflict`: `UpdateMyProfileCommand` (language), `UpdateNotificationConsentCommand`, `SetDigestCadenceCommand`,

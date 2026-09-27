@@ -81,7 +81,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
 
     // ADR 0146 — the deleter's context serves the whole run. A failed account must leave nothing
     // tracked: otherwise the next account's save writes the failed account's deletes as well, and
-    // commits them while the failed account's audit anonymisation, DEK erasure and parsed-CV deletes
+    // commits them while the failed account's audit anonymisation and parsed-CV deletes
     // stay rolled back. The fault stands in for a transient database failure (a lost connection, a
     // lock timeout) — the class HardDeleteAccountsJob's per-account isolation exists for. It is a
     // one-shot BEFORE DELETE trigger on the first of the pair the run reaches, whichever that is.

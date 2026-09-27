@@ -98,9 +98,8 @@ builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
 // ADR 0087 D5 (#311 PR-4) — den nattliga företagsföljnings-scannen. Egen watermark, org.nr
-// IN-membership, INGEN scorer (drar inte in AddMatchingEngine-portar). Behöver bara IAppDbContext +
-// IDateTimeProvider. Wrapper + jobb i samma commit (TD-103: Worker ValidateOnBuild=false → en saknad
-// dep failar först vid Hangfire-invocation 03:25 UTC).
+// IN-membership, INGEN scorer (drar inte in AddMatchingEngine-portar). Wrapper + jobb i samma commit
+// (TD-103: Worker ValidateOnBuild=false → en saknad dep failar först vid Hangfire-invocation 03:25 UTC).
 builder.Services.AddScoped<Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>();
 // #560 (ADR 0091) — SCB company-register population module + Worker wrapper. AddScbCompanyRegister

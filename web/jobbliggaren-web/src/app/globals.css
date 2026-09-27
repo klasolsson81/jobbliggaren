@@ -7255,7 +7255,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-accent-50);
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-bold);
-  color: var(--jp-accent-900);
+  color: var(--jp-accent-700);
 }
 /* Hit-arean fyller chipens 32px-höjd × 32px (a11y-skillens 32×32-golv,
    design-reviewer Minor 1) — ikonen förblir 14px, centrerad. */
@@ -7269,9 +7269,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: transparent;
   color: var(--jp-accent-700);
   cursor: pointer;
-}
-.jp-listfilterchip__rm:hover {
-  color: var(--jp-accent-900);
 }
 
 /* ── Stegrail (alla 10 steg) ── */

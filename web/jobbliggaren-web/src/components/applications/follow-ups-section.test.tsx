@@ -130,6 +130,32 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
+  // #1827 Minor 9: the outcome is a square status tag on the existing variants, not a
+  // rounded pill.
+  it("visar utfallet som en statustagg per utfall", () => {
+    render(
+      <FollowUpsSection
+        applicationId="app-1"
+        followUps={[
+          pendingFollowUp({ id: "p" }),
+          respondedFollowUp({ id: "r" }),
+          respondedFollowUp({ id: "n", outcome: "NoResponse" }),
+          respondedFollowUp({ id: "l", outcome: "Logged" }),
+        ]}
+      />,
+    );
+    for (const [label, tag] of [
+      ["Inväntar svar", "status-info"],
+      ["Svar mottaget", "status-success"],
+      ["Inget svar mottaget", "status-neutral"],
+      ["Kontakt loggad", "status-neutral"],
+    ] as const) {
+      const el = screen.getByText(label);
+      expect(el).toHaveClass("jp-tag");
+      expect(el).toHaveAttribute("data-tag", tag);
+    }
+  });
+
   it("renderar empty-state när inga uppföljningar", () => {
     render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
     expect(screen.getByText("Inga uppföljningar ännu.")).toBeInTheDocument();

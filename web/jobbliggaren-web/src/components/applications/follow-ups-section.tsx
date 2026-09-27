@@ -11,7 +11,15 @@ import {
   followUpOutcomeLabel,
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
-import type { FollowUpDto } from "@/lib/types/applications";
+import type { FollowUpDto, FollowUpOutcome } from "@/lib/types/applications";
+
+// The outcome reads as a square status tag on the existing variants (#1827 Minor 9).
+const OUTCOME_TAG: Record<FollowUpOutcome, string> = {
+  Pending: "status-info",
+  Responded: "status-success",
+  NoResponse: "status-neutral",
+  Logged: "status-neutral",
+};
 
 interface FollowUpsSectionProps {
   applicationId: string;
@@ -177,10 +185,7 @@ function FollowUpRow({
         onClick={onToggle}
       >
         <span className="jp-disclosure-row__primary">{channel}</span>
-        <span
-          className={`jp-pill jp-pill--${recorded ? (followUp.outcome === "Responded" ? "success" : "neutral") : "info"} jp-disclosure-row__pill`}
-        >
-          <span className="jp-pill__dot" aria-hidden="true" />
+        <span className="jp-tag" data-tag={OUTCOME_TAG[followUp.outcome]}>
           {outcomeLabel}
         </span>
         {noteFirstLine && (

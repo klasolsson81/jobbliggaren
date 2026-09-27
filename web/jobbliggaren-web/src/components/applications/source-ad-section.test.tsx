@@ -117,6 +117,26 @@ describe("SourceAdSection (#805-3, Beslut B)", () => {
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
 
+  // #1827 Minor 10: the saved copy's notice is a plain line, and its rows pair a label with a
+  // value (the three-column row is the match section's).
+  it("ARKIVERAD + bevarad kopia → noten är en rad utan ruta, raderna parar etikett och värde", () => {
+    const { container } = render(
+      <SourceAdSection
+        jobAd={makeJobAd({ status: "Archived" })}
+        preservedAd={snapshot}
+      />
+    );
+
+    expect(
+      screen.getByText(/Kopian är från/).closest(".jp-modal__match")
+    ).toBeNull();
+    const rows = container.querySelectorAll(".jp-modal__matchrow");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row).toHaveClass("jp-modal__matchrow--pair");
+    }
+  });
+
   // A closing move (Accepted, Rejected, Withdrawn) runs `AdSnapshot.WithoutAdBody()` in
   // `Application.TransitionTo`, which drops the copy's text and its contacts together.
   it("ARKIVERAD + minimerad kopia → metadata och minimeringsnoten, ingen annonstext", () => {

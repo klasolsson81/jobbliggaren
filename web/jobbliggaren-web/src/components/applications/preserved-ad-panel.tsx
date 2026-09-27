@@ -46,22 +46,19 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         {tUi("preservedAd.panelTitle")}
       </div>
 
-      {/* Lugn "sparad kopia"-not: den befintliga neutrala bordered
-          surface-2-rutan (.jp-modal__match), ingen status-färg, ingen
-          varningston. */}
-      <div className="jp-modal__match">
-        <div className="jp-modal__match__expl">
-          {tUi("preservedAd.savedNotice", {
-            date: preservedCaptured ?? "",
-          })}
-        </div>
-      </div>
+      {/* Lugn "sparad kopia"-not: en rad utan ruta (#1827 Minor 10), ingen
+          status-färg, ingen varningston. */}
+      <p className="jp-source-ad__note">
+        {tUi("preservedAd.savedNotice", {
+          date: preservedCaptured ?? "",
+        })}
+      </p>
 
       {/* Bevarad metadata: label · värde-rader, hårfin separator
-          (.jp-modal__matchrow återbrukad — ingen ny klass). Rader
+          (.jp-modal__matchrow i tvåkolumnsformen --pair). Rader
           utelämnas när källfältet är null. */}
       <dl className="jp-modal__matchrows" style={{ marginTop: "12px" }}>
-        <div className="jp-modal__matchrow">
+        <div className="jp-modal__matchrow jp-modal__matchrow--pair">
           <dt className="jp-modal__matchrow-label">
             {tUi("preservedAd.company")}
           </dt>
@@ -71,7 +68,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         </div>
 
         {preservedAd.location && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.location")}
             </dt>
@@ -82,7 +79,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         )}
 
         {preservedPublished && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.published")}
             </dt>
@@ -93,7 +90,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         )}
 
         {preservedExpires && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.applyBy")}
             </dt>
@@ -103,7 +100,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
           </div>
         )}
 
-        <div className="jp-modal__matchrow">
+        <div className="jp-modal__matchrow jp-modal__matchrow--pair">
           <dt className="jp-modal__matchrow-label">
             {tUi("preservedAd.source")}
           </dt>

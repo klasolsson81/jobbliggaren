@@ -2915,6 +2915,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-modal__matchrow:first-child {
   border-top: none;
 }
+/* Label · value, the preserved-ad panel's rows (#1827 Minor 10). It sits before the ≤560 rule
+   below, which stacks both forms into one column. */
+.jp-modal__matchrow--pair {
+  grid-template-columns: 160px 1fr;
+}
 .jp-modal__matchrow-label {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-medium);
@@ -3049,9 +3054,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-disclosure-row__primary {
   font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
-  flex-shrink: 0;
-}
-.jp-disclosure-row__pill {
   flex-shrink: 0;
 }
 .jp-disclosure-row__note {

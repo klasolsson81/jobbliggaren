@@ -372,18 +372,12 @@ the descriptions:
   bara i din matchningslista. Du kan stänga av det när som helst.", en "Turning this on means you consent to us matching
   new job ads against your profile every night and emailing you top matches right away and strong ones in a summary.
   Good matches appear only in your match list. You can turn this off at any time." `settings.backgroundMatch.intro` is
-  struck. Her element set for any later shortening: the consent, given by turning the switch on; inside the consent
-  clause, both the nightly matching of new ads against the profile and the email, since the email is what reaches the
-  processor (Art. 7(1)); the tiers (top matches mailed at once, strong ones in a summary email, good ones never mailed);
-  and that it can be turned off at any time (Art. 7(3), 13(2)(c)).
+  struck.
 - Row 8: `settings.followedCompanyNotifications.toggleDescription`, sv "Nya annonser från företag du följer visas alltid
   i appen. Slår du på det samtycker du till att vi också mejlar dem till dig. Du kan dra tillbaka samtycket när som
   helst genom att stänga av det här.", en "New ads from companies you follow always appear in the app. Turning this on
   means you consent to us also emailing them to you. You can withdraw your consent at any time by turning this off."
-  `settings.followedCompanyNotifications.intro` is struck: its bound first sentence stands first in the description,
-  and its Översikt sentence was not bound. Element set: that the ads always appear in the app, said unconditionally and
-  before the consent; a consent clause that makes email an addition the switch alone governs, naming what is mailed; and
-  the withdrawal sentence verbatim.
+  `settings.followedCompanyNotifications.intro` is struck.
 
 `legally-bound-copy.test.ts` pins the catalogue, which cannot see a bound string stop rendering, so a component test
 (`notifications-section.test.tsx`) pins each switch's accessible description to its bound string, on and off. Row 14's

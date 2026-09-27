@@ -87,6 +87,7 @@
     },
     "queueCta": {
       "readOffer": "Läs erbjudandet",
+      "recordOutcome": "Registrera utfall",
       "accept": "Acceptera",
       "followUp": "Följ upp",
       "followUpAgain": "Följ upp igen",

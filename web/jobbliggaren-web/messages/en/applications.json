@@ -87,6 +87,7 @@
     },
     "queueCta": {
       "readOffer": "Read the offer",
+      "recordOutcome": "Record outcome",
       "accept": "Accept",
       "followUp": "Follow up",
       "followUpAgain": "Follow up again",

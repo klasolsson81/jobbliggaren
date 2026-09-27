@@ -196,7 +196,9 @@ describe("AttentionQueue", () => {
 
   // ── §11 kort-CTA (PR 7, Klas-låst: ingår) ────────────────────────────────
 
-  it("OverdueFollowUp-kortet: primär 'Följ upp' öppnar Logga uppföljning-dialogen; ingen statusmeny", async () => {
+  // #1827 B1: the signal is a Pending follow-up past its date, and only its outcome clears it,
+  // so the card opens the detail, where the outcome form is, instead of logging a new contact.
+  it("OverdueFollowUp-kortet: primär 'Registrera utfall' öppnar detaljmodalen; ingen statusmeny", async () => {
     const user = userEvent.setup();
     renderQueue(
       makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
@@ -208,10 +210,11 @@ describe("AttentionQueue", () => {
     // Kortets primär är urgens-CTA:n, INTE radens "Flytta till nästa".
     expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Följ upp" }));
-    expect(
-      await screen.findByRole("dialog", { name: "Logga uppföljning" }),
-    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Registrera utfall" }));
+    expect(routerPush).toHaveBeenCalledWith(
+      "/ansokningar/Submitted-0-0000-0000-000000000000",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(logFollowUpAction).not.toHaveBeenCalled();
   });
 

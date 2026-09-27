@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Notifications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,8 +74,7 @@ public sealed partial class BackgroundMatchingJob(
     {
         var now = clock.UtcNow;
 
-        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. A withdrawal stops
-        // dispatch immediately (the filter excludes withdrawn users). Default OFF → most rows
+        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. Default OFF → most rows
         // are excluded; the set is small, so a per-user loop is fine for the $16-VPS MVP.
         // Own short scope (#751): a one-shot projection — no context needs to outlive it, so
         // the job class holds no DbContext at all.
@@ -83,8 +83,7 @@ public sealed partial class BackgroundMatchingJob(
         {
             var dueSetDb = dueSetScope.ServiceProvider.GetRequiredService<IAppDbContext>();
             optedInUserIds = await dueSetDb.JobSeekers
-                .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
-                             && js.Preferences.NotificationConsentWithdrawnAt == null)
+                .Where(NotificationConsent.BackgroundMatch.Criteria)
                 .Select(js => js.UserId)
                 .ToListAsync(cancellationToken);
         }
@@ -170,11 +169,8 @@ public sealed partial class BackgroundMatchingJob(
         // ADR 0146 — the consent is decided on the row this attempt loaded, not on the run-start due
         // set: a withdrawal committed since then ends the scan here with the watermark untouched, like
         // the due-set exclusion. A withdrawal committed after this load fails the commit instead.
-        if (!jobSeeker.Preferences.BackgroundMatchNotificationsEnabled
-            || jobSeeker.Preferences.NotificationConsentWithdrawnAt is not null)
-        {
+        if (!NotificationConsent.BackgroundMatch.IsSatisfiedBy(jobSeeker))
             return 0;
-        }
 
         var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
 

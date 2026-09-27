@@ -78,10 +78,10 @@ itself stays off the port. Recorded as an amendment to ADR 0009, not a rewrite o
 Amendment 2026-09-27.
 
 **D5 — Worker.** `BackgroundMatchingJob` re-checks the consent on the row each attempt loads, before
-any `Add` or watermark advance (`BackgroundMatchingJob.cs:165-177`: a withdrawn or disabled row
+any `Add` or watermark advance (`BackgroundMatchingJob.cs:164-173`: a withdrawn or disabled row
 returns `0` with the watermark untouched), and retries once in a fresh child scope on
-`DbUpdateConcurrencyException` (`:105-113`); the atomic commit is one `SaveChangesAsync` (`:283`), and
-the Top-match email dispatches only after it (`:289-290`). `CompanyWatchScanJob` moves to a child
+`DbUpdateConcurrencyException` (`:104-112`); the atomic commit is one `SaveChangesAsync` (`:279`), and
+the Top-match email dispatches only after it (`:285-286`). `CompanyWatchScanJob` moves to a child
 scope per user (parity #751, `CompanyWatchScanJob.cs:129-131`) and retries once the same way
 (`:100-110`). `AccountHardDeleter` clears its tracker when one account's commit fails —
 `db.ChangeTracker.Clear()` directly, since it holds the concrete `AppDbContext`, not the port
@@ -139,7 +139,9 @@ accepted-risk ADR: the cap closes the finding, it does not accept a residual one
   (`DigestDispatchJob.cs:95-99`, `:139-143`), and does not re-check it at the per-user claim
   (`:247-249`, `:509-511`). A withdrawal or soft delete committed after the due-set query still gets
   that pass's email. This ADR does not close that gap, and nothing here claims a digest pass honours
-  a mid-pass withdrawal (security-auditor's condition E8). The fix is security-auditor's Major 3,
+  a mid-pass withdrawal (security-auditor's condition E8).
+  *(The bullet's first three sentences above are superseded — Amendment 2026-09-27, #1891.)*
+  The fix is security-auditor's Major 3,
   routed by senior-cto-advisor to its own follow-up PR immediately after this one.
 - Free-text `Language` (`JobSeeker.cs:117-121`) stays an open Minor, already filed as #1819 — this ADR
   closes the concurrency race on it (D1) but not the missing domain invariant.
@@ -177,3 +179,58 @@ HardDeleteAccountsJobIntegrationTests.cs` (the tracker clear); and
 - ADR 0008 (pipeline order), ADR 0009 (this ADR's amendment), ADR 0022 (audit innermost), ADR 0024
   (hard delete), ADR 0080 / ADR 0087 (the consents and the scans this token protects).
 - #1891, #1903, #1907, #1819, #751.
+
+## Amendment 2026-09-27 (#1891) — DigestDispatchJob reads each consent again before it claims
+
+**Scope.** Supersedes the Negative / out of scope bullet's first three sentences above, marked inline
+(security-auditor's conditions F7 and F8): `DigestDispatchJob` deciding each pass's consent once at the
+due-set query and not re-checking it at the per-user claim, and the disclaimer that nothing here
+claims a digest pass honours a mid-pass withdrawal (condition E8). D1–D6 stand. D5's citations into
+`BackgroundMatchingJob.cs` are corrected in place above, to where this PR's own change to that file
+moved the same lines; its `CompanyWatchScanJob.cs` and `AccountHardDeleter.cs` citations did not move.
+
+**The change.** `NotificationConsent.BackgroundMatch` and `.FollowedCompany`
+(`Domain/JobSeekers/NotificationConsent.cs`) are the one definition of each consent —
+a `Specification<JobSeeker>` (`Domain/Common/Specification.cs`): `Criteria` for a query, which EF
+translates to SQL, and `IsSatisfiedBy` for a row already held in memory, both compiled from the one
+expression. Every decision site reads through one of the two: the three due sets
+(`DigestDispatchJob.cs:95`, `:144`; `BackgroundMatchingJob.cs:86`) and the scan's per-attempt check
+(`BackgroundMatchingJob.cs:172`, D5) — so no two of them can drift apart (GDPR Art. 5(1)(d)).
+`DigestDispatchJob` also reads the pass's consent again, through `ConsentStillGrantedAsync`
+(`:329-334` — an `EXISTS` through the `JobSeeker` query filter, so a soft-deleted account reads as not
+consenting and nothing is tracked), before it claims a user's rows (match pass `:252`, follow pass
+`:531`), and, in the follow pass, again before it builds the CV-derived profile for an `OnlyMatched`
+watch (`:426`, before `BuildFullForUserIdAsync` at `:429`). A consent that has ended by either read
+claims nothing, sends nothing and logs nothing; the rows stay Pending. F6 required deleting, not
+rewording, nine comments — `IEmailSender.cs`, both consent command handlers, `BackgroundMatchingJob.cs`,
+`DigestDispatchJob.cs`, `JobSeeker.cs`, `BackgroundMatchingJobTests.cs` — that stated when a withdrawal
+takes effect or that the Worker's filter honours it on its next run; none is reworded (`e31df2f2`).
+
+**R1 — security-auditor's ruling.** "A withdrawal committed after that user's last check still gets
+that pass's email." This is her Art. 7(3) ruling that the fix closes Major 3 — the same form as D6 —
+and not a CLAUDE.md §9.6 (3) accepted-risk ADR.
+
+**F8.** E8's second sentence lapses when this PR merges with U1–U4 green in CI; R1 and the F6
+deletions above replace it.
+
+**The tracker clear.** D5's remedy — clearing the tracker — also
+applies to `DigestDispatchJob`: one `IAppDbContext` serves the whole run, so each pass's per-user loop
+clears it in a `finally` (`:119-124` match pass, `:166-170` follow pass). Before this, a
+claim whose `SaveChangesAsync` threw left that user's rows Modified in the shared context, and the
+next user's save committed them Queued with no email ever sent for them.
+
+**Verification.** `tests/Jobbliggaren.Domain.UnitTests/JobSeekers/NotificationConsentTests.cs` and
+`.../Common/SpecificationTests.cs` (the two specifications over the aggregate's own consent states;
+neither is satisfied by the other consent). `tests/Jobbliggaren.Worker.IntegrationTests/Matching/
+DigestDispatchJobConsentRecheckTests.cs`, against real Postgres: U1 the match pass and U2 the follow
+pass, each a theory over {withdrawal, soft delete} ending the second of two seekers' consent after the
+due set is read — that user is neither claimed nor emailed, in either pass; U3, the soft-delete arm,
+reads its precondition past the `JobSeeker` query filter; U4, the follow pass, never builds the
+withdrawn user's profile. `tests/Jobbliggaren.Worker.IntegrationTests/Matching/
+DigestDispatchJobPoisonIsolationTests.cs`: a one-shot trigger fails the first claim of a pair in each
+pass — its rows stay Pending, the other user is sent.
+
+**References.**
+
+- security-auditor, signature 2026-09-27 (F1–F8, U1–U5); dotnet-architect, design round 2026-09-27;
+  senior-cto-advisor, routing 2026-09-27; #1891.

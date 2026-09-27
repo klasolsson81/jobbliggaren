@@ -217,8 +217,7 @@ public class BackgroundMatchingJobTests
     }
 
     // 3b. A WITHDRAWN consent (opt-in toggled off → NotificationConsentWithdrawnAt stamped) is
-    // excluded by the consent filter even though it was once enabled (GDPR Art. 7(3) — withdrawal
-    // stops dispatch immediately).
+    // excluded by the consent filter even though it was once enabled (GDPR Art. 7(3)).
     [Fact]
     public async Task RunAsync_WithdrawnConsent_IsExcludedFromScan()
     {

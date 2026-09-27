@@ -155,7 +155,6 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
         <span className="jp-board__count">
           {tUi("counts.totalWithActive", { count: totalCount, active: activeCount })}
         </span>
-        <span className="jp-board__hint">{tUi("board.toolbarHint")}</span>
       </div>
 
       <div className="jp-board__grid">

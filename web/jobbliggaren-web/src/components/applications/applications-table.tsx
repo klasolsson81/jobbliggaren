@@ -204,7 +204,7 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
       ) : (
         <>
           <div className="jp-apptable__scroll">
-            <table className="jp-apptable" aria-label={tUi("table.ariaLabel")}>
+            <table className="jp-apptable">
               <caption ref={captionRef} tabIndex={-1} className="sr-only">
                 {tUi("table.caption")}
               </caption>

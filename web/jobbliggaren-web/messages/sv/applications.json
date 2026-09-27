@@ -131,7 +131,6 @@
     },
     "queue": {
       "title": "Kräver åtgärd",
-      "sortHint": "Sorterat på hur bråttom det är",
       "empty": "Inget kräver åtgärd just nu.",
       "showMore": "Visa {count} till",
       "showFewer": "Visa färre"
@@ -153,8 +152,7 @@
       "tabell": "Tabell"
     },
     "table": {
-      "caption": "Ansökningar i tabellform, sorterbar",
-      "ariaLabel": "Ansökningar",
+      "caption": "Ansökningar",
       "empty": "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
       "colRole": "Roll & företag",
       "colStatus": "Status",
@@ -198,7 +196,6 @@
       "terminalGroup": "Avslut och vilande"
     },
     "board": {
-      "toolbarHint": "Dra ett kort till ett annat steg.",
       "showMore": "Visa {count} fler",
       "showFewer": "Visa färre",
       "emptyColumn": "Inga ansökningar här",
@@ -206,9 +203,7 @@
       "daysShort": "{days} dgr"
     },
     "rail": {
-      "kicker": "Alla steg",
-      "hint": "Klicka på ett steg för att filtrera listan",
-      "ariaLabel": "Filtrera på steg",
+      "kicker": "Filtrera på steg",
       "cellAriaLabel": "{step}, {count, plural, =0 {inga ansökningar} =1 {en ansökan} other {# ansökningar}}"
     },
     "attention": {

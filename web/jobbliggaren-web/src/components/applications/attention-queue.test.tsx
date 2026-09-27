@@ -112,6 +112,8 @@ describe("AttentionQueue", () => {
     expect(
       within(queue).getByRole("heading", { name: "Kräver åtgärd" }),
     ).toHaveAttribute("id", "attention-heading");
+    // #1827 M2: the kickers show the order; no line explains the sorting.
+    expect(within(queue).queryByText(/Sorterat på/)).not.toBeInTheDocument();
     const rows = within(queue).getAllByRole("listitem");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.parentElement?.tagName).toBe("OL");

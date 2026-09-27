@@ -352,6 +352,15 @@ describe("ApplicationsTable — paginering (klient-side, Option B)", () => {
   });
 });
 
+describe("ApplicationsTable — namn (#1827 M2)", () => {
+  it("captionen är tabellens namn; ingen aria-label beskriver tabellen", () => {
+    renderTable(fiveRows());
+    const table = screen.getByRole("table", { name: "Ansökningar" });
+    expect(table).not.toHaveAttribute("aria-label");
+    expect(table.querySelector("caption")).toHaveTextContent("Ansökningar");
+  });
+});
+
 describe("ApplicationsTable — tomt + varningsfärgning", () => {
   it("(h) tom rows → role=status tomt-meddelande, ingen tabell", () => {
     renderTable([]);

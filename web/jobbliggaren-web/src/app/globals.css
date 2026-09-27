@@ -7065,21 +7065,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ══ Mina ansökningar 2a — Lista + delad chrome (#630 PR 5, ADR 0092) ═══════
    "Kräver åtgärd"-kö (liggarrader) + kontrollrad (sök + filterchip) +
-   stegrail "ALLA 10 STEG" + "Alla ansökningar"-Lista. Endast befintliga
+   stegrail (alla 10 steg) + "Alla ansökningar"-Lista. Endast befintliga
    --jp-*-tokens (DESIGN.md §14 — inga nya hex/radier). Rad-chassit (.jp-app)
    återbrukas orört; stegrailens toppkant-färg keyar off data-status-variant,
    samma status-tokens som status-taggen (CLAUDE.md §9.1 DRY). */
 
 /* Sektionsrubrik med STARK underlinje (design §3/§5 — border-strong mot
-   accordion-headens ordinarie border) + höger-justerad hint-slot. Delar
-   .jp-section__head-flexet. */
+   accordion-headens ordinarie border). Delar .jp-section__head-flexet. */
 .jp-section__head--strong {
   border-bottom-color: var(--jp-border-strong);
-}
-.jp-section__hint {
-  margin-left: auto;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
 }
 
 /* ── Kräver åtgärd-kön (#1827 M1) ──
@@ -7269,7 +7263,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-accent-900);
 }
 
-/* ── Stegrail "ALLA 10 STEG" ── */
+/* ── Stegrail (alla 10 steg) ── */
 .jp-steprail {
   margin: 12px 0 20px;
 }
@@ -7289,10 +7283,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
      (knapp-legend vs sektions-eyebrow — olika roller, medvetet ej harmoniserade). */
   font-size: var(--text-h4);
   font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-}
-.jp-steprail__hint {
-  font-size: var(--text-caption);
   color: var(--jp-ink-1);
 }
 .jp-steprail__cells {
@@ -7420,10 +7410,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-semibold);
   font-variant-numeric: tabular-nums;
-  color: var(--jp-ink-1);
-}
-.jp-board__hint {
-  font-size: var(--text-caption);
   color: var(--jp-ink-1);
 }
 

@@ -183,6 +183,8 @@ describe("ApplicationsBoard — layout", () => {
     // 3 totalt, 2 aktiva (Accepted är terminal).
     expect(screen.getByText(/3 ansökningar/)).toBeInTheDocument();
     expect(screen.getByText(/2 aktiva/)).toBeInTheDocument();
+    // #1827 M2: "Byt status" on every card is the visible way; no hint explains dragging.
+    expect(screen.queryByText(/Dra ett kort/)).not.toBeInTheDocument();
   });
 
   it("varje kort bär StatusMenu (tangentbords-/no-drag-vägen)", () => {

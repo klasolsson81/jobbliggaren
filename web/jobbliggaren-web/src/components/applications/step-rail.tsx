@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
@@ -21,7 +21,7 @@ interface StepRailProps {
 }
 
 /**
- * Stegrail "ALLA 10 STEG" (design 2a §7) — helhetsbilden av pipelinen som ALLTID
+ * Stegrailen (design 2a §7) — helhetsbilden av pipelinen som ALLTID
  * visar alla 10 steg (tomma dimmade, opacity .55, aldrig borttagna) så
  * översikten inte försvinner när en status saknar ansökningar. Varje cell är en
  * riktig `<button aria-pressed>` (a11y — filter är en toggle, inte en länk):
@@ -40,19 +40,21 @@ export const StepRail = memo(function StepRail({
 }: StepRailProps) {
   const tEnum = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const labelId = useId();
 
   const counts = useMemo(() => countByStatus(groups), [groups]);
 
   return (
     <div className="jp-steprail">
       <div className="jp-steprail__labelrow">
-        <span className="jp-steprail__kicker">{tUi("rail.kicker")}</span>
-        <span className="jp-steprail__hint">{tUi("rail.hint")}</span>
+        <span id={labelId} className="jp-steprail__kicker">
+          {tUi("rail.kicker")}
+        </span>
       </div>
       <div
         className="jp-steprail__cells"
         role="group"
-        aria-label={tUi("rail.ariaLabel")}
+        aria-labelledby={labelId}
       >
         {PIPELINE_ORDER.map((status, index) => {
           const count = statusCount(counts, status);

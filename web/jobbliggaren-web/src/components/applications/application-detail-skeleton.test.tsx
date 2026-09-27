@@ -15,6 +15,8 @@ describe("ApplicationDetailSkeleton (#1827 M6)", () => {
     const { container } = render(<ApplicationDetailSkeleton label="…" />);
     const modal = container.querySelector(".jp-container.jp-page .jp-modal");
     expect(modal).not.toBeNull();
+    expect(modal).toHaveClass("jp-modal--page");
+    expect(modal).not.toHaveAttribute("style");
     expect(modal?.querySelector(".jp-modal__head")).not.toBeNull();
     expect(modal?.querySelector(".jp-modal__foot")).not.toBeNull();
 

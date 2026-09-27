@@ -20,18 +20,7 @@ export function ApplicationDetailSkeleton({ label }: { label: string }) {
       </span>
       <div aria-hidden="true">
         <span className="jp-skeleton block h-9 w-56 max-w-full [@media(max-width:768px)]:h-11" />
-        <div
-          className="jp-modal"
-          style={{
-            width: "100%",
-            maxWidth: 760,
-            maxHeight: "none",
-            marginInline: "auto",
-            marginTop: 16,
-            boxShadow: "none",
-            animation: "none",
-          }}
-        >
+        <div className="jp-modal jp-modal--page">
           <header className="jp-modal__head">
             <div style={{ flex: 1 }}>
               <span className="jp-skeleton block h-6 w-72 max-w-full" />

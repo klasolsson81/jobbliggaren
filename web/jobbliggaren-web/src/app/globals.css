@@ -2788,6 +2788,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   box-shadow: var(--jp-shadow-modal);
   animation: jp-rise 200ms ease;
 }
+.jp-modal.jp-modal--page {
+  width: 100%;
+  max-width: 760px;
+  max-height: none;
+  margin-inline: auto;
+  margin-top: 16px;
+  box-shadow: none;
+  animation: none;
+}
 .jp-modal__head {
   display: flex;
   gap: 16px;

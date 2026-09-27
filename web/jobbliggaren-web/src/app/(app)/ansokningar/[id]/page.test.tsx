@@ -120,6 +120,15 @@ describe("/ansokningar/[id] — the full page renders the one detail body (#699)
     expect(screen.getByText("Volvo")).toHaveClass("jp-modal__company");
   });
 
+  it("frames the body in the page modifier of the modal panel, as its skeleton does", async () => {
+    getApplicationById.mockResolvedValue({ kind: "ok", data: makeDetail() });
+    const { container } = await renderPage();
+
+    const panel = container.querySelector(".jp-container.jp-page .jp-modal");
+    expect(panel).toHaveClass("jp-modal--page");
+    expect(panel).not.toHaveAttribute("style");
+  });
+
   it("renders the interactive body, not a separate status form", async () => {
     getApplicationById.mockResolvedValue({ kind: "ok", data: makeDetail() });
     const { container } = await renderPage();

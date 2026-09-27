@@ -62,18 +62,7 @@ export default async function AnsokanDetailPage({ params }: Props) {
       return (
         <div className="jp-container jp-page">
           <BackLink label={t("ansokningar.detail.backLink")} />
-          <div
-            className="jp-modal"
-            style={{
-              width: "100%",
-              maxWidth: 760,
-              maxHeight: "none",
-              marginInline: "auto",
-              marginTop: 16,
-              boxShadow: "none",
-              animation: "none",
-            }}
-          >
+          <div className="jp-modal jp-modal--page">
             <header className="jp-modal__head">
               <div style={{ flex: 1 }}>
                 <h1 className="jp-modal__title">{title}</h1>

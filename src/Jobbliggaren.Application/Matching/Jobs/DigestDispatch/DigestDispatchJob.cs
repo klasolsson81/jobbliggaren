@@ -93,9 +93,8 @@ public sealed partial class DigestDispatchJob(
         // cron IS the window). Consent filter parity the scan — enabled AND not withdrawn. Default
         // OFF → the set is small; a per-user loop is fine for the $16-VPS MVP.
         var dueUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
-                         && js.Preferences.NotificationConsentWithdrawnAt == null
-                         && js.Preferences.DigestCadence == cadence)
+            .Where(NotificationConsent.BackgroundMatch.Criteria)
+            .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
 
@@ -118,6 +117,12 @@ public sealed partial class DigestDispatchJob(
                 // user failure.
                 LogUserFailed(logger, ex, userId);
             }
+            finally
+            {
+                // One context serves the whole run (#751's shape). A save that threw leaves this
+                // user's rows modified in it, and the next user's save would commit them.
+                db.ClearTracking();
+            }
 
             processed++;
         }
@@ -137,9 +142,8 @@ public sealed partial class DigestDispatchJob(
         DigestCadence cadence, CancellationToken cancellationToken)
     {
         var dueUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.FollowedCompanyNotificationsEnabled
-                         && js.Preferences.FollowedCompanyNotificationConsentWithdrawnAt == null
-                         && js.Preferences.DigestCadence == cadence)
+            .Where(NotificationConsent.FollowedCompany.Criteria)
+            .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
 
@@ -159,6 +163,11 @@ public sealed partial class DigestDispatchJob(
             {
                 // Per-user isolation (TD-25), parity the match pass.
                 LogFollowUserFailed(logger, ex, userId);
+            }
+            finally
+            {
+                // Parity the match pass.
+                db.ClearTracking();
             }
 
             processed++;
@@ -240,6 +249,10 @@ public sealed partial class DigestDispatchJob(
             .Take(_options.MaxItemsPerDigest)
             .ToList();
 
+        // The consent is read again before the claim, not taken from the due set (ADR 0146).
+        if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+            return false;
+
         // Claim ALL pending Strong rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine. MarkQueued's Result is structurally Success (the rows were loaded
         // WHERE Pending; nothing mutates them between the load and here — single-threaded,
@@ -311,6 +324,15 @@ public sealed partial class DigestDispatchJob(
         foreach (var match in matches)
             match.MarkSent(clock);
     }
+
+    // An EXISTS through the JobSeeker query filter: a soft-deleted account holds no consent, and
+    // nothing is tracked.
+    private Task<bool> ConsentStillGrantedAsync(
+        Specification<JobSeeker> consent, Guid userId, CancellationToken ct) =>
+        db.JobSeekers
+            .Where(js => js.UserId == userId)
+            .Where(consent.Criteria)
+            .AnyAsync(ct);
 
     // ─── Company-follow digest (ADR 0087 D5) — the SHAPE of DispatchUserDigestAsync above, but over
     // FollowedCompanyAdHit rows + the FollowedCompanyNotificationEmail contract. Kept as a SEPARATE
@@ -401,6 +423,10 @@ public sealed partial class DigestDispatchJob(
         FullCandidateMatchProfile? assessableProfile = null;
         if (filterByWatchId.Values.Any(f => f is { OnlyMatched: true }))
         {
+            // The profile is derived from the CV, so the consent is read again before it is built.
+            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+                return false;
+
             var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
 
             // A profile-less user (no stated occupation) makes the filter INERT (RF-5 under-fork i):
@@ -500,6 +526,11 @@ public sealed partial class DigestDispatchJob(
             .Take(_options.MaxItemsPerDigest)
             .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
             .ToList();
+
+        // The consent is read again before the claim, not taken from the due set (parity the match
+        // pass).
+        if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            return false;
 
         // Claim the EFFECTIVE follow rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine (parity the match digest; single-threaded, DisableConcurrentExecution).

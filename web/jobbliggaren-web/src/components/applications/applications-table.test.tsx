@@ -311,6 +311,25 @@ describe("ApplicationsTable — bulkåtgärder (#630 PR 10)", () => {
   });
 });
 
+// #1827 11c: a cancelled bulk reject returns focus to the bulk bar's button, not to <body>
+// (measured in Chrome before the fix); a confirmed one still lands on the caption.
+describe("ApplicationsTable — focus when the bulk dialog closes", () => {
+  it.each(["Avbryt", "Escape"])("a cancel returns focus to 'Markera Nekad' (%s)", async (close) => {
+    const user = userEvent.setup();
+    renderTable(fiveRows());
+    await user.click(screen.getByRole("checkbox", { name: "Markera Alfa" }));
+    const opener = screen.getByRole("button", { name: "Markera Nekad" });
+
+    await user.click(opener);
+    const dialog = await screen.findByRole("dialog");
+    if (close === "Escape") await user.keyboard("{Escape}");
+    else await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+});
+
 describe("ApplicationsTable — paginering (klient-side, Option B)", () => {
   it("(g) 60 rader → 50 på sida 1 + footer + pager; sida 2 visar 10 och TÖMMER urval", async () => {
     const user = userEvent.setup();

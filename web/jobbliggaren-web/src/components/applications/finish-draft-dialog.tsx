@@ -15,6 +15,7 @@ import { anchoredDialogStyle } from "@/lib/applications/anchored-top";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDto } from "@/lib/dto/applications";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 import { adIdentityOf } from "./ad-identity";
 
 export interface FinishDraftDialogProps {
@@ -43,6 +44,7 @@ export function FinishDraftDialog({
   const format = useFormatter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { onCloseAutoFocus } = useReturnFocus(open);
 
   const jobAd = application.jobAd ?? null;
   // #892: an erased ad without a snapshot carries an empty identity, which must not render
@@ -76,6 +78,7 @@ export function FinishDraftDialog({
       <DialogContent
         className="w-full max-w-[480px]"
         style={anchoredDialogStyle(top)}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{tUi("finishDraft.title")}</DialogTitle>

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FinishDraftDialog } from "./finish-draft-dialog";
@@ -155,5 +156,42 @@ describe("FinishDraftDialog (#1827 B3)", () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+});
+
+// #1827 11c: the list opens this dialog from a row's or a queue row's button; closing it
+// returns focus there instead of to <body> (measured in Chrome before the fix).
+describe("FinishDraftDialog — focus on close", () => {
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Öppna
+        </button>
+        {open && (
+          <FinishDraftDialog
+            open
+            onOpenChange={setOpen}
+            application={makeDraft()}
+            top={null}
+          />
+        )}
+      </>
+    );
+  }
+
+  it.each(["Avbryt", "Escape"])("returns focus to the opener (%s)", async (close) => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const opener = screen.getByRole("button", { name: "Öppna" });
+
+    await user.click(opener);
+    const dialog = await screen.findByRole("dialog", { name: "Markera som Skickad?" });
+    if (close === "Escape") await user.keyboard("{Escape}");
+    else await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });

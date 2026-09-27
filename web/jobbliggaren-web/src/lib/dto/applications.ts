@@ -65,7 +65,7 @@ export type JobAdSummaryDto = z.infer<typeof jobAdSummaryDtoSchema>;
 
 // The fields both read models send (C# `ApplicationDto` and `ApplicationDetailDto`). The list
 // and the detail each extend it with their own, so neither schema carries a field its wire
-// shape never has (#1827: a helper typed on the list DTO must not accept a detail).
+// shape never has.
 const applicationCoreSchema = z.object({
   id: z.string(),
   jobSeekerId: z.string(),

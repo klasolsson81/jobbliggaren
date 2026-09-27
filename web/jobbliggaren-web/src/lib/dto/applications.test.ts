@@ -112,8 +112,7 @@ describe("applicationDetailDtoSchema", () => {
   });
 
   // #1827: C#'s ApplicationDetailDto sends none of the list's derived fields, so the detail
-  // schema must not declare them either; declared, a list helper would take a detail and
-  // read undefined.
+  // schema must not declare them either.
   it("shares the core with the list schema and declares none of the list's own fields", () => {
     const listOnly = [
       "appliedAt",

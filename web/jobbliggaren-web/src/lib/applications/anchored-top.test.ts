@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { clampAnchoredTop } from "./anchored-top";
+import { anchoredDialogStyle, clampAnchoredTop } from "./anchored-top";
+
+describe("anchoredDialogStyle", () => {
+  it("anchors the top and keeps only the X centring, overriding the primitive's translate", () => {
+    expect(anchoredDialogStyle(120)).toEqual({ top: "120px", translate: "-50% 0" });
+  });
+
+  it("never sets a transform, which would compose with the primitive's translate (#1850)", () => {
+    expect(anchoredDialogStyle(0)).not.toHaveProperty("transform");
+  });
+
+  it("leaves the primitive's centred placement alone without an anchor", () => {
+    expect(anchoredDialogStyle(null)).toBeUndefined();
+    expect(anchoredDialogStyle(undefined)).toBeUndefined();
+  });
+});
 
 describe("clampAnchoredTop", () => {
   const viewportHeight = 900; // upperBound = 900 - 16 - 120 = 764

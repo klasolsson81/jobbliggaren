@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 /**
  * Vertical near-click anchoring for the /ansokningar action dialogs
  * ("Slutför och skicka" / "Logga uppföljning" — design §9: never a fixed top
@@ -26,4 +28,16 @@ export function clampAnchoredTop(
   const upperBound = Math.max(gutter, viewportHeight - gutter - minVisible);
   const desired = clientY - offset;
   return Math.min(Math.max(desired, lowerBound), upperBound);
+}
+
+/**
+ * The inline placement of an anchored dialog: its top edge at `top`, centred on X.
+ * The dialog primitive centres with Tailwind's `-translate-x-1/2 -translate-y-1/2`,
+ * which set the `translate` property, so this overrides `translate` itself. A
+ * `transform` would compose with it instead and move the dialog twice (#1850).
+ */
+export function anchoredDialogStyle(
+  top: number | null | undefined,
+): CSSProperties | undefined {
+  return top != null ? { top: `${top}px`, translate: "-50% 0" } : undefined;
 }

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { transitionStatusAction } from "@/lib/actions/applications";
+import { anchoredDialogStyle } from "@/lib/applications/anchored-top";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -73,7 +74,7 @@ export function FinishDraftDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="w-full max-w-[480px]"
-        style={top != null ? { top: `${top}px`, transform: "translateX(-50%)" } : undefined}
+        style={anchoredDialogStyle(top)}
       >
         <DialogHeader>
           <DialogTitle>{tUi("finishDraft.title")}</DialogTitle>

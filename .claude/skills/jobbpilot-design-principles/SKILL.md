@@ -119,11 +119,7 @@ Varje pixel ska bära information.
 
 ### 4. Mono som signal
 
-JetBrains Mono bär *etikett eller kod*, aldrig *läs talet* (DESIGN.md §4, #376):
-opaka koder och referenser (`S-1042`), versioner (`v2.3.1`), tangentbordsgenvägar
-(`⌘K`) och caps-labels (`UPPDATERAD · MAJ 2026`). Datum, tider, antal och räknare
-som användaren läser står i sans med `tabular-nums`. **Aldrig** för brödtext,
-rubriker eller knapptext.
+JetBrains Mono bär *etikett eller kod*, aldrig *läs talet* (DESIGN.md §4, #376).
 
 ### 5. En accentfärg
 

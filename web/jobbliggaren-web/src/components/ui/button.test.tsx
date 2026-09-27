@@ -5,7 +5,7 @@ import { Button } from "./button";
 const FLOOR_H = "[@media(max-width:768px)]:min-h-11";
 const FLOOR_W = "[@media(max-width:768px)]:min-w-11";
 const SIZES = ["default", "xs", "sm", "lg", "icon", "icon-xs", "icon-sm", "icon-lg"] as const;
-const ICON_STEPS_UNDER_44 = ["icon", "icon-xs", "icon-sm"] as const;
+const ICON_STEPS = SIZES.filter((size) => size.startsWith("icon"));
 
 const classesOf = (el: HTMLElement) => el.className.split(/\s+/);
 
@@ -15,7 +15,7 @@ describe("Button touch floor (DESIGN.md §5)", () => {
     expect(classesOf(screen.getByRole("button"))).toContain(FLOOR_H);
   });
 
-  it.each(ICON_STEPS_UNDER_44)("icon step %s is at least 44 px wide at ≤768 px", (size) => {
+  it.each(ICON_STEPS)("icon step %s is at least 44 px wide at ≤768 px", (size) => {
     render(<Button size={size} aria-label="Stäng" />);
     expect(classesOf(screen.getByRole("button"))).toContain(FLOOR_W);
   });

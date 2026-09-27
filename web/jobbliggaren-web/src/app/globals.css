@@ -541,9 +541,13 @@ body {
    that declaration true instead of answering with a louder one, and covers the
    :hover twin — which the row has no color rule of its own to answer at all.
    `.jp-job__rowlink` (the /jobb card's title, #1828) is the fourth for the same
-   reason: its `color: inherit` keeps the title ink (E2f), hover included. */
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink):hover { color: var(--jp-accent-600); }
+   reason: its `color: inherit` keeps the title ink (E2f), hover included.
+   `.jp-app__rowlink`, `.jp-board-card__link` and `.jp-apptable__rowlink` (the
+   /ansokningar titles in the queue and Lista, on the Tavla card and in the Tabell)
+   are the same exemption again, by Klas's answer "Bläck" (#1827 K1): each title keeps
+   its own ink, hover included, and the row, card or table row carries the click cue. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 

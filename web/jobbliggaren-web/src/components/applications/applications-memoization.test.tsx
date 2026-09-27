@@ -20,7 +20,7 @@ import { transitionStatusAction } from "@/lib/actions/applications";
 
 /**
  * #747 (perf-audit d1/d2) — render-count fitness function för memoiseringen av
- * ansöknings-trädet. Oraklet är BETEENDE, inte struktur: två rena per-render-
+ * ansöknings-trädet. Oraklet är BETEENDE, inte struktur: rena per-render-
  * bieffekter räknas via modul-wrappers.
  *
  *   - `daysInStatus` anropas EXAKT en gång per renderad rad (ApplicationRow,

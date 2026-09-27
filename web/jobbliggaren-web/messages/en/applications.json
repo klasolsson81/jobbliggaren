@@ -68,19 +68,19 @@
       "fallbackTitle": "Application #{shortId}",
       "moveToNext": "Move to {status}",
       "reactivate": "Reactivate",
-      "finishAndSend": "Finish and send",
+      "finishAndSend": "Mark as Sent",
       "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}",
       "latestEvent": "{event} on {date}"
     },
     "statusMenu": {
       "trigger": "Change status",
-      "groupActive": "Move to · Active path",
-      "groupClosed": "Closed & dormant",
+      "groupActive": "Active steps",
+      "groupClosed": "Closed and dormant",
       "currentSuffix": "current status",
       "delete": "Delete application"
     },
     "urgency": {
-      "deadline": "Deadline {date}",
+      "deadline": "Application deadline {date}",
       "waitDays": "{days} days without reply",
       "sinceInterview": "{days} days since the interview"
     },
@@ -107,10 +107,9 @@
       "save": "Save follow-up"
     },
     "finishDraft": {
-      "title": "Finish and send",
-      "body": "The application moves to Sent and the wait time counts from today.",
-      "applyBy": "Apply by",
-      "send": "Send application"
+      "title": "Mark as Sent?",
+      "applyBy": "Application deadline",
+      "send": "Mark as Sent"
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",
@@ -121,24 +120,16 @@
       "dismissAriaLabel": "Dismiss the message"
     },
     "pipeline": {
-      "statusBarAriaLabel": "Status",
-      "all": "All",
-      "emptyTitle": "No applications in this status",
-      "emptyBody": "Select another tab or create a new application.",
-      "attentionTitle": "Needs action",
-      "sectionShownOfTotal": "showing {shown} of {total}",
-      "showMore": "Show more ({count})"
+      "showMore": "Show {count} more"
     },
     "queue": {
       "title": "Needs action",
-      "sortHint": "Sorted by how urgent it is",
       "empty": "Nothing needs action right now.",
       "showMore": "Show {count} more",
       "showFewer": "Show fewer"
     },
     "all": {
-      "title": "All applications",
-      "noResults": "No applications match the search or filter."
+      "title": "All applications"
     },
     "controls": {
       "searchAriaLabel": "Search applications",
@@ -153,8 +144,7 @@
       "tabell": "Table"
     },
     "table": {
-      "caption": "Applications in table form, sortable",
-      "ariaLabel": "Applications",
+      "caption": "Applications",
       "empty": "No applications match the search or filter. Clear the search or change the filter.",
       "colRole": "Role & company",
       "colStatus": "Status",
@@ -188,7 +178,8 @@
       "clear": "Clear selection",
       "barAriaLabel": "Bulk actions for selected applications",
       "confirmTitle": "Mark {count, plural, one {# application} other {# applications}} as {status}?",
-      "confirmBody": "{count, plural, one {One application will be closed} other {# applications will be closed}}. You can undo immediately afterwards, but not later without manual action.",
+      "confirmBody": "{withText, plural, one {The ad text and any contact details in one saved copy are deleted} other {The ad texts and any contact details in # saved copies are deleted}} and do not come back if you undo.",
+      "confirmBodyFallback": "If the applications have saved copies of the ads, their text and any contact details are deleted and do not come back if you undo.",
       "confirmCta": "Mark {status}",
       "confirming": "Marking…"
     },
@@ -197,7 +188,6 @@
       "terminalGroup": "Closed and dormant"
     },
     "board": {
-      "toolbarHint": "Drag a card to another step.",
       "showMore": "Show {count} more",
       "showFewer": "Show fewer",
       "emptyColumn": "No applications here",
@@ -205,20 +195,19 @@
       "daysShort": "{days} d"
     },
     "rail": {
-      "kicker": "All steps",
-      "hint": "Click a step to filter the list",
-      "ariaLabel": "Filter by step",
+      "kicker": "Filter by step",
       "cellAriaLabel": "{step}, {count, plural, =0 {no applications} =1 {one application} other {# applications}}"
     },
     "attention": {
       "reason": {
-        "OfferAwaitingReply": "Offer awaiting your reply.",
-        "OverdueFollowUp": "Follow-up is past due.",
-        "DraftDeadlineApproaching": "Draft deadline is approaching.",
-        "GhostSuggested": "No reply for a long time.",
-        "NoResponseNudge": "Time to follow up.",
-        "SilentAfterInterview": "Silent since the interview."
-      }
+        "OfferAwaitingReply": "Offer",
+        "OverdueFollowUp": "Follow-up overdue",
+        "DraftDeadlineApproaching": "Application deadline",
+        "GhostSuggested": "Awaiting reply",
+        "NoResponseNudge": "Awaiting reply",
+        "SilentAfterInterview": "Awaiting reply after the interview"
+      },
+      "days": "{days, plural, one {# day} other {# days}}"
     },
     "followUps": {
       "sectionLabel": "Follow-ups",
@@ -289,6 +278,7 @@
     "terminalMove": {
       "title": "Mark as {status}?",
       "body": "The ad text and any contact details in the saved copy are deleted and do not come back if you undo.",
+      "bodyFallback": "If the application has a saved copy of the ad, its text and any contact details are deleted and do not come back if you undo.",
       "confirm": "Mark as {status}"
     },
     "actions": {

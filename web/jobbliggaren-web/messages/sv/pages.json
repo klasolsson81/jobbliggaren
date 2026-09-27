@@ -27,8 +27,7 @@
     "statistics": "Statistik",
     "loadErrorTitle": "Kunde inte ladda ansökningar",
     "emptyTitle": "Inga ansökningar ännu",
-    "emptyCreateFirst": "Skapa första ansökan",
-    "emptySearchFirst": "Sök annonser först",
+    "emptySearchFirst": "Sök jobb",
     "new": {
       "title": "Ny ansökan",
       "titleLabel": "Jobbtitel",

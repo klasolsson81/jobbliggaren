@@ -27,8 +27,7 @@
     "statistics": "Statistics",
     "loadErrorTitle": "Could not load applications",
     "emptyTitle": "No applications yet",
-    "emptyCreateFirst": "Create first application",
-    "emptySearchFirst": "Search jobs first",
+    "emptySearchFirst": "Search jobs",
     "new": {
       "title": "New application",
       "titleLabel": "Job title",

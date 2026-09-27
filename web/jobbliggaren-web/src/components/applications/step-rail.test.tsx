@@ -31,6 +31,21 @@ describe("StepRail", () => {
     expect(within(getRail()).getAllByRole("button")).toHaveLength(10);
   });
 
+  // #1827 M2: the visible label names the group; no hint explains the control.
+  it("namnges av den synliga etiketten och bär ingen förklarande text", () => {
+    render(
+      <StepRail
+        groups={makeGroups({ Submitted: 3 })}
+        statusFilter={null}
+        onToggle={() => {}}
+      />,
+    );
+    const label = screen.getByText("Filtrera på steg");
+    expect(getRail()).toHaveAttribute("aria-labelledby", label.id);
+    expect(getRail()).not.toHaveAttribute("aria-label");
+    expect(screen.queryByText(/Klicka på ett steg/)).not.toBeInTheDocument();
+  });
+
   it("visar antal per steg", () => {
     render(
       <StepRail

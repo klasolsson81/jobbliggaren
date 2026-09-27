@@ -248,7 +248,6 @@
   --jp-btn-px: 18px;
 
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
-  --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
   --jp-shadow-modal: 0 30px 80px rgba(8, 23, 48, 0.35);
 
@@ -378,7 +377,6 @@
   /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
      resolvar själv till #6EE7A8 i dark via accent-skiftet ovan. */
 
-  --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --jp-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.7);
 }
@@ -541,9 +539,13 @@ body {
    that declaration true instead of answering with a louder one, and covers the
    :hover twin — which the row has no color rule of its own to answer at all.
    `.jp-job__rowlink` (the /jobb card's title, #1828) is the fourth for the same
-   reason: its `color: inherit` keeps the title ink (E2f), hover included. */
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink):hover { color: var(--jp-accent-600); }
+   reason: its `color: inherit` keeps the title ink (E2f), hover included.
+   `.jp-app__rowlink`, `.jp-board-card__link` and `.jp-apptable__rowlink` (the
+   /ansokningar titles in the queue and Lista, on the Tavla card and in the Tabell)
+   are the same exemption again, by Klas's answer "Bläck" (#1827 K1): each title keeps
+   its own ink, hover included, and the row, card or table row carries the click cue. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
@@ -3705,10 +3707,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   letter-spacing: -0.01em;
   color: var(--jp-heading-2);
 }
+/* The status groups are h3s under the section's h2 and read one level below it
+   (DESIGN.md §4, #1827 M4). */
+.jp-section__toggle--group .jp-section__title-text {
+  font-size: var(--text-h3);
+  color: var(--jp-ink-1);
+}
 .jp-section__toggle .jp-section__count {
-  /* #805 punkt 2: antalet sitter nu inline "Skickad (1)" intill etiketten (var
+  /* #805 punkt 2: antalet sitter nu inline "Skickad 1" intill etiketten (var
      margin-left:auto = långt till höger). Liten negativ marginal drar bort en
-     del av head-gapet (10px) så "(1)" binder tätt till statusnamnet. */
+     del av head-gapet (10px) så antalet binder tätt till statusnamnet. */
   margin-left: -4px;
 }
 .jp-section__chevron {
@@ -3800,10 +3808,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 8px;
 }
 .jp-app__days {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-  white-space: nowrap;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+  white-space: nowrap;
 }
 /* Väntesignal (Tabell-facit, isWaitingSignal): dagarna varnar när
    attention-signalen firar — ALDRIG en klient-dagströskel. */
@@ -3815,7 +3824,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
    informationsbärande (§4), inte mono. */
 .jp-app__eventline {
   margin-top: 4px;
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-2);
 }
 .jp-app__actions--row {
@@ -4394,8 +4405,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   animation: jp-rise 180ms ease;
   max-width: min(92vw, 560px);
 }
-/* #630 PR 7 (design §10): ångra-toastens delar — Ångra i --jp-gold,
-   understruken; ✕ stänger. Fel-toasten (aria-assertive) är danger-fylld. */
+/* #630 PR 7 (design §10): ångra-toastens delar — Ångra i toastens inverterade
+   bläck, understruken; ✕ stänger (#1827 M8: guldet bär bara DESIGN.md §11:s två
+   typografiska roller, och flippar inte med toasten). Fel-toasten (aria-assertive)
+   är danger-fylld. */
 .jp-toast__msg { min-width: 0; }
 /* Ångra och ✕ får träffytor på 32px (44px vid ≤768, DESIGN.md §5) genom padding som
    en negativ marginal tar ut. */
@@ -4405,7 +4418,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 6px 0;
   margin: -6px 0;
   min-height: 32px;
-  color: var(--jp-gold);
+  color: var(--jp-ink-inverse);
   font-size: var(--text-ui);
   font-weight: var(--jp-fw-semibold);
   text-decoration: underline;
@@ -4435,7 +4448,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-toast__undo:focus-visible,
 .jp-toast__close:focus-visible {
-  outline: 2px solid var(--jp-gold);
+  outline: 2px solid var(--jp-ink-inverse);
   outline-offset: 2px;
 }
 .jp-toast--error { background: var(--jp-danger); }
@@ -7064,80 +7077,104 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ══ Mina ansökningar 2a — Lista + delad chrome (#630 PR 5, ADR 0092) ═══════
-   "Kräver åtgärd"-kö (åtgärdskort-rutnät) + kontrollrad (sök + filterchip) +
-   stegrail "ALLA 10 STEG" + "Alla ansökningar"-Lista. Endast befintliga
+   "Kräver åtgärd"-kö (liggarrader) + kontrollrad (sök + filterchip) +
+   stegrail (alla 10 steg) + "Alla ansökningar"-Lista. Endast befintliga
    --jp-*-tokens (DESIGN.md §14 — inga nya hex/radier). Rad-chassit (.jp-app)
    återbrukas orört; stegrailens toppkant-färg keyar off data-status-variant,
    samma status-tokens som status-taggen (CLAUDE.md §9.1 DRY). */
 
 /* Sektionsrubrik med STARK underlinje (design §3/§5 — border-strong mot
-   accordion-headens ordinarie border) + höger-justerad hint-slot. Delar
-   .jp-section__head-flexet. */
+   accordion-headens ordinarie border). Delar .jp-section__head-flexet. */
 .jp-section__head--strong {
   border-bottom-color: var(--jp-border-strong);
 }
-.jp-section__hint {
-  margin-left: auto;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
 
-/* ── Kräver åtgärd-kön ── */
+/* ── The Kräver åtgärd queue (#1827 M1) ──
+   Ledger rows, no box per item (DESIGN.md §6): a hairline between the rows and the
+   row family's link overlay (.jp-app__rowlink stretches the title over the row, so
+   the row is positioned). Line 1 = the signal kicker in Översikten's form + the
+   value, line 2 = title + company, the CTAs on the right. */
 .jp-attentionqueue {
   margin-top: 8px;
 }
-.jp-actioncard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
-  gap: 12px;
-}
-@media (max-width: 680px) {
-  .jp-actioncard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.jp-actioncard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.jp-actioncard__reason {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.jp-attentionqueue__list {
+  list-style: none;
   margin: 0;
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
+  padding: 0;
+}
+.jp-attentionqueue__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 12px 16px;
+  transition: background-color 80ms;
+}
+.jp-attentionqueue__row + .jp-attentionqueue__row {
+  border-top: 1px solid var(--jp-border);
+}
+.jp-attentionqueue__row:hover {
+  background: var(--jp-surface-3);
+  box-shadow: inset 3px 0 0 var(--jp-accent-700);
+}
+.jp-attentionqueue__body {
+  min-width: 0;
+}
+.jp-attentionqueue__signal {
+  margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+/* The colour reinforces, the text carries the signal (WCAG 1.4.1). Never accent
+   green, which is interaction and grade: the colour is the signal's status bucket. */
+.jp-attentionqueue__kicker {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.jp-attentionqueue__kicker[data-signal="success"] { color: var(--jp-success); }
+.jp-attentionqueue__kicker[data-signal="warning"] { color: var(--jp-warning); }
+.jp-attentionqueue__kicker[data-signal="info"]    { color: var(--jp-info); }
+.jp-attentionqueue__value {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1);
 }
-.jp-actioncard__text {
-  max-width: 68ch;
+.jp-attentionqueue__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
 }
-/* Liten färgkodad indikator — färgen REINFORCERAR, texten bär meningen.
-   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
-.jp-actioncard__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-ink-3);
+.jp-attentionqueue__company {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
 }
-.jp-actioncard__reason[data-signal="success"] .jp-actioncard__dot {
-  background: var(--jp-success);
+/* Above the link overlay, so the buttons are never nested in the anchor. */
+.jp-attentionqueue__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
-.jp-actioncard__reason[data-signal="warning"] .jp-actioncard__dot {
-  background: var(--jp-warning);
-}
-.jp-actioncard__reason[data-signal="info"] .jp-actioncard__dot {
-  background: var(--jp-info);
+@media (max-width: 720px) {
+  .jp-attentionqueue__row { grid-template-columns: minmax(0, 1fr); }
+  .jp-attentionqueue__actions { justify-content: flex-start; }
 }
 .jp-attentionqueue__empty {
-  padding: 20px 22px;
-  border: 1px dashed var(--jp-border-strong);
-  border-radius: var(--jp-r-md);
+  margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-attentionqueue__more {
   margin-top: 12px;
@@ -7151,7 +7188,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 16px;
   padding: 20px 22px;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-allapps__restkicker {
   /* Superordinat grupp-eyebrow (delar Lista i aktiva vs avslut/vilande). Läses
@@ -7195,7 +7232,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-appcontrols__input {
   width: 100%;
-  height: 38px;
+  height: var(--jp-control-h);
   padding: 0 12px 0 36px;
   border: 1px solid var(--jp-border-strong);
   border-radius: var(--jp-r-sm);
@@ -7216,11 +7253,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-accent-700);
   border-radius: var(--jp-r-sm);
   background: var(--jp-accent-50);
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--jp-accent-900);
+  color: var(--jp-accent-700);
 }
 /* Hit-arean fyller chipens 32px-höjd × 32px (a11y-skillens 32×32-golv,
    design-reviewer Minor 1) — ikonen förblir 14px, centrerad. */
@@ -7235,11 +7270,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-accent-700);
   cursor: pointer;
 }
-.jp-listfilterchip__rm:hover {
-  color: var(--jp-accent-900);
-}
 
-/* ── Stegrail "ALLA 10 STEG" ── */
+/* ── Stegrail (alla 10 steg) ── */
 .jp-steprail {
   margin: 12px 0 20px;
 }
@@ -7261,10 +7293,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
-.jp-steprail__hint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-1);
-}
 .jp-steprail__cells {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
@@ -7272,6 +7300,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
+}
+@media (max-width: 860px) {
+  .jp-steprail__cells {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
 }
 .jp-steprail__cell {
   display: flex;
@@ -7329,10 +7362,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-top-color: var(--jp-border);
   opacity: 0.55;
 }
-/* Vald cell (aktivt stegfilter) — accent-yta, vinner över terminal-ytan. */
+/* Vald cell (aktivt stegfilter) — accent-yta, vinner över terminal-ytan. Fyllningen
+   ensam mäter 1,14:1 mot vitt, så stapeln i nederkanten bär markeringen (DESIGN.md §3,
+   WCAG 1.4.11; #1827 B6). */
 .jp-steprail__cell[aria-pressed="true"],
 .jp-steprail__cell[data-terminal="true"][aria-pressed="true"] {
   background: var(--jp-accent-50);
+  box-shadow: inset 0 -3px 0 var(--jp-accent-700);
 }
 .jp-steprail__cell:focus-visible {
   outline: 2px solid var(--jp-accent-700);
@@ -7366,6 +7402,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 10px;
   margin-left: auto;
 }
+/* The view switcher stands beside the search field at the filter row's one height
+   (--jp-control-h, DESIGN.md §6); .jp-segment is shared, so the height is scoped here.
+   A min-height, so the options' own 44px touch floor still wins at ≤768px. */
+.jp-appcontrols__vy .jp-segment {
+  min-height: var(--jp-control-h);
+  align-items: stretch;
+}
 .jp-vylabel {
   font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
@@ -7392,28 +7435,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-1);
 }
-.jp-board__hint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-1);
-}
 
-/* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px
+/* Grid: sex 1fr-kolumner, terminalzonerna som en rad om fyra under dem (#1827 M5:
+   en sjunde spalt gav 141px breda kolumner vid 1136). Kolumnerna klampar vid 140px
    och griden scrollar horisontellt nar den inte far plats (sidan scrollar aldrig
    i x-led). */
 .jp-board__grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr)) 218px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 12px;
   align-items: stretch;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
-/* Terminal-spalten: fyra mini-zoner, staplade. */
 .jp-board__terminal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
   min-width: 0;
 }
 
@@ -7450,12 +7490,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-board-col__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   margin-bottom: 8px;
 }
 .jp-board-col__name {
-  /* #805 punkt 2: krymper men växer inte (0 1 auto) så antalet "(N)" sitter
+  /* #805 punkt 2: krymper men växer inte (0 1 auto) så antalet sitter
      adjacent intill namnet i stället för att pushas till kolumnens högerkant. */
   flex: 0 1 auto;
   min-width: 0;
@@ -7464,14 +7504,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--jp-ink-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .jp-board-col__count {
-  /* #805 punkt 2: inline "(N)"-text intill kolumnnamnet (var en surface-3-chip;
-     ett värde inramat i en låda bryter mot "information är design", regel 2).
-     Samma tabular-(N)-form som Lista/Alla-räknarna → 3-vy-konsekvens. */
+  /* #805 punkt 2: antalet som inline-text intill kolumnnamnet (var en
+     surface-3-chip; ett värde inramat i en låda bryter mot "information är
+     design", regel 2). Samma tabular-form som Lista/Alla-räknarna → 3-vy-
+     konsekvens. */
   flex: 0 0 auto;
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-semibold);
@@ -7530,7 +7568,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   padding: 10px 11px;
-  box-shadow: var(--jp-shadow-card);
   cursor: grab;
 }
 .jp-board-card:hover {
@@ -7556,6 +7593,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-semibold);
   line-height: 1.3;
   color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
+  hyphens: auto;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -7577,23 +7616,28 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
 }
 .jp-board-card__link:focus-visible {
-  outline: 2px solid var(--jp-focus);
-  outline-offset: 2px;
-  border-radius: var(--jp-r-sm);
+  outline: none;
+}
+.jp-board-card__link:focus-visible::after {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
 }
 .jp-board-card__company {
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .jp-board-card__subline {
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.jp-board-card__adremoved {
+  display: flex;
 }
 .jp-board-card__foot {
   display: flex;
@@ -7601,22 +7645,30 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 6px;
 }
+.jp-board-card__foot .jp-tag,
+.jp-board-card__adremoved .jp-tag {
+  white-space: normal;
+  max-width: 100%;
+}
 .jp-board-card__days {
-  font-size: var(--text-micro);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 /* StatusMenu (tangentbords-/no-drag-vagen) z-lyft ovanfor lank-overlay:en sa
-   den inte nastlas i ankaret; kompakt trigger pa det smala kortet. */
+   den inte nastlas i ankaret. */
 .jp-board-card__menu {
   position: relative;
   z-index: 1;
 }
-.jp-board-card__menu .jp-rowbtn--ink {
-  padding: 2px 6px;
+/* "Byt status" needs a 154px column at its full padding. The grid guarantees that from a
+   1065px viewport (six columns and five gaps, the container's padding, and a 17px classic
+   scrollbar), so below it the button keeps its narrow padding (#1827 M5). */
+@media (max-width: 1064px) {
+  .jp-board-card__menu .jp-rowbtn--ink {
+    padding: 2px 6px;
+  }
 }
 
 /* ── Tabell-vyn (#630 PR 10, design §7): volymvyn — sorterbar, bulk, 50/sida ──
@@ -7634,7 +7686,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
-  box-shadow: var(--jp-shadow-card);
   overflow-x: auto;
 }
 .jp-apptable {
@@ -7773,7 +7824,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-apptable__company {
   display: block;
-  font-size: var(--text-micro);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7801,8 +7852,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: nowrap;
 }
 .jp-apptable__eventdate {
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 .jp-apptable__nextlink {
   background: transparent;

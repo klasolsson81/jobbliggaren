@@ -311,6 +311,25 @@ describe("ApplicationsTable — bulkåtgärder (#630 PR 10)", () => {
   });
 });
 
+// #1827 11c: a cancelled bulk reject returns focus to the bulk bar's button, not to <body>
+// (measured in Chrome before the fix); a confirmed one still lands on the caption.
+describe("ApplicationsTable — focus when the bulk dialog closes", () => {
+  it.each(["Avbryt", "Escape"])("a cancel returns focus to 'Markera Nekad' (%s)", async (close) => {
+    const user = userEvent.setup();
+    renderTable(fiveRows());
+    await user.click(screen.getByRole("checkbox", { name: "Markera Alfa" }));
+    const opener = screen.getByRole("button", { name: "Markera Nekad" });
+
+    await user.click(opener);
+    const dialog = await screen.findByRole("dialog");
+    if (close === "Escape") await user.keyboard("{Escape}");
+    else await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+});
+
 describe("ApplicationsTable — paginering (klient-side, Option B)", () => {
   it("(g) 60 rader → 50 på sida 1 + footer + pager; sida 2 visar 10 och TÖMMER urval", async () => {
     const user = userEvent.setup();
@@ -352,6 +371,15 @@ describe("ApplicationsTable — paginering (klient-side, Option B)", () => {
   });
 });
 
+describe("ApplicationsTable — namn (#1827 M2)", () => {
+  it("captionen är tabellens namn; ingen aria-label beskriver tabellen", () => {
+    renderTable(fiveRows());
+    const table = screen.getByRole("table", { name: "Ansökningar" });
+    expect(table).not.toHaveAttribute("aria-label");
+    expect(table.querySelector("caption")).toHaveTextContent("Ansökningar");
+  });
+});
+
 describe("ApplicationsTable — tomt + varningsfärgning", () => {
   it("(h) tom rows → role=status tomt-meddelande, ingen tabell", () => {
     renderTable([]);
@@ -377,5 +405,53 @@ describe("ApplicationsTable — tomt + varningsfärgning", () => {
     expect(stepOf("Väntar")).toHaveAttribute("data-waiting");
     expect(stepOf("Erbjuden")).not.toHaveAttribute("data-waiting");
     expect(stepOf("Neutral")).not.toHaveAttribute("data-waiting");
+  });
+});
+
+// #1827 item 10: "Markera Nekad" states what it deletes, counted off the selected rows'
+// hasPreservedAdText; the title and the button stay.
+describe("ApplicationsTable — bulk 'Markera Nekad' states what it deletes (#1827)", () => {
+  function rowsWith(...flags: (boolean | undefined)[]): ApplicationDto[] {
+    return fiveRows()
+      .slice(0, flags.length)
+      .map((row, i) => ({ ...row, hasPreservedAdText: flags[i] }));
+  }
+
+  async function openBulkReject(rows: ApplicationDto[]) {
+    const user = userEvent.setup();
+    renderTable(rows);
+    await user.click(screen.getByRole("checkbox", { name: "Markera alla på sidan" }));
+    await user.click(screen.getByRole("button", { name: "Markera Nekad" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("counts the copies with text: one", async () => {
+    const dialog = await openBulkReject(rowsWith(true, false));
+    expect(dialog).toHaveAccessibleName("Markera 2 ansökningar som Nekad?");
+    expect(dialog).toHaveAccessibleDescription(
+      "Annonstexten och eventuella kontaktuppgifter i en sparad kopia raderas och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("counts the copies with text: several", async () => {
+    const dialog = await openBulkReject(rowsWith(true, true, false));
+    expect(dialog).toHaveAccessibleDescription(
+      "Annonstexterna och eventuella kontaktuppgifter i 2 sparade kopior raderas och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("any missing flag (deploy skew) gives the fallback body", async () => {
+    const dialog = await openBulkReject(rowsWith(true, undefined));
+    expect(dialog).toHaveAccessibleDescription(
+      "Har ansökningarna sparade kopior av annonserna raderas deras text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
+    );
+  });
+
+  it("no copy with text and no flag missing: the dialog has no description", async () => {
+    const dialog = await openBulkReject(rowsWith(false, false));
+
+    expect(dialog).toHaveAccessibleName("Markera 2 ansökningar som Nekad?");
+    expect(dialog).not.toHaveAttribute("aria-describedby");
+    expect(dialog.querySelector("[data-slot='dialog-description']")).toBeNull();
   });
 });

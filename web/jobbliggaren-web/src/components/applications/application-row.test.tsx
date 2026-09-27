@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ApplicationActionsProvider } from "./application-actions";
 import { ApplicationRow } from "./application-row";
 import {
@@ -119,11 +119,19 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(screen.getByText("Volvo")).toBeInTheDocument();
   });
 
-  it("faller tillbaka till mono 'Ansökan #<8>' när jobAd är null", () => {
+  // #1827 M3: a title is never mono (DESIGN.md §4), the fallback included.
+  it("faller tillbaka till 'Ansökan #<8>' i sans när jobAd är null", () => {
     renderRow(makeApplication({ jobAd: null, jobAdId: null }));
     const fallback = screen.getByText("Ansökan #11111111");
     expect(fallback).toBeInTheDocument();
-    expect(fallback.closest("h3")).toHaveClass("jp-mono");
+    expect(fallback.closest("h3")).not.toHaveClass("jp-mono");
+  });
+
+  it("renderar dagar, händelserad och titel i sans (#1827 M3)", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-app__days")).toBeInTheDocument();
+    expect(container.querySelector(".jp-app__eventline")).toBeInTheDocument();
+    expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
   });
 
   // #892 (CTO R1): en raderad annons visar den BEVARADE snapshot-identiteten
@@ -143,14 +151,14 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
 
   // #892 (CTO R5): raderad UTAN snapshot → TOM identitet på wiren (aldrig
   // "[raderad]"-literalen) → strukturell fallback-rendering + markör.
-  it("renderar mono-fallback + markör vid raderad annons utan snapshot (tom identitet)", () => {
+  it("renderar id-fallback + markör vid raderad annons utan snapshot (tom identitet)", () => {
     renderRow(
       makeApplication({
         jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
       }),
     );
     const fallback = screen.getByText("Ansökan #11111111");
-    expect(fallback.closest("h3")).toHaveClass("jp-mono");
+    expect(fallback.closest("h3")).not.toHaveClass("jp-mono");
     expect(screen.getByText("Annonsen är borttagen")).toBeInTheDocument();
     expect(screen.queryByText("[raderad]")).toBeNull();
   });
@@ -256,14 +264,14 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(screen.getByText("14 dgr utan svar")).toBeInTheDocument();
   });
 
-  it("renderar DEADLINE-taggen UTAN år (facit §11 — signalen fyrar ≤7 dgr kvar)", () => {
+  it("renderar sista-ansökningsdag-taggen UTAN år (facit §11 — signalen fyrar ≤7 dgr kvar)", () => {
     renderRow(
       makeApplication({
         status: "Draft",
         attentionSignal: "DraftDeadlineApproaching",
       })
     );
-    const tag = screen.getByText("Deadline 1 juni");
+    const tag = screen.getByText("Sista ansökningsdag 1 juni");
     expect(tag).toHaveAttribute("data-urgency", "warning");
   });
 
@@ -305,18 +313,39 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     });
   });
 
-  it("Utkast-radens primär är 'Slutför och skicka' och öppnar DIALOGEN (mellansteg, §9)", async () => {
+  // #892: an erased ad without a snapshot has an empty identity; the toast names the
+  // application by its short id instead of an empty company.
+  it("ett byte på en raderad annons utan kopia namnger ansökan med kort-id i toasten", async () => {
+    renderRow(
+      makeApplication({
+        jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    );
+    await waitFor(() =>
+      expect(getApplicationToastSnapshot()).toMatchObject({
+        kind: "statusChange",
+        company: "#11111111",
+      }),
+    );
+  });
+
+  it("Utkast-radens primär är 'Markera som Skickad' och öppnar DIALOGEN (mellansteg, §9)", async () => {
     renderRow(makeApplication({ status: "Draft" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Slutför och skicka" })
+      screen.getByRole("button", { name: "Markera som Skickad" })
     );
-    // Dialogen öppnas — ingen transition förrän "Skicka ansökan".
-    expect(
-      await screen.findByRole("button", { name: "Skicka ansökan" })
-    ).toBeInTheDocument();
+    // Dialogen öppnas — ingen transition förrän dess egen knapp.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Markera som Skickad?",
+    });
     expect(transitionStatusAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Skicka ansökan" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Markera som Skickad" })
+    );
     await waitFor(() =>
       expect(transitionStatusAction).toHaveBeenCalledWith(
         "11111111-2222-3333-4444-555555555555",
@@ -336,34 +365,55 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     );
   });
 
+  // #1827 item 10: "Flytta till Accepterad" deletes the saved copy's text when it has one.
+  it.each([true, undefined])(
+    "'Flytta till Accepterad' asks first when the flag is %s",
+    async (flag) => {
+      renderRow(
+        makeApplication({ status: "OfferReceived", hasPreservedAdText: flag }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Flytta till Accepterad" }),
+      );
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "Markera som Accepterad?",
+      });
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Markera som Accepterad" }),
+      );
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(
+          "11111111-2222-3333-4444-555555555555",
+          "Accepted",
+        ),
+      );
+    },
+  );
+
+  it("'Flytta till Accepterad' moves at once when the copy has no text", async () => {
+    renderRow(
+      makeApplication({ status: "OfferReceived", hasPreservedAdText: false }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Accepterad" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "11111111-2222-3333-4444-555555555555",
+        "Accepted",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("terminala rader har ingen primär-knapp men behåller statusmenyn", () => {
     renderRow(makeApplication({ status: "Rejected" }));
     expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Byt status" })
     ).toBeInTheDocument();
-  });
-
-  // Kökortets override (§11): urgens-CTA:n ersätter default-primären och
-  // statusmenyn utelämnas (prototyp-facit).
-  it("respekterar primaryAction/secondaryAction-overrides + showStatusMenu={false}", () => {
-    const primary = vi.fn();
-    const secondary = vi.fn();
-    renderRow(makeApplication(), {
-      primaryAction: { label: "Följ upp", onClick: primary },
-      secondaryAction: { label: "Markera som Inget svar", onClick: secondary },
-      showStatusMenu: false,
-    });
-    expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Byt status" })
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Följ upp" }));
-    expect(primary).toHaveBeenCalledTimes(1);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Markera som Inget svar" })
-    );
-    expect(secondary).toHaveBeenCalledTimes(1);
   });
 
   // Radlänken är en ren soft-nav-länk (route-modalen, ADR 0053) — inget

@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { ApplicationActionsProvider } from "./application-actions";
 import { ApplicationsTableRow } from "./applications-table-row";
+import { transitionStatusAction } from "@/lib/actions/applications";
 import type {
   ApplicationDto,
   JobAdSummaryDto,
@@ -85,7 +86,7 @@ describe("ApplicationsTableRow removed-ad marker (#892)", () => {
     expect(marker).toHaveClass("jp-tag");
   });
 
-  it("visar mono-id-fallback-titel + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
+  it("visar id-fallback-titel + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
     renderRow(
       makeApplication({
         jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
@@ -110,5 +111,51 @@ describe("ApplicationsTableRow removed-ad marker (#892)", () => {
   it("visar INGEN markör för en levande annons", () => {
     renderRow(makeApplication());
     expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+});
+
+// #1827 M3: the "Senaste händelse" date is inline data in sans (DESIGN.md §4).
+describe("ApplicationsTableRow inline data (#1827 M3)", () => {
+  it("skriver händelsedatumet i sans, utan mono", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-apptable__eventdate")).toHaveTextContent(
+      "10 maj 2026",
+    );
+    expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
+  });
+});
+
+// #1827 item 10: the Tabell's "→ Accepterad" deletes the saved copy's text when it has one.
+describe("ApplicationsTableRow — '→ Accepterad' asks first (#1827)", () => {
+  beforeEach(() => {
+    vi.mocked(transitionStatusAction).mockClear();
+  });
+
+  it.each([true, undefined])("asks when the flag is %s, and moves on confirm", async (flag) => {
+    renderRow(makeApplication({ status: "OfferReceived", hasPreservedAdText: flag }));
+    fireEvent.click(screen.getByRole("button", { name: "→ Accepterad" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Markera som Accepterad?" });
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Markera som Accepterad" }));
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "11111111-2222-3333-4444-555555555555",
+        "Accepted",
+      ),
+    );
+  });
+
+  it("moves at once when the copy has no text", async () => {
+    renderRow(makeApplication({ status: "OfferReceived", hasPreservedAdText: false }));
+    fireEvent.click(screen.getByRole("button", { name: "→ Accepterad" }));
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "11111111-2222-3333-4444-555555555555",
+        "Accepted",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

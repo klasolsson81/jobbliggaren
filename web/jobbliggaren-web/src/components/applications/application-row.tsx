@@ -17,12 +17,6 @@ import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
 
-/** Explicit rad-CTA (kökortets urgens-CTA override:ar radens default, design §11). */
-export interface RowAction {
-  label: string;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}
-
 interface ApplicationRowProps {
   application: ApplicationDto;
   /**
@@ -32,22 +26,11 @@ interface ApplicationRowProps {
    */
   now: Date;
   /**
-   * Pågår ett statusbyte på DENNA rad? Trådas ned från vy-containern (StatusSection
-   * / AttentionQueue som läser pendingIds-Set:et) — raden prenumererar aldrig själv
-   * på Set:et, så memo(ApplicationRow) skippar den vid andra raders byten (d4).
+   * Pågår ett statusbyte på DENNA rad? Trådas ned från vy-containern (StatusSection,
+   * som läser pendingIds-Set:et) — raden prenumererar aldrig själv på Set:et, så
+   * memo(ApplicationRow) skippar den vid andra raders byten (d4).
    */
   pending: boolean;
-  /**
-   * Primär-knappen i handlingszonen. `undefined` → radens default ("Flytta
-   * till {nästa}" / "Slutför och skicka" för utkast / "Återaktivera" för
-   * Ghosted; terminala rader får ingen). Kökortet skickar §11-urgens-CTA:n.
-   * `null` → ingen primär-knapp.
-   */
-  primaryAction?: RowAction | null;
-  /** Sekundär-knapp (endast kökortens §11-sekundär, t.ex. "Markera Ghosted"). */
-  secondaryAction?: RowAction | null;
-  /** "Byt status ▾"-menyn (design §5). Kökortet stänger av den (prototyp-facit). */
-  showStatusMenu?: boolean;
 }
 
 /**
@@ -75,9 +58,6 @@ export const ApplicationRow = memo(function ApplicationRow({
   application,
   now,
   pending,
-  primaryAction,
-  secondaryAction,
-  showStatusMenu = true,
 }: ApplicationRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
@@ -90,7 +70,6 @@ export const ApplicationRow = memo(function ApplicationRow({
   // identitet (eller TOM identitet utan snapshot) + status "Erased"; markören
   // nedan är andra halvan av fixen (identitet utan dödssignal ser levande ut).
   const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
-  const hasIdentity = adTitle != null;
   const title =
     adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
@@ -115,16 +94,13 @@ export const ApplicationRow = memo(function ApplicationRow({
 
   // Radens default-primär härleds i den delade `useRowActions`-hooken (DRY,
   // #630 PR 10 / senior-cto-advisor Fork 4) så Tabell-vyns "Nästa steg" delar
-  // exakt samma mappning. Kökortet override:ar via `primaryAction` (§11-urgens).
-  const primary =
-    primaryAction === undefined ? defaultPrimaryFor(application) : primaryAction;
+  // exakt samma mappning.
+  const primary = defaultPrimaryFor(application);
 
   return (
     <article className="jp-app jp-app--actions">
       <div className="jp-job__body">
-        <h3
-          className={hasIdentity ? "jp-app__title" : "jp-app__title jp-mono"}
-        >
+        <h3 className="jp-app__title">
           <Link
             href={`/ansokningar/${application.id}`}
             className="jp-app__rowlink"
@@ -180,19 +156,7 @@ export const ApplicationRow = memo(function ApplicationRow({
             {primary.label}
           </button>
         )}
-        {secondaryAction != null && (
-          <button
-            type="button"
-            className="jp-rowbtn"
-            disabled={pending}
-            onClick={secondaryAction.onClick}
-          >
-            {secondaryAction.label}
-          </button>
-        )}
-        {showStatusMenu && (
-          <StatusMenu application={application} pending={pending} />
-        )}
+        <StatusMenu application={application} pending={pending} />
       </div>
     </article>
   );

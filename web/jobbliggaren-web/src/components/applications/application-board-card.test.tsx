@@ -83,14 +83,14 @@ describe("ApplicationBoardCard removed-ad marker (#892)", () => {
     expect(marker).toHaveClass("jp-tag");
   });
 
-  it("visar mono-id-fallback + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
+  it("visar id-fallback i sans + markör vid raderad annons UTAN snapshot (tom identitet, R5)", () => {
     renderCard(
       makeApplication({
         jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
       }),
     );
     const fallback = screen.getByRole("heading", { name: "Ansökan #11111111" });
-    expect(fallback).toHaveClass("jp-mono");
+    expect(fallback).not.toHaveClass("jp-mono");
     expect(screen.getByText("Annonsen är borttagen")).toHaveClass("jp-tag");
     // R5: den domän-interna "[raderad]"-sentinelen når aldrig wiren → aldrig DOM.
     expect(screen.queryByText("[raderad]")).toBeNull();
@@ -107,5 +107,14 @@ describe("ApplicationBoardCard removed-ad marker (#892)", () => {
   it("visar INGEN markör för en levande annons", () => {
     renderCard(makeApplication());
     expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+});
+
+// #1827 M3: inline data in sans (DESIGN.md §4), the days without caps.
+describe("ApplicationBoardCard inline data (#1827 M3)", () => {
+  it("skriver dagarna i sans, utan mono", () => {
+    const { container } = renderCard(makeApplication());
+    expect(container.querySelector(".jp-board-card__days")).toHaveTextContent("5 dgr");
+    expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
   });
 });

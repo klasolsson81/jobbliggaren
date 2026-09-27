@@ -135,6 +135,11 @@ export function needsTerminalMoveConfirmation(
   return copyHasText && MINIMISING_STATUSES.includes(target);
 }
 
+export type CopyText = "text" | "none" | "unknown";
+
+export const copyTextOf = (flag: boolean | undefined): CopyText =>
+  flag === undefined ? "unknown" : flag ? "text" : "none";
+
 /**
  * The statuses closed to follow-up activity: the domain's `ApplicationStatus.IsClosedForActivity`
  * (`src/Jobbliggaren.Domain/Applications/ApplicationStatus.cs`).
@@ -297,12 +302,12 @@ export const ATTENTION_SIGNAL_ORDER: Exclude<
 ];
 
 /**
- * Colour bucket for the feed item's leading indicator, emitted as a
- * `data-signal` attribute the `.jp-actioncard__dot` CSS resolves to a status
- * token. NEVER green (green = interaction/grade, design-reviewer bind), mirroring
+ * Colour bucket for the queue row's signal kicker, emitted as a `data-signal`
+ * attribute the `.jp-attentionqueue__kicker` CSS resolves to a status token.
+ * NEVER accent green (green = interaction/grade, design-reviewer bind), mirroring
  * design §11 "Urgensregler": offer → success, the overdue/draft-deadline pair →
  * warning, the no-response trio (ghost-suggest, no-response nudge, silent-after-
- * interview) → info. Colour only REINFORCES; the reason text carries the meaning
+ * interview) → info. Colour only REINFORCES; the kicker's text carries the meaning
  * (WCAG 1.4.1 — not colour alone).
  */
 export const ATTENTION_SIGNAL_BUCKET: Record<
@@ -320,7 +325,7 @@ export const ATTENTION_SIGNAL_BUCKET: Record<
 /**
  * Attention signal → `applications.ui.attention.reason.{signal}` i18n key.
  * Typed against the firing signals (no "None"), so the caller cannot ask for a
- * reason line for a non-firing signal.
+ * kicker for a non-firing signal.
  */
 export function attentionReasonKey(
   signal: Exclude<ApplicationAttentionSignal, "None">,

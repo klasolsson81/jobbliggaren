@@ -20,13 +20,14 @@ import {
 } from "@/components/ui/dialog";
 import { batchTransitionAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
-import { applicationStatusLabel } from "@/lib/applications/status";
+import { applicationStatusLabel, copyTextOf } from "@/lib/applications/status";
 import {
   compareApplications,
   type SortDir,
   type TableSortKey,
 } from "@/lib/applications/table-sort";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 import { useApplicationPending } from "./application-actions";
 import { ApplicationsTableRow } from "./applications-table-row";
 import { ApplicationsBulkBar } from "./applications-bulk-bar";
@@ -173,7 +174,20 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
     });
   };
 
+  const confirmShown = confirmOpen && selectedRows.length > 0;
+  const { onCloseAutoFocus } = useReturnFocus(confirmShown);
+
   const rejectedLabel = applicationStatusLabel(t, "Rejected");
+  // What "Markera Nekad" deletes, read off the rows' `hasPreservedAdText` alone: one
+  // missing flag (deploy skew) makes the count unknown, and with no copy holding text
+  // the dialog has nothing to say beyond its title (DESIGN.md §8 rule 2).
+  const selectedCopies = selectedRows.map((row) => copyTextOf(row.hasPreservedAdText));
+  const withText = selectedCopies.filter((copy) => copy === "text").length;
+  const confirmBody = selectedCopies.includes("unknown")
+    ? tUi("bulk.confirmBodyFallback")
+    : withText > 0
+      ? tUi("bulk.confirmBody", { withText })
+      : null;
 
   return (
     <div className="jp-apptable-wrap">
@@ -194,7 +208,7 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
       ) : (
         <>
           <div className="jp-apptable__scroll">
-            <table className="jp-apptable" aria-label={tUi("table.ariaLabel")}>
+            <table className="jp-apptable">
               <caption ref={captionRef} tabIndex={-1} className="sr-only">
                 {tUi("table.caption")}
               </caption>
@@ -288,12 +302,12 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
           urvalet medan dialogen är öppen får aldrig lämna en "0 ansökningar"-
           dialog kvar (code-reviewer Minor 1). */}
       <Dialog
-        open={confirmOpen && selectedRows.length > 0}
+        open={confirmShown}
         onOpenChange={(open) => {
           if (!open) setConfirmOpen(false);
         }}
       >
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
           <DialogHeader>
             <DialogTitle>
               {tUi("bulk.confirmTitle", {
@@ -301,9 +315,9 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
                 status: rejectedLabel,
               })}
             </DialogTitle>
-            <DialogDescription>
-              {tUi("bulk.confirmBody", { count: selectedRows.length })}
-            </DialogDescription>
+            {confirmBody != null && (
+              <DialogDescription>{confirmBody}</DialogDescription>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button

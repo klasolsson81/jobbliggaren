@@ -68,19 +68,19 @@
       "fallbackTitle": "Ansökan #{shortId}",
       "moveToNext": "Flytta till {status}",
       "reactivate": "Återaktivera",
-      "finishAndSend": "Slutför och skicka",
+      "finishAndSend": "Markera som Skickad",
       "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}",
       "latestEvent": "{event} den {date}"
     },
     "statusMenu": {
       "trigger": "Byt status",
-      "groupActive": "Flytta till · Aktiv väg",
-      "groupClosed": "Avslut & vilande",
+      "groupActive": "Aktiva steg",
+      "groupClosed": "Avslut och vilande",
       "currentSuffix": "nuvarande status",
       "delete": "Radera ansökan"
     },
     "urgency": {
-      "deadline": "Deadline {date}",
+      "deadline": "Sista ansökningsdag {date}",
       "waitDays": "{days} dgr utan svar",
       "sinceInterview": "{days} dgr sedan intervjun"
     },
@@ -107,10 +107,9 @@
       "save": "Spara uppföljning"
     },
     "finishDraft": {
-      "title": "Slutför och skicka",
-      "body": "Ansökan flyttas till Skickad och väntetiden räknas från idag.",
-      "applyBy": "Sök senast",
-      "send": "Skicka ansökan"
+      "title": "Markera som Skickad?",
+      "applyBy": "Sista ansökningsdag",
+      "send": "Markera som Skickad"
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",
@@ -121,24 +120,16 @@
       "dismissAriaLabel": "Stäng meddelandet"
     },
     "pipeline": {
-      "statusBarAriaLabel": "Status",
-      "all": "Alla",
-      "emptyTitle": "Inga ansökningar i den här statusen",
-      "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
-      "attentionTitle": "Kräver åtgärd",
-      "sectionShownOfTotal": "visar {shown} av {total}",
-      "showMore": "Visa fler ({count})"
+      "showMore": "Visa {count} till"
     },
     "queue": {
       "title": "Kräver åtgärd",
-      "sortHint": "Sorterat på hur bråttom det är",
       "empty": "Inget kräver åtgärd just nu.",
       "showMore": "Visa {count} till",
       "showFewer": "Visa färre"
     },
     "all": {
-      "title": "Alla ansökningar",
-      "noResults": "Inga ansökningar matchar sökningen eller filtret."
+      "title": "Alla ansökningar"
     },
     "controls": {
       "searchAriaLabel": "Sök bland ansökningar",
@@ -153,8 +144,7 @@
       "tabell": "Tabell"
     },
     "table": {
-      "caption": "Ansökningar i tabellform, sorterbar",
-      "ariaLabel": "Ansökningar",
+      "caption": "Ansökningar",
       "empty": "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
       "colRole": "Roll & företag",
       "colStatus": "Status",
@@ -188,7 +178,8 @@
       "clear": "Rensa urval",
       "barAriaLabel": "Massåtgärder för markerade ansökningar",
       "confirmTitle": "{count, plural, one {Markera # ansökan} other {Markera # ansökningar}} som {status}?",
-      "confirmBody": "{count, plural, one {En ansökan avslutas} other {# ansökningar avslutas}}. Du kan ångra direkt efteråt, men inte senare utan manuell åtgärd.",
+      "confirmBody": "{withText, plural, one {Annonstexten och eventuella kontaktuppgifter i en sparad kopia raderas} other {Annonstexterna och eventuella kontaktuppgifter i # sparade kopior raderas}} och kommer inte tillbaka om du ångrar.",
+      "confirmBodyFallback": "Har ansökningarna sparade kopior av annonserna raderas deras text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
       "confirmCta": "Markera {status}",
       "confirming": "Markerar…"
     },
@@ -197,28 +188,26 @@
       "terminalGroup": "Avslut och vilande"
     },
     "board": {
-      "toolbarHint": "Dra ett kort till ett annat steg.",
-      "showMore": "Visa {count} fler",
+      "showMore": "Visa {count} till",
       "showFewer": "Visa färre",
       "emptyColumn": "Inga ansökningar här",
       "emptyZone": "Tomt",
       "daysShort": "{days} dgr"
     },
     "rail": {
-      "kicker": "Alla steg",
-      "hint": "Klicka på ett steg för att filtrera listan",
-      "ariaLabel": "Filtrera på steg",
+      "kicker": "Filtrera på steg",
       "cellAriaLabel": "{step}, {count, plural, =0 {inga ansökningar} =1 {en ansökan} other {# ansökningar}}"
     },
     "attention": {
       "reason": {
-        "OfferAwaitingReply": "Erbjudande väntar på svar.",
-        "OverdueFollowUp": "Uppföljningen har passerat sin tid.",
-        "DraftDeadlineApproaching": "Utkastet stänger snart för ansökan.",
-        "GhostSuggested": "Inget svar på länge.",
-        "NoResponseNudge": "Dags att följa upp.",
-        "SilentAfterInterview": "Tyst efter intervjun."
-      }
+        "OfferAwaitingReply": "Erbjudande",
+        "OverdueFollowUp": "Uppföljning försenad",
+        "DraftDeadlineApproaching": "Sista ansökningsdag",
+        "GhostSuggested": "Väntar på svar",
+        "NoResponseNudge": "Väntar på svar",
+        "SilentAfterInterview": "Väntar på svar efter intervjun"
+      },
+      "days": "{days, plural, one {# dag} other {# dagar}}"
     },
     "followUps": {
       "sectionLabel": "Uppföljningar",
@@ -289,6 +278,7 @@
     "terminalMove": {
       "title": "Markera som {status}?",
       "body": "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      "bodyFallback": "Om ansökan har en sparad kopia av annonsen raderas dess text och eventuella kontaktuppgifter och kommer inte tillbaka om du ångrar.",
       "confirm": "Markera som {status}"
     },
     "actions": {

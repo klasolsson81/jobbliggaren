@@ -143,6 +143,20 @@ counts a descendant-scoped selector as a definition. #1054 removes the now-unrea
 rules and the matching `className`s; the guard's blind spot is tracked as #1056 AC 6.
 
 
+### Implementation note 2026-09-27 (#1827 PR 3): row titles in ink (K1), and the card shadow retires
+
+**Source:** Klas's answer 2026-09-26 in #1827's form round (AskUserQuestion, "Bläck (Rekommenderat)"; recorded on #1827,
+comment 5851454049). Additive note; E2f's core ("grönt = interaktion, inte information") stands.
+
+- **K1.** A row title that is also its row's link is ink. The rule's one home is DESIGN.md §4, beside E2f's core; this
+  note records the decision, its date and its source, and does not restate the rule. It reaches /ansokningar's queue,
+  Lista, Tavla and Tabell, whose title links rendered accent-700 through the global `a:not(…)` rule until then, and
+  matches /jobb's card; /sparade and /matchningar are untouched.
+- **`--jp-shadow-card` retires.** #1827's M5 and Minor 11 took the box shadow off the Tavla card and the Tabell's
+  scroll frame, which were its last two readers (`git grep` at `f241d027`: the two definitions and those two rules).
+  DESIGN.md §3 now names `shadow-pop`/`shadow-modal` only. The 2026-07-02 note's clause that the standalone auth card
+  "behåller `--jp-shadow-card`" is history: that card no longer read the token before this note.
+
 ## Implementation
 
 G1-PR: token-block + alias-flip + mekanisk rename + F4-banner (/jobb) + pagehero/empty-brand/landing-gradient + fokus-scoping + spec-filer + skills-sync. Referens-facit: `docs/handoff-banner/referens/F4-banner-referens.html` (komposition; neutraler/placeholder per CTO Beslut 1 + Klas-regel). Reviews: design-reviewer (med dessa dokumenterade undantag som granskningsbas), code-reviewer, security-auditor.

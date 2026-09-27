@@ -1,3 +1,5 @@
+import { MINA_SIDOR_HREF } from "./mina-sidor-hrefs";
+
 /**
  * The canonical route the "set up matching" nudge links to.
  *
@@ -6,4 +8,4 @@
  * Server Component as a client REFERENCE, not as its value — a server-side `href={MATCH_SETTINGS_HREF}`
  * would throw rather than render. A plain module is importable from both sides.
  */
-export const MATCH_SETTINGS_HREF = "/mina-sidor#matchning";
+export const MATCH_SETTINGS_HREF = MINA_SIDOR_HREF.matchning;

@@ -6,6 +6,7 @@ import { formatSwedishShortDateWithYear } from "@/lib/oversikt/aggregations";
 import { MatchChip } from "@/components/job-ads/match-chip";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { TEXT_LINK } from "@/components/auth/mail-link";
 
 interface MatchListProps {
@@ -17,9 +18,6 @@ interface MatchListProps {
 // the list fills the window a heavy opted-in user would otherwise read 50 as the
 // total, so #424 surfaces the bound honestly beneath the list.
 const MATCH_LIST_CAP = 50;
-
-/** The Notiser card on /mina-sidor, where background matching is turned on (#1891). */
-const NOTISER_HREF = "/mina-sidor#notiser";
 
 // The bounded-window hint links to /jobb filtered to the two NOTIFIABLE grades
 // that ARE filterable there (Good + Strong). `Top` is honest-by-design NOT
@@ -84,7 +82,7 @@ export function MatchList({ items }: MatchListProps) {
         <p className="jp-empty__body">
           {t.rich("emptyBody", {
             notiser: (chunks) => (
-              <Link href={NOTISER_HREF} className={TEXT_LINK}>
+              <Link href={MINA_SIDOR_HREF.notiser} className={TEXT_LINK}>
                 {chunks}
               </Link>
             ),

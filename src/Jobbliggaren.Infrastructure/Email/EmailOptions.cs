@@ -24,7 +24,7 @@ public sealed class EmailOptions
 
     /// <summary>
     /// Bas-URL för app:en. Används i bakgrundsmatchnings-notisens länkar
-    /// (<c>{BaseUrl}/matchningar</c> + <c>{BaseUrl}/mina-sidor</c>, ADR 0080 Vag 4).
+    /// (<c>{BaseUrl}/matchningar</c> + <c>{BaseUrl}/mina-sidor/notiser</c>, ADR 0080 Vag 4).
     /// Also the base of an external login's <c>redirect_uri</c> when a provider is configured (#1744,
     /// <c>ExternalLoginRegistration</c>), validated at start there.
     /// </summary>

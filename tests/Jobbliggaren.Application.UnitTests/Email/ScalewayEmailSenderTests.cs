@@ -444,7 +444,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         SubjectSent().ShouldBe("Ny toppmatchning på Jobbliggaren");
         TextSent().ShouldContain($"{_options.BaseUrl}/matchningar");
         // GDPR Art. 7(3): the settings/unsubscribe link is mandatory in every notification mail.
-        TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor");
+        TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor/notiser");
         LoggedSurface().ShouldContain("EmailKind=match-notification");
     }
 
@@ -458,7 +458,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
         SubjectSent().ShouldBe("Nya annonser från företag du följer");
         TextSent().ShouldContain($"{_options.BaseUrl}/jobb");
-        TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor");
+        TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor/notiser");
         LoggedSurface().ShouldContain("EmailKind=followed-company-notification");
     }
 

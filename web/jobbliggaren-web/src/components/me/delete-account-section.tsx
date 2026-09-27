@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { mailLink, STANDALONE_LINK } from "@/components/auth/mail-link";
 import type { ReauthHandOff } from "@/components/forms/reauth-code-dialog";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 
 type Outcome = Exclude<ReauthHandOff<never>, { kind: "verified" }>;
@@ -31,7 +32,7 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
   }, [outcome]);
 
   const heading = (
-    <h3 id="delete-account-heading" className="text-h3 font-medium text-text-primary">
+    <h3 id="delete-account-heading" className="jp-settings-group__title">
       {t("account.danger.title")}
     </h3>
   );
@@ -42,22 +43,19 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
 
   if (outcome?.kind === "refused" || outcome?.kind === "outcomeUnknown") {
     return (
-      <section
-        aria-labelledby="delete-account-heading"
-        className="flex flex-col gap-3 border-t border-border pt-6"
-      >
+      <section aria-labelledby="delete-account-heading" className="jp-settings-group">
         {/* Focus lands on the wrapper so the heading is read with the message; role="status" sits on
             the message alone, since nested live regions announce twice. */}
-        <div ref={targetRef} tabIndex={-1} className="flex flex-col gap-3">
+        <div ref={targetRef} tabIndex={-1}>
           {heading}
-          <p role="status" className="text-body text-text-primary [overflow-wrap:anywhere]">
+          <p role="status" className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
             {outcome.kind === "refused"
               ? t.rich("account.delete.mailOff", { mail: mailLink })
               : outcome.error}
           </p>
           {outcome.kind === "outcomeUnknown" && (
-            <p className="text-body-sm">
-              <a href="/mina-sidor" className={STANDALONE_LINK}>
+            <p className="mt-2 text-body-sm">
+              <a href={MINA_SIDOR_HREF.sekretess} className={STANDALONE_LINK}>
                 {t("account.reload")}
               </a>
             </p>
@@ -68,12 +66,8 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
   }
 
   return (
-    <section
-      aria-labelledby="delete-account-heading"
-      className="flex flex-col gap-3 border-t border-border pt-6"
-    >
+    <section aria-labelledby="delete-account-heading" className="jp-settings-group">
       {heading}
-      <p className="text-body text-text-primary">{t("account.danger.description")}</p>
       <div>
         <DeleteAccountDialog
           currentEmail={currentEmail}
@@ -84,7 +78,7 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
       {/* Persistent live region under the trigger: the message is the only thing that changes. */}
       <div ref={targetRef} tabIndex={-1} role="status" aria-live="polite">
         {outcome?.kind === "operationRefused" && (
-          <p className="text-body-sm text-text-primary">{outcome.error}</p>
+          <p className="mt-3 text-body-sm text-text-primary">{outcome.error}</p>
         )}
       </div>
     </section>

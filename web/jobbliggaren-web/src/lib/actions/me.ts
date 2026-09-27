@@ -18,6 +18,7 @@ import { writeLoginFlow } from "@/lib/auth/login-flow-cookie";
 import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
 import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
 import { type BoundCodeRefusal, verifyBoundCode } from "@/lib/auth/reauth-code";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { parseResponse, type ApiResult } from "@/lib/dto/_helpers";
 import { boundChallengeSchema, reissuedSessionSchema } from "@/lib/dto/reauth";
 import {
@@ -77,7 +78,7 @@ export async function updateMyProfileAction(
     };
   }
 
-  revalidatePath("/mina-sidor");
+  revalidatePath(MINA_SIDOR_HREF.konto);
   return { success: true };
 }
 
@@ -155,7 +156,6 @@ export async function updateDigestCadenceAction(
   return notificationSettingOutcome(result, ts, "backgroundMatch");
 }
 
-// Revalidates `/mina-sidor` so the card mirrors the saved state.
 function notificationSettingOutcome(
   result: ApiResult<void>,
   ts: Awaited<ReturnType<typeof getTranslations<"settings">>>,
@@ -163,7 +163,7 @@ function notificationSettingOutcome(
 ): ActionResult {
   switch (result.kind) {
     case "ok":
-      revalidatePath("/mina-sidor");
+      revalidatePath(MINA_SIDOR_HREF.notiser);
       return { success: true };
     case "unauthorized":
       return { success: false, error: ts(`${copy}.errors.notLoggedIn`) };

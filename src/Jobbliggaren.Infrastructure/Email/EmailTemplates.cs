@@ -74,7 +74,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var matchesLink = $"{trimmed}/matchningar";
-        var settingsLink = $"{trimmed}/mina-sidor";
+        var settingsLink = $"{trimmed}/mina-sidor/notiser";
 
         // A direct mail's one match is its first line; a digest leads with the count and lists the matches.
         var direct = content.Kind == MatchNotificationKind.Direct;
@@ -165,7 +165,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var jobsLink = $"{trimmed}/jobb";
-        var settingsLink = $"{trimmed}/mina-sidor";
+        var settingsLink = $"{trimmed}/mina-sidor/notiser";
         var companiesLink = $"{trimmed}/foretag";
 
         var items = new StringBuilder();

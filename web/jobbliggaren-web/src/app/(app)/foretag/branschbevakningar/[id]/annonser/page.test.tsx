@@ -204,7 +204,7 @@ describe("BevakningAdsPage — the per-card match mark", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ställ in matchning" })).toHaveAttribute(
       "href",
-      "/mina-sidor#matchning",
+      "/mina-sidor",
     );
 
     // The list is still there — the nudge sits above it, it does not replace it.

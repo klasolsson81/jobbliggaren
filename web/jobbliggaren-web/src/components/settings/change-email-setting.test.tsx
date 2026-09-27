@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
-import { ChangeEmailCard } from "./change-email-card";
+import { ChangeEmailSetting } from "./change-email-setting";
 
-// #1740 — the card of change-email by two codes (Klas 2026-09-22): the address is checked when
-// "Fortsätt" is pressed, the shared dialog re-authenticates, and the card takes the code mailed to the
+// #1740 — the setting for change-email by two codes (Klas 2026-09-22): the address is checked when
+// "Fortsätt" is pressed, the shared dialog re-authenticates, and the setting takes the code mailed to the
 // new address. `render` is auto-wrapped in the Swedish catalogue.
 
 const requestEmailChangeMock =
@@ -43,7 +43,7 @@ async function reauthenticate(user: User, typed = NEW) {
   await user.click(within(dialog).getByRole("button", { name: "Bekräfta koden" }));
 }
 
-/** Reaches the card's own code step and returns its field. */
+/** Reaches the setting's own code step and returns its field. */
 async function toCodeStep(user: User) {
   await reauthenticate(user);
   return screen.findByLabelText("Kod till den nya adressen");
@@ -54,7 +54,7 @@ async function confirmWith(user: User, code = "222222") {
   await user.click(screen.getByRole("button", { name: "Byt adress" }));
 }
 
-describe("ChangeEmailCard", () => {
+describe("ChangeEmailSetting", () => {
   beforeEach(() => {
     requestReauthCodeMock.mockReset();
     requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: REAUTH_CHALLENGE });
@@ -69,9 +69,9 @@ describe("ChangeEmailCard", () => {
   });
 
   it("states the current address and asks for the new one, announcing nothing at rest", () => {
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
-    expect(screen.getByRole("heading", { level: 2, name: "Byt e-postadress" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Byt e-postadress" })).toBeInTheDocument();
     expect(screen.getByText(`Din e-postadress är ${CURRENT}.`)).toBeInTheDocument();
     expect(screen.getByLabelText("Ny e-postadress")).not.toHaveAccessibleDescription();
     expect(screen.getByRole("button", { name: "Fortsätt" })).toBeEnabled();
@@ -94,7 +94,7 @@ describe("ChangeEmailCard", () => {
     ],
   ])("checks %s when Fortsätt is pressed, and the dialog stays closed", async (_label, typed, copy) => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     if (typed) await user.type(screen.getByLabelText("Ny e-postadress"), typed);
     await user.click(screen.getByRole("button", { name: "Fortsätt" }));
@@ -110,7 +110,7 @@ describe("ChangeEmailCard", () => {
 
   it("opens the dialog on Enter in the field, naming the new address there and the current one as the recipient", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await user.type(screen.getByLabelText("Ny e-postadress"), `${NEW}{Enter}`);
 
@@ -119,9 +119,9 @@ describe("ChangeEmailCard", () => {
     expect(dialog).toHaveTextContent(`skickar vi en sexsiffrig kod till ${CURRENT}`);
   });
 
-  it("takes the second code in the card once the dialog has re-authenticated, focus on its field", async () => {
+  it("takes the second code in the setting once the dialog has re-authenticated, focus on its field", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     const codeField = await toCodeStep(user);
 
@@ -140,7 +140,7 @@ describe("ChangeEmailCard", () => {
 
   it("sends the address pressed last when the dialog re-opens on its code step", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await user.type(screen.getByLabelText("Ny e-postadress"), "forsta@exempel.se");
     await user.click(screen.getByRole("button", { name: "Fortsätt" }));
@@ -163,7 +163,7 @@ describe("ChangeEmailCard", () => {
 
   it("changes the address on the second code, and the receipt says so", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -186,7 +186,7 @@ describe("ChangeEmailCard", () => {
       error: "Koden stämmer inte. Använd koden från mejlet till den nya adressen och kontrollera siffrorna.",
     });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -199,7 +199,7 @@ describe("ChangeEmailCard", () => {
 
   it("refuses a malformed code without sending it", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user, "12");
 
@@ -216,7 +216,7 @@ describe("ChangeEmailCard", () => {
   ] as const)("replaces the field with a panel on a %s code; Börja om is the way on", async (reason, copy) => {
     confirmEmailChangeMock.mockResolvedValue({ ok: false, kind: "deadCode", reason });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -242,7 +242,7 @@ describe("ChangeEmailCard", () => {
       channel: "field",
     });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -263,7 +263,7 @@ describe("ChangeEmailCard", () => {
       terminal: true,
     });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -275,7 +275,7 @@ describe("ChangeEmailCard", () => {
     const unknown = "Vi kan inte se om adressen byttes. Ladda om sidan.";
     confirmEmailChangeMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: unknown });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -283,14 +283,14 @@ describe("ChangeEmailCard", () => {
     expect(panel).toHaveTextContent(unknown);
     await waitFor(() => expect(panel).toHaveFocus());
     // A full load, never a client navigation: the page must ask the server whether the session lives.
-    expect(within(panel).getByRole("link", { name: "Ladda om sidan" })).toHaveAttribute("href", "/mina-sidor");
+    expect(within(panel).getByRole("link", { name: "Ladda om sidan" })).toHaveAttribute("href", "/mina-sidor/konto");
     expect(screen.queryByRole("button", { name: "Börja om" })).not.toBeInTheDocument();
   });
 
   it("sends a lapsed session to the login page and back", async () => {
     confirmEmailChangeMock.mockResolvedValue({ ok: false, kind: "notLoggedIn" });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -298,7 +298,7 @@ describe("ChangeEmailCard", () => {
     expect(panel).toHaveTextContent("Du är inte inloggad längre. Logga in igen och börja om.");
     expect(within(panel).getByRole("link", { name: "Logga in" })).toHaveAttribute(
       "href",
-      "/logga-in?next=/mina-sidor"
+      "/logga-in?next=/mina-sidor/konto"
     );
   });
 
@@ -309,7 +309,7 @@ describe("ChangeEmailCard", () => {
       error: "Det går inte att kontrollera koden just nu. Försök igen om några minuter.",
     });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -321,7 +321,7 @@ describe("ChangeEmailCard", () => {
 
   it("treats a code past its lifetime as dead without sending it", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await user.type(await toCodeStep(user), "222222");
     const sent = Date.now();
@@ -340,7 +340,7 @@ describe("ChangeEmailCard", () => {
       () => new Promise((resolve) => (settle = resolve))
     );
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await confirmWith(user);
 
@@ -352,7 +352,7 @@ describe("ChangeEmailCard", () => {
 
   it("starts over at the address, kept, with a new re-authentication", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await toCodeStep(user);
     await user.click(screen.getByRole("button", { name: "Börja om" }));
@@ -375,7 +375,7 @@ describe("ChangeEmailCard", () => {
         channel: "field",
       });
       const user = userEvent.setup();
-      render(<ChangeEmailCard currentEmail={CURRENT} />);
+      render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
       await reauthenticate(user);
 
@@ -395,7 +395,7 @@ describe("ChangeEmailCard", () => {
         channel: "status",
       });
       const user = userEvent.setup();
-      render(<ChangeEmailCard currentEmail={CURRENT} />);
+      render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
       await reauthenticate(user);
 
@@ -405,18 +405,18 @@ describe("ChangeEmailCard", () => {
       expect(screen.getByRole("button", { name: "Fortsätt" })).toBeInTheDocument();
     });
 
-    it("replaces the card with the delivered panel when mail stops after the code", async () => {
+    it("replaces the form with the delivered panel when mail stops after the code", async () => {
       const mailOff = `E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Din adress är oförändrad. Försök igen senare. ${SPENT}`;
       requestEmailChangeMock.mockResolvedValue({ ok: false, kind: "refused", error: mailOff });
       const user = userEvent.setup();
-      render(<ChangeEmailCard currentEmail={CURRENT} />);
+      render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
       await reauthenticate(user);
 
       const status = await screen.findByText(mailOff);
       expect(status).toHaveAttribute("role", "status");
-      expect(screen.queryByText(/Du bekräftar bytet med två koder/)).not.toBeInTheDocument();
-      const heading = screen.getByRole("heading", { level: 2, name: "Byt e-postadress" });
+      expect(screen.queryByText(/När adressen är bytt loggas du ut/)).not.toBeInTheDocument();
+      const heading = screen.getByRole("heading", { level: 3, name: "Byt e-postadress" });
       await waitFor(() => expect(heading.parentElement).toHaveFocus());
     });
 
@@ -430,7 +430,7 @@ describe("ChangeEmailCard", () => {
         terminal: true,
       });
       const user = userEvent.setup();
-      render(<ChangeEmailCard currentEmail={CURRENT} />);
+      render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
       await reauthenticate(user);
 
@@ -442,10 +442,10 @@ describe("ChangeEmailCard", () => {
     });
   });
 
-  it("replaces the card with the delivered panel when no mail can be delivered", async () => {
+  it("replaces the form with the delivered panel when no mail can be delivered", async () => {
     requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "refused" });
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await user.type(screen.getByLabelText("Ny e-postadress"), NEW);
     await user.click(screen.getByRole("button", { name: "Fortsätt" }));
@@ -455,15 +455,14 @@ describe("ChangeEmailCard", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod."
     );
-    // The promise of two codes is not repeated above its own denial.
-    expect(screen.queryByText(/Du bekräftar bytet med två koder/)).not.toBeInTheDocument();
-    const heading = screen.getByRole("heading", { level: 2, name: "Byt e-postadress" });
+    expect(screen.queryByText(/När adressen är bytt loggas du ut/)).not.toBeInTheDocument();
+    const heading = screen.getByRole("heading", { level: 3, name: "Byt e-postadress" });
     await waitFor(() => expect(heading.parentElement).toHaveFocus());
   });
 
   it("never puts either challenge id in the page", async () => {
     const user = userEvent.setup();
-    render(<ChangeEmailCard currentEmail={CURRENT} />);
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
 
     await toCodeStep(user);
 

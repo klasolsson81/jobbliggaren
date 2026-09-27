@@ -8,7 +8,7 @@ delbeslut 3-6. Stänger del 2 av TD-16.
 
 ## 1. Översikt
 
-Användaren raderar sitt konto på `/mina-sidor` med en kod till kontots egen adress
+Användaren raderar sitt konto på `/mina-sidor/sekretess` med en kod till kontots egen adress
 (`POST /api/v1/me/delete`, ADR 0142 D5, #1740). När koden inte går att få raderar en operatör på
 en mejlad begäran (§4.3). Flödet har två faser:
 
@@ -380,7 +380,7 @@ The helper builds the lowercase account key and requires `EXISTS` to return `1` 
 
 ### 4.3 Radera ett levande konto på en mejlad begäran
 
-Självbetjäningen på `/mina-sidor` kräver en kod till kontots adress. När ingen kod går att få — mejl
+Självbetjäningen på `/mina-sidor/sekretess` kräver en kod till kontots adress. När ingen kod går att få — mejl
 kan inte levereras, eller dygnsgränsen för koder är nådd — hänvisar sidan till
 kontakt@jobbliggaren.se, och begäran landar här.
 

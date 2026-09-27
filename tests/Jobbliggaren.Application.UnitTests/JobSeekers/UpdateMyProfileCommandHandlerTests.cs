@@ -51,7 +51,8 @@ public class UpdateMyProfileCommandHandlerTests
         var userId = Guid.NewGuid();
         var (handler, db) = await CreateHandler(userId);
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
+        seeker.UpdateNotificationConsent(enabled: true, FakeDateTimeProvider.Default);
+        seeker.SetDigestCadence(DigestCadence.Daily, FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
 
         var result = await handler.Handle(
@@ -75,7 +76,8 @@ public class UpdateMyProfileCommandHandlerTests
         var userId = Guid.NewGuid();
         var (handler, db) = await CreateHandler(userId);
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
+        seeker.UpdateNotificationConsent(enabled: true, FakeDateTimeProvider.Default);
+        seeker.SetDigestCadence(DigestCadence.Daily, FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(CancellationToken.None);
         var originalPrefs = seeker.Preferences;
 

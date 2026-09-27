@@ -27,16 +27,15 @@ public class JobSeekerNotificationConsentTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public void UpdateNotificationConsent_FirstEnable_StampsConsentAtAndSetsFlagAndCadence()
+    public void UpdateNotificationConsent_FirstEnable_StampsConsentAtAndSetsFlag()
     {
         var seeker = NewSeeker();
         var enableClock = Later(1);
 
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, enableClock);
+        seeker.UpdateNotificationConsent(enabled: true, enableClock);
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
-        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
         prefs.NotificationConsentAt.ShouldBe(enableClock.UtcNow);
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
         seeker.UpdatedAt.ShouldBe(enableClock.UtcNow);
@@ -49,10 +48,10 @@ public class JobSeekerNotificationConsentTests
         // a later re-enable must not overwrite it.
         var seeker = NewSeeker();
         var firstEnable = Later(1);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, firstEnable);
+        seeker.UpdateNotificationConsent(enabled: true, firstEnable);
 
         var secondEnable = Later(3);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, secondEnable);
+        seeker.UpdateNotificationConsent(enabled: true, secondEnable);
 
         seeker.Preferences.NotificationConsentAt.ShouldBe(firstEnable.UtcNow);
         seeker.Preferences.NotificationConsentWithdrawnAt.ShouldBeNull();
@@ -66,10 +65,10 @@ public class JobSeekerNotificationConsentTests
         // (ConsentAt) is NOT erased — it remains as proof the consent once existed.
         var seeker = NewSeeker();
         var enableClock = Later(1);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, enableClock);
+        seeker.UpdateNotificationConsent(enabled: true, enableClock);
 
         var disableClock = Later(4);
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, disableClock);
+        seeker.UpdateNotificationConsent(enabled: false, disableClock);
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
@@ -82,17 +81,15 @@ public class JobSeekerNotificationConsentTests
     {
         var seeker = NewSeeker();
         var firstEnable = Later(1);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, firstEnable);
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, Later(4));
+        seeker.UpdateNotificationConsent(enabled: true, firstEnable);
+        seeker.UpdateNotificationConsent(enabled: false, Later(4));
 
-        var reEnable = Later(8);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, reEnable);
+        seeker.UpdateNotificationConsent(enabled: true, Later(8));
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
         prefs.NotificationConsentAt.ShouldBe(firstEnable.UtcNow);
-        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
     }
 
     [Fact]
@@ -103,7 +100,7 @@ public class JobSeekerNotificationConsentTests
         var seeker = NewSeeker();
         seeker.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
 
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, Later(1));
+        seeker.UpdateNotificationConsent(enabled: false, Later(1));
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
@@ -112,63 +109,36 @@ public class JobSeekerNotificationConsentTests
     }
 
     [Fact]
-    public void UpdateNotificationConsent_CadenceChangeAfterWithdrawal_PreservesArticle7Timestamps()
+    public void UpdateNotificationConsent_DisableWhenAlreadyWithdrawn_KeepsTheFirstWithdrawnAt()
     {
-        // Bevakning F4 (#803): the digest cadence is SHARED with the followed-company
-        // notifications (ADR 0087 D2), so the settings UI now lets a user change the
-        // cadence while THIS consent is withdrawn — a call shape that was previously
-        // unreachable (the cadence control was disabled when the flag was off). The
-        // Art. 7 evidence trail must survive it: an already-withdrawn consent must not
-        // be re-stamped with a fresh withdrawal time on every cadence save, and the
-        // original consent time must not be cleared. Without this test, "simplifying"
-        // the on->off guard into an unconditional `withdrawnAt = now` would silently
-        // corrupt the accountability record while every other test stayed green.
+        // The Art. 7(3) record is the moment the consent was withdrawn, not the latest click on an
+        // already-off switch. Simplifying the on->off guard into an unconditional `withdrawnAt = now`
+        // would restamp it while every other test here stayed green.
         var seeker = NewSeeker();
         var consentAt = Later(1);
         var withdrawnAt = Later(4);
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, consentAt);
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, withdrawnAt);
+        seeker.UpdateNotificationConsent(enabled: true, consentAt);
+        seeker.UpdateNotificationConsent(enabled: false, withdrawnAt);
 
-        // Two cadence saves while withdrawn — only the cadence may move.
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Daily, Later(9));
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, Later(12));
+        seeker.UpdateNotificationConsent(enabled: false, Later(9));
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
         prefs.NotificationConsentAt.ShouldBe(consentAt.UtcNow);
         prefs.NotificationConsentWithdrawnAt.ShouldBe(withdrawnAt.UtcNow);
-        prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
     }
 
     [Fact]
-    public void UpdateNotificationConsent_CadenceChangeWhileWithdrawn_LeavesFollowedCompanyConsentUntouched()
-    {
-        // The two purposes have separate flags and separate Art. 7 timestamp pairs.
-        // A cadence write through the background-match command must not touch the
-        // followed-company consent evidence (the shared cadence is the ONLY overlap).
-        var seeker = NewSeeker();
-        var followConsentAt = Later(1);
-        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, followConsentAt);
-
-        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Daily, Later(5));
-
-        var prefs = seeker.Preferences;
-        prefs.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
-        prefs.FollowedCompanyNotificationConsentAt.ShouldBe(followConsentAt.UtcNow);
-        prefs.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBeNull();
-        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
-    }
-
-    [Fact]
-    public void UpdateNotificationConsent_CadenceChangeWhileEnabled_Persists()
+    public void UpdateNotificationConsent_EnableAndWithdraw_LeaveDigestCadenceUnchanged()
     {
         var seeker = NewSeeker();
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, Later(1));
+        seeker.SetDigestCadence(DigestCadence.Daily, Later(1)).IsSuccess.ShouldBeTrue();
 
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, Later(2));
-
+        seeker.UpdateNotificationConsent(enabled: true, Later(2));
         seeker.Preferences.DigestCadence.ShouldBe(DigestCadence.Daily);
-        seeker.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+
+        seeker.UpdateNotificationConsent(enabled: false, Later(3));
+        seeker.Preferences.DigestCadence.ShouldBe(DigestCadence.Daily);
     }
 
     // ---------------------------------------------------------------

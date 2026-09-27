@@ -289,7 +289,8 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
             seekerId = seeker.Id;
 
             // Consent fields live in the preferences jsonb (additive — no migration).
-            seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, clock);
+            seeker.UpdateNotificationConsent(enabled: true, clock);
+            seeker.SetDigestCadence(DigestCadence.Daily, clock);
             consentAt = seeker.Preferences.NotificationConsentAt!.Value;
 
             // Watermarks are first-class columns (last_match_scan_at / last_seen_matches_at).

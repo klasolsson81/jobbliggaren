@@ -4,13 +4,10 @@ using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
-// F4-12 (CTO-frozen) — JobSeeker.UpdateMatchPreferences speglar
-// UpdatePreferences exakt: sätter VO:t + bumpar UpdatedAt via injicerad klocka.
+// F4-12 (CTO-frozen) — JobSeeker.UpdateMatchPreferences sätter VO:t + bumpar
+// UpdatedAt via injicerad klocka.
 // CTO-bunden: INGET domain event (ingen reaktiv konsument). Owner-state ägs av
 // aggregatet (handler ansvarar för owner-scope-uppslag).
-//
-// RÖD tills JobSeeker.UpdateMatchPreferences + MatchPreferences-property
-// implementeras (varken metoden eller VO:t finns ännu).
 public class JobSeekerMatchPreferencesTests
 {
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
@@ -47,8 +44,7 @@ public class JobSeekerMatchPreferencesTests
     [Fact]
     public void UpdateMatchPreferences_DoesNotRaiseDomainEvent()
     {
-        // CTO-bunden: ingen reaktiv konsument → inget event (paritet med
-        // UpdatePreferences som heller inte höjer event).
+        // CTO-bunden: ingen reaktiv konsument → inget event.
         var seeker = JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.ClearDomainEvents();
 

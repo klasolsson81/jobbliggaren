@@ -26,7 +26,8 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// <b>Audit gate (ADR 0022):</b> a consent change is accountability-relevant, so the command is
 /// <c>IAuditableCommand</c> and the pipeline's <c>AuditBehavior</c> must write exactly one
 /// <c>audit_log</c> row (EventType <c>JobSeeker.FollowedCompanyNotificationConsentUpdated</c>,
-/// AggregateType <c>JobSeeker</c>, AggregateId = the JobSeeker's Id, UserId = the actor). A failure
+/// AggregateType <c>JobSeeker</c>, AggregateId = the JobSeeker's Id, UserId = the actor, payload =
+/// the requested <c>enabled</c>). A failure
 /// path (anonymous) writes NO row. Mirrors <see cref="NotificationConsentEndpointTests"/>.
 /// </para>
 /// <para>
@@ -194,6 +195,29 @@ public class FollowedCompanyNotificationConsentEndpointTests(ApiFactory factory)
         entry.AggregateType.ShouldBe("JobSeeker");
         entry.AggregateId.ShouldBe(jobSeekerId);
         entry.UserId.ShouldBe(userId);
+        entry.Payload.ShouldNotBeNull();
+        using var payload = JsonDocument.Parse(entry.Payload!);
+        payload.RootElement.GetProperty("enabled").GetBoolean().ShouldBeTrue();
+    }
+
+    // A missing `enabled` is refused, never bound to `false`: an empty body must not record a
+    // withdrawal nobody made.
+    [Fact]
+    public async Task PUT_follow_consent_without_enabled_returns_400_and_records_no_withdrawal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var put = await _client.PutAsJsonAsync(ConsentPath, new { }, ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        seeker.Preferences.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
+        seeker.Preferences.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
     // Failure path (anonymous) — no audit row is written (RequireAuthorization rejects before the

@@ -131,7 +131,8 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, clock);
+        seeker.UpdateNotificationConsent(enabled: true, clock);
+        seeker.SetDigestCadence(DigestCadence.Daily, clock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 

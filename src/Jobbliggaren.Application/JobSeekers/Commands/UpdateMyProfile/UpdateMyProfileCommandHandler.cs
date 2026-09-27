@@ -21,17 +21,7 @@ public sealed class UpdateMyProfileCommandHandler(
             ?? throw new NotFoundException($"{nameof(JobSeeker)} hittades inte för användare {currentUser.UserId!.Value}.");
 
         if (command.Language is not null)
-        {
-            // Mutate ONLY the locale via `with` — preserving every Vag 4 consent field
-            // (BackgroundMatchNotificationsEnabled, DigestCadence, the Art. 7 consent
-            // timestamps). The previous `new Preferences(Language, EmailNotifications,
-            // WeeklySummary)` form silently reset those four fields to their defaults
-            // (consent OFF, timestamps null) on any profile change — a latent GDPR
-            // consent-clobber. Fixed in-block with the TD-115 retire (the legacy flags
-            // are gone; locale is the only mutable field left on this command).
-            jobSeeker.UpdatePreferences(
-                jobSeeker.Preferences with { Language = command.Language }, clock);
-        }
+            jobSeeker.ChangeLanguage(command.Language, clock);
 
         // Echo the JobSeeker id for the audit row (AuditBehavior.ExtractAggregateId); the endpoint
         // discards the value and returns 200. Owner-scoped — no command-carried id.

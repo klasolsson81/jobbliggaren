@@ -110,6 +110,27 @@ describe("applicationDetailDtoSchema", () => {
       applicationDetailDtoSchema.safeParse(withoutFollowUps).success
     ).toBe(false);
   });
+
+  // #1827: C#'s ApplicationDetailDto sends none of the list's derived fields, so the detail
+  // schema must not declare them either; declared, a list helper would take a detail and
+  // read undefined.
+  it("shares the core with the list schema and declares none of the list's own fields", () => {
+    const listOnly = [
+      "appliedAt",
+      "lastStatusChangeAt",
+      "lastFollowUpAt",
+      "attentionSignal",
+      "hasPreservedAdText",
+    ];
+    for (const key of listOnly) {
+      expect(applicationDtoSchema.shape).toHaveProperty(key);
+      expect(applicationDetailDtoSchema.shape).not.toHaveProperty(key);
+    }
+    for (const key of ["id", "jobSeekerId", "jobAdId", "status", "createdAt", "updatedAt", "jobAd"]) {
+      expect(applicationDtoSchema.shape).toHaveProperty(key);
+      expect(applicationDetailDtoSchema.shape).toHaveProperty(key);
+    }
+  });
 });
 
 describe("pipelineGroupDtoSchema", () => {

@@ -199,7 +199,7 @@ Global text-tracking `-0.005em` på `body` (16px, line-height 1.55).
 | `--text-overline` | 11px (mono-caps-kickers/kolumnhuvuden — den enda kicker-rungen efter #549-konsolideringen) |
 
 **Dokumenterat undantag (ADR 0068):** `.jp-hero__title` 44px/800 — ENBART
-hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
+hero-plattan, inte H1-skalan. Mono caps-labels och inline-data (sans med `tabular-nums`) på
 `--jp-ink-2`/`--jp-ink-1` — aldrig `--jp-ink-3` (ADR 0038-golvet består).
 
 ## Spacing (4px-grid)

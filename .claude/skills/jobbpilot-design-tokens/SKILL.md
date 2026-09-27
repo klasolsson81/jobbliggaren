@@ -225,7 +225,8 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 44px/800 — inte H1-token-skalan.
 
 Mono caps-labels (kickers, kolumnhuvuden, uppercase + letter-spacing
-0.08em) och mono inline-data ligger på `--jp-ink-2` eller `--jp-ink-1` —
+0.08em) och inline-data (sans med `tabular-nums`, DESIGN.md §4) ligger på
+`--jp-ink-2` eller `--jp-ink-1` —
 aldrig `--jp-ink-3` (informationsbärande text, ADR 0038-golvet består).
 
 **Vikt-stege + nya roller (#549 WS2/WS1):** font-weight ALLTID via

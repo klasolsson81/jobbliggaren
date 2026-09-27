@@ -101,8 +101,9 @@ Tänk på UI:t som ett dokument, inte en glasplatta med widgets ovanpå.
 Siffror, statusar, datum visas **direkt på canvas**, separerade med vertikala
 hairlines — inte inramade i lådor.
 - **Förbjudet:** stat-kort med en siffra inramad; cards runt en metric.
-- **Korrekt:** en rad `3 391 träffar · uppdaterad 14:32` i mono ovanför en flat
-  tabell; en kolumn-toolbar med 4 värden separerade av hairlines.
+- **Korrekt:** en rad `3 391 träffar · uppdaterad 14:32` i sans med `tabular-nums`
+  (DESIGN.md §4) ovanför en flat tabell; en kolumn-toolbar med 4 värden separerade av
+  hairlines.
 
 ### 3. Inga fyllnadselement
 
@@ -118,10 +119,11 @@ Varje pixel ska bära information.
 
 ### 4. Mono som signal
 
-JetBrains Mono används för ID:n/referenser (`S-1042`, `A-2841`), datum
-(`2026-05-21 14:00`), tid (`14:32`), versioner (`v2.3.1`), tangentbordsgenvägar
-(`⌘K`), caps-labels (`UPPDATERAD · MAJ 2026`), och räknare i pills
-(`12`, `3 391`). **Aldrig** för brödtext, rubriker eller knapptext.
+JetBrains Mono bär *etikett eller kod*, aldrig *läs talet* (DESIGN.md §4, #376):
+opaka koder och referenser (`S-1042`), versioner (`v2.3.1`), tangentbordsgenvägar
+(`⌘K`) och caps-labels (`UPPDATERAD · MAJ 2026`). Datum, tider, antal och räknare
+som användaren läser står i sans med `tabular-nums`. **Aldrig** för brödtext,
+rubriker eller knapptext.
 
 ### 5. En accentfärg
 
@@ -207,7 +209,7 @@ accessible, and built to be trusted — not admired.
 - ✗ Inter, Roboto, Arial som primär font
 - ✗ system-ui som primär font
 - ✗ Mono för brödtext
-- ✗ Sans för identifierare/datum
+- ✗ Mono för informationsbärande siffror (datum, tider, antal)
 - ✗ Versaler för rubriker (utom mono caps-labels)
 
 ### Innehåll & ton

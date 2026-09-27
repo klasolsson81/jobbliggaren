@@ -100,7 +100,8 @@ inte är sträng-/text-noder. Se §4 (Loading).
 
 **Inga stats-kort-rubriker.** Skriv inte en mening som inramad rubrik ovanför
 en lista bara för att räkna något ("Du har X aktiva ansökningar"). Visa siffran
-direkt i raden eller tabellhuvudet ovanför listan, i mono — t.ex.
+direkt i raden eller tabellhuvudet ovanför listan, i sans med `tabular-nums`
+(DESIGN.md §4) — t.ex.
 `3 391 träffar · uppdaterad 14:32`. Detta är en copy-konsekvens av
 civic-utility-regeln "information är design" (se `jobbpilot-design-principles`).
 

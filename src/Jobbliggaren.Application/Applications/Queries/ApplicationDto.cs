@@ -29,6 +29,11 @@ public sealed record ApplicationDto(
     // daysSinceLastFollowUp) in the evaluator, so a logged follow-up resets the
     // no-response / nudge wait. Denormalised scalar projected like LastStatusChangeAt.
     DateTimeOffset? LastFollowUpAt,
+    // #1827: whether the saved ad copy (AdSnapshot) still holds its text. A move to
+    // Accepted, Rejected or Withdrawn deletes that text for good and Undo restores only
+    // the status, so the list asks before such a move exactly when this is true. A
+    // boolean only: the copy's text and contacts stay detail-only.
+    bool HasPreservedAdText,
     // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
     // application needs action now, computed ONCE on the read side by
     // ApplicationAttentionEvaluator.Evaluate (the SSOT) and projected here so the

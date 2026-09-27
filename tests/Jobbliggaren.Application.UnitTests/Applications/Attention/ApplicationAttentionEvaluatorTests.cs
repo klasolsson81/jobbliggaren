@@ -433,6 +433,7 @@ public class ApplicationAttentionEvaluatorTests
             AppliedAt: appliedAt,
             LastStatusChangeAt: lastStatusChangeAt,
             HasOverdueFollowUp: hasOverdueFollowUp,
-            LastFollowUpAt: lastFollowUpAt);
+            LastFollowUpAt: lastFollowUpAt,
+            HasPreservedAdText: false);
     }
 }

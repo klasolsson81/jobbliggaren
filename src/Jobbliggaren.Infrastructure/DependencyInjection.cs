@@ -1781,7 +1781,6 @@ public static class DependencyInjection
         services.AddScoped<IExternalLoginLookup, IdentityExternalLoginStore>();
         services.AddScoped<IExternalLoginWriter, IdentityExternalLoginStore>();
         services.AddScoped<ExternalLoginLinker>();
-        services.AddScoped<PendingLinkChallenge>();
         services.AddExternalIdentityProviders(configuration);
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen

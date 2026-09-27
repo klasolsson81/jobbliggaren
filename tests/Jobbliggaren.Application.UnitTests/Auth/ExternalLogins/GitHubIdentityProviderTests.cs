@@ -15,9 +15,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
 /// #1745 (ADR 0142 D8, Amendment (16)) — the GitHub adapter against <see cref="ScriptedGitHub"/>: the authorization
 /// URL, the token exchange, the <c>/user</c> and <c>/user/emails</c> reads, the address rule, the revocation, the
 /// failure answers and what reaches the log. Row names follow the 6b form round's table (test-writer §3.2, as amended
-/// by the reading §2). GitHub's address is always the ASSERTED strength: the flag records that someone once proved
-/// the inbox, and a code must prove it now. A shape GitHub does not document is declared as such and asserts only
-/// that the adapter refuses it.
+/// by the reading §2). The address the rule admits binds a login as Google's does, by Klas's decision (Amendment
+/// (18)). A shape GitHub does not document is declared as such and asserts only that the adapter refuses it.
 /// </summary>
 public sealed class GitHubIdentityProviderTests : IDisposable
 {
@@ -64,9 +63,8 @@ public sealed class GitHubIdentityProviderTests : IDisposable
 
     private Task<ExternalExchange> ExchangeWithEmailsAsync(string emailsJson) => ExchangeAsync(User(), emailsJson);
 
-    private static AssertedEmail AssertedAddress(ExternalExchange exchange) =>
-        exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Address
-            .ShouldBeOfType<ExternalAddress.Asserted>().Email;
+    private static VerifiedEmail AdmittedAddress(ExternalExchange exchange) =>
+        exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Email;
 
     private int RequestsTo(string endpoint) =>
         _github.Requests.Count(r => r.Uri.GetLeftPart(UriPartial.Path) == endpoint);
@@ -372,7 +370,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
     {
         var exchange = await ExchangeWithEmailsAsync(GitHubApiShapes.Emails.PrimaryVerified(Primary));
 
-        AssertedAddress(exchange).Value.ShouldBe(Primary);
+        AdmittedAddress(exchange).Value.ShouldBe(Primary);
 
         var emails = _github.Requests[2];
         emails.Method.ShouldBe(HttpMethod.Get);
@@ -390,7 +388,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
         var exchange = await ExchangeWithEmailsAsync(
             GitHubApiShapes.Emails.PrimaryVerifiedWithNoreply(Primary, Id, Login));
 
-        AssertedAddress(exchange).Value.ShouldBe(Primary);
+        AdmittedAddress(exchange).Value.ShouldBe(Primary);
     }
 
     [Fact]
@@ -399,7 +397,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
         var exchange = await ExchangeWithEmailsAsync(
             GitHubApiShapes.Emails.PrimaryVerifiedWithUnverifiedSecondary(Primary, "ny@annan.example"));
 
-        AssertedAddress(exchange).Value.ShouldBe(Primary);
+        AdmittedAddress(exchange).Value.ShouldBe(Primary);
     }
 
     [Fact]
@@ -408,7 +406,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
         var exchange = await ExchangeAsync(
             User(publicEmail: "publik@firma.example"), GitHubApiShapes.Emails.PrimaryVerified(Primary));
 
-        AssertedAddress(exchange).Value.ShouldBe(Primary);
+        AdmittedAddress(exchange).Value.ShouldBe(Primary);
     }
 
     // DECLARED: GitHub issues no token for a user whose primary is unverified, so a primary answered with
@@ -549,7 +547,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
         // Kills a Contains or an EndsWith over the whole address: this domain is not GitHub's.
         const string lookalike = "anna@users.noreply.github.com.evil.example";
 
-        AssertedAddress(await ExchangeWithEmailsAsync(EmailList(Entry(lookalike, true, true))))
+        AdmittedAddress(await ExchangeWithEmailsAsync(EmailList(Entry(lookalike, true, true))))
             .Value.ShouldBe(lookalike);
     }
 
@@ -670,7 +668,7 @@ public sealed class GitHubIdentityProviderTests : IDisposable
 
         var exchange = await ExchangeWithEmailsAsync(GitHubApiShapes.Emails.PrimaryVerified(Primary));
 
-        AssertedAddress(exchange).Value.ShouldBe(Primary);
+        AdmittedAddress(exchange).Value.ShouldBe(Primary);
         var line = _logger.Records.Where(r => r.EventId.Id == 1028).ShouldHaveSingleItem();
         line.Message.ShouldContain($"Cause={cause}");
         line.Message.ShouldContain("Provider=github");

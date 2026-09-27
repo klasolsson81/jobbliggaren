@@ -11,13 +11,13 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 
 /// <summary>
-/// GitHub over <see cref="HttpClient"/> (#1745, ADR 0142 D8 and Amendment (16)): the authorization URL, the token
+/// GitHub over <see cref="HttpClient"/> (#1745, ADR 0142 D8 and Amendments (16)–(18)): the authorization URL, the token
 /// exchange, then the REST API for the account's numeric id and its email list. PKCE S256 and scope
 /// <c>user:email</c> alone. The access token is used for the two reads and then revoked; nothing that identifies the
 /// person, nor any credential, is logged.
 /// <para>
-/// <b>GitHub is never the mailbox</b>, so its verified primary address is an <see cref="AssertedEmail"/>, never a
-/// <see cref="VerifiedEmail"/>: it chooses where a login code goes, and only a code binds this login to an account.
+/// <b>GitHub is never the mailbox.</b> Its verified primary address is admitted as a <see cref="VerifiedEmail"/> by
+/// Klas's decision (Amendment (18)), over security-auditor's M-1, which stands.
 /// The address is the list's one primary entry, verified as the JSON <c>true</c>, and not GitHub's noreply domain;
 /// every other shape is refused fail-closed. <c>/user</c>'s <c>email</c> is the public profile field and is never read.
 /// </para>
@@ -247,7 +247,7 @@ internal sealed partial class GitHubIdentityProvider(
         }
 
         return new ExternalExchange.Identified(
-            new ExternalIdentity(Key, subject, new ExternalAddress.Asserted(address)));
+            new ExternalIdentity(Key, subject, address));
     }
 
     // Fail-closed, and the whole list is refused for a shape GitHub does not document on any entry: the list must be
@@ -255,7 +255,7 @@ internal sealed partial class GitHubIdentityProvider(
     // JSON true; its address is not the noreply domain and is storable. Pagination is not followed, so a primary
     // beyond the one page read is refused like a missing one.
     private static bool TryPrimaryVerified(
-        JsonElement root, [NotNullWhen(true)] out AssertedEmail? address, out EmailRefusal refusal)
+        JsonElement root, [NotNullWhen(true)] out VerifiedEmail? address, out EmailRefusal refusal)
     {
         address = null;
         refusal = EmailRefusal.ListMalformed;
@@ -316,7 +316,7 @@ internal sealed partial class GitHubIdentityProvider(
         }
 
         refusal = EmailRefusal.AddressUnparsable;
-        address = raw is not null && StorableAddress.IsStorable(raw) ? AssertedEmail.TryCreate(raw) : null;
+        address = raw is not null && StorableAddress.IsStorable(raw) ? VerifiedEmail.TryCreate(raw) : null;
         return address is not null;
     }
 

@@ -8,9 +8,9 @@ namespace Jobbliggaren.TestSupport;
 /// <summary>
 /// GitHub identities as the production adapter reads them (#1745): a documented <c>/user</c> and <c>/user/emails</c>
 /// shape (<see cref="GitHubApiShapes"/>) through <see cref="GitHubIdentityProvider"/> over <see cref="ScriptedGitHub"/>.
-/// A test that needs a GitHub identity, an <see cref="AssertedEmail"/> or an <see cref="AssertedLoginProof"/> takes one
-/// from here, never from a hand-built value: only the adapter's parse may decide that an address qualifies (AGENTS.md
-/// §5 <c>Tests:</c>). GitHub never yields a <see cref="VerifiedEmail"/>, so there is no <c>ProofAsync</c> here.
+/// A test that needs a GitHub identity or an <see cref="ExternalLoginProof"/> takes one from here, never from a
+/// hand-built <see cref="VerifiedEmail"/>: only the adapter's parse may decide that an address qualifies (AGENTS.md §5
+/// <c>Tests:</c>).
 /// </summary>
 internal static class GitHubIdentities
 {
@@ -42,12 +42,10 @@ internal static class GitHubIdentities
             ? identity
             : throw new InvalidOperationException("The adapter refused a documented shape; the fixture is wrong.");
 
-    /// <summary>The asserted proof a GitHub login carries into the outcome function.</summary>
-    public static async Task<AssertedLoginProof> AssertedProofAsync(string userJson, string emailsJson)
+    /// <summary>The proof a GitHub login carries into the outcome function.</summary>
+    public static async Task<ExternalLoginProof> ProofAsync(string userJson, string emailsJson)
     {
         var identity = await ReadAsync(userJson, emailsJson);
-        return identity.Address is ExternalAddress.Asserted { Email: var address }
-            ? new AssertedLoginProof(address, identity.Provider, identity.Subject)
-            : throw new InvalidOperationException("GitHub's address is always asserted; the adapter changed.");
+        return new ExternalLoginProof(identity.Email, identity.Provider, identity.Subject);
     }
 }

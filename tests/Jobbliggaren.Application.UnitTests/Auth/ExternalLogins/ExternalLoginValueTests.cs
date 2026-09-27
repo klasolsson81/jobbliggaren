@@ -1,11 +1,8 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FluentValidation.TestHelper;
 using Jobbliggaren.Application.Auth;
-using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Validation;
-using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
@@ -158,90 +155,6 @@ public class VerifiedEmailTests
     [Fact]
     public void ToString_ShouldPrintNoPartOfTheAddress_WhenInterpolated() =>
         $"{VerifiedEmail.TryCreate("anna@firma.example")}".ShouldNotContain("anna");
-}
-
-/// <summary>
-/// #1745 (ADR 0142 Amendment (16)) — the asserted address: the bound every stored address meets, the one shape a
-/// provider's address must have, and nothing of it printed. Its factory shares <c>ExternalAddressBounds</c> with
-/// <see cref="VerifiedEmail"/>, so the two admit exactly the same strings (dotnet-architect R1).
-/// </summary>
-public class AssertedEmailTests
-{
-    private static readonly string AtTheBound =
-        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length) + "@x.example";
-
-    private static readonly string OneOver =
-        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length + 1) + "@x.example";
-
-    [Fact]
-    public void TryCreate_ShouldKeepTheSpellingItWasGiven_WhenTheAddressIsWellFormed() =>
-        AssertedEmail.TryCreate("Anna.Berg@firma.example")!.Value.ShouldBe("Anna.Berg@firma.example");
-
-    [Fact]
-    public void TryCreate_ShouldAcceptTheLongestAddressAValidatorAdmitsAndRefuseOneMore()
-    {
-        AssertedEmail.TryCreate(AtTheBound).ShouldNotBeNull();
-        AssertedEmail.TryCreate(OneOver).ShouldBeNull();
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("anna")]
-    [InlineData("@firma.example")]
-    [InlineData("anna@")]
-    [InlineData("anna@firma@example")]
-    public void TryCreate_ShouldRefuse_WhenTheAddressIsNotOneLocalPartAndOneDomain(string? address) =>
-        AssertedEmail.TryCreate(address).ShouldBeNull();
-
-    [Fact]
-    public void ToString_ShouldPrintNoPartOfTheAddress_WhenInterpolated() =>
-        $"{AssertedEmail.TryCreate("anna@firma.example")}".ShouldNotContain("anna");
-
-    public static TheoryData<string> Candidates() => new()
-    {
-        "anna@firma.example",
-        "Anna.Berg@firma.example",
-        "a@b",
-        "björn@firma.example",
-        "o'brien@firma.example",
-        "anna",
-        "@firma.example",
-        "anna@",
-        "anna@firma@example",
-        "anna berg@firma.example",
-        "anna" + (char)7 + "berg@firma.example",
-        "anna@firma.example" + (char)10,
-        "a" + (char)0x200B + "b@firma.example",
-        AtTheBound,
-        OneOver,
-    };
-
-    [Theory]
-    [MemberData(nameof(Candidates))]
-    public void An_address_the_github_adapter_admits_is_one_the_request_validator_admits(string candidate)
-    {
-        // dotnet-architect V4: the provider path is a second entry to ADR 0142 D2's dispatch, and its address never
-        // passes RequestLoginChallengeCommandValidator. The adapter admits exactly StorableAddress.IsStorable and
-        // then AssertedEmail.TryCreate (GitHubIdentityProvider.PrimaryVerified), so whatever that pair admits must be
-        // an address the typed path's validator admits too; the grant's padded payload and the consumer rely on it.
-        if (!StorableAddress.IsStorable(candidate) || AssertedEmail.TryCreate(candidate) is null)
-            return;
-
-        new RequestLoginChallengeCommandValidator().TestValidate(new RequestLoginChallengeCommand(candidate))
-            .ShouldNotHaveAnyValidationErrors();
-    }
-
-    [Fact]
-    public void The_implication_table_holds_candidates_the_adapter_admits_and_ones_it_refuses()
-    {
-        // The control for the row above: an implication over a table the adapter refuses entirely is vacuous.
-        var admitted = Candidates().Select(row => row.Data)
-            .Count(c => StorableAddress.IsStorable(c) && AssertedEmail.TryCreate(c) is not null);
-
-        admitted.ShouldBeGreaterThan(3);
-        admitted.ShouldBeLessThan(Candidates().Count);
-    }
 }
 
 public class ExternalProviderKeyTests

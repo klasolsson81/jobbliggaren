@@ -148,7 +148,7 @@ internal sealed partial class GoogleIdentityProvider(
         }
 
         return new ExternalExchange.Identified(
-            new ExternalIdentity(Key, subject, new ExternalAddress.Authoritative(email)));
+            new ExternalIdentity(Key, subject, email));
     }
 
     // Fail-closed, in the order the claims are read: a verified flag that is not the JSON true, then an address that

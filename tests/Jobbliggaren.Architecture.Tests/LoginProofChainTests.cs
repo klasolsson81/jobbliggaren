@@ -153,12 +153,12 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Neither_path_that_sends_a_login_code_can_reach_an_account()
+    public void The_path_that_sends_a_login_code_can_reach_no_account()
     {
-        // #1745 (dotnet-architect R6.1, V3), ADR 0142 D2's "the path that mints a challenge never reads the account",
-        // now for both of its entries: the typed address, and a provider login with no link. Replaces the request
-        // handler's constructor pin, which went green by construction once the gates moved to LoginChallengeAdmission.
-        var reached = ReachedFrom(typeof(RequestLoginChallengeCommandHandler), typeof(PendingLinkChallenge));
+        // #1745 (dotnet-architect R6.1, V3), ADR 0142 D2's "the path that mints a challenge never reads the account".
+        // Replaces the request handler's constructor pin, which went green by construction once the gates moved to
+        // LoginChallengeAdmission.
+        var reached = ReachedFrom(typeof(RequestLoginChallengeCommandHandler));
 
         Type[] forbidden =
         [
@@ -172,64 +172,20 @@ public sealed class LoginProofChainTests
         reached.ShouldContain(typeof(LoginChallengeAdmission));
         reached.ShouldContain(typeof(ILoginChallengeDispatcher));
         reached.ShouldContain(typeof(IRateBudget));
-        reached.ShouldContain(typeof(IGrantStore));
     }
 
     [Fact]
-    public void Only_the_two_paths_that_send_a_login_code_reach_its_gates()
-    {
-        ConsumersOf(typeof(LoginChallengeAdmission)).ShouldBe(
-            [.. new[] { typeof(PendingLinkChallenge).FullName!, typeof(RequestLoginChallengeCommandHandler).FullName! }.Order()]);
-        ConsumersOf(typeof(PendingLinkChallenge)).ShouldBe([typeof(CompleteExternalLoginCommandHandler).FullName!]);
-    }
-
-    [Fact]
-    public void The_link_in_the_mail_can_never_bind_a_pending_provider_login()
-    {
-        // #1745 row 2 (senior-cto-advisor 1a, security-auditor V-3): only the code binds. The pending link reaches the
-        // outcome through one parameter, which the link's handler cannot supply, and neither the link's command nor
-        // its request body has a member to carry the grant in.
-        // The record itself is left out: its compiler-written Equals and copy constructor take one.
-        var consumers = ConsumersOf(typeof(GrantSubject.PendingExternalLink))
-            .Where(name => name != typeof(GrantSubject.PendingExternalLink).FullName)
-            .ToList();
-
-        consumers.ShouldBe([typeof(LoginProofOutcome).FullName!]);
-        consumers.ShouldNotContain(typeof(ConsumeLoginLinkCommandHandler).FullName!);
-        typeof(ConsumeLoginLinkCommand).GetProperties().Select(p => p.Name).ShouldBe(["Token"]);
-        typeof(AuthEndpoints.LoginLinkRequest).GetProperties().Select(p => p.Name).ShouldBe(["Token"]);
-    }
+    public void Only_the_code_request_reaches_the_login_code_gates() =>
+        ConsumersOf(typeof(LoginChallengeAdmission)).ShouldBe([typeof(RequestLoginChallengeCommandHandler).FullName!]);
 
     [Fact]
     public void A_code_verification_takes_no_address_so_the_cookies_echo_is_never_input()
     {
-        // security-auditor V-1: the binding compares the grant's server-held address with the address the code
-        // proved. The flow cookie is unsigned, so the address it echoes must have no way in.
+        // security-auditor V-1: the flow cookie is unsigned, so the address it echoes must have no way in.
         typeof(VerifyLoginChallengeCommand).GetProperties().Select(p => p.Name).Order(StringComparer.Ordinal)
-            .ShouldBe(["ChallengeId", "Code", "LinkGrant"]);
+            .ShouldBe(["ChallengeId", "Code"]);
         typeof(AuthEndpoints.LoginChallengeVerifyRequest).GetProperties().Select(p => p.Name)
-            .Order(StringComparer.Ordinal).ShouldBe(["ChallengeId", "Code", "LinkGrant"]);
-    }
-
-    [Fact]
-    public void Only_the_code_verification_redeems_a_pending_link()
-    {
-        // #1745 (test-writer Major A): complete must never redeem purpose 5, whose address is only asserted. The
-        // purpose is named by its own subject, by the store that seals and opens it, and by verify alone.
-        var srcRoot = Path.Combine(RepoRoot(), "src");
-
-        Directory
-            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !IsBuildOutput(path))
-            .Where(path => File.ReadAllText(path).Contains("GrantPurpose.PendingExternalLink", StringComparison.Ordinal))
-            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
-            .Order(StringComparer.Ordinal)
-            .ShouldBe(
-            [
-                "Jobbliggaren.Application/Auth/Commands/VerifyLoginChallenge/VerifyLoginChallengeCommandHandler.cs",
-                "Jobbliggaren.Application/Auth/Grants/GrantSubject.cs",
-                "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs",
-            ]);
+            .Order(StringComparer.Ordinal).ShouldBe(["ChallengeId", "Code"]);
     }
 
     [Fact]
@@ -255,26 +211,15 @@ public sealed class LoginProofChainTests
         ]);
     }
 
-    // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in the provider adapter, and again only where
+    // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in a provider adapter, and again only where
     // the grant store reads back the purpose-4 payload that address was sealed into. Counted per file, so a second
-    // maker inside either of the two is seen as well.
-    // #1745 (senior-cto-advisor 1c point 2): GitHub's adapter makes no VerifiedEmail at all.
+    // maker inside any of them is seen as well. #1745 (ADR 0142 Amendment (18)): GitHub's adapter is one.
     [Fact]
-    public void Only_the_provider_adapter_and_the_grant_store_make_a_verified_email_in_source() =>
+    public void Only_the_provider_adapters_and_the_grant_store_make_a_verified_email_in_source() =>
         MakersInSource(nameof(VerifiedEmail)).ShouldBe(
         [
-            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs: 1",
-            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs: 1",
-        ]);
-
-    // #1745 (dotnet-architect R1): an address becomes an AssertedEmail in the GitHub adapter, and again only where the
-    // grant store reads back the purpose-5 payload it was sealed into. Grant 6 carries the code-proven address as a
-    // string, never an asserted one, so the store has one maker, not two.
-    [Fact]
-    public void Only_the_github_adapter_and_the_grant_store_make_an_asserted_email_in_source() =>
-        MakersInSource(nameof(AssertedEmail)).ShouldBe(
-        [
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs: 1",
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs: 1",
             "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs: 1",
         ]);
 
@@ -307,11 +252,6 @@ public sealed class LoginProofChainTests
     public void The_verified_email_scan_counts_every_way_of_naming_the_factory(string source)
     {
         Makers(source, nameof(VerifiedEmail)).ShouldBe(1);
-
-        // The same scan counts the asserted type's factory by the same forms, and never the other type's.
-        var asserted = source.Replace(nameof(VerifiedEmail), nameof(AssertedEmail), StringComparison.Ordinal);
-        Makers(asserted, nameof(AssertedEmail)).ShouldBe(1);
-        Makers(asserted, nameof(VerifiedEmail)).ShouldBe(0);
     }
 
     private static int Makers(string source, string typeName)

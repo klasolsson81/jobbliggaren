@@ -22,20 +22,13 @@ public interface IExternalIdentityProvider
 }
 
 /// <summary>
-/// Who a provider says the user is, and the address its rule admitted in the strength the provider can vouch for
-/// (ADR 0142 D8, Amendment (16)): only an <see cref="ExternalAddress.Authoritative"/> address may link or register
-/// on its own; an <see cref="ExternalAddress.Asserted"/> one only chooses where a code goes.
+/// Who a provider says the user is, and the address the adapter's rule admitted (ADR 0142 D8): only an adapter decides
+/// that an address qualifies, and only a <see cref="VerifiedEmail"/> may link or register.
 /// </summary>
-public sealed record ExternalIdentity(ExternalProviderKey Provider, ExternalSubject Subject, ExternalAddress Address);
+public sealed record ExternalIdentity(ExternalProviderKey Provider, ExternalSubject Subject, VerifiedEmail Email);
 
 /// <summary>
 /// An OAuth proof on its way to the outcome function (ADR 0142 D8, security-auditor m-3): the address stays a
 /// <see cref="VerifiedEmail"/> until the account is resolved, so no caller can hand the outcome an unverified string.
 /// </summary>
 public sealed record ExternalLoginProof(VerifiedEmail Email, ExternalProviderKey Provider, ExternalSubject Subject);
-
-/// <summary>
-/// A provider login whose address the provider asserts but is not the mailbox of (ADR 0142 Amendment (16), #1745):
-/// it reaches a session only through a link a code bound, and otherwise only the address a code is sent to.
-/// </summary>
-public sealed record AssertedLoginProof(AssertedEmail Address, ExternalProviderKey Provider, ExternalSubject Subject);

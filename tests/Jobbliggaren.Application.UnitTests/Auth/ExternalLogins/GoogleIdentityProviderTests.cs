@@ -12,8 +12,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
 /// #1744 (ADR 0142 D8) — the Google adapter against <see cref="ScriptedGoogle"/>: the authorization URL, the token
 /// request, the userinfo read, the authority rule, the failure answers and what reaches the log. The rows follow the
 /// 6a form round's table (test-writer 11b); a shape Google does not document is declared as such and asserts only
-/// that the adapter refuses it. Since #1745 the exchange ends in a closed result (ADR 0142 Amendment (16)): identified
-/// with an authoritative address, the address refused, or failed.
+/// that the adapter refuses it. Since #1745 the exchange ends in a closed result (ADR 0142 Amendment (16)): identified,
+/// the address refused, or failed.
 /// </summary>
 public sealed class GoogleIdentityProviderTests : IDisposable
 {
@@ -49,10 +49,8 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         return CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct);
     }
 
-    // #1745 — Google's address is the authoritative strength, never the asserted one.
-    private static VerifiedEmail AuthoritativeAddress(ExternalExchange exchange) =>
-        exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Address
-            .ShouldBeOfType<ExternalAddress.Authoritative>().Email;
+    private static VerifiedEmail AdmittedAddress(ExternalExchange exchange) =>
+        exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Email;
 
     // ---------- the authorization URL ----------
 
@@ -127,7 +125,7 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         var identity = exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity;
         identity.Provider.ShouldBe(ExternalProviderKey.Google);
         identity.Subject.Reveal().ShouldBe(Sub);
-        AuthoritativeAddress(exchange).Value.ShouldBe("anna.berg@gmail.com");
+        AdmittedAddress(exchange).Value.ShouldBe("anna.berg@gmail.com");
     }
 
     [Fact]
@@ -136,7 +134,7 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         var exchange = await ExchangeAsync(
             GoogleUserInfoShapes.Workspace(Sub, "anna@firma.example", hostedDomain: "firma.example"));
 
-        AuthoritativeAddress(exchange).Value.ShouldBe("anna@firma.example");
+        AdmittedAddress(exchange).Value.ShouldBe("anna@firma.example");
     }
 
     [Fact]

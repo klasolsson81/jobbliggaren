@@ -245,41 +245,21 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     // test-writer Major 10).
     public static TheoryData<GrantPurpose> EveryPurpose() => new(Enum.GetValues<GrantPurpose>());
 
-    private static async Task<GrantSubject> SubjectForAsync(GrantPurpose purpose, string email = "ttl@example.se") =>
-        purpose switch
-        {
-            GrantPurpose.LoginComplete => new GrantSubject.LoginComplete(email),
-            GrantPurpose.Reauthentication => new GrantSubject.Reauthentication(Guid.NewGuid()),
-            GrantPurpose.ChangeEmail => new GrantSubject.ChangeEmail(Guid.NewGuid(), email),
-            GrantPurpose.LoginCompleteExternal => new GrantSubject.LoginCompleteExternal(
-                Verified(email), ExternalProviderKey.Google, ExternalSubject.TryCreate("110248495921238986420")!.Value),
-            GrantPurpose.PendingExternalLink => await PendingLinkAsync(email),
-            GrantPurpose.LoginCompleteWithLink => await CompleteWithLinkAsync(email),
-            _ => throw new InvalidOperationException($"No subject row for grant purpose {purpose}."),
-        };
-
-    // #1745: purposes 5 and 6 are GitHub's (Google's address is authoritative and takes purpose 4). The subject is
-    // what production seals: PendingLinkChallenge issues purpose 5 from the GitHub adapter's proof, and
-    // LoginProofOutcome issues purpose 6 with the address a CODE proved (an address the request validator admitted)
-    // beside that proof's provider and identifier. The identity comes from the production adapter (GitHubIdentities).
-    private static async Task<GrantSubject.PendingExternalLink> PendingLinkAsync(string address, long id = 58323117)
+    private static GrantSubject SubjectFor(GrantPurpose purpose, string email = "ttl@example.se") => purpose switch
     {
-        var proof = await GitHubIdentities.AssertedProofAsync(
-            GitHubApiShapes.User(id, "grant-gh"), GitHubApiShapes.Emails.PrimaryVerified(address));
-        return new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject);
-    }
-
-    private static async Task<GrantSubject.LoginCompleteWithLink> CompleteWithLinkAsync(string provenEmail, long id = 58323117)
-    {
-        var pending = await PendingLinkAsync("github-primary@example.se", id);
-        return new GrantSubject.LoginCompleteWithLink(provenEmail, pending.Provider, pending.Subject);
-    }
+        GrantPurpose.LoginComplete => new GrantSubject.LoginComplete(email),
+        GrantPurpose.Reauthentication => new GrantSubject.Reauthentication(Guid.NewGuid()),
+        GrantPurpose.ChangeEmail => new GrantSubject.ChangeEmail(Guid.NewGuid(), email),
+        GrantPurpose.LoginCompleteExternal => new GrantSubject.LoginCompleteExternal(
+            Verified(email), ExternalProviderKey.Google, ExternalSubject.TryCreate("110248495921238986420")!.Value),
+        _ => throw new InvalidOperationException($"No subject row for grant purpose {purpose}."),
+    };
 
     [Theory]
     [MemberData(nameof(EveryPurpose))]
     public async Task Every_purpose_lives_the_same_ten_minutes(GrantPurpose purpose)
     {
-        var token = await _store.IssueAsync(await SubjectForAsync(purpose), Ct);
+        var token = await _store.IssueAsync(SubjectFor(purpose), Ct);
 
         var ttl = await _mux.GetDatabase().KeyTimeToLiveAsync(RedisGrantStore.Key(token));
 
@@ -329,20 +309,17 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
         var db = _mux.GetDatabase();
 
         var lengths = new List<long>();
-        foreach (var purpose in Enum.GetValues<GrantPurpose>())
+        foreach (var subject in Enum.GetValues<GrantPurpose>().SelectMany(ShortestAndLongestFor))
         {
-            foreach (var subject in await ShortestAndLongestForAsync(purpose))
-            {
-                var token = await _store.IssueAsync(subject, Ct);
-                lengths.Add(await db.StringLengthAsync(RedisGrantStore.Key(token)));
-            }
+            var token = await _store.IssueAsync(subject, Ct);
+            lengths.Add(await db.StringLengthAsync(RedisGrantStore.Key(token)));
         }
 
         lengths.Distinct().ShouldHaveSingleItem();
     }
 
-    // Every purpose at both ends of its fields, derived from the enum like SubjectForAsync.
-    private static async Task<GrantSubject[]> ShortestAndLongestForAsync(GrantPurpose purpose)
+    // Every purpose at both ends of its fields, derived from the enum like SubjectFor.
+    private static GrantSubject[] ShortestAndLongestFor(GrantPurpose purpose)
     {
         var longest = $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se";
         longest.Length.ShouldBe(EmailAddressRules.MaximumLength);
@@ -370,23 +347,6 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
                 new GrantSubject.LoginCompleteExternal(Verified("a@b.se"), ExternalProviderKey.Google, shortSubject),
                 new GrantSubject.LoginCompleteExternal(Verified(longest), ExternalProviderKey.Google, longestSubject),
                 new GrantSubject.LoginCompleteExternal(escapedAddress, ExternalProviderKey.Google, escapedSubject),
-            ],
-
-            // #1745: the asserted address at both ends and escaped, as the GitHub adapter admits it (its own predicate
-            // is StorableAddress and AssertedEmail's bound, and '"' passes both), with GitHub's shortest and longest
-            // id. GitHub's id is a positive integer, so its subject is at most 19 digits; the ceiling counts OIDC's
-            // 255 anyway, and purpose 4's row carries that end.
-            GrantPurpose.PendingExternalLink =>
-            [
-                await PendingLinkAsync("a@b.se", id: 1),
-                await PendingLinkAsync(longest, id: long.MaxValue),
-                await PendingLinkAsync(escapedAddress.Value, id: long.MaxValue),
-            ],
-            GrantPurpose.LoginCompleteWithLink =>
-            [
-                await CompleteWithLinkAsync("a@b.se", id: 1),
-                await CompleteWithLinkAsync(longest, id: long.MaxValue),
-                await CompleteWithLinkAsync(escapedAddress.Value, id: long.MaxValue),
             ],
             _ => throw new InvalidOperationException($"No length row for grant purpose {purpose}."),
         };
@@ -493,11 +453,15 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
         (await StoredJsonAsync(new GrantSubject.ChangeEmail(userId, "a@b.se")))
             .ShouldBe("""{"p":3,"e":"a@b.se","u":"11111111-2222-3333-4444-555555555555"}""");
 
-        // #1745 (senior-cto-advisor 1c point 4): purpose 4 too, byte for byte as #1744 wrote it, so a purpose-4 grant
-        // alive across the deploy still redeems. The subject is the production Google adapter's.
+        // Purpose 4 byte for byte as #1744 wrote it, so a purpose-4 grant alive across the deploy still redeems, and
+        // GitHub's in the same shape (#1745, ADR 0142 Amendment (18)). Each subject is its production adapter's.
         var google = await GoogleIdentities.ProofAsync(GoogleUserInfoShapes.Gmail("1", "a"));
         (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(google.Email, google.Provider, google.Subject)))
             .ShouldBe("""{"p":4,"e":"a@gmail.com","u":null,"pr":"google","s":"1"}""");
+        var github = await GitHubIdentities.ProofAsync(
+            GitHubApiShapes.User(58323117, "grant-gh"), GitHubApiShapes.Emails.PrimaryVerified("a@firma.example"));
+        (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(github.Email, github.Provider, github.Subject)))
+            .ShouldBe("""{"p":4,"e":"a@firma.example","u":null,"pr":"github","s":"58323117"}""");
     }
 
     // What IssueAsync wrote, opened under the purpose's own protector, with the padding trimmed.
@@ -552,125 +516,6 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
 
         (await _store.RedeemAsync(sealedAsOne, EitherRegistration, Ct)).ShouldBeNull();
         (await _store.RedeemAsync(control, EitherRegistration, Ct)).ShouldNotBeNull();
-    }
-
-    // ── #1745: the pending link (5) and the consent after a code that carried one (6) ────────────────────────────
-
-    private static GrantAssertion EveryRegistration => GrantAssertion.Bearer(
-        GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal, GrantPurpose.LoginCompleteWithLink);
-
-    [Fact]
-    public async Task A_pending_link_is_redeemed_once_and_hands_back_githubs_login_and_the_asserted_address()
-    {
-        var subject = await PendingLinkAsync("vantande@example.se");
-        var token = await _store.IssueAsync(subject, Ct);
-
-        var redeemed = await _store.RedeemAsync(token, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Ct);
-
-        redeemed.ShouldBe(subject);
-        var pending = redeemed.ShouldBeOfType<GrantSubject.PendingExternalLink>();
-        pending.Provider.ShouldBe(ExternalProviderKey.GitHub);
-        pending.Address.Value.ShouldBe("vantande@example.se");
-        pending.Subject.Reveal().ShouldBe("58323117");
-        (await _store.RedeemAsync(token, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Ct)).ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task A_consent_after_a_code_that_carried_a_link_is_redeemed_by_complete_with_its_link()
-    {
-        var subject = await CompleteWithLinkAsync("bevisad@example.se");
-        var token = await _store.IssueAsync(subject, Ct);
-
-        (await _store.RedeemAsync(token, EveryRegistration, Ct)).ShouldBe(subject);
-        (await _store.RedeemAsync(token, EveryRegistration, Ct)).ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task A_pending_link_is_never_a_registration_grant_and_is_spent_by_the_attempt()
-    {
-        // Major A at the store: complete's own assertion cannot open purpose 5, whose address is only asserted.
-        var token = await _store.IssueAsync(await PendingLinkAsync("kapad@example.se"), Ct);
-
-        (await _store.RedeemAsync(token, EveryRegistration, Ct)).ShouldBeNull();
-        (await _store.RedeemAsync(token, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Ct)).ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task A_consent_grant_is_never_a_pending_link()
-    {
-        // verify redeems purpose 5 alone, so a purpose-6 token posted as the pending link opens nothing.
-        var token = await _store.IssueAsync(await CompleteWithLinkAsync("bevisad@example.se"), Ct);
-
-        (await _store.RedeemAsync(token, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Ct)).ShouldBeNull();
-    }
-
-    /// <summary>
-    /// Row 9, a rollback: the build before #1745 redeems at complete with purposes 1 and 4 only
-    /// (<c>CompleteLoginChallengeCommandHandler</c> at <c>85daacdf</c>), and each purpose is sealed under a protector
-    /// derived from its own number (<c>RedisGrantStore.ProtectorFor</c>), which that build never tries for 5 or 6. The
-    /// records are this build's <c>IssueAsync</c>, so an old build refuses a new grant rather than opening an account
-    /// that drops its link.
-    /// </summary>
-    [Fact]
-    public async Task A_build_that_knows_neither_link_purpose_refuses_both_and_logs_each_once()
-    {
-        var logger = new RecordingLogger<RedisGrantStore>();
-        var store = new RedisGrantStore(_connection, _keyring, logger);
-        var olderBuildsAssertion = GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal);
-        var withLink = await store.IssueAsync(await CompleteWithLinkAsync("rollback@example.se"), Ct);
-        var pending = await store.IssueAsync(await PendingLinkAsync("rollback@example.se"), Ct);
-
-        (await store.RedeemAsync(withLink, olderBuildsAssertion, Ct)).ShouldBeNull();
-        (await store.RedeemAsync(pending, olderBuildsAssertion, Ct)).ShouldBeNull();
-
-        (await _mux.GetDatabase().KeyExistsAsync(RedisGrantStore.Key(withLink))).ShouldBeFalse();
-        (await _mux.GetDatabase().KeyExistsAsync(RedisGrantStore.Key(pending))).ShouldBeFalse();
-        logger.Records.Count(r => r.EventId.Id == 1017).ShouldBe(2);
-
-        // The control: this build redeems a fresh one.
-        var fresh = await store.IssueAsync(await CompleteWithLinkAsync("rollback@example.se"), Ct);
-        (await store.RedeemAsync(fresh, EveryRegistration, Ct)).ShouldNotBeNull();
-    }
-
-    [Fact]
-    public async Task Redis_holds_neither_the_identifier_nor_either_address_of_a_link_grant()
-    {
-        var pending = await _store.IssueAsync(await PendingLinkAsync("github-reader@example.se"), Ct);
-        var withLink = await _store.IssueAsync(await CompleteWithLinkAsync("kod-reader@example.se"), Ct);
-
-        foreach (var token in new[] { pending, withLink })
-        {
-            var stored = Encoding.Latin1.GetString(
-                (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!);
-            stored.ShouldNotContain("reader@example.se");
-            stored.ShouldNotContain("58323117");
-            stored.ShouldNotContain("github");
-        }
-    }
-
-    /// <summary>
-    /// UNREACHABLE STATES, declared: a purpose-5 record whose address AssertedEmail refuses, and a purpose-6 record
-    /// without an address. The adapter serialises the whole subject, so no path in <c>src/</c> writes either; each is
-    /// written by hand under its purpose's own protector, and the test asserts only that the read side refuses it.
-    /// </summary>
-    [Fact]
-    public async Task A_link_record_without_a_usable_address_redeems_to_nothing()
-    {
-        var pendingWithoutAnAddress = GrantToken.Generate();
-        var consentWithoutAnAddress = GrantToken.Generate();
-        var pendingControl = GrantToken.Generate();
-        var consentControl = GrantToken.Generate();
-        await WriteByHandAsync(pendingWithoutAnAddress, subPurpose: "5", new { p = 5, e = "anna", pr = "github", s = "1" });
-        await WriteByHandAsync(consentWithoutAnAddress, subPurpose: "6", new { p = 6, e = "", pr = "github", s = "1" });
-        await WriteByHandAsync(pendingControl, subPurpose: "5", new { p = 5, e = "a@b.se", pr = "github", s = "1" });
-        await WriteByHandAsync(consentControl, subPurpose: "6", new { p = 6, e = "a@b.se", pr = "github", s = "1" });
-
-        var asPending = GrantAssertion.Bearer(GrantPurpose.PendingExternalLink);
-        (await _store.RedeemAsync(pendingWithoutAnAddress, asPending, Ct)).ShouldBeNull();
-        (await _store.RedeemAsync(consentWithoutAnAddress, EveryRegistration, Ct)).ShouldBeNull();
-        (await _store.RedeemAsync(pendingControl, asPending, Ct)).ShouldBeOfType<GrantSubject.PendingExternalLink>();
-        (await _store.RedeemAsync(consentControl, EveryRegistration, Ct)).ShouldBe(
-            new GrantSubject.LoginCompleteWithLink("a@b.se", ExternalProviderKey.GitHub, ExternalSubject.TryCreate("1")!.Value));
     }
 
     [Fact]

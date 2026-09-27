@@ -265,7 +265,7 @@ is retired in a later PR; `Legacy` untouched. Logout stays the shared-device rem
 
 > **Frågan.** ADR 0018 `Amendment 2026-07-05` gjorde persistent login till ett opt-in med hänvisning till Art. 25(2) och till en "ADR 0093" som aldrig skrevs (#1494). D4 vänder valet till persistent-by-default på controller-beslut (Klas 2026-09-16). Grunden nedan är den som saknades.
 >
-> **1. Kakans existens har aldrig varit frågan.** Sessionskakan är *strikt nödvändig* för en tjänst användaren uttryckligen begärt — ePrivacy Art. 5(3)/LEK 6 kap. 18 § andra stycket, WP29 WP194 kriterium B (authentication cookies). Inget samtycke, ingen banner. Det som 2026-07-05 låg till grund för opt-in är **varaktigheten**: WP194 §3.2 undantar autentiseringskakan som *sessionskaka*, och behandlar en kvarstående "kom-ihåg-mig"-kaka som något som kräver en informerad, positiv handling av användaren.
+> **1. Kakans existens har aldrig varit frågan.** Sessionskakan är *strikt nödvändig* för en tjänst användaren uttryckligen begärt — ePrivacy Art. 5(3)/LEK 6 kap. 18 § andra stycket *(corrected in Amendment 2026-09-27 (19): that is the repealed Act (2003:389); the provision now sits in lagen (2022:482) om elektronisk kommunikation, section not cited)*, WP29 WP194 kriterium B (authentication cookies). Inget samtycke, ingen banner. Det som 2026-07-05 låg till grund för opt-in är **varaktigheten**: WP194 §3.2 undantar autentiseringskakan som *sessionskaka*, och behandlar en kvarstående "kom-ihåg-mig"-kaka som något som kräver en informerad, positiv handling av användaren.
 >
 > **2. Den positiva handlingen finns kvar, den har bytt form.** Under passwordless är själva inloggningen en aktiv handling per enhet (adress + kod ur egen inkorg). Kravet uppfylls om — och bara om — persistensen **uppges där handlingen görs**: kodsteget och samtyckessteget säger i klartext att man förblir inloggad på enheten i upp till 180 dagar och att Logga ut är kvar på varje sida. Detta är en argumenterbar position, inte en självklar; ADR 0142 ska skriva den som argumenterbar.
 >
@@ -865,10 +865,12 @@ form; none of them is re-asked.
 
 **The page, as delivered** (corrected in place in "Page form").
 - With a live provider the order is: h1, then a notice, then the persistence line, then the provider rows, then the
-  divider "Eller fortsätt med e-post", then the lede, the field and Fortsätt.
+  divider "Eller fortsätt med e-post", then the lede, the field and Fortsätt. *(Corrected in Amendment 2026-09-27 (19):
+  the persistence line was removed from `/logga-in` by Klas's decision at a §12 STOPP, `security-auditor` Major 4
+  standing; the lede is struck and the divider reads "eller".)*
 - Each active row is described by the persistence line (`aria-describedby`). A provider login creates the persistent
   session without passing a step that shows it, so the line stands where the action is taken (D4 point 2,
-  `security-auditor` S1).
+  `security-auditor` S1). *(Removed with the line in Amendment (19).)*
 - The list is read from `GET /auth/oauth/providers` with a five-minute revalidate. Any failure reads as `[]`, and a
   key this build does not know is dropped. With `[]` the page is unchanged.
 - An active row is an `<a href>` to `/api/auth/oauth/{provider}/start?next=…`. It is never a form, which the CSP's
@@ -901,10 +903,12 @@ form; none of them is re-asked.
   or navigates.
 - The document is `<meta http-equiv="refresh" content="0;url=…">` plus a "Fortsätt" link, with the target
   attribute-escaped, `lang` set, and an empty icon so no favicon is fetched.
-- It has no subresource, no script and no style.
+- It has no subresource and no script. *(Corrected in Amendment 2026-09-27 (19): it now carries one constant style,
+  DESIGN.md §11.6.)*
 - **The ratified deviation:** it renders in the user agent's font and link colour, with no 44 px target. That is the
   price of zero subresources, which keeps the callback URL's code and state out of every Referer. Rendered at 375
-  and 1280 on 2026-09-26.
+  and 1280 on 2026-09-26. *(Superseded in Amendment (19): the document paints the app's canvas, holds its content for
+  two seconds and gives its link 44 px, still with zero subresources.)*
 
 **`via` and the two notices.**
 - The flow cookie's consent and outcome phases carry `via`, a closed provider key. It is an echo for display, never
@@ -1534,6 +1538,161 @@ containers), with the box's git at `066a7fb`:
   two texts is carried by no row (`security-auditor` (3)). If the merge day is later, the dates and
   `CurrentPrivacyPolicyVersion` move to it.
 - **(e) at activation** is §3d's reading, as a dated comment on #1732, and the next amendment transcribes it.
+
+#### Amendment 2026-09-27 (19) (#1746, part 6c, PR P) — the login page per Klas's notes, and a quiet continuation hop
+
+*After the first GitHub login Klas left three notes on `/logga-in` for 6c. A form round took them together with
+LinkedIn (`security-auditor`, `dotnet-architect`, `design-reviewer`, `test-writer`;
+`docs/reviews/2026-09-27-1746-form-{security-auditor,dotnet-architect,design-reviewer,test-writer}.md`), and
+`senior-cto-advisor` routed it (`…-1746-form-cto.md`). This amendment is PR P's: the page and the hop. LinkedIn is PR
+L's, with its own amendment. "Page form", Amendment (15)'s page and continuation-document bullets, Amendment (11)'s
+lede sentence, D4's citation of a repealed Act and the References are corrected in place; this block records why.*
+
+**Klas's words, verbatim.**
+1. **His notes**, as #1746 comment 5854069081 records them (2026-09-27): *"När jag loggar  in ser jag någon sida-
+   flasha förbi väldigt snabbt, mindre än en sekund, innan jag kommer till Översikt."* · *"Logga in sidan har för
+   mycket brus..."*, naming two sentences: *"Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på
+   varje inloggad sida." helt onödig.* and *"Du loggar in med en kod som vi skickar till din e-postadress." Helt
+   onödig....* · *"Knapparna fortsätt med google.. osv käns för mycket whitspace, ev. kan vi göra dom mer anpassade
+   till sidan."*, with Claude's own login page as his reference.
+2. **`security-auditor`'s question D**, put through AskUserQuestion on 2026-09-27, as it was sent: "Du vill ta bort
+   raden "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida." från
+   inloggningssidan. Den kan inte tas bort helt utan att ett säkerhetsfynd står kvar, men den kan bli kortare. Enligt
+   reglerna för kakor (lagen om elektronisk kommunikation) och EU-myndigheternas vägledning räknas en inloggning som
+   finns kvar efter att webbläsaren stängts inte som strikt nödvändig, så användaren måste godta den. När du valde att
+   alla ska förbli inloggade utan kryssruta byggde vi på att själva inloggningen är det godtagandet, men bara om raden
+   står där man loggar in. Att cookiepolicyn säger 180 dagar räcker inte, eftersom den inte står där. Kod- och
+   länkinloggningen visar raden på sina egna steg. Den som loggar in med Google, GitHub eller LinkedIn i ett konto som
+   redan finns ser inget annat steg, så där är inloggningssidan det enda stället. Det här signerar jag nu: raden blir
+   "Du förblir inloggad i upp till 180 dagar, eller tills du loggar ut." och får stå direkt ovanför eller direkt under
+   knapparna. Samma kortare rad gäller då också på kod-, villkors- och länksteget. Frågan: vad ska hända med raden på
+   inloggningssidan?" His answer: **"(b) Ta bort raden"**, whose text was "(b) Raden tas bort från inloggningssidan. Då
+   står mitt fynd kvar osignerat, som fynden för GitHub. Det gäller bara dina egna konton i dag, men raden måste
+   tillbaka innan det första kontot som inte är ditt." Her (a), the shorter string, was declined, so the string is
+   unchanged on the three other steps.
+3. **`senior-cto-advisor`'s question on the PR form**, the same day: "Frågan: ska 6c bli en eller två PR:er? Du bad om
+   en PR. Jag föreslår två. …" His answer: **"(a) Två PR:er, sidan först"**.
+4. **`dotnet-architect`'s measurement question**, the same day ("vill du göra en mätinloggning med LinkedIn innan
+   bygget?"): **"(b) Nej, vi mäter vid aktiveringen"**. It concerns PR L.
+
+**What PR P changes.**
+- **The continuation document** paints the app's canvas and holds its content invisible for two seconds, so a working
+  refresh shows only the background (DESIGN.md §11.6, `design-reviewer` Major 5). The document gains one constant
+  `<style>`: the light values of `--jp-canvas`, `--jp-ink-1`, `--jp-heading-1` and `--jp-accent-700`, joined to
+  `globals.css` by a test, and the system tail of `--jp-font-sans`. The content is hidden only inside the keyframes, so
+  a refused style leaves the 6a document, visible. The refresh stays `0`, the same target as the link, and the link is
+  44 px high. Amendment (15)'s "no style" and its "ratified deviation" are corrected in place.
+- **`/logga-in`.** The lede is struck in both orders and its key deleted (ADR 0144 lists it as not bound). The
+  persistence line leaves the page by Klas's answer (2), and the rows lose their `aria-describedby` with it; the line
+  stays unchanged on `/logga-in/kod`, `/villkor` and `/lank`. The divider reads "eller" / "or", since the label under
+  it names the way.
+- **The provider rows** are centred, 40 px high and 8 px apart. At ≤768 px the Button primitive's floor (#1899) lifts
+  them to 44 px. An inactive row keeps its "Kommer snart" at the far end.
+- **`design-reviewer` Major 2 does not hold** (`senior-cto-advisor`). Klas's answer of 2026-09-17 (this ADR's header)
+  keeps a provider row without keys visible and inactive, and every state that renders one lacks keys. So LinkedIn
+  shows "Kommer snart" between the two live rows until it is activated.
+
+**The persistence line on `/logga-in`: Klas's decision, and the finding stands.** `security-auditor`'s text for this
+outcome, verbatim (`…-1746-form-security-auditor.md`, (8)):
+
+> Removed from `/logga-in` by Klas's decision; `security-auditor`'s Major 4 stands unsigned. A provider login into
+> an existing account creates the persistent session with the persistence stated nowhere on its path, the condition D4
+> point 2 sets for persistent-by-default (ePrivacy Art. 5(3); WP194 §3.2). Dormant while every account is the
+> controller's; Blocker class at trigger 1 or 2. The line returns before either trigger.
+
+- It is Klas's override at a §12 STOPP, not a §9.6 (3) acceptance, so this PR carries `blocked` and neither
+  `automerge` nor `agents-done`, and it is merged on Klas's "GO merga".
+- **Binding:** the line returns on `/logga-in`, in the form `security-auditor` then signs, before trigger 1 (#734) or
+  trigger 2 (the first account that is not Klas's). The option Klas chose says the same. **Home:** this amendment,
+  and a row in #734's condition table written when this PR merges. **Reader:** Klas Olsson. Nothing detects trigger 2
+  automatically.
+- **"Dormant", measured before merge, 2026-09-27T10:54:26Z,** read-only on the box over `ssh jp-vps` (`docker exec`
+  into the running containers): `Auth__RegistrationsOpen` `false`; 2 accounts, 0 created after 2026-09-27T08:00:43Z,
+  both the controller's own by the whole-address hash of (17), never printed; `AspNetUserLogins` `github:1,google:1`.
+  If the merge is on a later day, the reading is taken again that day.
+- D4 and its point 2 are unchanged: D4 lists the steps that create a session, and point 2 is `security-auditor`'s
+  argument. ADR 0144 row 2 never bound the placement on `/logga-in`, and DESIGN.md §8 rule 7 is not rewritten for one
+  owner's decision (the precedent is (18), where M-1's invariant was withdrawn, not rewritten).
+
+**`security-auditor` on the continuation document**, verbatim except for the sentence on F10's scope, which is
+`senior-cto-advisor`'s to rule (below):
+
+> **The continuation document.** 6a's m-1 holds with one inline `<style>`; F13.4's unstyled form was the design's, not a
+> security requirement. The style is a constant: nothing interpolated; no `url(`, `@import`, `image-set(`, `@font-face`
+> and no backslash; after the `charset` and `referrer` metas; no script, no subresource but the `data:` icon; the reveal
+> is CSS only. The Strict harness runs in the PR (chromium and firefox, both controls green), and branch (vi) measures
+> that the document fetches nothing.
+
+**F10 fires** (`senior-cto-advisor`, 2026-09-27). The trigger "fortsättningshoppet ändras" covers any change to the
+document's elements, attributes or head order, a `<style>` included.
+- **Measured 2026-09-27T10:37Z:** `pnpm exec playwright test -c playwright.oauth-strict.config.ts`, Playwright
+  1.63.0, Windows 11. chromium 153.0.8010.12 and firefox 155.0 passed all seven branches, both controls green. webkit
+  26.6 (Playwright's Windows port) failed (ii) and (iv)'s precondition, as it did in 6a, and is void for the Strict
+  premise.
+- **New branch (vii)** (`test-writer` Major 3): with the refresh's navigation answered 204, the "Fortsätt" link is
+  hidden during the hold, visible after it, and its click carries the Strict session cookie to the target. The actor
+  in operation is a browser that blocks the refresh, such as Firefox's `accessibility.blockautorefresh`; 204 is the
+  test's mechanism.
+- **The Safari reading is void.** It has never been taken (Amendment (15)). It is owed at the first successful
+  external login in Safari after this PR deploys, with any provider, as a dated comment on #1732.
+
+**Rendered 2026-09-27** (production build of this PR over a stub api; `C:/tmp/jobbliggaren-visual/1746/r2p/`).
+- `/logga-in` at 375, 1280, 1920 and 3440, both orders:
+  - rows 40 px at 1280 and above, 44 px at 375 and 320, 8 px apart;
+  - active rows centred, the inactive row `space-between`;
+  - no description on any row, no lede, no persistence line;
+  - at 1280 the address form starts at 475 px, against 626 px before.
+- No horizontal scroll at 320 px. At 188 px (200 % zoom of 375), the site header's language switcher and the footer's
+  brand column overflow by 23 px; this PR changes neither.
+- **The hop:**
+  - A chromium video with a target that answers after 800 ms shows 880 ms of canvas colour, then the target, and no
+    frame with content.
+  - With a target that answers after 3 s: about 2 040 ms of canvas, then the fallback for about 1 s, then the target.
+  - Firefox with `accessibility.blockautorefresh` stays on the callback and shows the link after the hold.
+  - A CSP without `'unsafe-inline'` refuses the style and shows the 6a document, whose link takes Tab.
+  - During the hold the accessibility tree is empty and Tab reaches nothing.
+
+**The 6b activation readings, transcribed** (Amendments (17) and (18): "the next amendment … transcribes it"). Counts
+only.
+- **#1732, 2026-09-27T06:59:30Z, measured 06:57:48Z: activation.**
+  - PR #1888 merged as `c2050e8f` at 06:23:46Z, on Klas's GO; image build run 36299991393. The box's git was
+    fast-forwarded `066a7fb` → `c2050e8`, the deploy tree equal to the merge, and the ACL templates showed a diff of 0
+    against `066a7fbf`, so no ACL republish. The reconcile at 06:48:33Z recreated api, web and worker on the merge's
+    `sha-c2050e8` images.
+  - The secret was injected with `JBL_INJECT_GITHUB=1` (40 characters, mode 400). The two `.env` lines first landed
+    only in nano's `.env.save`; they were verified masked and moved in place, with `.env.bak.20260927-pre-github`
+    kept. The client id: 20 characters, `Ov` prefix. `--check` exited 0, and api was recreated under the reconcile
+    lock at 06:57:12Z.
+  - `Auth__RegistrationsOpen` `false`; 2 Google and 2 GitHub variables; providers `200 ["google","github"]`. The web
+    start answered 302 to `https://github.com/login/oauth/authorize` with exactly `client_id`, `code_challenge`,
+    `code_challenge_method`, `redirect_uri`, `scope` and `state`: `scope=user:email`, S256, the box's callback, and no
+    `offline_access`. The flow cookie: `Path=/; Max-Age=600; Secure; HttpOnly; SameSite=lax`.
+  - 2 accounts, 0 created after 2026-09-27T00:28Z, both the controller's; `AspNetUserLogins` `google:1`;
+    `privacy_policy_version = '2026-09-27'` 0 rows.
+  - **Chapter V was re-read after the keys were placed, not before, as §3d orders.** The miss is recorded here; no
+    lapse had fired (DPF "GitHub" Active, Non-HR; (EU) 2023/1795 in force; C-703/25 P pending; the GitHub ToS and
+    Privacy Statement of 2026-04-27 unchanged in the points (17) relies on).
+- **#1732, 2026-09-27T08:06:06Z, measured 08:00:43Z: the first GitHub login.**
+  - Klas used "Fortsätt med GitHub"; GitHub's consent screen asked only for "Email addresses (read-only)". He landed
+    on `/oversikt` in one click, with no code.
+  - `AspNetUserLogins` `github:1,google:1`; the `github` row is the controller's account, its `provider_key` numeric,
+    `provider_display_name` NULL. `User.ExternalLoginLinked` `{"provider":"github"}` 1 after activation.
+    `User.InboxProvenByLogin` since activation 0 (the account was already confirmed). The log since 06:57Z: one
+    `login_succeeded … Method=GitHub`; EventId 1022, 1023 and 1028 zero; no fail, crit or unhandled.
+  - **The box shares the local OAuth client (`security-auditor` m-4, Amendment (17)), by Klas's acceptance.** Its
+    client id and secret are hash-equal to the local development client's, compared by hash, never printed. Klas,
+    2026-09-27, verbatim: "varför kan jag inte använda samma nyckel som i appsettings ? Jag accepterar risken". The
+    first reading's sentence that a separate app was created is superseded by this one. If the local secret is rotated,
+    the box's secret file is replaced too. Whether the app issues expiring user tokens was not read. The tracked
+    sentences that still describe a separate box app are corrected in PR L (`security-auditor` Minor 3).
+  - The Apple-WebKit residual stayed open (the login was not taken in Safari). M-1 and Major 2 stand unsigned
+    (Amendment (18)).
+
+**Lapse triggers, read for PR P.** Trigger 4 does not fire: no provider, `VerifiedEmail` rule or outcome changes.
+1–3 and 5–7 are untouched. The persistence line's removal is recorded above, with its own binding.
+
+**DoD 8.** No new personal data. The privacy policy does not change; the cookie policy still states the 180 days and
+does not change.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -2266,12 +2425,12 @@ while `DARK_MODE_ENABLED` is `false`.
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
   permanent (`retired-routes.test.ts`; why, in Amendment 2026-09-22 (5)).
 - **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list:**
-  h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress."*) → email
-  field + the Art. 13 line → **Fortsätt** (the only
+  h1 → email field + the Art. 13 line → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no
-  "Eller" divider. **At least one provider live (6a):** h1 → a notice → the persistence line, which each active row is
-  described by → the provider rows → divider "Eller fortsätt med e-post" → the lede → field → Fortsätt
-  (Amendment 2026-09-26 (15)).
+  divider. **At least one provider live (6a):** h1 → a notice → the provider rows → divider "eller" → field →
+  Fortsätt (Amendment 2026-09-26 (15)). *(Corrected in Amendment 2026-09-27 (19): the lede is struck in both orders,
+  and the persistence line, which each active row was described by, was removed by Klas's decision at a §12 STOPP;
+  `security-auditor` Major 4 stands, and the line returns before trigger 1 or 2.)*
 - **Provider buttons** (design M2): shadcn `Button` `variant="outline"`, never `.jp-btn` in the same
   view, never three solid fills, never a provider's brand colour as fill. Inactive =
   `aria-disabled="true"` + **kept in the tab order** + no-op click + "Kommer snart" as the visible
@@ -2609,7 +2768,7 @@ part changes no string; the hint and its colour tier are #1824's.
 the sweep changed were corrected in place; this block records why. ADR 0144 superseded the lede and the format
 hint for the density question only.
 
-**`/logga-in`.** The lede is one sentence. "Fortsätt" is neutral on purpose, since four of six mail variants
+**`/logga-in`.** The lede is one sentence *(struck in Amendment 2026-09-27 (19), on Klas's note)*. "Fortsätt" is neutral on purpose, since four of six mail variants
 carry no code, so heading, label and button do not say that the code comes by mail: the case in which DESIGN.md
 §8 rule 2 allows a lede (`design-reviewer`). The format hint is gone. A malformed address is answered in the
 field error, *"Skriv e-postadressen i rätt format, till exempel namn@exempel.se."*, and an empty field keeps
@@ -2717,9 +2876,10 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in three PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 one click,
-by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)) · **6c** #1746 LinkedIn
-(its code after 6b PR 1) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in three PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 #1888 one click,
+by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)), activated on the box 2026-09-27 (the
+readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in two PRs by Klas's answer (Amendment
+2026-09-27 (19)): PR P the login page per his notes and a quiet continuation hop · PR L LinkedIn in one click → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
@@ -2739,7 +2899,7 @@ this ADR because production decisions point at them.
   Names" · Hunt/Thomas, *The Pragmatic Programmer* (1999) ch. 7 · Fowler, *Refactoring* 2nd ed
   (2018), Parallel Change
 - WP29 WP194 (Opinion 04/2012 on cookie consent exemption) · GDPR Art. 5, 6(1)(b), 7, 12, 13, 24(1),
-  25(2), 30, 32, 35, 45, 49 · ePrivacy Art. 5(3) / LEK 6 kap. 18 §
+  25(2), 30, 32, 35, 45, 49 · ePrivacy Art. 5(3) / lagen (2022:482) om elektronisk kommunikation
 - CSP Level 3 `form-action` — enforced across redirects (Chromium, Firefox)
 - CLAUDE.md §2, §6.5, §9.2, §9.5, §9.6, §11 · AGENTS.md §2.2, §5, §8, §10 · DESIGN.md §§1, 5, 6,
   7, 9, 12

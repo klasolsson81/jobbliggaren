@@ -672,7 +672,9 @@ question was quoted to him verbatim first.
 `POST /auth/oauth/{p}/start` and `POST /auth/oauth/{p}/callback {code, state}` exchange via
 `HttpClient` behind `IExternalIdentityProvider` (Google OIDC userinfo, GitHub `/user/emails` with
 `primary && verified` **only**, as parsing and never as an inbox proof, since GitHub is never the mailbox *(corrected in
-Amendment 2026-09-26 (16): GitHub's address only chooses where a code goes)* — `/user`.`email` is the public profile
+Amendment 2026-09-26 (16): GitHub's address only chooses where a code goes; reversed by Klas's decision in Amendment
+2026-09-27 (18): GitHub's verified primary address binds a login as Google's does, and `security-auditor`'s M-1
+stands)* — `/user`.`email` is the public profile
 field and may be unverified, LinkedIn OIDC userinfo). **What userinfo buys is no JWKS fetch, no key-rotation cache and no
 signature-validation path of our own** — a real reduction of security-critical surface. (The
 epic's "so no JWT package" is struck: `Microsoft.AspNetCore.Authentication.JwtBearer` already sits
@@ -1068,7 +1070,8 @@ inventory, and `app-surface-coverage.test.ts` joins it. The callback never answe
 by `senior-cto-advisor`, and read again by the first three and `test-writer` against the ruling
 (`docs/reviews/2026-09-26-1745-form-{security-auditor,dotnet-architect,design-reviewer,test-writer,cto}.md` and
 `…-form-reading-{security-auditor,dotnet-architect,test-writer}.md`). D8's GitHub parenthesis and the Apple-WebKit
-residual's closing measurement are corrected in place; this block records why.*
+residual's closing measurement are corrected in place; this block records why. The form below is superseded by Klas's
+decision in Amendment 2026-09-27 (18) and deleted from the code; it stays here as the record of what #1882 built.*
 
 **Klas answered on 2026-09-26.** Each question was put to him verbatim through AskUserQuestion, and the sent text was
 measured as a substring of its source.
@@ -1088,10 +1091,11 @@ measured as a substring of its source.
   former holder would log in to the new holder's account. Enterprise Managed Users' addresses were verified without a
   mail until 2024-08-01.
 - The invariant: GitHub's flag never alone binds an identifier, creates an account or opens a session. A GitHub
-  identifier opens a session only in an account where a present-time inbox proof bound it.
+  identifier opens a session only in an account where a present-time inbox proof bound it. *(Withdrawn by Klas's
+  decision in Amendment 2026-09-27 (18), and never met: `security-auditor`'s M-1 stands.)*
 - `security-auditor` did not sign a §9.6 (3) acceptance: its bound falls at the first test user.
 
-**The form (`senior-cto-advisor`, 2026-09-26): the first link needs a code.**
+**The form (`senior-cto-advisor`, 2026-09-26): the first link needs a code** *(superseded, Amendment (18))*.
 - **The type carries it.** The adapter never makes a `VerifiedEmail`. It makes an `AssertedEmail`, which chooses where
   a login code is sent and is compared with an address an account holds or a code proved; no account, link or inbox
   proof is made from it.
@@ -1294,11 +1298,12 @@ URL is exactly the box's `/api/auth/oauth/github/callback`, and any wildcard or 
 sets these in GitHub's console at activation, and §3d's reading records them.
 
 **The start path's flood, with GitHub's grants** (`dotnet-architect` N4c).
-- A GitHub callback whose identifier has no link writes one pending-link grant (purpose 5) to `redis-volatile`. It
-  takes its flow first (GETDEL) and issues at most one grant per taken flow, so a start holds one record at a time:
-  the flow, then the grant. The records live at once are N × (⌈(StateTtl + GrantTtl) / Window⌉ + 1) for a budget of
-  N starts per window, each counted at the larger measured size. Purposes 4 and 5 are padded to the same ceiling,
-  so the count covers both.
+- A callback for an address with no account, while registration is open, writes one consent grant (purpose 4) to
+  `redis-volatile` *(corrected in Amendment 2026-09-27 (18): this sentence named a GitHub pending-link grant, purpose
+  5, which (18) retires)*. It takes its flow first (GETDEL) and issues at most one grant per taken flow, so a start
+  holds one record at a time: the flow, then the grant. The records live at once are
+  N × (⌈(StateTtl + GrantTtl) / Window⌉ + 1) for a budget of N starts per window, each counted at the larger measured
+  size. Every grant is padded to one ceiling.
 - At 60 starts per minute that is 1260 records at the 3731 bytes that run measured, 4 701 060 bytes, 7.0 % of
   67 108 864, over the row's sixteenth.
   **The sixteenth stands and `StartBudget` drops to 30 per minute** (`security-auditor`, 2026-09-27,
@@ -1312,11 +1317,9 @@ sets these in GitHub's console at activation, and §3d's reading records them.
 - Measured 2026-09-27 at 30 per minute, through the production stores: 330 flows took 1 211 864 bytes and 330 grants
   1 232 032, so 630 records at 3733 bytes bound 2 351 790 of 67 108 864 (3.5 %). Regenerated after a build by
   `dotnet tests/Jobbliggaren.Api.IntegrationTests/bin/Debug/net10.0/Jobbliggaren.Api.IntegrationTests.dll -method "*The_start_path_at_its_budget_bound*" -showLiveOutput`.
-- **The bound covers the start's own records only.** A callback without a link also lets a challenge record, its
-  address index and per-address budget keys into the code path, and a verified code then earns a consent grant,
-  purpose 6 in place of purpose 1. They belong to the code path, under the same per-address gates and the same
-  per-IP AuthWrite bucket as `/challenge` and `/challenge/verify`, and under the volatile store's residual (Amendment
-  2026-09-19 (2)). The percentage is never read as all that a start causes.
+- **The bound covers the start's own records.** *(Corrected in Amendment 2026-09-27 (18): this bullet said a
+  callback without a link let a challenge record and per-address keys into the code path; that path is retired, and
+  a callback writes nothing into the code path.)*
 
 **Lapse trigger 4, read for PR 2.** It fires at activation, not at merge: without GitHub's keys the api registers no
 GitHub and the list stays `["google"]`. It is read here because activation has no PR.
@@ -1357,6 +1360,180 @@ GitHub and the list stays `["google"]`. It is read here because activation has n
 - **The register** (`docs/runbooks/gdpr-processing-register.md`, gitignored, written in the main copy) gains GitHub as
   a source, the `github` rows of `AspNetUserLogins`, the grant sentence for purposes 5 and 6, and the GitHub Chapter
   V entry with its lapse set.
+
+#### Amendment 2026-09-27 (18) (#1745, part 6b, PR 3) — GitHub login in one click, by Klas's decision; the findings stand
+
+*Klas reopened Amendment (16)'s form after PR 2 (#1883) merged and before GitHub was activated. A form round
+(`security-auditor`, `dotnet-architect`; `docs/reviews/2026-09-27-1745-one-click-{security-auditor,dotnet-architect,dotnet-architect-s6}.md`),
+routed by `senior-cto-advisor` (`…-one-click-cto.md`), put the choice to him. He decided; `senior-cto-advisor`
+ruled the build (`…-1745-s1-cto.md`) and `security-auditor` wrote the copy, the register text and the security
+part below (`…-1745-s1-security-auditor.md`). D8's GitHub parenthesis, Amendment (16)'s invariant and form, and
+Amendment (17)'s start-path sentences are corrected in place; this block records why.*
+
+**Klas's words, verbatim.** Each is a substring of the session transcript, read back by script.
+1. **The reopening, 2026-09-27T02:30Z,** typed in chat:
+
+   > Jag har en synpunkt sedan. Jag tror jag gjorde fel val. Hela poängen med OAuth är att man kan logga in med ett klick. Dvs. Jag vill inte att man får en 6 siffrig kod första gången med GitHub.  Man ska precis som med Google loggas in direkt
+
+   Put to him through AskUserQuestion, "Hur vill du gå vidare med GitHub-inloggningens första gång?", he chose
+   **"Utred ett klick (Rekommenderad)"**.
+2. **Question C, as it was sent, 2026-09-27T03:01Z.** The chat text before it:
+
+   > Du vill att GitHub ska logga in direkt, som Google. Det går inte fullt ut, och skälet är GitHub, inte vårt bygge. Google är självt brevlådan för en Gmail-adress, och för en företagsadress i Google Workspace styr företaget både brevlådan och Google-kontot. När Google säger att adressen är din vet vi att du har tillgång till den just nu, precis som när du skriver in en kod. GitHub har bara noterat att någon en gång klickade på en länk i ett mejl till adressen, och kontrollerar det inte igen. Om adressen har bytt ägare sedan dess, till exempel när en arbetsgivare ger en tidigare anställds adress till en ny person, skulle ett klick med GitHub släppa in fel person i ett konto. Det skulle också låta någon skapa ett konto som den verkliga ägaren sedan lägger sitt cv i. Ett klick utan kod för alla går därför inte att bygga säkert. En riskaccept kan inte heller bära det, eftersom den bara gäller så länge du är ende användaren och upphör före första testanvändaren.
+   >
+   > Det här går att bygga säkert: en ny användare loggar in med GitHub utan kod, godkänner villkoren och kan direkt titta på jobb och företag. Första gången hen sparar något, till exempel laddar upp ett cv, sparar en ansökan eller en bevakning, skickar vi en kod till adressen. Ett konto som aldrig bekräftas raderas efter några dagar. Om adressen redan har ett konto krävs fortfarande en kod en gång, som i dag, eftersom det kontot har innehåll. Ändringen gör skillnad först när registreringen öppnas, och för ditt eget konto ändras ingenting. Det är ett större bygge, och LinkedIn ärver samma form. Den som har en Gmail-adress kan redan i dag logga in med Google med ett klick.
+   >
+   > Tillägg från senior-cto-advisor: Koden försvinner inte för en ny användare, den kommer senare: första gången hen sparar något, till exempel ett cv, en ansökan eller en bevakning. Bygget är uppskattningsvis tre gånger så stort som den första GitHub-PR:en (#1882): fyra PR:er, en databasmigrering och en spärr som varje kommando i appen, också framtida, måste klassas mot. Läget där man kan titta men inte spara liknar gästläget som du tog ur MVP 2026-08-30. Med (b) väntar registreringen och testanvändarna på bygget, med (c) gör de inte det.
+
+   The question, "Frågan: hur ska GitHub-inloggningen fungera för nya användare?", with the options:
+   - **(a) Som i dag (rekommenderas)**: "(a) Som i dag: en kod första gången per GitHub-konto, därefter ett klick. GitHub kan aktiveras nu. (rekommenderas)"
+   - **(b) Bygg före registreringen**: "(b) GitHub aktiveras nu som i dag. Innan registreringen öppnas byggs en ändring så att en ny användare kommer in med ett klick och får koden först när hen sparar något."
+   - **(c) Bygg efter registreringen**: "(c) GitHub aktiveras nu som i dag. Ändringen byggs efter att registreringen har öppnats och efter LinkedIn-inloggningen, så att testanvändarna inte väntar på den. Fram till dess får en ny användare koden första gången, som i dag."
+
+   **His answer, 2026-09-27T03:07Z:** "Nu överdriver ni säkerheten igen. Detta handlar om en App där man kan söka och följa upp jobb. Ingen bank, eller annan viktig känslig app. Jag har på flera andra sidor, med ännu mer känslig data, t ex Vercel, alltid kunnat registrera mig med ett klick via GH OAuth. Vi ska göra det enkelt inte onödigt krångligt.  Detta är mitt beslut och jag accepterar risken!"
+3. **The scope, 2026-09-27T03:19Z.** "Frågan: ska ett klick gälla alla inloggningsleverantörer?" He chose **"(a) Ja, alla (rekommenderas)"**, whose text
+   was "(a) Ja, alla: LinkedIn byggs med ett klick, och Google släpper in alla adresser Google har verifierat, i en egen ändring. (rekommenderas: en regel för samma sak)"
+
+**What the decision is, and what it is not.**
+- It is Klas's override at a §12 STOPP (AGENTS.md §12; CLAUDE.md §9.6). `security-auditor`'s M-1 and Major 2 stand,
+  not re-graded and not signed. It is not an acceptance under §9.6 (3), whose bound is neither claimed nor measured,
+  and the findings are not resolved by acceptance. This PR therefore carries `blocked` and neither `automerge` nor
+  `agents-done`, and Klas merges it himself.
+- Question C told him that the risk continues past the first test user, and his words name registering in one click,
+  which is Major 2's case. No further question is owed. The M-7 grant of the registration flip points here.
+
+**The form (`senior-cto-advisor`, 2026-09-27).**
+- The GitHub adapter makes a `VerifiedEmail`, as Google's does, and `ExternalIdentity` is D8's
+  `(Provider, Subject, VerifiedEmail Email)` again. `ExternalAddress`, `AssertedEmail` and `AssertedLoginProof` are
+  deleted: a union with one live arm is collapsed. Which address qualifies is each adapter's own rule: Google's is
+  authority (Amendment (14)), GitHub's is Klas's decision.
+- GitHub's rule is unchanged and fail-closed, and it is now the whole gate: the list's one primary entry, `verified`
+  the JSON `true`, never `@users.noreply.github.com`, storable. `unverified_user_email` is `AddressRefused`, 400.
+- A GitHub login takes Google's path through `LoginProofOutcome.ResolveExternalAsync` unchanged: the address names
+  the account (`ExternalAddressMatch`), an identifier linked to another account is refused and never moved, the first
+  login links before the session and records the inbox proof, and a new address earns purpose 4 and waits for the
+  terms. The session is `LoginMethod.GitHub = 4`.
+- **Deleted in the same PR, nothing left dormant:** `PendingLinkChallenge`, the callback's `codeRequired` answer, the
+  found-link and code-bound resolution in `LoginProofOutcome`, `SessionEvidence`, grant purposes 5 and 6, the verify
+  request's `LinkGrant`, the web's provider code step and its copy, and `GitHubFirstLoginTests` (replaced by
+  `GitHubLoginTests`). Keeping them would have meant tests stubbing a port with a value no adapter makes (AGENTS.md
+  §5 `Tests:`), or security code without tests; both are §12 classes. `LoginChallengeAdmission` stays, with the code
+  request as its one consumer. `ffc781c7` (#1882) is the archive if a provider ever needs the code-bound form again.
+- **Retired numbers, never reused:** grant purposes 5 and 6 (`GrantAssertionTests` pins both undefined), and EventId
+  1029.
+- **Rejected:** a handler branch treating an asserted address as authoritative, which moves the decision out of the
+  adapter (Amendment (16) already refused a provider flag); keeping the union with "authoritative" false for GitHub;
+  a third arm with no behaviour of its own; dormant machinery for 6c; two PRs; relaxing Google's rule in this PR.
+
+**The asymmetry with Google, named.** Until a follow-up lands, Google is stricter than GitHub: it admits only an
+address it is authoritative for (Gmail, Workspace), and a Google account with any other address is refused and uses
+a code. Klas's scope answer (3) removes the asymmetry in a separate change, "Google admits every address Google has
+verified", with its own `security-auditor` reading, merged by Klas. 6c (#1746) is built in one click, and its form
+comment 5849749630 is superseded.
+
+**Residuals the ruling adds** (`senior-cto-advisor`, from Major 2):
+- An account created through GitHub on an address its creator does not hold cannot re-authenticate, since D5's codes
+  go to that inbox (Major 2 (iii)).
+- GitHub's flag confirms an older unconfirmed account and revokes its sessions, as Google's authority does: one proof
+  has one meaning.
+
+**`security-auditor`, 2026-09-27: the findings, the residual and DoD 8 under the one-click form.** Nothing below
+re-grades or withdraws a finding, and none of it is a §9.6 (3) acceptance.
+
+**The findings stand as graded.**
+- **M-1 (2026-09-26, `docs/reviews/2026-09-26-1745-form-security-auditor.md`): Major, GDPR-implicated**
+  (Art. 5(1)(f), 32(1)(b)). GitHub's `verified` flag now alone links an identifier, creates an account and opens a
+  session, which Amendment (16)'s invariant forbade.
+- **Major 2 (2026-09-27, `docs/reviews/2026-09-27-1745-one-click-security-auditor.md`): Major, GDPR-implicated**
+  (Art. 5(1)(f), 32(1)(b), 25(1); 5(1)(d) and 12(2) for an account that cannot re-authenticate). One click for an
+  address without an account is account pre-hijacking (Sudhodanan & Paverd, USENIX Security 2022, §4.5), with a
+  stale flag where the paper has an unverified one. This PR builds it. It is Major because it is dormant while
+  registration is closed; **its grade makes it Blocker class once registration opens (#734)**, PII exposure, the
+  rule applied to M-2 on #1783. That is the grade's own schedule, not a later re-grade, and a Blocker has no §9.6
+  route.
+- **No acceptance exists.** Klas decided at a §12 STOPP and merges this PR himself. `security-auditor` did not sign.
+  The bound of §9.6 (3) is neither claimed nor measured. The decision withdraws the remedy only: not the findings,
+  not their grades, not what is unmeasured.
+
+**The residual, in plain words.**
+1. **A reassigned address opens another person's account.** GitHub's `verified` records that someone once followed a
+   mailed link. GitHub does not check it again while mail still arrives, and `/user/emails` carries no date. When an
+   address passes to a new holder (an employer or school reissuing it, a recycled mailbox, a lapsed domain registered
+   again), the former holder's GitHub account keeps the flag. With one click it opens a session of up to 180 days in
+   the account the new holder has here, and reads everything in it, CVs and their original files included.
+2. **Account pre-hijacking.** Once registration is open, the same GitHub account can create the account first. It is
+   born `email_confirmed = true`, so when the address's holder later logs in with a code, no session is revoked and
+   the link stays. What the holder then adds, the GitHub account reads.
+3. **Without an attacker.** A user whose GitHub primary is a work address creates an account and uploads a CV. The
+   address passes to a colleague, who logs in with a code and reads it. The first user can neither delete the
+   account nor change its address without the inbox, since D5 sends the re-authentication code there; Art. 16 and
+   17 then go through kontakt@ by hand.
+4. Enterprise Managed Users' addresses were verified without a mail until 2024-08-01. Whether an administrator's
+   address change yields a verified address today is unmeasured.
+
+**What still bounds it.**
+- Amendment (14)'s address invariant (`security-auditor` M-1, 2026-09-25) stands: GitHub's primary address must be
+  the account's own at each login, and an identifier linked to another account is refused and never moved.
+- For one account the residual ends when its address changes: the GitHub login is then refused, and
+  `/auth/change-email/confirm` logs every session out. For every account it ends when GitHub's keys are removed
+  (`vps-deploy-stack.md` §3d). A single link is removed by hand; there is no self-service unlink.
+- Nothing tells an account holder that a GitHub account was linked (OWASP ASVS 4.0.3 V2.2.3; `security-auditor`
+  Minor, 2026-09-26, read again at the #734 flip). Under this form that mail would be the only way the holder of an
+  address learns of (1) or (2).
+- `security-auditor`'s `ExternalAddressMatch` signature (Amendment (16)) covers code-bound links only and requires a
+  provider that binds without a code to be read again from the start. That reading is not done, so the case-blind
+  branch carries no signature for GitHub. It falls under M-1 and is no separate finding.
+
+**Lapse trigger 4 fires in this PR** (the `VerifiedEmail` rule and the outcome table change for a live provider).
+- **(a)** stands: the path mints no secret that can be guessed, and the code arm's 0.003 %/day and 1.089 %/year are
+  unchanged.
+- **(b)** does not hold for GitHub. The set that can obtain a session grows from those who can receive the code to
+  those who hold GitHub's flag, so "mail is the only way in" is false for every address GitHub has marked verified.
+  Nothing is guessed, so the arithmetic does not bound that set.
+- **(c)** For a GitHub-flagged address, a third party spending the mint budget no longer locks its holder out.
+- **(d)** The residual above: declared, not measured.
+- **(e)** Before merge, because a merge reaches the box without an activation step, and again at activation, never
+  inherited: `Auth__RegistrationsOpen` in the running api container, whether any `Auth__OAuth__GitHub__` variable is
+  set, the providers list from inside the web container, the accounts and whether each is the controller's (the hash
+  of (17)), and `identity."AspNetUserLogins"` by provider.
+
+**When it reaches someone other than the controller:** trigger 1 (#734) or trigger 2 (the first account that is not
+Klas's). At either, `security-auditor` reads this amendment again, and Major 2 is reported as a Blocker. **Home:**
+this amendment. **Reader:** Klas Olsson. Nothing detects trigger 2 automatically.
+
+**DoD 8, as it changes for GitHub** (Amendment (17)'s list).
+- **No longer written:** the pending-link grant (purpose 5); the consent grant after the code (purpose 6); the login
+  challenge, its address index and its per-address budget keys for GitHub's address; the login mail to that address;
+  the login cookie carrying it.
+- **Written instead:** the external-login grant (purpose 4: address and GitHub id, 10 min), only for an address
+  without an account while registration is open; the `github` row in `AspNetUserLogins` at the first login, without
+  a code; an account born `email_confirmed = true` on GitHub's flag.
+- **A new data subject:** the holder of an address a GitHub account asserts, who may not hold that GitHub account.
+  Their address becomes an account's address, or links a GitHub account to theirs, and they are told nothing: we
+  cannot know that the two differ (Art. 14(5)(b)). Declared, not measured.
+- **Unchanged:** the category (D8); Chapter V, since the endpoints, the scope `user:email` and the absence of a
+  stored token are the same, so the register's GitHub entry and its lapse set stand; no DPIA (Art. 35(3)(a)–(c));
+  not Art. 22, since the code path remains where GitHub's address is refused; Art. 15 from the register; the cascade
+  under Art. 17; the logging rule of (17).
+- The privacy policy's GitHub paragraph and the cookie policy's `__Host-jobbliggaren_login` change, with
+  `CurrentPrivacyPolicyVersion`.
+
+**The start path's bound, re-measured 2026-09-27** at 30 per minute with purpose-4 grants, through the production
+stores: 330 flows took 1 211 832 bytes and 330 consent grants 1 231 936, so 630 records at 3733 bytes bound 2 351 790
+of 67 108 864 (3.5 %). Amendment (17)'s command regenerates it.
+
+**(e) before merge, 2026-09-27T03:48:37Z,** read-only on the box over `ssh jp-vps` (`docker exec` into the running
+containers), with the box's git at `066a7fb`:
+- `Auth__RegistrationsOpen` in the running api container is `false`. Two `Auth__OAuth__Google__` variables are set
+  and no `Auth__OAuth__GitHub__` one.
+- The providers list, read from inside the web container, answers `200 ["google"]`.
+- There are 2 accounts, 0 created after 2026-09-27T00:28:49Z, and both are the controller's own, counted against a
+  hash of the whole normalised address as in Amendment (17), never printed.
+- `identity."AspNetUserLogins"` holds `google` 1.
+- `public.job_seekers` holds 0 rows whose `privacy_policy_version` is `2026-09-27`, so the version that now names
+  two texts is carried by no row (`security-auditor` (3)). If the merge day is later, the dates and
+  `CurrentPrivacyPolicyVersion` move to it.
+- **(e) at activation** is §3d's reading, as a dated comment on #1732, and the next amendment transcribes it.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -2540,7 +2717,8 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in two PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 activatable (Amendment 2026-09-27 (17)) · **6c** #1746 LinkedIn
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in two PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 one click,
+by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)) · **6c** #1746 LinkedIn
 (its code after 6b PR 1) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

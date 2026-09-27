@@ -2,10 +2,9 @@ import { notFound, redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
-import { adIdentityOf } from "@/components/applications/ad-identity";
+import { applicationDetailHeader } from "@/lib/applications/header";
 import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
-import { formatDate } from "@/lib/i18n/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -33,8 +32,7 @@ interface PageProps {
  * RSC: server-fetch här; endast modal-chromet (ApplicationModalShell) +
  * mutationsöarna (NotesSection) är "use client". ApplicationDetailBody-trädet
  * (kroppen är presentationsagnostisk) förblir Server Component (passeras som
- * children — serialiserbart RSC-träd, ingen funktion över gränsen). Strikt
- * läs-läge: ingen Withdraw/status-mutation.
+ * children — serialiserbart RSC-träd, ingen funktion över gränsen).
  */
 export default async function InterceptedAnsokanModal({ params }: PageProps) {
   const user = await getServerSession();
@@ -49,56 +47,11 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
   switch (result.kind) {
     case "ok": {
       const application = result.data;
-      const jobAd = application.jobAd ?? null;
-      const shortId = application.id.slice(0, 8);
-      // #892: strukturell identitet — raderad annons bär bevarad snapshot-
-      // identitet (eller tom identitet utan snapshot) + status "Erased".
-      const { adRemoved, title: adTitle, company: adCompany } =
-        adIdentityOf(jobAd);
-      // #805-3: the header used to carry a THIRD copy of the
-      // `showPreservedAd = jobAd == null && preservedAd != null` guard — the very
-      // predicate this PR proves unreachable (JobAd.DeletedAt has no writer, so
-      // jobAd is never null for a JobAd-linked application; #821). Its preserved-
-      // title branch could therefore never render, and the comment that justified
-      // it taught the disproven model to the next reader. Both are gone.
-      //
-      // The header now has exactly two truthful states: an ad row exists (live OR
-      // archived — arkivering är inte radering, so the row still supplies
-      // title/company) → the ad's own identity; no ad row at all (cover-letter-only)
-      // → the generic "#id" fallback. The BODY (SourceAdSection) owns everything
-      // said about the ad's LIVENESS — header and body cannot disagree, because
-      // only one of them makes that claim.
-      const title = adTitle ?? t("ansokningar.detail.fallbackTitle", { shortId });
-      // Subtitle mirrors the title: ad identity → "{company} · #shortId"; none →
-      // "Skapad {date}" (created-date metadata, NOT an echo of the "#shortId"
-      // fallback title — design-reviewer F5 Major #2 2026-05-20). #892 (CTO R1):
-      // a removed ad's subtitle carries the death signal — the header shows the
-      // preserved copy's identity and must not let a dead ad look alive.
-      const baseSubtitle =
-        adCompany != null
-          ? t("ansokningar.detail.subtitle", {
-              company: adCompany,
-              shortId,
-            })
-          : t("ansokningar.detail.createdSubtitle", {
-              date: formatDate(format, application.createdAt) ?? "",
-            }).trim();
-      const subtitle = adRemoved
-        ? `${baseSubtitle} · ${t("ansokningar.detail.adRemoved")}`
-        : baseSubtitle;
-      // Strict read-mode surface (#630 PR 6 lineage): NO Withdraw footer /
-      // status mutation here — status changes live on the rows (PR 7). `now`
-      // is the per-request reference time for the "N dagar i detta steg"
-      // derivation (server-computed; the read is fetched fresh on each open).
+      const { title, subtitle } = applicationDetailHeader(application, t, format);
+      // `now` is the per-request reference time for the day count in the
+      // status block (server-computed; the read is fetched fresh on each open).
       return (
-        <ApplicationModalShell
-          title={title}
-          subtitle={subtitle}
-          // mono only when there is no ad row at all (the "#id" fallback title).
-          // An archived ad still supplies real prose, so it renders non-mono —
-          // matching the component header (#805-3).
-          mono={adTitle == null}
-        >
+        <ApplicationModalShell title={title} subtitle={subtitle}>
           {/* jp-modal__body äger padding + intern scroll i .jp-modal-flexkolumnen
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen
               över panelens max-height. */}

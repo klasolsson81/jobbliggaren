@@ -61,8 +61,8 @@ vi.mock("next/navigation", async (importOriginal) => {
   };
 });
 
-// Server-actions consumed by the client islands inside ApplicationDetail's tree
-// (StatusEditCard/AddNoteForm/AddFollowUpForm) — same mock as the component test.
+// Server-actions consumed by the client islands inside the body
+// (ApplicationStatusActions, AddNoteForm, AddFollowUpForm) — same mock as the body's test.
 vi.mock("@/lib/actions/applications", () => ({
   transitionStatusAction: vi.fn().mockResolvedValue({ success: true }),
   addNoteAction: vi.fn().mockResolvedValue({ success: true }),
@@ -138,6 +138,9 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     expect(
       screen.getByRole("dialog", { name: /Backend-utvecklare/ })
     ).toBeInTheDocument();
+    // Undertiteln är företaget, utan internt #id (#1827 Minor 8).
+    expect(screen.getByText("Volvo")).toHaveClass("jp-modal__company");
+    expect(screen.queryByText(/#aaaaaaaa/)).not.toBeInTheDocument();
   });
 
   // #805-3 SANNINGSKORRIGERING: detta test triggade tidigare borta-läget med
@@ -180,7 +183,7 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     expect(screen.queryByText(/Annonsen är borttagen/)).toBeNull();
   });
 
-  it("varken annons eller snapshot → oförändrad mono-#id-fallback", async () => {
+  it("varken annons eller snapshot → #id-fallbacken, i sans som varje rubrik", async () => {
     getApplicationById.mockResolvedValue({
       kind: "ok",
       data: makeDetail({ jobAd: null, jobAdId: null, preservedAd: null }),
@@ -188,12 +191,12 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     await renderModal();
 
     const heading = screen.getByRole("heading", { name: "Ansökan #aaaaaaaa" });
-    expect(heading).toHaveClass("jp-mono");
+    expect(heading).not.toHaveClass("jp-mono");
   });
 
-  // #892 (CTO R1): route-modalens subtitle bär borttagen-signalen. Headless
-  // ApplicationDetail utelämnar sin egen header (SPOT), så DENNA subtitle är den
-  // enda dödssignalen på modalytan — en bevarad identitet utan den ser levande ut.
+  // #892 (CTO R1): route-modalens subtitle bär borttagen-signalen. Kroppen har
+  // ingen egen header, så DENNA subtitle är den enda dödssignalen på modalytan —
+  // en bevarad identitet utan den ser levande ut.
   it("RADERAD annons (Erased) → subtitlen bär borttagen-suffixet", async () => {
     getApplicationById.mockResolvedValue({
       kind: "ok",

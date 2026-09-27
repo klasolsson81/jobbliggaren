@@ -26,14 +26,11 @@ import { X } from "lucide-react";
 export function ApplicationModalShell({
   title,
   subtitle,
-  mono,
   children,
   footer,
 }: {
   title: string;
   subtitle: string;
-  /** True när titeln ska renderas i mono (fallback-id, ingen kopplad annons). */
-  mono?: boolean;
   children: React.ReactNode;
   /** Server-renderad footer (Stäng-knapp + ev. Återta ansökan). */
   footer?: React.ReactNode;
@@ -109,10 +106,7 @@ export function ApplicationModalShell({
       >
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h2
-              id={labelId}
-              className={mono ? "jp-modal__title jp-mono" : "jp-modal__title"}
-            >
+            <h2 id={labelId} className="jp-modal__title">
               {title}
             </h2>
             <p className="jp-modal__company">{subtitle}</p>

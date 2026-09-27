@@ -49,7 +49,7 @@
       "backLink": "Back to applications",
       "loadErrorTitle": "Could not load the application",
       "fallbackTitle": "Application #{shortId}",
-      "subtitle": "{company} · #{shortId}",
+      "subtitle": "{company}",
       "createdSubtitle": "Created {date}",
       "adRemoved": "The ad has been removed",
       "meta": {

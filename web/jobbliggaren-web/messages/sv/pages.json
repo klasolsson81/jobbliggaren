@@ -49,7 +49,7 @@
       "backLink": "Tillbaka till ansökningar",
       "loadErrorTitle": "Kunde inte ladda ansökan",
       "fallbackTitle": "Ansökan #{shortId}",
-      "subtitle": "{company} · #{shortId}",
+      "subtitle": "{company}",
       "createdSubtitle": "Skapad {date}",
       "adRemoved": "Annonsen är borttagen",
       "meta": {

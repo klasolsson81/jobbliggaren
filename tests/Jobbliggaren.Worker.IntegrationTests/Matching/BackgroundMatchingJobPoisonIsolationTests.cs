@@ -331,7 +331,7 @@ $fn$ LANGUAGE plpgsql;";
             preferredMunicipalities: null,
             preferredSkills: []).Value;
         jobSeeker.UpdateMatchPreferences(prefs, clock);
-        jobSeeker.UpdateNotificationConsent(true, DigestCadence.Weekly, clock);
+        jobSeeker.UpdateNotificationConsent(true, clock);
 
         db.JobSeekers.Add(jobSeeker);
         await db.SaveChangesAsync(ct);

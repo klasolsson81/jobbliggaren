@@ -38,18 +38,16 @@ export type UpdateMyProfileInput = z.infer<
   ReturnType<typeof makeUpdateMyProfileSchema>
 >;
 
-/**
- * ADR 0080 Vag 4 PR-6 — input-schema för `updateNotificationConsentAction`.
- * Speglar backend `UpdateNotificationConsentCommand` (`{ enabled, cadence }`).
- * `enabled` är en ren bool (Domänen äger consent-stämplingen); `cadence` binds
- * mot `DigestCadence`-mirrorn (sträng-enum med wire-värdena `Daily`/`Weekly`).
- * Strukturellt skydd / defense-in-depth — backend är sista barriären — så ingen
- * användarvänd valideringstext behövs (translatorn tas för factory-konsekvens).
- */
+// The three notification-settings schemas are strict: a Server Action ID can outlive its build,
+// so a tab on an earlier build may still post the combined `{ enabled, cadence }` body here. Refusing
+// the unknown key keeps that body from being cut down to a consent write. Structural protection
+// (the backend is the last barrier), so no user-facing validation text: the action answers with its
+// own copy, and the translator is taken for factory consistency.
+
+/** ADR 0080 Vag 4 PR-6 — `updateNotificationConsentAction`: the background-match consent alone. */
 export function makeUpdateNotificationConsentSchema(_t: ValidationTranslator) {
-  return z.object({
+  return z.strictObject({
     enabled: z.boolean(),
-    cadence: digestCadenceSchema,
   });
 }
 
@@ -57,23 +55,29 @@ export type UpdateNotificationConsentInput = z.infer<
   ReturnType<typeof makeUpdateNotificationConsentSchema>
 >;
 
-/**
- * Bevakning F4 (#803) — input-schema för
- * `updateFollowedCompanyNotificationConsentAction`. Speglar backend
- * `UpdateFollowedCompanyNotificationConsentCommand` (`{ enabled }`) — INGEN
- * kadens: den är delad med matchningsnotiserna (ADR 0087 D2) och skrivs via
- * `makeUpdateNotificationConsentSchema` ovan. Strukturellt skydd /
- * defense-in-depth (backend är sista barriären), därför ingen användarvänd
- * valideringstext; translatorn tas för factory-konsekvens.
- */
+/** Bevakning F4 (#803) — `updateFollowedCompanyNotificationConsentAction`: that consent alone. */
 export function makeUpdateFollowedCompanyNotificationConsentSchema(
   _t: ValidationTranslator
 ) {
-  return z.object({
+  return z.strictObject({
     enabled: z.boolean(),
   });
 }
 
 export type UpdateFollowedCompanyNotificationConsentInput = z.infer<
   ReturnType<typeof makeUpdateFollowedCompanyNotificationConsentSchema>
+>;
+
+/**
+ * ADR 0087 D2 — `updateDigestCadenceAction`: the cadence the two consents share, carrying no
+ * consent value. Binds against the `DigestCadence` mirror (wire values `Daily`/`Weekly`).
+ */
+export function makeUpdateDigestCadenceSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    cadence: digestCadenceSchema,
+  });
+}
+
+export type UpdateDigestCadenceInput = z.infer<
+  ReturnType<typeof makeUpdateDigestCadenceSchema>
 >;

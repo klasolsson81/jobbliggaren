@@ -47,7 +47,7 @@ public interface IAuditableCommand
 
 /// <summary>
 /// Opt-in: contribute a JSON payload to <c>audit_log.payload</c> (jsonb — the column has existed
-/// since ADR 0022 and has never been written by a command).
+/// since ADR 0022).
 /// </summary>
 /// <remarks>
 /// The <see cref="IIdentifierPseudonymizer"/> is handed in rather than injected into the command,

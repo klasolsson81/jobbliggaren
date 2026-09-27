@@ -99,7 +99,8 @@ public class GetMyProfileQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
 
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
-        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
+        seeker.UpdateNotificationConsent(enabled: true, FakeDateTimeProvider.Default);
+        seeker.SetDigestCadence(DigestCadence.Daily, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

@@ -1299,7 +1299,8 @@ sets these in GitHub's console at activation, and §3d's reading records them.
   the flow, then the grant. The records live at once are N × (⌈(StateTtl + GrantTtl) / Window⌉ + 1) for a budget of
   N starts per window, each counted at the larger measured size. Purposes 4 and 5 are padded to the same ceiling,
   so the count covers both.
-- At 60 starts per minute that is 1260 records and 4 701 060 bytes, 7.0 % of 67 108 864, over the row's sixteenth.
+- At 60 starts per minute that is 1260 records at the 3731 bytes that run measured, 4 701 060 bytes, 7.0 % of
+  67 108 864, over the row's sixteenth.
   **The sixteenth stands and `StartBudget` drops to 30 per minute** (`security-auditor`, 2026-09-27,
   `docs/reviews/2026-09-27-1745-pr2-budget-security-auditor.md`). The ceiling is the fixed quantity, since it is what
   reserves fifteen sixteenths for the code path's live data, and N is derived from it. N stays above AuthWrite's

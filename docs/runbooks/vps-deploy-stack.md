@@ -572,15 +572,14 @@ body.
 
 ## 3d. External login: activation and deactivation (#1744 Google, #1745 GitHub)
 
-A merge makes Google login **possible**; keys on this box make it **live**. Without
-`AUTH_OAUTH_GOOGLE_CLIENT_ID` the api registers no provider, `/api/v1/auth/oauth/providers` answers
-`[]` and `/logga-in` shows its provider rows inactive. Activation is Klas's step, done with him, and it
-has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G amendment).
+A merge makes Google login **possible**; keys on this box make it **live**. Activation is Klas's step,
+done with him, and it has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G
+amendment).
 
 **Before the keys.** Three conditions, each read on the day, never inherited:
 
-1. **Chapter V.** Google login is the product's one transfer to a third country: the server completes
-   the login with Google LLC, USA, under the EU-US Data Privacy Framework (Art. 45). The PR G amendment
+1. **Chapter V.** The server completes the login with Google LLC, USA, under the EU-US Data Privacy
+   Framework (Art. 45). The PR G amendment
    records the dated readings. If any of its lapse conditions has fired since, the keys are not placed.
 2. **The volatile ACL admits the flow store.** Compare the effective `ACL LIST` of `redis-volatile`
    against the rendered policy (redis-service-boundaries.md): the `api-volatile` user carries a
@@ -638,16 +637,22 @@ third country, with its own Chapter V entry.
 
 **Before the keys.** Each condition is read on the day, never inherited:
 
-1. **Chapter V.** The server completes the login with GitHub, Inc., USA, under the EU-US Data Privacy
+1. **The box's git contains the merge.** Compose and `inject-secrets.sh` are read from the box's git,
+   and the reconcile never moves it, so on an older tree `JBL_INJECT_GITHUB` is ignored and the `.env`
+   lines wait for the next git step to apply them with no one present. On the box:
+   `git -C /opt/jobbliggaren merge-base --is-ancestor <merge-commit> HEAD` exits 0.
+2. **Chapter V.** The server completes the login with GitHub, Inc., USA, under the EU-US Data Privacy
    Framework (Art. 45). Klas accepted the consequence on 2026-09-26 ("(a) Ja, jag accepterar"): if
    GitHub is no longer certified, or the decision falls, the keys are removed. Read that day: GitHub
-   on the DPF List (Active, Non-HR Data), (EU) 2023/1795 on EUR-Lex, and C-703/25 P on InfoCuria. If
-   any lapse condition in the register's GitHub entry has fired, the keys are not placed.
-2. **The volatile ACL.** Nothing new: GitHub's flows use the flow-store and start-budget selectors
+   on the DPF List (Active, Non-HR Data), (EU) 2023/1795 on EUR-Lex, C-703/25 P on InfoCuria, the
+   GitHub Terms of Service's section H (the contracting party) and the GitHub Privacy Statement's
+   sentence naming the controller. If any lapse condition in the register's GitHub entry has fired, the
+   keys are not placed.
+3. **The volatile ACL.** Nothing new: GitHub's flows use the flow-store and start-budget selectors
    Google's activation required, and its pending-link grants the grant selector code login uses. Diff
    `deploy/redis/*.acl.template` between the box's git and the merge commit; it is expected to be
    unchanged.
-3. **The GitHub OAuth App** (security-auditor m-4). A separate OAuth App for this box, never the one a
+4. **The GitHub OAuth App** (security-auditor m-4). A separate OAuth App for this box, never the one a
    developer uses on localhost. Its authorization callback URL is exactly
    `https://${SITE_HOST}/api/auth/oauth/github/callback`, and nothing else. Any wildcard or
    subdirectory matching of callback URLs the app offers is off: it would let a code be sent to another
@@ -680,6 +685,7 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
   `offline_access`, the box's callback, and the flow cookie's attributes;
 - the Chapter V readings above, and the OAuth App's settings.
 
+If the reading does not show `github`, both `.env` lines are removed and api is re-created.
 The next amendment of ADR 0142 transcribes the comment.
 
 **Expected on the first login.** GitHub's primary, verified address chooses where a code goes. If an

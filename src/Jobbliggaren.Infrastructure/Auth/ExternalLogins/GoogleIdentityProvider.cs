@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -57,30 +58,30 @@ internal sealed partial class GoogleIdentityProvider(
         return new Uri($"{AuthorizationEndpoint.AbsoluteUri}?{query}");
     }
 
-    public async Task<ExternalIdentity?> ExchangeAsync(
+    public async Task<ExternalExchange> ExchangeAsync(
         AuthorizationCode code, PkceVerifier verifier, CancellationToken ct)
     {
         var client = httpClientFactory.CreateClient(HttpClientName);
         try
         {
             var accessToken = await RedeemCodeAsync(client, code, verifier, ct);
-            return accessToken is null ? null : await ReadUserInfoAsync(client, accessToken, ct);
+            return accessToken is null ? new ExternalExchange.Failed() : await ReadUserInfoAsync(client, accessToken, ct);
         }
         catch (HttpRequestException)
         {
-            LogExchangeFailed(logger, ExchangeFailure.Transport, 0);
-            return null;
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Transport, 0);
+            return new ExternalExchange.Failed();
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
             // The client's own timeout, not the caller asking to stop: the caller's cancellation propagates.
-            LogExchangeFailed(logger, ExchangeFailure.Timeout, 0);
-            return null;
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Timeout, 0);
+            return new ExternalExchange.Failed();
         }
         catch (JsonException)
         {
-            LogExchangeFailed(logger, ExchangeFailure.Malformed, 0);
-            return null;
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Malformed, 0);
+            return new ExternalExchange.Failed();
         }
     }
 
@@ -102,7 +103,7 @@ internal sealed partial class GoogleIdentityProvider(
         if (!response.IsSuccessStatusCode)
         {
             // The body is not read: a provider's error body may echo what it refused.
-            LogExchangeFailed(logger, ExchangeFailure.TokenRefused, (int)response.StatusCode);
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.TokenRefused, (int)response.StatusCode);
             return null;
         }
 
@@ -112,14 +113,14 @@ internal sealed partial class GoogleIdentityProvider(
             || token.ValueKind != JsonValueKind.String
             || string.IsNullOrEmpty(token.GetString()))
         {
-            LogExchangeFailed(logger, ExchangeFailure.Malformed, (int)response.StatusCode);
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Malformed, (int)response.StatusCode);
             return null;
         }
 
         return token.GetString();
     }
 
-    private async Task<ExternalIdentity?> ReadUserInfoAsync(HttpClient client, string accessToken, CancellationToken ct)
+    private async Task<ExternalExchange> ReadUserInfoAsync(HttpClient client, string accessToken, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, UserInfoEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -127,8 +128,8 @@ internal sealed partial class GoogleIdentityProvider(
         using var response = await client.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
-            LogExchangeFailed(logger, ExchangeFailure.UserInfoRefused, (int)response.StatusCode);
-            return null;
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.UserInfoRefused, (int)response.StatusCode);
+            return new ExternalExchange.Failed();
         }
 
         using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
@@ -136,39 +137,49 @@ internal sealed partial class GoogleIdentityProvider(
         if (root.ValueKind != JsonValueKind.Object
             || ExternalSubject.TryCreate(StringOrNull(root, "sub")) is not { } subject)
         {
-            LogExchangeFailed(logger, ExchangeFailure.SubjectUnusable, (int)response.StatusCode);
-            return null;
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.SubjectUnusable, (int)response.StatusCode);
+            return new ExternalExchange.Failed();
         }
 
-        var (email, refusal) = Authoritative(root);
-        if (refusal is { } cause)
-            LogEmailNotUsable(logger, Key.Value, cause);
+        if (!TryAuthoritative(root, out var email, out var refusal))
+        {
+            LogEmailNotUsable(logger, Key.Value, refusal);
+            return new ExternalExchange.AddressRefused();
+        }
 
-        return new ExternalIdentity(Key, subject, email);
+        return new ExternalExchange.Identified(
+            new ExternalIdentity(Key, subject, new ExternalAddress.Authoritative(email)));
     }
 
     // Fail-closed, in the order the claims are read: a verified flag that is not the JSON true, then an address that
     // cannot be stored, then a verified address Google is not authoritative for.
-    private static (VerifiedEmail? Email, EmailRefusal? Refusal) Authoritative(JsonElement root)
+    private static bool TryAuthoritative(
+        JsonElement root, [NotNullWhen(true)] out VerifiedEmail? email, out EmailRefusal refusal)
     {
+        email = null;
+        refusal = EmailRefusal.NotBoolean;
         if (!root.TryGetProperty("email_verified", out var verified)
             || verified.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
-            return (null, EmailRefusal.NotBoolean);
+            return false;
         }
 
+        refusal = EmailRefusal.False;
         if (verified.ValueKind == JsonValueKind.False)
-            return (null, EmailRefusal.False);
+            return false;
 
+        refusal = EmailRefusal.AddressUnparsable;
         var address = StringOrNull(root, "email");
-        if (address is null || !StorableAddress.IsStorable(address) || VerifiedEmail.TryCreate(address) is not { } email)
-            return (null, EmailRefusal.AddressUnparsable);
+        if (address is null || !StorableAddress.IsStorable(address) || VerifiedEmail.TryCreate(address) is not { } parsed)
+            return false;
 
+        refusal = EmailRefusal.NotAuthoritative;
         var workspace = !string.IsNullOrEmpty(StringOrNull(root, "hd"));
         if (!address.EndsWith(GmailSuffix, StringComparison.Ordinal) && !workspace)
-            return (null, EmailRefusal.NotAuthoritative);
+            return false;
 
-        return (email, null);
+        email = parsed;
+        return true;
     }
 
     private static string? StringOrNull(JsonElement root, string name) =>
@@ -192,13 +203,14 @@ internal sealed partial class GoogleIdentityProvider(
         NotAuthoritative,
     }
 
-    // #1744 — a cause class and an HTTP status only: never the code, a token, the subject or the address.
+    // #1744 — the provider, a cause class and an HTTP status only: never the code, a token, the subject or the
+    // address. The template is the GitHub adapter's too (#1745), so one EventId reads alike for every provider.
     [LoggerMessage(1022, LogLevel.Warning,
-        "External login exchange failed at the provider: Cause={Cause} Status={Status}")]
-    private static partial void LogExchangeFailed(ILogger logger, ExchangeFailure cause, int status);
+        "External login exchange failed at the provider: Provider={Provider} Cause={Cause} Status={Status}")]
+    private static partial void LogExchangeFailed(ILogger logger, string provider, ExchangeFailure cause, int status);
 
     // #1744 — the closed cause class only, so the claim's real shape can be read at activation without PII.
     [LoggerMessage(1023, LogLevel.Warning,
-        "External login refused: the provider's address is not usable as proof: Provider={Provider} Cause={Cause}")]
+        "External login refused: the provider's address is not usable: Provider={Provider} Cause={Cause}")]
     private static partial void LogEmailNotUsable(ILogger logger, string provider, EmailRefusal cause);
 }

@@ -9,9 +9,9 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 
 /// <summary>
 /// The one function every proof ends in: a code, a link and a provider's (senior-cto-advisor Q1, 2026-09-19;
-/// #1744). It resolves the proven address at proof time, not at issue time, so an account deleted or a kill-switch
-/// thrown inside the challenge's 15 minutes is honoured. One switch decides; what a proof of a NEW address may earn
-/// is decided by the entry point.
+/// #1744), and since #1745 a provider login a code bound (ADR 0142 Amendment (16)). It resolves the proven address
+/// at proof time, not at issue time, so an account deleted or a kill-switch thrown inside the challenge's 15 minutes
+/// is honoured. One switch decides; what a proof of a NEW address may earn is decided by the entry point.
 /// </summary>
 public sealed partial class LoginProofOutcome(
     LoginSubjectResolver subjects,
@@ -37,7 +37,8 @@ public sealed partial class LoginProofOutcome(
         // Only a CODE proves a new address. A link reaches the no-account arm only when the account it was mailed
         // to went away inside the challenge's lifetime, and a new account must not rise from it.
         var consent = method == LoginMethod.Code ? new GrantSubject.LoginComplete(proof.ProvenEmail) : null;
-        return await DecideAsync(subject, method, registration, consent, linkBeforeSession: null, ct);
+        return await DecideAsync(
+            subject, method, registration, consent, linkBeforeSession: null, SessionEvidence.InboxProven, ct);
     }
 
     /// <summary>
@@ -66,11 +67,104 @@ public sealed partial class LoginProofOutcome(
         }
 
         var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject);
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? link = resolved.LinkedUserId is null
-            ? (active, token) => externalLogins.LinkAsync(active.UserId, proof.Provider, proof.Subject, token)
+        var link = resolved.LinkedUserId is null
+            ? new LinkBeforeSession(proof.Provider, proof.Subject, SessionSurvivesLoss: false)
             : null;
 
-        return await DecideAsync(resolved.Subject, method, registration, consent, link, ct);
+        return await DecideAsync(resolved.Subject, method, registration, consent, link, SessionEvidence.InboxProven, ct);
+    }
+
+    /// <summary>
+    /// A provider login with an asserted address (ADR 0142 Amendment (16)). The link is read first: null means none
+    /// exists, and then no account has been read and the caller sends a code instead. With a link, the checks are
+    /// Google's: the address names the account (<see cref="ExternalAddressMatch"/>), and the identifier is linked to
+    /// that account. It never creates or moves a link, never issues a grant, and proves no inbox.
+    /// </summary>
+    public async Task<LoginOutcome?> ResolveFoundLinkAsync(AssertedLoginProof proof, CancellationToken ct)
+    {
+        if (await subjects.FindLinkedUserIdAsync(proof.Provider, proof.Subject, ct) is not { } linkedUserId)
+            return null;
+
+        var registration = Registration();
+        var method = proof.Provider.LoginMethod;
+        var resolved = new ExternalLoginSubject(await subjects.ResolveAsync(proof.Address.Value, ct), linkedUserId);
+
+        if (resolved.Subject is LoginSubject.KnownAccount known
+            && !ExternalAddressMatch.IsSameAddress(known.AccountEmail, proof.Address.Value))
+        {
+            LogProvenAddressNotTheAccountsOwn(logger, known.UserId, method);
+            return NotThisAccountsAddress(registration);
+        }
+
+        if (resolved.IsLinkedElsewhere)
+        {
+            LogLinkedToAnotherAccount(logger, linkedUserId, method);
+            return NotThisAccountsAddress(registration);
+        }
+
+        return await DecideAsync(
+            resolved.Subject, method, registration, consent: null, linkBeforeSession: null,
+            SessionEvidence.BoundLink, ct);
+    }
+
+    /// <summary>
+    /// A verified code, and the pending link the same browser carried (ADR 0142 Amendment (16)). The pending link can
+    /// only add a link to what the code earns: unless the grant's address is the one the code proved, the code's own
+    /// outcome stands and nothing is linked.
+    /// </summary>
+    public async Task<LoginOutcome> ResolveCodeBoundLinkAsync(
+        LoginChallengeProof code, GrantSubject.PendingExternalLink pending, CancellationToken ct)
+    {
+        if (!ExternalAddressMatch.IsSameAddress(code.ProvenEmail, pending.Address.Value))
+        {
+            LogPendingLinkNotBound(logger, PendingLinkNotBound.AddressMismatch, pending.Provider.Value);
+            return await ResolveAsync(code, LoginMethod.Code, ct);
+        }
+
+        return await BindByCodeAsync(code.ProvenEmail, pending.Provider, pending.Subject, ct);
+    }
+
+    /// <summary>
+    /// The terms accepted for an address a code proved while a provider login waited (ADR 0142 Amendment (16)): the
+    /// account <c>complete</c> just opened, or whatever the address resolves to now.
+    /// </summary>
+    public Task<LoginOutcome> ResolveCodeBoundLinkAsync(
+        GrantSubject.LoginCompleteWithLink completed, CancellationToken ct) =>
+        BindByCodeAsync(completed.ProvenEmail, completed.Provider, completed.Subject, ct);
+
+    // The code proved the inbox, so it earns what a code earns; the link rides on it only where it can be added. An
+    // identifier another account holds is never moved, and a link lost to another account meanwhile costs the link,
+    // never the session the code earned.
+    private async Task<LoginOutcome> BindByCodeAsync(
+        string provenEmail, ExternalProviderKey provider, ExternalSubject externalSubject, CancellationToken ct)
+    {
+        var registration = Registration();
+        var subject = await subjects.ResolveAsync(provenEmail, ct);
+
+        if (subject is LoginSubject.KnownAccount known
+            && !string.Equals(known.AccountEmail, provenEmail, StringComparison.Ordinal))
+        {
+            LogProvenAddressNotTheAccountsOwn(logger, known.UserId, LoginMethod.Code);
+            return NotThisAccountsAddress(registration);
+        }
+
+        var linkedUserId = await subjects.FindLinkedUserIdAsync(provider, externalSubject, ct);
+        if (new ExternalLoginSubject(subject, linkedUserId).IsLinkedElsewhere)
+        {
+            LogPendingLinkNotBound(logger, PendingLinkNotBound.LinkedElsewhere, provider.Value);
+            return await DecideAsync(
+                subject, LoginMethod.Code, registration, new GrantSubject.LoginComplete(provenEmail),
+                linkBeforeSession: null, SessionEvidence.InboxProven, ct);
+        }
+
+        var link = linkedUserId is null
+            ? new LinkBeforeSession(provider, externalSubject, SessionSurvivesLoss: true)
+            : null;
+
+        return await DecideAsync(
+            subject, LoginMethod.Code, registration,
+            new GrantSubject.LoginCompleteWithLink(provenEmail, provider, externalSubject), link,
+            SessionEvidence.InboxProven, ct);
     }
 
     private async Task<LoginOutcome> DecideAsync(
@@ -78,10 +172,12 @@ public sealed partial class LoginProofOutcome(
         LoginMethod method,
         RegistrationState registration,
         GrantSubject? consent,
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
+        LinkBeforeSession? linkBeforeSession,
+        SessionEvidence evidence,
         CancellationToken ct) => (subject, registration) switch
         {
-            (LoginSubject.Active active, _) => await SignInAsync(active, method, registration, linkBeforeSession, ct),
+            (LoginSubject.Active active, _) =>
+                await SignInAsync(active, method, registration, linkBeforeSession, evidence, ct),
             (LoginSubject.PendingDeletion pending, _) =>
                 new LoginOutcome.PendingDeletion(AccountRestoreWindow.PermanentDeletionEarliest(pending.DeletedAt)),
 
@@ -105,17 +201,25 @@ public sealed partial class LoginProofOutcome(
         LoginSubject.Active active,
         LoginMethod method,
         RegistrationState registration,
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
+        LinkBeforeSession? linkBeforeSession,
+        SessionEvidence evidence,
         CancellationToken ct)
     {
-        // The link commits before the session, so a link another account won in the meantime opens none.
-        if (linkBeforeSession is not null && !await linkBeforeSession(active, ct))
+        // The link commits before the session. A link another account won in the meantime costs a provider's own proof
+        // its session; a code earned its session itself, so there it costs only the link.
+        if (linkBeforeSession is { } link
+            && !await externalLogins.LinkAsync(active.UserId, link.Provider, link.Subject, ct))
         {
-            LogLinkLostToAnotherAccount(logger, active.UserId, method);
-            return NotThisAccountsAddress(registration);
+            if (!link.SessionSurvivesLoss)
+            {
+                LogLinkLostToAnotherAccount(logger, active.UserId, method);
+                return NotThisAccountsAddress(registration);
+            }
+
+            LogPendingLinkNotBound(logger, PendingLinkNotBound.LinkLost, link.Provider.Value);
         }
 
-        return new LoginOutcome.SignedIn((await grant.GrantAsync(active, method, ct)).SessionId);
+        return new LoginOutcome.SignedIn((await grant.GrantAsync(active, method, evidence, ct)).SessionId);
     }
 
     private RegistrationState Registration() =>
@@ -143,4 +247,19 @@ public sealed partial class LoginProofOutcome(
     [LoggerMessage(1025, LogLevel.Warning,
         "Login proof refused: another account linked the provider login first ({UserId}, {LoginMethod})")]
     private static partial void LogLinkLostToAnotherAccount(ILogger logger, Guid userId, LoginMethod loginMethod);
+
+    // #1745 — the closed cause and the provider only: never the identifier, the address or an account id.
+    [LoggerMessage(1029, LogLevel.Warning,
+        "Pending provider link not bound; the code's own outcome stands (Cause={Cause}, Provider={Provider})")]
+    private static partial void LogPendingLinkNotBound(ILogger logger, PendingLinkNotBound cause, string provider);
+
+    private enum PendingLinkNotBound
+    {
+        AddressMismatch,
+        LinkedElsewhere,
+        LinkLost,
+    }
+
+    // The provider login a session links first, and whether losing it to another account costs the session.
+    private sealed record LinkBeforeSession(ExternalProviderKey Provider, ExternalSubject Subject, bool SessionSurvivesLoss);
 }

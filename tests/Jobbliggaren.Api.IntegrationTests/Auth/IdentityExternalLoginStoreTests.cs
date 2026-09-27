@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,6 +100,60 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         row.LoginProvider.ShouldBe("google");
         row.ProviderKey.ShouldBe(subject.Reveal());
         row.ProviderDisplayName.ShouldBeNull();
+    }
+
+    // ── #1745: GitHub's rows beside Google's ──
+    // GitHub's identifier is the production adapter's (GitHubIdentities over a documented /user): the numeric id.
+
+    private static async Task<ExternalSubject> GitHubSubjectAsync() =>
+        (await GitHubIdentities.ReadAsync(
+            GitHubApiShapes.User(Random.Shared.NextInt64(1_000_000, 1L << 53), "store-gh"),
+            GitHubApiShapes.Emails.PrimaryVerified("store@example.se"))).Subject;
+
+    [Fact]
+    public async Task A_github_login_is_stored_under_githubs_key_and_found_by_it()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var subject = await GitHubSubjectAsync();
+
+        (await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.GitHub, subject, Ct)).ShouldBe(userId);
+        var row = await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
+            .AsNoTracking()
+            .SingleAsync(l => l.UserId == userId, Ct);
+        row.LoginProvider.ShouldBe("github");
+        row.ProviderKey.ShouldBe(subject.Reveal());
+        row.ProviderDisplayName.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_github_login_is_not_found_under_another_providers_key_with_the_same_identifier()
+    {
+        // DECLARED: no Google sub is known to equal a GitHub id, though both are decimal strings. The row asserts only
+        // that the lookup keys on the provider as well as the identifier, so such a collision could never cross over.
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var subject = await GitHubSubjectAsync();
+        await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, subject, Ct);
+
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task One_account_holds_a_google_login_and_a_github_login_side_by_side()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var google = NewSubject();
+        var github = await GitHubSubjectAsync();
+
+        (await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, google, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, github, Ct)).ShouldBe(ExternalLinkResult.Linked);
+
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, google, Ct)).ShouldBe(userId);
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.GitHub, github, Ct)).ShouldBe(userId);
     }
 
     // ── A link another request makes past this store's read (code-reviewer Major 2, test-writer Minor 4) ──

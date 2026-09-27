@@ -4,7 +4,6 @@ using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.Options;
-using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
@@ -13,7 +12,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
 /// #1744 (ADR 0142 D8) — the Google adapter against <see cref="ScriptedGoogle"/>: the authorization URL, the token
 /// request, the userinfo read, the authority rule, the failure answers and what reaches the log. The rows follow the
 /// 6a form round's table (test-writer 11b); a shape Google does not document is declared as such and asserts only
-/// that the adapter refuses it.
+/// that the adapter refuses it. Since #1745 the exchange ends in a closed result (ADR 0142 Amendment (16)): identified
+/// with an authoritative address, the address refused, or failed.
 /// </summary>
 public sealed class GoogleIdentityProviderTests : IDisposable
 {
@@ -32,28 +32,27 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     private readonly RecordingLogger<GoogleIdentityProvider> _logger = new();
     private readonly PkceVerifier _verifier = PkceVerifier.Generate();
 
-    private GoogleIdentityProvider CreateSut(Uri? siteBase = null)
-    {
-        var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(GoogleIdentityProvider.HttpClientName)
-            .Returns(_ => new HttpClient(_google, disposeHandler: false));
-
-        return new GoogleIdentityProvider(
-            factory,
+    private GoogleIdentityProvider CreateSut(Uri? siteBase = null) =>
+        new(
+            new NamedClientFactory(GoogleIdentityProvider.HttpClientName, _google),
             Options.Create(new GoogleOAuthOptions { ClientId = ClientId, ClientSecret = ClientSecret }),
             new ExternalLoginCallbacks(siteBase ?? SiteBase),
             _logger);
-    }
 
     public void Dispose() => _google.Dispose();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private Task<ExternalIdentity?> ExchangeAsync(string userInfoJson)
+    private Task<ExternalExchange> ExchangeAsync(string userInfoJson)
     {
         _google.Expect(Code, userInfoJson, _verifier.ToChallenge().Value, RedirectUri);
         return CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct);
     }
+
+    // #1745 — Google's address is the authoritative strength, never the asserted one.
+    private static VerifiedEmail AuthoritativeAddress(ExternalExchange exchange) =>
+        exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Address
+            .ShouldBeOfType<ExternalAddress.Authoritative>().Email;
 
     // ---------- the authorization URL ----------
 
@@ -96,9 +95,9 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [Fact]
     public async Task ExchangeAsync_ShouldPostTheCodeAndVerifierInTheBodyAndReadUserInfoWithTheBearer_WhenGoogleAccepts()
     {
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna.berg"));
+        var exchange = await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna.berg"));
 
-        identity.ShouldNotBeNull();
+        exchange.ShouldBeOfType<ExternalExchange.Identified>();
         _google.Requests.Count.ShouldBe(2);
 
         var token = _google.Requests[0];
@@ -123,38 +122,40 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [Fact]
     public async Task ExchangeAsync_ShouldVerifyTheAddress_WhenTheAccountIsGmail()
     {
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna.berg"));
+        var exchange = await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna.berg"));
 
-        identity!.Provider.ShouldBe(ExternalProviderKey.Google);
+        var identity = exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity;
+        identity.Provider.ShouldBe(ExternalProviderKey.Google);
         identity.Subject.Reveal().ShouldBe(Sub);
-        identity.Email!.Value.ShouldBe("anna.berg@gmail.com");
+        AuthoritativeAddress(exchange).Value.ShouldBe("anna.berg@gmail.com");
     }
 
     [Fact]
     public async Task ExchangeAsync_ShouldVerifyTheAddress_WhenTheAccountIsWorkspace()
     {
-        var identity = await ExchangeAsync(
+        var exchange = await ExchangeAsync(
             GoogleUserInfoShapes.Workspace(Sub, "anna@firma.example", hostedDomain: "firma.example"));
 
-        identity!.Email!.Value.ShouldBe("anna@firma.example");
+        AuthoritativeAddress(exchange).Value.ShouldBe("anna@firma.example");
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldKeepTheIdentityButNotTheAddress_WhenGoogleIsNotAuthoritativeForIt()
+    public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenGoogleIsNotAuthoritativeForIt()
     {
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.ThirdPartyVerified(Sub, "anna@outlook.example"));
+        // #1745: the refusal has one representation, the closed result's member the callback answers 400.
+        var exchange = await ExchangeAsync(GoogleUserInfoShapes.ThirdPartyVerified(Sub, "anna@outlook.example"));
 
-        identity!.Subject.Reveal().ShouldBe(Sub);
-        identity.Email.ShouldBeNull();
-        _logger.Records.ShouldContain(r => r.EventId.Id == 1023 && r.Message.Contains("NotAuthoritative"));
+        exchange.ShouldBeOfType<ExternalExchange.AddressRefused>();
+        _logger.Records.ShouldContain(r => r.EventId.Id == 1023 && r.Message.Contains("NotAuthoritative")
+                                           && r.Message.Contains("Provider=google"));
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldNotVerifyTheAddress_WhenGoogleHasNotVerifiedIt()
+    public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenGoogleHasNotVerifiedIt()
     {
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.Unverified(Sub, "anna.berg@gmail.com"));
+        var exchange = await ExchangeAsync(GoogleUserInfoShapes.Unverified(Sub, "anna.berg@gmail.com"));
 
-        identity!.Email.ShouldBeNull();
+        exchange.ShouldBeOfType<ExternalExchange.AddressRefused>();
         _logger.Records.ShouldContain(r => r.EventId.Id == 1023 && r.Message.Contains("False"));
     }
 
@@ -163,12 +164,11 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [InlineData("anna@notgmail.com")]
     [InlineData("anna@evilgmail.com")]
     [InlineData("anna@googlemail.com")]
-    public async Task ExchangeAsync_ShouldNotVerifyTheAddress_WhenItOnlyLooksLikeGmail(string address)
+    public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenItOnlyLooksLikeGmail(string address)
     {
         // Reachable: anyone can open a Google account on an address they hold. Google's rule names gmail.com alone.
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.ThirdPartyVerified(Sub, address));
-
-        identity!.Email.ShouldBeNull();
+        (await ExchangeAsync(GoogleUserInfoShapes.ThirdPartyVerified(Sub, address)))
+            .ShouldBeOfType<ExternalExchange.AddressRefused>();
     }
 
     // ---------- declared unreachable: shapes Google does not document; only the refusal is asserted ----------
@@ -185,9 +185,8 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenTheShapeIsOneGoogleDoesNotDocument(
         string userInfoJson, string cause)
     {
-        var identity = await ExchangeAsync(userInfoJson);
+        (await ExchangeAsync(userInfoJson)).ShouldBeOfType<ExternalExchange.AddressRefused>();
 
-        identity!.Email.ShouldBeNull();
         _logger.Records.ShouldContain(r => r.EventId.Id == 1023 && r.Message.Contains(cause));
     }
 
@@ -196,57 +195,62 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [InlineData("""{"sub":"","email":"anna@gmail.com","email_verified":true}""")]
     [InlineData("""{"sub":12345,"email":"anna@gmail.com","email_verified":true}""")]
     [InlineData("""[]""")]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheSubjectIsMissingOrUnusable(string userInfoJson)
+    public async Task ExchangeAsync_ShouldFail_WhenTheSubjectIsMissingOrUnusable(string userInfoJson)
     {
-        (await ExchangeAsync(userInfoJson)).ShouldBeNull();
+        (await ExchangeAsync(userInfoJson)).ShouldBeOfType<ExternalExchange.Failed>();
         _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("SubjectUnusable"));
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheSubjectIsLongerThanOidcAllows()
+    public async Task ExchangeAsync_ShouldFail_WhenTheSubjectIsLongerThanOidcAllows()
     {
         var tooLong = new string('7', ExternalSubject.MaximumLength + 1);
 
-        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(tooLong, "anna"))).ShouldBeNull();
+        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(tooLong, "anna"))).ShouldBeOfType<ExternalExchange.Failed>();
     }
 
     // ---------- failures: one answer, one request per endpoint, no retry ----------
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNullAfterOneRequest_WhenTheCodeIsRefused()
+    public async Task ExchangeAsync_ShouldFailAfterOneRequest_WhenTheCodeIsRefused()
     {
         _google.TokenStatus = HttpStatusCode.BadRequest;
 
-        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct)).ShouldBeNull();
+        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
+            .ShouldBeOfType<ExternalExchange.Failed>();
 
         _google.Requests.Count.ShouldBe(1);
-        _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("TokenRefused"));
+        // #1745 (dotnet-architect N2): the template names the provider, so one EventId reads alike for every provider.
+        _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("TokenRefused")
+                                           && r.Message.Contains("Provider=google"));
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNullAfterOneRequest_WhenTheTokenEndpointFails()
+    public async Task ExchangeAsync_ShouldFailAfterOneRequest_WhenTheTokenEndpointFails()
     {
         _google.TokenStatus = HttpStatusCode.InternalServerError;
 
-        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct)).ShouldBeNull();
+        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
+            .ShouldBeOfType<ExternalExchange.Failed>();
 
         _google.Requests.Count.ShouldBe(1);
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheCodeIsUnknownOrTheVerifierDoesNotMatch()
+    public async Task ExchangeAsync_ShouldFail_WhenTheCodeIsUnknownOrTheVerifierDoesNotMatch()
     {
         _google.Expect(Code, GoogleUserInfoShapes.Gmail(Sub, "anna"), PkceVerifier.Generate().ToChallenge().Value);
 
-        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct)).ShouldBeNull();
+        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
+            .ShouldBeOfType<ExternalExchange.Failed>();
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNullAfterOneRequestEach_WhenUserInfoRefusesTheToken()
+    public async Task ExchangeAsync_ShouldFailAfterOneRequestEach_WhenUserInfoRefusesTheToken()
     {
         _google.UserInfoStatus = HttpStatusCode.Unauthorized;
 
-        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna"))).ShouldBeNull();
+        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna"))).ShouldBeOfType<ExternalExchange.Failed>();
 
         _google.Requests.Count.ShouldBe(2);
         _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("UserInfoRefused"));
@@ -255,29 +259,31 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [Theory]
     [InlineData("""{"token_type":"Bearer"}""")]
     [InlineData("<html>not json</html>")]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheTokenBodyIsNotGooglesShape(string body)
+    public async Task ExchangeAsync_ShouldFail_WhenTheTokenBodyIsNotGooglesShape(string body)
     {
         // Declared unreachable from Google itself; a middlebox or a captive portal can produce it.
         _google.TokenBody = body;
 
-        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna"))).ShouldBeNull();
+        (await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna"))).ShouldBeOfType<ExternalExchange.Failed>();
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheTransportFails()
+    public async Task ExchangeAsync_ShouldFail_WhenTheTransportFails()
     {
         _google.Throw = new HttpRequestException("scripted");
 
-        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct)).ShouldBeNull();
+        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
+            .ShouldBeOfType<ExternalExchange.Failed>();
         _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("Transport"));
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldAnswerNull_WhenTheClientTimesOutWithoutTheCallerCancelling()
+    public async Task ExchangeAsync_ShouldFail_WhenTheClientTimesOutWithoutTheCallerCancelling()
     {
         _google.Throw = new TaskCanceledException("scripted", new TimeoutException());
 
-        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct)).ShouldBeNull();
+        (await CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
+            .ShouldBeOfType<ExternalExchange.Failed>();
         _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("Timeout"));
     }
 

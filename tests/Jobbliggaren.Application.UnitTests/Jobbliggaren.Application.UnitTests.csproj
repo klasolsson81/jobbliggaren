@@ -84,5 +84,9 @@
     <Compile Include="..\Shared\ScriptedGoogle.cs" Link="Shared\ScriptedGoogle.cs" />
     <Compile Include="..\Shared\GoogleUserInfoShapes.cs" Link="Shared\GoogleUserInfoShapes.cs" />
     <Compile Include="..\Shared\GoogleIdentities.cs" Link="Shared\GoogleIdentities.cs" />
+    <Compile Include="..\Shared\NamedClientFactory.cs" Link="Shared\NamedClientFactory.cs" />
+    <Compile Include="..\Shared\ScriptedGitHub.cs" Link="Shared\ScriptedGitHub.cs" />
+    <Compile Include="..\Shared\GitHubApiShapes.cs" Link="Shared\GitHubApiShapes.cs" />
+    <Compile Include="..\Shared\GitHubIdentities.cs" Link="Shared\GitHubIdentities.cs" />
   </ItemGroup>
 </Project>

@@ -4,7 +4,7 @@
  */
 
 /** MIRROR of the backend `ExternalProviderKey.Known`: the only keys a route segment may carry. */
-export const EXTERNAL_PROVIDER_KEYS = ["google"] as const;
+export const EXTERNAL_PROVIDER_KEYS = ["google", "github"] as const;
 
 export type ExternalProviderKey = (typeof EXTERNAL_PROVIDER_KEYS)[number];
 
@@ -19,6 +19,7 @@ export const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
 /** The one URL each provider's authorization request may point at; a start answers nothing else. */
 export const AUTHORIZATION_ENDPOINTS: Readonly<Record<ExternalProviderKey, string>> = {
   google: "https://accounts.google.com/o/oauth2/v2/auth",
+  github: "https://github.com/login/oauth/authorize",
 };
 
 /** An `<a href>`, never a form and never `next/link`: a prefetch must not mint a flow. */

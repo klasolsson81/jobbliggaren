@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
@@ -60,6 +61,11 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldContain(d => d.ServiceType == typeof(IPasswordlessAccountCreator));
         services.ShouldContain(d => d.ServiceType == typeof(IInboxProofRecorder));
         services.ShouldContain(d => d.ServiceType == typeof(VolatileRedisConnection));
+
+        // #1745 (dotnet-architect N4): the gates both code paths share, and the provider path's use of them. The
+        // dispatcher they hand off to is Api-exclusive, so they are too.
+        services.ShouldContain(d => d.ServiceType == typeof(LoginChallengeAdmission));
+        services.ShouldContain(d => d.ServiceType == typeof(PendingLinkChallenge));
     }
 
     [Fact]
@@ -80,6 +86,8 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldNotContain(d => d.ServiceType == typeof(IPasswordlessAccountCreator));
         services.ShouldNotContain(d => d.ServiceType == typeof(IInboxProofRecorder));
         services.ShouldNotContain(d => d.ServiceType == typeof(VolatileRedisConnection));
+        services.ShouldNotContain(d => d.ServiceType == typeof(LoginChallengeAdmission));
+        services.ShouldNotContain(d => d.ServiceType == typeof(PendingLinkChallenge));
     }
 
     [Theory]

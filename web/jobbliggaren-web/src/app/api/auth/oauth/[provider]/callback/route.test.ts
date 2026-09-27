@@ -20,6 +20,10 @@ const STATE = "k3Qm9xZ0aB1cD2eF3gH4iJ5kL6mN7oP8qR9sT0uV1wX";
 const CODE = "4/0AVGzR1scripted-code";
 const GRANT = "grant-token-that-must-stay-in-a-strict-cookie";
 const SESSION = "session-id-that-must-stay-in-a-strict-cookie";
+const CHALLENGE = "challenge-id-that-must-stay-in-a-strict-cookie";
+const LINK_GRANT = "link-grant-that-must-stay-in-a-strict-cookie";
+const ECHO = "anna.github@example.com";
+const NOW = 1_800_000_000;
 
 function callback(
   query: Record<string, string>,
@@ -200,6 +204,78 @@ describe("the external login callback", () => {
     });
   });
 
+  // The api's `codeRequired` body: `AuthEndpoints`' `ExternalCodeRequiredBody`, which
+  // `CompleteExternalLoginCommandHandler` answers when GitHub's asserted address has no link yet. The api answers
+  // it for "github" once `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider` (#1745 PR 2) registers the
+  // adapter; in PR 1 no composition does.
+  describe("when a provider's address has no link yet", () => {
+    const codeRequired = { outcome: "codeRequired", challengeId: CHALLENGE, linkGrant: LINK_GRANT, email: ECHO };
+
+    beforeEach(() => vi.spyOn(Date, "now").mockReturnValue(NOW * 1000));
+    afterEach(() => vi.restoreAllMocks());
+
+    it("writes the code phase with its pending link into the strict flow cookie, and continues to the code step in the same document", async () => {
+      const fetchMock = backendAnswers(200, { ...codeRequired, next: "/cv" });
+
+      const response = await callback(ok, { provider: "github" });
+
+      expect(fetchMock.mock.calls[0]![0]).toBe("http://test-backend/api/v1/auth/oauth/github/callback");
+      expect(flowOf(response)).toEqual({
+        phase: "code",
+        challengeId: CHALLENGE,
+        email: ECHO,
+        next: "/cv",
+        sentAt: NOW,
+        via: "github",
+        linkGrant: LINK_GRANT,
+      });
+      const flow = setCookie(response, "__Host-jobbliggaren_login") ?? "";
+      expect(flow).toMatch(/SameSite=strict/i);
+      expect(flow).toMatch(/Max-Age=900/);
+      expect(flow).toMatch(/HttpOnly/);
+      expect(flow).toMatch(/Secure/);
+      expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await targetOf(response)).toBe("/logga-in/kod");
+      expectStateCookieCleared(response);
+    });
+
+    it("never writes the challenge id, the pending link or the address into the document", async () => {
+      backendAnswers(200, { ...codeRequired, next: "/cv" });
+
+      const html = await (await callback(ok, { provider: "github" })).text();
+
+      for (const secret of [CODE, STATE, CHALLENGE, LINK_GRANT, ECHO]) expect(html).not.toContain(secret);
+    });
+
+    // A flow started without a path: the api leaves `next` out, never sends it as null.
+    it("stores no path when the api echoes none", async () => {
+      backendAnswers(200, codeRequired);
+
+      const response = await callback(ok, { provider: "github" });
+
+      expect(flowOf(response)).toMatchObject({ phase: "code", next: "", via: "github", linkGrant: LINK_GRANT });
+    });
+
+    // Declared unreachable: `ExternalCodeRequiredBody` always carries all four members. Only safe degradation is
+    // asserted: a code phase without its pending link, or without its challenge, is never written.
+    it.each([
+      ["without its pending link", { outcome: "codeRequired", challengeId: CHALLENGE, email: ECHO }],
+      ["without its challenge id", { outcome: "codeRequired", linkGrant: LINK_GRANT, email: ECHO }],
+      ["without its address", { outcome: "codeRequired", challengeId: CHALLENGE, linkGrant: LINK_GRANT }],
+    ])("says the login was not completed on a code step %s", async (_, body) => {
+      backendAnswers(200, body);
+
+      const response = await callback(ok, { provider: "github" });
+
+      expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "github" });
+      expect(await targetOf(response)).toBe("/logga-in");
+      expectStateCookieCleared(response);
+    });
+  });
+
   describe("reaches no api", () => {
     it.each([
       ["no state cookie", ok, null],
@@ -232,7 +308,34 @@ describe("the external login callback", () => {
       expectStateCookieCleared(response);
     });
 
-    it.each(["..", "../challenge", "google/../x", "GOOGLE", "evil", "linkedin"])(
+    // The user cancelling on GitHub's authorization page: GitHub's own example redirect for `access_denied`
+    // (docs.github.com "Troubleshooting authorization request errors", read 2026-09-26), decoded.
+    it("when GitHub answers with an error, and shows nothing of it", async () => {
+      const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });
+
+      const response = await callback(
+        {
+          error: "access_denied",
+          error_description: "The user has denied your application access.",
+          error_uri:
+            "/apps/building-integrations/setting-up-and-registering-oauth-apps/troubleshooting-authorization-request-errors/#access-denied",
+          state: STATE,
+        },
+        { provider: "github" }
+      );
+      const html = await response.text();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      for (const shown of ["access_denied", "denied your application", "building-integrations", "troubleshooting", STATE]) {
+        expect(html).not.toContain(shown);
+      }
+      expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "github" });
+      expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
+      expectStateCookieCleared(response);
+    });
+
+    it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "linkedin"])(
       "for the segment %j, which is not a known key",
       async (provider) => {
         const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });

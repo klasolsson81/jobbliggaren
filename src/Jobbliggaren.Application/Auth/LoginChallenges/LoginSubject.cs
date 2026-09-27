@@ -85,6 +85,14 @@ public sealed class LoginSubjectResolver(
         new(await ResolveAsync(proof.Email.Value, ct),
             await externalLogins.FindUserIdAsync(proof.Provider, proof.Subject, ct));
 
+    /// <summary>
+    /// The account a provider's identifier is linked to, read without reading any account (ADR 0142 Amendment (16)):
+    /// a provider login with an asserted address asks this first, and without a link it reads nothing further.
+    /// </summary>
+    public Task<Guid?> FindLinkedUserIdAsync(
+        ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct) =>
+        externalLogins.FindUserIdAsync(provider, subject, ct);
+
     public async Task<LoginSubject> ResolveAsync(string email, CancellationToken ct)
     {
         if (await accounts.FindAccountAsync(email, ct) is not { } account)

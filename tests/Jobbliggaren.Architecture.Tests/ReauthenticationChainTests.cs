@@ -8,6 +8,7 @@ using Jobbliggaren.Application.Auth.Commands.RequestReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -52,14 +53,17 @@ public sealed class ReauthenticationChainTests
     {
         // The outcome function issues the LoginComplete grant, complete redeems it; the re-auth verify handler
         // issues the Reauthentication grant, the service redeems it; the change-email verify handler issues the
-        // ChangeEmail grant, confirm redeems it. Another consumer is a new grant path and is decided here, not
-        // discovered in production.
+        // ChangeEmail grant, confirm redeems it. Since #1745 the provider path without a link issues the pending-link
+        // grant (PendingLinkChallenge), and the code's verification redeems it (VerifyLoginChallengeCommandHandler).
+        // Another consumer is a new grant path and is decided here, not discovered in production.
         ConsumersOf(typeof(IGrantStore)).ShouldBe(
         [
             typeof(CompleteLoginChallengeCommandHandler).FullName!,
             typeof(ConfirmEmailChangeCommandHandler).FullName!,
             typeof(VerifyEmailChangeChallengeCommandHandler).FullName!,
+            typeof(VerifyLoginChallengeCommandHandler).FullName!,
             typeof(VerifyReauthenticationChallengeCommandHandler).FullName!,
+            typeof(PendingLinkChallenge).FullName!,
             typeof(LoginProofOutcome).FullName!,
             typeof(ReauthenticationService).FullName!,
         ]);

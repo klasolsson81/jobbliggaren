@@ -1,7 +1,12 @@
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Jobbliggaren.Api.Endpoints;
+using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Application.Common.Validation;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Shouldly;
 
@@ -24,6 +29,7 @@ public class ExternalLoginMirrorWireContractTests
     private const string AppRoot = "web/jobbliggaren-web/src/app";
     private const string ProvidersModule = "web/jobbliggaren-web/src/lib/api/oauth-providers.ts";
     private const string StartRouteModule = "web/jobbliggaren-web/src/app/api/auth/oauth/[provider]/start/route.ts";
+    private const string CallbackRouteModule = "web/jobbliggaren-web/src/app/api/auth/oauth/[provider]/callback/route.ts";
 
     [Fact]
     public void The_web_knows_exactly_the_backends_provider_keys()
@@ -41,10 +47,30 @@ public class ExternalLoginMirrorWireContractTests
                 CultureInfo.InvariantCulture)
             .ShouldBe((int)ExternalLoginPolicy.StateTtl.TotalMinutes, Hint(ExternalLoginModule));
 
+    // #1745 (test-writer Major 3): one row per key, so a misspelt endpoint for any provider is red, and every known
+    // key must have a row here (the completeness fact below).
+    private static readonly Dictionary<string, Uri> AdapterAuthorizationEndpoints = new(StringComparer.Ordinal)
+    {
+        ["google"] = GoogleIdentityProvider.AuthorizationEndpoint,
+        ["github"] = GitHubIdentityProvider.AuthorizationEndpoint,
+    };
+
+    public static TheoryData<string> KnownKeys() => new(ExternalProviderKey.Known.Select(key => key.Value));
+
+    [Theory]
+    [MemberData(nameof(KnownKeys))]
+    public void The_start_accepts_only_the_adapters_own_authorization_endpoint(string key) =>
+        Capture(ExternalLoginModule, $@"\bexport\s+const\s+AUTHORIZATION_ENDPOINTS[^=]*=\s*\{{[^}}]*\b{key}\s*:\s*""([^""]+)""")
+            .ShouldBe(AdapterAuthorizationEndpoints[key].AbsoluteUri, Hint(ExternalLoginModule));
+
     [Fact]
-    public void The_start_accepts_only_the_adapters_own_authorization_endpoint() =>
-        Capture(ExternalLoginModule, @"\bexport\s+const\s+AUTHORIZATION_ENDPOINTS[^=]*=\s*\{[^}]*\bgoogle\s*:\s*""([^""]+)""")
-            .ShouldBe(GoogleIdentityProvider.AuthorizationEndpoint.AbsoluteUri, Hint(ExternalLoginModule));
+    public void Every_known_key_has_an_authorization_endpoint_row() =>
+        AdapterAuthorizationEndpoints.Keys.ShouldBe(ExternalProviderKey.Known.Select(key => key.Value));
+
+    // "Authorizing OAuth apps", read 2026-09-26; the web's value is joined to this one above.
+    [Fact]
+    public void The_github_adapter_points_at_githubs_documented_authorize_endpoint() =>
+        GitHubIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://github.com/login/oauth/authorize");
 
     [Fact]
     public void The_callback_the_provider_returns_to_is_a_route_the_web_serves()
@@ -73,6 +99,33 @@ public class ExternalLoginMirrorWireContractTests
                 Capture(StartRouteModule, @"\bstate:\s*z\.string\(\)\.regex\(/\^\[A-Za-z0-9_-\]\{(\d+)\}\$/\)"),
                 CultureInfo.InvariantCulture)
             .ShouldBe(OAuthState.EncodedLength, Hint(StartRouteModule));
+
+    [Fact]
+    public void The_callback_reads_the_code_step_by_the_backends_own_wire_names()
+    {
+        // #1745 (dotnet-architect V6, R5): the web parses the callback's code step with its own schema, beside the
+        // outcome union verify, link and complete share. Its literal is the backend's WireName, its members are the
+        // body's spelled-out names (the path it echoes is read by its own schema), and the echoed address's bound is
+        // the one every stored address meets.
+        var schema = Capture(CallbackRouteModule, @"\bconst\s+codeRequiredSchema\s*=\s*z\.object\(\{(.*?)\}\)\s*;");
+        var body = typeof(AuthEndpoints).GetNestedType("ExternalCodeRequiredBody", BindingFlags.NonPublic)
+            .ShouldNotBeNull("AuthEndpoints.ExternalCodeRequiredBody was renamed; re-make this join deliberately.");
+        var wireNames = body.GetProperties()
+            .Select(property => property.GetCustomAttribute<JsonPropertyNameAttribute>()!.Name)
+            .ToList();
+
+        Regex.Match(schema, @"\boutcome\s*:\s*z\.literal\(""([^""]+)""\)").Groups[1].Value
+            .ShouldBe(ExternalLoginCompletion.CodeRequired.WireName, Hint(CallbackRouteModule));
+        Regex.Matches(schema, @"(\w+)\s*:").Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal)
+            .ShouldBe(wireNames.Where(name => name != "next").Order(StringComparer.Ordinal), Hint(CallbackRouteModule));
+        wireNames.ShouldContain("next");
+        Capture(CallbackRouteModule, @"\bconst\s+echoedNextSchema\s*=\s*z\.object\(\{\s*(\w+)\s*:")
+            .ShouldBe("next", Hint(CallbackRouteModule));
+        int.Parse(
+                Regex.Match(schema, @"\bemail\s*:\s*z\.string\(\)\.min\(1\)\.max\((\d+)\)").Groups[1].Value,
+                CultureInfo.InvariantCulture)
+            .ShouldBe(EmailAddressRules.MaximumLength, Hint(CallbackRouteModule));
+    }
 
     private static string Hint(string module) =>
         $"{module} re-types this value from the backend. Change both sides in the same PR.";

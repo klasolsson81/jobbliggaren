@@ -39,4 +39,11 @@ describe("OAuth callback inventory — an edge-log verdict per provider key", ()
   it("judges the two credentials the callback always carries", () => {
     expect(MUST_NOT_REACH).toEqual(expect.arrayContaining(["code", "state"]));
   });
+
+  // The keys the verdicts' header cites from GitHub's documentation (#1745).
+  it("judges every key GitHub documents on its callback", () => {
+    expect(Object.keys(EDGE_LOG_VERDICT)).toEqual(
+      expect.arrayContaining(["code", "state", "error", "error_description", "error_uri"])
+    );
+  });
 });

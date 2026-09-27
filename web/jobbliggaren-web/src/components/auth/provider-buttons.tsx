@@ -20,12 +20,22 @@ import { externalLoginStartHref, type ExternalProviderKey } from "@/lib/auth/ext
 const PROVIDERS = ["google", "linkedin", "github"] as const;
 
 /**
- * The provider's asset, byte-identical and with exactly one consumer: this file
- * (`provider-marks.test.ts`). Rendered 40x40 in a 20x20 window, so the asset's own frame falls
- * outside it by layout rather than by an edited file.
+ * Each provider's asset, byte-identical and with exactly one consumer: this file
+ * (`provider-marks.test.ts`), always in a 20x20 slot. Google's is rendered 40x40 in that window, so
+ * the asset's own frame falls outside it by layout rather than by an edited file; GitHub's has no
+ * frame and is fitted whole, never stretched out of its 294:288 ratio.
  */
-const MARKS: Readonly<Record<ExternalProviderKey, string>> = {
-  google: "/provider-marks/google-g-light-square-4x.png",
+const MARKS: Readonly<Record<ExternalProviderKey, { src: string; px: number; className: string }>> = {
+  google: {
+    src: "/provider-marks/google-g-light-square-4x.png",
+    px: 40,
+    className: "absolute -top-2.5 -left-2.5 h-10 w-10 max-w-none",
+  },
+  github: {
+    src: "/provider-marks/github-invertocat-black.png",
+    px: 20,
+    className: "size-5 object-contain",
+  },
 };
 
 export function ProviderButtons({
@@ -70,13 +80,13 @@ export function ProviderButtons({
                 <a href={externalLoginStartHref(live, next)} aria-describedby={describedBy}>
                   <span aria-hidden="true" className="relative size-5 shrink-0 overflow-hidden">
                     <Image
-                      src={MARKS[live]}
+                      src={MARKS[live].src}
                       alt=""
-                      width={40}
-                      height={40}
+                      width={MARKS[live].px}
+                      height={MARKS[live].px}
                       unoptimized
                       loading="eager"
-                      className="absolute -top-2.5 -left-2.5 h-10 w-10 max-w-none"
+                      className={MARKS[live].className}
                     />
                   </span>
                   <span>{t(`auth.passwordless.entry.providers.${live}`)}</span>

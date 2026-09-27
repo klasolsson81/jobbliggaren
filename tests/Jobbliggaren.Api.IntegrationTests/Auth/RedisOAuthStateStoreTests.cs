@@ -123,13 +123,14 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
     }
 
     /// <summary>
-    /// UNREACHABLE STATE in 6a, declared: a flow started for a provider this build does not know, or with no
-    /// verifier. Google is the only key, so no path in <c>src/</c> writes either; each record is written by hand
-    /// under the adapter's key and protector, and the test asserts only that the read refuses it AND spends it
-    /// (GETDEL before the compare). The mismatch between two known providers becomes reachable in 6b.
+    /// UNREACHABLE STATES, declared: a flow started for a provider this build does not know, or with no verifier.
+    /// The start handler writes a registered provider's own key and a verifier it always generates, so no path in
+    /// <c>src/</c> writes either; each record is written by hand under the adapter's key and protector, and the test
+    /// asserts only that the read refuses it AND spends it (GETDEL before the compare). The mismatch between two KNOWN
+    /// providers is reachable since #1745 and is the row below.
     /// </summary>
     [Fact]
-    public async Task A_flow_for_another_provider_or_without_a_verifier_is_refused_and_spent()
+    public async Task A_flow_for_an_unknown_provider_or_without_a_verifier_is_refused_and_spent()
     {
         var foreign = OAuthState.Generate();
         var noVerifier = OAuthState.Generate();
@@ -140,6 +141,41 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
         (await _store.TakeAsync(noVerifier, ExternalProviderKey.Google, Ct)).ShouldBeNull();
         (await _mux.GetDatabase().KeyExistsAsync(RedisOAuthStateStore.Key(foreign))).ShouldBeFalse();
         (await _mux.GetDatabase().KeyExistsAsync(RedisOAuthStateStore.Key(noVerifier))).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// #1745 (ADR 0142 Amendment (14) L801, test-writer Major 7, §3.6's store layer): a flow started for one known
+    /// provider, presented at the other's callback. Written with <see cref="RedisOAuthStateStore.PutAsync"/>, as the
+    /// start handler writes it; taken with the other provider's key, as the callback handler takes it for the provider
+    /// its route names. Kills "compare before GETDEL" (the second take would then succeed) and "no compare". A GitHub
+    /// flow and a take under GitHub's key need GitHub registered on the host: in 6b PR 1 only ApiFactory does that,
+    /// and the actor is AddGitHubIdentityProvider, 6b PR 2's gate.
+    /// </summary>
+    [Theory]
+    [InlineData("google", "github")]
+    [InlineData("github", "google")]
+    public async Task A_flow_started_for_one_provider_is_refused_at_the_others_callback_and_spent(
+        string startedFor, string presentedTo)
+    {
+        ExternalProviderKey.TryParse(startedFor, out var own).ShouldBeTrue();
+        ExternalProviderKey.TryParse(presentedTo, out var other).ShouldBeTrue();
+        var state = await _store.PutAsync(new OAuthFlow(own, PkceVerifier.Generate(), "/oversikt"), Ct);
+
+        (await _store.TakeAsync(state, other, Ct)).ShouldBeNull();
+        (await _store.TakeAsync(state, own, Ct)).ShouldBeNull();
+        (await _mux.GetDatabase().KeyExistsAsync(RedisOAuthStateStore.Key(state))).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("google")]
+    [InlineData("github")]
+    public async Task A_flow_is_handed_back_under_the_provider_it_was_started_for(string provider)
+    {
+        // The control for the row above: each known key round-trips, so a refusal there is the compare's.
+        ExternalProviderKey.TryParse(provider, out var key).ShouldBeTrue();
+        var state = await _store.PutAsync(new OAuthFlow(key, PkceVerifier.Generate(), "/oversikt"), Ct);
+
+        (await _store.TakeAsync(state, key, Ct)).ShouldNotBeNull().Provider.ShouldBe(key);
     }
 
     private async Task WriteByHandAsync(OAuthState state, object record)

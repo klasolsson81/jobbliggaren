@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
   const flow = await readLoginFlow();
   const robots = { index: false, follow: false };
-  if (flow?.phase === "outcome" && flow.via) {
+  if ((flow?.phase === "outcome" || flow?.phase === "code") && flow.via) {
     const provider = t(`auth.passwordless.external.providerNames.${flow.via}`);
     return { title: t("auth.passwordless.external.title", { provider }), robots };
   }
@@ -60,24 +60,39 @@ export default async function LoggaInKodPage() {
     );
   }
 
+  // Reached through a provider (#1745): the user typed no address, and only the code, never the
+  // mail's link, binds the provider to the account. So the step names the provider and says whose
+  // address this is, still without claiming that a mail was sent or to whom.
+  const provider = flow.via ? t(`auth.passwordless.external.providerNames.${flow.via}`) : null;
+
   // The three children keep their positions whichever arm renders, so `ResendCodeButton` keeps
   // its state (its receipt) across the re-render that brings the field back after a dead code.
   return (
     <div className="flex flex-col gap-8">
-      <FocusHeading>{t("auth.passwordless.code.title")}</FocusHeading>
+      <FocusHeading>
+        {provider === null
+          ? t("auth.passwordless.code.title")
+          : t("auth.passwordless.external.title", { provider })}
+      </FocusHeading>
 
       {flow.dead ? (
-        <DeadCodePanel reason={flow.dead} />
+        <DeadCodePanel reason={flow.dead} linksProvider={provider !== null} />
       ) : (
         <div className="flex flex-col gap-5">
-          <p className="text-body text-text-primary">{t("auth.passwordless.code.resting")}</p>
+          <p className="text-body text-text-primary">
+            {provider === null
+              ? t("auth.passwordless.code.resting")
+              : t("auth.passwordless.code.restingProvider", { provider })}
+          </p>
           <CodeForm />
         </div>
       )}
 
       <div className="flex flex-col gap-4 border-t border-border pt-8">
         <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
-          {t("auth.passwordless.code.youEntered", { email: flow.email })}
+          {provider === null
+            ? t("auth.passwordless.code.youEntered", { email: flow.email })
+            : t("auth.passwordless.code.providerAddress", { provider, email: flow.email })}
         </p>
         <ResendCodeButton
           sentAt={flow.sentAt}

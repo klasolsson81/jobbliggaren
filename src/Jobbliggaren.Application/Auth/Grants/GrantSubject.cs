@@ -13,6 +13,8 @@ public enum GrantPurpose
     Reauthentication = 2,
     ChangeEmail = 3,
     LoginCompleteExternal = 4,
+    PendingExternalLink = 5,
+    LoginCompleteWithLink = 6,
 }
 
 /// <summary>What a grant binds and carries (ADR 0142 D3). A closed set, one variant per purpose.</summary>
@@ -59,6 +61,27 @@ public abstract record GrantSubject
         VerifiedEmail ProvenEmail, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
     {
         public override GrantPurpose Purpose => GrantPurpose.LoginCompleteExternal;
+    }
+
+    /// <summary>
+    /// A provider login whose asserted address has no link yet, waiting for a code to that address (ADR 0142
+    /// Amendment (16), #1745). Held only by the browser that completed the provider's flow, and redeemed only after
+    /// a code verified there: it can add a link to what the code earns, never change what the code earns.
+    /// </summary>
+    public sealed record PendingExternalLink(
+        AssertedEmail Address, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
+    {
+        public override GrantPurpose Purpose => GrantPurpose.PendingExternalLink;
+    }
+
+    /// <summary>
+    /// A code proved an address with no account while a provider login waited to be linked to it (ADR 0142 Amendment
+    /// (16)): the terms are next, and the account is created on the address the CODE proved, with the link attached.
+    /// </summary>
+    public sealed record LoginCompleteWithLink(
+        string ProvenEmail, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
+    {
+        public override GrantPurpose Purpose => GrantPurpose.LoginCompleteWithLink;
     }
 }
 
@@ -119,7 +142,8 @@ public sealed record GrantAssertion
 
     private static bool IsBearerBound(GrantPurpose purpose) => purpose switch
     {
-        GrantPurpose.LoginComplete or GrantPurpose.LoginCompleteExternal => true,
+        GrantPurpose.LoginComplete or GrantPurpose.LoginCompleteExternal
+            or GrantPurpose.PendingExternalLink or GrantPurpose.LoginCompleteWithLink => true,
         _ => false,
     };
 }

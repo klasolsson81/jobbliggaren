@@ -142,7 +142,9 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         var budget = ExternalLoginPolicy.StartBudget;
         var live = budget.Limit * ((int)Math.Ceiling(ExternalLoginPolicy.StateTtl / budget.Window) + 1);
         var next = "/" + new string('&', ExternalLoginPolicy.MaxNextLength - 1);
-        new StartExternalLoginCommandValidator().Validate(new StartExternalLoginCommand("google", next)).IsValid
+        // #1745 (test-writer Minor 13): the longest key this build knows, so a longer provider key measures itself.
+        var provider = ExternalProviderKey.Known.MaxBy(key => key.Value.Length);
+        new StartExternalLoginCommandValidator().Validate(new StartExternalLoginCommand(provider.Value, next)).IsValid
             .ShouldBeTrue();
         var flows = new RedisOAuthStateStore(
             _connection, new EphemeralDataProtectionProvider(), NullLogger<RedisOAuthStateStore>.Instance);
@@ -152,7 +154,7 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         var before = await MemoryAsync(server, "used_memory");
 
         for (var i = 0; i < live; i++)
-            await flows.PutAsync(new OAuthFlow(ExternalProviderKey.Google, PkceVerifier.Generate(), next), Ct);
+            await flows.PutAsync(new OAuthFlow(provider, PkceVerifier.Generate(), next), Ct);
 
         var taken = await MemoryAsync(server, "used_memory") - before;
         var maxmemory = await MemoryAsync(server, "maxmemory");

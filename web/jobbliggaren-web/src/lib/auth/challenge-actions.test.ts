@@ -51,6 +51,12 @@ const liveCode: Extract<LoginFlow, { phase: "code" }> = {
   sentAt: NOW - 120,
 };
 const consent: LoginFlow = { phase: "consent", grantToken: "grant-1", next: "/cv" };
+// What the callback writes when the api answers `codeRequired` (`callback/route.test.ts` pins the write).
+const providerCode: Extract<LoginFlow, { phase: "code" }> = {
+  ...liveCode,
+  via: "github",
+  linkGrant: "link-grant-1",
+};
 
 const form = (fields: Record<string, string>): FormData => {
   const data = new FormData();
@@ -180,6 +186,18 @@ describe("requestCode", () => {
       expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
     });
 
+    it("keeps a provider's live code phase for its address (#1745)", async () => {
+      // Actor: the callback's codeRequired branch wrote this phase in this browser. The step it lands on names the
+      // provider and what the code does, so the binding is visible before the code is typed (design-reviewer, #1882).
+      mocks.readLoginFlow.mockResolvedValue(providerCode);
+
+      const result = await run(() => requestCode(null, form({ email: providerCode.email })));
+
+      expect(result.redirectedTo).toBe("/logga-in/kod");
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
+    });
+
     it("does NOT fold case: another spelling mints, because the backend's fold is not mirrored here", async () => {
       mocks.readLoginFlow.mockResolvedValue(liveCode);
       mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
@@ -239,6 +257,53 @@ describe("verifyCode", () => {
     expect(sentBody()).toEqual({ challengeId: "challenge-1", code: "123456" });
   });
 
+  it("sends the pending link a provider left beside the challenge id and the code", async () => {
+    mocks.readLoginFlow.mockResolvedValue(providerCode);
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "accountUnavailable" }));
+
+    await run(() => verifyCode(null, form({ code: "123456" })));
+
+    expect(sentBody()).toEqual({ challengeId: "challenge-1", code: "123456", linkGrant: "link-grant-1" });
+  });
+
+  it.each<[string, LoginFlow, object]>([
+    ["a flow without one", liveCode, { challengeId: "challenge-1", code: "123456" }],
+    ["a provider's flow", providerCode, { challengeId: "challenge-1", code: "123456", linkGrant: "link-grant-1" }],
+  ])("never takes a pending link from the form, for %s", async (_label, flow, sent) => {
+    mocks.readLoginFlow.mockResolvedValue(flow);
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "accountUnavailable" }));
+
+    await run(() => verifyCode(null, form({ code: "123456", linkGrant: "forged" })));
+
+    expect(sentBody()).toEqual(sent);
+  });
+
+  // The api answers `consentRequired` to a code bound to a pending link when the address has no account yet
+  // (`VerifyLoginChallengeCommandHandler`, #1745). The code proved the address, so the terms step says so.
+  it("moves a provider's new address to the consent step WITHOUT the provider, the pending link or the address", async () => {
+    mocks.readLoginFlow.mockResolvedValue(providerCode);
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "consentRequired", grantToken: "grant-9" }));
+
+    const result = await run(() => verifyCode(null, form({ code: "123456" })));
+
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({
+      phase: "consent",
+      grantToken: "grant-9",
+      next: "/ansokningar",
+    });
+    expect(result.redirectedTo).toBe("/logga-in/villkor");
+  });
+
+  it("keeps the pending link on a dead code, so a new code can still bind it", async () => {
+    mocks.readLoginFlow.mockResolvedValue(providerCode);
+    mocks.fetch.mockResolvedValue(problem(410, "Auth.LoginCodeExpired"));
+
+    const result = await run(() => verifyCode(null, form({ code: "123456" })));
+
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({ ...providerCode, dead: "expired" });
+    expect(result.redirectedTo).toBe("/logga-in/kod");
+  });
+
   it("logs in: a persistent session, the flow cookie gone, and the cookie's next", async () => {
     mocks.fetch.mockResolvedValue(json(200, { outcome: "signedIn", sessionId: "session-1" }));
 
@@ -284,6 +349,22 @@ describe("verifyCode", () => {
 
     expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({ phase: "outcome", result: body });
     expect(mocks.setSessionCookie).not.toHaveBeenCalled();
+    expect(result.redirectedTo).toBe("/logga-in/kod");
+  });
+
+  it("keeps the provider on the outcome after a provider's code, and never its grant (#1745, design Minor 1)", async () => {
+    // Actor: the callback's codeRequired branch wrote this code phase (pinned in callback/route.test.ts). `via` is
+    // display only: it keeps the step's heading, and the code's own outcome is what is stored.
+    mocks.readLoginFlow.mockResolvedValue(providerCode);
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "registrationClosed" }));
+
+    const result = await run(() => verifyCode(null, form({ code: "123456" })));
+
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({
+      phase: "outcome",
+      result: { outcome: "registrationClosed" },
+      via: "github",
+    });
     expect(result.redirectedTo).toBe("/logga-in/kod");
   });
 
@@ -384,6 +465,25 @@ describe("resendCode", () => {
     });
   });
 
+  it("keeps a provider's pending link on the fresh code phase, and sends the api only the address", async () => {
+    mocks.readLoginFlow.mockResolvedValue({ ...providerCode, dead: "burned" });
+    mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
+
+    const result = await run(() => resendCode());
+
+    expect(result).toEqual({ state: { status: "sent" } });
+    expect(sentBody()).toEqual({ email: "anna@example.com" });
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({
+      phase: "code",
+      challengeId: "challenge-2",
+      email: "anna@example.com",
+      next: "/ansokningar",
+      sentAt: NOW,
+      via: "github",
+      linkGrant: "link-grant-1",
+    });
+  });
+
   it.each<[string, LoginFlow]>([
     ["a live code", { ...liveCode, sentAt: NOW - 59 }],
     ["a burned code", { ...liveCode, sentAt: NOW - 10, dead: "burned" }],
@@ -445,6 +545,30 @@ describe("changeEmail", () => {
     expect(mocks.writeLoginFlow).toHaveBeenCalledWith(
       expect.objectContaining({ challengeId: "challenge-2", email: liveCode.email })
     );
+  });
+});
+
+describe("changeEmail with a provider's pending link", () => {
+  it("drops the link with the address: the next code for the same address carries neither provider nor link", async () => {
+    let cookie: LoginFlow | null = providerCode;
+    mocks.readLoginFlow.mockImplementation(async () => cookie);
+    mocks.clearLoginFlow.mockImplementationOnce(async () => {
+      cookie = null;
+    });
+    mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
+
+    await run(() => changeEmail());
+    await run(() => requestCode(null, form({ email: providerCode.email })));
+
+    expect(mocks.clearLoginFlow).toHaveBeenCalledTimes(1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({
+      phase: "code",
+      challengeId: "challenge-2",
+      email: providerCode.email,
+      next: expect.any(String),
+      sentAt: NOW,
+    });
   });
 });
 

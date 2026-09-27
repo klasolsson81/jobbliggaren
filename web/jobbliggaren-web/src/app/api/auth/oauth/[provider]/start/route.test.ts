@@ -8,6 +8,10 @@ import { GET } from "./route";
 
 const STATE = "k3Qm9xZ0aB1cD2eF3gH4iJ5kL6mN7oP8qR9sT0uV1wX";
 const AUTHORIZE = `https://accounts.google.com/o/oauth2/v2/auth?client_id=x&state=${STATE}&code_challenge=c&code_challenge_method=S256`;
+// `GitHubIdentityProvider.BuildAuthorizeUrl`'s shape. The api answers it for "github" once
+// `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider` (#1745 PR 2) registers the adapter; in PR 1
+// no composition does. `ExternalLoginMirrorWireContractTests` binds the endpoint to the adapter's own.
+const GITHUB_AUTHORIZE = `https://github.com/login/oauth/authorize?client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Fgithub%2Fcallback&scope=user%3Aemail&state=${STATE}&code_challenge=c&code_challenge_method=S256`;
 
 function start(query = "", { provider = "google", headers = {} as Record<string, string> } = {}) {
   const request = new NextRequest(`http://localhost/api/auth/oauth/${provider}/start${query}`, {
@@ -81,7 +85,7 @@ describe("the external login start", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({ next: relayed });
   });
 
-  it.each(["..", "../challenge", "google/../x", "GOOGLE", "evil", "linkedin"])(
+  it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "linkedin"])(
     "sends the segment %j back to the login page without a request or a cookie",
     async (provider) => {
       const fetchMock = backendAnswers(200, { authorizeUrl: AUTHORIZE, state: STATE });
@@ -141,6 +145,39 @@ describe("the external login start", () => {
     expect(response.headers.get("location")).toBe("/logga-in");
     expect(setCookie(response, "__Host-jobbliggaren_oauth")).toBeUndefined();
     expect(noticeOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "google" });
+  });
+
+  it("sends the browser to GitHub's own endpoint through GitHub's own api route, with the same state cookie", async () => {
+    const fetchMock = backendAnswers(200, { authorizeUrl: GITHUB_AUTHORIZE, state: STATE });
+
+    const response = await start("?next=%2Fcv", { provider: "github" });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://test-backend/api/v1/auth/oauth/github/start");
+    expect(JSON.parse(String(init?.body))).toEqual({ next: "/cv" });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(GITHUB_AUTHORIZE);
+    const cookie = setCookie(response, "__Host-jobbliggaren_oauth") ?? "";
+    expect(cookie.startsWith(`__Host-jobbliggaren_oauth=${STATE};`)).toBe(true);
+    expect(cookie).toMatch(/Max-Age=600/);
+    expect(cookie).toMatch(/SameSite=lax/i);
+  });
+
+  // Declared unreachable: the api builds each provider's authorization request from that adapter's own endpoint
+  // (`GoogleIdentityProvider` / `GitHubIdentityProvider`). Only safe degradation is asserted: a start answers
+  // only its own provider's endpoint, never any known one.
+  it.each([
+    ["a GitHub start answered with Google's endpoint", "github", AUTHORIZE],
+    ["a Google start answered with GitHub's endpoint", "google", GITHUB_AUTHORIZE],
+  ] as const)("sends the browser back with its own provider's notice and no state cookie on %s", async (_, provider, authorizeUrl) => {
+    backendAnswers(200, { authorizeUrl, state: STATE });
+
+    const response = await start("", { provider });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/logga-in");
+    expect(setCookie(response, "__Host-jobbliggaren_oauth")).toBeUndefined();
+    expect(noticeOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider });
   });
 
   it("sends the browser back with a notice when the api cannot be reached", async () => {

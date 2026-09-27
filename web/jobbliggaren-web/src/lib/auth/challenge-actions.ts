@@ -167,7 +167,12 @@ export async function verifyCode(
 
   let res: Response;
   try {
-    res = await post("/challenge/verify", { challengeId: flow.challengeId, code: parsed.data });
+    // The pending link rides only when a provider left one; the code alone decides what is proven.
+    res = await post("/challenge/verify", {
+      challengeId: flow.challengeId,
+      code: parsed.data,
+      ...(flow.linkGrant === undefined ? {} : { linkGrant: flow.linkGrant }),
+    });
   } catch {
     return { error: t("auth.passwordless.errors.unavailable"), channel: "status" };
   }
@@ -211,7 +216,11 @@ export async function verifyCode(
     await writeLoginFlow({ phase: "consent", grantToken: outcome.grantToken, next: flow.next });
     redirect(CONSENT_STEP);
   }
-  await writeLoginFlow({ phase: "outcome", result: outcome });
+  await writeLoginFlow({
+    phase: "outcome",
+    result: outcome,
+    ...(flow.via === undefined ? {} : { via: flow.via }),
+  });
   redirect(CODE_STEP);
 }
 
@@ -253,12 +262,14 @@ export async function resendCode(): Promise<ResendState> {
 
   // The one state return that writes the cookie: the phase written is the phase the page is on,
   // so the re-render it causes lands on the same step (with `dead` gone and the cooldown restarted).
+  // A provider's pending link stays with the flow: the new code binds it as the first would have.
   await writeLoginFlow({
     phase: "code",
     challengeId,
     email: flow.email,
     next: flow.next,
     sentAt: nowEpochSeconds(),
+    ...(flow.via === undefined ? {} : { via: flow.via, linkGrant: flow.linkGrant }),
   });
   return { status: "sent" };
 }

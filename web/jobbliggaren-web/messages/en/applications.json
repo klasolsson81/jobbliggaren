@@ -120,12 +120,6 @@
       "dismissAriaLabel": "Dismiss the message"
     },
     "pipeline": {
-      "statusBarAriaLabel": "Status",
-      "all": "All",
-      "emptyTitle": "No applications in this status",
-      "emptyBody": "Select another tab or create a new application.",
-      "attentionTitle": "Needs action",
-      "sectionShownOfTotal": "showing {shown} of {total}",
       "showMore": "Show {count} more"
     },
     "queue": {

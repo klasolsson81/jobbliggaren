@@ -120,12 +120,6 @@
       "dismissAriaLabel": "Stäng meddelandet"
     },
     "pipeline": {
-      "statusBarAriaLabel": "Status",
-      "all": "Alla",
-      "emptyTitle": "Inga ansökningar i den här statusen",
-      "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
-      "attentionTitle": "Kräver åtgärd",
-      "sectionShownOfTotal": "visar {shown} av {total}",
       "showMore": "Visa {count} till"
     },
     "queue": {

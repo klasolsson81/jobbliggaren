@@ -68,9 +68,9 @@ import { JobAdTypeahead } from "./job-ad-typeahead";
  * - **Popover-val skrivs INTE in i texten** (CTO VAL 4a) — fältet visar det
  *   SKRIVNA; filter-raden visar allt.
  * - `router.replace` + `{scroll:false}` (E2h VAL 2 består); toolbar pushar.
- * - No-JS/pre-hydration: rått `<input name="q">`; efter hydration är synliga
- *   inputen NAMNLÖS (texten "Göteborg systemutvecklare" som q vore dubbel-
- *   filtrering) — hidden inputs bär de riktiga parametrarna.
+ * - No-JS/pre-hydration: samma fält, med `name="q"` och värdet q; efter
+ *   hydration är det NAMNLÖST (texten "Göteborg systemutvecklare" som q vore
+ *   dubbel-filtrering) — hidden inputs bär de riktiga parametrarna.
  */
 
 interface JobbHeroSearchProps {
@@ -375,6 +375,21 @@ export function JobbHeroSearch({
     }
   }
 
+  // #1787 — the server-rendered field shows `q` and is the same element once hydrated.
+  // React keeps what was typed into it, but the first hydrated render would write `text`
+  // over it. So it is adopted verbatim, with the claims the field showed as delta base:
+  // Sök applies exactly that edit and leaves the URL's other filters alone.
+  function adoptTypedText(typed: string) {
+    setText(typed);
+    setCaret(null);
+    setPrevClaims(parseSearchText(q, labelIndex, null));
+  }
+
+  function adoptTextTypedBeforeHydration(input: HTMLInputElement | null) {
+    if (!hydrated && input !== null && input.value !== q)
+      adoptTypedText(input.value);
+  }
+
   function onFieldChange(nextText: string, caretIndex: number | null) {
     setText(nextText);
     setCaret(caretIndex);
@@ -594,30 +609,22 @@ export function JobbHeroSearch({
         {t("heroSearch.fieldLabel")}
       </label>
       <div className="jp-hero__searchrow">
-        {hydrated ? (
-          <JobAdTypeahead
-            id="jobb-q"
-            value={text}
-            suggestQuery={suggestQuery}
-            onChange={onFieldChange}
-            onSelect={onSelectSuggestion}
-            selectOnTab
-            wrapperClassName="jp-hero__searchfield"
-            inputClassName="jp-hero__input"
-            ariaDescribedBy={notice ? `${helpId} ${noticeId}` : helpId}
-          />
-        ) : (
-          // Pre-hydration/no-JS: rått q-fält — native GET-submit bär hela
-          // söktexten som q (backend-parsern är SPOT och tål rå sträng).
-          <input
-            id="jobb-q"
-            name="q"
-            type="search"
-            defaultValue={q}
-            className="jp-hero__input"
-            aria-describedby={notice ? `${helpId} ${noticeId}` : helpId}
-          />
-        )}
+        {/* Pre-hydration/no-JS the field is named q, so a native GET carries what
+            is typed as q (the backend parser is the SPOT and takes a raw string). */}
+        <JobAdTypeahead
+          id="jobb-q"
+          name={hydrated ? undefined : "q"}
+          value={hydrated ? text : q}
+          inputRef={adoptTextTypedBeforeHydration}
+          combobox={hydrated}
+          suggestQuery={suggestQuery}
+          onChange={hydrated ? onFieldChange : adoptTypedText}
+          onSelect={onSelectSuggestion}
+          selectOnTab
+          wrapperClassName="jp-hero__searchfield"
+          inputClassName="jp-hero__input"
+          ariaDescribedBy={notice ? `${helpId} ${noticeId}` : helpId}
+        />
         {/* Kontrollerad ×-clear (E2j): ersätter native
             ::-webkit-search-cancel-button (suppress:ad i CSS) som bara
             rensade texten utan att committa en delta → filtren överlevde.

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
+import messages from "../../../messages/sv";
 import { JobbHeroSearch } from "./jobb-hero-search";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 
@@ -756,5 +759,125 @@ describe("JobbHeroSearch — no-JS bär Distans (#551 punkt 4)", () => {
   it("utan distans skrivs INGEN input (frånvaro = av, ren URL)", () => {
     const { container } = setup({ q: "volvo", remote: false });
     expect(container.querySelector('input[name="distans"]')).toBeNull();
+  });
+});
+
+// #1787 — the field is on screen and editable before React attaches to it. These cases
+// start from the server's markup, edit it the way a person does, and then hydrate it, so
+// the text's fate is decided by the component and not by how fast hydration happens.
+describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
+  type HeroProps = Parameters<typeof JobbHeroSearch>[0];
+
+  function heroProps(extra?: Partial<HeroProps>): HeroProps {
+    return {
+      taxonomy,
+      q: "",
+      occupationGroup: [],
+      region: [],
+      municipality: [],
+      remote: false,
+      employmentType: [],
+      worktimeExtent: [],
+      matchGrades: [],
+      employer: [],
+      sortBy: "PublishedAtDesc",
+      initialCommitted: false,
+      ...extra,
+    };
+  }
+
+  function serverRender(props: HeroProps) {
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <NextIntlClientProvider
+        locale="sv"
+        messages={messages}
+        timeZone="Europe/Stockholm"
+      >
+        <JobbHeroSearch {...props} />
+      </NextIntlClientProvider>,
+    );
+    document.body.appendChild(container);
+    const field = container.querySelector("#jobb-q");
+    if (!(field instanceof HTMLInputElement))
+      throw new Error("the server markup has no #jobb-q input");
+    return { container, field };
+  }
+
+  function hydrate(container: HTMLElement, props: HeroProps) {
+    render(<JobbHeroSearch {...props} />, { container, hydrate: true });
+  }
+
+  const submit = () =>
+    userEvent.setup().click(screen.getByRole("button", { name: /^Sök/ }));
+
+  it("keeps a term typed before hydration in the same field, and Sök searches it", async () => {
+    const props = heroProps();
+    const { container, field } = serverRender(props);
+    field.value = "backend";
+
+    hydrate(container, props);
+
+    expect(screen.getByRole("combobox")).toBe(field);
+    expect(field).toHaveValue("backend");
+    await submit();
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=backend&commit=true", {
+      scroll: false,
+    });
+  });
+
+  it("keeps the URL's filters when the server-rendered q was edited", async () => {
+    const props = heroProps({ q: "java", municipality: ["PVZL_BQT_XtL"] });
+    const { container, field } = serverRender(props);
+    expect(field).toHaveValue("java");
+    field.value = "java backend";
+
+    hydrate(container, props);
+
+    expect(screen.getByRole("combobox")).toHaveValue("java backend");
+    await submit();
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/jobb?municipality=PVZL_BQT_XtL&q=java+backend&commit=true",
+      { scroll: false },
+    );
+  });
+
+  it("shows the search's mirror once hydrated when nothing was typed", () => {
+    const props = heroProps({ q: "volvo", municipality: ["PVZL_BQT_XtL"] });
+    const { container, field } = serverRender(props);
+
+    hydrate(container, props);
+
+    expect(screen.getByRole("combobox")).toBe(field);
+    expect(field).toHaveValue("Göteborg volvo");
+  });
+
+  it("carries q in exactly one field before and after hydration", () => {
+    const props = heroProps({ q: "volvo" });
+    const { container, field } = serverRender(props);
+    expect(container.querySelectorAll('[name="q"]')).toHaveLength(1);
+    expect(field).toHaveAttribute("name", "q");
+
+    hydrate(container, props);
+
+    expect(field).not.toHaveAttribute("name");
+    const qFields = container.querySelectorAll('[name="q"]');
+    expect(qFields).toHaveLength(1);
+    expect(qFields[0]).toHaveAttribute("type", "hidden");
+    expect(qFields[0]).toHaveValue("volvo");
+  });
+
+  it("is a plain search field before hydration and becomes the combobox in place", () => {
+    const props = heroProps();
+    const { container, field } = serverRender(props);
+    expect(field).toHaveAttribute("type", "search");
+    expect(field).not.toHaveAttribute("role");
+    expect(field).not.toHaveAttribute("aria-expanded");
+    expect(field).not.toHaveAttribute("aria-controls");
+
+    hydrate(container, props);
+
+    expect(field).toHaveAttribute("role", "combobox");
+    expect(field).toHaveAttribute("aria-expanded", "false");
   });
 });

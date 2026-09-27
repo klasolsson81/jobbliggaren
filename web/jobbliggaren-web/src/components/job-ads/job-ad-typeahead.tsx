@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { useTranslations } from "next-intl";
 import {
   SUGGEST_MIN_PREFIX,
@@ -24,6 +24,12 @@ interface JobAdTypeaheadProps {
   onSelect: (suggestion: SuggestionDto) => void;
   /** `name` på inputen (no-JS GET-form-fältet — föräldern bär en `<form>`). */
   name?: string;
+  inputRef?: Ref<HTMLInputElement>;
+  /**
+   * false renders a plain search field without the combobox semantics, for markup
+   * that is on screen before any popup can open (the server render). Default true.
+   */
+  combobox?: boolean;
   /**
    * E2h (Klas-spec): Tab väljer det markerade förslaget ("tabba-klart")
    * i stället för fokus-flytt. Medvetet WAI-ARIA APG-avsteg, mitigerat:
@@ -75,6 +81,8 @@ export function JobAdTypeahead({
   onChange,
   onSelect,
   name,
+  inputRef,
+  combobox = true,
   selectOnTab,
   suggestQuery,
   inputClassName,
@@ -258,18 +266,19 @@ export function JobAdTypeahead({
       }}
     >
       <input
+        ref={inputRef}
         id={id}
         name={name}
         type="search"
         inputMode="search"
         autoComplete="off"
         className={inputClassName}
-        role="combobox"
-        aria-expanded={showList}
-        aria-controls={listId}
-        aria-autocomplete="list"
+        role={combobox ? "combobox" : undefined}
+        aria-expanded={combobox ? showList : undefined}
+        aria-controls={combobox ? listId : undefined}
+        aria-autocomplete={combobox ? "list" : undefined}
         aria-activedescendant={
-          showList && active >= 0 ? optionId(active) : undefined
+          combobox && showList && active >= 0 ? optionId(active) : undefined
         }
         aria-invalid={ariaInvalid ? true : undefined}
         aria-describedby={

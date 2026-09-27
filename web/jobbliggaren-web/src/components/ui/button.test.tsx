@@ -10,12 +10,12 @@ const ICON_STEPS = SIZES.filter((size) => size.startsWith("icon"));
 const classesOf = (el: HTMLElement) => el.className.split(/\s+/);
 
 describe("Button touch floor (DESIGN.md §5)", () => {
-  it.each(SIZES)("size %s is at least 44 px tall at ≤768 px", (size) => {
+  it.each(SIZES)("size %s carries the ≤768 px min-height floor", (size) => {
     render(<Button size={size}>Spara</Button>);
     expect(classesOf(screen.getByRole("button"))).toContain(FLOOR_H);
   });
 
-  it.each(ICON_STEPS)("icon step %s is at least 44 px wide at ≤768 px", (size) => {
+  it.each(ICON_STEPS)("icon step %s carries the ≤768 px min-width floor", (size) => {
     render(<Button size={size} aria-label="Stäng" />);
     expect(classesOf(screen.getByRole("button"))).toContain(FLOOR_W);
   });

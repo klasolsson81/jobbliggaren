@@ -88,7 +88,7 @@ describe("followUpOutcomeLabel", () => {
   it("uses civic-utility Swedish copy without exclamation or emoji", () => {
     expect(followUpOutcomeLabel(t, "Pending")).toBe("Inväntar svar");
     expect(followUpOutcomeLabel(t, "Responded")).toBe("Svar mottaget");
-    expect(followUpOutcomeLabel(t, "NoResponse")).toBe("Inget svar");
+    expect(followUpOutcomeLabel(t, "NoResponse")).toBe("Inget svar mottaget");
     for (const outcome of followUpOutcomeSchema.options) {
       expect(followUpOutcomeLabel(t, outcome)).not.toMatch(/[!]/);
     }

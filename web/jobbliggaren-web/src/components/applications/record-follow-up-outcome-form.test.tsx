@@ -63,11 +63,20 @@ vi.mock("@/components/ui/select", () => ({
     >
       <option value="">Välj utfall</option>
       <option value="Responded">Svar mottaget</option>
-      <option value="NoResponse">Inget svar</option>
+      <option value="NoResponse">Inget svar mottaget</option>
     </select>
   ),
-  SelectContent: () => null,
-  SelectItem: () => null,
+  // The items render as a plain list, so a test can read the labels the form gives them.
+  SelectContent: ({ children }: { children: React.ReactNode }) => (
+    <ul data-testid="outcome-items">{children}</ul>
+  ),
+  SelectItem: ({
+    value,
+    children,
+  }: {
+    value: string;
+    children: React.ReactNode;
+  }) => <li data-value={value}>{children}</li>,
   SelectValue: () => null,
 }));
 
@@ -90,6 +99,20 @@ describe("RecordFollowUpOutcomeForm", () => {
 
     const trigger = screen.getByLabelText("Utfall");
     expect(trigger).toHaveAttribute("aria-describedby", "outcome-notice-fu-9");
+  });
+
+  // #1827 clarification item 2: the option reads the outcome's enum label, so "Inget svar
+  // mottaget" has one home and never reads like the park row's "Inget svar" status.
+  it("offers each outcome under its enum label", () => {
+    render(<RecordFollowUpOutcomeForm {...baseProps} />);
+
+    const items = [
+      ...screen.getByTestId("outcome-items").querySelectorAll("li"),
+    ].map((li) => [li.getAttribute("data-value"), li.textContent]);
+    expect(items).toEqual([
+      ["Responded", "Svar mottaget"],
+      ["NoResponse", "Inget svar mottaget"],
+    ]);
   });
 
   it("disables 'Spara utfall' until an outcome is selected", async () => {
@@ -127,7 +150,7 @@ describe("RecordFollowUpOutcomeForm", () => {
     await user.selectOptions(screen.getByLabelText("Utfall"), "NoResponse");
     await user.click(screen.getByRole("button", { name: "Spara utfall" }));
     await user.click(
-      screen.getByRole("button", { name: "Spara Inget svar" })
+      screen.getByRole("button", { name: "Spara Inget svar mottaget" })
     );
 
     await waitFor(() => {

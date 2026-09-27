@@ -103,8 +103,12 @@ export function RecordFollowUpOutcomeForm({
             <SelectValue placeholder={tUi("recordOutcome.outcomePlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Responded">{tUi("recordOutcome.optionResponded")}</SelectItem>
-            <SelectItem value="NoResponse">{tUi("recordOutcome.optionNoResponse")}</SelectItem>
+            <SelectItem value="Responded">
+              {followUpOutcomeLabel(t, "Responded")}
+            </SelectItem>
+            <SelectItem value="NoResponse">
+              {followUpOutcomeLabel(t, "NoResponse")}
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>

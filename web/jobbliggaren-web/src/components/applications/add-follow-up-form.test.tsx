@@ -212,7 +212,7 @@ describe("AddFollowUpForm", () => {
     expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
     expect(note).toHaveAttribute("aria-invalid", "true");
     expect(note.getAttribute("aria-describedby")).toBe(
-      "follow-up-note-hint follow-up-note-error",
+      "follow-up-note-error",
     );
 
     // Focus goes to the FIRST refused field, not the last and not the message row.
@@ -269,7 +269,7 @@ describe("AddFollowUpForm", () => {
     expect(
       screen.queryByText("Anteckning får vara max 1 000 tecken.")
     ).not.toBeInTheDocument();
-    expect(note.getAttribute("aria-describedby")).toBe("follow-up-note-hint");
+    expect(note).not.toHaveAttribute("aria-describedby");
 
     // The refused field keeps its refusal.
     expect(trigger).toHaveAttribute("aria-invalid", "true");

@@ -121,9 +121,8 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
           visas medan annonsen ÄR aktiv. Den bevarade kopian nedan är vad vi kan
           stå för (ADR 0086) och är strikt bättre än en slantsingling. */}
 
-      {/* Annonstexten. Vid description == null (terminal status →
-          retention-minimering) visas EJ en tom kropp: en kort, neutral
-          not förklarar att texten rensats men metadatan finns kvar. */}
+      {/* Annonstexten. null means the minimisation of a closing move has run
+          (ADR 0092 D3): a short, neutral note stands where the text was. */}
       <section
         aria-labelledby="jp-preserved-ad-text-title"
         style={{ marginTop: "16px" }}
@@ -131,16 +130,16 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         <div className="jp-section-label" id="jp-preserved-ad-text-title">
           {tUi("preservedAd.descriptionLabel")}
         </div>
-        {preservedAd.description ? (
-          <p className="jp-modal__description jp-detail-prose">
-            {preservedAd.description}
-          </p>
-        ) : (
+        {preservedAd.description === null ? (
           <div className="jp-modal__match">
             <div className="jp-modal__match__expl">
               {tUi("preservedAd.minimizedNotice")}
             </div>
           </div>
+        ) : (
+          <p className="jp-modal__description jp-detail-prose">
+            {preservedAd.description}
+          </p>
         )}
       </section>
 

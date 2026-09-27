@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Plus } from "lucide-react";
 import { clampAnchoredTop } from "@/lib/applications/anchored-top";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 
@@ -13,12 +14,11 @@ interface LogFollowUpButtonProps {
 }
 
 /**
- * Detaljpanelens "+ Lägg till" under UPPFÖLJNINGAR (#630 PR 7, design §8.6 —
- * Klas-låst 2026-07-05: prototyp-trogen; panelen är sedan 2026-07-10 den
- * centrerade route-modalen). Öppnar "Logga uppföljning"-dialogen (§9) ankrad
- * nära klicket; det schemalagda uppföljningsformuläret stannar på fullsidan.
- * Egen dialog-instans (panelen är ett eget React-träd, CTO-bind 6b: komposition
- * — sektionen förblir presentation).
+ * Detaljkroppens "Logga uppföljning" under UPPFÖLJNINGAR (#630 PR 7, design
+ * §8.6 — Klas-låst 2026-07-05: prototyp-trogen). Öppnar "Logga
+ * uppföljning"-dialogen (§9) ankrad nära klicket. Egen dialog-instans (kroppen
+ * är ett eget React-träd, CTO-bind 6b: komposition — sektionen förblir
+ * presentation).
  */
 export function LogFollowUpButton({
   applicationId,
@@ -51,6 +51,7 @@ export function LogFollowUpButton({
           });
         }}
       >
+        <Plus className="size-4" aria-hidden="true" />
         {tUi("followUps.addLog")}
       </button>
       {state.open && (

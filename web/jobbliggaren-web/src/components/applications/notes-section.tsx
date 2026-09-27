@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { AddNoteForm } from "./add-note-form";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { formatDate } from "@/lib/i18n/format";
@@ -92,6 +92,7 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
             className="jp-btn jp-btn--secondary"
             onClick={() => setAddOpen(true)}
           >
+            <Plus className="size-4" aria-hidden="true" />
             {tUi("notes.add")}
           </button>
         ) : (

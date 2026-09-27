@@ -105,7 +105,7 @@ describe("addNoteAction — every failure arm echoes the submitted note back", (
 
     expect(result).toEqual({
       success: false,
-      error: "Kunde inte spara noteringen. Försök igen.",
+      error: "Kunde inte spara anteckningen. Försök igen.",
       values: { content: NOTE },
     });
   });

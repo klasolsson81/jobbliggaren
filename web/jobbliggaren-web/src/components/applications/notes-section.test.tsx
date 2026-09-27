@@ -77,13 +77,13 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("default visar '+ Lägg till anteckning'-knapp, ej form", () => {
+  it("default visar 'Lägg till anteckning'-knappen, ej form", () => {
     render(<NotesSection applicationId="app-1" notes={[]} />);
     expect(
       screen.getByRole("button", { name: /Lägg till anteckning/ }),
     ).toBeInTheDocument();
     // Textarea med name=content syns ej initialt.
-    expect(screen.queryByLabelText("Notering")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Anteckning")).not.toBeInTheDocument();
   });
 
   it("klick på Lägg till-knapp expanderar form, Avbryt kollapsar", () => {
@@ -91,9 +91,9 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Lägg till anteckning/ }),
     );
-    expect(screen.getByLabelText("Notering")).toBeInTheDocument();
+    expect(screen.getByLabelText("Anteckning")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
-    expect(screen.queryByLabelText("Notering")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Anteckning")).not.toBeInTheDocument();
   });
 
   it("renderar empty-state när inga anteckningar", () => {

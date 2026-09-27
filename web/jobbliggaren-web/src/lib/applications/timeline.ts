@@ -82,7 +82,7 @@ export function composeTimeline(source: TimelineSource): TimelineEvent[] {
 }
 
 /**
- * "N dagar i detta steg" — whole days since the LATEST recorded status transition
+ * "N dagar i steget" — whole days since the LATEST recorded status transition
  * (the moment the current step began). Returns `null` when no transition has been
  * recorded (pre-timeline applications; the backend does not backfill) — the caller
  * then OMITS the day-count rather than deriving one from `updatedAt` (§5: a

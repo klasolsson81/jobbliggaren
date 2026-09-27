@@ -42,7 +42,7 @@ export interface ApplicationActionsValue {
   /** "Logga uppföljning"-dialogen (design §9). anchorY = klickets viewport-Y. */
   openLogFollowUp: (application: ApplicationDto, anchorY: number | null) => void;
   /**
-   * #782 (ADR 0104) — "Ta bort ansökan": opens the destructive HARD-delete
+   * #782 (ADR 0104) — "Radera ansökan": opens the destructive HARD-delete
    * confirm (ONE shared centered dialog on the island, never N per row). No
    * anchorY — a destructive confirm is centered, not click-anchored like the two
    * dialogs above.

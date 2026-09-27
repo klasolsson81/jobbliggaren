@@ -112,7 +112,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("default visar '+ Lägg till uppföljning'-knapp, ej form", () => {
+  it("default visar 'Lägg till uppföljning'-knappen, ej form", () => {
     render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
     expect(
       screen.getByRole("button", { name: /Lägg till uppföljning/ }),

@@ -144,7 +144,7 @@ describe("/ansokningar/[id] — the full page renders the one detail body (#699)
     const foot = container.querySelector<HTMLElement>(".jp-modal__foot");
     expect(foot).not.toBeNull();
     expect(
-      within(foot!).getByRole("button", { name: "Ta bort ansökan" }),
+      within(foot!).getByRole("button", { name: "Radera ansökan" }),
     ).toBeInTheDocument();
     expect(within(foot!).getByRole("link", { name: "Tillbaka" })).toHaveAttribute(
       "href",

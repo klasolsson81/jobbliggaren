@@ -40,7 +40,7 @@ export interface LogFollowUpDialogProps {
  * Ångra (design §10).
  *
  * Ingen exempeltext i fältet (Klas-regel): label + hjälptexten bär
- * instruktionen. Noteringen är frivillig — max 2000 tecken (backend-spegel).
+ * instruktionen. Anteckningen är frivillig — max 2000 tecken (backend-spegel).
  */
 export function LogFollowUpDialog({
   open,

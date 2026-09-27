@@ -100,7 +100,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     ).toBeInTheDocument();
   });
 
-  it("derives 'N dagar i detta steg' from a REAL recorded status change", () => {
+  it("derives 'N dagar i steget' from a REAL recorded status change", () => {
     render(
       <ApplicationDetailBody
         application={makeDetail({
@@ -112,7 +112,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
       />,
     );
     // now 05-05 − changedAt 05-02 = 3 days.
-    expect(screen.getByText(/3 dagar i detta steg/)).toBeInTheDocument();
+    expect(screen.getByText(/3 dagar i steget/)).toBeInTheDocument();
     // The timeline carries the real transition (not an updatedAt synthesis).
     expect(screen.getByText("Status: Utkast → Skickad")).toBeInTheDocument();
   });
@@ -151,7 +151,7 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
 
   it("OMITS the day-count when no status change is recorded (never fabricate, §5)", () => {
     render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
-    expect(screen.queryByText(/i detta steg/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/i steget/)).not.toBeInTheDocument();
     // The created event is still present in the timeline.
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
   });
@@ -193,10 +193,10 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
   it("offers both logging a follow-up and planning one", () => {
     render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
     expect(
-      screen.getByRole("button", { name: "+ Lägg till" }),
+      screen.getByRole("button", { name: "Logga uppföljning" }),
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "+ Lägg till uppföljning" }),
+      screen.getByRole("button", { name: "Lägg till uppföljning" }),
     );
     expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
   });
@@ -256,7 +256,9 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
 
   it("keeps notes interactive (add-note affordance present)", () => {
     render(<ApplicationDetailBody application={makeDetail()} now={NOW} />);
-    expect(screen.getByText("+ Lägg till anteckning")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lägg till anteckning" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the recorded notes", () => {

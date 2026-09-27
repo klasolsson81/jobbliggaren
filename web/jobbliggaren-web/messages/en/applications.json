@@ -21,7 +21,7 @@
     "followUpOutcome": {
       "Pending": "Awaiting reply",
       "Responded": "Reply received",
-      "NoResponse": "No reply",
+      "NoResponse": "No reply received",
       "Logged": "Contact logged"
     },
     "source": {
@@ -40,7 +40,6 @@
       "channelPlaceholder": "Select channel",
       "dateLabel": "Date",
       "noteLabel": "Note (optional)",
-      "noteHint": "Max 1,000 characters.",
       "submit": "Add follow-up"
     },
     "addNote": {
@@ -224,8 +223,8 @@
     "followUps": {
       "sectionLabel": "Follow-ups",
       "emptyDrawer": "No follow-ups yet.",
-      "add": "+ Add follow-up",
-      "addLog": "+ Add",
+      "add": "Add follow-up",
+      "addLog": "Log follow-up",
       "addHeading": "Add follow-up",
       "outcomeLabel": "Outcome:",
       "noteLabel": "Note:",
@@ -256,13 +255,13 @@
       "applyBy": "Application deadline",
       "source": "Source",
       "descriptionLabel": "Ad text",
-      "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept.",
+      "minimizedNotice": "The ad text was deleted when the application was closed.",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
     "notes": {
       "sectionLabel": "Notes",
       "empty": "No notes yet.",
-      "add": "+ Add note",
+      "add": "Add note",
       "addHeading": "Add note",
       "help": {
         "title": "Note or follow-up?",
@@ -275,8 +274,6 @@
       "notice": "The outcome cannot be changed once it has been saved.",
       "outcomeLabel": "Outcome",
       "outcomePlaceholder": "Select outcome",
-      "optionResponded": "Reply received",
-      "optionNoResponse": "No reply",
       "save": "Save outcome",
       "confirmQuestion": "Save the outcome <b>{outcome}</b>?",
       "savingOutcome": "Saving…",

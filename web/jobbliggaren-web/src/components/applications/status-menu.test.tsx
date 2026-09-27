@@ -56,7 +56,7 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     const menu = await screen.findByRole("menu");
     expect(screen.getByText("Flytta till · Aktiv väg")).toBeInTheDocument();
     expect(screen.getByText("Avslut & vilande")).toBeInTheDocument();
-    // 10 status-byten + 1 destruktiv "Ta bort ansökan" (#782). De 10 status-
+    // 10 status-byten + 1 destruktiv "Radera ansökan" (#782). De 10 status-
     // posterna bär färgpricken; delete-posten gör det inte (Trash2-ikon).
     expect(menu.querySelectorAll("[data-slot='dropdown-menu-item']")).toHaveLength(
       11,
@@ -64,12 +64,12 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     expect(menu.querySelectorAll(".jp-statusmenu__dot")).toHaveLength(10);
   });
 
-  it("visar en destruktiv 'Ta bort ansökan'-post skild från statusbytena (#782)", async () => {
+  it("visar en destruktiv 'Radera ansökan'-post skild från statusbytena (#782)", async () => {
     const user = userEvent.setup();
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Byt status" }));
 
-    const item = await screen.findByRole("menuitem", { name: "Ta bort ansökan" });
+    const item = await screen.findByRole("menuitem", { name: "Radera ansökan" });
     // Att välja posten ÖPPNAR bekräftelse-dialogen (ADR 0047) — ingen direkt
     // radering, och absolut ingen statustransition.
     await user.click(item);

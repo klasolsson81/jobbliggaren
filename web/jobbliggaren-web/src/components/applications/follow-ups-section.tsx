@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -118,6 +118,7 @@ export function FollowUpsSection({
             className="jp-btn jp-btn--secondary"
             onClick={() => setAddOpen(true)}
           >
+            <Plus className="size-4" aria-hidden="true" />
             {tUi("followUps.add")}
           </button>
         ) : (

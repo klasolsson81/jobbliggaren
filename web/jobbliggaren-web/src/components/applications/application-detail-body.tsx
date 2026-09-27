@@ -10,6 +10,7 @@ import {
   applicationStatusLabel,
   channelLabel,
   followUpOutcomeLabel,
+  isClosedForActivity,
   PILL_VARIANT_CLASS,
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";
@@ -67,6 +68,7 @@ export function ApplicationDetailBody({
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
+  const closedForActivity = isClosedForActivity(application.status);
 
   const timeline = composeTimeline(application);
   const days = daysInCurrentStep(application.statusChanges, now);
@@ -136,7 +138,7 @@ export function ApplicationDetailBody({
                 tUi("detail.latestEvent", { event: latestLabel })}
             </div>
           )}
-          {nextFollowUpDate != null && (
+          {!closedForActivity && nextFollowUpDate != null && (
             <div className="jp-status-block__next">
               {tUi("detail.nextFollowUp")}{" "}
               <span className="jp-status-block__next-date">
@@ -160,19 +162,24 @@ export function ApplicationDetailBody({
       {/* Uppföljningar (§8.6): "Logga uppföljning" i rubrikraden öppnar dialogen
           (Klas-låst, prototyp-trogen); planeringen med kanal och datum ligger under
           listan (K3). */}
-      <FollowUpsSection
-        applicationId={application.id}
-        followUps={application.followUps}
-        titleLevel={titleLevel}
-        headerAction={
-          <LogFollowUpButton
-            applicationId={application.id}
-            contextTitle={adTitle ?? preservedAd?.title ?? null}
-            contextCompany={adCompany ?? preservedAd?.company ?? null}
-            toastCompany={displayName}
-          />
-        }
-      />
+      {(!closedForActivity || application.followUps.length > 0) && (
+        <FollowUpsSection
+          applicationId={application.id}
+          followUps={application.followUps}
+          titleLevel={titleLevel}
+          canPlan={!closedForActivity}
+          headerAction={
+            closedForActivity ? null : (
+              <LogFollowUpButton
+                applicationId={application.id}
+                contextTitle={adTitle ?? preservedAd?.title ?? null}
+                contextCompany={adCompany ?? preservedAd?.company ?? null}
+                toastCompany={displayName}
+              />
+            )
+          }
+        />
+      )}
 
       {/* Om annonsen (§8.7) — #805-3 (Beslut B). SourceAdSection äger guarden:
           live → utlänk till källans annons · borta → bevarad kopia (ADR 0086)

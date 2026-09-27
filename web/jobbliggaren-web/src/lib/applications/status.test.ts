@@ -7,8 +7,10 @@ import {
   applicationSourceLabel,
   isWaitingSignal,
   needsTerminalMoveConfirmation,
+  isClosedForActivity,
   ACTIVE_PIPELINE_STATUSES,
   CHANNEL_KEYS,
+  CLOSED_FOR_ACTIVITY_STATUSES,
   MINIMISING_STATUSES,
   PIPELINE_ORDER,
   STATUS_BADGE_VARIANT,
@@ -157,6 +159,23 @@ describe("MINIMISING_STATUSES and needsTerminalMoveConfirmation", () => {
     for (const target of PIPELINE_ORDER) {
       expect(needsTerminalMoveConfirmation(target, false)).toBe(false);
     }
+  });
+});
+
+describe("CLOSED_FOR_ACTIVITY_STATUSES and isClosedForActivity", () => {
+  it("mirrors the domain's IsClosedForActivity exactly: the three terminals and Ghosted", () => {
+    expect(CLOSED_FOR_ACTIVITY_STATUSES).toEqual([
+      "Accepted",
+      "Rejected",
+      "Withdrawn",
+      "Ghosted",
+    ]);
+  });
+
+  it("is true for those four statuses and false for the other six", () => {
+    expect(ALL_STATUSES.filter((status) => isClosedForActivity(status))).toEqual(
+      ["Accepted", "Rejected", "Withdrawn", "Ghosted"],
+    );
   });
 });
 

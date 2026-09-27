@@ -136,6 +136,21 @@ export function needsTerminalMoveConfirmation(
 }
 
 /**
+ * The statuses closed to follow-up activity: the domain's `ApplicationStatus.IsClosedForActivity`
+ * (`src/Jobbliggaren.Domain/Applications/ApplicationStatus.cs`).
+ */
+export const CLOSED_FOR_ACTIVITY_STATUSES: readonly ApplicationStatus[] = [
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+  "Ghosted",
+];
+
+export function isClosedForActivity(status: ApplicationStatus): boolean {
+  return CLOSED_FOR_ACTIVITY_STATUSES.includes(status);
+}
+
+/**
  * "Flytta till {nästa steg}"-källan (design §5/§8.3, prototypens nextOf —
  * facit): nästa steg på den aktiva vägen; Ghosted → Skickad (återaktivering).
  * Terminala (Accepterad/Nekad/Återtagen) har inget nästa steg → ingen primär

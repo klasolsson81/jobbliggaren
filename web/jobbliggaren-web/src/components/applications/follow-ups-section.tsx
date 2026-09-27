@@ -25,6 +25,7 @@ interface FollowUpsSectionProps {
   applicationId: string;
   followUps: ReadonlyArray<FollowUpDto>;
   titleLevel: 1 | 2;
+  canPlan: boolean;
   /**
    * #630 PR 7 (CTO-bind 6b, komposition): valfri header-yta bredvid
    * sektionsrubriken — detaljkroppen monterar sin Logga uppföljning-knapp
@@ -55,6 +56,7 @@ export function FollowUpsSection({
   applicationId,
   followUps,
   titleLevel,
+  canPlan,
   headerAction,
 }: FollowUpsSectionProps) {
   const tUi = useTranslations("applications.ui");
@@ -122,29 +124,31 @@ export function FollowUpsSection({
         </ul>
       )}
 
-      <div className="mt-4">
-        {!addOpen ? (
-          <button
-            type="button"
-            className="jp-btn jp-btn--secondary"
-            onClick={() => setAddOpen(true)}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            {tUi("followUps.add")}
-          </button>
-        ) : (
-          <div className="jp-disclosure-body">
-            <FormHeading className="mb-3 text-body font-medium text-text-primary">
-              {tUi("followUps.addHeading")}
-            </FormHeading>
-            <AddFollowUpForm
-              applicationId={applicationId}
-              onSuccess={() => setAddOpen(false)}
-              onCancel={() => setAddOpen(false)}
-            />
-          </div>
-        )}
-      </div>
+      {canPlan && (
+        <div className="mt-4">
+          {!addOpen ? (
+            <button
+              type="button"
+              className="jp-btn jp-btn--secondary"
+              onClick={() => setAddOpen(true)}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              {tUi("followUps.add")}
+            </button>
+          ) : (
+            <div className="jp-disclosure-body">
+              <FormHeading className="mb-3 text-body font-medium text-text-primary">
+                {tUi("followUps.addHeading")}
+              </FormHeading>
+              <AddFollowUpForm
+                applicationId={applicationId}
+                onSuccess={() => setAddOpen(false)}
+                onCancel={() => setAddOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

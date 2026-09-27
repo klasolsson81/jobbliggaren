@@ -5,6 +5,7 @@ import { ApplicationDetailBody } from "./application-detail-body";
 import type {
   AdSnapshotDto,
   ApplicationDetailDto,
+  FollowUpDto,
 } from "@/lib/types/applications";
 
 // Client islands inside the body (NotesSection add form, ApplicationStatusActions,
@@ -480,4 +481,102 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+});
+
+describe("ApplicationDetailBody — follow-ups on a closed application", () => {
+  const CLOSED = ["Accepted", "Rejected", "Withdrawn", "Ghosted"] as const;
+  const OPEN = [
+    "Draft",
+    "Submitted",
+    "Acknowledged",
+    "InterviewScheduled",
+    "Interviewing",
+    "OfferReceived",
+  ] as const;
+
+  const pending: FollowUpDto = {
+    id: "f-pending",
+    channel: "Email",
+    scheduledAt: "2026-05-12T08:00:00Z",
+    note: null,
+    outcome: "Pending",
+    outcomeAt: null,
+    createdAt: "2026-05-04T08:00:00Z",
+  };
+  const responded: FollowUpDto = {
+    id: "f-responded",
+    channel: "Phone",
+    scheduledAt: "2026-05-02T08:00:00Z",
+    note: null,
+    outcome: "Responded",
+    outcomeAt: "2026-05-03T08:00:00Z",
+    createdAt: "2026-05-02T08:00:00Z",
+  };
+
+  it.each(OPEN)("%s: offers logging and planning a follow-up", (status) => {
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({ status })}
+        now={NOW}
+        titleLevel={2}
+      />,
+    );
+
+    const section = screen.getByRole("region", { name: "Uppföljningar" });
+    expect(
+      within(section).getByRole("button", { name: "Logga uppföljning" }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("button", { name: "Planera uppföljning" }),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("Inga uppföljningar ännu.")).toBeInTheDocument();
+  });
+
+  it.each(CLOSED)("%s without follow-ups: renders no follow-ups section", (status) => {
+    render(
+      <ApplicationDetailBody
+        application={makeDetail({ status })}
+        now={NOW}
+        titleLevel={2}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("region", { name: "Uppföljningar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Inga uppföljningar ännu.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Logga uppföljning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Planera uppföljning" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(CLOSED)(
+    "%s with follow-ups: keeps the list and a pending row's outcome form, offers neither affordance and no next follow-up",
+    (status) => {
+      render(
+        <ApplicationDetailBody
+          application={makeDetail({ status, followUps: [pending, responded] })}
+          now={NOW}
+          titleLevel={2}
+        />,
+      );
+
+      const section = screen.getByRole("region", { name: "Uppföljningar" });
+      const list = within(section).getByRole("list");
+      expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+      expect(
+        screen.queryByRole("button", { name: "Logga uppföljning" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Planera uppföljning" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Nästa uppföljning/)).not.toBeInTheDocument();
+
+      fireEvent.click(within(list).getAllByRole("button", { expanded: false })[0]!);
+      expect(screen.getByLabelText("Utfall")).toBeInTheDocument();
+    },
+  );
 });

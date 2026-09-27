@@ -40,6 +40,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -52,6 +53,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -69,6 +71,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[respondedFollowUp()]}
       />,
     );
@@ -85,6 +88,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp(), respondedFollowUp()]}
       />,
     );
@@ -104,6 +108,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -118,7 +123,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("default visar 'Planera uppföljning'-knappen, ej form", () => {
-    render(<FollowUpsSection applicationId="app-1" titleLevel={2} followUps={[]} />);
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
     expect(
       screen.getByRole("button", { name: /Planera uppföljning/ }),
     ).toBeInTheDocument();
@@ -126,7 +131,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("klick på Planera-knapp expanderar form, Avbryt kollapsar", () => {
-    render(<FollowUpsSection applicationId="app-1" titleLevel={2} followUps={[]} />);
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
     fireEvent.click(
       screen.getByRole("button", { name: /Planera uppföljning/ }),
     );
@@ -142,6 +147,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[
           pendingFollowUp({ id: "p" }),
           respondedFollowUp({ id: "r" }),
@@ -163,7 +169,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
   });
 
   it("renderar empty-state när inga uppföljningar", () => {
-    render(<FollowUpsSection applicationId="app-1" titleLevel={2} followUps={[]} />);
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
     expect(screen.getByText("Inga uppföljningar ännu.")).toBeInTheDocument();
   });
 
@@ -172,6 +178,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
       <FollowUpsSection
         applicationId="app-1"
         titleLevel={2}
+        canPlan
         followUps={[
           pendingFollowUp({
             note: "Första raden\nAndra raden får inte synas",

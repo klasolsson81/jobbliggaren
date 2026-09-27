@@ -1014,13 +1014,15 @@ presupposes an id already stolen, which the overwrite does not create.
   - (iii) control: the same 302 without the provider's hop carries it;
   - (iv) mutant: a Strict state cookie never reaches the callback, which refuses;
   - (v) the consent step renders on the Strict flow cookie;
-  - (vi) no request after the callback carries its code or state in a Referer, or leaves the app.
+  - (vi) no request after the callback carries its code or state in a Referer, or leaves the app;
+  - (vii) with the refresh's navigation answered 204, the link is hidden during the hold, visible after it, and its
+    click carries the Strict session cookie *(added in Amendment 2026-09-27 (19))*.
 
 **The Strict premise, per engine (F10), measured 2026-09-26.** `pnpm exec playwright test -c playwright.oauth-strict.config.ts`, Playwright 1.62.1, Windows 11, production build behind an https proxy with a throwaway localhost certificate. chromium (v1234) and firefox 153.0 (v1538): all six branches pass, controls (ii) and (iv) included; the design rests on these two readings. webkit 26.5 (v2336), Playwright's Windows port: **void for the Strict premise** — (ii) failed (a `SameSite=Strict` probe set on a 302 inside the cross-site chain was sent on the next hop) and (iv) failed at its precondition (the state cookie rewritten to `Strict` was reported as `sameSite: "None"`), so (i), (iii) and (v) passed without measuring. (vi) does not rest on SameSite and stands as a reading of that port only.
 
 **Residual: the premise is unmeasured in Apple's WebKit** (Safari, iOS and macOS). F10's "three engines before merge" is revised (CTO, 2026-09-26). A failure is fail-closed and is rolled back by deactivation (vps-deploy-stack.md §3d). **Closing measurement:** the first external login that succeeds on the box in Safari, with Google or GitHub *(corrected in Amendment 2026-09-26 (16): the continuation hop is provider-neutral, and the first Google login was taken in Brave)*; landing signed in on `/oversikt` is Apple WebKit's reading of (i), and (v) rests on the same mechanism. The date, device, OS and Safari version go into a dated comment on #1732, and the next amendment transcribes it. If the login fails: deactivate, and file the defect.
 
-**Re-measure (F10's triggers, revised):** on any trigger, the harness is re-run in that change's PR. chromium and firefox are owed with both controls green. A WebKit reading counts only where (ii) passes and (iv)'s precondition holds; otherwise it is recorded as void, with its port and version, and never as a pass. The same triggers void the Safari reading, which is owed again at the first login after that change deploys.
+**Re-measure (F10's triggers, revised):** on any trigger, the harness is re-run in that change's PR. *(Amendment 2026-09-27 (19): the triggers, in `senior-cto-advisor`'s words of 2026-09-25, are "callbackens svarsform, SameSite eller prefix på någon av de tre kakorna, eller fortsättningshoppet ändras".)* chromium and firefox are owed with both controls green. A WebKit reading counts only where (ii) passes and (iv)'s precondition holds; otherwise it is recorded as void, with its port and version, and never as a pass. The same triggers void the Safari reading, which is owed again at the first login after that change deploys.
 
 **The gate and the box.**
 - **Registration** (F11c). The client id is read raw: a blank one, which is what compose's `:-` passes, registers
@@ -1576,12 +1578,12 @@ lede sentence, D4's citation of a repealed Act and the References are corrected 
    bygget?"): **"(b) Nej, vi mäter vid aktiveringen"**. It concerns PR L.
 
 **What PR P changes.**
-- **The continuation document** paints the app's canvas and holds its content invisible for two seconds, so a working
-  refresh shows only the background (DESIGN.md §11.6, `design-reviewer` Major 5). The document gains one constant
+- **The continuation document** paints the app's canvas and holds its content invisible for two seconds
+  (DESIGN.md §11.6, `design-reviewer` Major 5). The document gains one constant
   `<style>`: the light values of `--jp-canvas`, `--jp-ink-1`, `--jp-heading-1` and `--jp-accent-700`, joined to
-  `globals.css` by a test, and the system tail of `--jp-font-sans`. The content is hidden only inside the keyframes, so
-  a refused style leaves the 6a document, visible. The refresh stays `0`, the same target as the link, and the link is
-  44 px high. Amendment (15)'s "no style" and its "ratified deviation" are corrected in place.
+  `globals.css` by a test, and the system tail of `--jp-font-sans`. The content is hidden only inside the keyframes.
+  The refresh stays `0`, the same target as the link, and the link is 44 px high. Amendment (15)'s "no style" and its
+  "ratified deviation" are corrected in place.
 - **`/logga-in`.** The lede is struck in both orders and its key deleted (ADR 0144 lists it as not bound). The
   persistence line leaves the page by Klas's answer (2), and the rows lose their `aria-describedby` with it; the line
   stays unchanged on `/logga-in/kod`, `/villkor` and `/lank`. The divider reads "eller" / "or", since the label under

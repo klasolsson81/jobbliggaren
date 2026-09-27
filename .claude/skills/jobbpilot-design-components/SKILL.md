@@ -60,6 +60,7 @@ colored accent is warranted. Never both for the same datum.
 
 **TWO ratified systems — name which one you mean (ADR 0052 Amendment 2026-07-27, #1095).**
 shadcn `Button`: height **40px**, sm 36, lg 44 (ADR 0038), `transition: duration-75`.
+At ≤768px the primitive itself carries DESIGN.md §5's 44px touch floor (`min-h` on every step, `min-w` on the icon steps); an instance never adds its own.
 `.jp-btn`: height **44px**, `--sm` 36 (`--lg` 52 ratified but UNIMPLEMENTED — no such class, so `jp-btn--lg` silently gives 44px) (HANDOVER-v3 §5.1 via ADR 0052);
 `border-radius: 6px` (`var(--jp-r-md)`); `transition: 90ms linear`;
 font **15px** (`--text-ui`) / **600** (`--jp-fw-semibold`); `letter-spacing: -0.005em`.

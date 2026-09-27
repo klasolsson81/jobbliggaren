@@ -33,7 +33,7 @@ export const getMyProfile = cache(
 );
 
 // The notification-settings writes share one wire shape: `PUT` + JSON body, idempotent set, 204 on
-// success / Problem 400 on failure (the status code is the whole truth — the body is NEVER read,
+// success (the status code is the whole truth — the body is NEVER read,
 // TD-10). The current state is READ via `getMyProfile()`; there is no dedicated read endpoint.
 // Server-only (the Bearer session never reaches the client).
 async function putNotificationSetting(

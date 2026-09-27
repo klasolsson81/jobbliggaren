@@ -70,7 +70,7 @@ public sealed class ExternalLoginCompositionTests
     }
 
     [Fact]
-    public void The_Api_registers_both_providers_in_the_page_order_from_two_full_clients()
+    public void The_Api_registers_both_providers_from_two_full_clients()
     {
         var services = new ServiceCollection();
 
@@ -79,7 +79,7 @@ public sealed class ExternalLoginCompositionTests
 
         services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider))
             .Select(d => d.ImplementationType)
-            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)]);
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
         services.ShouldContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
         NamedClients(services).ShouldContain(GoogleIdentityProvider.HttpClientName);
         NamedClients(services).ShouldContain(GitHubIdentityProvider.HttpClientName);

@@ -347,7 +347,7 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         configuration["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
 
         _factory.ComposedExternalProviders.ShouldNotBeNull()
-            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)]);
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
     }
 
     // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +17,27 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// </summary>
 public class ExternalLoginNeutraliserTests
 {
-    public static TheoryData<string> Gates => new(GoogleOAuthOptions.SectionName, GitHubOAuthOptions.SectionName);
+    // Each adapter's options section, read off its constructor (dotnet-architect N3), so a new provider's gate joins
+    // these rows without a new literal, and a neutraliser that misses its options fails the second row.
+    public static TheoryData<string> Gates => new(GateSections);
+
+    private static string[] GateSections =>
+    [
+        .. typeof(GoogleIdentityProvider).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                           && typeof(IExternalIdentityProvider).IsAssignableFrom(type))
+            .Select(type => type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single().GetParameters()
+                .Select(parameter => parameter.ParameterType)
+                .Single(parameter => parameter.IsGenericType && parameter.GetGenericTypeDefinition() == typeof(IOptions<>))
+                .GetGenericArguments()[0])
+            .Select(options => (string)options.GetField("SectionName")!.GetValue(null)!)
+            .Order(StringComparer.Ordinal),
+    ];
+
+    [Fact]
+    public void The_gates_are_read_off_every_adapter() =>
+        GateSections.ShouldBe([GitHubOAuthOptions.SectionName, GoogleOAuthOptions.SectionName]);
 
     private static ServiceCollection ComposeWithAClientIdAlone(string section)
     {

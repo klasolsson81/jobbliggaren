@@ -40,11 +40,7 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [Fact]
     public void Each_registered_adapter_is_registered_only_in_its_own_gate_file()
     {
-        var registered = SourceFilesWhere(RegistersAProvider)
-            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
-            .Distinct()
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        var registered = RegisteredThroughGates();
 
         // A registration whose adapter cannot be read out of it (a using alias, say) names no gate, so it fails here.
         SourceFilesWhere(RegistersAProvider).ShouldBe(
@@ -83,30 +79,6 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
             }
         }
     }
-
-    // The three places D8 requires per provider: what is received, who receives what, and the transfer.
-    private static readonly Dictionary<string, string[]> PolicyHeadings = new(StringComparer.Ordinal)
-    {
-        ["sv"] = ["Konto, profil och ansökningar", "Mottagare av uppgifter", "Överföring till tredje land"],
-        ["en"] = ["Account, profile and applications", "Recipients of data", "Transfer to third countries"],
-    };
-
-    private static List<string> RegisteredThroughGates() =>
-    [
-        .. SourceFilesWhere(RegistersAProvider)
-            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
-            .Distinct()
-            .Order(StringComparer.Ordinal),
-    ];
-
-    // Key is a constant member, so it is read without building the adapter's collaborators.
-    private static ExternalProviderKey KeyOf(string adapter) =>
-        ((IExternalIdentityProvider)RuntimeHelpers.GetUninitializedObject(
-            typeof(GoogleIdentityProvider).Assembly.GetTypes().Single(type => type.Name == adapter))).Key;
-
-    private static JsonElement ReadCatalogue(string locale, string file) =>
-        JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(RepoRoot(), "web", "jobbliggaren-web", "messages", locale, file))).RootElement;
 
     [Fact]
     public void No_source_file_builds_the_provider_list_or_an_adapter_by_hand() =>
@@ -160,6 +132,30 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
         RegistersAProvider(text).ShouldBeFalse();
         BuildsByHand(text).ShouldBeFalse();
     }
+
+    // The three places D8 requires per provider: what is received, who receives what, and the transfer.
+    private static readonly Dictionary<string, string[]> PolicyHeadings = new(StringComparer.Ordinal)
+    {
+        ["sv"] = ["Konto, profil och ansökningar", "Mottagare av uppgifter", "Överföring till tredje land"],
+        ["en"] = ["Account, profile and applications", "Recipients of data", "Transfer to third countries"],
+    };
+
+    private static List<string> RegisteredThroughGates() =>
+    [
+        .. SourceFilesWhere(RegistersAProvider)
+            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
+            .Distinct()
+            .Order(StringComparer.Ordinal),
+    ];
+
+    // Key is a constant member, so it is read without building the adapter's collaborators.
+    private static ExternalProviderKey KeyOf(string adapter) =>
+        ((IExternalIdentityProvider)RuntimeHelpers.GetUninitializedObject(
+            typeof(GoogleIdentityProvider).Assembly.GetTypes().Single(type => type.Name == adapter))).Key;
+
+    private static JsonElement ReadCatalogue(string locale, string file) =>
+        JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(RepoRoot(), "web", "jobbliggaren-web", "messages", locale, file))).RootElement;
 
     private static bool RegistersAProvider(string text)
     {

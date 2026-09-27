@@ -147,9 +147,7 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
     /// #1745 (ADR 0142 Amendment (14) L801, test-writer Major 7, §3.6's store layer): a flow started for one known
     /// provider, presented at the other's callback. Written with <see cref="RedisOAuthStateStore.PutAsync"/>, as the
     /// start handler writes it; taken with the other provider's key, as the callback handler takes it for the provider
-    /// its route names. Kills "compare before GETDEL" (the second take would then succeed) and "no compare". A GitHub
-    /// flow and a take under GitHub's key need GitHub registered on the host: in 6b PR 1 only ApiFactory does that,
-    /// and the actor is AddGitHubIdentityProvider, 6b PR 2's gate.
+    /// its route names. Kills "compare before GETDEL" (the second take would then succeed) and "no compare".
     /// </summary>
     [Theory]
     [InlineData("google", "github")]

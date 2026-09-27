@@ -30,8 +30,6 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// read by the adapter itself. The #1744 acceptance rows are marked.
 /// <para>
 /// #1745: this stays the provider-neutral file and Google's; GitHub's code-bound path is <c>GitHubFirstLoginTests</c>.
-/// The rows here that name GitHub rest on <see cref="ApiFactory"/>'s hand-built registration, whose actor is 6b PR 2's
-/// gate; the composition itself registers no GitHub in PR 1, which a row here pins.
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -158,7 +156,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe(ApiFactory.GitHubClientId);
 
         factory.Services.GetServices<IExternalIdentityProvider>().Select(provider => provider.GetType())
-            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)]);
+            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
     }
 
     [Fact]

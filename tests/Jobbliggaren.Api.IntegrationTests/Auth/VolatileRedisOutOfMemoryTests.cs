@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -188,6 +189,20 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         await _store.PutAsync(
             new NewLoginChallenge(ChallengeId.Generate(), "after-flows@example.com", ChallengeCredentials.CodeAndLink, true),
             Ct);
+    }
+
+    /// <summary>
+    /// #1745 (dotnet-architect N1; security-auditor's condition 4, ADR 0142 Amendment (17)) — the floor under the start
+    /// budget the row above bounds from above. The start sits under the per-source AuthWrite limit, so a budget at or
+    /// below it lets one source spend every start there is.
+    /// </summary>
+    [Fact]
+    public void The_start_budget_stays_above_one_sources_auth_write_rate()
+    {
+        var authWrite = new RateLimitingOptions().AuthWrite;
+
+        (ExternalLoginPolicy.StartBudget.Limit / ExternalLoginPolicy.StartBudget.Window.TotalSeconds)
+            .ShouldBeGreaterThan(authWrite.PermitLimit / (double)authWrite.WindowSeconds);
     }
 
     private static async Task<long> MemoryAsync(IServer server, string field) =>

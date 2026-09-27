@@ -11,7 +11,10 @@ import {
 import { transitionStatusAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import { clampAnchoredTop } from "@/lib/applications/anchored-top";
-import { needsTerminalMoveConfirmation } from "@/lib/applications/status";
+import {
+  copyTextOf,
+  needsTerminalMoveConfirmation,
+} from "@/lib/applications/status";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { adIdentityOf } from "./ad-identity";
 import { FinishDraftDialog } from "./finish-draft-dialog";
@@ -199,12 +202,8 @@ export function ApplicationActionsProvider({
       move: () => void,
       returnFocusTo: HTMLElement | null = null,
     ) => {
-      if (
-        needsTerminalMoveConfirmation(
-          target,
-          application.hasPreservedAdText !== false,
-        )
-      ) {
+      const copy = copyTextOf(application.hasPreservedAdText);
+      if (needsTerminalMoveConfirmation(target, copy !== "none")) {
         setDialog({ kind: "terminalMove", application, target, move, returnFocusTo });
         return;
       }
@@ -311,7 +310,9 @@ export function ApplicationActionsProvider({
           onOpenChange={closeDialog}
           target={dialog.target}
           onConfirm={dialog.move}
-          copyTextUnknown={dialog.application.hasPreservedAdText === undefined}
+          copyTextUnknown={
+            copyTextOf(dialog.application.hasPreservedAdText) === "unknown"
+          }
           returnFocusTo={dialog.returnFocusTo}
         />
       )}

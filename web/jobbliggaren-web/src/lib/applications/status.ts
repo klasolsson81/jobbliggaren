@@ -135,6 +135,11 @@ export function needsTerminalMoveConfirmation(
   return copyHasText && MINIMISING_STATUSES.includes(target);
 }
 
+export type CopyText = "text" | "none" | "unknown";
+
+export const copyTextOf = (flag: boolean | undefined): CopyText =>
+  flag === undefined ? "unknown" : flag ? "text" : "none";
+
 /**
  * The statuses closed to follow-up activity: the domain's `ApplicationStatus.IsClosedForActivity`
  * (`src/Jobbliggaren.Domain/Applications/ApplicationStatus.cs`).

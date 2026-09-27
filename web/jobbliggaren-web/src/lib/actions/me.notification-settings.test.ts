@@ -58,7 +58,7 @@ describe("updateNotificationConsentAction", () => {
     expect(result).toEqual({ success: true });
     expect(consentApiMock).toHaveBeenCalledWith({ enabled: false });
     expect(cadenceApiMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor/notiser");
   });
 
   it("refuses the combined body of an earlier build, in its own copy, and sends nothing", async () => {
@@ -120,7 +120,7 @@ describe("updateDigestCadenceAction", () => {
     expect(cadenceApiMock).toHaveBeenCalledWith({ cadence: "Daily" });
     expect(consentApiMock).not.toHaveBeenCalled();
     expect(followConsentApiMock).not.toHaveBeenCalled();
-    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor/notiser");
   });
 
   it("refuses a body carrying a consent value and sends nothing", async () => {

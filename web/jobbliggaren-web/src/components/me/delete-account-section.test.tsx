@@ -64,7 +64,7 @@ describe("DeleteAccountSection", () => {
     await spendCode(user);
 
     expect(await screen.findByText(unknown)).toHaveAttribute("role", "status");
-    expect(screen.getByRole("link", { name: "Ladda om sidan" })).toHaveAttribute("href", "/mina-sidor");
+    expect(screen.getByRole("link", { name: "Ladda om sidan" })).toHaveAttribute("href", "/mina-sidor/sekretess");
     expect(screen.queryByRole("button", { name: "Radera konto" })).not.toBeInTheDocument();
     const heading = screen.getByRole("heading", { level: 3, name: "Radera ditt konto" });
     await waitFor(() => expect(heading.parentElement).toHaveFocus());

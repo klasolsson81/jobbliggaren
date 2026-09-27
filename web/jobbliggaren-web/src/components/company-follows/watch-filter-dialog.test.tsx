@@ -364,7 +364,7 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ställ in matchning" })).toHaveAttribute(
       "href",
-      "/mina-sidor#matchning"
+      "/mina-sidor"
     );
   });
 

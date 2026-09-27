@@ -31,11 +31,11 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     expect(emptyBody).toHaveTextContent(/angett yrken under Matchning/);
     expect(within(emptyBody).getByRole("link", { name: "Notiser" })).toHaveAttribute(
       "href",
-      "/mina-sidor#notiser"
+      "/mina-sidor/notiser"
     );
     expect(within(emptyBody).getByRole("link", { name: "Matchning" })).toHaveAttribute(
       "href",
-      "/mina-sidor#matchning"
+      "/mina-sidor"
     );
     // Ingen lista renderas.
     expect(screen.queryByRole("list")).toBeNull();

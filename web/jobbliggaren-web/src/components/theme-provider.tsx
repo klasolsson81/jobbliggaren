@@ -28,8 +28,8 @@ const CHANGE_EVENT = "jp-theme-change";
 
 // MVP (Klas 2026-06-24): "släckt" dark-mode — appen har bara ETT färgläge
 // (light). Detta håller renderingen light-only oberoende av lagrat `jp-theme`
-// ELLER OS:ets `prefers-color-scheme` (UI-kontrollerna är dessutom borttagna i
-// display-card + landing-footer). Hela mekanismen (provider, useTheme,
+// ELLER OS:ets `prefers-color-scheme` (UI-kontrollerna är dessutom borttagna ur
+// Mina sidors Konto-avsnitt + landing-footer). Hela mekanismen (provider, useTheme,
 // ThemeToggle) + dark-CSS i globals.css behålls DORMANT i koden — re-enable =
 // sätt flaggan true + återställ UI-kontrollerna. Ingen dark-yta är nåbar medan
 // den är false. Typad `boolean` (ej literal `false`) så gate-villkoren inte

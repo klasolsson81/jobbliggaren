@@ -435,9 +435,8 @@ export function MatchPreferencesCard({
   return (
     <section className="jp-card jp-matchprefs" id="matchning">
       <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
-      <p className="text-body-sm text-text-primary">{t("matchPrefs.intro")}</p>
 
-      <div className="jp-matchprefs__facets mt-5">
+      <div className="jp-matchprefs__facets">
         {(["occupations", "skills", "orter", "employment"] as const).map((facet) => {
           const chips = facetData[facet];
           const headId = `match-facet-${facet}`;

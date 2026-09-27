@@ -1,16 +1,13 @@
 {
   "savedAt": "Sparat {time}",
   "display": {
-    "title": "Visning",
     "themeLabel": "Tema",
     "themeHint": "Påverkar hela appen direkt. Sparas på din enhet.",
     "themeLight": "Ljust",
     "themeDark": "Mörkt",
     "languageLabel": "Språk",
-    "languageHint": "Sparas på ditt konto.",
     "languageSwedish": "Svenska",
-    "languageEnglish": "English",
-    "savedAt": "Sparat {time}"
+    "languageEnglish": "English"
   },
   "backgroundMatch": {
     "toggleLabel": "Matcha nya annonser åt mig",
@@ -38,17 +35,15 @@
   },
   "privacy": {
     "title": "Sekretess och data",
-    "description": "Du har rätt att exportera all data vi har om dig, och att radera ditt konto helt.",
     "export": "Exportera mina data",
-    "exportTitle": "Export-flödet är inte aktiverat ännu"
+    "comingSoon": "Kommer snart",
+    "contactRoute": "Vill du ha en kopia av dina data kan du mejla <mail>kontakt@jobbliggaren.se</mail>."
   },
   "logout": {
-    "title": "Logga ut",
     "action": "Logga ut"
   },
   "matchPrefs": {
     "title": "Matchning",
-    "intro": "Ange vilka yrken, orter och anställningsformer du söker. Vi använder det för att visa hur väl varje annons matchar din profil. Alla fält är frivilliga.",
     "degraded": "Dina matchningsval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "facetOccupations": "Yrken",
     "facetSkills": "Kompetenser",
@@ -147,8 +142,7 @@
     "invalidInput": "Ogiltiga uppgifter.",
     "reload": "Ladda om sidan",
     "danger": {
-      "title": "Radera ditt konto",
-      "description": "Du kan radera ditt konto och allt du har sparat. I 30 dagar efteråt kan du få det återställt."
+      "title": "Radera ditt konto"
     },
     "delete": {
       "trigger": "Radera konto",
@@ -183,7 +177,7 @@
     "changeEmail": {
       "title": "Byt e-postadress",
       "current": "Din e-postadress är {email}.",
-      "description": "Du bekräftar bytet med två koder, en till varje adress. När adressen är bytt loggas du ut på alla andra enheter.",
+      "description": "När adressen är bytt loggas du ut på alla andra enheter.",
       "newEmailLabel": "Ny e-postadress",
       "newEmailRequired": "Skriv in den nya e-postadressen.",
       "invalidEmail": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",

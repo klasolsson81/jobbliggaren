@@ -6,7 +6,7 @@ const SESSION_COOKIE = "__Host-jobbliggaren_session";
 const REFRESH_AFTER_COOKIE = "__Host-jobbliggaren_refresh_after";
 
 /**
- * Changing the address on /mina-sidor by two codes (#1740, ADR 0142 D5): the dialog re-authenticates
+ * Changing the address on /mina-sidor/konto by two codes (#1740, ADR 0142 D5): the dialog re-authenticates
  * with a code to the current address, and the card takes the code mailed to the new one. The confirm
  * ends every session of the account and re-issues this device's, so what the browser holds afterwards
  * is measured against the backend, not inferred from the page.
@@ -32,7 +32,7 @@ async function addressOf(session: string | undefined) {
 
 /** Types the new address, re-authenticates in the dialog, and returns the card's code field. */
 async function toCodeStep(page: Page, runId: number) {
-  await page.goto("/mina-sidor");
+  await page.goto("/mina-sidor/konto");
   await page.getByLabel("Ny e-postadress").fill(newAddress(runId));
   await page.getByRole("button", { name: "Fortsätt" }).click();
   const dialog = page.getByRole("dialog", { name: "Byt e-postadress" });
@@ -44,7 +44,7 @@ async function toCodeStep(page: Page, runId: number) {
   return field;
 }
 
-test.describe("Byt e-postadress (/mina-sidor)", () => {
+test.describe("Byt e-postadress (/mina-sidor/konto)", () => {
   test("the retired /installningar answers a permanent redirect straight to /mina-sidor", async ({
     request,
   }) => {
@@ -84,7 +84,7 @@ test.describe("Byt e-postadress (/mina-sidor)", () => {
     expect(await addressOf(before)).toBe(401);
     expect(await addressOf(after)).toBe(newAddress(runId));
     await page.reload();
-    await expect(page).toHaveURL(/\/mina-sidor$/);
+    await expect(page).toHaveURL(/\/mina-sidor\/konto$/);
     await expect(page.getByText(`Din e-postadress är ${newAddress(runId)}.`)).toBeVisible();
   });
 
@@ -150,7 +150,7 @@ test.describe("Byt e-postadress (/mina-sidor)", () => {
     for (const id of [...sent.slice(0, -1), afterWrong]) {
       expect(await addressOf(id)).toBe(401);
     }
-    await page.goto("/mina-sidor");
+    await page.goto("/mina-sidor/konto");
     await expect(page.getByText(`Din e-postadress är ${newAddress(runId)}.`)).toBeVisible();
   });
 });

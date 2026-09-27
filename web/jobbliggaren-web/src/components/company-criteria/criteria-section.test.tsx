@@ -170,7 +170,7 @@ describe("CriteriaSection", () => {
     // and it must survive the gate untouched (CTO D1, binding 1).
     expect(
       screen.getByRole("link", { name: "Ställ in matchning" }).getAttribute("href"),
-    ).toBe("/mina-sidor#matchning");
+    ).toBe("/mina-sidor");
   });
 
   // design-reviewer Major 2, one axis up and on a new surface: above one row the 160-character

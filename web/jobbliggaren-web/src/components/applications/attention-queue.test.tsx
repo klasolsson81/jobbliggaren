@@ -287,7 +287,7 @@ describe("AttentionQueue", () => {
   // ── §11 rad-CTA (PR 7, Klas-låst: ingår) ────────────────────────────────
 
   // #1827 B1: the signal is a Pending follow-up past its date, and only its outcome clears it,
-  // so the card opens the detail, where the outcome form is, instead of logging a new contact.
+  // so the row opens the detail, where the outcome form is, instead of logging a new contact.
   it("OverdueFollowUp-raden: primär 'Registrera utfall' öppnar detaljmodalen; ingen statusmeny", async () => {
     const user = userEvent.setup();
     renderQueue(
@@ -297,7 +297,7 @@ describe("AttentionQueue", () => {
     expect(
       screen.queryByRole("button", { name: "Byt status" }),
     ).not.toBeInTheDocument();
-    // Kortets primär är urgens-CTA:n, INTE radens "Flytta till nästa".
+    // Köradens primär är urgens-CTA:n, INTE radens "Flytta till nästa".
     expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Registrera utfall" }));

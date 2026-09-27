@@ -281,7 +281,7 @@ describe("ApplicationsPipeline — 2a DUPLICAT-doktrin (kön ⊄ MOVE)", () => {
     const queue = getQueue();
     const section = document.getElementById("status-Submitted")!;
 
-    // Kortet i kön OCH raden i sektionen refererar SAMMA app (två länkar).
+    // Raden i kön OCH raden i sektionen refererar SAMMA app (två länkar).
     expect(within(queue).getByText("Submitted-titel-0")).toBeInTheDocument();
     expect(within(section).getByText("Submitted-titel-0")).toBeInTheDocument();
     // Listan är komplett: count räknar appen (ej dränerad som gamla MOVE).

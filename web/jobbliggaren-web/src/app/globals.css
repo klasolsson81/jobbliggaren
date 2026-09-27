@@ -7304,6 +7304,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
 }
+@media (max-width: 860px) {
+  .jp-steprail__cells {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+}
 .jp-steprail__cell {
   display: flex;
   flex-direction: column;

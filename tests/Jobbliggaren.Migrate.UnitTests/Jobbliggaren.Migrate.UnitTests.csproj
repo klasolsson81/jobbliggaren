@@ -13,6 +13,9 @@
          subject, and the later compose pins followed the copy rather than adding a second one. -->
     <Content Include="..\..\deploy\docker-compose.yml"
              Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1745 - DeployComposeExternalLoginTests joins each provider variable compose reads to its line here. -->
+    <Content Include="..\..\deploy\.env.example"
+             Link="deploy\.env.example" CopyToOutputDirectory="PreserveNewest" />
     <!-- #1735 - the dev stack's compose file and the Api's Development settings.
          DeployComposeVolatileRedisTests reads both: the non-persisted Redis exists in both stacks, and
          the dev Api is pointed at it by a committed value rather than by an environment variable. -->

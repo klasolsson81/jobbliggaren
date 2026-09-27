@@ -24,10 +24,10 @@ public static class ExternalLoginPolicy
     /// Started flows, every provider together, per window (security-auditor PR S m3). A start is a GET any page can
     /// reach, and each one writes a record to the volatile store, which refuses every write, a login code's included,
     /// once it is full. Past it a start is refused before anything is written, so a flood stops external login and
-    /// never code login.
+    /// never code login. The limit is derived from that store's size (ADR 0142 Amendment (17)).
     /// </summary>
     public static readonly RateBudgetScope StartBudget =
-        new("external-login-starts", limit: 60, window: TimeSpan.FromMinutes(1));
+        new("external-login-starts", limit: 30, window: TimeSpan.FromMinutes(1));
 
     /// <summary>The one subject <see cref="StartBudget"/> counts against.</summary>
     public const string StartBudgetSubject = "every-external-login-start";

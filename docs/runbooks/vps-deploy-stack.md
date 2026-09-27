@@ -570,17 +570,16 @@ Expect `1`, `0`, the T of the pre-read, and both containers `(healthy)`.
 **The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
 body.
 
-## 3d. Google login: activation and deactivation (#1744)
+## 3d. External login: activation and deactivation (#1744 Google, #1745 GitHub)
 
-A merge makes Google login **possible**; keys on this box make it **live**. Without
-`AUTH_OAUTH_GOOGLE_CLIENT_ID` the api registers no provider, `/api/v1/auth/oauth/providers` answers
-`[]` and `/logga-in` shows its provider rows inactive. Activation is Klas's step, done with him, and it
-has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G amendment).
+A merge makes Google login **possible**; keys on this box make it **live**. Activation is Klas's step,
+done with him, and it has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G
+amendment).
 
 **Before the keys.** Three conditions, each read on the day, never inherited:
 
-1. **Chapter V.** Google login is the product's one transfer to a third country: the server completes
-   the login with Google LLC, USA, under the EU-US Data Privacy Framework (Art. 45). The PR G amendment
+1. **Chapter V.** The server completes the login with Google LLC, USA, under the EU-US Data Privacy
+   Framework (Art. 45). The PR G amendment
    records the dated readings. If any of its lapse conditions has fired since, the keys are not placed.
 2. **The volatile ACL admits the flow store.** Compare the effective `ACL LIST` of `redis-volatile`
    against the rendered policy (redis-service-boundaries.md): the `api-volatile` user carries a
@@ -628,6 +627,76 @@ deactivate and file the defect.
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api. Starts are refused at once.
 The web caches the providers list for up to 5 minutes, so the button can show that long, and a click
 in that window is refused without a transfer to Google.
+
+### GitHub login (#1745)
+
+The same shape as Google's above: a merge makes GitHub login possible, and keys on this box make it
+live. Two things differ. GitHub's address is never an inbox proof, so the first GitHub login of an
+account needs a code to that address (ADR 0142 Amendment (16)). And GitHub is a second transfer to a
+third country, with its own Chapter V entry.
+
+**Before the keys.** Each condition is read on the day, never inherited:
+
+1. **The box's git contains the merge.** Compose and `inject-secrets.sh` are read from the box's git,
+   and the reconcile never moves it, so on an older tree `JBL_INJECT_GITHUB` is ignored and the `.env`
+   lines wait for the next git step to apply them with no one present. On the box:
+   `git -C /opt/jobbliggaren merge-base --is-ancestor <merge-commit> HEAD` exits 0.
+2. **Chapter V.** The server completes the login with GitHub, Inc., USA, under the EU-US Data Privacy
+   Framework (Art. 45). Klas accepted the consequence on 2026-09-26 ("(a) Ja, jag accepterar"): if
+   GitHub is no longer certified, or the decision falls, the keys are removed. Read that day: GitHub
+   on the DPF List (Active, Non-HR Data), (EU) 2023/1795 on EUR-Lex, C-703/25 P on InfoCuria, the
+   GitHub Terms of Service's section H (the contracting party) and the GitHub Privacy Statement's
+   sentence naming the controller. If any lapse condition in the register's GitHub entry has fired, the
+   keys are not placed.
+3. **The volatile ACL.** Nothing new: GitHub's flows use the flow-store and start-budget selectors
+   Google's activation required, and its pending-link grants the grant selector code login uses. Diff
+   `deploy/redis/*.acl.template` between the box's git and the merge commit; it is expected to be
+   unchanged.
+4. **The GitHub OAuth App** (security-auditor m-4). A separate OAuth App for this box, never the one a
+   developer uses on localhost. Its authorization callback URL is exactly
+   `https://${SITE_HOST}/api/auth/oauth/github/callback`, and nothing else. Any wildcard or
+   subdirectory matching of callback URLs the app offers is off: it would let a code be sent to another
+   path. Record whether the app issues expiring user tokens: GitHub does not document whether revoking
+   a token also revokes its refresh token.
+
+**Activation, in this order.** Inject before you edit.
+
+```bash
+sudo JBL_INJECT_GITHUB=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+# The GitHub secret is written before the host secrets are prompted for. At the prompt for
+# Backup__RcloneConfigBase64 (#197), Ctrl+C: the GitHub file is already in place.
+# then set, in deploy/.env:
+#   AUTH_OAUTH_GITHUB_CLIENT_ID=<the client id>
+#   AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__GitHub__ClientSecret
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
+cd /opt/jobbliggaren/deploy
+sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+```
+
+**The reading, dated, as a comment on #1732.** Counts, never printouts:
+
+- `Auth__RegistrationsOpen` in the running api container;
+- the number of accounts, and whether every one is the controller's, counted against a hash of each
+  account's whole normalised address, with the `+` tag stripped and the domain included, never the
+  local part alone (security-auditor m-4 on #1882);
+- `identity."AspNetUserLogins"` grouped by `login_provider`;
+- the providers list, read from inside the web container, expected `["google","github"]`;
+- the web start: a 302 to `https://github.com/login/oauth/authorize` with `scope=user:email`, S256, no
+  `offline_access`, the box's callback, and the flow cookie's attributes;
+- the Chapter V readings above, and the OAuth App's settings.
+
+If the reading does not show `github`, both `.env` lines are removed and api is re-created.
+The next amendment of ADR 0142 transcribes the comment.
+
+**Expected on the first login.** GitHub's primary, verified address chooses where a code goes. If an
+account holds that address, the callback answers with the code step, headed "Logga in med GitHub",
+and the code typed in the same browser links GitHub. That login is recorded as `Method=Code`, beside
+one `User.ExternalLoginLinked` row and one `github` row in `AspNetUserLogins`. The next GitHub login
+goes straight in, as `Method=GitHub`. The link in the mail signs in without linking. If no account
+holds the address, the code leads to "registration closed" while registration is shut. Registration is
+never opened for this: that is the M-7 flip.
+
+**Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google.
 
 ## 4. Host-side prerequisites
 

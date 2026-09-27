@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
@@ -14,8 +15,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// #1745 (dotnet-architect V5, test-writer Major 2): nothing here names an adapter. The adapters are the build's
 /// <see cref="IExternalIdentityProvider"/> implementations, by reflection, and the registered ones are the type
-/// arguments the registrations name, so a third provider is covered without a new literal. In 6b PR 1 the GitHub
-/// adapter exists and is registered nowhere; PR 2's gate makes the registered set equal the adapter set.
+/// arguments the registrations name, so a third provider is covered without a new literal.
 /// </para>
 /// </summary>
 public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
@@ -40,11 +40,7 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [Fact]
     public void Each_registered_adapter_is_registered_only_in_its_own_gate_file()
     {
-        var registered = SourceFilesWhere(RegistersAProvider)
-            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
-            .Distinct()
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        var registered = RegisteredThroughGates();
 
         // A registration whose adapter cannot be read out of it (a using alias, say) names no gate, so it fails here.
         SourceFilesWhere(RegistersAProvider).ShouldBe(
@@ -53,30 +49,35 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     }
 
     [Fact]
-    public void Only_google_is_registered_while_github_ships_inert()
-    {
-        // 6b PR 1's inertness pin, in source (dotnet-architect K1, R7): the GitHub adapter exists, and no gate
-        // registers it. PR 2 adds GitHubIdentityProviderRegistration and turns this into "registered == Adapters".
-        var registered = SourceFilesWhere(RegistersAProvider)
-            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
-            .Distinct()
-            .ToList();
-
-        registered.ShouldBe([nameof(GoogleIdentityProvider)]);
-        Adapters.Except(registered).ShouldBe([nameof(GitHubIdentityProvider)]);
-    }
+    public void Every_adapter_is_registered_through_a_gate() =>
+        RegisteredThroughGates().ShouldBe(Adapters);
 
     [Fact]
-    public void Nothing_in_source_binds_the_github_options_or_calls_a_github_gate()
+    public void Each_gated_provider_is_named_where_the_privacy_policy_describes_it()
     {
-        // The same pin from the configuration side: the options class is named by itself and by the adapter that
-        // reads it, and by nothing that binds a section to it.
-        SourceFilesWhere(text => text.Contains(nameof(GitHubOAuthOptions), StringComparison.Ordinal)).ShouldBe(
-        [
-            $"{GateDirectory}/GitHubIdentityProvider.cs",
-            $"{GateDirectory}/GitHubOAuthOptions.cs",
-        ]);
-        SourceFilesWhere(text => text.Contains("AddGitHubIdentityProvider", StringComparison.Ordinal)).ShouldBeEmpty();
+        // #1745 (test-writer Major 8; ADR 0142 D8): a provider that can go live has its source, its recipient entry and
+        // its transfer in the published privacy policy, in both catalogues, keyed on what the gates register rather
+        // than on what the web lists. The premise is the shipped copy; nothing is seeded.
+        var keys = RegisteredThroughGates().Select(KeyOf).ToList();
+        keys.ShouldNotBeEmpty();
+
+        foreach (var locale in (string[])["sv", "en"])
+        {
+            var pages = ReadCatalogue(locale, "pages.json");
+            var sections = ReadCatalogue(locale, "content-legal.json").GetProperty("privacy").GetProperty("sections")
+                .EnumerateArray().ToList();
+            foreach (var key in keys)
+            {
+                var name = pages.GetProperty("auth").GetProperty("passwordless").GetProperty("external")
+                    .GetProperty("providerNames").GetProperty(key.Value).GetString()!;
+                foreach (var heading in PolicyHeadings[locale])
+                {
+                    var section = sections.Where(s => s.GetProperty("heading").GetString()!.StartsWith(heading, StringComparison.Ordinal))
+                        .ShouldHaveSingleItem($"{locale}: no single privacy section headed '{heading}'");
+                    section.GetRawText().ShouldContain(name, Case.Sensitive, $"{locale}: '{heading}' does not name {name}");
+                }
+            }
+        }
     }
 
     [Fact]
@@ -131,6 +132,30 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
         RegistersAProvider(text).ShouldBeFalse();
         BuildsByHand(text).ShouldBeFalse();
     }
+
+    // The three places D8 requires per provider: what is received, who receives what, and the transfer.
+    private static readonly Dictionary<string, string[]> PolicyHeadings = new(StringComparer.Ordinal)
+    {
+        ["sv"] = ["Konto, profil och ansökningar", "Mottagare av uppgifter", "Överföring till tredje land"],
+        ["en"] = ["Account, profile and applications", "Recipients of data", "Transfer to third countries"],
+    };
+
+    private static List<string> RegisteredThroughGates() =>
+    [
+        .. SourceFilesWhere(RegistersAProvider)
+            .SelectMany(file => RegisteredAdapters(File.ReadAllText(Path.Combine(SrcRoot(), file))))
+            .Distinct()
+            .Order(StringComparer.Ordinal),
+    ];
+
+    // Key is a constant member, so it is read without building the adapter's collaborators.
+    private static ExternalProviderKey KeyOf(string adapter) =>
+        ((IExternalIdentityProvider)RuntimeHelpers.GetUninitializedObject(
+            typeof(GoogleIdentityProvider).Assembly.GetTypes().Single(type => type.Name == adapter))).Key;
+
+    private static JsonElement ReadCatalogue(string locale, string file) =>
+        JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(RepoRoot(), "web", "jobbliggaren-web", "messages", locale, file))).RootElement;
 
     private static bool RegistersAProvider(string text)
     {

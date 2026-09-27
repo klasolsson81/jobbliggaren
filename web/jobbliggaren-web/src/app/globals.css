@@ -2788,6 +2788,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   box-shadow: var(--jp-shadow-modal);
   animation: jp-rise 200ms ease;
 }
+.jp-modal.jp-modal--page {
+  width: 100%;
+  max-width: 760px;
+  max-height: none;
+  margin-inline: auto;
+  margin-top: 16px;
+  box-shadow: none;
+  animation: none;
+}
 .jp-modal__head {
   display: flex;
   gap: 16px;
@@ -2914,6 +2923,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-modal__matchrow:first-child {
   border-top: none;
+}
+/* Label · value, the preserved-ad panel's rows (#1827 Minor 10). It sits before the ≤560 rule
+   below, which stacks both forms into one column. */
+.jp-modal__matchrow--pair {
+  grid-template-columns: 160px 1fr;
 }
 .jp-modal__matchrow-label {
   color: var(--jp-ink-1);
@@ -3046,21 +3060,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-/* Read-mode static row (#630 PR 6 drawer): identiskt radchassi, ingen
-   interaktivitet (renderas på en div, ej en button). */
-.jp-disclosure-row--static {
-  cursor: default;
-}
-.jp-disclosure-row--static:hover {
-  background: transparent;
-  border-color: var(--jp-border-soft);
-}
 .jp-disclosure-row__primary {
   font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
-  flex-shrink: 0;
-}
-.jp-disclosure-row__pill {
   flex-shrink: 0;
 }
 .jp-disclosure-row__note {
@@ -3074,12 +3076,41 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-disclosure-row__date {
   flex-shrink: 0;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-3);
+  margin-left: auto;
 }
 .jp-disclosure-row__chevron {
   flex-shrink: 0;
   color: var(--jp-ink-3);
+}
+.jp-disclosure-row__head {
+  display: contents;
+}
+@media (max-width: 560px) {
+  .jp-disclosure-row--followup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "head head chevron"
+      "note date chevron";
+    row-gap: 4px;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__head {
+    grid-area: head;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    min-width: 0;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__note {
+    grid-area: note;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__date {
+    grid-area: date;
+  }
+  .jp-disclosure-row--followup > .jp-disclosure-row__chevron {
+    grid-area: chevron;
+  }
 }
 .jp-disclosure-body {
   padding: 14px 16px 16px 16px;
@@ -3090,14 +3121,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: -1px;
 }
 
-/* ── ApplicationDetail — token-only section primitives (#344, ADR 0085 PR E) ──
+/* ── The application detail — token-only section primitives (#344, ADR 0085 PR E) ──
    Replaces the inline CSSProperties objects (SECTION_LABEL_STYLE), the inline
-   status-block styles and the inline timeline <ul>/<li> styles that lived in
-   application-detail.tsx. No magic px/colour in the TSX — every value rides a
-   --jp-* token. LIGHT mode only (ADR 0081). */
+   status-block styles and the inline timeline <ul>/<li> styles the detail used to
+   carry. No magic px/colour in the TSX — every value rides a --jp-* token.
+   LIGHT mode only (ADR 0081). */
 
-/* Shared section label — previously duplicated as SECTION_LABEL_STYLE in
-   application-detail / follow-ups-section / notes-section (DRY). */
+/* Shared section label — previously duplicated as SECTION_LABEL_STYLE in the
+   detail, follow-ups-section and notes-section (DRY). */
 .jp-section-label {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-bold);
@@ -3118,14 +3149,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-source-ad__note {
   color: var(--jp-ink-1);
 }
-/* #630 PR 7: rubrikrad med höger-yta (drawerns "+ Lägg till" i UPPFÖLJNINGAR,
+/* #630 PR 7: rubrikrad med höger-yta (kroppens "Logga uppföljning" i UPPFÖLJNINGAR,
    §8.6) resp. inline-hjälptext (stegväljarens "klicka på ett steg, även
    bakåt", §8.4). Additiv — bas-etiketten orörd. */
 .jp-section-label--row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.jp-section-label--row .jp-btn {
+  white-space: nowrap;
 }
 .jp-section-label__hint {
   margin-left: 8px;
@@ -3195,12 +3230,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-status-block[data-status-variant="neutral"] {
   border-left-color: var(--jp-ink-3);
 }
-/* Status label — uppercase key line, coloured per status variant. */
+/* Status label — a mono caps kicker on DESIGN.md §4's rung (11px, 0.08em),
+   coloured per status variant. */
 .jp-status-block__label {
-  font-size: var(--text-caption);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   margin-bottom: 2px;
   color: var(--jp-ink-2);
 }
@@ -3232,54 +3269,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
-.jp-status-block__next-date {
-  color: var(--jp-ink-1);
-  font-weight: var(--jp-fw-semibold);
-}
 
-/* Status / action separation (ADR 0047 — "where I am" vs "what I can do").
-   Hairline + spacing above the StatusEditCard so the system status block and
-   the action card read as two zones. Subtle, civic — no heavy divider. */
-.jp-status-action {
-  padding-top: 20px;
-  border-top: 1px solid var(--jp-border);
-}
-
-/* Timeline — collapsed-by-default native <details> disclosure (#344). Native
-   <details> keeps ApplicationDetail a Server Component (no client JS). The
-   summary is styled as a section label with a CSS-only chevron that rotates
-   when open. The native marker is removed. */
-.jp-timeline__summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  /* reuse section-label typography */
-  font-size: var(--text-caption);
-  font-weight: var(--jp-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--jp-ink-2);
-}
-.jp-timeline__summary::-webkit-details-marker {
-  display: none;
-}
-.jp-timeline__summary:focus-visible {
-  outline: 2px solid var(--jp-focus);
-  outline-offset: 2px;
-  border-radius: var(--jp-r-sm);
-}
-.jp-timeline__chevron {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  color: var(--jp-ink-3);
-  transition: transform 120ms ease;
-}
-.jp-timeline[open] .jp-timeline__summary .jp-timeline__chevron {
-  transform: rotate(90deg);
-}
 .jp-timeline__list {
   list-style: none;
   padding: 0;
@@ -3295,9 +3285,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-timeline__date {
   /* Längsta sv-SE month:"short"-datum ("30 sep. 2026") får aldrig
-     wrappa/trunkeras (F5 design-reviewer M2). ink-2 not ink-3 (#344 §5). */
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
+     wrappa/trunkeras (F5 design-reviewer M2). */
   width: 120px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -3305,6 +3293,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-timeline__label {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-regular);
+}
+
+/* The detail's dates (DESIGN.md §4 inline data, #1827 M3): sans with tabular
+   figures, caption/medium, ink-2. Never mono, never ink-3. */
+.jp-timeline__date,
+.jp-disclosure-row__date,
+.jp-status-block__next-date,
+.jp-detail-date {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
 }
 
 /* Cover-letter / detail prose readability cap (was inline maxWidth:"68ch"). */
@@ -3753,7 +3753,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── 2a action-affordanser (#630 PR 7, design §5/§8/§11) ─────────
    Radens 3-zons-grid, länk-overlay, radknappar, statusmeny, bråttom-taggar
-   och drawerns statusmaskineri. ADDITIVA modifiers/element — det delade
+   och detaljens statusmaskineri. ADDITIVA modifiers/element — det delade
    bas-chassit .jp-job,.jp-app är orört (PR5-bind E / CTO-bind 6). */
 .jp-app--actions {
   position: relative;
@@ -3920,7 +3920,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-statusmenu__dot[data-status-variant="success"] { background: var(--jp-success); }
 .jp-statusmenu__dot[data-status-variant="warning"] { background: var(--jp-warning); }
 .jp-statusmenu__dot[data-status-variant="danger"]  { background: var(--jp-danger); }
-/* Drawerns statusmaskineri (design §8.3–8.5). */
+/* Detaljens statusmaskineri (design §8.3–8.5). Primär-CTA:n har .jp-btn:s höjd
+   (DESIGN.md §6, ingen tredje höjd på chassit). */
 .jp-drawer-actions {
   display: flex;
   flex-direction: column;
@@ -3928,7 +3929,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-drawer-cta {
   width: 100%;
-  height: 38px;
   justify-content: center;
 }
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
@@ -3970,6 +3970,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   opacity: 0.55;
   cursor: default;
 }
+/* Touch floor (DESIGN.md §5). */
+@media (max-width: 768px) {
+  .jp-steppicker__step { min-height: 44px; }
+}
 .jp-steppicker__circle {
   display: inline-flex;
   align-items: center;
@@ -4006,7 +4010,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-transform: uppercase;
   color: var(--jp-accent-700);
 }
-/* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar; Nekad = dangertext;
+/* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar på .jp-btn--sm-steget
+   (DESIGN.md §6, ingen tredje höjd; 44px vid ≤768 enligt §5); Nekad = dangertext;
    aktiv markeras (aria-pressed) och är disabled. */
 .jp-parkrow {
   display: flex;
@@ -4016,14 +4021,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-parkbtn {
   flex: 1;
   min-width: 0;
-  height: 34px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-sm);
-  font-size: var(--text-caption);
+  font-size: var(--jp-control-fs);
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
   cursor: pointer;
@@ -4043,6 +4048,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-color: var(--jp-border-strong);
 }
 .jp-parkbtn--danger { color: var(--jp-danger); }
+@media (max-width: 768px) {
+  .jp-parkbtn { min-height: 44px; }
+}
 
 /* ── CV cards ────────────────────────────────────── */
 .jp-cvgrid {

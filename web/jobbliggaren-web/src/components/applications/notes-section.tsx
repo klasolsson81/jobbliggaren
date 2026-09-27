@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { AddNoteForm } from "./add-note-form";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { formatDate } from "@/lib/i18n/format";
@@ -11,6 +11,7 @@ import type { NoteDto } from "@/lib/types/applications";
 interface NotesSectionProps {
   applicationId: string;
   notes: ReadonlyArray<NoteDto>;
+  titleLevel: 1 | 2;
 }
 
 /**
@@ -24,10 +25,15 @@ interface NotesSectionProps {
  *    inline. Lyckad spar eller Avbryt → kollapsa.
  *  - Esc kollapsar aktiv editor / aktiv expanderad rad.
  */
-export function NotesSection({ applicationId, notes }: NotesSectionProps) {
+export function NotesSection({
+  applicationId,
+  notes,
+  titleLevel,
+}: NotesSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const FormHeading = titleLevel === 1 ? "h2" : "h3";
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -46,13 +52,15 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
   );
 
   return (
-    <div>
+    <section aria-labelledby="jp-detail-notes-title">
       {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten (samma doktrin som
           uppföljningar) — förklarar att en anteckning är privat och inte
           påverkar väntetiden/åtgärdskön (till skillnad från en uppföljning). */}
       <div className="jp-section-label jp-section-label--row">
         <span className="jp-labelhelp">
-          {tUi("notes.sectionLabel")}
+          {/* The region is named by this span alone, so the "?" trigger stays
+              out of the name. */}
+          <span id="jp-detail-notes-title">{tUi("notes.sectionLabel")}</span>
           <InfoDialog
             title={tUi("notes.help.title")}
             paragraphs={[tUi("notes.help.p1"), tUi("notes.help.p2")]}
@@ -90,13 +98,14 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
             className="jp-btn jp-btn--secondary"
             onClick={() => setAddOpen(true)}
           >
+            <Plus className="size-4" aria-hidden="true" />
             {tUi("notes.add")}
           </button>
         ) : (
           <div className="jp-disclosure-body">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
+            <FormHeading className="mb-3 text-body font-medium text-text-primary">
               {tUi("notes.addHeading")}
-            </h3>
+            </FormHeading>
             <AddNoteForm
               applicationId={applicationId}
               onSuccess={() => setAddOpen(false)}
@@ -105,7 +114,7 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -130,7 +139,7 @@ function NoteRow({ note, expanded, onToggle }: NoteRowProps) {
         onClick={onToggle}
       >
         <span className="jp-disclosure-row__note">{firstLine}</span>
-        <span className="jp-disclosure-row__date jp-mono">
+        <span className="jp-disclosure-row__date">
           {createdAtLabel}
         </span>
         <ChevronDown

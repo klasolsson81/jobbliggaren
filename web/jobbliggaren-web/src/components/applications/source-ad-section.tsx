@@ -11,10 +11,9 @@ interface SourceAdSectionProps {
 
 /**
  * "Om annonsen" — #805-3 (Klas Beslut B). ETT ställe som avgör vad ansökan får
- * säga om KÄLLANS annons, delat av fullsidan (`ApplicationDetail`) och modal-
- * kroppen (`ApplicationDrawerBody`). Guarden bor här och ingen annanstans (SPOT):
- * att den tidigare låg duplicerad i båda ytorna är hur den kunde vara fel i båda
- * samtidigt.
+ * säga om KÄLLANS annons, renderat av detaljkroppen (`ApplicationDetailBody`) i
+ * modalen och på fullsidan. Guarden bor här och ingen annanstans (SPOT): att den
+ * tidigare låg duplicerad i två ytor är hur den kunde vara fel i båda samtidigt.
  *
  * ## Fyra tillstånd, alla sanna
  *

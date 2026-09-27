@@ -7,26 +7,29 @@ import { transitionStatusAction } from "@/lib/actions/applications";
 import {
   ACTIVE_PATH_STATUSES,
   applicationStatusLabel,
+  needsTerminalMoveConfirmation,
   nextStepOf,
   PARK_STATUSES,
 } from "@/lib/applications/status";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import type { ApplicationStatus } from "@/lib/dto/applications";
+import { TerminalMoveDialog } from "./terminal-move-dialog";
 
-interface DrawerStatusActionsProps {
+interface ApplicationStatusActionsProps {
   applicationId: string;
   status: ApplicationStatus;
   /** Visningsnamn för toasten ("{company}: {från} → {till}"). */
   displayName: string;
+  /** Whether the saved copy still has its ad text, which a move to a terminal status deletes. */
+  copyHasText: boolean;
 }
 
 /**
- * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5; "Drawer"-namnet
- * är ett PR 6-arv — panelen är sedan 2026-07-10 den centrerade route-modalen,
- * ADR 0092 Livscykel-amendment). Klient-ö renderad av den RSC-ägda
- * ApplicationDrawerBody (serialiserbara props över gränsen):
+ * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5).
+ * Klient-ö renderad av den RSC-ägda ApplicationDetailBody (serialiserbara props
+ * över gränsen):
  *
- *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) — Ghosted:
+ *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800) — Ghosted:
  *    "Återaktivera som Skickad" (prototyp-facit); terminala: ingen CTA.
  *  - §8.4 Stegväljare: de 7 stegen på aktiva vägen, KLICKBARA ÄVEN BAKÅT =
  *    direkt transition (ADR 0092 D3 fria byten; nuvarande steg disabled —
@@ -34,19 +37,24 @@ interface DrawerStatusActionsProps {
  *  - §8.5 AVSLUTA ELLER PARKERA: Nekad (dangertext) / Återtagen / Ghosted.
  *
  * Alla byten: persist-immediately via den auditerade servern-actionen →
- * revalidatePath server-recompute (CTO-bind 1; detaljmodalen re-renderas i sin
+ * revalidatePath server-recompute (CTO-bind 1; detaljen re-renderas i sin
  * route) → ångra-toast (kompenserande invers, CTO-bind 3). Fel visas inline i
- * panelen (role="alert").
+ * panelen (role="alert"). Ett byte som raderar den sparade kopians text frågar
+ * först (TerminalMoveDialog), eftersom ångra inte tar tillbaka texten.
  */
-export function DrawerStatusActions({
+export function ApplicationStatusActions({
   applicationId,
   status,
   displayName,
-}: DrawerStatusActionsProps) {
+  copyHasText,
+}: ApplicationStatusActionsProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirmTarget, setConfirmTarget] = useState<ApplicationStatus | null>(
+    null,
+  );
 
   const currentIndex = ACTIVE_PATH_STATUSES.indexOf(status);
 
@@ -69,6 +77,15 @@ export function DrawerStatusActions({
     });
   };
 
+  const request = (target: ApplicationStatus) => {
+    if (target === status || isPending) return;
+    if (needsTerminalMoveConfirmation(target, copyHasText)) {
+      setConfirmTarget(target);
+      return;
+    }
+    move(target);
+  };
+
   const next = nextStepOf(status);
   const ctaLabel =
     status === "Ghosted"
@@ -85,16 +102,16 @@ export function DrawerStatusActions({
           type="button"
           className="jp-btn jp-btn--primary jp-drawer-cta"
           disabled={isPending}
-          onClick={() => move(next)}
+          onClick={() => request(next)}
         >
           {ctaLabel}
         </button>
       )}
 
       {/* §8.4 Stegväljare — 7 steg, även bakåt. */}
-      <section aria-labelledby="jp-drawer-steps-label">
-        <div className="jp-section-label" id="jp-drawer-steps-label">
-          {tUi("drawer.flowLabel")}{" "}
+      <section aria-labelledby="jp-detail-steps-label">
+        <div className="jp-section-label">
+          <span id="jp-detail-steps-label">{tUi("drawer.flowLabel")}</span>{" "}
           <span className="jp-section-label__hint">
             {tUi("drawer.flowHint")}
           </span>
@@ -117,7 +134,7 @@ export function DrawerStatusActions({
                   data-state={stepState}
                   disabled={stepState === "current" || isPending}
                   aria-current={stepState === "current" ? "step" : undefined}
-                  onClick={() => move(step)}
+                  onClick={() => request(step)}
                 >
                   <span className="jp-steppicker__circle" aria-hidden="true">
                     {stepState === "done" ? <Check size={14} /> : index + 1}
@@ -138,8 +155,8 @@ export function DrawerStatusActions({
       </section>
 
       {/* §8.5 Avsluta eller parkera. */}
-      <section aria-labelledby="jp-drawer-park-label">
-        <div className="jp-section-label" id="jp-drawer-park-label">
+      <section aria-labelledby="jp-detail-park-label">
+        <div className="jp-section-label" id="jp-detail-park-label">
           {tUi("drawer.parkLabel")}
         </div>
         <div className="jp-parkrow">
@@ -156,7 +173,7 @@ export function DrawerStatusActions({
                 }
                 aria-pressed={active}
                 disabled={active || isPending}
-                onClick={() => move(park)}
+                onClick={() => request(park)}
               >
                 {applicationStatusLabel(t, park)}
               </button>
@@ -169,6 +186,17 @@ export function DrawerStatusActions({
         <p role="alert" className="text-body-sm text-danger-600">
           {error}
         </p>
+      )}
+
+      {confirmTarget != null && (
+        <TerminalMoveDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirmTarget(null);
+          }}
+          target={confirmTarget}
+          onConfirm={() => move(confirmTarget)}
+        />
       )}
     </div>
   );

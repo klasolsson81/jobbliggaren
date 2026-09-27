@@ -10,8 +10,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
 }));
 
-// Server-action mockas per repo-mönster (jfr status-edit-card.test) —
-// logoutAction anropas inte i dessa tester men måste vara importbar.
+// Server-action mockas per repo-mönster: logoutAction anropas inte i dessa
+// tester men måste vara importbar.
 vi.mock("@/lib/auth/actions", () => ({
   logoutAction: vi.fn(),
 }));

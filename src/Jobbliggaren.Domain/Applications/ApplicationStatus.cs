@@ -41,7 +41,7 @@ public sealed class ApplicationStatus : SmartEnum<ApplicationStatus>
     /// this set — that is the invariant this rename makes explicit. Intended as the
     /// SSOT for the UI hint (the "Flytta till {nästa steg}" default + the
     /// avsluta/parkera options), surfaced to the FE in a later epic PR; it has no
-    /// C# consumer today (the FE currently mirrors the graph in status.ts).
+    /// C# consumer today.
     /// </summary>
     public IReadOnlySet<ApplicationStatus> RecommendedNextStatuses => _recommendedNext;
 

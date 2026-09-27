@@ -214,10 +214,9 @@ interface ApplicationFixtures {
   /** Tillstånd 3 — cover-letter-only fallback + Pending follow-up. */
   fallback: string;
   /**
-   * Submitted-status — radiogrupp med flera (Acknowledged/Nekad/Återtagen)
-   * varav destruktiva. Draft-fixturerna ger bara 1-övergångs-knappen; §5:s
-   * kärna (shadcn radio-group + L2 destruktiv-Dialog) capurerades aldrig
-   * (Area 5-VETO L2 ej clear:ad).
+   * Submitted-status — detaljkroppen med Skickad som nuvarande steg och
+   * "Flytta till Bekräftad" som primär-CTA; Draft-fixturerna visar bara första
+   * steget.
    */
   submitted: string;
 }
@@ -314,8 +313,7 @@ async function createApplicationFixture(
     },
   });
 
-  // Submitted — radiogrupp >1 övergång inkl. destruktiva (L2). Skapa Draft
-  // och transitera Draft→Submitted (Submitted = enda Draft-övergången).
+  // Submitted — skapa ett Draft och flytta det till Submitted.
   const submitted = await postApplication(auth, {
     jobAdId: null,
     coverLetter: `FAS 3 visuell verifiering — Submitted/L2 (temp ${stamp})`,
@@ -522,52 +520,39 @@ async function shootJobbInteractiveStates(
 }
 
 /**
- * FAS 3 STOPP 3b §5/L2 — StatusEditCard destruktiv övergång. Submitted-status
- * ger radiogrupp [Bekräftad/Nekad/Återtagen]. Capurerar: (1) radiogrupp +
- * vald destruktiv → inline konsekvenstext, (2) [Spara] → Dialog-bekräftelse
- * öppen (L2 bindande: destruktiv MÅSTE gå via Dialog, ej inline-istället).
- * Area 5-VETO L2 var "ej clear:ad" — alla tidigare fixturer var Draft.
- * Best-effort: en miss fäller ej körningen (loggas så luckan syns).
+ * #1827 — bekräftelsen före ett avslut. Ett byte till Nekad frågar först när den
+ * sparade kopian har text, så den JobAd-kopplade fixturen (skapad ur en annons,
+ * alltså med annonstexten i kopian) visar dialogen: parkeringsradens Nekad →
+ * "Markera som Nekad?". Dialogen avbryts, så fixturen behåller status och kopia
+ * för övriga bilder. Best-effort: en miss fäller ej körningen (loggas så luckan
+ * syns).
  */
-async function shootStatusDestructiveStates(
+async function shootTerminalMoveConfirmation(
   page: Page,
   outDir: string,
   theme: string,
   vpTag: string,
-  submittedAppId: string,
+  jobAdLinkedAppId: string,
 ): Promise<number> {
   let shot = 0;
   try {
-    await page.goto(`${BASE_URL}/ansokningar/${submittedAppId}`, {
+    await page.goto(`${BASE_URL}/ansokningar/${jobAdLinkedAppId}`, {
       waitUntil: "load",
       timeout: 15_000,
     });
     await ensureTheme(page, theme);
-    // "Nekad" = destruktiv (Rejected). Label kopplad via <label htmlFor>.
-    const nekad = page.getByRole("radio", { name: "Nekad" });
+    const nekad = page.getByRole("button", { name: "Nekad", exact: true });
     await nekad.waitFor({ state: "visible", timeout: 5000 });
-    await nekad.check();
-    // Inline konsekvenstext renderas när destruktivt val gjorts.
-    await page
-      .getByText(/avslutar\s+ansökan/i)
-      .first()
-      .waitFor({ state: "visible", timeout: 5000 });
-    await page.waitForTimeout(150);
-    await shoot(page, outDir, `ansokningar-status-destruktiv-inline__${theme}__${vpTag}`);
-    shot++;
-
-    await page.getByRole("button", { name: "Spara", exact: true }).click();
-    // L2: Dialog-bekräftelse — DialogTitle "Markera som Nekad?".
-    await page
-      .getByRole("dialog")
-      .getByText(/^Markera som Nekad\?$/)
-      .waitFor({ state: "visible", timeout: 5000 });
+    await nekad.click();
+    const dialog = page.getByRole("dialog", { name: "Markera som Nekad?" });
+    await dialog.waitFor({ state: "visible", timeout: 5000 });
     await page.waitForTimeout(600); // overlay/dialog-fade settlar (DESIGN.md §10)
-    await shoot(page, outDir, `ansokningar-status-destruktiv-dialog__${theme}__${vpTag}`);
+    await shoot(page, outDir, `ansokningar-terminal-move-dialog__${theme}__${vpTag}`);
     shot++;
+    await dialog.getByRole("button", { name: "Avbryt" }).click();
   } catch (err) {
     console.warn(
-      `[visual-verify] VARNING: status-destruktiv (${theme}/${vpTag}) ` +
+      `[visual-verify] VARNING: terminal-move-dialog (${theme}/${vpTag}) ` +
         `kunde inte capureras: ${(err as Error).message}`,
     );
   }
@@ -644,7 +629,7 @@ async function main(): Promise<void> {
         },
         {
           path: `/ansokningar/${appFixtures!.submitted}`,
-          name: "ansokningar-detalj-submitted-radiogrupp",
+          name: "ansokningar-detalj-submitted",
           auth: true,
         },
       ]
@@ -730,14 +715,14 @@ async function main(): Promise<void> {
             theme,
             vp.tag,
           );
-          // FAS 3 §5/L2 — destruktiv övergång + Dialog (Area 5-VETO L2).
-          if (appFixtures?.submitted) {
-            count += await shootStatusDestructiveStates(
+          // #1827 — bekräftelsen före ett avslut, på fixturen med sparad kopia.
+          if (appFixtures?.jobAdLinked) {
+            count += await shootTerminalMoveConfirmation(
               page,
               outDir,
               theme,
               vp.tag,
-              appFixtures.submitted,
+              appFixtures.jobAdLinked,
             );
           }
         }

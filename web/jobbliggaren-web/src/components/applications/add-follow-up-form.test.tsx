@@ -85,8 +85,8 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: () => null,
 }));
 
-const SUBMIT = "Lägg till uppföljning";
-const NOTE = "Anteckning (valfritt)";
+const SUBMIT = "Planera uppföljning";
+const NOTE = "Anteckning (valfri)";
 
 describe("AddFollowUpForm", () => {
   beforeEach(() => {
@@ -201,7 +201,7 @@ describe("AddFollowUpForm", () => {
     const alerts = await screen.findAllByRole("alert");
     expect(alerts.map((a) => a.textContent)).toEqual([
       "Välj en kanal.",
-      "Anteckning får vara max 1 000 tecken.",
+      "Anteckningen får vara max 1 000 tecken.",
     ]);
     expect(addFollowUpActionMock).not.toHaveBeenCalled();
 
@@ -212,7 +212,7 @@ describe("AddFollowUpForm", () => {
     expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
     expect(note).toHaveAttribute("aria-invalid", "true");
     expect(note.getAttribute("aria-describedby")).toBe(
-      "follow-up-note-hint follow-up-note-error",
+      "follow-up-note-error",
     );
 
     // Focus goes to the FIRST refused field, not the last and not the message row.
@@ -244,7 +244,7 @@ describe("AddFollowUpForm", () => {
     // The note was not corrected, so its refusal stands. Clearing is per field, not per form.
     expect(note).toHaveAttribute("aria-invalid", "true");
     expect(
-      screen.getByText("Anteckning får vara max 1 000 tecken."),
+      screen.getByText("Anteckningen får vara max 1 000 tecken."),
     ).toBeInTheDocument();
   });
 
@@ -267,9 +267,9 @@ describe("AddFollowUpForm", () => {
 
     expect(note).not.toHaveAttribute("aria-invalid");
     expect(
-      screen.queryByText("Anteckning får vara max 1 000 tecken.")
+      screen.queryByText("Anteckningen får vara max 1 000 tecken.")
     ).not.toBeInTheDocument();
-    expect(note.getAttribute("aria-describedby")).toBe("follow-up-note-hint");
+    expect(note).not.toHaveAttribute("aria-describedby");
 
     // The refused field keeps its refusal.
     expect(trigger).toHaveAttribute("aria-invalid", "true");

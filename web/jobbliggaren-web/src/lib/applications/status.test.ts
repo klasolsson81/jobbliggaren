@@ -5,11 +5,14 @@ import {
   channelLabel,
   followUpOutcomeLabel,
   applicationSourceLabel,
-  getAllowedTransitions,
-  isDestructiveTransition,
   isWaitingSignal,
-  ALLOWED_TRANSITIONS,
+  needsTerminalMoveConfirmation,
+  isClosedForActivity,
+  ACTIVE_PIPELINE_STATUSES,
   CHANNEL_KEYS,
+  CLOSED_FOR_ACTIVITY_STATUSES,
+  MINIMISING_STATUSES,
+  PIPELINE_ORDER,
   STATUS_BADGE_VARIANT,
 } from "./status";
 import { followUpOutcomeSchema } from "@/lib/dto/applications";
@@ -65,57 +68,6 @@ describe("STATUS_BADGE_VARIANT (#683, design §11)", () => {
   });
 });
 
-describe("getAllowedTransitions", () => {
-  it("Draft can only transition to Submitted", () => {
-    expect(getAllowedTransitions("Draft")).toEqual(["Submitted"]);
-  });
-
-  it("Submitted can transition to Acknowledged, Rejected, Withdrawn", () => {
-    expect(getAllowedTransitions("Submitted")).toEqual(
-      expect.arrayContaining(["Acknowledged", "Rejected", "Withdrawn"])
-    );
-    expect(getAllowedTransitions("Submitted")).toHaveLength(3);
-  });
-
-  it("Accepted is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Accepted")).toHaveLength(0);
-  });
-
-  it("Rejected is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Rejected")).toHaveLength(0);
-  });
-
-  it("Withdrawn is a terminal state with no transitions", () => {
-    expect(getAllowedTransitions("Withdrawn")).toHaveLength(0);
-  });
-
-  it("Ghosted can be reactivated to Submitted", () => {
-    expect(getAllowedTransitions("Ghosted")).toEqual(["Submitted"]);
-  });
-
-  it("covers all 10 statuses", () => {
-    expect(Object.keys(ALLOWED_TRANSITIONS)).toHaveLength(10);
-  });
-});
-
-describe("isDestructiveTransition", () => {
-  it("Rejected is destructive", () => {
-    expect(isDestructiveTransition("Rejected")).toBe(true);
-  });
-
-  it("Withdrawn is destructive", () => {
-    expect(isDestructiveTransition("Withdrawn")).toBe(true);
-  });
-
-  it("Submitted is not destructive", () => {
-    expect(isDestructiveTransition("Submitted")).toBe(false);
-  });
-
-  it("Accepted is not destructive", () => {
-    expect(isDestructiveTransition("Accepted")).toBe(false);
-  });
-});
-
 describe("channelLabel", () => {
   it("translates every known channel key", () => {
     for (const key of CHANNEL_KEYS) {
@@ -138,7 +90,7 @@ describe("followUpOutcomeLabel", () => {
   it("uses civic-utility Swedish copy without exclamation or emoji", () => {
     expect(followUpOutcomeLabel(t, "Pending")).toBe("Inväntar svar");
     expect(followUpOutcomeLabel(t, "Responded")).toBe("Svar mottaget");
-    expect(followUpOutcomeLabel(t, "NoResponse")).toBe("Inget svar");
+    expect(followUpOutcomeLabel(t, "NoResponse")).toBe("Inget svar mottaget");
     for (const outcome of followUpOutcomeSchema.options) {
       expect(followUpOutcomeLabel(t, outcome)).not.toMatch(/[!]/);
     }
@@ -178,6 +130,52 @@ describe("2a action-konstanter (#630 PR 7)", () => {
   it("PARK_STATUSES = Nekad/Återtagen/Ghosted (§8.5 — Accepterad nås via stegväljaren)", async () => {
     const { PARK_STATUSES } = await import("./status");
     expect(PARK_STATUSES).toEqual(["Rejected", "Withdrawn", "Ghosted"]);
+  });
+});
+
+// ── The terminal-move confirmation (#1827, ADR 0092 D3 invariant 3) ──────────
+describe("MINIMISING_STATUSES and needsTerminalMoveConfirmation", () => {
+  it("mirrors the domain's IsTerminal exactly: Accepted, Rejected, Withdrawn, and not Ghosted", () => {
+    expect(MINIMISING_STATUSES).toEqual(["Accepted", "Rejected", "Withdrawn"]);
+  });
+
+  it("asks for every minimising target when the copy has text", () => {
+    for (const target of MINIMISING_STATUSES) {
+      expect(needsTerminalMoveConfirmation(target, true)).toBe(true);
+    }
+  });
+
+  it("does not ask for Ghosted, which keeps the copy", () => {
+    expect(needsTerminalMoveConfirmation("Ghosted", true)).toBe(false);
+  });
+
+  it("does not ask for a non-terminal target", () => {
+    for (const target of ACTIVE_PIPELINE_STATUSES) {
+      expect(needsTerminalMoveConfirmation(target, true)).toBe(false);
+    }
+  });
+
+  it("does not ask when the copy has no text to lose", () => {
+    for (const target of PIPELINE_ORDER) {
+      expect(needsTerminalMoveConfirmation(target, false)).toBe(false);
+    }
+  });
+});
+
+describe("CLOSED_FOR_ACTIVITY_STATUSES and isClosedForActivity", () => {
+  it("mirrors the domain's IsClosedForActivity exactly: the three terminals and Ghosted", () => {
+    expect(CLOSED_FOR_ACTIVITY_STATUSES).toEqual([
+      "Accepted",
+      "Rejected",
+      "Withdrawn",
+      "Ghosted",
+    ]);
+  });
+
+  it("is true for those four statuses and false for the other six", () => {
+    expect(ALL_STATUSES.filter((status) => isClosedForActivity(status))).toEqual(
+      ["Accepted", "Rejected", "Withdrawn", "Ghosted"],
+    );
   });
 });
 

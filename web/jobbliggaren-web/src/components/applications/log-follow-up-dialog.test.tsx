@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 describe("LogFollowUpDialog (design §9, #630 PR 7)", () => {
-  it("renderar titel, kontextrad, notering + hjälptext — INGEN exempeltext som placeholder", () => {
+  it("renderar titel, kontextrad, anteckning + hjälptext — INGEN exempeltext som placeholder", () => {
     renderDialog();
     expect(
       screen.getByRole("dialog", { name: "Logga uppföljning" }),
@@ -48,7 +48,7 @@ describe("LogFollowUpDialog (design §9, #630 PR 7)", () => {
     expect(
       screen.getByText("Backend-utvecklare · Volvo"),
     ).toBeInTheDocument();
-    const textarea = screen.getByLabelText("Notering (valfri)");
+    const textarea = screen.getByLabelText("Anteckning (valfri)");
     expect(textarea).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(/väntetiden räknas om från idag/),
@@ -57,7 +57,7 @@ describe("LogFollowUpDialog (design §9, #630 PR 7)", () => {
 
   it("Spara → logFollowUpAction + uppföljningstoast (utan Ångra) + stängning", async () => {
     const { onOpenChange } = renderDialog();
-    fireEvent.change(screen.getByLabelText("Notering (valfri)"), {
+    fireEvent.change(screen.getByLabelText("Anteckning (valfri)"), {
       target: { value: "Ringde kontaktpersonen." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Spara uppföljning" }));

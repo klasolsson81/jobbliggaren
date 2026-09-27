@@ -42,10 +42,10 @@ export interface ApplicationActionsValue {
   /** "Logga uppföljning"-dialogen (design §9). anchorY = klickets viewport-Y. */
   openLogFollowUp: (application: ApplicationDto, anchorY: number | null) => void;
   /**
-   * #782 (ADR 0104) — "Ta bort ansökan": opens the destructive HARD-delete
+   * #782 (ADR 0104) — "Radera ansökan": opens the destructive HARD-delete
    * confirm (ONE shared centered dialog on the island, never N per row). No
-   * anchorY — a destructive confirm is centered (WithdrawApplicationButton
-   * precedent), not click-anchored like the two dialogs above.
+   * anchorY — a destructive confirm is centered, not click-anchored like the two
+   * dialogs above.
    */
   deleteApplication: (application: ApplicationDto) => void;
 }
@@ -108,9 +108,9 @@ export function applicationDisplayName(application: ApplicationDto): string {
  *
  * Mutations-UX per CTO-bind 1: await server action → revalidatePath-driven
  * server-recompute (attention/grupper är BE-SSOT — ingen optimistisk
- * grupp-flytt), pending-state per rad under tiden. Detaljmodalen har sina egna
- * öar (DrawerStatusActions — PR 6-arvsnamn) — samma actions, samma toast-store,
- * ingen delad React-state behövs över träden.
+ * grupp-flytt), pending-state per rad under tiden. Detaljkroppen har sina egna
+ * öar (ApplicationStatusActions) — samma actions, samma toast-store, ingen delad
+ * React-state behövs över träden.
  */
 export function ApplicationActionsProvider({
   children,

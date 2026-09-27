@@ -80,10 +80,10 @@ describe("ApplicationToastHost (design §10, #630 PR 7)", () => {
   it("fel-toasten renderas i den assertiva regionen (role=alert)", () => {
     render(<ApplicationToastHost />);
     act(() => {
-      showApplicationToast({ kind: "error", message: "Statusbytet misslyckades." });
+      showApplicationToast({ kind: "error", message: "Statusbytet misslyckades. Försök igen." });
     });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Statusbytet misslyckades.",
+      "Statusbytet misslyckades. Försök igen.",
     );
   });
 

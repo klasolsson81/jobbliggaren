@@ -10,8 +10,8 @@ import { RouteModalShell } from "@/components/modals/route-modal-shell";
  * #565 regression guard — cross-shell Escape contract (BEHAVIOURAL).
  *
  * All three modal shells run a document-level, bubble-phase keydown listener
- * that closes the modal (router.back) on Escape. When a nested Radix layer (the
- * destructive-status confirm Dialog, "Återta ansökan", a Select, or a CV form's
+ * that closes the modal (router.back) on Escape. When a nested Radix layer (a
+ * Select, or a CV form's
  * Dialog) is open, Radix handles Escape in the CAPTURE phase and calls
  * preventDefault() first — so a bare Escape used to close the WHOLE modal
  * instead of just the inner layer (data loss for the CV forms). The shells now

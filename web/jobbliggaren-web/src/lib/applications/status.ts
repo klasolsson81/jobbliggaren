@@ -29,21 +29,6 @@ export const STATUS_BADGE_VARIANT: Record<ApplicationStatus, BadgeVariant> = {
   Ghosted: "Neutral",
 };
 
-export const ALLOWED_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
-  Draft: ["Submitted"],
-  Submitted: ["Acknowledged", "Rejected", "Withdrawn"],
-  Acknowledged: ["InterviewScheduled", "Rejected", "Withdrawn"],
-  InterviewScheduled: ["Interviewing", "Withdrawn"],
-  Interviewing: ["OfferReceived", "Rejected", "Withdrawn"],
-  OfferReceived: ["Accepted", "Rejected", "Withdrawn"],
-  Accepted: [],
-  Rejected: [],
-  Withdrawn: [],
-  Ghosted: ["Submitted"],
-};
-
-export const DESTRUCTIVE_STATUSES: ApplicationStatus[] = ["Rejected", "Withdrawn"];
-
 /**
  * Fast pipeline-ordning. Single source of truth — speglar backend-
  * pipelinens grupp-ordning. Tidigare duplicerad som PIPELINE_ORDER i
@@ -93,7 +78,7 @@ export function isActivePipelineStatus(status: ApplicationStatus): boolean {
 
 /**
  * Den aktiva vägens 7 steg (design §8.4): de 6 aktiva pipeline-stegen + målet
- * Accepterad. Detta är detaljmodalens stegväljare — INTE PIPELINE_ORDER (10,
+ * Accepterad. Detta är detaljkroppens stegväljare — INTE PIPELINE_ORDER (10,
  * railen) och inte ACTIVE_PIPELINE_STATUSES (6, Lista-partitionen). SSOT för
  * "nästa steg"-härledningen nedan.
  */
@@ -116,7 +101,7 @@ export const STATUS_MENU_CLOSED_GROUP: ApplicationStatus[] = [
 ];
 
 /**
- * Detaljmodalens "AVSLUTA ELLER PARKERA"-knappar (design §8.5): Nekad
+ * Detaljkroppens "AVSLUTA ELLER PARKERA"-knappar (design §8.5): Nekad
  * (dangertext), Återtagen, Ghosted. Accepterad nås via stegväljarens steg 7,
  * inte här.
  */
@@ -125,6 +110,45 @@ export const PARK_STATUSES: ApplicationStatus[] = [
   "Withdrawn",
   "Ghosted",
 ];
+
+/**
+ * The statuses whose move drops the saved copy's ad text and contacts: the domain's
+ * `IsTerminal` (`src/Jobbliggaren.Domain/Applications/Application.cs`),
+ * which `TransitionTo` runs `AdSnapshot.WithoutAdBody()` on. Undo restores the status, never the
+ * copy (ADR 0092 D3 invariant 3). Ghosted is not in it: it keeps the copy.
+ */
+export const MINIMISING_STATUSES: readonly ApplicationStatus[] = [
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+];
+
+/**
+ * Whether a move to `target` shows its consequence before it runs: it would delete the saved
+ * copy's text, which undo does not bring back. `copyHasText` is what the caller knows about the
+ * copy; nothing is lost when it has no text, so the move then runs directly.
+ */
+export function needsTerminalMoveConfirmation(
+  target: ApplicationStatus,
+  copyHasText: boolean,
+): boolean {
+  return copyHasText && MINIMISING_STATUSES.includes(target);
+}
+
+/**
+ * The statuses closed to follow-up activity: the domain's `ApplicationStatus.IsClosedForActivity`
+ * (`src/Jobbliggaren.Domain/Applications/ApplicationStatus.cs`).
+ */
+export const CLOSED_FOR_ACTIVITY_STATUSES: readonly ApplicationStatus[] = [
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+  "Ghosted",
+];
+
+export function isClosedForActivity(status: ApplicationStatus): boolean {
+  return CLOSED_FOR_ACTIVITY_STATUSES.includes(status);
+}
 
 /**
  * "Flytta till {nästa steg}"-källan (design §5/§8.3, prototypens nextOf —
@@ -243,14 +267,6 @@ export function applicationSourceLabel(
   return (APPLICATION_SOURCE_KEYS as readonly string[]).includes(source)
     ? t(`source.${source as ApplicationSourceKey}`)
     : source;
-}
-
-export function getAllowedTransitions(status: ApplicationStatus): ApplicationStatus[] {
-  return ALLOWED_TRANSITIONS[status] ?? [];
-}
-
-export function isDestructiveTransition(target: ApplicationStatus): boolean {
-  return DESTRUCTIVE_STATUSES.includes(target);
 }
 
 // ─── Attention feed (#343, ADR 0085) ──────────────────────────────────────

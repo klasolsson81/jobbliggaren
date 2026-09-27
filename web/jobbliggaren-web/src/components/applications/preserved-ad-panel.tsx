@@ -46,22 +46,19 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         {tUi("preservedAd.panelTitle")}
       </div>
 
-      {/* Lugn "sparad kopia"-not: den befintliga neutrala bordered
-          surface-2-rutan (.jp-modal__match), ingen status-färg, ingen
-          varningston. */}
-      <div className="jp-modal__match">
-        <div className="jp-modal__match__expl">
-          {tUi("preservedAd.savedNotice", {
-            date: preservedCaptured ?? "",
-          })}
-        </div>
-      </div>
+      {/* Lugn "sparad kopia"-not: en rad utan ruta (#1827 Minor 10), ingen
+          status-färg, ingen varningston. */}
+      <p className="jp-source-ad__note">
+        {tUi("preservedAd.savedNotice", {
+          date: preservedCaptured ?? "",
+        })}
+      </p>
 
       {/* Bevarad metadata: label · värde-rader, hårfin separator
-          (.jp-modal__matchrow återbrukad — ingen ny klass). Rader
+          (.jp-modal__matchrow i tvåkolumnsformen --pair). Rader
           utelämnas när källfältet är null. */}
       <dl className="jp-modal__matchrows" style={{ marginTop: "12px" }}>
-        <div className="jp-modal__matchrow">
+        <div className="jp-modal__matchrow jp-modal__matchrow--pair">
           <dt className="jp-modal__matchrow-label">
             {tUi("preservedAd.company")}
           </dt>
@@ -71,7 +68,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         </div>
 
         {preservedAd.location && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.location")}
             </dt>
@@ -82,28 +79,28 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         )}
 
         {preservedPublished && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.published")}
             </dt>
-            <dd className="jp-modal__matchrow-evidence jp-mono">
+            <dd className="jp-detail-date">
               {preservedPublished}
             </dd>
           </div>
         )}
 
         {preservedExpires && (
-          <div className="jp-modal__matchrow">
+          <div className="jp-modal__matchrow jp-modal__matchrow--pair">
             <dt className="jp-modal__matchrow-label">
               {tUi("preservedAd.applyBy")}
             </dt>
-            <dd className="jp-modal__matchrow-evidence jp-mono">
+            <dd className="jp-detail-date">
               {preservedExpires}
             </dd>
           </div>
         )}
 
-        <div className="jp-modal__matchrow">
+        <div className="jp-modal__matchrow jp-modal__matchrow--pair">
           <dt className="jp-modal__matchrow-label">
             {tUi("preservedAd.source")}
           </dt>
@@ -121,40 +118,42 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
           visas medan annonsen ÄR aktiv. Den bevarade kopian nedan är vad vi kan
           stå för (ADR 0086) och är strikt bättre än en slantsingling. */}
 
-      {/* Annonstexten. Vid description == null (terminal status →
-          retention-minimering) visas EJ en tom kropp: en kort, neutral
-          not förklarar att texten rensats men metadatan finns kvar. */}
-      <div style={{ marginTop: "16px" }}>
-        <div className="jp-section-label">
+      {/* Annonstexten. null means the minimisation of a closing move has run
+          (ADR 0092 D3): a short, neutral note stands where the text was. */}
+      <section
+        aria-labelledby="jp-preserved-ad-text-title"
+        style={{ marginTop: "16px" }}
+      >
+        <div className="jp-section-label" id="jp-preserved-ad-text-title">
           {tUi("preservedAd.descriptionLabel")}
         </div>
-        {preservedAd.description ? (
-          <p className="jp-modal__description jp-detail-prose">
-            {preservedAd.description}
-          </p>
-        ) : (
+        {preservedAd.description === null ? (
           <div className="jp-modal__match">
             <div className="jp-modal__match__expl">
               {tUi("preservedAd.minimizedNotice")}
             </div>
           </div>
+        ) : (
+          <p className="jp-modal__description jp-detail-prose">
+            {preservedAd.description}
+          </p>
         )}
-      </div>
+      </section>
 
-      {/* #842 PR4 — recruiter contact block (the follow-up person for THIS
-          application) + a one-line transparency link, gated together on the
-          presence of contacts so the "how we handle contact details" link shows
-          exactly when contact details are shown. The block self-hides on [], but
-          gating the wrapper co-gates the link. */}
       {preservedAd.contacts.length > 0 && (
         <div className="mt-4">
           <RecruiterContactBlock contacts={preservedAd.contacts} />
-          <p className="jp-recruiter-notice mt-2">
-            <Link href="/kontaktperson-i-annons">
-              {tUi("preservedAd.recruiterNoticeLink")}
-            </Link>
-          </p>
         </div>
+      )}
+      {/* ADR 0144 D4 row 10: the link stands wherever the copy's text or its
+          contact block renders. A contact person's name can sit in the text,
+          where no regex reaches it, so the contacts alone do not decide. */}
+      {(preservedAd.description != null || preservedAd.contacts.length > 0) && (
+        <p className="jp-recruiter-notice mt-2">
+          <Link href="/kontaktperson-i-annons">
+            {tUi("preservedAd.recruiterNoticeLink")}
+          </Link>
+        </p>
       )}
     </section>
   );

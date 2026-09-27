@@ -82,7 +82,7 @@ describe("DeleteApplicationDialog (#782 — destruktiv hard-delete-bekräftelse)
   it("visar serverfel i dialogen vid misslyckad radering", async () => {
     deleteApplicationActionMock.mockResolvedValue({
       success: false,
-      error: "Det gick inte att ta bort ansökan.",
+      error: "Det gick inte att radera ansökan. Försök igen.",
     });
     const user = userEvent.setup();
     const onDeleted = vi.fn();
@@ -99,7 +99,7 @@ describe("DeleteApplicationDialog (#782 — destruktiv hard-delete-bekräftelse)
 
     expect(
       await screen.findByRole("alert")
-    ).toHaveTextContent("Det gick inte att ta bort ansökan.");
+    ).toHaveTextContent("Det gick inte att radera ansökan. Försök igen.");
     // Ett misslyckande signalerar ALDRIG borttagning (ingen navigering bort).
     expect(onDeleted).not.toHaveBeenCalled();
   });

@@ -21,7 +21,7 @@
     "followUpOutcome": {
       "Pending": "Inväntar svar",
       "Responded": "Svar mottaget",
-      "NoResponse": "Inget svar",
+      "NoResponse": "Inget svar mottaget",
       "Logged": "Kontakt loggad"
     },
     "source": {
@@ -39,20 +39,17 @@
       "channelLabel": "Kanal",
       "channelPlaceholder": "Välj kanal",
       "dateLabel": "Datum",
-      "noteLabel": "Anteckning (valfritt)",
-      "noteHint": "Max 1 000 tecken.",
-      "submit": "Lägg till uppföljning"
+      "noteLabel": "Anteckning (valfri)",
+      "submit": "Planera uppföljning"
     },
     "addNote": {
-      "label": "Notering",
-      "submit": "Spara notering"
+      "label": "Anteckning",
+      "submit": "Spara anteckning"
     },
     "detail": {
-      "fallbackTitle": "Ansökan #{shortId}",
-      "createdPrefix": "Skapad",
       "statusLabel": "Status",
       "nextFollowUp": "Nästa uppföljning:",
-      "daysInStep": "{days, plural, =0 {mindre än en dag i detta steg} one {# dag i detta steg} other {# dagar i detta steg}}",
+      "daysInStep": "{days, plural, =0 {mindre än en dag i steget} one {# dag i steget} other {# dagar i steget}}",
       "latestEvent": "Senaste: {event}",
       "timelineLabel": "Tidslinje",
       "eventCreated": "Ansökan skapades",
@@ -80,7 +77,7 @@
       "groupActive": "Flytta till · Aktiv väg",
       "groupClosed": "Avslut & vilande",
       "currentSuffix": "nuvarande status",
-      "delete": "Ta bort ansökan"
+      "delete": "Radera ansökan"
     },
     "urgency": {
       "deadline": "Deadline {date}",
@@ -89,6 +86,7 @@
     },
     "queueCta": {
       "readOffer": "Läs erbjudandet",
+      "recordOutcome": "Registrera utfall",
       "accept": "Acceptera",
       "followUp": "Följ upp",
       "followUpAgain": "Följ upp igen",
@@ -104,7 +102,7 @@
     },
     "logFollowUp": {
       "title": "Logga uppföljning",
-      "noteLabel": "Notering (valfri)",
+      "noteLabel": "Anteckning (valfri)",
       "hint": "Uppföljningen loggas med dagens datum och väntetiden räknas om från idag.",
       "save": "Spara uppföljning"
     },
@@ -224,11 +222,10 @@
     },
     "followUps": {
       "sectionLabel": "Uppföljningar",
-      "empty": "Inga uppföljningar registrerade.",
       "emptyDrawer": "Inga uppföljningar ännu.",
-      "add": "+ Lägg till uppföljning",
-      "addLog": "+ Lägg till",
-      "addHeading": "Lägg till uppföljning",
+      "add": "Planera uppföljning",
+      "addLog": "Logga uppföljning",
+      "addHeading": "Planera uppföljning",
       "outcomeLabel": "Utfall:",
       "noteLabel": "Anteckning:",
       "help": {
@@ -258,13 +255,13 @@
       "applyBy": "Sista ansökningsdag",
       "source": "Källa",
       "descriptionLabel": "Annonstext",
-      "minimizedNotice": "Annonstexten har rensats eftersom ansökan är avslutad. Sparad metadata finns kvar.",
+      "minimizedNotice": "Annonstexten raderades när ansökan avslutades.",
       "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
     },
     "notes": {
       "sectionLabel": "Anteckningar",
       "empty": "Inga anteckningar ännu.",
-      "add": "+ Lägg till anteckning",
+      "add": "Lägg till anteckning",
       "addHeading": "Lägg till anteckning",
       "help": {
         "title": "Anteckning eller uppföljning?",
@@ -277,37 +274,22 @@
       "notice": "Utfallet kan inte ändras när det har sparats.",
       "outcomeLabel": "Utfall",
       "outcomePlaceholder": "Välj utfall",
-      "optionResponded": "Svar mottaget",
-      "optionNoResponse": "Inget svar",
       "save": "Spara utfall",
       "confirmQuestion": "Spara utfallet <b>{outcome}</b>?",
       "savingOutcome": "Sparar…",
       "saveOutcome": "Spara {outcome}"
     },
-    "statusEdit": {
-      "title": "Status",
-      "currentStatus": "Nuvarande status:",
-      "closedNotice": "Den här ansökan är avslutad och kan inte ändras.",
-      "markAs": "Markera som {status}",
-      "chooseInstruction": "Välj ny status.",
-      "destructiveNotice": "{status} avslutar ansökan. Det går inte att ångra utan manuell åtgärd.",
-      "save": "Spara",
-      "confirmTitle": "Markera som {status}?",
-      "confirmBody": "Det går inte att ångra utan manuell åtgärd.",
-      "confirmFallback": "Bekräfta"
-    },
-    "withdraw": {
-      "action": "Återta ansökan",
-      "confirmTitle": "Återta ansökan?",
-      "confirmBody": "Ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
-      "withdrawing": "Återtar…"
-    },
     "delete": {
-      "action": "Ta bort ansökan",
+      "action": "Radera ansökan",
       "confirmTitle": "Radera ansökan?",
       "confirmBody": "Ansökan och hela dess historik tas bort permanent. Det går inte att ångra.",
-      "deleting": "Tar bort…",
+      "deleting": "Raderar…",
       "confirmButton": "Radera ansökan"
+    },
+    "terminalMove": {
+      "title": "Markera som {status}?",
+      "body": "Annonstexten och eventuella kontaktuppgifter i den sparade kopian raderas och kommer inte tillbaka om du ångrar.",
+      "confirm": "Markera som {status}"
     },
     "actions": {
       "notLoggedIn": "Du är inte inloggad.",
@@ -316,12 +298,12 @@
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "createFromJobAdFailed": "Kunde inte registrera ansökan.",
       "createApplicationFailed": "Kunde inte spara ansökan.",
-      "transitionFailed": "Statusbytet misslyckades.",
+      "transitionFailed": "Statusbytet misslyckades. Försök igen.",
       "addFollowUpFailed": "Kunde inte spara uppföljningen. Försök igen.",
       "logFollowUpFailed": "Kunde inte logga uppföljningen.",
-      "addNoteFailed": "Kunde inte spara noteringen. Försök igen.",
+      "addNoteFailed": "Kunde inte spara anteckningen. Försök igen.",
       "recordOutcomeFailed": "Kunde inte registrera utfallet.",
-      "deleteFailed": "Det gick inte att ta bort ansökan."
+      "deleteFailed": "Det gick inte att radera ansökan. Försök igen."
     },
     "adRemoved": {
       "tag": "Annonsen är borttagen"

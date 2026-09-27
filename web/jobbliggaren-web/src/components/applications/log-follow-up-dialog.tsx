@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { logFollowUpAction } from "@/lib/actions/applications";
 import { anchoredDialogStyle } from "@/lib/applications/anchored-top";
 import { showApplicationToast } from "@/lib/applications/toast-store";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 
 export interface LogFollowUpDialogProps {
   open: boolean;
@@ -40,7 +41,7 @@ export interface LogFollowUpDialogProps {
  * Ångra (design §10).
  *
  * Ingen exempeltext i fältet (Klas-regel): label + hjälptexten bär
- * instruktionen. Noteringen är frivillig — max 2000 tecken (backend-spegel).
+ * instruktionen. Anteckningen är frivillig — max 2000 tecken (backend-spegel).
  */
 export function LogFollowUpDialog({
   open,
@@ -56,6 +57,7 @@ export function LogFollowUpDialog({
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { onCloseAutoFocus } = useReturnFocus(open);
 
   const context =
     contextTitle != null
@@ -83,6 +85,7 @@ export function LogFollowUpDialog({
       <DialogContent
         className="w-full max-w-[480px]"
         style={anchoredDialogStyle(top)}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{tUi("logFollowUp.title")}</DialogTitle>

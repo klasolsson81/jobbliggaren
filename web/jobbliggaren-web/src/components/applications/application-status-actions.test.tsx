@@ -1,0 +1,353 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ApplicationStatusActions } from "./application-status-actions";
+import {
+  dismissApplicationToast,
+  getApplicationToastSnapshot,
+} from "@/lib/applications/toast-store";
+
+const transitionStatusAction = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true as const })),
+);
+vi.mock("@/lib/actions/applications", () => ({
+  transitionStatusAction,
+}));
+
+const APP_ID = "11111111-2222-3333-4444-555555555555";
+
+beforeEach(() => {
+  transitionStatusAction.mockReset();
+  transitionStatusAction.mockResolvedValue({ success: true as const });
+  dismissApplicationToast();
+});
+
+describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
+  it("primär-CTA:n flyttar till nästa steg och publicerar ångra-toasten", async () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        APP_ID,
+        "Acknowledged",
+      ),
+    );
+    await waitFor(() =>
+      expect(getApplicationToastSnapshot()).toMatchObject({
+        kind: "statusChange",
+        company: "Volvo",
+        from: "Submitted",
+        to: "Acknowledged",
+      }),
+    );
+  });
+
+  it("Ghosted: CTA:n är 'Återaktivera som Skickad' (prototyp-facit)", async () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Ghosted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Återaktivera som Skickad" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Submitted"),
+    );
+  });
+
+  it("terminala statusar: ingen primär-CTA, men stegväljare + park kvarstår", () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Rejected"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".jp-steppicker__step")).toHaveLength(7);
+    // Nekad är aktiv i park-raden → markerad och disabled.
+    const rejected = screen.getByRole("button", { name: "Nekad" });
+    expect(rejected).toHaveAttribute("aria-pressed", "true");
+    expect(rejected).toBeDisabled();
+  });
+
+  it("stegväljaren byter status DIREKT, även bakåt (fria byten, D3)", async () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Interviewing"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    // Bakåt: Intervjuar (steg 5) → Skickad (steg 2).
+    fireEvent.click(screen.getByRole("button", { name: /Skickad/ }));
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Submitted"),
+    );
+  });
+
+  it("nuvarande steg är disabled med aria-current (self-transition = no-op)", () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    const current = document.querySelector('[data-state="current"]');
+    expect(current).toHaveAttribute("aria-current", "step");
+    expect(current).toBeDisabled();
+    expect(current).toHaveTextContent("Nu");
+  });
+
+  it("names the step picker by its label alone and keeps the hint visible beside it", () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    const steps = screen.getByRole("region", { name: "Flytta i flödet" });
+    expect(steps).toHaveTextContent("Även bakåt");
+    expect(
+      screen.getByRole("region", { name: "Avsluta eller parkera" }),
+    ).toBeInTheDocument();
+  });
+
+  it("klarade steg markeras done; framtida är klickbara", () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Interviewing"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    const steps = [...document.querySelectorAll(".jp-steppicker__step")];
+    expect(
+      steps.filter((s) => s.getAttribute("data-state") === "done"),
+    ).toHaveLength(4);
+    expect(
+      steps.filter((s) => s.getAttribute("data-state") === "future"),
+    ).toHaveLength(2);
+  });
+
+  it("park-knappen Ghosted transitionerar och Nekad bär dangertext-klassen", async () => {
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Nekad" })).toHaveClass(
+      "jp-parkbtn--danger",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Inget svar" }));
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Ghosted"),
+    );
+  });
+
+  it("fel visas inline i panelen (role=alert), ingen toast", async () => {
+    transitionStatusAction.mockResolvedValueOnce({
+      success: false as const,
+      error: "Statusbytet misslyckades. Försök igen.",
+    } as never);
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Statusbytet misslyckades. Försök igen.",
+    );
+    expect(getApplicationToastSnapshot()).toBeNull();
+  });
+});
+
+// #1827: a move to Accepterad, Nekad or Återtagen deletes the saved copy's text, which undo does
+// not bring back (ADR 0092 D3 invariant 3), so the body shows that before the move.
+describe("ApplicationStatusActions — the terminal-move confirmation", () => {
+  const renderWithCopy = (
+    status: "Submitted" | "OfferReceived",
+    copyHasText: boolean,
+  ) =>
+    render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status={status}
+        displayName="Volvo"
+        copyHasText={copyHasText}
+      />,
+    );
+
+  it("asks before the park row's Nekad when the copy has text, and moves nothing yet", () => {
+    renderWithCopy("Submitted", true);
+    fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Markera som Nekad?" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("confirming performs the transition and publishes the undo toast", async () => {
+    renderWithCopy("Submitted", true);
+    fireEvent.click(screen.getByRole("button", { name: "Återtagen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Markera som Återtagen" }),
+    );
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Withdrawn"),
+    );
+    await waitFor(() =>
+      expect(getApplicationToastSnapshot()).toMatchObject({
+        kind: "statusChange",
+        from: "Submitted",
+        to: "Withdrawn",
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("cancelling closes the dialog and moves nothing", async () => {
+    renderWithCopy("Submitted", true);
+    fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("asks before the primary CTA's move to Accepterad", () => {
+    renderWithCopy("OfferReceived", true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Accepterad" }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Markera som Accepterad?" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("asks before step 7, Accepterad, in the step picker", () => {
+    renderWithCopy("Submitted", true);
+    const steps = document.querySelectorAll(".jp-steppicker__step");
+    fireEvent.click(steps[6]!);
+
+    expect(
+      screen.getByRole("dialog", { name: "Markera som Accepterad?" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("moves to Inget svar directly: Ghosted keeps the copy", async () => {
+    renderWithCopy("Submitted", true);
+    fireEvent.click(screen.getByRole("button", { name: "Inget svar" }));
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Ghosted"),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("moves to a non-terminal step directly", async () => {
+    renderWithCopy("Submitted", true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    );
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        APP_ID,
+        "Acknowledged",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("moves to Nekad directly when the copy has no text to lose", async () => {
+    renderWithCopy("Submitted", false);
+    fireEvent.click(screen.getByRole("button", { name: "Nekad" }));
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Rejected"),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each(["Escape", "Avbryt", "Stäng"] as const)(
+    "returns focus to the control that opened the confirmation after %s",
+    async (close) => {
+      const user = userEvent.setup();
+      renderWithCopy("Submitted", true);
+      const rejected = screen.getByRole("button", { name: "Nekad" });
+      await user.click(rejected);
+      expect(
+        screen.getByRole("dialog", { name: "Markera som Nekad?" }),
+      ).toBeInTheDocument();
+
+      if (close === "Escape") await user.keyboard("{Escape}");
+      else await user.click(screen.getByRole("button", { name: close }));
+
+      await waitFor(() => expect(rejected).toHaveFocus());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(transitionStatusAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("leaves focus on the pressed control after the confirmation, as a direct move does", async () => {
+    transitionStatusAction.mockImplementation(() => new Promise<never>(() => {}));
+    const user = userEvent.setup();
+    renderWithCopy("Submitted", true);
+    const withdrawn = screen.getByRole("button", { name: "Återtagen" });
+    await user.click(withdrawn);
+
+    await user.click(
+      screen.getByRole("button", { name: "Markera som Återtagen" }),
+    );
+
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Withdrawn"),
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(withdrawn).toBeDisabled();
+    expect(withdrawn).toHaveFocus();
+  });
+});

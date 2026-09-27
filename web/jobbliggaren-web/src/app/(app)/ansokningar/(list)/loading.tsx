@@ -7,9 +7,9 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * applications-list ledger shape immediately on navigation, instead of freezing
  * the previous page.
  *
- * Re-uses `jp-pagehero` + `jp-section` structural classes. Also covers the deeper
- * `/ansokningar/[id]` route only until that segment's own `loading.tsx` (the detail
- * skeleton) takes over. sr-only `role="status"` announces; visuals decorative. Sync RSC.
+ * Re-uses `jp-pagehero` + `jp-section` structural classes. Scoped to the `(list)` route
+ * group, so it is never the fallback of `/ansokningar/[id]` (the `cv/(hub)` precedent,
+ * #1385). sr-only `role="status"` announces; visuals decorative. Sync RSC.
  *
  * **The band this file reserves used to model a page layout that no longer exists**
  * (#1467, measured 2026-08-23 at `173e767c`: the hero grew by up to 202px on swap, worst

@@ -186,7 +186,7 @@ describe("batchTransitionAction", () => {
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
-  it("(h) res 400 → transitionFailed-fallback 'Statusbytet misslyckades.'", async () => {
+  it("(h) res 400 → transitionFailed-fallback 'Statusbytet misslyckades. Försök igen.'", async () => {
     const fetchMock = vi.fn(async () => ({ ok: false, status: 400 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -196,7 +196,7 @@ describe("batchTransitionAction", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "Statusbytet misslyckades.",
+      error: "Statusbytet misslyckades. Försök igen.",
     });
   });
 

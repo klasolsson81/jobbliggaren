@@ -15,7 +15,7 @@ describe("ApplicationModalShell", () => {
 
   it("renderar role=dialog, aria-modal och aria-labelledby kopplat till titeln", () => {
     render(
-      <ApplicationModalShell title="Backend-utvecklare" subtitle="Volvo · #abc">
+      <ApplicationModalShell title="Backend-utvecklare" subtitle="Volvo">
         <div className="jp-modal__body">innehåll</div>
       </ApplicationModalShell>
     );
@@ -29,9 +29,9 @@ describe("ApplicationModalShell", () => {
 
   it("har aria-describedby=jp-modal-desc och referens-id:t finns i DOM (F5 M1)", () => {
     render(
-      <ApplicationModalShell title="Backend-utvecklare" subtitle="Volvo · #abc">
+      <ApplicationModalShell title="Backend-utvecklare" subtitle="Volvo">
         <div className="jp-modal__body">
-          {/* ApplicationDetail status-blocket renderar id="jp-modal-desc"
+          {/* ApplicationDetailBody-statusblocket renderar id="jp-modal-desc"
               OVILLKORLIGT — speglat här minimalt så referensen aldrig dinglar. */}
           <div id="jp-modal-desc">Status</div>
         </div>
@@ -88,18 +88,18 @@ describe("ApplicationModalShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("renderar valfri footer-action (Återta ansökan-slot)", () => {
+  it("renderar valfri footer-action före Stäng", () => {
     render(
       <ApplicationModalShell
         title="T"
         subtitle="S"
-        footer={<button type="button">Återta ansökan</button>}
+        footer={<button type="button">Foot-handling</button>}
       >
         <div className="jp-modal__body">x</div>
       </ApplicationModalShell>
     );
     expect(
-      screen.getByRole("button", { name: "Återta ansökan" })
+      screen.getByRole("button", { name: "Foot-handling" })
     ).toBeInTheDocument();
   });
 });

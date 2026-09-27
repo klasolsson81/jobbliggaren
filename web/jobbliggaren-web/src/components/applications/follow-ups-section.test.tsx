@@ -39,6 +39,8 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -50,6 +52,8 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -66,6 +70,8 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[respondedFollowUp()]}
       />,
     );
@@ -81,6 +87,8 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp(), respondedFollowUp()]}
       />,
     );
@@ -99,6 +107,8 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[pendingFollowUp()]}
       />,
     );
@@ -112,35 +122,63 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("default visar '+ Lägg till uppföljning'-knapp, ej form", () => {
-    render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
+  it("default visar 'Planera uppföljning'-knappen, ej form", () => {
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
     expect(
-      screen.getByRole("button", { name: /Lägg till uppföljning/ }),
+      screen.getByRole("button", { name: /Planera uppföljning/ }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
-  it("klick på Lägg till-knapp expanderar form, Avbryt kollapsar", () => {
-    render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
+  it("klick på Planera-knapp expanderar form, Avbryt kollapsar", () => {
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Lägg till uppföljning/ }),
+      screen.getByRole("button", { name: /Planera uppföljning/ }),
     );
     expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
+  // #1827 Minor 9: the outcome is a square status tag on the existing variants, not a
+  // rounded pill.
+  it("visar utfallet som en statustagg per utfall", () => {
+    render(
+      <FollowUpsSection
+        applicationId="app-1"
+        titleLevel={2}
+        canPlan
+        followUps={[
+          pendingFollowUp({ id: "p" }),
+          respondedFollowUp({ id: "r" }),
+          respondedFollowUp({ id: "n", outcome: "NoResponse" }),
+          respondedFollowUp({ id: "l", outcome: "Logged" }),
+        ]}
+      />,
+    );
+    for (const [label, tag] of [
+      ["Inväntar svar", "status-info"],
+      ["Svar mottaget", "status-success"],
+      ["Inget svar mottaget", "status-neutral"],
+      ["Kontakt loggad", "status-neutral"],
+    ] as const) {
+      const el = screen.getByText(label);
+      expect(el).toHaveClass("jp-tag");
+      expect(el).toHaveAttribute("data-tag", tag);
+    }
+  });
+
   it("renderar empty-state när inga uppföljningar", () => {
-    render(<FollowUpsSection applicationId="app-1" followUps={[]} />);
-    expect(
-      screen.getByText("Inga uppföljningar registrerade."),
-    ).toBeInTheDocument();
+    render(<FollowUpsSection applicationId="app-1" titleLevel={2} canPlan followUps={[]} />);
+    expect(screen.getByText("Inga uppföljningar ännu.")).toBeInTheDocument();
   });
 
   it("renderar första raden av anteckning i kompakt vy", () => {
     render(
       <FollowUpsSection
         applicationId="app-1"
+        titleLevel={2}
+        canPlan
         followUps={[
           pendingFollowUp({
             note: "Första raden\nAndra raden får inte synas",
@@ -152,5 +190,56 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     expect(
       screen.queryByText("Andra raden får inte synas"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("FollowUpsSection — the row's parts (#1827, the two-line form at ≤560 px)", () => {
+  const renderRows = () =>
+    render(
+      <FollowUpsSection
+        applicationId="app-1"
+        titleLevel={2}
+        canPlan
+        followUps={[
+          pendingFollowUp({ id: "p" }),
+          respondedFollowUp({ id: "r", note: null }),
+        ]}
+      />,
+    );
+  const rows = () =>
+    within(screen.getByRole("list")).getAllByRole("button", { expanded: false });
+  const parts = (row: HTMLElement) =>
+    [
+      ...row.querySelectorAll(
+        ".jp-disclosure-row__primary, .jp-tag, .jp-disclosure-row__note, .jp-disclosure-row__date",
+      ),
+    ].map((el) => el.textContent);
+
+  it("groups the channel and the outcome at the head of each follow-up row", () => {
+    renderRows();
+    expect(rows()).toHaveLength(2);
+    for (const row of rows()) {
+      expect(row).toHaveClass("jp-disclosure-row", "jp-disclosure-row--followup");
+      const head = row.firstElementChild;
+      expect(head).toHaveClass("jp-disclosure-row__head");
+      expect([...head!.children].map((el) => el.className)).toEqual([
+        "jp-disclosure-row__primary",
+        "jp-tag",
+      ]);
+    }
+  });
+
+  it("keeps the reading order channel, outcome, note, date, and the name read from it", () => {
+    renderRows();
+    const [withNote, withoutNote] = rows();
+    expect(parts(withNote!)).toEqual([
+      "E-post",
+      "Inväntar svar",
+      "Skickade påminnelse om CV-uppdatering",
+      "15 maj 2026",
+    ]);
+    expect(parts(withoutNote!)).toEqual(["Telefon", "Svar mottaget", "10 maj 2026"]);
+    expect(withNote).toHaveAccessibleName(parts(withNote!).join(""));
+    expect(withoutNote).toHaveAccessibleName(parts(withoutNote!).join(""));
   });
 });

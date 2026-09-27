@@ -8,15 +8,15 @@ import { X } from "lucide-react";
 /**
  * ApplicationModalShell — modal-chrome (scrim / ESC / scrim-klick /
  * focus-trap / focus-return / body-scroll-lock) runt en server-renderad
- * `ApplicationDetail`. Speglar F3 JobAdModalShell exakt (samma
+ * `ApplicationDetailBody`. Speglar F3 JobAdModalShell exakt (samma
  * useDismissable/focus-trap/ESC/scrim-idiom) — medvetet INGEN
  * generalisering till delad ModalShell ännu: F3-shellen passar
- * title/company i headern, ansökan-shellen behöver titel + företag·#id.
+ * title/company i headern, ansökan-shellen behöver titel + undertitel.
  * En delad abstraktion infördes EJ för att undvika prematur generalisering
  * (Fowler "rule of three" — två kontexter räcker ej; markeras som
  * opportunistisk DRY-touch om en tredje modal tillkommer).
  *
- * Children är ett Server Component-träd (ApplicationDetail) — chrome och
+ * Children är ett Server Component-träd (ApplicationDetailBody) — chrome och
  * innehåll separerade enligt Next-docs (Parallel/Intercepting Routes
  * §Modals). Stängning = `router.back()` så URL:en återställs och
  * intercepting-routens slot rensas. ADR 0053 Beslut 4 + ADR 0047 / HANDOVER
@@ -26,16 +26,13 @@ import { X } from "lucide-react";
 export function ApplicationModalShell({
   title,
   subtitle,
-  mono,
   children,
   footer,
 }: {
   title: string;
   subtitle: string;
-  /** True när titeln ska renderas i mono (fallback-id, ingen kopplad annons). */
-  mono?: boolean;
   children: React.ReactNode;
-  /** Server-renderad footer (Stäng-knapp + ev. Återta ansökan). */
+  /** Server-renderad handling i foten, före Stäng-knappen. */
   footer?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -64,8 +61,8 @@ export function ApplicationModalShell({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // A nested Radix layer (the destructive-status confirm Dialog / "Återta
-        // ansökan" Dialog, or a Select/Popover) handles Escape in the CAPTURE
+        // A nested Radix layer (the terminal-move confirmation, the Logga
+        // uppföljning dialog, or a Select/Popover) handles Escape in the CAPTURE
         // phase and calls preventDefault() before this bubble-phase listener
         // runs. Yield to it — closing only the inner layer, not the whole modal
         // (#565: a bare Escape here used to router.back() the entire detail).
@@ -109,10 +106,7 @@ export function ApplicationModalShell({
       >
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h2
-              id={labelId}
-              className={mono ? "jp-modal__title jp-mono" : "jp-modal__title"}
-            >
+            <h2 id={labelId} className="jp-modal__title">
               {title}
             </h2>
             <p className="jp-modal__company">{subtitle}</p>

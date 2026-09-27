@@ -22,7 +22,7 @@ import {
   useApplicationActions,
   useApplicationPending,
 } from "./application-actions";
-import type { RowAction } from "./application-row";
+import type { RowAction } from "./use-row-actions";
 import { useUrgencyValue } from "./use-urgency-label";
 
 type FiringSignal = Exclude<ApplicationAttentionSignal, "None">;

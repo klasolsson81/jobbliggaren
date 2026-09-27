@@ -4,7 +4,6 @@ import type { MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { applicationStatusLabel, nextStepOf } from "@/lib/applications/status";
 import { useApplicationActions } from "./application-actions";
-import type { RowAction } from "./application-row";
 import type {
   ApplicationDto,
   ApplicationStatus,
@@ -17,6 +16,12 @@ function anchorY(event: MouseEvent<HTMLButtonElement>): number {
   return event.clientY > 0
     ? event.clientY
     : event.currentTarget.getBoundingClientRect().top;
+}
+
+/** A row CTA: the row's default primary (useRowActions) or a queue row's §11 CTA. */
+export interface RowAction {
+  label: string;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
 /**

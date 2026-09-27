@@ -17,12 +17,6 @@ import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
 
-/** En rad-CTA: radens default-primär (useRowActions) eller en kö-rads §11-CTA. */
-export interface RowAction {
-  label: string;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}
-
 interface ApplicationRowProps {
   application: ApplicationDto;
   /**

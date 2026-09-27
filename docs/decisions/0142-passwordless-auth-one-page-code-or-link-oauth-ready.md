@@ -1403,8 +1403,8 @@ Amendment (17)'s start-path sentences are corrected in place; this block records
   which is Major 2's case. No further question is owed. The M-7 grant of the registration flip points here.
 
 **The form (`senior-cto-advisor`, 2026-09-27).**
-- The GitHub adapter makes a `VerifiedEmail`, as Google's does, and `ExternalIdentity` is Amendment (14)'s
-  `(Provider, Subject, VerifiedEmail Email)` again. `ExternalAddress`, `AssertedEmail` and `AssertedLoginProof` are
+- The GitHub adapter makes a `VerifiedEmail`, as Google's does, and `ExternalIdentity` is
+  `(Provider, Subject, VerifiedEmail Email)`. `ExternalAddress`, `AssertedEmail` and `AssertedLoginProof` are
   deleted: a union with one live arm is collapsed. Which address qualifies is each adapter's own rule: Google's is
   authority (Amendment (14)), GitHub's is Klas's decision.
 - GitHub's rule is unchanged and fail-closed, and it is now the whole gate: the list's one primary entry, `verified`

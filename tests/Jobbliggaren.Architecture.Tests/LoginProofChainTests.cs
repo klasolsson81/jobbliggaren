@@ -187,13 +187,16 @@ public sealed class LoginProofChainTests
         Type[] forbidden =
         [
             typeof(LoginChallengeAdmission), typeof(ILoginChallengeDispatcher), typeof(LoginChallengeIssuer),
-            typeof(ILoginChallengeStore), typeof(IEmailSender),
+            typeof(ILoginChallengeStore), typeof(IEmailSender), typeof(IServiceProvider),
+            typeof(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory), typeof(Mediator.IMediator),
+            typeof(Mediator.ISender),
         ];
         reached.Intersect(forbidden).ShouldBeEmpty();
 
         // The control: the walk reaches the outcome function, so the absences above are not an empty walk's.
         reached.ShouldContain(typeof(LoginProofOutcome));
         ConsumersOf(typeof(ILoginChallengeDispatcher)).ShouldBe([typeof(LoginChallengeAdmission).FullName!]);
+        ConsumersOf(typeof(LoginChallengeIssuer)).ShouldBeEmpty();
     }
 
     [Fact]
@@ -242,25 +245,36 @@ public sealed class LoginProofChainTests
         ]);
 
     // #1745 (ADR 0142 Amendment (18), dotnet-architect): which address qualifies is each adapter's own rule, so a
-    // provider is named only by its adapter. A handler branch on the provider would name it elsewhere.
+    // provider is named only by its adapter, and its login method only by the key type. A handler branch on the
+    // provider would name either elsewhere.
     [Fact]
     public void Only_the_provider_adapters_name_a_provider_in_source()
     {
+        var providers = string.Join("|", ProviderMembers());
+        var methods = string.Join("|", ExternalProviderKey.Known.Select(key => key.LoginMethod.ToString()));
+
+        FilesMatching(new Regex(@"\bExternalProviderKey\s*\.\s*(?:" + providers + @")\b")).ShouldBe(
+        [
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs",
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+        ]);
+        FilesMatching(new Regex(@"\bLoginMethod\s*\.\s*(?:" + methods + @")\b"))
+            .ShouldBe(["Jobbliggaren.Application/Auth/ExternalLogins/ExternalProviderKey.cs"]);
+        FilesMatching(new Regex(@"\busing\s+static\s+[\w.:]*\bExternalProviderKey\s*;")).ShouldBeEmpty();
+    }
+
+    private static List<string> FilesMatching(Regex pattern)
+    {
         var srcRoot = Path.Combine(RepoRoot(), "src");
         Directory.Exists(srcRoot).ShouldBeTrue($"src root not found: {srcRoot}");
-        var named = new Regex(@"\bExternalProviderKey\s*\.\s*(?:" + string.Join("|", ProviderMembers()) + @")\b");
 
-        Directory
+        return Directory
             .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsBuildOutput(path))
-            .Where(path => named.IsMatch(File.ReadAllText(path)))
+            .Where(path => pattern.IsMatch(File.ReadAllText(path)))
             .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
             .Order(StringComparer.Ordinal)
-            .ShouldBe(
-            [
-                "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs",
-                "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
-            ]);
+            .ToList();
     }
 
     // Every provider the key type declares, read from the type, so a new provider is scanned without editing this.

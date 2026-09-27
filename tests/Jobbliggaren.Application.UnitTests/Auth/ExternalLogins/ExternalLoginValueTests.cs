@@ -182,9 +182,6 @@ public class VerifiedEmailTests
     [MemberData(nameof(Candidates))]
     public void An_address_the_github_adapter_admits_is_one_the_request_validator_admits(string candidate)
     {
-        // An account born on a GitHub address must be able to log in by code once GitHub is gone (ADR 0142
-        // Amendment (18)). The adapter admits exactly StorableAddress.IsStorable and then VerifiedEmail.TryCreate
-        // (GitHubIdentityProvider.TryPrimaryVerified), so whatever that pair admits the typed path's validator admits.
         if (!StorableAddress.IsStorable(candidate) || VerifiedEmail.TryCreate(candidate) is null)
             return;
 

@@ -212,15 +212,17 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
               <thead>
                 <tr>
                   <th scope="col" className="jp-apptable__th jp-apptable__th--check">
-                    <input
-                      ref={selectAllRef}
-                      type="checkbox"
-                      className="jp-apptable__check"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      disabled={pageIds.length === 0}
-                      aria-label={tUi("table.selectAllAriaLabel")}
-                    />
+                    <label className="jp-apptable__checklabel">
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        className="jp-apptable__check"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        disabled={pageIds.length === 0}
+                        aria-label={tUi("table.selectAllAriaLabel")}
+                      />
+                    </label>
                   </th>
                   <SortableHeader
                     col="role"

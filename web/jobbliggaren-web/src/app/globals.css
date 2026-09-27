@@ -1021,6 +1021,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
+/* Touch floor (DESIGN.md §5): every icon button is 44 px at ≤768 px, on every surface that uses the
+   class; at rest it is 38 px. */
+@media (max-width: 768px) {
+  .jp-icon-btn { width: 44px; height: 44px; }
+}
 
 
 /* Mobile drawer trigger */
@@ -3825,18 +3830,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
      avsiktlig placering. Ingen effekt i mobil-stacken (1-kolumns-grid). */
   align-self: end;
 }
-/* Radknappar (design §5): h30, vit, kant --jp-border; primär = accent-text,
-   "Byt status ▾" = ink-text. Hover: accent-kant + accent-50. */
+/* Radknappar: .jp-btn--sm-steget (DESIGN.md §6, ingen tredje höjd), vit, kant --jp-border;
+   primär = accent-text, "Byt status ▾" = ink-text. Hover: accent-kant + accent-50. */
 .jp-rowbtn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 30px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 14px;
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-sm);
-  font-size: var(--text-caption);
+  font-size: var(--jp-control-fs);
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-accent-700);
   white-space: nowrap;
@@ -3854,6 +3859,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-rowbtn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+@media (max-width: 768px) {
+  .jp-rowbtn { min-height: 44px; }
 }
 .jp-rowbtn--ink { color: var(--jp-ink-1); }
 /* Rad-CTA-betoning (#788, CTO-bind 2026-07-12): den foreslagna radhandlingen
@@ -4381,10 +4389,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* #630 PR 7 (design §10): ångra-toastens delar — Ångra i --jp-gold,
    understruken; ✕ stänger. Fel-toasten (aria-assertive) är danger-fylld. */
 .jp-toast__msg { min-width: 0; }
+/* Ångra och ✕ får träffytor på 32px (44px vid ≤768, DESIGN.md §5) genom padding som
+   en negativ marginal tar ut, så glyferna står kvar där de stod. */
 .jp-toast__undo {
   background: transparent;
   border: 0;
-  padding: 0;
+  padding: 6px 0;
+  margin: -6px 0;
+  min-height: 32px;
   color: var(--jp-gold);
   font-size: var(--text-ui);
   font-weight: var(--jp-fw-semibold);
@@ -4402,10 +4414,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: center;
   background: transparent;
   border: 0;
-  padding: 2px;
+  padding: 8px;
+  margin: -6px;
   color: var(--jp-ink-inverse);
   cursor: pointer;
   flex-shrink: 0;
+}
+@media (max-width: 768px) {
+  .jp-toast { gap: 16px; }
+  .jp-toast__undo { padding: 12px 0; margin: -12px 0; min-height: 44px; }
+  .jp-toast__close { padding: 14px; margin: -12px; }
 }
 .jp-toast__undo:focus-visible,
 .jp-toast__close:focus-visible {
@@ -4574,9 +4592,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-header__actions .jp-btn--ghost { height: 36px; }
 @media (max-width: 768px) {
   .jp-header__actions .jp-btn--ghost { min-height: 44px; }
-  /* The icon buttons in the same row (Aviseringar, Mina sidor, the drawer trigger) meet the same
-     touch floor (DESIGN.md §5); at rest they are 38 px. */
-  .jp-header__actions .jp-icon-btn { width: 44px; height: 44px; }
 }
 
 /* The shell contract needs the same graded row, and for the same reason: the
@@ -7471,11 +7486,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
+/* Träffyta 32px (44px vid ≤768, DESIGN.md §5): padding som en negativ marginal tar ut. */
 .jp-board-col__more {
   align-self: flex-start;
   border: 0;
   background: transparent;
-  padding: 2px 0;
+  padding: 7px 8px;
+  margin: -5px -8px;
+  min-height: 32px;
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-accent-700);
@@ -7489,6 +7507,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
   border-radius: var(--jp-r-sm);
+}
+@media (max-width: 768px) {
+  .jp-board-col__more { padding: 13px 8px; margin: -11px -8px; min-height: 44px; }
 }
 
 /* Tavla-kort. Relativ container for lank-overlay:en (::after). cursor: grab. */
@@ -7709,6 +7730,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: 2px;
 }
+/* Etiketten runt kryssrutan fyller cellen, så hela cellen är träffytan (DESIGN.md §5). */
+.jp-apptable__th--check { position: relative; }
+.jp-apptable__checklabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+  cursor: pointer;
+}
 /* Lank-overlay: rolltiteln ar radens ENDA <a>, strackt over hela <tr>
    (position:relative pa raden = containing block). Modifierat klick = fullsida. */
 .jp-apptable__rowlink {
@@ -7927,6 +7958,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline-offset: 1px;
 }
 .jp-statusmenu__minitrigger:disabled { opacity: 0.55; cursor: default; }
+/* Träffyta 32px (44px vid ≤768, DESIGN.md §5) utan att den synliga 22px-rutan växer. */
+.jp-statusmenu__minitrigger { position: relative; }
+.jp-statusmenu__minitrigger::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+@media (max-width: 768px) {
+  .jp-statusmenu__minitrigger::before { inset: -12px; }
+}
 /* Sakerhetsventil: skulle tagg+trigger anda inte fa plats bryts triggern ned
    pa egen rad i cellen i stallet for att svamma over grannkolumnen. */
 .jp-apptable__statuszone { flex-wrap: wrap; }

@@ -20,7 +20,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// command that writes it carries <see cref="IReplayOnConcurrencyConflict"/>, or its conflict refuses
 /// the write (a consent withdrawal among them) instead of re-running it on a fresh read; and a marked
 /// handler takes no port that acts before the commit, since a conflicting attempt may leave nothing
-/// behind. security-auditor's E4 and E6, held here rather than by review. An IL sweep, because the
+/// behind. An IL sweep, because the
 /// writes are calls to the aggregate's own methods, wherever a handler or its state machine makes them.
 /// </summary>
 public class JobSeekerWriterReplayGuardTests

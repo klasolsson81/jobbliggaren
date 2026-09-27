@@ -141,20 +141,20 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         )}
       </div>
 
-      {/* #842 PR4 — recruiter contact block (the follow-up person for THIS
-          application) + a one-line transparency link, gated together on the
-          presence of contacts so the "how we handle contact details" link shows
-          exactly when contact details are shown. The block self-hides on [], but
-          gating the wrapper co-gates the link. */}
       {preservedAd.contacts.length > 0 && (
         <div className="mt-4">
           <RecruiterContactBlock contacts={preservedAd.contacts} />
-          <p className="jp-recruiter-notice mt-2">
-            <Link href="/kontaktperson-i-annons">
-              {tUi("preservedAd.recruiterNoticeLink")}
-            </Link>
-          </p>
         </div>
+      )}
+      {/* ADR 0144 D4 row 10: the link stands wherever the copy's text or its
+          contact block renders. A contact person's name can sit in the text,
+          where no regex reaches it, so the contacts alone do not decide. */}
+      {(preservedAd.description != null || preservedAd.contacts.length > 0) && (
+        <p className="jp-recruiter-notice mt-2">
+          <Link href="/kontaktperson-i-annons">
+            {tUi("preservedAd.recruiterNoticeLink")}
+          </Link>
+        </p>
       )}
     </section>
   );

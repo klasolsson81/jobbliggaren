@@ -381,18 +381,20 @@ Blocker 1 put it back to him (answer 1 below).
 1. Mobile row: *"A: Raden bryts (Rekommenderat)"* — the row wraps at ≤900 and never
    scrolls sideways. This answers design-reviewer's Blocker 1: a sideways-scrolling row in
    `<main>` fails WCAG 1.4.10 (no horizontal scrolling at 320px for main content), and the
-   only script-free scroll affordance would have been a fade, which is a gradient (§5).
+   only script-free scroll affordance would have been a fade, which is a gradient (AGENTS.md §5).
 2. Konto's icon: *"UserRound (Rekommenderat)"* — the glyph the header's avatar button,
    user menu and drawer already use, not `User`.
 3. Icon size: *"16 px (Rekommenderat)"* — DESIGN.md §7 (16px inline with text) is
    unchanged; the answer replaces the directive's "ca 18 px".
+4. Menu and card (2026-09-29, after the panel round, with the page open live): *"Det räcker så
+   (Rekommenderat)"* — the card stays at 688px and the 192px to the band's right edge stays.
 
 ### The settled form (design-reviewer, report-only form round, 2026-09-28)
 
 `docs/reviews/2026-09-28-1916-form-design-reviewer.md` (gitignored, local). Rulings:
 
 - **Breakpoint 900, not 768.** The header changes form at 900 and the menu follows it.
-  With two columns between 769 and 900, the card would be 449–580px wide, under §5's 640px
+  With two columns between 769 and 900, the card would be 449–580px wide, under DESIGN.md §5's 640px
   form measure.
 - **Radius `--jp-r-md` (6px), not pill.** Klas: *"pill bara för piller."* Above
   Matchning's pill chips, a pill row would read as more removable chips (ADR 0047).
@@ -433,7 +435,7 @@ Blocker 1 put it back to him (answer 1 below).
   1280/1920/3440 (24px gap, shared top line, the plate ties them). The group (944px) still
   ends 192px before the band's right edge from 1280 up, because the band is capped at 1136
   and the card itself is capped at 688 — that cap is #1891 Major 2 (640px form measure,
-  ~68ch consent copy, the GOV.UK two-thirds form), so it drew no question to Klas and the
+  ~68ch consent copy, the GOV.UK two-thirds form) and the
   card is unchanged. Right-aligning menu and card would be a separate decision about the
   card; the only a11y-safe form of it would hold the card's frame at 880px with its content
   still held at 640px.
@@ -447,9 +449,8 @@ Blocker 1 put it back to him (answer 1 below).
 rows' own style: it sits under the pagehero, inside the content width; it exists only on
 these four routes and shows only this family's own sections; it has no surface or frame of
 its own; it is sticky within the page grid, never fixed to the viewport. ADR 0054 is
-unchanged by this amendment, as it was unchanged by D1. Green-for-current is local to this
-menu — the header, the drawer and `.jp-subnav` keep ink text plus the accent bar (E2f,
-DESIGN.md §4).
+unchanged by this amendment, as it was unchanged by D1. The header, the drawer and
+`.jp-subnav` keep ink text plus the accent bar (E2f, ADR 0068).
 
 The menu stays a server component with no client JS; Klas's answer A (the row wraps) needed
 none.
@@ -474,6 +475,6 @@ rgb(110,231,168) on rgb(14,42,30) dark, weight 600, plate kept on hover. Icons 1
 current item. Logga ut rgb(69,83,102) at weight 400, 40px row, hover rgb(12,26,46) on
 `--jp-surface-3`; `display: none` at ≤900. Keyboard focus on the current item: a 2px solid
 accent-700 ring at 2px offset, `:focus-visible` true, visible around the plate. At ≤900:
-two rows at 320/375/390, one row at 600/768/900, every item at least 44px, page and menu
+two rows at 320/375/390, one row at 600/768/900, every item at least 44px, menu
 horizontal overflow 0 at every width measured, the current item in view, the plate kept,
 the old bottom line gone.

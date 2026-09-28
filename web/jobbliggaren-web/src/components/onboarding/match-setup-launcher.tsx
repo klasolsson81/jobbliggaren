@@ -11,6 +11,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MatchSetupRailModal } from "@/components/settings/match-setup-rail-modal";
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
+import type { SkillGroup } from "@/lib/dto/skills";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -30,6 +31,8 @@ interface MatchSetupLauncherProps {
   readonly persistedRemote: boolean;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   readonly persistedSkills: ReadonlyArray<string>;
+  /** The saved skills resolved to named groups on the server (ADR 0047). */
+  readonly persistedSkillGroups: ReadonlyArray<SkillGroup>;
   readonly persistedOccupationExperience: ReadonlyArray<{
     readonly conceptId: string;
     readonly years: number | null;
@@ -54,6 +57,7 @@ export function MatchSetupLauncher({
   persistedRemote,
   persistedEmploymentTypes,
   persistedSkills,
+  persistedSkillGroups,
   persistedOccupationExperience,
   importCvHref,
 }: MatchSetupLauncherProps) {
@@ -89,6 +93,7 @@ export function MatchSetupLauncher({
       persistedRemote={persistedRemote}
       persistedEmploymentTypes={persistedEmploymentTypes}
       persistedSkills={persistedSkills}
+      persistedSkillGroups={persistedSkillGroups}
       persistedOccupationExperience={persistedOccupationExperience}
       importCvHref={importCvHref}
     />

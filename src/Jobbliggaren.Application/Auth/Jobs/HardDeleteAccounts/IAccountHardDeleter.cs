@@ -42,8 +42,8 @@ public interface IAccountHardDeleter
 
     /// <summary>
     /// Steg 3 — the backstop for the account-deletion endpoint's erasure of external logins (ADR 0142 Amendment
-    /// (20)): every login still held by an account in its restore window, whichever provider wrote it.
+    /// (20)): every login still held by a soft-deleted account, whichever provider wrote it.
     /// </summary>
-    /// <returns>How many login rows it deleted; above 0 means the erasure at the request left some behind.</returns>
+    /// <returns>How many login rows it deleted.</returns>
     Task<int> EraseExternalLoginsOfAccountsPendingDeletionAsync(CancellationToken cancellationToken);
 }

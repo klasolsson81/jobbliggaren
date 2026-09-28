@@ -708,12 +708,13 @@ the id_token. And its subject ids are pairwise: each app gives a member a differ
 
 **Before the keys.** Each condition is read on the day, never inherited, and Chapter V comes first:
 
-1. **Chapter V.** For a member in the EU/EEA or Switzerland, LinkedIn's API Terms name LinkedIn Ireland
-   Unlimited Company the contracting party and its Privacy Policy names it the controller, so the
-   server's exchange stays inside the EEA and no Art. 45 decision is relied on (`security-auditor`,
-   2026-09-27). Read that day: the API Terms' party clause, the Privacy Policy's controller sentence,
-   and LinkedIn Corporation on the DPF List. If any lapse condition in the register's LinkedIn entry
-   has fired, the keys are not placed.
+1. **Chapter V.** LinkedIn's API Terms name LinkedIn Ireland Unlimited Company the contracting party,
+   since the app's holder is an individual residing in a Designated Country, and for a member in the
+   EU/EEA or Switzerland its Privacy Policy names it the controller, so the server's exchange stays
+   inside the EEA and no Art. 45 decision is relied on (`security-auditor`, 2026-09-27). Read that day:
+   the API Terms' party clause and the app holder's residence, the BD DPA's sections 4 and 10 and
+   Schedule A.2, and the Privacy Policy's sentence naming the controller. If any lapse condition in the
+   register's LinkedIn entry has fired, the keys are not placed.
 2. **The box's git contains the merge**, read as for GitHub: `git -C /opt/jobbliggaren merge-base
    --is-ancestor <merge-commit> HEAD` exits 0. On an older tree `JBL_INJECT_LINKEDIN` is ignored.
 3. **The volatile ACL.** Nothing new, as for GitHub: diff `deploy/redis/*.acl.template` between the
@@ -747,6 +748,7 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
 - the number of accounts, and whether every one is the controller's, counted as for GitHub;
 - `identity."AspNetUserLogins"` grouped by `login_provider`, and the links held by accounts in their
   restore window, expected 0 (`account-deletion.md` §3.3);
+- `public.job_seekers` rows carrying the new `privacy_policy_version`;
 - the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
 - the web start: a 302 to `https://www.linkedin.com/oauth/v2/authorization` with exactly
   `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email`,
@@ -764,9 +766,11 @@ registration is shut, and registration is never opened for this. The first login
 the build could not: that LinkedIn echoes the nonce, the form of `email_verified`, and that `sub` and
 `email` arrive under `openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
 
-**If the first login fails on one of those.** EventId 1022 with `NonceAbsent`, `SubjectUnusable` or
-`UserInfoRefused`, or 1023 with `AddressAbsent` or `FlagAbsent`: deactivate at once, and keep the keys
-out until the follow-up PR has merged. An active row that never works is not left standing.
+**If the first login fails on one of those.** EventId 1022 with `NonceAbsent`, `IdTokenSubjectUnusable`,
+`SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent`, `FlagAbsent`, `FlagIsString` or
+`FlagNotBoolean`: deactivate at once, and keep the keys out until the follow-up PR has merged. An active
+row that never works is not left standing. Any other refusal at the first login: deactivate, and file
+the defect, as for Google.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
 rows can stay: they match only this app's subject ids.

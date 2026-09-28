@@ -1858,7 +1858,7 @@ automatically.
 - `POST /me/delete` calls it after the commit and last, after the session teardown, on `CancellationToken.None`; never
   in `DeleteAccountCommandHandler`, whose command replays on a concurrency conflict (D3). Its one consumer is pinned.
   If it fails, the answer is 500 with the account deleted, signed out and its links kept.
-- `HardDeleteAccountsJob` gains Steg 3, last and on every run: every login held by an account in its restore window.
+- `HardDeleteAccountsJob` gains Steg 3, last and on every run: every login held by a soft-deleted account.
   Above 0 it warns with the count alone (EventId 2505). A failure there propagates and never delays a hard delete.
 - `account-deletion.md` §4.3's operator path sets the deletion trigger and deletes the links in one statement; §3.3
   gains the standing query, expected 0.
@@ -1891,8 +1891,9 @@ including a move of the box to an app of its own, means deleting the `linkedin` 
 links again through the address. The secret can be rotated freely. §3d carries the step.
 
 **The activation** (`vps-deploy-stack.md` §3d) reads Chapter V first, then places the keys. If the first login logs
-EventId 1022 with `NonceAbsent`, `SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent` or `FlagAbsent`,
-the keys come off until the follow-up PR has merged (`senior-cto-advisor` 7.7). The follow-up is, for `NonceAbsent`,
+EventId 1022 with `NonceAbsent`, `IdTokenSubjectUnusable`, `SubjectUnusable` or `UserInfoRefused`, or 1023 with
+`AddressAbsent`, `FlagAbsent`, `FlagIsString` or `FlagNotBoolean`, the keys come off until the follow-up PR has merged
+(`senior-cto-advisor` 7.7). The follow-up is, for `NonceAbsent`,
 deleting the nonce check, and, where `sub` or `email` needs `profile`, the scope `openid profile email`, each in
 `security-auditor`'s form and each followed by a new activation.
 

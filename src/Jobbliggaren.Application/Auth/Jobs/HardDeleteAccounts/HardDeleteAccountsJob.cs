@@ -12,8 +12,8 @@ namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 /// 2. Steg 1 — Hämta soft-deletade JobSeekers äldre än cutoff (= now − 30d)
 /// 3. Steg 2 — Per JobSeeker: anonymize audit + hard-delete cascade
 ///    (transactional) + Identity-DELETE (separat boundary)
-/// 4. Steg 3 — Bakstopp: externa inloggningar som ligger kvar på konton i
-///    restore-fönstret (ADR 0142 Amendment (20)), vid varje körning
+/// 4. Steg 3 — Bakstopp: externa inloggningar som ligger kvar på
+///    soft-deletade konton (ADR 0142 Amendment (20)), vid varje körning
 ///
 /// Implementation-detaljer ligger i <see cref="IAccountHardDeleter"/>-port.
 /// Orchestratorn håller bara loop + cancel-token-management + progress-log.
@@ -118,6 +118,6 @@ public sealed partial class HardDeleteAccountsJob(
 
     // Count only: no user id, no provider, never the provider's identifier. Runbook account-deletion.md §3.2.
     [LoggerMessage(EventId = 2505, Level = LogLevel.Warning,
-        Message = "HardDeleteAccountsJob: raderade {Count} externa inloggningar som låg kvar på konton i restore-fönstret (Steg 3, bakstopp)")]
+        Message = "HardDeleteAccountsJob: raderade {Count} externa inloggningar som låg kvar på soft-deletade konton (Steg 3, bakstopp)")]
     private static partial void LogExternalLoginsErased(ILogger logger, int count);
 }

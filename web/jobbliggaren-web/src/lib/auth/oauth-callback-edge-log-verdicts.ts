@@ -18,7 +18,7 @@ import type { EdgeLogVerdicts } from "@/test/edge-log-pin";
 export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   code: {
     verdict: "must-not-reach-a-stored-log-post",
-    reason: "A single-use authorization code. With the flow's verifier it is exchanged for the identity.",
+    reason: "A single-use authorization code.",
   },
   state: {
     verdict: "must-not-reach-a-stored-log-post",

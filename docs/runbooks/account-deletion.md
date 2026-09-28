@@ -15,7 +15,7 @@ en mejlad begäran (§4.3). Flödet har två faser:
 | Fas | När | Vad | Vem |
 |---|---|---|---|
 | **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. Kontots externa inloggningar raderas, för alla leverantörer (#1746). | Användaren via API |
-| **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. Sist raderas externa inloggningar som ligger kvar på konton i fönstret (Steg 3). | `HardDeleteAccountsJob` (Hangfire) |
+| **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. Sist raderas externa inloggningar som ligger kvar på soft-deletade konton (Steg 3). | `HardDeleteAccountsJob` (Hangfire) |
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
 fönstret kan kontot återställas (admin-yta planerad till Fas 6 — manuell
@@ -151,7 +151,7 @@ Vid kvarliggande externa inloggningar (`HardDeleteAccountsJob`, Steg 3, EventId 
 count-only; loggas bara när talet är över 0):
 
 ```
-HardDeleteAccountsJob: raderade {N} externa inloggningar som låg kvar på konton i restore-fönstret
+HardDeleteAccountsJob: raderade {N} externa inloggningar som låg kvar på soft-deletade konton
 (Steg 3, bakstopp)
 ```
 
@@ -197,7 +197,7 @@ FROM public.job_seekers js
 LEFT JOIN identity."AspNetUsers" u ON u.id = js.user_id
 WHERE u.id IS NULL;
 
--- Externa inloggningar på konton i restore-fönstret (#1746) — ska vara 0. Samma predikat som
+-- Externa inloggningar på soft-deletade konton (#1746) — ska vara 0. Samma predikat som
 -- Steg 3 i HardDeleteAccountsJob, som tar dem vid nästa körning.
 SELECT count(*)
 FROM identity."AspNetUserLogins" l
@@ -289,6 +289,9 @@ WHERE resume_id IN (
     JOIN job_seekers js ON js.id = r.job_seeker_id
     WHERE js.user_id = '<userId>'::uuid
 );
+
+-- Externa inloggningar som ligger kvar på kontot (#1746, se nedan)
+DELETE FROM identity."AspNetUserLogins" WHERE user_id = '<userId>'::uuid;
 
 -- 3. Verifiera state
 SELECT 'jobseeker' AS tbl, COUNT(*) FROM job_seekers WHERE user_id = '<userId>'::uuid AND deleted_at IS NULL
@@ -521,9 +524,10 @@ andra kvar.
 
 `HardDeleteAccountsJob` catches and logs per-account failures and continues the loop
 (EventId 2502). Investigate the failed account and the final failed count; an
-account failure alone does not fail the entire job. Startup/orphan-cleanup failures
-and cancellation can still end the run. `HardDeleteAccountsJobTests` pins the
-per-account continuation behavior.
+account failure alone does not fail the entire job. Startup/orphan-cleanup failures,
+cancellation and a failure in Steg 3 (#1746) can still end the run. Steg 3 runs after
+the whole loop, so a failure there comes after every hard delete of the run, and Hangfire's
+retry takes the links. `HardDeleteAccountsJobTests` pins the per-account continuation behavior.
 
 **Åtgärd:**
 1. Hangfire retry:ar automatiskt (default 10 retries)

@@ -376,10 +376,11 @@ Alla tre startas av CC som bakgrundsprocesser.
    nyckeln namngiven, om inte dess `ClientSecret` också är satt och `Email:BaseUrl` är https, eller
    http mot localhost i Development. Klientens redirect-URI (GitHub: "Authorization callback URL")
    måste vara exakt `http://localhost:3000/api/auth/oauth/{google|github|linkedin}/callback` lokalt.
-   För Google: en egen klient för localhost, aldrig lådans (security-auditor m-8). Lådans
-   GitHub-klient är den lokala, enligt Klas accept 2026-09-27 (ADR 0142 Amendment (19)), och
-   LinkedIns följer den. GitHub-klienten är en GitHub OAuth App. LinkedIn-klienten kräver produkten
-   "Sign In with LinkedIn using OpenID Connect", eftersom inloggningen ber om `openid email`.
+   För Google: en egen klient för localhost, aldrig lådans (security-auditor m-8). Lådan delar
+   Klas lokala GitHub- och LinkedIn-klient, enligt hans accept 2026-09-27 (ADR 0142 Amendment (19),
+   för LinkedIn per analogi (20)); varje annan maskin använder en egen klient. GitHub-klienten är en
+   GitHub OAuth App. LinkedIn-klienten kräver produkten "Sign In with LinkedIn using OpenID Connect",
+   eftersom inloggningen ber om `openid email`.
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090

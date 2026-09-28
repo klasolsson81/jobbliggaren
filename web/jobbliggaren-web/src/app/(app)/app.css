@@ -10,7 +10,7 @@
    The menu is page furniture like the CV guide rail (GOV.UK sub-nav), not a shell
    sidebar: it sits under the pagehero, inside the content width, on these four routes
    only (ADR 0054, ADR 0145). Shared tokens, not shared classes (CTO bind Q1 on .jp-guide).
-   The menu as a whole has no fill or frame; the section is the card. Under 900px it
+   The menu as a whole has no fill or frame; the section is the card. At ≤900px it
    becomes a wrapping row above the section, in the same row form. */
 .jp-settings-layout {
   display: grid;
@@ -61,6 +61,13 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
 }
 a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   color: var(--jp-accent-700);
+}
+/* An SVG only takes the forced palette through an inherited colour; the icon class sets its own. */
+@media (forced-colors: active) {
+  .jp-settingsnav__icon,
+  a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
+    color: inherit;
+  }
 }
 .jp-settingsnav__foot {
   margin-top: 12px;

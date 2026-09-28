@@ -44,13 +44,14 @@
 
   "Auth": {
     "OAuth": {
-      "//": "OPTIONAL (#1744, #1745). Blank or absent, no external login exists: the providers list is empty",
-      "//1": "and /logga-in shows its provider rows inactive. A Google or GitHub ClientId registers that provider,",
+      "//": "OPTIONAL (#1744, #1745, #1746). Blank or absent, no external login exists: the providers list is empty",
+      "//1": "and /logga-in shows its provider rows inactive. A Google, GitHub or LinkedIn ClientId registers that provider,",
       "//2": "and the Api then refuses to start, naming the key, unless its ClientSecret is set and Email:BaseUrl",
       "//3": "is https, or http to a loopback host in Development. The client's redirect (callback) URI must be",
-      "//4": "exactly {Email:BaseUrl}/api/auth/oauth/{google|github}/callback, e.g. http://localhost:3000/api/auth/oauth/github/callback.",
-      "//5": "Use clients made for localhost, never the box's (security-auditor m-8). Never commit values.",
-      "//6": "To enable one, add a Google or GitHub object here with ClientId and ClientSecret. Leave it out rather than blank."
+      "//4": "exactly {Email:BaseUrl}/api/auth/oauth/{google|github|linkedin}/callback, e.g. http://localhost:3000/api/auth/oauth/github/callback.",
+      "//5": "Google: use a client made for localhost, never the box's (security-auditor m-8). GitHub's box client is the",
+      "//5a": "local one, by Klas's acceptance of 2026-09-27 (ADR 0142 Amendment (19)), and LinkedIn's follows it. Never commit values.",
+      "//6": "To enable one, add a Google, GitHub or LinkedIn object here with ClientId and ClientSecret. Leave it out rather than blank."
     }
   },
 

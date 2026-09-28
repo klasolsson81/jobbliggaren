@@ -690,8 +690,10 @@ layer, so Next becomes the authority over who the user is; rejected on the depen
 constructor, in Amendment 2026-09-25 (14))* — "provider asserts verified" is carried by
 the **type**, so no caller can read the string and forget the bool. Every adapter parses the
 verified claim **fail-closed** (LinkedIn returns `email_verified` as a string in some responses;
-missing or unparsable = not verified). Linking to an existing account by email happens ONLY on a
-`VerifiedEmail`, else refuse. PKCE `S256` only. `redirect_uri` is **not** a parameter — the adapter
+missing or unparsable = not verified) *(corrected in Amendment 2026-09-28 (20): LinkedIn's flag counts only as the
+JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)*. Linking to an existing account by email
+happens ONLY on a `VerifiedEmail`, else refuse. PKCE `S256` only *(corrected in Amendment 2026-09-28 (20): PKCE S256
+where the provider supports it; LinkedIn binds the code by an OIDC nonce)*. `redirect_uri` is **not** a parameter — the adapter
 builds it from `EmailOptions.BaseUrl`, the one home of the public base URL (CTO bind 3; no
 `OAuth:RedirectBaseUrl`). `GET /auth/oauth/providers` = the registered `IExternalIdentityProvider`s'
 keys; a provider without keys is not registered — fail-closed, no flag. Links via Identity
@@ -807,7 +809,8 @@ account won in the meantime opens no session (EventId 1025). `IInboxProofRecorde
 1. The provider must be registered. Otherwise 404, and the state is untouched.
 2. The state must name a live flow for that provider. Otherwise `Auth.ExternalLoginUnusable` 410 (EventId 1021).
 3. The provider must accept the code with the flow's verifier. Otherwise the same 410; the adapter logs the cause
-   (EventId 1022).
+   (EventId 1022). *(Corrected in Amendment 2026-09-28 (20): with the flow's verifier, or, for LinkedIn, its nonce in
+   the id_token.)*
 4. The address must be verified. Otherwise `Auth.ExternalEmailUnverified` 400.
 
 Each refusal the page words differently gets its own wire code; the cause lives only in the log.
@@ -1299,7 +1302,10 @@ possible to switch on.*
 Google's, under the same acceptance. **Lapse:** if the master key leaves the worker or migrate-rewrap, or the api
 gets a mount of its own for another reason, both secrets move with it.
 
-**The box's OAuth App** (`security-auditor` m-4). A separate OAuth App for the box, never a developer's; its callback
+**The box's OAuth App** (`security-auditor` m-4). A separate OAuth App for the box, never a developer's *(corrected in
+Amendment 2026-09-28 (20), `security-auditor` Minor 3: the box shares the local development client, by Klas's
+acceptance of 2026-09-27, "varför kan jag inte använda samma nyckel som i appsettings ? Jag accepterar risken";
+Amendment (19) records the hash reading)*; its callback
 URL is exactly the box's `/api/auth/oauth/github/callback`, and any wildcard or subdirectory matching is off. Klas
 sets these in GitHub's console at activation, and §3d's reading records them.
 
@@ -1695,6 +1701,209 @@ only.
 
 **DoD 8.** No new personal data. The privacy policy does not change; the cookie policy still states the 180 days and
 does not change.
+
+#### Amendment 2026-09-28 (20) (#1746, part 6c, PR L) — LinkedIn login in one click, by Klas's decision; the findings stand
+
+*PR L is the second of 6c's two PRs (Amendment (19), Klas's answer 3). LinkedIn joins the one-click rule in the form
+`senior-cto-advisor` routed (`docs/reviews/2026-09-27-1746-form-cto.md`), and `security-auditor`'s Minor 2 lands for every
+provider in `dotnet-architect`'s form (`docs/reviews/2026-09-28-1746-l-minor2-form-dotnet-architect.md`). D8's contract
+paragraph, Amendment (14)'s callback order and Amendment (17)'s "The box's OAuth App" are corrected in place; this block
+records why.*
+
+**What PR L delivers.**
+- `LoginMethod.LinkedIn = 5` and `ExternalProviderKey.LinkedIn` (`linkedin`). `Known` is Google, LinkedIn, GitHub, the
+  page's order; the providers list and the web mirror follow it.
+- `LinkedInIdentityProvider`, registered only through its gate from a full `Auth:OAuth:LinkedIn` client
+  (`client_secret_post`), behind the same port, callback and outcome function as Google's and GitHub's.
+- LinkedIn's row on `/logga-in` carries no mark (DESIGN.md §3; `design-reviewer`: LinkedIn's rules do not list sign-in).
+- The privacy policy names LinkedIn in its three sections, and says for every provider that the identifier is kept until
+  deletion of the account is requested.
+- The deploy mirror (compose, `.env.example`, `inject-secrets.sh`, joined to one another by
+  `DeployComposeExternalLoginTests`) and `vps-deploy-stack.md` §3d's activation, with Chapter V read before the keys.
+
+**The adapter's form** (`senior-cto-advisor`, binding).
+- **The code is bound by the nonce** (form (b)), as `security-auditor`'s text below states it.
+- **The flag counts only as the JSON `true`** (J). A string, `"true"` included, is refused with a cause of its own,
+  `FlagIsString`, so the activation's reading of EventId 1023 shows from the log, without PII, whether D8's sentence
+  about a string form still describes LinkedIn. If it does, accepting the string is a follow-up PR on a measured premise.
+- **Apple's relay domain** (`privaterelay.appleid.com`) is refused as `NotAMailbox` before `VerifiedEmail.TryCreate`
+  (`security-auditor` Minor 1). Whether LinkedIn can hand one over is unmeasured; the row asserts the refusal only.
+- **The identity comes from userinfo**, and its `sub` must equal the id_token's (`SubjectMismatch`). `iss` and `exp`
+  are not read (`senior-cto-advisor` 7.2 and 7.3).
+- Every refusal has a closed cause: `ExchangeFailure` under EventId 1022, `EmailRefusal` under 1023. The two templates
+  are byte-identical across the three adapters (`ExternalLoginLogTemplatesTests`).
+
+**`security-auditor`'s text** (`…-1746-form-security-auditor.md`, (8)), verbatim except where noted: its placeholders
+are resolved as PR L built it, and the copy question's (8a)–(8e) are applied
+(`docs/reviews/2026-09-28-1746-l-copy-question-security-auditor.md`). Its paragraphs on the persistence line and the
+continuation document are PR P's and stand in Amendment (19).
+
+**`security-auditor`, 2026-09-27: LinkedIn under the one-click form, and the login page.** Nothing below re-grades or
+withdraws a finding, and none of it is a §9.6 (3) acceptance (`docs/reviews/2026-09-27-1746-form-security-auditor.md`).
+
+**The findings stand as graded.**
+- **M-1 (LinkedIn), 2026-09-27: Major, GDPR-implicated** (Art. 5(1)(f), 32(1)(b)). LinkedIn is never the mailbox. Its
+  `email_verified` is an "Indicator that Member's primary email has been verified" (Sign In with LinkedIn using OpenID
+  Connect, updated 2024-08-08, read 2026-09-27): a past event, without a date. Under this form the flag alone links an
+  identifier, creates an account and opens a session.
+- **Major 2 (LinkedIn), 2026-09-27: Major, GDPR-implicated** (Art. 5(1)(f), 32(1)(b), 25(1); 5(1)(d) and 12(2) for an
+  account that cannot re-authenticate): account pre-hijacking, as Amendment (18) records it for GitHub. Major because it
+  is dormant while registration is closed; **its grade makes it Blocker class once registration opens (#734)**. That is
+  the grade's own schedule, and a Blocker has no §9.6 route.
+- **No acceptance exists.** Klas's scope answer (Amendment (18), point 3) makes LinkedIn one click, and this PR takes
+  #1888's §12 STOPP shape. `security-auditor` did not sign; the bound of §9.6 (3) is neither claimed nor measured. The
+  decision withdraws the remedy only.
+
+**The residual** is Amendment (18)'s (1)–(3) with LinkedIn's flag. Declared, not measured: a LinkedIn member's primary
+address is often a work address, so an address that has changed hands is likelier than for GitHub; and a job seeker
+whose primary is a current employer's address has the search in the employer's mailbox, since codes and notices go
+there and the employer's administrator can log in with a code. The consent step names "the primary email address" and
+does not show it (#1888's named skip, Major 2 (iii)). **What still bounds it** is (18)'s list, with LinkedIn's keys in
+§3d. `ExternalAddressMatch` carries no signature for LinkedIn and falls under M-1 (LinkedIn).
+
+**The code is bound by an OIDC nonce, not PKCE.** LinkedIn documents PKCE for native clients only, and a
+`code_verifier` fails its confidential token exchange (a third-party measurement, 2026-09-21). RFC 9700 §2.1.1 lets a
+confidential OpenID Connect client use `nonce` instead, transaction-specific and bound to the user agent.
+- The authorization request carries `nonce` = the flow's S256 challenge, derived from the verifier in the protected
+  state record. No `code_challenge` is sent, and no `code_verifier`.
+- The id_token is read only from the token endpoint's response, over TLS to the pinned endpoint (OIDC Core §3.1.3.7
+  (6)): no signature check, no JWKS. Before either token is used (RFC 9700 §4.5.3.2): `nonce` present and equal, `aud`
+  our client id. `iss` is not gated: LinkedIn's documentation and its discovery document (read 2026-09-27) name
+  different issuers, and TLS to the pinned endpoint authenticates it. If userinfo supplies the identity, its `sub`
+  equals the id_token's (§5.3.2).
+- An absent nonce is refused (§3.1.3.7 (11)). A refusal drops both tokens and logs EventId 1022 with a closed cause; no
+  token, nonce or claim is logged.
+- *(Placeholder resolved: not measured before merge, by Klas's answer 4 in Amendment (19), "(b) Nej, vi mäter vid
+  aktiveringen". The first login on the box reads it.)* If LinkedIn does not echo the nonce: the check is deleted, the
+  state and the `__Host-` Lax cookie bind the flow alone, and code injection is a declared residual, bounded by what
+  keeps a code out of other hands: the callback's `no-referrer` and zero subresources, no 5xx line, exact redirect
+  matching, and a provider-bound state taken once.
+- D8's "PKCE `S256` only" is corrected in place: PKCE S256 where the provider supports it; LinkedIn binds the code by
+  the nonce.
+
+**The access token** lives 60 days at LinkedIn, which documents no revocation. It is used at most once, against
+userinfo, dropped, and never stored or logged. Lapse, on any of: it is stored or logged; a scope beyond `openid email`;
+a LinkedIn endpoint other than the token endpoint and userinfo; LinkedIn documents revocation, which is then called on
+every path that holds a token.
+
+**Chapter V does not apply.** The counterparty of the server's calls is LinkedIn Ireland Unlimited Company, Dublin (API
+Terms of Use, last revised 2022-12-13, for an individual residing in the Designated Countries), which is also the
+controller for members in the EU/EEA and Switzerland (Privacy Policy, effective 2025-11-03). The BD DPA (2021-10-28)
+makes the parties independent controllers here and applies SCCs only to a transfer out of the EEA. LinkedIn Ireland's
+own transfers to LinkedIn Corporation are not ours and no basis we rest on. The register's LinkedIn entry holds the
+reading of 2026-09-27 and the lapse set. No acceptance by Klas is owed; the readings are taken again at activation,
+never inherited.
+
+**LinkedIn's API Terms.** `provider_key` is the pairwise `sub`, the Terms' "Member Token", which §4.2 expressly lets us
+store. §4.4: it is deleted upon the user's request or when the user closes the account with us, not at LinkedIn. The
+account's links, for every provider, are deleted at the deletion request, both on the self-service path and when an
+operator deletes on a mailed request (`account-deletion.md` §4.3) (`security-auditor` Minor 2). An account created
+through LinkedIn keeps LinkedIn's address through that window; a question of the LinkedIn contract, not a GDPR finding.
+§4.3's profile data is neither stored nor, under `openid email`, received.
+
+**m-4, by Klas's answer.** For GitHub Klas accepted that the box shares his local OAuth client, 2026-09-27: "varför kan
+jag inte använda samma nyckel som i appsettings ? Jag accepterar risken". The approved plan applies it to LinkedIn, and
+it was not asked again. Residual: the box's LinkedIn secret also sits in a developer's `appsettings.Local.json`, and
+the localhost redirect is registered on the client the box uses. Measured 2026-09-27: LinkedIn matches the redirect
+exactly and refuses a subpath. Amendment (15)'s m-4(d) extends by name to LinkedIn's secret, with its lapse.
+`vps-deploy-stack.md` §3d point 4, `deploy/.env.example` and Amendment (17)'s "The box's OAuth App" are corrected in
+place to record GitHub's shared client (`security-auditor` Minor 3).
+
+**Lapse trigger 4 fires in this PR** (a provider joins the `VerifiedEmail` rule and the outcome table).
+- **(a)** stands: the path mints no guessable secret; the state is 256 bits, single use and cookie-bound, the nonce
+  derives from a 256-bit verifier, the code is LinkedIn's. 0.003 %/day and 1.089 %/year unchanged; trigger 5 untouched.
+- **(b)** does not hold for LinkedIn: the set that can obtain a session grows from those who can receive the code to
+  those who hold LinkedIn's flag. Nothing is guessed, so the arithmetic does not bound it.
+- **(c)** For a LinkedIn-flagged address, a third party spending the mint budget no longer locks its holder out.
+- **(d)** The residual above, and code injection if the nonce is not echoed: declared, not measured.
+- **(e)** Before merge, since a merge reaches the box without an activation step, and again at activation, never
+  inherited: `Auth__RegistrationsOpen` in the running api container; whether any `Auth__OAuth__LinkedIn__` variable is
+  set; the providers list from inside the web container; the accounts and whether each is the controller's (the hash of
+  (17)); `identity."AspNetUserLogins"` by provider; the links held by accounts in their restore window (0, or removed
+  in the same step); `public.job_seekers` rows carrying the new `privacy_policy_version`. At activation also: the web
+  start (302 to `https://www.linkedin.com/oauth/v2/authorization` with `response_type=code`, `scope=openid email`, the
+  box's callback, `state`, `nonce` and no `code_challenge`; the flow cookie's attributes); the LinkedIn app's
+  registered redirects; the Chapter V readings; and, unless measured before merge, the first login's classes (nonce
+  echoed, `email_verified`'s form, `sub` and `email` under the scope).
+
+**When it reaches someone other than the controller:** trigger 1 (#734) or trigger 2. At either, `security-auditor`
+reads this amendment again, and Major 2 (LinkedIn) and, under Klas's answer (b) to question D, Major 4 (Amendment
+(19)) are reported as Blockers. **Home:** this amendment. **Reader:** Klas Olsson. Nothing detects trigger 2
+automatically.
+
+**DoD 8.**
+- **New personal data, reached only once LinkedIn is activated:** `AspNetUserLogins` rows with `login_provider =
+  linkedin`, `provider_key` LinkedIn's pairwise `sub`, kept until deletion of the account is requested; the OAuth-state
+  record, 10 min; the external-login grant (address and `sub`, 10 min), only for an address without an account while
+  registration is open; an account born `email_confirmed = true` on LinkedIn's flag; LinkedIn as a new source (Art.
+  14(2)(f)), and LinkedIn Ireland as an independent-controller recipient of the knowledge of the login.
+- **Received, not stored:** the id_token and a 60-day access token.
+- **A new data subject:** the holder of an address a LinkedIn account asserts, who may not hold that account; told
+  nothing (Art. 14(5)(b)). Declared, not measured.
+- **No third-country transfer.** **Unchanged:** the category (D8); no DPIA (Art. 35(3)(a)–(c)); not Art. 22, since the
+  code path remains where LinkedIn's address is refused; Art. 15 from the register; the cascade under Art. 17, except
+  that every provider's links now go at the deletion request (`security-auditor` Minor 2); the logging rule of (17),
+  which never admits the `sub`, an address, the code, a token, the id_token or a claim of it, the nonce, or
+  `error_description`.
+- The privacy policy names LinkedIn in its three sections and says, for Google, GitHub and LinkedIn, that the
+  identifier is kept until deletion of the account is requested, with `privacy.updated` and
+  `CurrentPrivacyPolicyVersion` on the merge day. The cookie policy does not change.
+
+*(End of `security-auditor`'s text.)*
+
+**Minor 2 as built** (`dotnet-architect`'s form; ADR 0146 D3 holds unchanged, so it needs no amendment).
+- `IExternalLoginEraser.EraseAllAsync(userId)` deletes the account's rows in `identity."AspNetUserLogins"` in one
+  statement keyed on the account, for every provider. It is registered outside the provider gate, since a provider
+  whose keys were removed keeps its rows, and it takes no provider (a form pin, said to be one).
+- `POST /me/delete` calls it after the commit and last, after the session teardown, on `CancellationToken.None`; never
+  in `DeleteAccountCommandHandler`, whose command replays on a concurrency conflict (D3). Its one consumer is pinned.
+  If it fails, the answer is 500 with the account deleted, signed out and its links kept.
+- `HardDeleteAccountsJob` gains Steg 3, last and on every run: every login held by an account in its restore window.
+  Above 0 it warns with the count alone (EventId 2505). A failure there propagates and never delays a hard delete.
+- `account-deletion.md` §4.3's operator path sets the deletion trigger and deletes the links in one statement; §3.3
+  gains the standing query, expected 0.
+- **Declared, for `security-auditor`:** a login that read the account as active before the soft delete committed can
+  write its link after the erasure. The link grants nothing, since `PendingDeletion` is decided before any link is read
+  (`LoginProofOutcome`), and Steg 3 deletes it at the next run. It is the one exception to the register's sentence that
+  an account in the deletion window gets no new link; whether that sentence changes is hers to rule.
+
+**Measured 2026-09-28.**
+- The start path's bound (`senior-cto-advisor` 7.6), with `linkedin` now the longest key:
+  `VolatileRedisOutOfMemoryTests.The_start_path_at_its_budget_bound_takes_at_most_a_sixteenth_of_the_instance`, run
+  with `-showLiveOutput`, bounds 630 records at 3 733 bytes to 2 351 790 of 67 108 864 bytes (3.5 %; the limit is a
+  sixteenth).
+- A failure in the erasure answers 500 with the account deleted, signed out and its links kept (`DeleteMeTests`), and
+  Steg 3 then takes them while the account waits for its hard delete (`HardDeleteAccountsJobIntegrationTests`).
+
+**(e), read before merge, 2026-09-28T12:07:23Z**, read-only on the box over `ssh jp-vps` (`docker exec` into the
+running containers). Counts only.
+- `Auth__RegistrationsOpen` `false`; no `Auth__OAuth__LinkedIn__` variable; providers `200 ["google","github"]`.
+- 2 accounts, 0 created after Amendment (19)'s reading. One is the controller's by the whole-address hash of (17). The
+  other's address changed at 04:29:58–04:31:11Z that day, and the hash knows only the earlier address, so Klas's own
+  confirmation of 2026-09-28 is its record: "Det var jag, och den nya adressen är min. Båda kontona är mina." No
+  account event has followed.
+- `AspNetUserLogins` `github:1,google:1`; 0 accounts in their restore window, so 0 links held by one (V3); 0
+  `public.job_seekers` rows on privacy version `2026-09-28`.
+- If the merge is on a later day, the reading is taken again that day.
+
+**LinkedIn's subject ids are pairwise** (`dotnet-architect` N4): each app gives a member its own `sub`. A new client id,
+including a move of the box to an app of its own, means deleting the `linkedin` rows first; each member's next login
+links again through the address. The secret can be rotated freely. §3d carries the step.
+
+**The activation** (`vps-deploy-stack.md` §3d) reads Chapter V first, then places the keys. If the first login logs
+EventId 1022 with `NonceAbsent`, `SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent` or `FlagAbsent`,
+the keys come off until the follow-up PR has merged (`senior-cto-advisor` 7.7). The follow-up is, for `NonceAbsent`,
+deleting the nonce check, and, where `sub` or `email` needs `profile`, the scope `openid profile email`, each in
+`security-auditor`'s form and each followed by a new activation.
+
+**GitHub's logo rules, read 2026-09-28** (`design-reviewer` Minor 7, brand.github.com "Logo"; the page shows no date).
+They permit a GitHub logo "to inform others that your project integrates with GitHub", and forbid modifying it, which
+they say includes changing its colour or dimensions or combining it with other words or design elements. Whether the
+Invertocat beside the row's label, `aria-hidden`, stays within that is `design-reviewer`'s to rule; if it does not,
+DESIGN.md §3's rule for LinkedIn applies to GitHub in this PR.
+
+**Lapse triggers, read for PR L.** Trigger 4 fires, as `security-auditor`'s text above reads it. 1–3 and 5–7 are
+untouched.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -2881,7 +3090,9 @@ nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw
 `dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in three PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 #1888 one click,
 by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)), activated on the box 2026-09-27 (the
 readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in two PRs by Klas's answer (Amendment
-2026-09-27 (19)): PR P the login page per his notes and a quiet continuation hop · PR L LinkedIn in one click → **6d** #1747 **unblocked and moved into 1b's migration window**: the
+2026-09-27 (19)): PR P #1904 the login page per his notes and a quiet continuation hop · PR L LinkedIn in one click, by
+Klas's decision, with a deleted account's links erased at the request for every provider (Amendment 2026-09-28 (20)) →
+**6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 

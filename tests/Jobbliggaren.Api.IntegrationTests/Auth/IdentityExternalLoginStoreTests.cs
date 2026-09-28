@@ -156,6 +156,47 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.GitHub, github, Ct)).ShouldBe(userId);
     }
 
+    // ── #1746: LinkedIn's rows beside the others ──
+    // LinkedIn's identifier is the production adapter's (LinkedInIdentities over a documented userinfo): a pairwise sub.
+
+    private static async Task<ExternalSubject> LinkedInSubjectAsync() =>
+        (await LinkedInIdentities.ReadAsync(
+            LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), "store@example.se"))).Subject;
+
+    [Fact]
+    public async Task A_linkedin_login_is_stored_under_linkedins_key_and_found_by_it()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var subject = await LinkedInSubjectAsync();
+
+        (await Store(scope).LinkAsync(userId, ExternalProviderKey.LinkedIn, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.LinkedIn, subject, Ct)).ShouldBe(userId);
+        var row = await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
+            .AsNoTracking()
+            .SingleAsync(l => l.UserId == userId, Ct);
+        row.LoginProvider.ShouldBe("linkedin");
+        row.ProviderKey.ShouldBe(subject.Reveal());
+        row.ProviderDisplayName.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("google")]
+    [InlineData("github")]
+    public async Task A_linkedin_login_is_not_found_under_another_providers_key_with_the_same_identifier(string other)
+    {
+        // DECLARED: no other provider's identifier is known to equal a LinkedIn sub. The row asserts only that the
+        // lookup keys on the provider as well as the identifier, so such a collision could never cross over.
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var subject = await LinkedInSubjectAsync();
+        await Store(scope).LinkAsync(userId, ExternalProviderKey.LinkedIn, subject, Ct);
+        ExternalProviderKey.TryParse(other, out var key).ShouldBeTrue();
+
+        (await Store(scope).FindUserIdAsync(key, subject, Ct)).ShouldBeNull();
+    }
+
     // ── A link another request makes past this store's read (code-reviewer Major 2, test-writer Minor 4) ──
     // The actor: a second callback for the same identifier, in another request, linking it through the same store.
 

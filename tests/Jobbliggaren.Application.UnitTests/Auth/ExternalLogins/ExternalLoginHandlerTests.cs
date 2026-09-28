@@ -71,6 +71,8 @@ public class RegisteredProvidersTests
 
     private static IExternalIdentityProvider GitHub() => Provider(ExternalProviderKey.GitHub);
 
+    private static IExternalIdentityProvider LinkedIn() => Provider(ExternalProviderKey.LinkedIn);
+
     [Fact]
     public void Keys_ShouldBeEmpty_WhenNoProviderIsRegistered() => new RegisteredProviders([]).Keys.ShouldBeEmpty();
 
@@ -84,30 +86,40 @@ public class RegisteredProvidersTests
         new RegisteredProviders([GitHub(), Google()]).Keys.ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.GitHub]);
 
     [Fact]
+    public void Keys_ShouldBeInTheKnownOrder_WhenAllThreeAreRegisteredInAnother() =>
+        new RegisteredProviders([GitHub(), LinkedIn(), Google()]).Keys
+            .ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.LinkedIn, ExternalProviderKey.GitHub]);
+
+    [Fact]
     public void Find_ShouldAnswerTheProviderUnderItsOwnKey_WhenSeveralAreRegistered()
     {
         // #1745: kills "the first registered provider".
         var google = Google();
         var github = GitHub();
-        var providers = new RegisteredProviders([google, github]);
+        var linkedin = LinkedIn();
+        var providers = new RegisteredProviders([google, github, linkedin]);
 
         providers.Find("github").ShouldBeSameAs(github);
         providers.Find("google").ShouldBeSameAs(google);
+        providers.Find("linkedin").ShouldBeSameAs(linkedin);
     }
 
-    // Unknown to this build, or known and misspelled: never "github" itself, which is a known key since #1745.
+    // Unknown to this build, or known and misspelled.
     [Theory]
     [InlineData("GitHub")]
+    [InlineData("LinkedIn")]
+    [InlineData("LINKEDIN")]
     [InlineData("myspace")]
     [InlineData("GOOGLE")]
     [InlineData("")]
     [InlineData(null)]
     public void Find_ShouldAnswerNull_WhenTheKeyIsNotAKnownKeySpelledExactly(string? raw) =>
-        new RegisteredProviders([Google(), GitHub()]).Find(raw).ShouldBeNull();
+        new RegisteredProviders([Google(), GitHub(), LinkedIn()]).Find(raw).ShouldBeNull();
 
     [Theory]
     [InlineData("google")]
     [InlineData("github")]
+    [InlineData("linkedin")]
     public void Find_ShouldAnswerNull_WhenTheKeyIsKnownButNotRegisteredOnThisHost(string raw) =>
         new RegisteredProviders([]).Find(raw).ShouldBeNull();
 }
@@ -138,6 +150,13 @@ public class GetExternalLoginProvidersQueryHandlerTests
                 [Provider(ExternalProviderKey.GitHub), Provider(ExternalProviderKey.Google)]))
             .Handle(new GetExternalLoginProvidersQuery(), TestContext.Current.CancellationToken))
         .ShouldBe(["google", "github"]);
+
+    [Fact]
+    public async Task Handle_ShouldAnswerTheKnownOrder_WhenAllThreeAreRegisteredInAnother() =>
+        (await new GetExternalLoginProvidersQueryHandler(new RegisteredProviders(
+                [Provider(ExternalProviderKey.GitHub), Provider(ExternalProviderKey.LinkedIn), Provider(ExternalProviderKey.Google)]))
+            .Handle(new GetExternalLoginProvidersQuery(), TestContext.Current.CancellationToken))
+        .ShouldBe(["google", "linkedin", "github"]);
 }
 
 /// <summary>#1744 — start: the flow is minted and the provider's URL carries the stored verifier's challenge.</summary>

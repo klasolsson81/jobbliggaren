@@ -15,13 +15,14 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// composes none of it, with or without a client.
 /// <para>
 /// #1745: GitHub's gate registers GitHub from its own client id, independent of Google's, and the Worker composes
-/// neither (test-writer reading §6, the composition rows).
+/// neither (test-writer reading §6, the composition rows). #1746: LinkedIn's gate likewise.
 /// </para>
 /// </summary>
 public sealed class ExternalLoginCompositionTests
 {
-    // A full Google and GitHub client, as appsettings.Local.json and the box's _FILE seam carry them.
-    private static IConfiguration Configuration(bool withVolatileRedis, bool withGoogleClient, bool withGitHubClient = false) =>
+    // Full clients, as appsettings.Local.json and the box's _FILE seam carry them.
+    private static IConfiguration Configuration(
+        bool withVolatileRedis, bool withGoogleClient, bool withGitHubClient = false, bool withLinkedInClient = false) =>
         new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
@@ -32,6 +33,8 @@ public sealed class ExternalLoginCompositionTests
             ["Auth:OAuth:Google:ClientSecret"] = withGoogleClient ? "configured-client-secret" : null,
             ["Auth:OAuth:GitHub:ClientId"] = withGitHubClient ? "configured-github-client-id" : null,
             ["Auth:OAuth:GitHub:ClientSecret"] = withGitHubClient ? "configured-github-client-secret" : null,
+            ["Auth:OAuth:LinkedIn:ClientId"] = withLinkedInClient ? "configured-linkedin-client-id" : null,
+            ["Auth:OAuth:LinkedIn:ClientSecret"] = withLinkedInClient ? "configured-linkedin-client-secret" : null,
         }).Build();
 
     private static IEnumerable<string> NamedClients(IServiceCollection services) =>
@@ -100,12 +103,45 @@ public sealed class ExternalLoginCompositionTests
     }
 
     [Fact]
+    public void The_Api_registers_the_three_providers_from_three_full_clients()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIdentityAndSessions(Configuration(
+            withVolatileRedis: true, withGoogleClient: true, withGitHubClient: true, withLinkedInClient: true));
+
+        services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider))
+            .Select(d => d.ImplementationType)
+            .ShouldBe(
+                [typeof(GoogleIdentityProvider), typeof(LinkedInIdentityProvider), typeof(GitHubIdentityProvider)],
+                ignoreOrder: true);
+        NamedClients(services).ShouldContain(LinkedInIdentityProvider.HttpClientName);
+        services.Count(d => d.ServiceType == typeof(ExternalLoginCallbacks)).ShouldBe(1);
+    }
+
+    [Fact]
+    public void The_Api_registers_linkedin_alone_from_its_own_client()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIdentityAndSessions(
+            Configuration(withVolatileRedis: true, withGoogleClient: false, withLinkedInClient: true));
+
+        services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider)).ShouldHaveSingleItem()
+            .ImplementationType.ShouldBe(typeof(LinkedInIdentityProvider));
+        services.ShouldContain(d => d.ServiceType == typeof(IConfigureOptions<LinkedInOAuthOptions>));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GoogleOAuthOptions>));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
+        services.Count(d => d.ServiceType == typeof(ExternalLoginCallbacks)).ShouldBe(1);
+    }
+
+    [Fact]
     public void The_Worker_composes_none_of_it_even_with_full_clients()
     {
         var services = new ServiceCollection();
 
-        services.AddCoreIdentityForWorker(
-            Configuration(withVolatileRedis: false, withGoogleClient: true, withGitHubClient: true));
+        services.AddCoreIdentityForWorker(Configuration(
+            withVolatileRedis: false, withGoogleClient: true, withGitHubClient: true, withLinkedInClient: true));
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IOAuthStateStore));
         services.ShouldNotContain(d => d.ServiceType == typeof(RegisteredProviders));
@@ -114,6 +150,7 @@ public sealed class ExternalLoginCompositionTests
         services.ShouldNotContain(d => d.ServiceType == typeof(ExternalLoginLinker));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
         services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<LinkedInOAuthOptions>));
     }
 
     [Fact]

@@ -37,7 +37,8 @@ public class ExternalLoginNeutraliserTests
 
     [Fact]
     public void The_gates_are_read_off_every_adapter() =>
-        GateSections.ShouldBe([GitHubOAuthOptions.SectionName, GoogleOAuthOptions.SectionName]);
+        GateSections.ShouldBe(
+            [GitHubOAuthOptions.SectionName, GoogleOAuthOptions.SectionName, LinkedInOAuthOptions.SectionName]);
 
     private static ServiceCollection ComposeWithAClientIdAlone(string section)
     {

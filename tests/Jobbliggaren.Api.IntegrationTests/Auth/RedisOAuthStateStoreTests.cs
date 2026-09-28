@@ -152,6 +152,10 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
     [Theory]
     [InlineData("google", "github")]
     [InlineData("github", "google")]
+    [InlineData("google", "linkedin")]
+    [InlineData("linkedin", "google")]
+    [InlineData("github", "linkedin")]
+    [InlineData("linkedin", "github")]
     public async Task A_flow_started_for_one_provider_is_refused_at_the_others_callback_and_spent(
         string startedFor, string presentedTo)
     {
@@ -166,6 +170,7 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
 
     [Theory]
     [InlineData("google")]
+    [InlineData("linkedin")]
     [InlineData("github")]
     public async Task A_flow_is_handed_back_under_the_provider_it_was_started_for(string provider)
     {

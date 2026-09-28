@@ -79,6 +79,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>#1745 — the scripted endpoints the host's GitHub adapter calls.</summary>
     internal ScriptedGitHub GitHub => _github;
 
+    /// <summary>#1746 — the host's client id at LinkedIn, as the test adapter sends it.</summary>
+    internal const string LinkedInClientId = "li-test-client-id";
+
+    // Not shaped like a real secret. gitleaks:allow
+    private const string LinkedInClientSecret = "test-linkedin-client-secret"; // gitleaks:allow
+
+    // #1746 — LinkedIn's token and userinfo endpoints, scripted. The only thing the LinkedIn login path stubs.
+    private readonly ScriptedLinkedIn _linkedin = new(LinkedInClientId, LinkedInClientSecret);
+
+    /// <summary>#1746 — the scripted endpoints the host's LinkedIn adapter calls.</summary>
+    internal ScriptedLinkedIn LinkedIn => _linkedin;
+
     /// <summary>#1735 — puts the login challenge's Redis stores out of reach for a scope (the 503 rows).</summary>
     internal LoginChallengeFaults LoginChallengeFaults => _loginChallengeFaults;
 
@@ -133,6 +145,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // #1745 — a full GitHub client too, as a developer's appsettings.Local.json can carry one.
         builder.UseSetting("Auth:OAuth:GitHub:ClientId", GitHubClientId);
         builder.UseSetting("Auth:OAuth:GitHub:ClientSecret", GitHubClientSecret);
+
+        // #1746 — and LinkedIn's. Without it the composition row would read a developer's own LinkedIn client from
+        // appsettings.Local.json on that machine, and nothing in CI.
+        builder.UseSetting("Auth:OAuth:LinkedIn:ClientId", LinkedInClientId);
+        builder.UseSetting("Auth:OAuth:LinkedIn:ClientSecret", LinkedInClientSecret);
 
         // ADR 0066 (#802) — fält-krypteringen är Local-only. Provider läses via
         // configuration[...] vid DI-tid i AddPersistence, så det MÅSTE vara ett
@@ -252,8 +269,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test
             // reaches Google. The redirect base is the host's own Email:BaseUrl.
             //
-            // #1745 — and the REAL GitHub adapter over ScriptedGitHub. Both stand in for what the gates compose on
-            // this host from its client ids (ExternalLoginEndpointsTests pins that composition).
+            // #1745 — and the REAL GitHub adapter over ScriptedGitHub, and #1746 the REAL LinkedIn adapter over
+            // ScriptedLinkedIn. They stand in for what the gates compose on this host from its client ids
+            // (ExternalLoginEndpointsTests pins that composition).
             services.RemoveAll<RegisteredProviders>();
             services.AddSingleton(sp =>
             {
@@ -270,6 +288,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                         }),
                         callbacks,
                         sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()),
+                    new LinkedInIdentityProvider(
+                        new NamedClientFactory(LinkedInIdentityProvider.HttpClientName, _linkedin),
+                        Options.Create(new LinkedInOAuthOptions
+                        {
+                            ClientId = LinkedInClientId,
+                            ClientSecret = LinkedInClientSecret,
+                        }),
+                        callbacks,
+                        sp.GetRequiredService<ILogger<LinkedInIdentityProvider>>()),
                     new GitHubIdentityProvider(
                         new NamedClientFactory(GitHubIdentityProvider.HttpClientName, _github),
                         Options.Create(new GitHubOAuthOptions

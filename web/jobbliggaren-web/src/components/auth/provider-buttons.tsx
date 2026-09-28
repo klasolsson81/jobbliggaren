@@ -41,19 +41,17 @@ const MARKS: Readonly<Record<ExternalProviderKey, { src: string; px: number; cla
 export function ProviderButtons({
   active = [],
   next = "",
-  describedBy,
 }: {
   /** The providers the api registered; the rest stay inactive. */
   active?: readonly ExternalProviderKey[];
   /** The post-login path, carried to the start as given; the start guards it. */
   next?: string;
-  /** The id of the line an active row's action is described by. */
-  describedBy?: string;
 }) {
   const t = useTranslations("pages");
 
+  // The Button primitive lifts every row to 44 px at ≤768 px (DESIGN.md §5).
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-2">
       {PROVIDERS.map((provider) => {
         const live = active.find((key) => key === provider);
         return (
@@ -64,7 +62,7 @@ export function ProviderButtons({
                 type="button"
                 variant="outline"
                 aria-disabled="true"
-                className="h-auto min-h-10 w-full cursor-default justify-between gap-3 py-2 text-left whitespace-normal hover:bg-background max-md:min-h-11"
+                className="h-auto min-h-10 w-full cursor-default justify-between gap-3 px-3 py-1.5 text-left whitespace-normal hover:bg-background"
               >
                 <span>{t(`auth.passwordless.entry.providers.${provider}`)}</span>
                 <span className="text-body-sm text-text-primary">
@@ -75,9 +73,9 @@ export function ProviderButtons({
               <Button
                 asChild
                 variant="outline"
-                className="h-auto min-h-10 w-full justify-start gap-3 py-2 text-left whitespace-normal hover:border-brand-700 hover:bg-background max-md:min-h-11"
+                className="h-auto min-h-10 w-full justify-center gap-3 px-3 py-1.5 text-center whitespace-normal hover:border-brand-700 hover:bg-background"
               >
-                <a href={externalLoginStartHref(live, next)} aria-describedby={describedBy}>
+                <a href={externalLoginStartHref(live, next)}>
                   <span aria-hidden="true" className="relative size-5 shrink-0 overflow-hidden">
                     <Image
                       src={MARKS[live].src}

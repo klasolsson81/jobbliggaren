@@ -203,7 +203,7 @@ accessible, and built to be trusted — not admired.
 
 ### Typografi
 - ✗ Inter, Roboto, Arial som primär font
-- ✗ system-ui som primär font
+- ✗ system-ui som primär font (utom fortsättningsdokumentet, DESIGN.md §11.6)
 - ✗ Mono för brödtext
 - ✗ Mono för informationsbärande siffror (datum, tider, antal)
 - ✗ Versaler för rubriker (utom mono caps-labels)

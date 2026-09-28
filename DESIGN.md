@@ -305,10 +305,26 @@ copyn ligger i `EmailTemplates.cs` bredvid textdelen den speglar. Ingen annan yt
 
 **Dessutom, och utan avsteg:** tabellayout och inline-CSS (inget `<style>`-block alls), max 600px,
 ingen flexbox/grid, `color-scheme: light` — mejlet är avsiktligt ljust i båda teman, vilket är rätt
-e-postpraxis och det enda undantaget från "light-only är blockerat". **Guld (`--jp-gold`) hör till
+e-postpraxis och ett undantag från "light-only är blockerat". **Guld (`--jp-gold`) hör till
 sigillet och får inte användas som fristående dekor i mejl** (§11 ovan; ADR 0070
 inför guldet och bär ingen sådan regel). Brand-signalen är den gröna
 4px-regeln överst, och den ska vara den enda.
+
+---
+
+## 11.6 Fortsättningsdokumentet
+
+Sidan som en extern inloggning landar på (`web/jobbliggaren-web/src/lib/auth/continuation-document.ts`, ADR 0142 D8)
+får inte hämta något medan URL:en bär `code` och `state`, så den läser inte `globals.css`.
+
+1. **Färgerna är hex-literaler** i sidans enda `<style>`, var och en det ljusa temats värde av en namngiven token:
+   `--jp-canvas` (samma värde som `--jp-surface-2`, som inloggningssidornas layout läser), `--jp-ink-1`,
+   `--jp-heading-1` och `--jp-accent-700`. Ett test jämför dem med `globals.css`, som i §11.5 punkt 1. Inga nya tokens.
+2. **Systemtypsnitt:** svansen av `--jp-font-sans` efter webbtypsnittet.
+
+Innehållet hålls osynligt i två sekunder av en animation, aldrig av grundstilen. Döljandet är ett enda steg utan rörelse
+och gäller även vid `prefers-reduced-motion: reduce`, som ett undantag från §10. Länken är minst 44 px hög. Bara ljust
+tema medan `DARK_MODE_ENABLED` är `false`.
 
 ---
 

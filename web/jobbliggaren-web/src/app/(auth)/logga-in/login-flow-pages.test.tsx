@@ -77,19 +77,17 @@ describe("/logga-in", () => {
   const page = (searchParams: Record<string, string | string[]> = {}) =>
     LoggaInPage({ searchParams: Promise.resolve(searchParams) });
 
-  it("is the address first and the inactive providers last, under one h1", async () => {
-    render(await page());
+  it("is the address first and the inactive providers last, under one h1 and no lede", async () => {
+    const { container } = render(await page());
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Du loggar in med en kod som vi skickar till din e-postadress.")
-    ).toBeInTheDocument();
-
+    const heading = screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" });
     const field = screen.getByLabelText("E-postadress");
     const providers = screen.getByRole("heading", { level: 2, name: "Andra sätt att logga in" });
+    expect(heading.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(field.compareDocumentPosition(providers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // #1746, Klas: "Helt onödig".
+    expect(heading.nextElementSibling).toBe(container.querySelector("form"));
+    expect(screen.queryByText(/Du loggar in med en kod/)).not.toBeInTheDocument();
     // Fortsätt is the screen's only solid primary; the provider rows are outline.
     expect(
       screen.getAllByRole("button").filter((b) => b.getAttribute("data-variant") === "default")
@@ -143,30 +141,31 @@ describe("/logga-in", () => {
 
     beforeEach(() => mocks.getExternalLoginProviders.mockResolvedValue(["google"]));
 
-    it("puts the providers first under the persistence line, then the address with its lede", async () => {
-      render(await page());
+    it("puts the providers first, then 'eller' and the address, with no persistence line and no lede", async () => {
+      const { container } = render(await page());
 
       const order = [
         screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" }),
-        screen.getByText(/Du förblir inloggad på den här enheten i upp till 180 dagar\./),
         screen.getByRole("link", { name: "Fortsätt med Google" }),
-        screen.getByText("Eller fortsätt med e-post"),
-        screen.getByText("Du loggar in med en kod som vi skickar till din e-postadress."),
+        screen.getByText("eller"),
         screen.getByLabelText("E-postadress"),
       ];
       for (let i = 1; i < order.length; i++) expect(follows(order[i - 1]!, order[i]!)).toBe(true);
+      expect(screen.getByText("eller").parentElement?.nextElementSibling).toBe(container.querySelector("form"));
+      // ADR 0142 Amendment (19): removed by Klas's decision; security-auditor's Major 4 stands.
+      expect(screen.queryByText(/Du förblir inloggad/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Du loggar in med en kod/)).not.toBeInTheDocument();
       expect(
         screen.getAllByRole("button").filter((b) => b.getAttribute("data-variant") === "default")
       ).toHaveLength(1);
     });
 
-    it("describes the Google row by the persistence line, and keeps it out of the address form", async () => {
+    it("gives the Google row no description, and keeps it out of the address form", async () => {
       render(await page());
 
       const google = screen.getByRole("link", { name: "Fortsätt med Google" });
-      expect(google).toHaveAccessibleDescription(
-        "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
-      );
+      expect(google).not.toHaveAttribute("aria-describedby");
+      expect(google).toHaveAccessibleDescription("");
       expect(google.closest("form")).toBeNull();
     });
 

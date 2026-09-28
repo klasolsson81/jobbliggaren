@@ -257,7 +257,7 @@ Required on every page with a navigation landmark:
 }
 ```
 
-Allowed animations per DESIGN.md §10:
+Allowed animations per DESIGN.md §10 (and the continuation document's hold, DESIGN.md §11.6):
 - Fade 150ms (toast, dropdown appear/disappear)
 - Slide 200ms (side panel)
 - Opacity 150ms (hover states)
@@ -367,7 +367,7 @@ Design-reviewer uses this checklist as her audit source. All must pass.
 - [ ] Decorative icons have `aria-hidden="true"`
 - [ ] Skip link present on pages with navigation
 - [ ] Dialogs trap focus + return focus on close
-- [ ] `prefers-reduced-motion` respected (no animations at 0.01ms)
+- [ ] `prefers-reduced-motion` respected (no animations at 0.01ms; the continuation document's hold excepted, DESIGN.md §11.6)
 - [ ] Page usable at 200% zoom without horizontal scroll
 - [ ] Hit targets ≥ 32×32px in-app (a FLOOR — shipped controls are 36–48px; do not "fix" one down to it), ≥ 44px on touch ≤768px
 - [ ] Running prose capped at ~68ch max-width

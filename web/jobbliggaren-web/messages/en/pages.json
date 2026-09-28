@@ -560,7 +560,6 @@
           "title": "Log in or create account"
         },
         "title": "Log in or create account",
-        "lede": "You log in with a code we send to your email address.",
         "emailLabel": "Email address",
         "privacyHint": "How we process your email address: <privacy>the privacy policy</privacy>.",
         "emailRequired": "Enter your email address.",
@@ -574,7 +573,7 @@
           "github": "Continue with GitHub",
           "comingSoon": "Coming soon"
         },
-        "orEmail": "Or continue with email"
+        "or": "or"
       },
       "code": {
         "meta": {

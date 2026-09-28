@@ -6,7 +6,7 @@ namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 /// (cross-context-DDL + UserManager.DeleteAsync). Anropas endast av
 /// HardDeleteAccountsJob — architecture test verifierar isolering.
 ///
-/// Operationerna är split:ade i tre metoder för att hålla orchestratorn
+/// Operationerna är split:ade i fyra metoder för att hålla orchestratorn
 /// (HardDeleteAccountsJob) i Application-lagret med tunn ansvarsyta:
 /// loop + cancel-token-management + progress-log. All cross-context-mekanik
 /// + transaktioner sker bakom porten.
@@ -39,4 +39,11 @@ public interface IAccountHardDeleter
     /// CleanupIdentityOrphansAsync-körning (idempotent fail-recovery).
     /// </summary>
     Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Steg 3 — the backstop for the account-deletion endpoint's erasure of external logins (ADR 0142 Amendment
+    /// (20)): every login still held by an account in its restore window, whichever provider wrote it.
+    /// </summary>
+    /// <returns>How many login rows it deleted; above 0 means the erasure at the request left some behind.</returns>
+    Task<int> EraseExternalLoginsOfAccountsPendingDeletionAsync(CancellationToken cancellationToken);
 }

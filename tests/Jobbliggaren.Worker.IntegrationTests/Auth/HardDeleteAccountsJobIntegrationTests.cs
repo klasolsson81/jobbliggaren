@@ -30,9 +30,10 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auth;
 
 /// <summary>
 /// End-to-end smoke-test för <see cref="HardDeleteAccountsJob"/> mot riktig
-/// Postgres + AspNet Identity (Testcontainers). Verifierar 3-stegs-algoritmen
+/// Postgres + AspNet Identity (Testcontainers). Verifierar 4-stegs-algoritmen
 /// per ADR 0024 D6: orphan-cleanup → hämta mogna → cascade hard-delete +
-/// audit-anonymisering + Identity-DELETE.
+/// audit-anonymisering + Identity-DELETE → bakstoppet för externa inloggningar
+/// (ADR 0142 Amendment (20)).
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]
@@ -160,35 +161,86 @@ $fn$ LANGUAGE plpgsql;";
     }
 
     [Fact]
-    public async Task RunAsync_RemovesTheAccountsExternalLogins()
+    public async Task HardDeleteAccountAsync_RemovesTheAccountsExternalLogins()
     {
         // #1744 (security-auditor m-10, 6a form round): AspNetUserLogins holds the provider's identifier for the
-        // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) is its only
-        // eraser. This pins the effect. In production the state is a link written by ExternalLoginLinker while the
-        // account was active, followed by DeleteAccount's soft delete; here the same writer links the soft-deleted
-        // seed, which leaves the same row.
+        // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) erases it with the
+        // account. Called directly: through RunAsync, Steg 3 (#1746) would erase the link and this row would no
+        // longer reach the cascade. The state is a mature account still holding a link, which the account-deletion
+        // endpoint leaves when its erasure fails after the commit (DeleteMeTests pins that) and Steg 3 has not run
+        // since; the same writer links the soft-deleted seed here.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
-        var (userId, _) = await SeedSoftDeletedAccountAsync(now.AddDays(-(RestoreWindowDays + 1)), ct);
+        var (userId, jobSeekerId) = await SeedSoftDeletedAccountAsync(now.AddDays(-(RestoreWindowDays + 1)), ct);
         var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
 
         using (var seedScope = _fixture.Services.CreateScope())
         {
-            var store = new IdentityExternalLoginStore(
-                seedScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
-                seedScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
-                seedScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            var store = Store(seedScope);
             (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
 
             // Precondition, or the absence below passes vacuously.
             (await store.FindUserIdAsync(ExternalProviderKey.Google, subject, ct)).ShouldBe(userId);
         }
 
-        await RunJobAsync(now, ct);
+        using (var runScope = _fixture.Services.CreateScope())
+        {
+            await runScope.ServiceProvider.GetRequiredService<IAccountHardDeleter>()
+                .HardDeleteAccountAsync(jobSeekerId.Value, ct);
+        }
 
         using var verifyScope = _fixture.Services.CreateScope();
         var identity = verifyScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
         (await identity.UserLogins.AsNoTracking().CountAsync(l => l.UserId == userId, ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_ErasesTheLoginsOfAnAccountInItsRestoreWindow_AndKeepsTheAccount()
+    {
+        // #1746 (ADR 0142 Amendment (20), dotnet-architect): Steg 3, the backstop. The state is an account ten days
+        // into its window still holding a login for every provider, which the account-deletion endpoint leaves when
+        // its erasure fails after the commit (DeleteMeTests pins that). Asserted per account and never on the run's
+        // count, since the collection shares the database.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var (pendingUserId, pendingJobSeekerId) = await SeedSoftDeletedAccountAsync(now.AddDays(-10), ct);
+        var activeUserId = await SeedActiveAccountAsync(ct);
+        await LinkEveryKnownProviderAsync(pendingUserId, ct);
+        await LinkEveryKnownProviderAsync(activeUserId, ct);
+
+        await RunJobAsync(now, ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var logins = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins.AsNoTracking();
+        (await logins.CountAsync(l => l.UserId == pendingUserId, ct)).ShouldBe(0);
+        (await logins.CountAsync(l => l.UserId == activeUserId, ct)).ShouldBe(ExternalProviderKey.Known.Count);
+
+        // Still inside its window, so the account and its Identity row wait for the hard delete.
+        (await scope.ServiceProvider.GetRequiredService<AppDbContext>().JobSeekers
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .SingleAsync(js => js.Id == pendingJobSeekerId, ct))
+            .DeletedAt.ShouldNotBeNull();
+        (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+                .FindByIdAsync(pendingUserId.ToString()))
+            .ShouldNotBeNull();
+    }
+
+    private static IdentityExternalLoginStore Store(IServiceScope scope) =>
+        new(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+            scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+
+    // The production writer, as a login with each provider writes it; over Known, so a later provider is covered too.
+    private async Task LinkEveryKnownProviderAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var store = Store(scope);
+        foreach (var provider in ExternalProviderKey.Known)
+        {
+            var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+            (await store.LinkAsync(userId, provider, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
+        }
     }
 
     [Fact]
@@ -957,6 +1009,25 @@ $fn$ LANGUAGE plpgsql;";
         await db.SaveChangesAsync(ct);
 
         return (user.Id, jobSeeker.Id);
+    }
+
+    private async Task<Guid> SeedActiveAccountAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var email = $"hd-active-{Guid.NewGuid():N}@test.local";
+        var user = new ApplicationUser { UserName = email, Email = email };
+        (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
+
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var seekerResult = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock);
+        seekerResult.IsSuccess.ShouldBeTrue();
+        db.JobSeekers.Add(seekerResult.Value);
+        await db.SaveChangesAsync(ct);
+
+        return user.Id;
     }
 
     private async Task SeedAuditEntryAsync(Guid userId, Guid aggregateId, CancellationToken ct)

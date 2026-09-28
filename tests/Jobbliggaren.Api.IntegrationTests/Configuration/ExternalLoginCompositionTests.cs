@@ -69,6 +69,8 @@ public sealed class ExternalLoginCompositionTests
 
         services.ShouldContain(d => d.ServiceType == typeof(RegisteredProviders));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
+        // #1746: the eraser stands outside the gate, since a provider whose keys were removed keeps its rows.
+        services.ShouldContain(d => d.ServiceType == typeof(IExternalLoginEraser));
     }
 
     [Fact]
@@ -147,6 +149,7 @@ public sealed class ExternalLoginCompositionTests
         services.ShouldNotContain(d => d.ServiceType == typeof(RegisteredProviders));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalLoginLookup));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalLoginWriter));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IExternalLoginEraser));
         services.ShouldNotContain(d => d.ServiceType == typeof(ExternalLoginLinker));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
         services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GitHubOAuthOptions>));

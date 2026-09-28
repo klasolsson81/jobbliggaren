@@ -17,8 +17,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <summary>
 /// #1744 (ADR 0142 D8) — external logins in Identity's own <c>AspNetUserLogins</c>, against the real Identity
 /// database: a link is found by the provider's identifier, linking again is idempotent, a login another account
-/// holds is reported as such and never moved, and no display name is stored. Accounts are opened by the production
-/// creator, as <c>complete</c> opens them.
+/// holds is reported as such and never moved, no display name is stored, and (#1746) erasing an account deletes
+/// every login it holds. Accounts are opened by the production creator, as <c>complete</c> opens them.
 /// </summary>
 [Collection("Api")]
 public class IdentityExternalLoginStoreTests(ApiFactory factory)
@@ -195,6 +195,35 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         ExternalProviderKey.TryParse(other, out var key).ShouldBeTrue();
 
         (await Store(scope).FindUserIdAsync(key, subject, Ct)).ShouldBeNull();
+    }
+
+    // ── #1746 (ADR 0142 Amendment (20)): the erasure at the deletion request ──
+    // Every row is written by this store's own LinkAsync, as a login with each provider writes it. The loop runs over
+    // Known, so a later key is erased here without editing this row.
+
+    [Fact]
+    public async Task Erasing_an_account_deletes_its_login_under_every_known_key_and_only_its_own()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var other = await OpenAccountAsync(scope);
+        var otherSubject = NewSubject();
+        foreach (var provider in ExternalProviderKey.Known)
+            (await Store(scope).LinkAsync(userId, provider, NewSubject(), Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await Store(scope).LinkAsync(other, ExternalProviderKey.Known[0], otherSubject, Ct))
+            .ShouldBe(ExternalLinkResult.Linked);
+        var logins = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins.AsNoTracking();
+        (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(ExternalProviderKey.Known.Count);
+
+        await Store(scope).EraseAllAsync(userId, Ct);
+
+        (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(0);
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.Known[0], otherSubject, Ct)).ShouldBe(other);
+
+        // A second erasure finds nothing and changes nothing.
+        await Store(scope).EraseAllAsync(userId, Ct);
+        (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(0);
+        (await logins.CountAsync(l => l.UserId == other, Ct)).ShouldBe(1);
     }
 
     // ── A link another request makes past this store's read (code-reviewer Major 2, test-writer Minor 4) ──

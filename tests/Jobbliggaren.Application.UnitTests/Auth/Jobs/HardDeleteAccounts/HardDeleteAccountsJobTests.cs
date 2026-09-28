@@ -1,6 +1,8 @@
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.TestSupport;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -111,5 +113,90 @@ public class HardDeleteAccountsJobTests
 
         await hardDeleter.Received(1).HardDeleteAccountAsync(account1, Arg.Any<CancellationToken>());
         await hardDeleter.Received(1).HardDeleteAccountAsync(account2, Arg.Any<CancellationToken>());
+    }
+
+    // #1746 (ADR 0142 Amendment (20), dotnet-architect): Steg 3, the backstop for the account-deletion endpoint's
+    // erasure of external logins.
+
+    [Fact]
+    public async Task RunAsync_WithNoMatureAccount_StillRunsTheBackstop()
+    {
+        var hardDeleter = Substitute.For<IAccountHardDeleter>();
+        hardDeleter.GetAccountsReadyForHardDeleteAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        await CreateJob(hardDeleter).RunAsync(CancellationToken.None);
+
+        await hardDeleter.Received(1)
+            .EraseExternalLoginsOfAccountsPendingDeletionAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_RunsTheBackstopAfterEveryHardDelete()
+    {
+        var account1 = Guid.NewGuid();
+        var account2 = Guid.NewGuid();
+        var hardDeleter = Substitute.For<IAccountHardDeleter>();
+        hardDeleter.GetAccountsReadyForHardDeleteAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([account1, account2]);
+
+        await CreateJob(hardDeleter).RunAsync(CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            hardDeleter.HardDeleteAccountAsync(account1, Arg.Any<CancellationToken>());
+            hardDeleter.HardDeleteAccountAsync(account2, Arg.Any<CancellationToken>());
+            hardDeleter.EraseExternalLoginsOfAccountsPendingDeletionAsync(Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheBackstopFails_Throws_AfterEveryHardDeleteRan()
+    {
+        // Unlike an account's failure, the backstop's is not caught: Hangfire retries the run.
+        var account1 = Guid.NewGuid();
+        var account2 = Guid.NewGuid();
+        var hardDeleter = Substitute.For<IAccountHardDeleter>();
+        hardDeleter.GetAccountsReadyForHardDeleteAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([account1, account2]);
+        hardDeleter.EraseExternalLoginsOfAccountsPendingDeletionAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("the backstop's statement failed"));
+
+        await Should.ThrowAsync<InvalidOperationException>(() => CreateJob(hardDeleter).RunAsync(CancellationToken.None));
+
+        await hardDeleter.Received(1).HardDeleteAccountAsync(account1, Arg.Any<CancellationToken>());
+        await hardDeleter.Received(1).HardDeleteAccountAsync(account2, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheBackstopErasedNothing_LogsNoWarning()
+    {
+        var hardDeleter = Substitute.For<IAccountHardDeleter>();
+        hardDeleter.GetAccountsReadyForHardDeleteAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        hardDeleter.EraseExternalLoginsOfAccountsPendingDeletionAsync(Arg.Any<CancellationToken>()).Returns(0);
+        var logger = new RecordingLogger<HardDeleteAccountsJob>();
+
+        await new HardDeleteAccountsJob(hardDeleter, NowClock, logger).RunAsync(CancellationToken.None);
+
+        logger.Records.ShouldNotContain(record => record.EventId.Id == 2505);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheBackstopErasedLogins_WarnsWithTheCountAlone()
+    {
+        var hardDeleter = Substitute.For<IAccountHardDeleter>();
+        hardDeleter.GetAccountsReadyForHardDeleteAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        hardDeleter.EraseExternalLoginsOfAccountsPendingDeletionAsync(Arg.Any<CancellationToken>()).Returns(3);
+        var logger = new RecordingLogger<HardDeleteAccountsJob>();
+
+        await new HardDeleteAccountsJob(hardDeleter, NowClock, logger).RunAsync(CancellationToken.None);
+
+        var warning = logger.Records.Where(record => record.EventId.Id == 2505).ShouldHaveSingleItem();
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Properties.Select(property => property.Key).Where(key => key != "{OriginalFormat}")
+            .ShouldBe(["Count"]);
+        warning.Properties.Single(property => property.Key == "Count").Value.ShouldBe(3);
     }
 }

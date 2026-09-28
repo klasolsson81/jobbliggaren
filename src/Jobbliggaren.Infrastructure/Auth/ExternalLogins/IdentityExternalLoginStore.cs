@@ -14,7 +14,7 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 internal sealed class IdentityExternalLoginStore(
     UserManager<ApplicationUser> userManager,
     AppIdentityDbContext identity,
-    IDbExceptionInspector dbExceptionInspector) : IExternalLoginLookup, IExternalLoginWriter
+    IDbExceptionInspector dbExceptionInspector) : IExternalLoginLookup, IExternalLoginWriter, IExternalLoginEraser
 {
     public async Task<Guid?> FindUserIdAsync(
         ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct) =>
@@ -60,6 +60,11 @@ internal sealed class IdentityExternalLoginStore(
         throw new InvalidOperationException(
             $"External login for user {userId} was not persisted: " + string.Join("; ", result.Errors.Select(e => e.Code)));
     }
+
+    // One statement keyed on the account alone, not UserManager.RemoveLoginAsync: that one reads the user and rotates
+    // its security stamp per login, and none of it matters for an account being deleted.
+    public Task EraseAllAsync(Guid userId, CancellationToken ct) =>
+        identity.UserLogins.Where(login => login.UserId == userId).ExecuteDeleteAsync(ct);
 
     private async Task<ExternalLinkResult?> ClassifyAsync(
         Guid userId, ExternalProviderKey provider, ExternalSubject subject) =>

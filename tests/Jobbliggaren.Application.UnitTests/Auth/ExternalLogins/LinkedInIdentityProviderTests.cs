@@ -414,6 +414,39 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         _logger.Records.ShouldNotContain(r => r.EventId.Id == 1023);
     }
 
+    public static TheoryData<string> IdTokenSubjectsThatNameNoMember => new()
+    {
+        "absent", "null", "a number", "one character too long",
+    };
+
+    [Theory]
+    [MemberData(nameof(IdTokenSubjectsThatNameNoMember))]
+    public async Task ExchangeAsync_ShouldRefuseAfterOneRequest_WhenTheIdTokenNamesNoMember(string form)
+    {
+        // DECLARED: LinkedIn's id_token table lists `sub`, and OIDC Core §2 makes it REQUIRED. Only the refusal is
+        // asserted, before the access token is spent.
+        var tooLong = new string('A', ExternalSubject.MaximumLength + 1);
+        ExternalSubject.TryCreate(tooLong).ShouldBeNull();
+        _linkedin.IdTokenClaims = claims =>
+        {
+            switch (form)
+            {
+                case "absent": claims.Remove("sub"); break;
+                case "null": claims["sub"] = null; break;
+                case "a number": claims["sub"] = 5; break;
+                default: claims["sub"] = tooLong; break;
+            }
+
+            return claims;
+        };
+
+        (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Failed>();
+
+        _linkedin.Requests.Count.ShouldBe(1);
+        LoggedCause(1022, "IdTokenSubjectUnusable").ShouldBeTrue();
+        _logger.Records.ShouldNotContain(r => r.EventId.Id == 1023);
+    }
+
     [Theory]
     [InlineData(ScriptedLinkedIn.DiscoveryIssuer)]
     [InlineData(ScriptedLinkedIn.DocumentedIssuer)]
@@ -472,7 +505,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
             _ => new JsonObject { ["email"] = Primary, ["email_verified"] = false }.ToJsonString(),
         };
 
-        (await ExchangeAsync(userInfo)).ShouldBeOfType<ExternalExchange.Failed>();
+        (await ExchangeAsync(userInfo, idTokenSubject: Sub)).ShouldBeOfType<ExternalExchange.Failed>();
 
         LoggedCause(1022, "SubjectUnusable").ShouldBeTrue();
         _logger.Records.ShouldNotContain(r => r.EventId.Id == 1023);
@@ -614,11 +647,13 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     [Fact]
     public async Task ExchangeAsync_ShouldTryTheSubjectBeforeTheAddress()
     {
-        (await ExchangeAsync(UserInfo(d =>
-            {
-                d["sub"] = "";
-                d["email_verified"] = false;
-            })))
+        (await ExchangeAsync(
+                UserInfo(d =>
+                {
+                    d["sub"] = "";
+                    d["email_verified"] = false;
+                }),
+                idTokenSubject: Sub))
             .ShouldBeOfType<ExternalExchange.Failed>();
 
         LoggedCause(1022, "SubjectUnusable").ShouldBeTrue();
@@ -641,7 +676,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     [Fact]
     public async Task ExchangeAsync_ShouldAdmitAnAddressThatOnlyContainsTheRelayDomain()
     {
-        // Kills a Contains or an EndsWith over the whole address: this domain is not Apple's.
+        // Kills a Contains over the whole address: this domain is not Apple's.
         const string lookalike = "anna@privaterelay.appleid.com.evil.example";
 
         AdmittedAddress(await ExchangeAsync(LinkedInUserInfoShapes.Member(Sub, lookalike))).Value.ShouldBe(lookalike);

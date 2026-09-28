@@ -166,15 +166,17 @@ internal sealed partial class LinkedInIdentityProvider(
     // The id_token must be for our client and echo this flow's nonce, so a code minted for another flow is never
     // redeemed into a login here. `iss` and `exp` are not read (senior-cto-advisor, 6c form round, §7).
     private bool TryBindToThisFlow(
-        JsonElement tokenRoot, PkceVerifier verifier, out string? subject, out ExchangeFailure failure)
+        JsonElement tokenRoot, PkceVerifier verifier, out ExternalSubject subject, out ExchangeFailure failure)
     {
-        subject = null;
+        subject = default;
         failure = ExchangeFailure.IdTokenAbsent;
         if (!tokenRoot.TryGetProperty("id_token", out var idToken) || idToken.ValueKind == JsonValueKind.Null)
             return false;
 
         failure = ExchangeFailure.IdTokenMalformed;
-        using var payload = idToken.ValueKind == JsonValueKind.String ? PayloadOf(idToken.GetString()!) : null;
+        using var payload = idToken.ValueKind == JsonValueKind.String && idToken.GetString() is { } text
+            ? PayloadOf(text)
+            : null;
         if (payload is null)
             return false;
 
@@ -194,7 +196,11 @@ internal sealed partial class LinkedInIdentityProvider(
             return false;
         }
 
-        subject = StringOrNull(claims, "sub");
+        failure = ExchangeFailure.IdTokenSubjectUnusable;
+        if (ExternalSubject.TryCreate(StringOrNull(claims, "sub")) is not { } idTokenSubject)
+            return false;
+
+        subject = idTokenSubject;
         return true;
     }
 
@@ -257,7 +263,7 @@ internal sealed partial class LinkedInIdentityProvider(
         }
 
         // OIDC Core §5.3.2: an answer about another member than the id_token's is never used.
-        if (!string.Equals(subject.Reveal(), redeemed.IdTokenSubject, StringComparison.Ordinal))
+        if (!string.Equals(subject.Reveal(), redeemed.IdTokenSubject.Reveal(), StringComparison.Ordinal))
         {
             LogExchangeFailed(logger, Key.Value, ExchangeFailure.SubjectMismatch, (int)response.StatusCode);
             return new ExternalExchange.Failed();
@@ -317,7 +323,7 @@ internal sealed partial class LinkedInIdentityProvider(
     private static string? StringOrNull(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-    private sealed record Redemption(string AccessToken, string? IdTokenSubject);
+    private sealed record Redemption(string AccessToken, ExternalSubject IdTokenSubject);
 
     internal enum ExchangeFailure
     {
@@ -333,6 +339,7 @@ internal sealed partial class LinkedInIdentityProvider(
         AudienceMismatch,
         NonceAbsent,
         NonceMismatch,
+        IdTokenSubjectUnusable,
         UserInfoRefused,
         SubjectUnusable,
         SubjectMismatch,

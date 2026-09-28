@@ -447,6 +447,25 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         _logger.Records.ShouldNotContain(r => r.EventId.Id == 1023);
     }
 
+    [Fact]
+    public async Task ExchangeAsync_ShouldNameTheBinding_WhenAnotherFlowsIdTokenAlsoNamesNoMember()
+    {
+        // DECLARED: a code minted for another flow whose id_token also lacks `sub`. The binding is read before the
+        // content, so the cause names the stronger signal (dotnet-architect's form, point 3).
+        _linkedin.IdTokenClaims = claims =>
+        {
+            claims["nonce"] = PkceVerifier.Generate().ToChallenge().Value;
+            claims.Remove("sub");
+            return claims;
+        };
+
+        (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Failed>();
+
+        _linkedin.Requests.Count.ShouldBe(1);
+        LoggedCause(1022, "NonceMismatch").ShouldBeTrue();
+        LoggedCause(1022, "IdTokenSubjectUnusable").ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData(ScriptedLinkedIn.DiscoveryIssuer)]
     [InlineData(ScriptedLinkedIn.DocumentedIssuer)]

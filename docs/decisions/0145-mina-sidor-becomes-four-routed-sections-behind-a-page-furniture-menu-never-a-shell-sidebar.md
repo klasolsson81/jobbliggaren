@@ -1,7 +1,9 @@
 # ADR 0145 — Mina sidor becomes four routed sections behind a page-furniture menu, never a shell sidebar
 
 **Date:** 2026-09-27
-**Status:** Accepted
+**Status:** Accepted (D1's current-item marking, and its ≤900px `.jp-subnav`-form
+cross-reference, superseded by Amendment 2026-09-28 (#1916) — the section menu in its
+settled form)
 **Deciders:** Klas Olsson (the three directive answers below, 2026-09-27, via `AskUserQuestion`) ·
 `senior-cto-advisor` (`docs/reviews/2026-09-27-1891-form-cto.md`) · `security-auditor`
 (the row 7/8/14 signatures and the new row-19 export-contact line, `docs/reviews/2026-09-27-1891-form-security.md`) ·
@@ -327,3 +329,152 @@ gain over four literal folders.
 - RFC 3986 §3.3–3.4
 - GDPR Art. 7(3), 12(2), 15, 20
 - WCAG 2.4.2
+
+## Amendment 2026-09-28 (#1916) — the section menu in its settled form
+
+**Supersedes.** D1's own description of the current item — *"The current item is marked
+by ink-1, semibold and a 3px left bar, with no background fill (a filled current-item row
+is the app-sidebar's own idiom, and is exactly what the furniture/shell boundary below has
+to keep out)."* — and, inside D1's ≤900px sentence, the clause *"the same form
+`.jp-subnav` already uses at the same breakpoint"*. The row still wraps at the same 900px
+breakpoint, and Logga ut still drops out of it, but in the menu's own row form (wrapping
+rows, every item at least 44px) rather than `.jp-subnav`'s underline form. #1891's
+form-round design-reviewer Minor 1 rationale — the accent-50 fill removed as the
+shell-sidebar's own idiom (`docs/reviews/2026-09-27-1891-form-design.md`) — is withdrawn: a
+filled current item is no longer read as that idiom (see "What still separates the menu
+from a shell sidebar" below). This ADR's Context, D2, D3, D4, D5, the 2026-09-27 directive,
+Alternatives, Consequences and Implementation were checked against the bar, the no-fill
+rule, a medium weight, green inactive items and `.jp-subnav`'s form as the menu's current
+form, and none of them makes any of these five claims — D1 itself is silent on
+inactive-item colour and weight, so this amendment states them for the first time rather
+than correcting a prior claim there.
+
+### Klas's directive (2026-09-28, start prompt, recorded verbatim in substance)
+
+> Sektionsmenyn på /mina-sidor. Rör inte bannern eller innehållskortet i den här PR:en.
+> Förebild: Claudes egna Settings; vänster och höger ska sitta ihop.
+> - Bredd ca 220–240 px och ca 24–32 px glapp mot kortet. Menyns topp i linje med kortets
+>   topp. Sticky vid scroll, med en offset som klarar den sticky appheadern.
+> - En lucide-ikon (ca 18 px) till vänster om varje val: `Target` Matchning, `Bell`
+>   Notiser, `User` Konto, `Shield` Sekretess och data.
+> - Rader ca 40 px höga, ca 12 px horisontell padding, samma radie som kortet (§5: max
+>   8 px; pill bara för piller).
+> - Text i neutral mörkgrå, inte grön. Ikoner i muted grå. Hover: diskret grå bakgrund.
+> - Aktivt val: ljusaste gröna plattan, text och ikon i primärgrönt, weight 600. Den tunna
+>   vänsterlinjen tas bort. `aria-current="page"` och en synlig fokusring behålls.
+> - Logga ut: tunn avdelare och luft, samma radstil i muted färg, hover med svag röd eller
+>   neutral ton.
+> - Mobil: en horisontellt scrollbar rad i samma pill-stil ovanför innehållet. Logga ut
+>   läggs sist i raden eller döljs (den finns också under profilikonen). Sidan själv får
+>   aldrig scrolla i sidled.
+> - Uppdatera ADR 0145 och DESIGN.md §6, som beskriver dagens vänsterlinje. Menyn förblir
+>   sidmöbel, aldrig shell-sidebar (ADR 0054).
+> - Sitter vänster och höger fortfarande inte ihop efter bytet (kortet är kapat vid 688 px
+>   medan bannern går i full bredd), ta det till Klas. Ändra inte kortet på eget bevåg.
+
+Klas placed the mobile row "under md"; the layout already stacks at 900, so the form round was
+asked to bind the breakpoint. The sideways-scrolling shape was his own, and design-reviewer's
+Blocker 1 put it back to him (answer 1 below).
+
+### Klas's answers (2026-09-28, `AskUserQuestion`, after the form round)
+
+1. Mobile row: *"A: Raden bryts (Rekommenderat)"* — the row wraps at ≤900 and never
+   scrolls sideways. This answers design-reviewer's Blocker 1: a sideways-scrolling row in
+   `<main>` fails WCAG 1.4.10 (no horizontal scrolling at 320px for main content), and the
+   only script-free scroll affordance would have been a fade, which is a gradient (AGENTS.md §5).
+2. Konto's icon: *"UserRound (Rekommenderat)"* — the glyph the header's avatar button,
+   user menu and drawer already use, not `User`.
+3. Icon size: *"16 px (Rekommenderat)"* — DESIGN.md §7 (16px inline with text) is
+   unchanged; the answer replaces the directive's "ca 18 px".
+4. Menu and card (2026-09-29, after the panel round, with the page open live): *"Det räcker så
+   (Rekommenderat)"* — the card stays at 688px and the 192px to the band's right edge stays.
+
+### The settled form (design-reviewer, report-only form round, 2026-09-28)
+
+`docs/reviews/2026-09-28-1916-form-design-reviewer.md` (gitignored, local). Rulings:
+
+- **Breakpoint 900, not 768.** The header changes form at 900 and the menu follows it.
+  With two columns between 769 and 900, the card would be 449–580px wide, under DESIGN.md §5's 640px
+  form measure.
+- **Radius `--jp-r-md` (6px), not pill.** Klas: *"pill bara för piller."* Above
+  Matchning's pill chips, a pill row would read as more removable chips (ADR 0047).
+- **Gap 24px** (the low end of Klas's 24–32 range). **Width 232px** unchanged. Sticky
+  offset unchanged.
+- **Rows:** `min-height: 40px`, `padding: 8px 12px`. At ≤900 every item is at least 44px
+  (as `.jp-subnav__item` already is), and the old bottom line goes.
+- **Inactive text `--jp-ink-1`, not ink-2** — repo doctrine (DESIGN.md §4, `.jp-subnav`'s
+  #549 WS1 note), and ink-2 would sit only 1.04:1 from the current item's green. Klas's
+  *"neutral mörkgrå"* is therefore the repo's neutral text token, not a new one.
+- **Icons `--jp-ink-2`**, `--jp-accent-700` on the current item, 8px gap, `aria-hidden`.
+  Hover (`--jp-surface-3`) changes neither text nor icon colour.
+- **Current item** = `--jp-accent-50` plate + `--jp-accent-700` text and icon +
+  `--jp-fw-semibold`, plate kept on hover. Neither the bar nor a darker plate is needed, so
+  this drew no question to Klas.
+- **Blocker 2 (WCAG 1.4.1).** Without the bar, weight was the only non-colour cue left,
+  and the colour step alone measured under 3:1: plate vs. canvas 1.06:1 (dark 1.19:1);
+  accent-700 vs. ink-1 2.31:1 (dark 1.43:1). Fix: inactive items and Logga ut drop to
+  `--jp-fw-regular` (400), the current item stays 600 — the 400→600 step is the state's
+  non-colour cue and must never be evened out. A grayscale render showed the step alone
+  still points out the current item.
+- **Other measured contrasts:** accent-700 text on the plate 6.62:1 (dark 9.98:1); ink-1
+  on canvas 16.14:1 (dark 17.03:1); icon ink-2 7.24:1 (dark 11.60:1). In light the hover
+  background is as strong as the plate (1.03:1 between them) — accepted, because weight
+  and colour, not this gap, carry the state.
+- **Logga ut.** `LogOut` at 16px; text and icon `--jp-ink-2`, weight 400; the same 40px
+  row, `8px 12px` padding; a `--jp-border-soft` hairline with 12px of air above. Hover is
+  neutral (`--jp-surface-3` + `--jp-ink-1`, 14.84:1), as in the header's own user-menu
+  Logga ut — a red hover would be a Major, since danger is reserved for destructive
+  actions ("Radera konto" already uses danger on the same page) and logging out is not
+  one. Hidden at ≤900 (#1891 Major 1); the header's user menu carries it at every width
+  regardless.
+- **Major 2 — the global link rule.** `globals.css`'s `a:not(…)` rule is (0,1,1)
+  specificity and beat the item's (0,1,0) colour, painting every inactive item
+  accent-green. Fix: `.jp-settingsnav__item` joins the rule's one `:not()` list, so
+  specificity stays (0,1,1); pinned by `globals-link-rule.test.ts`.
+- **Binding 6 — unity with the card.** The menu and card read as one unit at
+  1280/1920/3440 (24px gap, shared top line, the plate ties them). The group (944px) still
+  ends 192px before the band's right edge from 1280 up, because the band is capped at 1136
+  and the card itself is capped at 688 — that cap is #1891 Major 2 (640px form measure,
+  ~68ch consent copy, the GOV.UK two-thirds form) and the
+  card is unchanged. Right-aligning menu and card would be a separate decision about the
+  card; the only a11y-safe form of it would hold the card's frame at 880px with its content
+  still held at 640px.
+- **The icon principle.** `.claude/skills/jobbpilot-design-principles/SKILL.md` §3
+  forbade icons that "'smyckar' varje rad"; its "Korrekt" line now allows an icon that
+  signals a destination in a navigation menu (user menu, drawer, this menu) — one fixed
+  icon per destination, never per data row. DESIGN.md §6's `.jp-settingsnav` line was
+  rewritten to this delivered form in the same PR; this amendment does not restate it.
+
+**What still separates the menu from a shell sidebar** is placement and scope, not the
+rows' own style: it sits under the pagehero, inside the content width; it exists only on
+these four routes and shows only this family's own sections; it has no surface or frame of
+its own; it is sticky within the page grid, never fixed to the viewport. ADR 0054 is
+unchanged by this amendment, as it was unchanged by D1. The header, the drawer and
+`.jp-subnav` keep ink text plus the accent bar (E2f, ADR 0068).
+
+The menu stays a server component with no client JS; Klas's answer A (the row wraps) needed
+none.
+
+### Rendered measurement (DoD #4)
+
+Commit `6b9b42df8` on `feat/mina-sidor-menu` (base `cb9f00bb`), 2026-09-28: a production
+build (`next build` + `next start`) over a local stub backend, Playwright Chromium, light
+and forced dark (`data-theme="dark"`). Renders and `facts.json` are in the local render set
+`C:/tmp/jobbliggaren-visual/1916/r1/` (the "before" set, on `cb9f00bb`, is
+`.../1916/r0/`). Widths covered: all four sections at 1280 in both themes; Matchning at
+390/768/769/900/901/1920/3440; Sekretess at 320/375/390/600/768/900 for the ≤900 row (390
+also dark); 200% zoom at 1280.
+
+`getComputedStyle`/`getBoundingClientRect` readings: nav 232px wide at x=72, section card
+at x=328 (gap 24), tops aligned (Δy 0), sticky top 113 (header bottom 89 + 24). Rows 40px,
+padding `8px 12px`, radius 6px, no left border. Inactive text rgb(12,26,46) light /
+rgb(244,247,252) dark at weight 400; hover background rgb(232,237,244) light /
+rgb(40,60,94) dark, text unchanged. Current item rgb(21,96,63) on rgb(233,242,237) light,
+rgb(110,231,168) on rgb(14,42,30) dark, weight 600, plate kept on hover. Icons 16×16,
+`aria-hidden="true"`, rgb(69,83,102) light / rgb(194,207,226) dark, accent-700 on the
+current item. Logga ut rgb(69,83,102) at weight 400, 40px row, hover rgb(12,26,46) on
+`--jp-surface-3`; `display: none` at ≤900. Keyboard focus on the current item: a 2px solid
+accent-700 ring at 2px offset, `:focus-visible` true, visible around the plate. At ≤900:
+two rows at 320/375/390, one row at 600/768/900, every item at least 44px, menu
+horizontal overflow 0 at every width measured, the current item in view, the plate kept,
+the old bottom line gone.

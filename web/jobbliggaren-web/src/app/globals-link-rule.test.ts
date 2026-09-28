@@ -64,6 +64,14 @@ describe("globals.css — the global link colour rule (#1352)", () => {
     }
   });
 
+  // #1916 (Klas: neutral text in the section menu): the item's ink-1 is (0,1,0) and loses to
+  // this rule's (0,1,1) unless it is exempt here, which paints every inactive item accent-green.
+  it("exempts the /mina-sidor section menu item", () => {
+    for (const rule of LINK_RULES) {
+      expect(rule).toContain(".jp-settingsnav__item");
+    }
+  });
+
   it("carries the exemption in ONE :not(), never two chained", () => {
     for (const rule of LINK_RULES) {
       const selector = rule.slice(0, rule.indexOf("{"));

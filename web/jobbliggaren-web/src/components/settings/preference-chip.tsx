@@ -33,7 +33,7 @@ export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>
     const t = useTranslations("settings");
     return (
       <span className="jp-chip jp-chip--removable">
-        <span className="jp-chip__label" title={label}>
+        <span className="jp-chip__label">
           {label}
         </span>
         <button

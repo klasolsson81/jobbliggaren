@@ -50,6 +50,10 @@ describe("the login flow cookie value", () => {
     ["outcome, via GitHub", { phase: "outcome", result: { outcome: "accountUnavailable" }, via: "github" }],
     ["notice, GitHub could not vouch", { phase: "notice", notice: "externalUnverified", provider: "github" }],
     ["notice, GitHub not completed", { phase: "notice", notice: "externalNotCompleted", provider: "github" }],
+    ["consent, via LinkedIn", { phase: "consent", grantToken: "sample-grant", next: "", via: "linkedin" }],
+    ["outcome, via LinkedIn", { phase: "outcome", result: { outcome: "accountUnavailable" }, via: "linkedin" }],
+    ["notice, LinkedIn could not vouch", { phase: "notice", notice: "externalUnverified", provider: "linkedin" }],
+    ["notice, LinkedIn not completed", { phase: "notice", notice: "externalNotCompleted", provider: "linkedin" }],
   ])("round-trips the %s phase", (_label, flow) => {
     expect(decodeLoginFlow(encodeLoginFlow(flow))).toEqual(flow);
   });

@@ -102,7 +102,7 @@ describe("the external login callback", () => {
   });
 
   describe("with a bound state", () => {
-    it.each(["google", "github"])("relays the code, the state and the client's address to the api, for %s", async (provider) => {
+    it.each(["google", "linkedin", "github"])("relays the code, the state and the client's address to the api, for %s", async (provider) => {
       const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });
 
       await callback(ok, { provider });
@@ -136,7 +136,7 @@ describe("the external login callback", () => {
       expect(await targetOf(await callback(ok))).toBe("/oversikt");
     });
 
-    it.each(["google", "github"])("keeps the grant in the strict flow cookie, says the step was reached through %s, and continues to the terms", async (provider) => {
+    it.each(["google", "linkedin", "github"])("keeps the grant in the strict flow cookie, says the step was reached through %s, and continues to the terms", async (provider) => {
       backendAnswers(200, { outcome: "consentRequired", grantToken: GRANT, next: "/cv" });
 
       const response = await callback(ok, { provider });
@@ -154,6 +154,9 @@ describe("the external login callback", () => {
       ["github", { outcome: "registrationClosed" }],
       ["github", { outcome: "accountUnavailable" }],
       ["github", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
+      ["linkedin", { outcome: "registrationClosed" }],
+      ["linkedin", { outcome: "accountUnavailable" }],
+      ["linkedin", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-25" }],
     ])("shows an outcome on the code step, reached through %s (%o)", async (provider, result) => {
       backendAnswers(200, result);
 
@@ -164,14 +167,28 @@ describe("the external login callback", () => {
       expectStateCookieCleared(response);
     });
 
-    it("says Google cannot vouch for the address when the api refuses it as unverified", async () => {
+    it.each(["google", "linkedin", "github"])("says %s cannot vouch for the address when the api refuses it as unverified", async (provider) => {
       backendAnswers(400, { title: "Auth.ExternalEmailUnverified" });
 
-      const response = await callback(ok);
+      const response = await callback(ok, { provider });
 
-      expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalUnverified", provider: "google" });
+      expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalUnverified", provider });
       expect(await targetOf(response)).toBe("/logga-in");
       expectStateCookieCleared(response);
+    });
+
+    // The page Klas saw flash before the quiet hop: nothing else pins its heading per provider.
+    it.each([
+      ["google", "Google"],
+      ["linkedin", "LinkedIn"],
+      ["github", "GitHub"],
+    ])("titles the continuation document by its provider (%s)", async (provider, name) => {
+      backendAnswers(200, { outcome: "signedIn", sessionId: SESSION, next: "/cv" });
+
+      const doc = new DOMParser().parseFromString(await (await callback(ok, { provider })).text(), "text/html");
+
+      expect(doc.querySelector("h1")?.textContent).toBe(`Logga in med ${name}`);
+      expect(doc.title).toBe(`Logga in med ${name} | Jobbliggaren`);
     });
 
     it.each([
@@ -261,6 +278,28 @@ describe("the external login callback", () => {
       expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
       expectStateCookieCleared(response);
     });
+
+    // The member cancelling on LinkedIn: its two documented error values (MS Learn "LinkedIn 3-Legged OAuth Flow",
+    // Failed Requests, read 2026-09-27), outside the set RFC 6749 §4.1.2.1 defines. The description is a marker.
+    it.each(["user_cancelled_login", "user_cancelled_authorize"])(
+      "when LinkedIn answers with %s, and shows nothing of it",
+      async (error) => {
+        const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });
+
+        const response = await callback(
+          { error, error_description: "description-marker", state: STATE },
+          { provider: "linkedin" }
+        );
+        const html = await response.text();
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+        for (const shown of [error, "description-marker", STATE]) expect(html).not.toContain(shown);
+        expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "linkedin" });
+        expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
+        expectStateCookieCleared(response);
+      }
+    );
 
     it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "LinkedIn", "LINKEDIN", "linkedin/../google"])(
       "for the segment %j, which is not a known key",

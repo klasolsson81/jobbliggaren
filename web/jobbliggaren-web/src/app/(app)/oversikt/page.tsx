@@ -14,6 +14,7 @@ import {
   getCriterionReference,
 } from "@/lib/api/company-criteria";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
+import { resolveSkillLabels } from "@/lib/api/skills";
 import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
@@ -182,9 +183,18 @@ export default async function OversiktRoute({
   // setup-grenen — icke-setup-laddningar konsumerar det aldrig. Degraderar civilt:
   // utan taxonomi visas ingen modal (väljaren vore tom) → modalen utelämnas hellre
   // än renderas trasig.
-  const taxonomy = shouldMountSetup
-    ? await taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null))
-    : null;
+  //
+  // The saved skills are resolved to names here, as on the Matchning page (ADR 0047); without them
+  // the rail shows raw concept-ids. A failed read gives `[]` and the rail keeps its id fallback.
+  const setupProfile = shouldMountSetup && profile.kind === "ok" ? profile.data : null;
+  const [taxonomy, persistedSkillGroups] = setupProfile
+    ? await Promise.all([
+        taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null)),
+        resolveSkillLabels(setupProfile.preferredSkills).then((r) =>
+          r.kind === "ok" ? r.data : [],
+        ),
+      ])
+    : [null, []];
 
   return (
     <>
@@ -211,6 +221,7 @@ export default async function OversiktRoute({
           persistedRemote={profile.data.preferredRemote}
           persistedEmploymentTypes={profile.data.preferredEmploymentTypes}
           persistedSkills={profile.data.preferredSkills}
+          persistedSkillGroups={persistedSkillGroups}
           persistedOccupationExperience={profile.data.preferredOccupationExperience}
           importCvHref={IMPORT_CV_HREF}
         />

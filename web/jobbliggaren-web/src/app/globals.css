@@ -543,9 +543,11 @@ body {
    `.jp-app__rowlink`, `.jp-board-card__link` and `.jp-apptable__rowlink` (the
    /ansokningar titles in the queue and Lista, on the Tavla card and in the Tabell)
    are the same exemption again, by Klas's answer "Bläck" (#1827 K1): each title keeps
-   its own ink, hover included, and the row, card or table row carries the click cue. */
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink):hover { color: var(--jp-accent-600); }
+   its own ink, hover included, and the row, card or table row carries the click cue.
+   `.jp-settingsnav__item` (the /mina-sidor section menu, #1916) is menu chrome like the
+   popover row. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 

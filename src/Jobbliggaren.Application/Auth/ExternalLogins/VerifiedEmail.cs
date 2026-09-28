@@ -4,7 +4,8 @@ namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
 /// An address a provider's adapter admits as the user's own (ADR 0142 D8): Google's where Google is authoritative for
-/// the mailbox (Amendment (14)), GitHub's verified primary address by Klas's decision (Amendment (18)). "Verified" is
+/// the mailbox (Amendment (14)), GitHub's and LinkedIn's verified primary address by Klas's decisions (Amendments (18)
+/// and (20)). "Verified" is
 /// carried by the TYPE, so no caller can read a string and forget a flag. Only a provider adapter decides that an address
 /// qualifies; this factory adds the bounds every stored address meets, so an address longer than a validator
 /// admits never reaches a grant's padded payload. <see cref="ToString"/> prints no part of it.

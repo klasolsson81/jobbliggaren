@@ -46,6 +46,7 @@ public class ExternalLoginMirrorWireContractTests
     private static readonly Dictionary<string, Uri> AdapterAuthorizationEndpoints = new(StringComparer.Ordinal)
     {
         ["google"] = GoogleIdentityProvider.AuthorizationEndpoint,
+        ["linkedin"] = LinkedInIdentityProvider.AuthorizationEndpoint,
         ["github"] = GitHubIdentityProvider.AuthorizationEndpoint,
     };
 
@@ -65,6 +66,11 @@ public class ExternalLoginMirrorWireContractTests
     [Fact]
     public void The_github_adapter_points_at_githubs_documented_authorize_endpoint() =>
         GitHubIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://github.com/login/oauth/authorize");
+
+    // "LinkedIn 3-Legged OAuth Flow" and the live discovery document, read 2026-09-27.
+    [Fact]
+    public void The_linkedin_adapter_points_at_linkedins_documented_authorize_endpoint() =>
+        LinkedInIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
 
     [Fact]
     public void The_callback_the_provider_returns_to_is_a_route_the_web_serves()

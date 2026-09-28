@@ -43,8 +43,8 @@ public sealed partial class LoginProofOutcome(
     /// <summary>
     /// A provider's proof (ADR 0142 D8, security-auditor M-1). Address first: the verified address names the account,
     /// matched by <see cref="ExternalAddressMatch"/>; then the provider's identifier may belong to no other account.
-    /// A Google session so proves the account's own inbox, as a code does; a GitHub one rests on GitHub's flag, by Klas's
-    /// decision (Amendment (18)). On its first use the link and its audit row are committed before the session exists.
+    /// A Google session so proves the account's own inbox, as a code does; a GitHub or LinkedIn one rests on that
+    /// provider's flag, by Klas's decisions (Amendments (18) and (20)). On its first use the link and its audit row are committed before the session exists.
     /// </summary>
     public async Task<LoginOutcome> ResolveExternalAsync(ExternalLoginProof proof, CancellationToken ct)
     {

@@ -262,7 +262,7 @@ describe("the external login callback", () => {
       expectStateCookieCleared(response);
     });
 
-    it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "linkedin"])(
+    it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "LinkedIn", "LINKEDIN", "linkedin/../google"])(
       "for the segment %j, which is not a known key",
       async (provider) => {
         const fetchMock = backendAnswers(200, { outcome: "signedIn", sessionId: SESSION });

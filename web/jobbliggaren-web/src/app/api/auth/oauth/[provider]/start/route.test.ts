@@ -84,7 +84,7 @@ describe("the external login start", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({ next: relayed });
   });
 
-  it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "linkedin"])(
+  it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "LinkedIn", "LINKEDIN", "linkedin/../google"])(
     "sends the segment %j back to the login page without a request or a cookie",
     async (provider) => {
       const fetchMock = backendAnswers(200, { authorizeUrl: AUTHORIZE, state: STATE });

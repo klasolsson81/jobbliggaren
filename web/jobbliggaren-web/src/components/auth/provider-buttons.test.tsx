@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { EXTERNAL_PROVIDER_KEYS } from "@/lib/auth/external-login";
 import { ProviderButtons } from "./provider-buttons";
 
 // A `next/link` prefetch would mint a flow for a visitor who never pressed the row.
@@ -62,7 +63,7 @@ describe("ProviderButtons with Google active", () => {
 });
 
 // `active` is the api's providers list: `RegisteredProviders.Keys`, in `ExternalProviderKey.Known` order
-// (google, github).
+// (google, linkedin, github).
 describe("ProviderButtons with GitHub active", () => {
   it("makes the GitHub row a link to its start with its own mark, Google and LinkedIn staying inactive", () => {
     const { container } = render(<ProviderButtons active={["github"]} />);
@@ -121,7 +122,7 @@ describe("ProviderButtons with Google and GitHub active", () => {
   });
 
   // Declared unreachable: the api lists its keys in `ExternalProviderKey.Known` order, which is the page's
-  // order for the two it knows. Only that the page keeps its own order is asserted.
+  // order. Only that the page keeps its own order is asserted.
   it("keeps the page's order when the api lists the providers in another", () => {
     render(<ProviderButtons active={["github", "google"]} />);
 
@@ -161,5 +162,58 @@ describe("ProviderButtons with Google and GitHub active", () => {
     expect(inactive).toHaveLength(3);
     expect(new Set(inactive.map((button) => button.className)).size).toBe(1);
     expect(inactive[0]!.className).toContain("justify-between");
+  });
+});
+
+// DESIGN.md §3 (#1746): LinkedIn's rules admit no mark for sign-in, so its row draws none.
+describe("ProviderButtons with LinkedIn active", () => {
+  it("makes the LinkedIn row a link to its start with no mark, Google and GitHub staying inactive", () => {
+    const { container } = render(<ProviderButtons active={["linkedin"]} />);
+
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Fortsätt med GoogleKommer snart",
+      "Fortsätt med LinkedIn",
+      "Fortsätt med GitHubKommer snart",
+    ]);
+    const linkedin = screen.getByRole("link", { name: "Fortsätt med LinkedIn" });
+    expect(linkedin).toHaveAttribute("href", "/api/auth/oauth/linkedin/start");
+    expect(linkedin.closest("form")).toBeNull();
+    expect(linkedin.querySelector("[aria-hidden='true']")).toBeNull();
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+});
+
+describe("ProviderButtons with all three active", () => {
+  it("links each row to its own start in one shape, Google's and GitHub's with their marks", () => {
+    render(<ProviderButtons active={EXTERNAL_PROVIDER_KEYS} />);
+
+    const links = screen.getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href"), markOf(link)?.getAttribute("src") ?? null])).toEqual([
+      ["Fortsätt med Google", "/api/auth/oauth/google/start", MARK_SRC],
+      ["Fortsätt med LinkedIn", "/api/auth/oauth/linkedin/start", null],
+      ["Fortsätt med GitHub", "/api/auth/oauth/github/start", GITHUB_MARK_SRC],
+    ]);
+    expect(new Set(links.map((link) => link.className)).size).toBe(1);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  // test-writer Minor 6: the rows are listed in the key mirror's order, so a reordered `Known` reorders the page.
+  it("lists the rows in the order of the key mirror", () => {
+    render(<ProviderButtons active={EXTERNAL_PROVIDER_KEYS} />);
+
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
+      EXTERNAL_PROVIDER_KEYS.map((key) => `/api/auth/oauth/${key}/start`)
+    );
+  });
+
+  // Declared unreachable, as above.
+  it("keeps the page's order when the api lists the three in another", () => {
+    render(<ProviderButtons active={["github", "linkedin", "google"]} />);
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Fortsätt med Google",
+      "Fortsätt med LinkedIn",
+      "Fortsätt med GitHub",
+    ]);
   });
 });

@@ -8,8 +8,8 @@ namespace Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 
 /// <summary>
 /// #1744 — completes a provider login (ADR 0142 D8), in this order: the provider must be registered, the state
-/// must name a live flow started for THAT provider (taken once), and the provider must accept the code with the
-/// flow's verifier. Only then is the identity read, and only the <see cref="VerifiedEmail"/> the adapter admitted
+/// must name a live flow started for THAT provider (taken once), and the provider must accept the code for that
+/// flow. Only then is the identity read, and only the <see cref="VerifiedEmail"/> the adapter admitted
 /// reaches the outcome function the code and the link share.
 /// </summary>
 public sealed partial class CompleteExternalLoginCommandHandler(

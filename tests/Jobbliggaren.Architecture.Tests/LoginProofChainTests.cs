@@ -241,6 +241,7 @@ public sealed class LoginProofChainTests
         [
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs: 1",
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs: 1",
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/LinkedInIdentityProvider.cs: 1",
             "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs: 1",
         ]);
 
@@ -257,6 +258,7 @@ public sealed class LoginProofChainTests
         [
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GitHubIdentityProvider.cs",
             "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/LinkedInIdentityProvider.cs",
         ]);
         FilesMatching(new Regex(@"\bLoginMethod\s*\.\s*(?:" + methods + @")\b"))
             .ShouldBe(["Jobbliggaren.Application/Auth/ExternalLogins/ExternalProviderKey.cs"]);

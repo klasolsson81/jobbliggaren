@@ -75,7 +75,7 @@ describe("the login flow cookie value", () => {
     ["an address on an outcome phase", raw({ phase: "outcome", result: { outcome: "registrationClosed" }, email: "anna@example.com" })],
     ["a date on a closed registration", raw({ phase: "outcome", result: { outcome: "registrationClosed", permanentDeletionDate: "2026-10-19" } })],
     ["a provider on a code phase", raw({ ...code, via: "google" })],
-    ["a provider this build cannot start", raw({ phase: "consent", grantToken: "sample-grant", next: "", via: "linkedin" })],
+    ["a provider this build cannot start", raw({ phase: "consent", grantToken: "sample-grant", next: "", via: "LinkedIn" })],
     ["an external notice without its provider", raw({ phase: "notice", notice: "externalNotCompleted" })],
     ["a provider on a notice that names none", raw({ phase: "notice", notice: "codeExpired", provider: "google" })],
   ])("refuses %s", (_label, value) => {

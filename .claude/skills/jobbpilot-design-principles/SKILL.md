@@ -114,7 +114,9 @@ Varje pixel ska bära information.
   och en andra ledtext (copy-täthet, DESIGN.md §8).
 - **Korrekt:** tom-state är en konstatering plus ett nästa steg och inget mer
   (`jobbpilot-design-copy` §1); ikoner
-  finns där de signalerar handling (sök, kalender, dismiss); stats-kort tas
+  finns där de signalerar handling (sök, kalender, dismiss) eller en destination
+  i en navigationsmeny (användarmenyn, drawern och avsnittsmenyn i DESIGN.md §6:
+  en fast ikon per destination, aldrig per datarad); stats-kort tas
   bort när siffran redan står i tabellen nedanför.
 
 ### 4. Mono som signal

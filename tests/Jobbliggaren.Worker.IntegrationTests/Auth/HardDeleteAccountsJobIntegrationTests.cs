@@ -165,8 +165,7 @@ $fn$ LANGUAGE plpgsql;";
     {
         // #1744 (security-auditor m-10, 6a form round): AspNetUserLogins holds the provider's identifier for the
         // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) erases it with the
-        // account. Called directly: through RunAsync, Steg 3 (#1746) would erase the link and this row would no
-        // longer reach the cascade. The state is a mature account still holding a link, which the account-deletion
+        // account. The state is a mature account still holding a link, which the account-deletion
         // endpoint leaves when its erasure fails after the commit (DeleteMeTests pins that) and Steg 3 has not run
         // since; the same writer links the soft-deleted seed here.
         var ct = TestContext.Current.CancellationToken;

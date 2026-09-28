@@ -91,6 +91,14 @@ public sealed class LoginProofChainTests
         // compiles into a nested closure whose name is no contract, so a consumer reads as its outermost type.
         ConsumersOf(typeof(IExternalLoginEraser)).Select(name => name.Split('+')[0]).Distinct()
             .ShouldBe([typeof(MeEndpoints).FullName!]);
+
+        // The type maps every /me endpoint, so the one method is pinned by the request it binds as well.
+        Composing.SelectMany(a => a.GetTypes())
+            .SelectMany(t => t.GetConstructors(Declared).Cast<MethodBase>().Concat(t.GetMethods(Declared)))
+            .Where(m => m.GetParameters().Any(p => p.ParameterType == typeof(IExternalLoginEraser)))
+            .ShouldHaveSingleItem()
+            .GetParameters().Select(p => p.ParameterType)
+            .ShouldContain(typeof(MeEndpoints.DeleteAccountRequest));
     }
 
     [Fact]

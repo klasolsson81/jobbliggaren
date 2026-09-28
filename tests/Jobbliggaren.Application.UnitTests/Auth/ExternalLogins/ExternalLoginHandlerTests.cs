@@ -624,4 +624,12 @@ public class ExternalLoginValidatorTests
         _complete.TestValidate(new CompleteExternalLoginCommand(
                 "google", new string('a', ExternalLoginPolicy.MaxCodeLength + 1), OAuthState.Generate().Reveal()))
             .ShouldHaveValidationErrorFor(c => c.Code);
+
+    // #1746 (test-writer Minor 2): the bound's floor. LinkedIn's documented sample code is 211 characters, as the 6c
+    // form round counted it on 2026-09-27 (senior-cto-advisor 7.9).
+    [Fact]
+    public void Complete_ShouldAdmit_WhenTheCodeIsAsLongAsLinkedInsDocumentedSample() =>
+        _complete.TestValidate(new CompleteExternalLoginCommand(
+                "linkedin", new string('A', 211), OAuthState.Generate().Reveal()))
+            .ShouldNotHaveAnyValidationErrors();
 }

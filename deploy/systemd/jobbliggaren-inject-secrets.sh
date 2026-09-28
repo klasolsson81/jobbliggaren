@@ -120,7 +120,7 @@ readonly -a SCALEWAY_SECRET_KEYS=(
   "Email__Scaleway__ProjectId"
 )
 
-# THE LOGIN PROVIDERS' CLIENT SECRETS ARE CONDITIONAL FOR THE SAME REASON (#1744, #1745). A box
+# THE LOGIN PROVIDERS' CLIENT SECRETS ARE CONDITIONAL FOR THE SAME REASON (#1744, #1745, #1746). A box
 # without a provider's keys registers no provider and needs nothing here, so listing a secret in
 # SECRET_KEYS would be a permanent MISSING. One row per provider, "<secret file>|<env prefix>": the
 # prefix names the provider's two .env lines, AUTH_OAUTH_<prefix>_CLIENT_ID (not a secret, a plain
@@ -129,6 +129,7 @@ readonly -a SCALEWAY_SECRET_KEYS=(
 readonly -a OAUTH_CLIENT_SECRETS=(
   "Auth__OAuth__Google__ClientSecret|GOOGLE"
   "Auth__OAuth__GitHub__ClientSecret|GITHUB"
+  "Auth__OAuth__LinkedIn__ClientSecret|LINKEDIN"
 )
 
 # THE EXPIRY LEAD TIME, AND WHY AN EXPIRY CHECK EXISTS AT ALL (#183 E4, security-auditor Major 3).

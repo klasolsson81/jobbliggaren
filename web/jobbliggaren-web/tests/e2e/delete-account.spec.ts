@@ -5,7 +5,7 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const SESSION_COOKIE = "__Host-jobbliggaren_session";
 
 /**
- * Deleting the account on /mina-sidor, re-authenticated by a code to the account's own address (#1740,
+ * Deleting the account on /mina-sidor/sekretess, re-authenticated by a code to the account's own address (#1740,
  * ADR 0142 D5). Each test seeds its own address: a deletion is destructive, and an address logs in once
  * per cooldown (`helpers/session.ts`).
  */
@@ -16,7 +16,7 @@ const newRunId = () => Date.now() + Math.floor(Math.random() * 1_000_000);
 const otherThan = (code: string) => String((Number(code) + 1) % 1_000_000).padStart(6, "0");
 
 async function requestCode(page: Page, typed: string) {
-  await page.goto("/mina-sidor");
+  await page.goto("/mina-sidor/sekretess");
   await page.getByRole("button", { name: "Radera konto" }).click();
   const dialog = page.getByRole("dialog", { name: "Radera ditt konto" });
   await dialog.getByLabel("Skriv din e-postadress för att bekräfta").fill(typed);
@@ -24,7 +24,7 @@ async function requestCode(page: Page, typed: string) {
   return dialog;
 }
 
-test.describe("Radera konto (/mina-sidor)", () => {
+test.describe("Radera konto (/mina-sidor/sekretess)", () => {
   test("checks the typed address when Skicka kod is pressed, and sends no code until it matches", async ({
     page,
   }) => {

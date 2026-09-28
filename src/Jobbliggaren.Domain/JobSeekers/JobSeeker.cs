@@ -125,8 +125,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// 6/7). Invariants: enabling stamps <see cref="Preferences.NotificationConsentAt"/>
     /// ONCE (immutable Art. 7(1) evidence) and clears the withdrawal; disabling (from
     /// enabled) stamps <see cref="Preferences.NotificationConsentWithdrawnAt"/> (Art. 7(3)
-    /// revocation proof). Withdrawal stops dispatch immediately (the Worker filters on
-    /// enabled AND withdrawn-null). Audit-logged via the pipeline.
+    /// revocation proof). Audit-logged via the pipeline.
     /// </summary>
     public void UpdateNotificationConsent(bool enabled, IDateTimeProvider clock)
     {
@@ -180,8 +179,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// <see cref="Preferences.FollowedCompanyNotificationConsentAt"/> ONCE (immutable) and clears the
     /// withdrawal; disabling (from enabled) stamps
     /// <see cref="Preferences.FollowedCompanyNotificationConsentWithdrawnAt"/> (Art. 7(3) revocation).
-    /// Withdrawal stops company-follow dispatch immediately (the digest filters on enabled AND
-    /// withdrawn-null). The digest CADENCE is shared with background-match notifications (ADR 0087
+    /// The digest CADENCE is shared with background-match notifications (ADR 0087
     /// D2) — this method deliberately does NOT touch <see cref="Preferences.DigestCadence"/>.
     /// <para>
     /// <b>Write API deferred (ADR 0087 D5, senior-cto-advisor 2026-07-01):</b> PR-4 ships this domain

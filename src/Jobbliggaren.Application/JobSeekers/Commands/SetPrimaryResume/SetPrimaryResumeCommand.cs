@@ -11,7 +11,8 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
 /// aggregatet, inte Resume. Atomic swap via JobSeeker.SetPrimaryResume.
 /// </summary>
 public sealed record SetPrimaryResumeCommand(Guid ResumeId)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
+      IReplayOnConcurrencyConflict
 {
     public string EventType => "JobSeeker.PrimaryResumeSet";
     public string AggregateType => "JobSeeker";

@@ -25,8 +25,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not
 /// withdrawn — identical to the background-match scan (NOT the company-follow scan, which under 7C
-/// creates hits for every active follower — see the follow-pass section below). A withdrawal stops
-/// dispatch immediately (its Pending rows are simply never picked up).
+/// creates hits for every active follower — see the follow-pass section below).
 /// </para>
 /// <para>
 /// <b>Idempotent claim-then-send:</b> HTTP is not transactional, so per user the sequence is
@@ -93,9 +92,8 @@ public sealed partial class DigestDispatchJob(
         // cron IS the window). Consent filter parity the scan — enabled AND not withdrawn. Default
         // OFF → the set is small; a per-user loop is fine for the $16-VPS MVP.
         var dueUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
-                         && js.Preferences.NotificationConsentWithdrawnAt == null
-                         && js.Preferences.DigestCadence == cadence)
+            .Where(NotificationConsent.BackgroundMatch.Criteria)
+            .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
 
@@ -118,6 +116,12 @@ public sealed partial class DigestDispatchJob(
                 // user failure.
                 LogUserFailed(logger, ex, userId);
             }
+            finally
+            {
+                // One context serves the whole run (#751's shape). A save that threw leaves this
+                // user's rows modified in it, and the next user's save would commit them.
+                db.ClearTracking();
+            }
 
             processed++;
         }
@@ -137,9 +141,8 @@ public sealed partial class DigestDispatchJob(
         DigestCadence cadence, CancellationToken cancellationToken)
     {
         var dueUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.FollowedCompanyNotificationsEnabled
-                         && js.Preferences.FollowedCompanyNotificationConsentWithdrawnAt == null
-                         && js.Preferences.DigestCadence == cadence)
+            .Where(NotificationConsent.FollowedCompany.Criteria)
+            .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
 
@@ -159,6 +162,11 @@ public sealed partial class DigestDispatchJob(
             {
                 // Per-user isolation (TD-25), parity the match pass.
                 LogFollowUserFailed(logger, ex, userId);
+            }
+            finally
+            {
+                // Parity the match pass.
+                db.ClearTracking();
             }
 
             processed++;
@@ -240,6 +248,10 @@ public sealed partial class DigestDispatchJob(
             .Take(_options.MaxItemsPerDigest)
             .ToList();
 
+        // The consent is read again before the claim, not taken from the due set (ADR 0146).
+        if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+            return false;
+
         // Claim ALL pending Strong rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine. MarkQueued's Result is structurally Success (the rows were loaded
         // WHERE Pending; nothing mutates them between the load and here — single-threaded,
@@ -311,6 +323,15 @@ public sealed partial class DigestDispatchJob(
         foreach (var match in matches)
             match.MarkSent(clock);
     }
+
+    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as not consenting,
+    // and nothing is tracked.
+    private Task<bool> ConsentStillGrantedAsync(
+        Specification<JobSeeker> consent, Guid userId, CancellationToken ct) =>
+        db.JobSeekers
+            .Where(js => js.UserId == userId)
+            .Where(consent.Criteria)
+            .AnyAsync(ct);
 
     // ─── Company-follow digest (ADR 0087 D5) — the SHAPE of DispatchUserDigestAsync above, but over
     // FollowedCompanyAdHit rows + the FollowedCompanyNotificationEmail contract. Kept as a SEPARATE
@@ -401,6 +422,10 @@ public sealed partial class DigestDispatchJob(
         FullCandidateMatchProfile? assessableProfile = null;
         if (filterByWatchId.Values.Any(f => f is { OnlyMatched: true }))
         {
+            // The profile is derived from the CV, so the consent is read again before it is built.
+            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+                return false;
+
             var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
 
             // A profile-less user (no stated occupation) makes the filter INERT (RF-5 under-fork i):
@@ -500,6 +525,11 @@ public sealed partial class DigestDispatchJob(
             .Take(_options.MaxItemsPerDigest)
             .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
             .ToList();
+
+        // The consent is read again before the claim, not taken from the due set (parity the match
+        // pass).
+        if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            return false;
 
         // Claim the EFFECTIVE follow rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine (parity the match digest; single-threaded, DisableConcurrentExecution).
@@ -608,7 +638,7 @@ public sealed partial class DigestDispatchJob(
     private static partial void LogDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "DigestDispatchJob: digest failed for user {UserId} — isolated, will retry next run")]
+        Message = "DigestDispatchJob: digest failed for user {UserId} — isolated")]
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,
@@ -645,7 +675,7 @@ public sealed partial class DigestDispatchJob(
     private static partial void LogFollowDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "DigestDispatchJob (follow): digest failed for user {UserId} — isolated, will retry next run")]
+        Message = "DigestDispatchJob (follow): digest failed for user {UserId} — isolated")]
     private static partial void LogFollowUserFailed(ILogger logger, Exception ex, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,

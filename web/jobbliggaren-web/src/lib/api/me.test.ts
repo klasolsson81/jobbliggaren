@@ -128,6 +128,13 @@ describe("updateNotificationConsent (ADR 0080 Vag 4 PR-6)", () => {
     });
   });
 
+  it("409 (en samtidig skrivning vann alla omförsök, ADR 0146) → error, så att ett vägrat tillbakadragande syns", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 409 }));
+    expect(await updateNotificationConsent({ enabled: false })).toEqual({
+      kind: "error",
+    });
+  });
+
   it("network-fail → error (kastar aldrig)", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("ENETUNREACH"));
     expect(await updateNotificationConsent({ enabled: true })).toEqual({
@@ -308,6 +315,14 @@ describe("updateFollowedCompanyNotificationConsent (bevakning F4, #803)", () => 
     global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 400 }));
     const result = await updateFollowedCompanyNotificationConsent({
       enabled: true,
+    });
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("409 (en samtidig skrivning vann alla omförsök, ADR 0146) → error, så att ett vägrat tillbakadragande syns", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 409 }));
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: false,
     });
     expect(result).toEqual({ kind: "error" });
   });

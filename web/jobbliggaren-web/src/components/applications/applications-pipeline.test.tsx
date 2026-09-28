@@ -15,7 +15,7 @@ import type {
 // next/link renderas som <a> i jsdom utan extra mock.
 
 // #630 PR 7: ön bär nu ApplicationActionsProvider (mutations-plumbing) och
-// kökorten soft-navigerar — mocka server actions + router-sömmarna så
+// köraderna soft-navigerar — mocka server actions + router-sömmarna så
 // list-/kö-testerna förblir rena presentation-tester.
 vi.mock("@/lib/actions/applications", () => ({
   transitionStatusAction: vi.fn(async () => ({ success: true as const })),
@@ -225,7 +225,9 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
     const section = document.getElementById("status-Rejected")!;
     const toggle = within(section).getByRole("button", { name: /Nekad/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle.textContent).toBe("Nekad(1)");
+    // #1827 Minor 1: the count without parentheses, a space apart in the button's name.
+    expect(toggle.textContent).toBe("Nekad 1");
+    expect(toggle).toHaveAccessibleName("Nekad 1");
   });
 
   it("'AVSLUT & VILANDE'-kicker före första terminala gruppen", () => {
@@ -242,29 +244,29 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
   });
 });
 
-describe("ApplicationsPipeline — 'Visa fler' (cap 10)", () => {
-  it("visar max 10 rader och en 'Visa fler (N)'-knapp; count = shown", () => {
+describe("ApplicationsPipeline — 'Visa N till' (cap 10)", () => {
+  it("visar max 10 rader och en 'Visa N till'-knapp; count = shown", () => {
     renderPipeline(makePipeline({ Submitted: 13 }));
 
     const section = document.getElementById("status-Submitted")!;
     const list = document.getElementById("status-Submitted-list")!;
     expect(within(list).getAllByRole("link")).toHaveLength(10);
     expect(
-      within(section).getByRole("button", { name: "Visa fler (3)" }),
+      within(section).getByRole("button", { name: "Visa 3 till" }),
     ).toBeInTheDocument();
     expect(section.querySelector(".jp-section__count")).toHaveTextContent("13");
   });
 
-  it("klick på 'Visa fler' expanderar hela sektionen och tar bort knappen", async () => {
+  it("klick på 'Visa N till' expanderar hela sektionen och tar bort knappen", async () => {
     const user = userEvent.setup();
     renderPipeline(makePipeline({ Submitted: 13 }));
 
-    await user.click(screen.getByRole("button", { name: "Visa fler (3)" }));
+    await user.click(screen.getByRole("button", { name: "Visa 3 till" }));
 
     const list = document.getElementById("status-Submitted-list")!;
     expect(within(list).getAllByRole("link")).toHaveLength(13);
     expect(
-      screen.queryByRole("button", { name: /Visa fler/ }),
+      screen.queryByRole("button", { name: /Visa \d+ till/ }),
     ).not.toBeInTheDocument();
   });
 });
@@ -279,7 +281,7 @@ describe("ApplicationsPipeline — 2a DUPLICAT-doktrin (kön ⊄ MOVE)", () => {
     const queue = getQueue();
     const section = document.getElementById("status-Submitted")!;
 
-    // Kortet i kön OCH raden i sektionen refererar SAMMA app (två länkar).
+    // Raden i kön OCH raden i sektionen refererar SAMMA app (två länkar).
     expect(within(queue).getByText("Submitted-titel-0")).toBeInTheDocument();
     expect(within(section).getByText("Submitted-titel-0")).toBeInTheDocument();
     // Listan är komplett: count räknar appen (ej dränerad som gamla MOVE).
@@ -333,7 +335,8 @@ describe("ApplicationsPipeline — sök", () => {
     expect(document.getElementById("status-Rejected-list")).toBeNull();
   });
 
-  it("sök som inte matchar visar tomläge för Alla ansökningar", async () => {
+  // #1827 M6: the miss names the next step, in the Tabell's words.
+  it("sök som inte matchar visar tomläget med nästa steg", async () => {
     const user = userEvent.setup();
     renderPipeline(makePipeline({ Submitted: 1 }));
 
@@ -341,11 +344,9 @@ describe("ApplicationsPipeline — sök", () => {
       screen.getByRole("searchbox", { name: "Sök bland ansökningar" }),
       "zzz-ingen-traff",
     );
-    expect(
-      within(getAllApps()).getByText(
-        "Inga ansökningar matchar sökningen eller filtret.",
-      ),
-    ).toBeInTheDocument();
+    expect(within(getAllApps()).getByRole("status")).toHaveTextContent(
+      "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
+    );
   });
 });
 
@@ -379,15 +380,13 @@ describe("ApplicationsPipeline — tomt öråt", () => {
   it("tomma grupper: kön visar tomläge och listan visar tomläge", () => {
     renderPipeline(makePipeline({}));
 
-    // Kön alltid närvarande (2a) — med streckat tomläge.
+    // Kön alltid närvarande (2a) — med sitt tomläge.
     expect(
       within(getQueue()).getByText("Inget kräver åtgärd just nu."),
     ).toBeInTheDocument();
-    expect(
-      within(getAllApps()).getByText(
-        "Inga ansökningar matchar sökningen eller filtret.",
-      ),
-    ).toBeInTheDocument();
+    expect(within(getAllApps()).getByRole("status")).toHaveTextContent(
+      "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
+    );
   });
 });
 
@@ -471,14 +470,14 @@ describe("ApplicationsPipeline — VY-växlare + Tavla (PR 8)", () => {
     ).toBeInTheDocument();
   });
 
-  it("Tavla: kolumn kapar vid 4 kort och visar 'Visa N fler'", () => {
+  it("Tavla: kolumn kapar vid 4 kort och visar 'Visa N till'", () => {
     renderPipeline(makePipeline({ Submitted: 6 }), "tavla");
 
     const column = screen.getByRole("group", { name: "Skickad" });
     // Fyra synliga kort (varje kort = en roll-länk).
     expect(within(column).getAllByRole("link")).toHaveLength(4);
     expect(
-      within(column).getByRole("button", { name: "Visa 2 fler" }),
+      within(column).getByRole("button", { name: "Visa 2 till" }),
     ).toBeInTheDocument();
   });
 

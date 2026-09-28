@@ -1,18 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// updateMyProfileAction — the language write behind the Visning card. A Server Action is a public
+// updateMyProfileAction — the language write on /mina-sidor/konto. A Server Action is a public
 // endpoint: any signed-in client can post it any argument, so the tests below call it the way such
-// a client can, not only the way the card does. The translator mock returns the key verbatim, so
+// a client can, not only the way the page does. The translator mock returns the key verbatim, so
 // assertions check the resolved message key.
 
-const { getSessionIdMock, authedFetchMock } = vi.hoisted(() => ({
+const { getSessionIdMock, authedFetchMock, revalidatePathMock } = vi.hoisted(() => ({
   getSessionIdMock: vi.fn(async () => "sess-current" as string | null),
   authedFetchMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => key,
 }));
@@ -61,6 +62,8 @@ describe("updateMyProfileAction", () => {
     const [, path, init] = authedFetchMock.mock.calls[0]! as [string, string, RequestInit];
     expect(path).toBe("/api/v1/me/profile");
     expect(JSON.parse(init.body as string)).toEqual({ language: "en" });
+    expect(revalidatePathMock).toHaveBeenCalledTimes(1);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor/konto");
   });
 
   it("refuses a payload without a language before anything is sent", async () => {
@@ -83,5 +86,6 @@ describe("updateMyProfileAction", () => {
 
     expect(result).toEqual({ success: false, error: "account.errors.updateFailed" });
     expect(res.json).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

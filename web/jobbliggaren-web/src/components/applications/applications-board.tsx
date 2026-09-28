@@ -15,7 +15,10 @@ import {
 } from "@/lib/applications/board-model";
 import { transitionStatusAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
-import { applicationDisplayName } from "./application-actions";
+import {
+  applicationDisplayName,
+  useApplicationActions,
+} from "./application-actions";
 import { ApplicationBoardCard } from "./application-board-card";
 import type {
   ApplicationDto,
@@ -23,7 +26,7 @@ import type {
   PipelineGroupDto,
 } from "@/lib/dto/applications";
 
-// Synliga kort per kolumn innan "Visa N fler" (design §6). Enkel konstant, ingen
+// Synliga kort per kolumn innan "Visa N till" (design §6). Enkel konstant, ingen
 // config — bara den visuella kapningen; inget döljs permanent.
 const COLUMN_CARD_CAP = 4;
 
@@ -37,11 +40,13 @@ interface ApplicationsBoardProps {
 /**
  * Tavla-vyn (#630 PR 8, design §6, ADR 0092 D1) — kanban över SAMMA
  * `PipelineGroupDto[]` som Lista (D2). Sex kolumner (aktiva steg) +
- * högerspalt med fyra terminal-mini-zoner. Drag släpper = statusbyte.
+ * fyra terminal-mini-zoner. Drag släpper = statusbyte.
  *
  * Optimistisk flytt (Klas-bekräftad, ADR 0092 Livscykel-amendment 2026-07-06):
  * boardet äger en board-scoped `useOptimistic` som flyttar kortet till
- * målkolumnen OMEDELBART vid släpp; servern förblir SSOT — den SAMMA auditerade
+ * målkolumnen OMEDELBART vid släpp. A drop that may delete the saved copy's text
+ * goes through the provider's `confirmMove` first, so that move starts only after
+ * the confirmation (#1827). Servern förblir SSOT — den SAMMA auditerade
  * `transitionStatusAction` persistar och `revalidatePath` rekoncilierar (nya
  * `groups` → `base` re-deriveras → overlay:en kastas). Vid fel avancerar servern
  * aldrig → overlay:en auto-återgår + error-toasten (samma toast-store som Lista).
@@ -68,6 +73,7 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
 
   const [buckets, addMove] = useOptimistic(base, applyBoardMove);
   const [, startTransition] = useTransition();
+  const { confirmMove } = useApplicationActions();
 
   // Board-lokal DnD-UI-state (ingen optimism): vilket kort dras, vilken kolumn
   // pekaren är över.
@@ -83,7 +89,6 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
   };
 
   const moveCard = (application: ApplicationDto, target: ApplicationStatus) => {
-    if (application.status === target) return; // samma kolumn = no-op (transition-vaktens paritet)
     startTransition(async () => {
       addMove({ id: application.id, to: target });
       const result = await transitionStatusAction(application.id, target);
@@ -120,7 +125,9 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
       setDragId(null);
       if (!id) return;
       const application = findApp(id);
-      if (application != null) moveCard(application, status);
+      // Samma kolumn = no-op (transition-vaktens paritet).
+      if (application == null || application.status === status) return;
+      confirmMove(application, status, () => moveCard(application, status));
     },
   });
 
@@ -148,7 +155,6 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
         <span className="jp-board__count">
           {tUi("counts.totalWithActive", { count: totalCount, active: activeCount })}
         </span>
-        <span className="jp-board__hint">{tUi("board.toolbarHint")}</span>
       </div>
 
       <div className="jp-board__grid">
@@ -211,7 +217,7 @@ interface BoardColumnProps {
 /**
  * En kolumn (aktivt steg) eller mini-zon (terminal). Samma chassi: 3px toppband
  * i statusfärg (getStatusVariantKey — SAMMA SSOT som rail/status-taggar, ingen
- * drift), mono-namn + antal-chip, kap 4 kort + "Visa N fler", drop-target-
+ * drift), mono-namn + antal, kap 4 kort + "Visa N till", drop-target-
  * highlight via `data-over`. `variant="zone"` ger kompakta kort.
  */
 function BoardColumn({
@@ -237,7 +243,7 @@ function BoardColumn({
       className="jp-board-col"
       // role="group" (ej implicit region-landmark): 10 kolumner/zoner skulle
       // annars bli 10 landmarks = brus i skärmläsarens landmark-meny. aria-label
-      // (fullt stegnamn) bevaras, så AT täcker de trunkerade huvudena (a11y-skill).
+      // (stegnamnet) namnger gruppen.
       role="group"
       data-variant={variant}
       data-over={isOver || undefined}
@@ -251,15 +257,11 @@ function BoardColumn({
       onDrop={dropProps.onDrop}
     >
       <div className="jp-board-col__head">
-        {/* De smala kolumnerna kan trunkera de langa stegnamnen ("Intervju
-            bokad"); title ger full text vid hover (sektionens aria-label bar
-            redan hela namnet for skarmlasare). */}
-        <span className="jp-board-col__name jp-mono" title={label}>
-          {label}
-        </span>
-        {/* #805 punkt 2: antalet inline "(N)" intill kolumnnamnet (var tidigare
-            en chip-pill) → samma form som Lista/Alla-vyerna (3-vy-konsekvens). */}
-        <span className="jp-board-col__count">({apps.length})</span>
+        <span className="jp-board-col__name jp-mono">{label}</span>
+        {/* #805 punkt 2: antalet inline intill kolumnnamnet (var tidigare en
+            chip-pill), utan parentes (#1827) → samma form som Lista/Alla-vyerna
+            (3-vy-konsekvens). */}
+        <span className="jp-board-col__count">{apps.length}</span>
       </div>
       <div className="jp-board-col__list">
         {apps.length === 0 ? (

@@ -24,6 +24,13 @@ interface TerminalMoveDialogProps {
   target: ApplicationStatus;
   /** Called after the dialog closes; the caller runs the move. */
   onConfirm: () => void;
+  /**
+   * The list's flag was missing (deploy skew), so the caller cannot tell whether the copy has
+   * text: the body then says what happens if there is one.
+   */
+  copyTextUnknown?: boolean;
+  /** Where focus returns when the dialog closes, when its opener has unmounted by then. */
+  returnFocusTo?: HTMLElement | null;
 }
 
 /**
@@ -37,18 +44,22 @@ export function TerminalMoveDialog({
   onOpenChange,
   target,
   onConfirm,
+  copyTextUnknown = false,
+  returnFocusTo = null,
 }: TerminalMoveDialogProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const status = applicationStatusLabel(t, target);
-  const { onCloseAutoFocus, returnFocus } = useReturnFocus(open);
+  const { onCloseAutoFocus, returnFocus } = useReturnFocus(open, returnFocusTo);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{tUi("terminalMove.title", { status })}</DialogTitle>
-          <DialogDescription>{tUi("terminalMove.body")}</DialogDescription>
+          <DialogDescription>
+            {tUi(copyTextUnknown ? "terminalMove.bodyFallback" : "terminalMove.body")}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button

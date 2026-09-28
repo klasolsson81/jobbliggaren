@@ -6,7 +6,7 @@ using Mediator;
 namespace Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 
 public sealed record DeleteResumeCommand(Guid ResumeId)
-    : ICommand<Result>, IAuthenticatedRequest, IAuditableCommand<Result>
+    : ICommand<Result>, IAuthenticatedRequest, IAuditableCommand<Result>, IReplayOnConcurrencyConflict
 {
     public string EventType => "Resume.Deleted";
     public string AggregateType => "Resume";

@@ -82,6 +82,8 @@ type ReAuthCodeDialogProps<T, C> = {
   codeHint?: ReactNode;
   /** Appended to the daily-budget message: the way on when no more codes can be sent today. */
   terminalExtra?: ReactNode;
+  /** The page a lapsed session comes back to after logging in again: the one the dialog opened on. */
+  returnPath: string;
   action: (proof: CodeProof, context: C) => Promise<ReauthOutcome<T>>;
   onHandOff: (handOff: ReauthHandOff<T>) => void;
   /** Moves focus to the consumer's target once a hand-off has closed the dialog. */
@@ -110,6 +112,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   onBeforeRequest,
   codeHint,
   terminalExtra,
+  returnPath,
   action,
   onHandOff,
   focusAfterHandOff,
@@ -395,7 +398,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 <>
                   <p>{t("account.reauth.notLoggedIn")}</p>
                   <p>
-                    <Link href="/logga-in?next=/mina-sidor" className={STANDALONE_LINK}>
+                    <Link href={`/logga-in?next=${returnPath}`} className={STANDALONE_LINK}>
                       {t("account.reauth.toLogin")}
                     </Link>
                   </p>

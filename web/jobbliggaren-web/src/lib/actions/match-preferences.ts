@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getSessionId } from "@/lib/auth/session";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { deriveOccupations } from "@/lib/api/occupation-derive";
 import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
@@ -73,7 +74,7 @@ export async function updateMatchPreferencesAction(
     };
   }
 
-  revalidatePath("/mina-sidor");
+  revalidatePath(MINA_SIDOR_HREF.matchning);
   revalidatePath("/oversikt");
   return { success: true };
 }

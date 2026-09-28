@@ -71,7 +71,7 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
 
   // "Nästa steg"-kolumnen (design §7): moveToNext renderas som kompakt
   // "→ {nästa}" (170px-kolumnen); Draft/Ghosted-specialen behåller sina
-  // etiketter ("Slutför och skicka" / "Återaktivera"). SAMMA action-källa som
+  // etiketter ("Markera som Skickad" / "Återaktivera"). SAMMA action-källa som
   // Lista-raden (useRowActions, Fork 4) — bara labeln är tabell-kontextad.
   const nextStep = defaultPrimaryFor(application);
   const nextStepLabel =
@@ -153,7 +153,7 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
 
       <td className="jp-apptable__cell jp-apptable__cell--event">
         <span className="jp-apptable__event">
-          <span className="jp-mono jp-apptable__eventdate">{eventDate}</span>
+          <span className="jp-apptable__eventdate">{eventDate}</span>
           <span aria-hidden="true">
             {" · "}
           </span>

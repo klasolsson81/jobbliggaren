@@ -2652,7 +2652,7 @@ semibold and wrapping (Major 4). One key serves the trigger, the popup's name, t
 item, as `nav.foretag` does; `userMenu.ariaLabel`, `userMenu.installningar` and `drawer.installningar` are
 retired. English is "My pages", one concept in both catalogues.
 
-**The page as delivered** (Majors 3 and 5, D4). `/mina-sidor` is V3-native: a `jp-pagehero` with title and
+**The page as delivered** (Majors 3 and 5, D4), until #1891 replaced its two-column layout with four routed sections (ADR 0145). `/mina-sidor` is V3-native: a `jp-pagehero` with title and
 lede and no aside, the grid in `jp-container jp-page`, and `PageHeroSkeleton` while it loads. A new route that
 is rebuilt is where the transitional container's allowance ends, as #515 did for `/foretag`. Column 1 is
 Matchning, Matchningsnotiser and Notiser om företag du följer; column 2 is Visning, Byt e-postadress,

@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Notifications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,8 +74,7 @@ public sealed partial class BackgroundMatchingJob(
     {
         var now = clock.UtcNow;
 
-        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. A withdrawal stops
-        // dispatch immediately (the filter excludes withdrawn users). Default OFF → most rows
+        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. Default OFF → most rows
         // are excluded; the set is small, so a per-user loop is fine for the $16-VPS MVP.
         // Own short scope (#751): a one-shot projection — no context needs to outlive it, so
         // the job class holds no DbContext at all.
@@ -83,8 +83,7 @@ public sealed partial class BackgroundMatchingJob(
         {
             var dueSetDb = dueSetScope.ServiceProvider.GetRequiredService<IAppDbContext>();
             optedInUserIds = await dueSetDb.JobSeekers
-                .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
-                             && js.Preferences.NotificationConsentWithdrawnAt == null)
+                .Where(NotificationConsent.BackgroundMatch.Criteria)
                 .Select(js => js.UserId)
                 .ToListAsync(cancellationToken);
         }
@@ -98,19 +97,19 @@ public sealed partial class BackgroundMatchingJob(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                // Own DI scope per user (#751) → own IAppDbContext (and profile builder / scorer /
-                // account service over that same context) → the change tracker lives and dies with
-                // ONE user. The scope disposes before the catch, so a failed user's poisoned
-                // Added/Modified entities die with it instead of riding into the next user's
-                // SaveChanges (parity SyncPlatsbankenSnapshotJob).
-                await using var userScope = scopeFactory.CreateAsyncScope();
-                var sp = userScope.ServiceProvider;
-                totalMatches += await ScanUserAsync(
-                    sp.GetRequiredService<IAppDbContext>(),
-                    sp.GetRequiredService<IMatchProfileBuilder>(),
-                    sp.GetRequiredService<IMatchScorer>(),
-                    sp.GetRequiredService<IUserAccountService>(),
-                    userId, now, cancellationToken);
+                // ADR 0146 — the row carries an xmin token, so a write committed between this user's
+                // load and the scan's commit (a withdrawal, a settings save, the company-watch scan)
+                // fails the commit and rolls it back whole. One more attempt reads the row again and
+                // re-checks the consent on it before anything is added.
+                try
+                {
+                    totalMatches += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    LogUserRetried(logger, userId);
+                    totalMatches += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -129,6 +128,22 @@ public sealed partial class BackgroundMatchingJob(
         }
 
         LogComplete(logger, processedUsers, totalMatches);
+    }
+
+    // Own DI scope per attempt (#751) → own IAppDbContext (and profile builder / scorer / account
+    // service over that same context) → the change tracker lives and dies with ONE attempt. The
+    // scope disposes before the caller's catch, so a failed attempt's poisoned Added/Modified
+    // entities die with it instead of riding into the next save (parity SyncPlatsbankenSnapshotJob).
+    private async Task<int> ScanUserInOwnScopeAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
+        await using var userScope = scopeFactory.CreateAsyncScope();
+        var sp = userScope.ServiceProvider;
+        return await ScanUserAsync(
+            sp.GetRequiredService<IAppDbContext>(),
+            sp.GetRequiredService<IMatchProfileBuilder>(),
+            sp.GetRequiredService<IMatchScorer>(),
+            sp.GetRequiredService<IUserAccountService>(),
+            userId, now, ct);
     }
 
     // The per-user unit. Every context-holding collaborator (db + the profile builder / scorer /
@@ -150,6 +165,12 @@ public sealed partial class BackgroundMatchingJob(
             .FirstOrDefaultAsync(js => js.UserId == userId, ct);
         if (jobSeeker is null)
             return 0; // consent row without a JobSeeker (shouldn't happen) — nothing to scan.
+
+        // ADR 0146 — the consent is decided on the row this attempt loaded, not on the run-start due
+        // set: a withdrawal committed since then ends the scan here with the watermark untouched, like
+        // the due-set exclusion. A withdrawal committed after this load fails the commit instead.
+        if (!NotificationConsent.BackgroundMatch.IsSatisfiedBy(jobSeeker))
+            return 0;
 
         var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
 
@@ -346,6 +367,10 @@ public sealed partial class BackgroundMatchingJob(
     [LoggerMessage(Level = LogLevel.Warning,
         Message = "BackgroundMatchingJob: scan failed for user {UserId} — isolated, will retry next run")]
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "BackgroundMatchingJob: user {UserId}'s row changed during the scan — scanning it once more")]
+    private static partial void LogUserRetried(ILogger logger, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "BackgroundMatchingJob: done — {Processed} users scanned, {TotalMatches} new matches persisted")]

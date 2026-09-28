@@ -152,9 +152,6 @@ describe("MatchPreferencesCard — summary + chips", () => {
     expect(
       screen.getByRole("group", { name: "Anställningsformer" })
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Ange vilka yrken, orter och anställningsformer/)
-    ).toBeInTheDocument();
   });
 
   it("tom facet visar en ärlig rad i stället för chips", () => {

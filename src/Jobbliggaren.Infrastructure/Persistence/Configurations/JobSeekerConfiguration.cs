@@ -97,6 +97,13 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         builder.Property(js => js.UpdatedAt);
         builder.Property(js => js.DeletedAt);
 
+        // ADR 0146 — optimistic concurrency on the whole row (parity ResumeConfiguration). Every
+        // UPDATE/DELETE of a job_seekers row carries `AND xmin = @original`, so a write loaded before
+        // a later commit fails instead of rewriting the preferences document over it.
+        builder.Property<uint>("xmin")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
         builder.HasQueryFilter(js => js.DeletedAt == null);
 
         builder.Ignore(js => js.DomainEvents);

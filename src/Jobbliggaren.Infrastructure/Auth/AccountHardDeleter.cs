@@ -314,6 +314,9 @@ public sealed partial class AccountHardDeleter(
         }
         catch
         {
+            // ADR 0146 — this context serves the whole run. Left tracked, this account's Deleted
+            // entities would be written by the next account's SaveChanges, outside this rollback.
+            db.ChangeTracker.Clear();
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }

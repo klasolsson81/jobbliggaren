@@ -27,8 +27,7 @@
     "statistics": "Statistik",
     "loadErrorTitle": "Kunde inte ladda ansökningar",
     "emptyTitle": "Inga ansökningar ännu",
-    "emptyCreateFirst": "Skapa första ansökan",
-    "emptySearchFirst": "Sök annonser först",
+    "emptySearchFirst": "Sök jobb",
     "new": {
       "title": "Ny ansökan",
       "titleLabel": "Jobbtitel",
@@ -541,14 +540,16 @@
   },
   "minaSidor": {
     "title": "Mina sidor",
-    "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
-    "rateLimited": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "profileLoadError": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
-    "meta": {
-      "title": "Mina sidor"
+    "rateLimited": "Inställningarna kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "profileLoadError": "Inställningarna kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
+    "nav": {
+      "label": "Mina sidor"
     },
     "sections": {
-      "notiser": "Notiser"
+      "matchning": "Matchning",
+      "notiser": "Notiser",
+      "konto": "Konto",
+      "sekretess": "Sekretess och data"
     }
   },
   "auth": {

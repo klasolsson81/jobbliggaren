@@ -405,3 +405,18 @@ PR, which amends this record for them.
 - For both of row 10's keys a test now pins that the link renders with and without contacts. The panel's test runs
   through `SourceAdSection`, the one gate both detail contexts render, and was shown red against the former
   `contacts.length > 0` gate before the gate changed.
+
+## Amendment 2026-09-27 — #1891 PR 2: row 14's new target and row 19
+
+`security-auditor` signed both in #1891's pre-code form round on 2026-09-27; her report,
+`docs/reviews/2026-09-27-1891-form-security.md`, carries the element sets as she set them.
+
+- Row 14: the notification mails' settings link is `{BaseUrl}/mina-sidor/notiser` in both templates
+  (`EmailTemplates.MatchNotification`, `EmailTemplates.FollowedCompanyNotification`) and in both parts,
+  text and HTML. The "Du får detta för att …" paragraphs are unchanged. The template tests pin the new
+  link exactly in both parts.
+- Row 19 (new): `settings.privacy.contactRoute`, sv "Vill du ha en kopia av dina data kan du mejla
+  <mail>kontakt@jobbliggaren.se</mail>.", en "If you want a copy of your data, email
+  <mail>kontakt@jobbliggaren.se</mail>.", visible at the export button without a click while the
+  export is not built. `legally-bound-copy.test.ts` pins the catalogue, and `privacy-card.test.tsx`
+  pins that it renders as the export button's description.

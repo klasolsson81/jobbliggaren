@@ -1,12 +1,12 @@
 "use client";
 
 // Change-email by two codes (#1740, ADR 0142 D5), as Klas ruled on 2026-09-22: the shared dialog only
-// re-authenticates, by a code to the current address, and closes; this card then takes the code mailed
-// to the NEW address in a step of its own. The new address is checked when "Fortsätt" is pressed,
-// before the dialog opens, so no code is spent on an address the check refuses.
+// re-authenticates, by a code to the current address, and closes; this component then takes the code
+// mailed to the NEW address in a step of its own. The new address is checked when "Fortsätt" is
+// pressed, before the dialog opens, so no code is spent on an address the check refuses.
 //
-// The change challenge lives only in this card's state (security-auditor, #1740 S1): it is dropped on a
-// confirm that succeeds, on a dead code, on "Börja om", after its lifetime and on unmount.
+// The change challenge lives only in this component's state (security-auditor, #1740 S1): it is
+// dropped on a confirm that succeeds, on a dead code, on "Börja om", after its lifetime and on unmount.
 
 import {
   type FormEvent,
@@ -33,6 +33,7 @@ import type { MessageChannel } from "@/lib/auth/challenge-action-state";
 import { codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { CODE_PHASE_MAX_AGE_SECONDS } from "@/lib/auth/login-flow";
 import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 type ChangeChallenge = { id: string; sentAt: number; address: string };
 
@@ -57,7 +58,7 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 const START_OVER_LINK =
   "-my-2 h-auto px-0 py-2 text-brand-700 underline underline-offset-2 max-md:-my-2.5 max-md:py-2.5";
 
-export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
+export function ChangeEmailSetting({ currentEmail }: { currentEmail: string }) {
   const t = useTranslations("settings");
   const tp = useTranslations("pages");
 
@@ -81,6 +82,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
   const codeHintId = useId();
   const codeStepId = useId();
   const messageId = useId();
+  const titleId = useId();
 
   function focus(target: FocusTarget) {
     const refs = { field: fieldRef, code: codeRef, message: messageRef, panel: panelRef };
@@ -234,7 +236,11 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
     });
   }
 
-  const title = <h2 className="jp-card__title">{t("account.changeEmail.title")}</h2>;
+  const title = (
+    <h3 id={titleId} className="jp-settings-group__title">
+      {t("account.changeEmail.title")}
+    </h3>
+  );
   const current = (
     <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
       {t("account.changeEmail.current", { email: currentEmail })}
@@ -259,176 +265,183 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
     </div>
   );
 
-  switch (view.step) {
-    case "mailOff":
-      // The delivered form: the promise in `description` is not repeated above its own denial.
-      return (
-        <section className="jp-card">
-          {/* Focus lands on the wrapper so the heading is read with the message; role="status" sits
-              on the message alone, since nested live regions announce twice. */}
+  function stepContent(): ReactNode {
+    switch (view.step) {
+      case "mailOff":
+        // The delivered form: the promise in `description` is not repeated above its own denial.
+        // Focus lands on the wrapper so the heading is read with the message; role="status" sits
+        // on the message alone, since nested live regions announce twice.
+        return (
           <div ref={panelRef} tabIndex={-1}>
             {title}
             <p role="status" className="text-body-sm text-text-primary">
               {view.message ?? t("account.errors.emailDeliveryUnavailable")}
             </p>
           </div>
-        </section>
-      );
+        );
 
-    case "addressClosed":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
-          {panel(<p>{view.message}</p>)}
-        </section>
-      );
+      case "addressClosed":
+        return (
+          <>
+            {title}
+            {current}
+            <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
+            {panel(<p>{view.message}</p>)}
+          </>
+        );
 
-    case "notLoggedIn":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          {panel(
-            <>
-              <p>{t("account.reauth.notLoggedIn")}</p>
-              <p>
-                <Link href="/logga-in?next=/mina-sidor" className={STANDALONE_LINK}>
-                  {t("account.reauth.toLogin")}
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-      );
+      case "notLoggedIn":
+        return (
+          <>
+            {title}
+            {current}
+            {panel(
+              <>
+                <p>{t("account.reauth.notLoggedIn")}</p>
+                <p>
+                  <Link href={`/logga-in?next=${MINA_SIDOR_HREF.konto}`} className={STANDALONE_LINK}>
+                    {t("account.reauth.toLogin")}
+                  </Link>
+                </p>
+              </>
+            )}
+          </>
+        );
 
-    case "unknown":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          {panel(
-            <>
-              <p>{view.message}</p>
-              <p>
-                <a href="/mina-sidor" className={STANDALONE_LINK}>
-                  {t("account.reload")}
-                </a>
-              </p>
-            </>
-          )}
-        </section>
-      );
+      case "unknown":
+        return (
+          <>
+            {title}
+            {current}
+            {panel(
+              <>
+                <p>{view.message}</p>
+                <p>
+                  <a href={MINA_SIDOR_HREF.konto} className={STANDALONE_LINK}>
+                    {t("account.reload")}
+                  </a>
+                </p>
+              </>
+            )}
+          </>
+        );
 
-    case "codeDead":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          {panel(<p>{view.message}</p>)}
-          <div className="mt-3">
-            <Button type="button" className="max-md:h-11" onClick={() => toAddressStep(null)}>
-              {t("account.changeEmail.startOver")}
-            </Button>
-          </div>
-        </section>
-      );
-
-    case "code":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          <form onSubmit={onConfirm} noValidate className="mt-3 flex flex-col gap-3">
-            <p id={codeStepId} className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
-              {t("account.changeEmail.codeStep", { newEmail: view.challenge.address })}
-            </p>
-            <CodeField
-              id={codeId}
-              hintId={codeHintId}
-              label={t("account.changeEmail.codeLabel")}
-              hint={t("account.changeEmail.codeHint")}
-              invalid={message?.channel === "field"}
-              errorId={messageId}
-              leadingDescriptionId={codeStepId}
-              inputRef={codeRef}
-              value={code}
-              onValueChange={setCode}
-            />
-            {slot}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Button type="submit" disabled={isPending} className="max-md:h-11">
-                <PendingLabel
-                  pending={isPending}
-                  idle={t("account.changeEmail.confirm")}
-                  busy={t("account.changeEmail.confirming")}
-                />
-              </Button>
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                disabled={isPending}
-                className={START_OVER_LINK}
-                onClick={() => toAddressStep(null)}
-              >
+      case "codeDead":
+        return (
+          <>
+            {title}
+            {current}
+            {panel(<p>{view.message}</p>)}
+            <div className="mt-3">
+              <Button type="button" className="max-md:h-11" onClick={() => toAddressStep(null)}>
                 {t("account.changeEmail.startOver")}
               </Button>
             </div>
-          </form>
-        </section>
-      );
+          </>
+        );
 
-    case "address":
-      return (
-        <section className="jp-card">
-          {title}
-          {current}
-          <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
-          {/* Enter in the field presses "Fortsätt", the form's one submit; the form itself sends
-              nothing. */}
-          <form
-            onSubmit={(event) => event.preventDefault()}
-            noValidate
-            className="mt-3 flex flex-col gap-3"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={fieldId}>{t("account.changeEmail.newEmailLabel")}</Label>
-              <Input
-                ref={fieldRef}
-                id={fieldId}
-                type="email"
-                autoComplete="email"
-                spellCheck={false}
-                aria-required="true"
-                aria-invalid={message?.channel === "field" ? true : undefined}
-                aria-describedby={message?.channel === "field" ? messageId : undefined}
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
+      case "code":
+        return (
+          <>
+            {title}
+            {current}
+            <form onSubmit={onConfirm} noValidate className="mt-3 flex flex-col gap-3">
+              <p id={codeStepId} className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
+                {t("account.changeEmail.codeStep", { newEmail: view.challenge.address })}
+              </p>
+              <CodeField
+                id={codeId}
+                hintId={codeHintId}
+                label={t("account.changeEmail.codeLabel")}
+                hint={t("account.changeEmail.codeHint")}
+                invalid={message?.channel === "field"}
+                errorId={messageId}
+                leadingDescriptionId={codeStepId}
+                inputRef={codeRef}
+                value={code}
+                onValueChange={setCode}
               />
-            </div>
-            {slot}
-            <div>
-              <ReAuthCodeDialog<{ challengeId: string }>
-                trigger={
-                  <Button type="submit" variant="secondary" className="max-md:h-11" onClick={onContinue}>
-                    {t("account.changeEmail.continue")}
-                  </Button>
-                }
-                title={t("account.changeEmail.title")}
-                description={t("account.changeEmail.dialogDescription", { newEmail: pendingAddress })}
-                currentEmail={currentEmail}
-                confirmLabel={tp("auth.passwordless.code.submit")}
-                pendingLabel={tp("auth.passwordless.code.submitting")}
-                cancelLabel={t("account.changeEmail.cancel")}
-                action={(proof) => requestEmailChangeAction(pendingAddress, proof)}
-                onHandOff={onHandOff}
-                focusAfterHandOff={focusAfterHandOff}
-              />
-            </div>
-          </form>
-        </section>
-      );
+              {slot}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <Button type="submit" disabled={isPending} className="max-md:h-11">
+                  <PendingLabel
+                    pending={isPending}
+                    idle={t("account.changeEmail.confirm")}
+                    busy={t("account.changeEmail.confirming")}
+                  />
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  disabled={isPending}
+                  className={START_OVER_LINK}
+                  onClick={() => toAddressStep(null)}
+                >
+                  {t("account.changeEmail.startOver")}
+                </Button>
+              </div>
+            </form>
+          </>
+        );
+
+      case "address":
+        return (
+          <>
+            {title}
+            {current}
+            <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
+            {/* Enter in the field presses "Fortsätt", the form's one submit; the form itself sends
+                nothing. */}
+            <form
+              onSubmit={(event) => event.preventDefault()}
+              noValidate
+              className="mt-3 flex flex-col gap-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={fieldId}>{t("account.changeEmail.newEmailLabel")}</Label>
+                <Input
+                  ref={fieldRef}
+                  id={fieldId}
+                  type="email"
+                  autoComplete="email"
+                  spellCheck={false}
+                  aria-required="true"
+                  aria-invalid={message?.channel === "field" ? true : undefined}
+                  aria-describedby={message?.channel === "field" ? messageId : undefined}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                />
+              </div>
+              {slot}
+              <div>
+                <ReAuthCodeDialog<{ challengeId: string }>
+                  trigger={
+                    <Button type="submit" variant="secondary" className="max-md:h-11" onClick={onContinue}>
+                      {t("account.changeEmail.continue")}
+                    </Button>
+                  }
+                  title={t("account.changeEmail.title")}
+                  description={t("account.changeEmail.dialogDescription", { newEmail: pendingAddress })}
+                  currentEmail={currentEmail}
+                  confirmLabel={tp("auth.passwordless.code.submit")}
+                  pendingLabel={tp("auth.passwordless.code.submitting")}
+                  cancelLabel={t("account.changeEmail.cancel")}
+                  returnPath={MINA_SIDOR_HREF.konto}
+                  action={(proof) => requestEmailChangeAction(pendingAddress, proof)}
+                  onHandOff={onHandOff}
+                  focusAfterHandOff={focusAfterHandOff}
+                />
+              </div>
+            </form>
+          </>
+        );
+    }
   }
+
+  return (
+    <section className="jp-settings-group" aria-labelledby={titleId}>
+      {stepContent()}
+    </section>
+  );
 }

@@ -25,7 +25,8 @@ namespace Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 /// <c>InvalidateAllForUserAsync</c> post-commit för att avsluta alla aktiva sessioner.
 /// </summary>
 public sealed record DeleteAccountCommand(string? ReauthGrant)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IReauthenticatingRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IReauthenticatingRequest, IAuditableCommand<Result<Guid>>,
+      IReplayOnConcurrencyConflict
 {
     public string EventType => "Account.Deleted";
     public string AggregateType => "JobSeeker";

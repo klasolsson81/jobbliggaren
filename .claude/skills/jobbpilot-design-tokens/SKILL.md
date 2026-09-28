@@ -51,7 +51,7 @@ description: >
    som text/länk/fokus/border — ALDRIG som fill bakom vit text. Aldrig "ljus
    knapp med mörk text"
 7. **Shadows:** depth comes from borders. De sanktionerade undantagen är
-   `--jp-shadow-card` / `--jp-shadow-pop` (popover/dropdown) /
+   `--jp-shadow-pop` (popover/dropdown) /
    `--jp-shadow-modal` (modal) — inga andra drop shadows
 8. **Dark mode is supported** (v3 mörk navy-grå canvas `#0B1525`, ljusa
    input-fält) — never hardcode a light-only color; let the `--jp-*` token

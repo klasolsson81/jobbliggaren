@@ -19,7 +19,8 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
 /// </para>
 /// </summary>
 public sealed record SetDigestCadenceCommand([property: JsonRequired] DigestCadence Cadence)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>,
+      IReplayOnConcurrencyConflict
 {
     // Stable, append-only event name (audit queries depend on it).
     public string EventType => "JobSeeker.DigestCadenceUpdated";

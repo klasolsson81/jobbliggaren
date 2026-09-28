@@ -79,6 +79,86 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         auditEntry.UserAgent.ShouldBeNull();
     }
 
+    // ADR 0146 — the deleter's context serves the whole run. A failed account must leave nothing
+    // tracked: otherwise the next account's save writes the failed account's deletes as well, and
+    // commits them while the failed account's audit anonymisation and parsed-CV deletes
+    // stay rolled back. The fault stands in for a transient database failure (a lost connection, a
+    // lock timeout) — the class HardDeleteAccountsJob's per-account isolation exists for. It is a
+    // one-shot BEFORE DELETE trigger on the first of the pair the run reaches, whichever that is.
+    [Fact]
+    public async Task RunAsync_WhenOneAccountFails_TheNextAccountCommitsAlone_AndTheFailedAccountIsKept()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
+        var (_, first) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+        var (_, second) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+        var run = Guid.NewGuid().ToString("N")[..20];
+
+        await InstallOneShotDeleteFaultAsync(run, first, second, ct);
+        try
+        {
+            await RunJobAsync(now, ct);
+        }
+        finally
+        {
+            await DropOneShotDeleteFaultAsync(run);
+        }
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var kept = await db.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+            .Where(js => js.Id == first || js.Id == second)
+            .Select(js => js.Id)
+            .ToListAsync(ct);
+        var failed = kept.ShouldHaveSingleItem();
+
+        var hardDeleter = scope.ServiceProvider.GetRequiredService<IAccountHardDeleter>();
+        (await hardDeleter.GetAccountsReadyForHardDeleteAsync(now.AddDays(-RestoreWindowDays), ct))
+            .ShouldContain(failed.Value);
+    }
+
+    // The sequence makes it one-shot: nextval is never rolled back, so the aborted transaction cannot
+    // re-arm the fault. Identifiers and the seeded ids are test-generated and cannot be parameters in
+    // DDL, hence plain string locals (EF1002).
+    private async Task InstallOneShotDeleteFaultAsync(
+        string run, JobSeekerId first, JobSeekerId second, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        string createSequence = $"CREATE SEQUENCE hd_fault_seq_{run};";
+        string createFunction =
+            $@"CREATE OR REPLACE FUNCTION hd_fault_fn_{run}() RETURNS trigger AS $fn$
+BEGIN
+    IF OLD.id IN ('{first.Value}'::uuid, '{second.Value}'::uuid)
+       AND nextval('hd_fault_seq_{run}') = 1 THEN
+        RAISE EXCEPTION 'one-shot hard-delete fault {run}';
+    END IF;
+    RETURN OLD;
+END;
+$fn$ LANGUAGE plpgsql;";
+        string createTrigger =
+            $@"CREATE TRIGGER hd_fault_trg_{run} BEFORE DELETE ON job_seekers
+    FOR EACH ROW EXECUTE FUNCTION hd_fault_fn_{run}();";
+        await db.Database.ExecuteSqlRawAsync(createSequence, ct);
+        await db.Database.ExecuteSqlRawAsync(createFunction, ct);
+        await db.Database.ExecuteSqlRawAsync(createTrigger, ct);
+    }
+
+    // No CancellationToken: the cleanup must run even when the test token is cancelled, since a leaked
+    // trigger would fail later tests in the shared Worker collection.
+    private async Task DropOneShotDeleteFaultAsync(string run)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        string dropTrigger = $"DROP TRIGGER IF EXISTS hd_fault_trg_{run} ON job_seekers;";
+        string dropFunction = $"DROP FUNCTION IF EXISTS hd_fault_fn_{run}();";
+        string dropSequence = $"DROP SEQUENCE IF EXISTS hd_fault_seq_{run};";
+        await db.Database.ExecuteSqlRawAsync(dropTrigger);
+        await db.Database.ExecuteSqlRawAsync(dropFunction);
+        await db.Database.ExecuteSqlRawAsync(dropSequence);
+    }
+
     [Fact]
     public async Task RunAsync_RemovesTheAccountsExternalLogins()
     {

@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -10,29 +11,32 @@ import {
   isFiringSignal,
   PIPELINE_ORDER,
 } from "@/lib/applications/status";
+import { urgencyTagFor } from "@/lib/applications/urgency";
 import type {
   ApplicationAttentionSignal,
   ApplicationDto,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import { adIdentityOf } from "./ad-identity";
 import {
   useApplicationActions,
   useApplicationPending,
 } from "./application-actions";
-import { ApplicationRow, type RowAction } from "./application-row";
+import type { RowAction } from "./use-row-actions";
+import { useUrgencyValue } from "./use-urgency-label";
 
 type FiringSignal = Exclude<ApplicationAttentionSignal, "None">;
 
-interface AttentionCard {
+interface AttentionItem {
   key: string;
   signal: FiringSignal;
   application: ApplicationDto;
 }
 
-// Åtgärdskort synliga innan "Visa fler" (design 2a §4: "Max 4 kort synliga
+// Rader synliga innan "Visa N till" (design 2a §4: "Max 4 kort synliga
 // (tweakbart)"). Enkel konstant, ingen config — gäller bara den visuella
 // kapningen; inget som kräver åtgärd döljs permanent (knappen expanderar).
-const VISIBLE_CARD_CAP = 4;
+const VISIBLE_ROW_CAP = 4;
 
 interface AttentionQueueProps {
   // Hela pipelinen (alla 10 grupper). Kön byggs PURT ur `attentionSignal` som
@@ -40,26 +44,16 @@ interface AttentionQueueProps {
   // återimplementerar aldrig fyrningsregeln (CLAUDE.md §5 / ADR 0071).
   groups: PipelineGroupDto[];
   // Server-beräknad referenstidpunkt (page.tsx, #336-determinism), rekonstruerad
-  // en gång i containern och nedtrådt hit → ApplicationRow. Aldrig new Date() här.
+  // en gång i containern och nedtrådt hit → raderna. Aldrig new Date() här.
   now: Date;
 }
 
 /**
  * "Kräver åtgärd"-kön (design 2a §3–4) — en alltid-synlig, prioritetssorterad
  * accelerator ovanför Lista-vyn. Varje ansökan med en fyrande `attentionSignal`
- * lyfts hit som ett åtgärdskort i ett rutnät (`minmax(600px, 1fr)`), sorterat på
- * signalprioritet (ATTENTION_SIGNAL_ORDER: erbjudande → förfallen uppföljning →
- * utkast-deadline → ghost-förslag → utan-svar → tyst-efter-intervju).
- *
- * PR 7 (Klas-låst 2026-07-05, PR5-bind A1 infriad): varje kort bär nu sin
- * §11-CTA — primär + ev. sekundär — som OVERRIDE:ar radens default-primär
- * (urgens-åtgärden ÄR kortets handling; "Flytta till nästa" vore fel affordans
- * här, prototyp-facit). Statusmenyn utelämnas på kortet. "Läs erbjudandet" och
- * "Registrera utfall" öppnar detaljmodalen (soft-nav → intercepting route, samma
- * väg som radklicket); "Följ upp"/"Slutför och skicka" öppnar §9-dialogerna;
- * "Markera …"/"Acceptera" är direktbyten med ångra-toast (ADR 0092 D3). Raden
- * visar också urgens-tagg +
- * "N dagar i steget" (list-DTO:ns scalars sedan PR 3 — aldrig fabricerat).
+ * lyfts hit som en liggarrad (DESIGN.md §6, #1827 M1: ingen låda per ärende),
+ * sorterad på signalprioritet (ATTENTION_SIGNAL_ORDER: erbjudande → förfallen
+ * uppföljning → utkast-deadline → ghost-förslag → utan-svar → tyst-efter-intervju).
  *
  * 2a-doktrin (ADR 0092 supersederar ADR 0085 §343): kön DUPLICERAR — appen
  * ligger kvar i sin statusgrupp i "Alla ansökningar" (listan är komplett). Ingen
@@ -70,106 +64,40 @@ export const AttentionQueue = memo(function AttentionQueue({
   now,
 }: AttentionQueueProps) {
   const tUi = useTranslations("applications.ui");
-  const tAttention = useTranslations("applications.ui.attention");
   const [expanded, setExpanded] = useState(false);
-  const router = useRouter();
-  const { transition, openFinishDraft, openLogFollowUp } =
-    useApplicationActions();
-  // Trådar per-kort `pending` ned till ApplicationRow (d4). Kön är ≤4 synliga kort
-  // och re-renderar ändå per byte (cardActions ger nya action-identiteter), så
-  // vinsten här är sekundär mot list-/tabell-vyn — men löven kräver propet.
+  // Trådar per-rad `pending` ned (d4): raderna prenumererar aldrig själva på Set:et.
   const pendingIds = useApplicationPending();
-
-  const anchorY = (e: React.MouseEvent<HTMLButtonElement>): number =>
-    e.clientY > 0 ? e.clientY : e.currentTarget.getBoundingClientRect().top;
-
-  // §11-signal → primär/sekundär kort-CTA (prototypens urgency()-karta =
-  // facit). "Förbered intervjun" (interview-near) är deferrad med sin signal
-  // (ADR 0092 D5 — datumfältet finns inte).
-  const cardActions = (
-    card: AttentionCard,
-  ): { primary: RowAction; secondary?: RowAction } => {
-    const app = card.application;
-    const openDetail = (label: string): RowAction => ({
-      label,
-      onClick: () => {
-        // Samma väg som radklicket: soft-nav → den centrerade route-modalen.
-        router.push(`/ansokningar/${app.id}`);
-      },
-    });
-    const followUp = (label: string): RowAction => ({
-      label,
-      onClick: (e) => openLogFollowUp(app, anchorY(e)),
-    });
-    const markGhosted = (label: string): RowAction => ({
-      label,
-      onClick: () => transition(app, "Ghosted"),
-    });
-    switch (card.signal) {
-      case "OfferAwaitingReply":
-        return {
-          primary: openDetail(tUi("queueCta.readOffer")),
-          secondary: {
-            label: tUi("queueCta.accept"),
-            onClick: () => transition(app, "Accepted"),
-          },
-        };
-      case "OverdueFollowUp":
-        // The signal is a Pending follow-up past its date, and logging a new
-        // contact leaves it Pending; its outcome form lives in the detail.
-        return { primary: openDetail(tUi("queueCta.recordOutcome")) };
-      case "DraftDeadlineApproaching":
-        return {
-          primary: {
-            label: tUi("row.finishAndSend"),
-            onClick: (e) => openFinishDraft(app, anchorY(e)),
-          },
-        };
-      case "GhostSuggested":
-        return {
-          primary: markGhosted(tUi("queueCta.markGhosted")),
-          secondary: followUp(tUi("queueCta.followUpAgain")),
-        };
-      case "NoResponseNudge":
-        return {
-          primary: followUp(tUi("queueCta.followUp")),
-          secondary: markGhosted(tUi("queueCta.markGhosted")),
-        };
-      case "SilentAfterInterview":
-        return { primary: followUp(tUi("queueCta.followUp")) };
-    }
-  };
 
   const byStatus = useMemo(
     () => new Map(groups.map((g) => [g.status, g])),
     [groups],
   );
 
-  const cards = useMemo<AttentionCard[]>(() => {
-    const items: AttentionCard[] = [];
+  const items = useMemo<AttentionItem[]>(() => {
+    const out: AttentionItem[] = [];
     for (const status of PIPELINE_ORDER) {
       const group = byStatus.get(status);
       if (group == null) continue;
       for (const application of group.applications) {
         const signal = application.attentionSignal;
         if (!isFiringSignal(signal)) continue;
-        items.push({ key: application.id, signal, application });
+        out.push({ key: application.id, signal, application });
       }
     }
     // Sortera på signalprioritet (backend-enumens deklarationsordning speglad i
     // ATTENTION_SIGNAL_ORDER). Pipelineordningen ovan ger stabil sekundär­ordning
     // inom samma signal.
     const rank = new Map(ATTENTION_SIGNAL_ORDER.map((s, i) => [s, i] as const));
-    return items.sort(
+    return out.sort(
       (a, b) =>
         (rank.get(a.signal) ?? Number.MAX_SAFE_INTEGER) -
         (rank.get(b.signal) ?? Number.MAX_SAFE_INTEGER),
     );
   }, [byStatus]);
 
-  const overCap = cards.length > VISIBLE_CARD_CAP;
-  const visible = expanded ? cards : cards.slice(0, VISIBLE_CARD_CAP);
-  const hiddenCount = cards.length - visible.length;
+  const overCap = items.length > VISIBLE_ROW_CAP;
+  const visible = expanded ? items : items.slice(0, VISIBLE_ROW_CAP);
+  const hiddenCount = items.length - visible.length;
 
   return (
     <section className="jp-attentionqueue" aria-labelledby="attention-heading">
@@ -177,40 +105,24 @@ export const AttentionQueue = memo(function AttentionQueue({
         <h2 id="attention-heading" className="jp-section__title">
           {tUi("queue.title")}
         </h2>
-        <span className="jp-section__count">{cards.length}</span>
-        <span className="jp-section__hint">{tUi("queue.sortHint")}</span>
+        <span className="jp-section__count">{items.length}</span>
       </div>
 
-      {cards.length === 0 ? (
-        <div className="jp-attentionqueue__empty">{tUi("queue.empty")}</div>
+      {items.length === 0 ? (
+        <p className="jp-attentionqueue__empty">{tUi("queue.empty")}</p>
       ) : (
         <>
-          <div className="jp-actioncard-grid">
-            {visible.map((card) => {
-              const actions = cardActions(card);
-              return (
-                <article key={card.key} className="jp-actioncard">
-                  <p
-                    className="jp-actioncard__reason"
-                    data-signal={ATTENTION_SIGNAL_BUCKET[card.signal]}
-                  >
-                    <span className="jp-actioncard__dot" aria-hidden="true" />
-                    <span className="jp-actioncard__text">
-                      {tAttention(attentionReasonKey(card.signal))}
-                    </span>
-                  </p>
-                  <ApplicationRow
-                    application={card.application}
-                    now={now}
-                    pending={pendingIds.has(card.application.id)}
-                    primaryAction={actions.primary}
-                    secondaryAction={actions.secondary ?? null}
-                    showStatusMenu={false}
-                  />
-                </article>
-              );
-            })}
-          </div>
+          <ol className="jp-attentionqueue__list">
+            {visible.map((item) => (
+              <AttentionQueueRow
+                key={item.key}
+                signal={item.signal}
+                application={item.application}
+                now={now}
+                pending={pendingIds.has(item.application.id)}
+              />
+            ))}
+          </ol>
           {overCap && (
             <button
               type="button"
@@ -227,3 +139,163 @@ export const AttentionQueue = memo(function AttentionQueue({
     </section>
   );
 });
+
+// clientY-fallback för dialogankaret: ett programmatiskt klick (utan verklig
+// pekare) faller tillbaka på knappens position, aldrig 0.
+const anchorY = (e: React.MouseEvent<HTMLButtonElement>): number =>
+  e.clientY > 0 ? e.clientY : e.currentTarget.getBoundingClientRect().top;
+
+interface AttentionQueueRowProps {
+  signal: FiringSignal;
+  application: ApplicationDto;
+  now: Date;
+  pending: boolean;
+}
+
+/**
+ * A row in the queue (#1827 M1). Line 1: the signal's kicker in its colour + the
+ * value the urgency helper derives for the signal (a signal without a value shows
+ * only the kicker). Line 2: the title (the row's only link, stretched over the row
+ * with ::after) and the company. On the right, the row's §11 CTAs. Status, days in
+ * the step, the event line and the urgency tag are carried by the Lista row, not
+ * the queue.
+ */
+function AttentionQueueRow({
+  signal,
+  application,
+  now,
+  pending,
+}: AttentionQueueRowProps) {
+  const tUi = useTranslations("applications.ui");
+  const tAttention = useTranslations("applications.ui.attention");
+  const router = useRouter();
+  const { transition, openFinishDraft, openLogFollowUp } =
+    useApplicationActions();
+  const contextId = useId();
+
+  // #892: strukturell identitet + borttagen-markör (lockstep med Lista-raden).
+  const { adRemoved, title: adTitle, company } = adIdentityOf(application.jobAd);
+  const title =
+    adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
+  const kicker = tAttention(attentionReasonKey(signal));
+  const value = useUrgencyValue(urgencyTagFor(application, now));
+  const description = [
+    kicker,
+    value,
+    company,
+    adRemoved ? tUi("adRemoved.tag") : null,
+  ]
+    .filter((part): part is string => part != null)
+    .join(", ");
+
+  // §11-signal → primär/sekundär CTA (prototypens urgency()-karta = facit).
+  // "Förbered intervjun" (interview-near) är deferrad med sin signal (ADR 0092 D5 —
+  // datumfältet finns inte).
+  const openDetail = (label: string): RowAction => ({
+    label,
+    // Samma väg som radklicket: soft-nav → den centrerade route-modalen.
+    onClick: () => router.push(`/ansokningar/${application.id}`),
+  });
+  const followUp = (label: string): RowAction => ({
+    label,
+    onClick: (e) => openLogFollowUp(application, anchorY(e)),
+  });
+  const markGhosted = (label: string): RowAction => ({
+    label,
+    onClick: () => transition(application, "Ghosted"),
+  });
+  const actions = ((): { primary: RowAction; secondary?: RowAction } => {
+    switch (signal) {
+      case "OfferAwaitingReply":
+        return {
+          primary: openDetail(tUi("queueCta.readOffer")),
+          secondary: {
+            label: tUi("queueCta.accept"),
+            onClick: () => transition(application, "Accepted"),
+          },
+        };
+      case "OverdueFollowUp":
+        // The signal is a Pending follow-up past its date, and logging a new
+        // contact leaves it Pending; its outcome form lives in the detail.
+        return { primary: openDetail(tUi("queueCta.recordOutcome")) };
+      case "DraftDeadlineApproaching":
+        return {
+          primary: {
+            label: tUi("row.finishAndSend"),
+            onClick: (e) => openFinishDraft(application, anchorY(e)),
+          },
+        };
+      case "GhostSuggested":
+        return {
+          primary: markGhosted(tUi("queueCta.markGhosted")),
+          secondary: followUp(tUi("queueCta.followUpAgain")),
+        };
+      case "NoResponseNudge":
+        return {
+          primary: followUp(tUi("queueCta.followUp")),
+          secondary: markGhosted(tUi("queueCta.markGhosted")),
+        };
+      case "SilentAfterInterview":
+        return { primary: followUp(tUi("queueCta.followUp")) };
+    }
+  })();
+
+  return (
+    <li className="jp-attentionqueue__row">
+      <div className="jp-attentionqueue__body">
+        <p className="jp-attentionqueue__signal">
+          <span
+            className="jp-attentionqueue__kicker"
+            data-signal={ATTENTION_SIGNAL_BUCKET[signal]}
+          >
+            {kicker}
+          </span>
+          {value != null && (
+            <span className="jp-attentionqueue__value">{value}</span>
+          )}
+        </p>
+        <div className="jp-attentionqueue__line">
+          <h3 className="jp-app__title">
+            <Link
+              href={`/ansokningar/${application.id}`}
+              className="jp-app__rowlink"
+              aria-describedby={contextId}
+            >
+              {title}
+            </Link>
+          </h3>
+          {company != null && (
+            <span className="jp-attentionqueue__company">{company}</span>
+          )}
+          {adRemoved && (
+            <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
+          )}
+        </div>
+        <span id={contextId} className="sr-only">
+          {description}
+        </span>
+      </div>
+
+      <div className="jp-attentionqueue__actions">
+        <button
+          type="button"
+          className="jp-rowbtn jp-rowbtn--emphasis"
+          disabled={pending}
+          onClick={actions.primary.onClick}
+        >
+          {actions.primary.label}
+        </button>
+        {actions.secondary != null && (
+          <button
+            type="button"
+            className="jp-rowbtn"
+            disabled={pending}
+            onClick={actions.secondary.onClick}
+          >
+            {actions.secondary.label}
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}

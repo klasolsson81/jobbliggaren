@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
     serverFunctions: false,
   },
 
+  // Leaving a /mina-sidor section must unmount it, so a re-authentication challenge in flight is
+  // dropped (#1740 S1, ADR 0145 D1). Set explicitly: an explicit value wins over both Next's default
+  // and its `__NEXT_CACHE_COMPONENTS` override.
+  cacheComponents: false,
+
   // The FE container (#196): emit `.next/standalone` with a self-contained
   // `server.js` and only the traced runtime dependencies, so the image does not
   // ship the whole `node_modules`. The trace root comes from `turbopack.root`

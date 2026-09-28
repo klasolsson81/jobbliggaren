@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,6 +15,8 @@ import { anchoredDialogStyle } from "@/lib/applications/anchored-top";
 import { showApplicationToast } from "@/lib/applications/toast-store";
 import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDto } from "@/lib/dto/applications";
+import { useReturnFocus } from "@/lib/hooks/use-return-focus";
+import { adIdentityOf } from "./ad-identity";
 
 export interface FinishDraftDialogProps {
   open: boolean;
@@ -26,13 +27,12 @@ export interface FinishDraftDialogProps {
 }
 
 /**
- * "Slutför och skicka"-dialogen (#630 PR 7, design §9): mellansteget när ett
- * UTKAST skickas från listytorna (rad-CTA, kökort — prototyp-facit;
+ * "Markera som Skickad"-dialogen (#630 PR 7, design §9): mellansteget när ett
+ * UTKAST markeras som skickat från listytorna (rad-CTA, körad — prototyp-facit;
  * detaljmodalens stegväljare/CTA byter direkt). Bekräftelsen = transition till Skickad —
  * `AppliedAt` stämplas write-once server-side och väntetiden räknas från i dag.
- * Den riktiga utkastredigeraren är ett senare spår (handoff §17); dialogens
- * copy lovar därför bara det som faktiskt händer (§5 — fabricera aldrig).
- * Bytet får ångra-toasten som alla transitioner (ADR 0092 D3).
+ * Appen skickar ingenting till arbetsgivaren, så titel och knapp säger bara vad som
+ * händer (#1827 B3). Bytet får ångra-toasten som alla transitioner (ADR 0092 D3).
  */
 export function FinishDraftDialog({
   open,
@@ -44,11 +44,14 @@ export function FinishDraftDialog({
   const format = useFormatter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { onCloseAutoFocus } = useReturnFocus(open);
 
   const jobAd = application.jobAd ?? null;
+  // #892: an erased ad without a snapshot carries an empty identity, which must not render
+  // as an empty line.
+  const { title: adTitle, company } = adIdentityOf(jobAd);
   const title =
-    jobAd?.title ??
-    tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
+    adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
   const applyBy = formatDate(format, jobAd?.expiresAt);
 
   const send = () => {
@@ -59,7 +62,7 @@ export function FinishDraftDialog({
         showApplicationToast({
           kind: "statusChange",
           applicationId: application.id,
-          company: jobAd?.company ?? `#${application.id.slice(0, 8)}`,
+          company: company ?? `#${application.id.slice(0, 8)}`,
           from: application.status,
           to: "Submitted",
         });
@@ -75,18 +78,18 @@ export function FinishDraftDialog({
       <DialogContent
         className="w-full max-w-[480px]"
         style={anchoredDialogStyle(top)}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{tUi("finishDraft.title")}</DialogTitle>
-          <DialogDescription>{tUi("finishDraft.body")}</DialogDescription>
         </DialogHeader>
 
         {/* Annons-sammanfattning (§9) — det list-datat faktiskt bär: roll,
             företag, ev. sista ansökningsdag. */}
         <div className="rounded-md border border-border bg-surface-secondary p-3">
           <p className="text-body font-semibold text-text-primary">{title}</p>
-          {jobAd?.company && (
-            <p className="text-body-sm text-text-primary">{jobAd.company}</p>
+          {company != null && (
+            <p className="text-body-sm text-text-primary">{company}</p>
           )}
           {applyBy && (
             <p className="mt-1 text-body-sm text-text-primary">

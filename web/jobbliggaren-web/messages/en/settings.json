@@ -1,16 +1,13 @@
 {
   "savedAt": "Saved {time}",
   "display": {
-    "title": "Display",
     "themeLabel": "Theme",
     "themeHint": "Affects the whole app immediately. Saved on your device.",
     "themeLight": "Light",
     "themeDark": "Dark",
     "languageLabel": "Language",
-    "languageHint": "Saved to your account.",
     "languageSwedish": "Svenska",
-    "languageEnglish": "English",
-    "savedAt": "Saved {time}"
+    "languageEnglish": "English"
   },
   "backgroundMatch": {
     "toggleLabel": "Match new job ads for me",
@@ -38,17 +35,15 @@
   },
   "privacy": {
     "title": "Privacy and data",
-    "description": "You have the right to export all data we hold about you, and to delete your account entirely.",
     "export": "Export my data",
-    "exportTitle": "The export flow is not enabled yet"
+    "comingSoon": "Coming soon",
+    "contactRoute": "If you want a copy of your data, email <mail>kontakt@jobbliggaren.se</mail>."
   },
   "logout": {
-    "title": "Log out",
     "action": "Log out"
   },
   "matchPrefs": {
     "title": "Matching",
-    "intro": "Enter the occupations, places and employment types you are looking for. We use it to show how well each job ad matches your profile. All fields are optional.",
     "degraded": "Your matching choices could not be loaded right now. Try reloading the page in a moment.",
     "facetOccupations": "Occupations",
     "facetSkills": "Skills",
@@ -147,8 +142,7 @@
     "invalidInput": "Invalid details.",
     "reload": "Reload the page",
     "danger": {
-      "title": "Delete your account",
-      "description": "You can delete your account and everything you have saved. For 30 days afterwards you can have it restored."
+      "title": "Delete your account"
     },
     "delete": {
       "trigger": "Delete account",
@@ -183,7 +177,7 @@
     "changeEmail": {
       "title": "Change email address",
       "current": "Your email address is {email}.",
-      "description": "You confirm the change with two codes, one to each address. Once the address has changed, you are logged out on all other devices.",
+      "description": "Once the address has changed, you are logged out on all other devices.",
       "newEmailLabel": "New email address",
       "newEmailRequired": "Enter the new email address.",
       "invalidEmail": "Enter the new email address in the correct format, for example name@example.com.",

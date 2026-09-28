@@ -3,6 +3,7 @@ import { createTranslator } from "next-intl";
 import {
   applicationStatusLabel,
   channelLabel,
+  copyTextOf,
   followUpOutcomeLabel,
   applicationSourceLabel,
   isWaitingSignal,
@@ -159,6 +160,17 @@ describe("MINIMISING_STATUSES and needsTerminalMoveConfirmation", () => {
     for (const target of PIPELINE_ORDER) {
       expect(needsTerminalMoveConfirmation(target, false)).toBe(false);
     }
+  });
+});
+
+describe("copyTextOf", () => {
+  it("reads true as text and false as none", () => {
+    expect(copyTextOf(true)).toBe("text");
+    expect(copyTextOf(false)).toBe("none");
+  });
+
+  it("reads a missing flag as unknown, never as none", () => {
+    expect(copyTextOf(undefined)).toBe("unknown");
   });
 });
 

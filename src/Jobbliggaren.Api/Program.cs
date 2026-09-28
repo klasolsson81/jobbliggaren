@@ -268,6 +268,15 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 404;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
+    catch (ConcurrencyConflictException)
+    {
+        // ADR 0146 — a replayed command lost every attempt to a concurrent write and committed
+        // nothing. The body is fixed: no exception text, no entity value.
+        await Results.Problem(
+            detail: "Uppgifterna ändrades samtidigt. Försök igen.",
+            title: "Concurrency.Conflict",
+            statusCode: StatusCodes.Status409Conflict).ExecuteAsync(ctx);
+    }
     catch (DomainException ex)
     {
         // Invariant-brott i Domain-lagret — t.ex. EF-rehydrering ger aggregate i

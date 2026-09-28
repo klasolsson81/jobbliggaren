@@ -77,7 +77,7 @@ Vid tvekan: kör loopen — den är billig.
 | Nivå | Sidor | Verifiering |
 |------|-------|-------------|
 | Publika | `/`, `/logga-in`, `/logga-in/lank`, `/vantelista` | Alltid i batchen (ingen backend krävs) |
-| Auth-gated | `/jobb`, `/ansokningar`, `/cv`, `/mina-sidor`, `/admin/granskning`, `/sokningar`, `/sokningar/[id]` | Verifieras mot en **lokal Development-stack** via `visual-verify.ts` **auth-läge** (opt-in), eller live av Klas efter deploy. Går inget av dem i sessionen: noteras i STOPP-rapporten som "visuell verifiering pending" om batchen rör en auth-gated yta. |
+| Auth-gated | `/jobb`, `/ansokningar`, `/cv`, `/mina-sidor` (+ `/notiser`, `/konto`, `/sekretess`), `/admin/granskning`, `/sokningar`, `/sokningar/[id]` | Verifieras mot en **lokal Development-stack** via `visual-verify.ts` **auth-läge** (opt-in), eller live av Klas efter deploy. Går inget av dem i sessionen: noteras i STOPP-rapporten som "visuell verifiering pending" om batchen rör en auth-gated yta. |
 
 Mock-session används **inte** — det verifierar inte sann render (tomma
 data-states, layout-skew från riktig data missas). Ingen Docker-up tvingas i

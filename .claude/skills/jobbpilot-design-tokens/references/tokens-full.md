@@ -148,7 +148,6 @@ Gradient-ytor (`.jp-hero__plate`, `.jp-pagehero`, `.jp-land-hero`) scopar
 
 | Token | Light | Dark | Note |
 |---|---|---|---|
-| `--jp-shadow-card` | `0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04)` | `0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.4)` | Kort |
 | `--jp-shadow-pop` | `0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08)` | `0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)` | Popover/dropdown |
 | `--jp-shadow-modal` | `0 30px 80px rgba(8,23,48,0.35)` | `0 30px 80px rgba(0,0,0,0.7)` | Modal/drawer |
 

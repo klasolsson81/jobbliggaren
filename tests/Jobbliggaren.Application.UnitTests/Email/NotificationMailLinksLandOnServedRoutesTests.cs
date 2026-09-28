@@ -12,8 +12,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// app serves.
 ///
 /// <para>
-/// The mails carry the Art. 7(3) withdrawal link, <c>{baseUrl}/mina-sidor</c>. The template tests pin that
-/// literal and the web app pins its own routes, but nothing joined the two: renaming the page would break the
+/// The mails carry the Art. 7(3) withdrawal link, <c>{baseUrl}/mina-sidor/notiser</c>. The template tests pin
+/// that literal and the web app pins its own routes, but nothing joined the two: renaming the page would break the
 /// withdrawal link in every mail sent afterwards, with every suite green. The web app's route guard reads
 /// only its own <c>src/</c>, so it cannot see this producer. Same move as
 /// <see cref="ContactAddressMatchesPublishedContactTests"/>: a C# test reads the web app's files.
@@ -54,6 +54,22 @@ public class NotificationMailLinksLandOnServedRoutesTests
                 + "serves that path. A mail already sent keeps its link, so a renamed page needs a permanent "
                 + "redirect as well as the new link.");
         }
+    }
+
+    /// <summary>
+    /// The test above follows only the link the templates build today, so once the link moves, nothing
+    /// else holds the old path (security-auditor, #1891 row 14).
+    /// </summary>
+    public static TheoryData<string> PathsSentMailsCarry => new() { "/mina-sidor", "/mina-sidor/notiser" };
+
+    [Theory]
+    [MemberData(nameof(PathsSentMailsCarry))]
+    public void EveryPathASentMailCarries_StaysAPageTheWebAppServes(string path)
+    {
+        ServedAppRoutes().ShouldContain(
+            path,
+            $"Mails already sent link to {BaseUrl}{path}, and no page.tsx under "
+            + "web/jobbliggaren-web/src/app/(app)/ serves that path.");
     }
 
     /// <summary>

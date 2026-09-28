@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 
@@ -27,4 +28,5 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetLastSeenFollowedAd
 /// <c>MarkMatchesSeenCommand.SeenThrough</c>). A future-dated value is clamped to now by the
 /// aggregate.
 /// </param>
-public sealed record SetLastSeenFollowedAdsCommand(DateTimeOffset? SeenThrough) : ICommand<Result>;
+public sealed record SetLastSeenFollowedAdsCommand(DateTimeOffset? SeenThrough)
+    : ICommand<Result>, IReplayOnConcurrencyConflict;

@@ -508,7 +508,6 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `Authorization: Bearer <sessionId>` för alla skyddade endpoints (opakt session-id, INTE en JWT — se §11.2; truth-sync #569/#827)
 - Pagination: `?page=1&pageSize=20`, response wrappar med `{ items, page, pageSize, totalCount }`
 - Error response: Problem Details (RFC 7807), alltid `application/problem+json`
-- ETag + If-Match för optimistic concurrency på aggregate-updates
 - `X-Correlation-Id` header propageras genom alla lager
 
 ### 6.2 Endpoints (grupperade per kontext)
@@ -1167,7 +1166,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 (Klas-beslut 2026-08-22, nedskrivet 2026-08-28: *"Allt på sidan måste översättas just nu
 till både svenska och engelska. Appen riktar sig till Sverige och svenska arbetsmarknaden,
 men alla kanske inte förstår svenska."*). `en` är nåbar för varje inloggad användare —
-`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i `/mina-sidor` —
+`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i `/mina-sidor/konto` —
 så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hypotes.
 
 - **Svenska är standardspråket** (`defaultLocale`) och tonen sätts på svenska; engelskan är

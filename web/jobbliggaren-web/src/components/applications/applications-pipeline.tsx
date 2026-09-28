@@ -161,7 +161,7 @@ export function ApplicationsPipeline({
   return (
     // #630 PR 7: providern äger mutations-plumbingen (transition + toast +
     // dialogerna som EN instans vardera) för radknappar, statusmeny och
-    // kökortens CTA (CTO-bind: server-recompute via revalidatePath, ingen
+    // köradernas CTA (CTO-bind: server-recompute via revalidatePath, ingen
     // optimistisk grupp-flytt).
     <ApplicationActionsProvider>
       <AttentionQueue groups={groups} now={now} />
@@ -173,10 +173,11 @@ export function ApplicationsPipeline({
           </h2>
           {/* I Tavla bär boardets egen verktygsrad antalet ("N ansökningar ·
               N aktiva") — undvik dubbelräkning i rubriken. */}
-          {/* #805 punkt 2: inline "(N)" intill rubriken — samma form som
-              status-sektionerna och Tavla-kolumnerna (3-vy-konsekvens). */}
+          {/* #805 punkt 2: antalet inline intill rubriken, utan parentes som
+              "Kräver åtgärd 6" (#1827) — samma form som status-sektionerna och
+              Tavla-kolumnerna (3-vy-konsekvens). */}
           {view === "lista" && (
-            <span className="jp-section__count">({shownTotal})</span>
+            <span className="jp-section__count">{shownTotal}</span>
           )}
         </div>
 
@@ -214,7 +215,9 @@ export function ApplicationsPipeline({
             />
 
             {sections.length === 0 ? (
-              <div className="jp-allapps__empty">{tUi("all.noResults")}</div>
+              <p className="jp-allapps__empty" role="status">
+                {tUi("table.empty")}
+              </p>
             ) : (
               sections.map((section) => (
                 <Fragment key={section.status}>

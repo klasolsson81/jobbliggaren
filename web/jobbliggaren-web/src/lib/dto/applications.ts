@@ -63,22 +63,28 @@ export const jobAdSummaryDtoSchema = z.object({
 });
 export type JobAdSummaryDto = z.infer<typeof jobAdSummaryDtoSchema>;
 
-export const applicationDtoSchema = z.object({
+// The fields both read models send (C# `ApplicationDto` and `ApplicationDetailDto`). The list
+// and the detail each extend it with their own, so neither schema carries a field its wire
+// shape never has.
+const applicationCoreSchema = z.object({
   id: z.string(),
   jobSeekerId: z.string(),
   jobAdId: z.string().nullable(),
   status: applicationStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
-  // #336: ansökningsdatum (Application.AppliedAt). null för Draft (aldrig
-  // skickad). Driver den relativa "Skickad för X dagar sedan"-taggen. nullable
-  // + optional: optional ger deploy-skew-resiliens (FE deploy:ad före BE → äldre
-  // svar utan fältet kraschar ej parse — samma intent som jobAd nedan).
-  appliedAt: z.string().nullable().optional(),
   // nullable + optional: backend skickar alltid jobAd (null|objekt), men
   // optional ger deploy-skew-resiliens (cachead/äldre svar utan fältet
   // kraschar ej parse — architect §6 deploy-säkerhets-intent).
   jobAd: jobAdSummaryDtoSchema.nullable().optional(),
+});
+
+export const applicationDtoSchema = applicationCoreSchema.extend({
+  // #336: ansökningsdatum (Application.AppliedAt). null för Draft (aldrig
+  // skickad). Driver den relativa "Skickad för X dagar sedan"-taggen. nullable
+  // + optional: optional ger deploy-skew-resiliens (FE deploy:ad före BE → äldre
+  // svar utan fältet kraschar ej parse — samma intent som jobAd).
+  appliedAt: z.string().nullable().optional(),
   // #630 PR 7 (design §5/§11): backend-list-DTO:n har burit dessa scalars sedan
   // PR 3 — FE-schemat släpper nu igenom dem för radens "N dagar i steget" och
   // den effektiva väntetids-taggen ("N dgr utan svar", ADR 0092 D5-klockan).
@@ -180,7 +186,7 @@ export const adSnapshotDtoSchema = z.object({
 });
 export type AdSnapshotDto = z.infer<typeof adSnapshotDtoSchema>;
 
-export const applicationDetailDtoSchema = applicationDtoSchema.extend({
+export const applicationDetailDtoSchema = applicationCoreSchema.extend({
   coverLetter: z.string().nullable(),
   followUps: z.array(followUpDtoSchema),
   notes: z.array(noteDtoSchema),

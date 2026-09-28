@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteAccountAction } from "@/lib/actions/me";
 import { comparableAddress } from "@/lib/auth/comparable-address";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 export function DeleteAccountDialog({
   currentEmail,
@@ -64,6 +65,7 @@ export function DeleteAccountDialog({
       pendingLabel={ts("account.delete.deleting")}
       cancelLabel={ts("account.delete.cancel")}
       variant="destructive"
+      returnPath={MINA_SIDOR_HREF.sekretess}
       requestFields={
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={fieldId}>{ts("account.delete.confirmEmailLabel")}</Label>

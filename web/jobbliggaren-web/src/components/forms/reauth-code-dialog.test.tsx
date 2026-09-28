@@ -44,6 +44,7 @@ function Harness({
         confirmLabel="Utför"
         pendingLabel="Utför…"
         cancelLabel="Avbryt"
+        returnPath="/sida"
         action={(proof) => operation(proof)}
         onHandOff={onHandOff}
         focusAfterHandOff={() => target.current?.focus()}
@@ -147,7 +148,7 @@ describe("ReAuthCodeDialog", () => {
     expect(panel).toHaveTextContent("Du är inte inloggad längre. Logga in igen och börja om.");
     expect(within(panel).getByRole("link", { name: "Logga in" })).toHaveAttribute(
       "href",
-      "/logga-in?next=/mina-sidor"
+      "/logga-in?next=/sida"
     );
     await waitFor(() => expect(panel).toHaveFocus());
   });

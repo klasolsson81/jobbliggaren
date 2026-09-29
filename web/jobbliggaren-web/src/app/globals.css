@@ -3582,7 +3582,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-chip__edit::after {
   content: "";
   position: absolute;
+}
+.jp-chip__remove::after {
   inset: -4px;
+}
+/* ✎ står före ⨯ med chippens 6px-gap emellan: de delar gapet på mitten, så ingen tar den andras yta. */
+.jp-chip__edit::after {
+  inset: -4px -3px -4px -5px;
+}
+.jp-chip__edit + .jp-chip__remove::after {
+  inset: -4px -5px -4px -3px;
 }
 @media (max-width: 768px) {
   .jp-chip__remove,
@@ -3591,9 +3600,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
     height: 32px;
     padding: 9px;
   }
-  .jp-chip__remove::after,
-  .jp-chip__edit::after {
+  .jp-chip__remove::after {
     inset: -6px;
+  }
+  .jp-chip__edit::after {
+    inset: -6px -3px -6px -9px;
+  }
+  .jp-chip__edit + .jp-chip__remove::after {
+    inset: -6px -9px -6px -3px;
   }
 }
 /* En wrappande chip-rad (8px gap), nollställd <ul>. */

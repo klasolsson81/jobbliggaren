@@ -71,6 +71,15 @@ describe("globals.css — the chip's remove and edit buttons reach the house hit
     expect(declared(button, "position")).toEqual(["relative"]);
     expect(declared(`${button}::after`, "content")).toEqual(['""']);
     expect(declared(`${button}::after`, "position")).toEqual(["absolute"]);
-    expect(declared(`${button}::after`, "inset")).toEqual(["-4px", "-6px"]);
+  });
+
+  it("grows ⨯ by 4px (6px at ≤768) and splits the chip's gap between ✎ and ⨯ down the middle", () => {
+    expect(declared(".jp-chip", "gap")).toEqual(["6px"]);
+    expect(declared(".jp-chip__remove::after", "inset")).toEqual(["-4px", "-6px"]);
+    expect(declared(".jp-chip__edit::after", "inset")).toEqual(["-4px -3px -4px -5px", "-6px -3px -6px -9px"]);
+    expect(declared(".jp-chip__edit + .jp-chip__remove::after", "inset")).toEqual([
+      "-4px -5px -4px -3px",
+      "-6px -9px -6px -3px",
+    ]);
   });
 });

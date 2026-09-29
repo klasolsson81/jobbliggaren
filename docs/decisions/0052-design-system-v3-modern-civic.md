@@ -265,3 +265,69 @@ No CSS change either way: the code ships 6px today and stays there until #1103 r
 - `docs/reviews/2026-07-27-control-heights-cto.md` — full CTO reasoning, rejected alternatives, trade-offs accepted.
 - `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (line 208–220), §5.2 (line 222–229), §1 (line 60).
 - `docs/decisions/README.md` — index summary lines for ADR 0038 and ADR 0052 updated in the same PR (an instruction left in an ADR is an instruction nobody runs).
+
+---
+
+## Amendment 2026-09-29 (#1914) — a chip-only radius token, `--jp-r-chip` (19px), inside the pill exception
+
+**Datum:** 2026-09-29
+**Källa:** Klas Olsson's answer of 2026-09-29 (AskUserQuestion, with both variants open live in the browser pane, `/foretag/sok` at 320px); design-reviewer's Major 3 on PR #1923 (`docs/reviews/2026-09-29-1923-design-reviewer.md`, gitignored); senior-cto-advisor's routing of that finding (`docs/reviews/2026-09-29-1923-cto.md`, gitignored). The measurements are carried below; the two reports are local, so this record does not depend on them.
+**Trigger:** Issue #1914, PR #1923. The PR makes a long chip label wrap inside the chip instead of overflowing its container. A chip that wraps keeps `--jp-r-pill`, and the pill's curve reaches the text. The fix is a radius above `--jp-r-lg`, and the 2026-07-26 amendment above states the canon as "4 / 6 / 8 / pill" and radii above 8px as "forbidden outright", so without this amendment the ADR contradicts the token.
+**Beslutsfattare:** Klas Olsson (answer (a)); design-reviewer (the finding and the value); senior-cto-advisor (placement).
+**Status:** Accepted. Additive — Beslut 4's table and the 2026-07-26 amendment are left as written (ADR immutability); this amendment adds one chip-scoped token and places it under the pill exception. No status change, no supersede.
+
+### The decision
+
+The question put to Klas, verbatim: *"Får en chip som bryts över flera rader få 19 px-hörn, som en ny radie under pill-undantaget i DESIGN.md §5, i stället för att bli en allt rundare kapsel?"* Option (a) read *"Ja, med token i DESIGN.md §5 och tokens-skillen"*; option (b) read *"Kapseln behålls, och texten når ramen från tre rader"*. Klas answered *"(a) Ja, 19 px (Rekommenderat)"*.
+
+The radius canon gains one token, `--jp-r-chip: 19px`, defined in `:root` beside `--jp-r-pill` in `web/jobbliggaren-web/src/app/globals.css` and used only by `.jp-chip`. 19px is half the height of the tallest single-line chip: 38px at ≤768, where the remove/edit button is 32px. CSS scales a radius down to half the box height, so a single-line chip still draws an exact pill (effective radius measured 14.1 / 15 / 19px at chip heights 28 / 30 / 38px), while a chip that wraps keeps 19px corners instead of becoming an ever-rounder capsule.
+
+The name is chip-scoped on purpose and is never a scale step. `--jp-r-xl` was removed by the 2026-07-26 amendment and stays removed; a general step above `--jp-r-lg` would open radii over 8px to every surface.
+
+### Why the pill radius fails on a wrapped chip
+
+With `--jp-r-pill` a chip's radius is half its height, so it grows with every wrapped line: 32px at three lines, 41px at four. design-reviewer estimated, from the glyph box, the clearance between the first glyph on the first and last line and the inside of the border:
+
+| Lines | Clearance, first / last line |
+|---|---|
+| 2 | +4.8 / +3.2 px |
+| 3 | −0.4 / −2.6 px |
+| 4 | −6.3 / −8.9 px (`/foretag/sok` at 320px, SNI 46141 / 95400) |
+
+From three lines the curve reaches the text; at four it cuts glyphs. With 19px injected, every two-to-four-line case kept at least 5.6px.
+
+### Alternatives considered
+
+- **(b) Keep the capsule.** Offered to Klas beside (a). Not chosen: the capsule stays and the text reaches the border from three lines (the table above).
+- **A general scale step above `--jp-r-lg`** (an `--jp-r-xl`-style rung). Ruled out in senior-cto-advisor's routing when the token was named: it would open radii over 8px to every surface.
+
+### Placement
+
+In-block in PR #1923, by the Common Closure Principle (Martin, *Clean Architecture*, 2017, ch. 13, as senior-cto-advisor cites it): the wrapping and the token change for the same reason, so they ship and revert together. A token in a PR of its own would either be dead or leave the capsule in place.
+
+### What stays true
+
+- The canon "4 / 6 / 8 / pill" stands for every other surface, and radii above `--jp-r-lg` stay forbidden.
+- `--jp-r-chip` sits inside the pill exception, the way `.jp-chip`'s pill radius already did (Beslut 4's table: pill, 9999, "pills/badges"). AGENTS.md §5, "radius > 8px except pills/badges", already covers it and is not changed.
+- Read with this amendment, the 2026-07-26 sentence "radii above 8px are forbidden outright" leaves the pill exception standing, and `--jp-r-chip` is inside it.
+
+### Consequences
+
+**Positive**
+
+- A wrapped chip keeps its corners: with 19px injected, every two-to-four-line case kept at least 5.6px of clearance, against −0.4 to −8.9px at three and four lines with the pill radius.
+- A single-line chip is unchanged: it still draws an exact pill (measured above).
+- The ADR, DESIGN.md §5, the tokens skill and `globals.css` now state the same token.
+
+**Negative**
+
+- A component-bound token now sits beside a size scale. senior-cto-advisor accepted that as honest, because the value is derived from the chip's geometry rather than chosen.
+- The value rests on that geometry: half of 38px, the tallest single-line chip at ≤768. senior-cto-advisor's condition for the separate change that extends the remove/edit buttons' hit area (Blocker 2 of the same review): the button box stays 24/32px and only its `::after` grows, which is also what keeps 19px at half the height of the tallest single-line chip.
+
+### Cross-reference
+
+- `DESIGN.md` §5 (the border-radius line) and `.claude/skills/jobbpilot-design-tokens/` (`SKILL.md`, `references/tokens-full.md`, `references/theme-block.md`) — updated in the same PR to carry the token.
+- `web/jobbliggaren-web/src/app/globals.css` — `--jp-r-chip` in `:root`; `.jp-chip` is its only consumer.
+- `AGENTS.md` §5 — unchanged; its "radius > 8px except pills/badges" already covers the token.
+- `docs/reviews/2026-09-29-1923-design-reviewer.md` (Major 3) and `docs/reviews/2026-09-29-1923-cto.md` — gitignored; the measurements and the routing are carried above.
+- `docs/decisions/README.md` — the ADR 0052 index line updated in the same PR.

@@ -22,7 +22,7 @@ interface PreferenceChipProps {
 
 /**
  * En borttagbar preferens-chip (.jp-chip--removable) — modern-civic RE-BIND
- * 2026-06-20 §1.4. Innehållsnamn (mixed-case 13px), outline, pill-radie. Den
+ * 2026-06-20 §1.4. Innehållsnamn (mixed-case 13px), outline. Den
  * enda interaktiva delen är ⨯-knappen (ett riktigt `<button>` med aria-label);
  * själva chip-texten är inte fokuserbar (ingen tvetydig "vad gör klick på
  * chippen"). Ref vidarebefordras till ⨯-knappen så ägaren kan flytta fokus
@@ -33,7 +33,7 @@ export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>
     const t = useTranslations("settings");
     return (
       <span className="jp-chip jp-chip--removable">
-        <span className="jp-chip__label" title={label}>
+        <span className="jp-chip__label">
           {label}
         </span>
         <button

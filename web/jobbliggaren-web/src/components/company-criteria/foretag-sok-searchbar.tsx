@@ -918,7 +918,7 @@ export function ForetagSokSearchbar({
                   branschChips.map((chip, index) => (
                     <li key={chip.key}>
                       <span className="jp-chip jp-chip--removable">
-                        <span className="jp-chip__label" title={chip.name}>
+                        <span className="jp-chip__label">
                           {chip.name}
                         </span>
                         <button
@@ -955,7 +955,7 @@ export function ForetagSokSearchbar({
                   return (
                     <li key={code}>
                       <span className="jp-chip jp-chip--removable">
-                        <span className="jp-chip__label" title={name}>
+                        <span className="jp-chip__label">
                           {name}
                         </span>
                         <button

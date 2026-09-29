@@ -92,7 +92,7 @@ names, not class sets.
 
   /* Radius (ADR 0052: 6 rad/kort, 4 inputs, 8 modal) */
   --jp-r-sm:4px; --jp-r-md:6px; --jp-r-lg:8px;
-  --jp-r-pill:9999px;
+  --jp-r-pill:9999px; --jp-r-chip:19px;
 
   /* Typography — families from next/font (--font-sans/--font-mono) */
   --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont,

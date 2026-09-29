@@ -41,7 +41,7 @@ description: >
    `border-border-default`, not `bg-white`, `text-black`, `bg-slate-50`
 4. **Radius per ADR 0052:** 6px default (knappar, kort, rader), 4px inputs/
    checkboxar, 8px modal. F4-hero-plattan är 6px (`--jp-r-md`, ADR 0068);
-   Pills/badges = `rounded-pill`
+   Pills/badges = `rounded-pill`; `.jp-chip` = `--jp-r-chip`
 5. **Gradient-undantaget (ADR 0068):** `--jp-hero-gradient` får ENBART användas
    på hero-plattan (`.jp-hero__plate`), `.jp-pagehero` och `.jp-land-hero`.
    Gradients är förbjudna överallt annars, utom inuti leverantörsmärket (DESIGN.md §3) — civic-utility-regeln gäller
@@ -275,9 +275,10 @@ Use Tailwind spacing utilities — all values are multiples of 4px:
 | `rounded-md` | `--jp-r-md` | 6px | **DEFAULT** — knappar, kort, rader, popovers |
 | `rounded-lg` | `--jp-r-lg` | 8px | Modal, större paneler |
 | `rounded-pill` | `--jp-r-pill` | 9999px | Status dots, pills, avatar |
+| — | `--jp-r-chip` | 19px | Endast `.jp-chip`: exakt pill på en rad, hörn när den radbryts (#1914, ADR 0052) |
 
 ADR 0052-regeln: 6px rad/kort-default, 4px inputs, 8px modal. Radier > 8px
-är förbjudna — hero-plattan är 6px (`--jp-r-md`) sedan ADR 0068, och det
+är förbjudna utom pill-undantaget (`--jp-r-pill`, samt `--jp-r-chip` enbart för `.jp-chip`) — hero-plattan är 6px (`--jp-r-md`) sedan ADR 0068, och det
 12px-steg ADR 0052 reserverade för den hade noll konsumenter och togs bort i
 #1054.
 

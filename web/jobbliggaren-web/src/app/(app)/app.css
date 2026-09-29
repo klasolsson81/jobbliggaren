@@ -1019,7 +1019,6 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   gap: 10px;
 }
 .jp-wizard--rail .jp-occexp__row {
-  flex-wrap: nowrap;
   padding: 12px 14px;
   gap: 12px;
   background: var(--jp-surface);
@@ -1031,6 +1030,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 }
 .jp-wizard--rail .jp-occexp__chip {
   display: flex;
+  flex: 1 1 16rem;
   align-items: center;
   gap: 10px;
 }
@@ -1638,7 +1638,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   min-width: 0;
   max-width: 100%;
 }
-/* Chippet ÄRVER .jp-chip:s civic-form (outline, pill-radie, caption, mixed-case) men är en
+/* Chippet ÄRVER .jp-chip:s civic-form (outline, caption, mixed-case) men är en
    riktig <button> — en yta som LÄGGER TILL något ska se klickbar ut, inte som en läs-
    etikett. Därför vit yta + --jp-border-input (den INTERAKTIVA kant-tokenen, samma som
    .jp-btn--secondary 40px längre ned) i stället för den dekorativa --jp-border, som bara

@@ -703,8 +703,10 @@ is the M-7 flip, and opening it makes `security-auditor`'s Major 2 under Amendme
 
 The same shape as GitHub's above. Three things differ. LinkedIn's `email_verified` binds a login in one
 click by Klas's decision over `security-auditor`'s M-1 (LinkedIn), which stands (ADR 0142 Amendment
-(20)). Its web flow takes no PKCE, so the flow's challenge travels as the OIDC `nonce` and comes back in
-the id_token. And its subject ids are pairwise: each app gives a member a different one.
+(20)). Its web flow takes no PKCE, and LinkedIn echoes no nonce (measured on the box, 2026-09-29), so
+nothing binds the code to the flow: the state cookie binds the flow to the browser, and code injection is a
+declared residual (ADR 0142 Amendment (21)). And its subject ids are pairwise: each app gives a member a
+different one.
 
 **Before the keys.** Each condition is read on the day, never inherited, and Chapter V comes first:
 
@@ -751,8 +753,8 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
 - `public.job_seekers` rows carrying the new `privacy_policy_version`;
 - the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
 - the web start: a 302 to `https://www.linkedin.com/oauth/v2/authorization` with exactly
-  `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email`,
-  `state` and `nonce`, and no `code_challenge`; and the flow cookie's attributes;
+  `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email` and
+  `state`, and neither `nonce` nor `code_challenge`; and the flow cookie's attributes;
 - the Chapter V readings above, and the app's registered redirect URLs.
 
 If the reading does not show `linkedin`, both `.env` lines are removed and api is re-created.
@@ -763,10 +765,10 @@ no code is sent. If an account holds that address, the callback signs in and lin
 `login_succeeded … Method=LinkedIn`, one `User.ExternalLoginLinked` row and one `linkedin` row in
 `AspNetUserLogins`. If no account holds the address, the callback answers "registration closed" while
 registration is shut, and registration is never opened for this. The first login also measures what
-the build could not: that LinkedIn echoes the nonce, the form of `email_verified`, and that `sub` and
-`email` arrive under `openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
+the build could not: the form of `email_verified`, and that `sub` and `email` arrive under
+`openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
 
-**If the first login fails on one of those.** EventId 1022 with `NonceAbsent`, `IdTokenSubjectUnusable`,
+**If the first login fails on one of those.** EventId 1022 with `IdTokenSubjectUnusable`,
 `SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent`, `FlagAbsent`, `FlagIsString` or
 `FlagNotBoolean`: deactivate at once, and keep the keys out until the follow-up PR has merged. An active
 row that never works is not left standing. Any other refusal at the first login: deactivate, and file

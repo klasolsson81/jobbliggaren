@@ -32,6 +32,9 @@ function declared(selector: string, property: string): string[] {
   );
 }
 
+/** Whether `value` names `keyword` as one of its words, with or without `!important`. */
+const names = (value: string, keyword: string) => value.split(/[ !]+/).includes(keyword);
+
 describe("globals.css — the chip list keeps a long chip inside its container (#1914)", () => {
   it("reads rules nested in an at-rule, not only those in column 0", () => {
     expect(declared(".jp-chip__remove", "width").length).toBeGreaterThan(1);
@@ -48,15 +51,15 @@ describe("globals.css — the chip list keeps a long chip inside its container (
     const wraps = declared(".jp-chip__label", "overflow-wrap");
     expect(wraps.length).toBeGreaterThan(0);
     expect(wraps.every((v) => v === "anywhere"), wraps.join(" | ")).toBe(true);
-    expect(declared(".jp-chip__label", "text-overflow")).not.toContain("ellipsis");
+    expect(declared(".jp-chip__label", "text-overflow").filter((v) => names(v, "ellipsis"))).toEqual([]);
   });
 
   it.each([".jp-chiplist", ".jp-chiplist > li", ".jp-chip", ".jp-chip--removable", ".jp-chip__label"])(
     "never stops the label wrapping from %s",
     (selector) => {
-      expect(declared(selector, "white-space").filter((v) => /^(nowrap|pre)\b/.test(v))).toEqual([]);
-      expect(declared(selector, "text-wrap")).not.toContain("nowrap");
-      expect(declared(selector, "text-wrap-mode")).not.toContain("nowrap");
+      expect(declared(selector, "white-space").filter((v) => names(v, "nowrap") || names(v, "pre"))).toEqual([]);
+      expect(declared(selector, "text-wrap").filter((v) => names(v, "nowrap"))).toEqual([]);
+      expect(declared(selector, "text-wrap-mode").filter((v) => names(v, "nowrap"))).toEqual([]);
     },
   );
 });

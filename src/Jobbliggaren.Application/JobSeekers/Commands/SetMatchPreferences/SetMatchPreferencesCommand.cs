@@ -30,8 +30,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 /// the per-occupation experience overlay — ~years stated for a preferred occupation group.
 /// A SPARSE overlay: an entry may exist only for a concept-id that is also in
 /// <see cref="PreferredOccupationGroups"/> (the subset invariant, enforced in
-/// <c>MatchPreferences.Create</c>), and not every group needs one. <see cref="ExperienceYears"/>
-/// is the legacy profile-level scalar this supersedes; both remain on the wire (additive).
+/// <c>MatchPreferences.Create</c>), and not every group needs one.
 /// Full-replace like every other dimension — omit ⇒ clear.
 /// </para>
 /// </summary>
@@ -48,12 +47,3 @@ public sealed record SetMatchPreferencesCommand(
     // never the scorer (ADR 0079 never-grade-coupled, F1).
     bool PreferredRemote = false)
     : ICommand<Result>, IAuthenticatedRequest, IReplayOnConcurrencyConflict;
-
-/// <summary>
-/// Wire-shape for one per-occupation experience overlay entry (ADR 0079-amendment). An
-/// Application input record (not the Domain <c>OccupationExperience</c> VO — the Domain type
-/// never crosses the API boundary, CLAUDE.md §2.3); the handler maps it to the VO so
-/// <c>MatchPreferences.Create</c> enforces the cap/format/distinct/range/subset invariants.
-/// <see cref="Years"/> is nullable: null = "not stated".
-/// </summary>
-public sealed record OccupationExperienceInput(string ConceptId, int? Years);

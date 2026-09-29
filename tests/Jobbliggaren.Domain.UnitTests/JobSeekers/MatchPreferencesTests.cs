@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Reflection;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.SavedSearches;
@@ -1008,5 +1010,277 @@ public class MatchPreferencesTests
 
         withRemote.ShouldNotBe(withoutRemote);
         withRemote.GetHashCode().ShouldNotBe(withoutRemote.GetHashCode());
+    }
+
+    // ===============================================================
+    // #1918 — the per-part write. A With* replaces its own part whole and
+    // moves nothing outside it; normalisation and the caps still apply.
+    // ===============================================================
+
+    public enum Part { Occupations, Skills, Locations, EmploymentTypes, Experience }
+
+    public enum ConceptList { OccupationGroups, Skills, Regions, Municipalities, EmploymentTypes }
+
+    private static readonly Dictionary<Part, string[]> OwnedBy = new()
+    {
+        [Part.Occupations] =
+        [
+            nameof(MatchPreferences.PreferredOccupationGroups),
+            nameof(MatchPreferences.PreferredOccupationExperience),
+        ],
+        [Part.Skills] = [nameof(MatchPreferences.PreferredSkills)],
+        [Part.Locations] =
+        [
+            nameof(MatchPreferences.PreferredRegions),
+            nameof(MatchPreferences.PreferredMunicipalities),
+            nameof(MatchPreferences.PreferredRemote),
+        ],
+        [Part.EmploymentTypes] = [nameof(MatchPreferences.PreferredEmploymentTypes)],
+        [Part.Experience] = [nameof(MatchPreferences.ExperienceYears)],
+    };
+
+    // What ReplacePart writes. Every value differs from AllEightSet's, so a With* that hands back
+    // its receiver fails on the dimension it owns.
+    private static readonly Dictionary<string, object?[]> Written = new()
+    {
+        [nameof(MatchPreferences.PreferredOccupationGroups)] = ["grp_c"],
+        [nameof(MatchPreferences.PreferredOccupationExperience)] = [new OccupationExperience("grp_c", 2)],
+        [nameof(MatchPreferences.PreferredSkills)] = ["sk_z"],
+        [nameof(MatchPreferences.PreferredRegions)] = ["reg_z"],
+        [nameof(MatchPreferences.PreferredMunicipalities)] = ["kn_z"],
+        [nameof(MatchPreferences.PreferredRemote)] = [false],
+        [nameof(MatchPreferences.PreferredEmploymentTypes)] = ["et_z"],
+        [nameof(MatchPreferences.ExperienceYears)] = [12],
+    };
+
+    // Every field away from its default: a With* that hands Create a default instead of the
+    // receiver's value for a dimension it does not own shows up as that dimension moving.
+    private static MatchPreferences AllEightSet() =>
+        Create(
+            preferredOccupationGroups: ["grp_a", "grp_b"],
+            preferredRegions: ["reg_a"],
+            preferredEmploymentTypes: ["et_a"],
+            preferredMunicipalities: ["kn_a"],
+            preferredSkills: ["sk_a", "sk_b"],
+            experienceYears: 7,
+            preferredOccupationExperience:
+            [
+                new OccupationExperience("grp_a", 4),
+                new OccupationExperience("grp_b", 9),
+            ],
+            preferredRemote: true).Value;
+
+    private static Result<MatchPreferences> ReplacePart(MatchPreferences prefs, Part part) => part switch
+    {
+        Part.Occupations => prefs.WithOccupations(["grp_c"], [new OccupationExperience("grp_c", 2)]),
+        Part.Skills => prefs.WithSkills(["sk_z"]),
+        Part.Locations => prefs.WithLocations(["reg_z"], ["kn_z"], false),
+        Part.EmploymentTypes => prefs.WithEmploymentTypes(["et_z"]),
+        Part.Experience => prefs.WithExperienceYears(12),
+        _ => throw new ArgumentOutOfRangeException(nameof(part), part, null),
+    };
+
+    // A list dimension as its elements, a scalar as a one-element sequence.
+    private static object?[] ValuesOf(MatchPreferences prefs, PropertyInfo dimension) =>
+        dimension.GetValue(prefs) is IEnumerable sequence and not string
+            ? [.. sequence.Cast<object?>()]
+            : [dimension.GetValue(prefs)];
+
+    private static Result<MatchPreferences> WithList(
+        MatchPreferences prefs, ConceptList list, IEnumerable<string> ids) => list switch
+        {
+            ConceptList.OccupationGroups => prefs.WithOccupations(ids),
+            ConceptList.Skills => prefs.WithSkills(ids),
+            ConceptList.Regions => prefs.WithLocations(ids, prefs.PreferredMunicipalities, prefs.PreferredRemote),
+            ConceptList.Municipalities => prefs.WithLocations(prefs.PreferredRegions, ids, prefs.PreferredRemote),
+            ConceptList.EmploymentTypes => prefs.WithEmploymentTypes(ids),
+            _ => throw new ArgumentOutOfRangeException(nameof(list), list, null),
+        };
+
+    private static IReadOnlyList<string> Read(MatchPreferences prefs, ConceptList list) => list switch
+    {
+        ConceptList.OccupationGroups => prefs.PreferredOccupationGroups,
+        ConceptList.Skills => prefs.PreferredSkills,
+        ConceptList.Regions => prefs.PreferredRegions,
+        ConceptList.Municipalities => prefs.PreferredMunicipalities,
+        ConceptList.EmploymentTypes => prefs.PreferredEmploymentTypes,
+        _ => throw new ArgumentOutOfRangeException(nameof(list), list, null),
+    };
+
+    [Theory]
+    [InlineData(Part.Occupations)]
+    [InlineData(Part.Skills)]
+    [InlineData(Part.Locations)]
+    [InlineData(Part.EmploymentTypes)]
+    [InlineData(Part.Experience)]
+    public void With_ReplacesOnlyItsOwnPart_AndEveryOtherDimensionIsSequenceEqual(Part part)
+    {
+        var before = AllEightSet();
+
+        var result = ReplacePart(before, part);
+
+        result.IsSuccess.ShouldBeTrue();
+        var dimensions = typeof(MatchPreferences).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        dimensions.ShouldNotBeEmpty("the check measures nothing if MatchPreferences exposes no dimensions");
+        foreach (var dimension in dimensions)
+        {
+            var expected = OwnedBy[part].Contains(dimension.Name)
+                ? Written[dimension.Name]
+                : ValuesOf(before, dimension);
+            ValuesOf(result.Value, dimension).ShouldBe(
+                expected,
+                ignoreOrder: false,
+                customMessage: $"With{part} and {dimension.Name}");
+        }
+    }
+
+    [Fact]
+    public void WithOccupations_WithoutYears_KeepsTheYearsOfGroupsStillChosen_AndDropsTheRemovedOnes()
+    {
+        var result = AllEightSet().WithOccupations(["grp_a", "grp_c"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationGroups.ShouldBe(["grp_a", "grp_c"]);
+        result.Value.PreferredOccupationExperience.ShouldBe([new OccupationExperience("grp_a", 4)]);
+    }
+
+    // The kept years are filtered against the NORMALISED group list, so a kept group sent padded or
+    // twice still keeps its years.
+    [Fact]
+    public void WithOccupations_WithoutYears_KeepsTheYears_WhenAKeptGroupArrivesUnnormalised()
+    {
+        var result = AllEightSet().WithOccupations(["  grp_b ", " grp_b"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationGroups.ShouldBe(["grp_b"]);
+        result.Value.PreferredOccupationExperience.ShouldBe([new OccupationExperience("grp_b", 9)]);
+    }
+
+    [Fact]
+    public void WithOccupations_WithoutYears_DropsEveryYear_WhenNoGroupIsLeft()
+    {
+        var result = AllEightSet().WithOccupations([]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationGroups.ShouldBeEmpty();
+        result.Value.PreferredOccupationExperience.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void WithOccupations_WithAnEmptyYearsList_ClearsTheYears_AndKeepsTheGroups()
+    {
+        var result = AllEightSet().WithOccupations(["grp_a", "grp_b"], []);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationGroups.ShouldBe(["grp_a", "grp_b"]);
+        result.Value.PreferredOccupationExperience.ShouldBeEmpty();
+    }
+
+    // Present years replace the stored ones: grp_a stays chosen, but its stored 4 is not merged back.
+    [Fact]
+    public void WithOccupations_WithYears_ReplacesTheYears_EvenForAGroupThatStays()
+    {
+        var result = AllEightSet().WithOccupations(["grp_a", "grp_c"], [new OccupationExperience("grp_c", 2)]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredOccupationExperience.ShouldBe([new OccupationExperience("grp_c", 2)]);
+    }
+
+    // grp_b is chosen on the receiver but not in the new list: the subset rule reads the new groups.
+    [Fact]
+    public void WithOccupations_WithYearsForAGroupNotChosen_FailsOrphan()
+    {
+        var result = AllEightSet().WithOccupations(["grp_a"], [new OccupationExperience("grp_b", 3)]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.OrphanOccupationExperience");
+    }
+
+    // The theory turns remote off over a stored on; this is the other direction, so a remote argument
+    // ignored in favour of either constant fails one of the two.
+    [Fact]
+    public void WithLocations_WithRemoteOn_StoresIt_OverAStoredOff()
+    {
+        var off = Create(preferredRegions: ["reg_a"], preferredRemote: false).Value;
+
+        var result = off.WithLocations(["reg_a"], [], true);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredRemote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void WithExperienceYears_WithNull_ClearsTheYears()
+    {
+        var result = AllEightSet().WithExperienceYears(null);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ExperienceYears.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(MatchPreferences.MaxExperienceYears)]
+    public void WithExperienceYears_AtAnInclusiveBound_Succeeds(int years)
+    {
+        var result = AllEightSet().WithExperienceYears(years);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ExperienceYears.ShouldBe(years);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(MatchPreferences.MaxExperienceYears + 1)]
+    public void WithExperienceYears_OutsideTheRange_FailsOutOfRange(int years)
+    {
+        var result = AllEightSet().WithExperienceYears(years);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("MatchPreferences.ExperienceYearsOutOfRange");
+    }
+
+    [Theory]
+    [InlineData(ConceptList.OccupationGroups)]
+    [InlineData(ConceptList.Skills)]
+    [InlineData(ConceptList.Regions)]
+    [InlineData(ConceptList.Municipalities)]
+    [InlineData(ConceptList.EmploymentTypes)]
+    public void With_NormalisesTheList_TrimmedDistinctAndOrdinalSorted(ConceptList list)
+    {
+        var result = WithList(AllEightSet(), list, [" id_b ", "id_a", "id_b", "  "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        Read(result.Value, list).ShouldBe(["id_a", "id_b"]);
+    }
+
+    [Theory]
+    [InlineData(ConceptList.OccupationGroups, "MatchPreferences.TooManyOccupationGroups")]
+    [InlineData(ConceptList.Skills, "MatchPreferences.TooManySkills")]
+    [InlineData(ConceptList.Regions, "MatchPreferences.TooManyRegions")]
+    [InlineData(ConceptList.Municipalities, "MatchPreferences.TooManyMunicipalities")]
+    [InlineData(ConceptList.EmploymentTypes, "MatchPreferences.TooManyEmploymentTypes")]
+    public void With_OneOverTheCap_FailsWithTheListsOwnCode(ConceptList list, string code)
+    {
+        var overCap = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1).Select(i => $"id{i}");
+
+        var result = WithList(AllEightSet(), list, overCap);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(code);
+    }
+
+    [Theory]
+    [InlineData(ConceptList.OccupationGroups, "MatchPreferences.InvalidOccupationGroup")]
+    [InlineData(ConceptList.Skills, "MatchPreferences.InvalidSkill")]
+    [InlineData(ConceptList.Regions, "MatchPreferences.InvalidRegion")]
+    [InlineData(ConceptList.Municipalities, "MatchPreferences.InvalidMunicipality")]
+    [InlineData(ConceptList.EmploymentTypes, "MatchPreferences.InvalidEmploymentType")]
+    public void With_AnIdOutsideTheConceptIdFormat_FailsWithTheListsOwnCode(ConceptList list, string code)
+    {
+        var result = WithList(AllEightSet(), list, ["id_ok", "bad id!"]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(code);
     }
 }

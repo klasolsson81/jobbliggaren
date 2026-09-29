@@ -72,6 +72,8 @@ the handler re-derives everything from what it reads and has no side effect befo
 (`MeEndpoints.cs:129` commits; `:152-153` tears the session down). Withdrawal and grant share one
 marker and one cap.
 
+*(Pointer, 2026-09-29, #1918: from this date `UpdateMatchPreferencesCommand` (ADR 0147) is also a marked writer of the row. "Twelve" above is the count on 2026-09-27 and is not edited.)*
+
 **D4 — ADR 0009 amendment.** `IAppDbContext` gains `ClearTracking()` (`IAppDbContext.cs:59-66`,
 beside `Detach` at `:49-57`), a narrow member that maps to `ChangeTracker.Clear()`. `ChangeTracker`
 itself stays off the port. Recorded as an amendment to ADR 0009, not a rewrite of it — see that ADR's

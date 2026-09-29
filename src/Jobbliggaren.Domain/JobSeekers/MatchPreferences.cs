@@ -31,7 +31,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 ///
 /// <para>
 /// <b>Deliberate divergence from <see cref="SearchCriteria"/>:</b> there is NO "at least
-/// one criterion" invariant. All four lists empty is a VALID <see cref="MatchPreferences"/>
+/// one criterion" invariant. All lists empty is a VALID <see cref="MatchPreferences"/>
 /// — a user who has not yet stated any preference (skipped onboarding). Empty → the
 /// corresponding match dimension reports <c>NotAssessed</c> downstream, never faked
 /// (ADR 0076 Decision 7). <see cref="Empty"/> is the honest "no preferences stated" default.
@@ -85,9 +85,8 @@ public sealed record MatchPreferences
     // match-result magnitude (Goodhart guard).
     public int? ExperienceYears { get; private init; }
 
-    // ADR 0079-amendment 2026-06-23 — per-occupation experience overlay (supersedes the
-    // single profile-level ExperienceYears scalar above; the scalar is retained inert for
-    // back-compat). A SPARSE overlay on PreferredOccupationGroups: an optional ~years
+    // ADR 0079-amendment 2026-06-23 — per-occupation experience overlay. A SPARSE overlay
+    // on PreferredOccupationGroups: an optional ~years
     // annotation per preferred occupation group, keyed by concept-id (subset invariant in
     // Create). Appended last so the jsonb-key write order stays a purely additive extension.
     // STORED + SURFACED only, never scored (Beslut 7 / TD-B). Empty = honest "no
@@ -109,7 +108,7 @@ public sealed record MatchPreferences
     // before EF materializes via the value converter.
     private MatchPreferences() { }
 
-    /// <summary>The honest "no preferences stated" value — all four lists empty. Valid.</summary>
+    /// <summary>The honest "no preferences stated" value — all lists empty. Valid.</summary>
     public static readonly MatchPreferences Empty = new();
 
     // preferredMunicipalities is the additive 4th dimension (Spår 3, ADR 0076-amendment
@@ -202,6 +201,51 @@ public sealed record MatchPreferences
             PreferredRemote = preferredRemote,
         });
     }
+
+    // The per-part writes (ADR 0147): each replaces one part and keeps every other dimension,
+    // and each goes through Create, so normalisation and every invariant keep one source. The
+    // parts are disjoint and the only cross-field invariant (years ⊆ occupations) lies inside
+    // one part, so the order in which a caller applies them cannot change the result.
+
+    /// <summary>
+    /// Replaces the occupation groups and keeps the stated years of every group still chosen;
+    /// years for a group no longer chosen are dropped with it.
+    /// </summary>
+    public Result<MatchPreferences> WithOccupations(IEnumerable<string> groups)
+    {
+        var normalized = NormalizeList(groups);
+        var kept = new HashSet<string>(normalized, StringComparer.Ordinal);
+        return WithOccupations(normalized, PreferredOccupationExperience.Where(e => kept.Contains(e.ConceptId)));
+    }
+
+    /// <summary>Replaces the occupation groups and their stated years together.</summary>
+    public Result<MatchPreferences> WithOccupations(
+        IEnumerable<string> groups, IEnumerable<OccupationExperience> experience) =>
+        Create(groups, PreferredRegions, PreferredEmploymentTypes, PreferredMunicipalities,
+            PreferredSkills, ExperienceYears, experience, PreferredRemote);
+
+    public Result<MatchPreferences> WithSkills(IEnumerable<string> skills) =>
+        Create(PreferredOccupationGroups, PreferredRegions, PreferredEmploymentTypes,
+            PreferredMunicipalities, skills, ExperienceYears, PreferredOccupationExperience,
+            PreferredRemote);
+
+    /// <summary>
+    /// Replaces regions, municipalities and the distans preference as one part: a region write
+    /// never clears the municipalities the user stated.
+    /// </summary>
+    public Result<MatchPreferences> WithLocations(
+        IEnumerable<string> regions, IEnumerable<string> municipalities, bool remote) =>
+        Create(PreferredOccupationGroups, regions, PreferredEmploymentTypes, municipalities,
+            PreferredSkills, ExperienceYears, PreferredOccupationExperience, remote);
+
+    public Result<MatchPreferences> WithEmploymentTypes(IEnumerable<string> types) =>
+        Create(PreferredOccupationGroups, PreferredRegions, types, PreferredMunicipalities,
+            PreferredSkills, ExperienceYears, PreferredOccupationExperience, PreferredRemote);
+
+    public Result<MatchPreferences> WithExperienceYears(int? years) =>
+        Create(PreferredOccupationGroups, PreferredRegions, PreferredEmploymentTypes,
+            PreferredMunicipalities, PreferredSkills, years, PreferredOccupationExperience,
+            PreferredRemote);
 
     private static DomainError? ValidateConceptList(
         string[] values,

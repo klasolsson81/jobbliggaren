@@ -113,8 +113,7 @@ Option (a) read: the fake is allowed for handler unit tests, and ADR 0009 and th
 so that the ban covers what InMemory cannot witness, which is pinned against Testcontainers.
 
 **Klas's second answer, 2026-09-29 (AskUserQuestion, verbatim):** *"(a) Ja, alla fakens tester
-(Rekommenderat)"* — to the follow-up that 17 of the fake's 119 files test jobs, services, a pipeline
-behavior and builders rather than handlers.
+(Rekommenderat)"*
 
 **What changes:** the ban is narrowed to its reason.
 - **Allowed:** the InMemory provider as the house fake for unit tests, where it stands in for

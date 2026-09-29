@@ -3529,9 +3529,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* Borttagnings-kontrollen: en riktig <button>. Hit-area ≥32px via padding
-   (synlig ikon förblir 14px). Hover = danger-tint ENBART på knappen
-   (borttagning är mild-destruktiv — ärlig signal). Global fokus-ring behålls. */
+/* Borttagnings-kontrollen: en riktig <button> med en 14px-ikon. Hover =
+   danger-tint ENBART på knappen (borttagning är mild-destruktiv — ärlig
+   signal). Global fokus-ring behålls. */
 .jp-chip__remove {
   display: inline-flex;
   align-items: center;
@@ -3546,6 +3546,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-pill);
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
 }
 .jp-chip__remove:hover {
   color: var(--jp-danger);
@@ -3570,18 +3571,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-pill);
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
 }
 .jp-chip__edit:hover {
   color: var(--jp-ink-1);
   background: var(--jp-surface-3);
 }
+/* Träffyta 32px (44px vid ≤768, DESIGN.md §5) utan att den synliga knappen växer. */
+.jp-chip__remove::after,
+.jp-chip__edit::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
 @media (max-width: 768px) {
-  /* WCAG 2.5.5 — touch ≥44px (visuell ikon oförändrad, padding bär målet). */
   .jp-chip__remove,
   .jp-chip__edit {
     width: 32px;
     height: 32px;
     padding: 9px;
+  }
+  .jp-chip__remove::after,
+  .jp-chip__edit::after {
+    inset: -6px;
   }
 }
 /* En wrappande chip-rad (8px gap), nollställd <ul>. */

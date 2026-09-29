@@ -63,3 +63,14 @@ describe("globals.css — the chip list keeps a long chip inside its container (
     },
   );
 });
+
+describe("globals.css — the chip's remove and edit buttons reach the house hit area", () => {
+  // ADR 0052 Amendment 2026-09-29: the box stays 24/32px so --jp-r-chip is still half the tallest chip.
+  it.each([".jp-chip__remove", ".jp-chip__edit"])("%s keeps its box and grows only its ::after", (button) => {
+    expect(declared(button, "width")).toEqual(["24px", "32px"]);
+    expect(declared(button, "position")).toEqual(["relative"]);
+    expect(declared(`${button}::after`, "content")).toEqual(['""']);
+    expect(declared(`${button}::after`, "position")).toEqual(["absolute"]);
+    expect(declared(`${button}::after`, "inset")).toEqual(["-4px", "-6px"]);
+  });
+});

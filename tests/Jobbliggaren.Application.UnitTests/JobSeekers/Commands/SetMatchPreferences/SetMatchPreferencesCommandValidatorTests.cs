@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.JobSeekers.Commands;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 using Jobbliggaren.Domain.SavedSearches;
 using Shouldly;

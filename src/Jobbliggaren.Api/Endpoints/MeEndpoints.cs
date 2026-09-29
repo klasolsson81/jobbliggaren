@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNotificationConsent;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
@@ -41,15 +42,25 @@ public static class MeEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
-        // F4-12 (ADR 0076) — stated match preferences SSOT (occupation-groups /
-        // regions / employment-types). PUT = idempotent full-replace of all three
-        // collections (the command carries the complete set; it does not merge).
+        // F4-12 (ADR 0076) — stated match preferences SSOT.
         // All-empty is a valid write (clears preferences / honest NotAssessed) — no
         // CV/PII read (the profile-builder is preference-driven). MeWritePolicy
         // (not the unrated PATCH /profile path) per the user-owned mutation precedent
         // (saved-job-ads / recent-searches), senior-cto-advisor 2026-06-19.
         group.MapPut("/match-preferences", async (
             SetMatchPreferencesCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0147 (#1918) — the per-part write: a present part replaces that part, an absent part
+        // is left as stored. The PUT above stays until the web image that calls this is live.
+        group.MapPatch("/match-preferences", async (
+            UpdateMatchPreferencesCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

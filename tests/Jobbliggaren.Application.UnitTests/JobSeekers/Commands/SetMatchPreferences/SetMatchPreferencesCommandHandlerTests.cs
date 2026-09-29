@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobSeekers.Commands;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;

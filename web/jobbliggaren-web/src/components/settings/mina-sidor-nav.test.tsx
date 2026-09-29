@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { Bell, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
 
 vi.mock("@/lib/auth/actions", () => ({ logoutAction: vi.fn() }));
 
@@ -10,6 +11,15 @@ const SECTIONS: ReadonlyArray<[MinaSidorSection, string, string]> = [
   ["notiser", "Notiser", "/mina-sidor/notiser"],
   ["konto", "Konto", "/mina-sidor/konto"],
   ["sekretess", "Sekretess och data", "/mina-sidor/sekretess"],
+];
+
+// Klas 2026-09-28 (#1916): Target, Bell, a person and Shield; the person is UserRound, the
+// header's profile glyph.
+const GLYPHS: ReadonlyArray<[string, LucideIcon]> = [
+  ["Matchning", Target],
+  ["Notiser", Bell],
+  ["Konto", UserRound],
+  ["Sekretess och data", Shield],
 ];
 
 describe("MinaSidorNav", () => {
@@ -29,6 +39,16 @@ describe("MinaSidorNav", () => {
       .getAllByRole("link")
       .filter((link) => link.getAttribute("aria-current") === "page");
     expect(current.map((link) => link.textContent)).toEqual([label]);
+  });
+
+  it.each(GLYPHS)("gives %s its own glyph, hidden from assistive technology", (label, Glyph) => {
+    render(<MinaSidorNav active="matchning" />);
+    const icons = Array.from(screen.getByRole("link", { name: label }).querySelectorAll("svg"));
+    expect(icons).toHaveLength(1);
+    const [icon] = icons;
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    const expected = render(<Glyph />).container.querySelector("svg");
+    expect(icon?.innerHTML).toBe(expected?.innerHTML);
   });
 
   it("puts Logga ut under the menu as a form button, outside the navigation landmark", () => {

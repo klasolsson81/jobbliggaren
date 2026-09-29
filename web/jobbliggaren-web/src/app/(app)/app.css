@@ -6,16 +6,16 @@
    here at runtime (globals.css also loads on (app) routes, before this file).
    Imported by src/app/(app)/layout.tsx. Guarded by scripts/guard-css.mjs. */
 
-/* ── Mina sidor: section menu + one section at a time (#1891) ──
+/* ── Mina sidor: section menu + one section at a time (#1891, #1916) ──
    The menu is page furniture like the CV guide rail (GOV.UK sub-nav), not a shell
-   sidebar: the shell keeps its one header menu (ADR 0054). Shared tokens, not shared
-   classes (CTO bind Q1 on .jp-guide). No fill or frame of its own; the section is the
-   card. Under 900px the menu becomes a wrapping row above the section, in .jp-subnav's
-   language: the bar moves under the current item. */
+   sidebar: it sits under the pagehero, inside the content width, on these four routes
+   only (ADR 0054, ADR 0145). Shared tokens, not shared classes (CTO bind Q1 on .jp-guide).
+   The menu as a whole has no fill or frame; the section is the card. At ≤900px it
+   becomes a wrapping row above the section, in the same row form. */
 .jp-settings-layout {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
-  gap: 32px;
+  gap: 24px;
   align-items: start;
 }
 .jp-settingsnav {
@@ -30,30 +30,44 @@
   flex-direction: column;
   gap: 2px;
 }
-/* Inactive items keep the global link colour, as .jp-subnav__item does: they are the
-   interactive part. The current item is ink; the bar carries the place. Its rules are
-   `a.`-qualified: the global `a:not(…):hover` rule is (0,2,1) and would otherwise turn the
-   current item green on hover. */
+/* The item is exempt from the global link colour (globals.css), so its ink holds at rest and
+   on hover. The weight step 400 → 600 is the current item's cue beside colour, since the
+   plate is under 3:1 against the canvas: never even it out (DESIGN.md §6). */
 .jp-settingsnav__item {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 9px 12px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
   font-size: var(--text-ui);
-  font-weight: var(--jp-fw-medium);
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-1);
   text-decoration: none;
-  border-left: 3px solid transparent;
   border-radius: var(--jp-r-md);
-  transition: background 80ms linear, border-color 80ms linear;
+  transition: background 80ms linear;
 }
 .jp-settingsnav__item:hover {
   background: var(--jp-surface-3);
 }
+.jp-settingsnav__icon {
+  flex: 0 0 auto;
+  color: var(--jp-ink-2);
+}
 a.jp-settingsnav__item[aria-current="page"],
 a.jp-settingsnav__item[aria-current="page"]:hover {
-  color: var(--jp-ink-1);
+  color: var(--jp-accent-700);
   font-weight: var(--jp-fw-semibold);
-  border-left-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+}
+a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
+  color: var(--jp-accent-700);
+}
+/* An SVG only takes the forced palette through an inherited colour; the icon class sets its own. */
+@media (forced-colors: active) {
+  .jp-settingsnav__icon,
+  a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
+    color: inherit;
+  }
 }
 .jp-settingsnav__foot {
   margin-top: 12px;
@@ -65,12 +79,12 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 9px 15px;
+  min-height: 40px;
+  padding: 8px 12px;
   font: inherit;
   font-size: var(--text-ui);
-  font-weight: var(--jp-fw-medium);
-  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-2);
   text-align: left;
   background: transparent;
   border: 0;
@@ -79,6 +93,7 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
   transition: background 80ms linear;
 }
 .jp-settingsnav__logout:hover {
+  color: var(--jp-ink-1);
   background: var(--jp-surface-3);
 }
 .jp-settings-section {
@@ -114,18 +129,9 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 4px;
-    border-bottom: 1px solid var(--jp-border);
   }
   .jp-settingsnav__item {
-    padding: 12px 16px;
-    border-left: 0;
-    border-bottom: 3px solid transparent;
-    border-radius: var(--jp-r-sm) var(--jp-r-sm) 0 0;
-  }
-  a.jp-settingsnav__item[aria-current="page"],
-  a.jp-settingsnav__item[aria-current="page"]:hover {
-    background: transparent;
-    border-bottom-color: var(--jp-accent-700);
+    min-height: 44px;
   }
   /* The header's user menu carries Logga ut at every width; here it would sit between the
      row and its section. */

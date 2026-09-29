@@ -404,9 +404,11 @@ public sealed class LoginProofTests
     [Theory]
     [InlineData(LoginMethod.Link)]
     [InlineData(LoginMethod.GitHub)]
+    [InlineData(LoginMethod.LinkedIn)]
     public async Task A_first_inbox_proof_writes_one_audit_row_and_revokes_before_it_grants(LoginMethod method)
     {
-        // GitHub's row: its flag confirms an older unconfirmed account and revokes its sessions (ADR 0142 Amendment (18)).
+        // GitHub's and LinkedIn's rows: the provider's flag confirms an older unconfirmed account and revokes its
+        // sessions (ADR 0142 Amendments (18) and (20)).
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
 
         await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), method, Ct);
@@ -526,6 +528,32 @@ public sealed class LoginProofTests
     }
 
     [Fact]
+    public async Task A_linkedin_proof_of_an_active_accounts_own_address_links_it_before_the_session_and_records_linkedin()
+    {
+        // #1746: LinkedIn's verified primary address takes Google's path, by Klas's decision.
+        await WithProfileAsync();
+        _externalWriter.LinkAsync(
+                Arg.Any<Guid>(), ExternalProviderKey.LinkedIn, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.Linked);
+        var proof = await LinkedInIdentities.ProofAsync(
+            LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.DocumentedSub, Email));
+
+        var outcome = await Outcome().ResolveExternalAsync(proof, Ct);
+
+        outcome.ShouldBeOfType<LoginOutcome.SignedIn>();
+        Received.InOrder(() =>
+        {
+            _externalWriter.LinkAsync(
+                _userId, ExternalProviderKey.LinkedIn, Arg.Is<ExternalSubject>(s => s.Reveal() == "782bbtaQ"),
+                Arg.Any<CancellationToken>());
+            _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+            _audit.LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.LinkedIn);
+        });
+        _db.AuditLogEntries.Local.ShouldHaveSingleItem().Payload.ShouldBe("""{"provider":"linkedin"}""");
+    }
+
+    [Fact]
     public async Task A_provider_proof_already_linked_to_the_account_signs_in_without_writing_a_link()
     {
         await WithProfileAsync();
@@ -626,6 +654,29 @@ public sealed class LoginProofTests
         var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
         eventId.ShouldBe(1016);
         message.ShouldContain(nameof(LoginMethod.GitHub));
+    }
+
+    [Theory]
+    [InlineData(false, typeof(LoginOutcome.RegistrationClosed))]
+    [InlineData(true, typeof(LoginOutcome.AccountUnavailable))]
+    public async Task A_linkedin_proof_that_differs_by_a_folding_character_is_refused_and_links_nothing(
+        bool registrationsOpen, Type expected)
+    {
+        // #1779 for LinkedIn: the LinkedIn adapter's own rule admits the folded spelling as it arrives, asserted first.
+        _lookup.FindAccountAsync(FoldedEmail, Arg.Any<CancellationToken>())
+            .Returns(new LoginAccount(_userId, Email));
+        await WithProfileAsync();
+        var proof = await LinkedInIdentities.ProofAsync(
+            LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.DocumentedSub, FoldedEmail));
+        proof.Email.Value.ShouldBe(FoldedEmail);
+
+        (await Outcome(registrationsOpen).ResolveExternalAsync(proof, Ct)).ShouldBeOfType(expected);
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.LinkedIn));
     }
 
     private async Task TheProviderSpellingIsRefusedAsync(string providerSpelling, string account)
@@ -735,5 +786,24 @@ public sealed class LoginProofTests
         var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
         eventId.ShouldBe(1025);
         message.ShouldContain(nameof(LoginMethod.GitHub));
+    }
+
+    [Fact]
+    public async Task A_linkedin_link_another_account_won_in_the_meantime_opens_no_session()
+    {
+        await WithProfileAsync();
+        _externalWriter.LinkAsync(
+                Arg.Any<Guid>(), ExternalProviderKey.LinkedIn, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.LinkedToAnotherUser);
+        var proof = await LinkedInIdentities.ProofAsync(
+            LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.DocumentedSub, Email));
+
+        (await Outcome().ResolveExternalAsync(proof, Ct)).ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1025);
+        message.ShouldContain(nameof(LoginMethod.LinkedIn));
     }
 }

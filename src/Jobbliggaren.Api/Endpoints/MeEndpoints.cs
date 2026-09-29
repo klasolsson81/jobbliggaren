@@ -1,5 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
@@ -120,7 +121,8 @@ public static class MeEndpoints
         // GDPR Art. 17 — Right to erasure. Soft-deletar kontot + alla user-ägda
         // aggregat i samma transaction (DeleteAccountCommand → UnitOfWorkBehavior).
         // Post-commit invalideras alla Redis-sessioner via secondary user-sessions-
-        // index (ADR 0024 D4 + ADR 0017 deferred-not stängd).
+        // index (ADR 0024 D4 + ADR 0017 deferred-not stängd), och sist raderas kontots
+        // externa inloggningar (ADR 0142 Amendment (20)).
         // Hard-delete + Identity-DELETE + audit-anonymisering sker av
         // HardDeleteAccountsJob efter 30-dagars restore-fönster (ADR 0024 D5+D6).
         //
@@ -134,6 +136,7 @@ public static class MeEndpoints
             DeleteAccountRequest body,
             IMediator mediator,
             ISessionStore sessions,
+            IExternalLoginEraser externalLogins,
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
@@ -162,6 +165,11 @@ public static class MeEndpoints
                 // to cancel; the plant leads (fail-closed) so it lands even if InvalidateAll throws.
                 await sessions.MarkUserDeletedAsync(currentUser.UserId.Value, CancellationToken.None);
                 await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, CancellationToken.None);
+
+                // #1746 (ADR 0142 Amendment (20), ADR 0146 D3): after the commit, never in the replayed handler,
+                // and last, so a failure here never keeps a session alive. Not swallowed either: the 500 leaves the
+                // account deleted and signed out, and HardDeleteAccountsJob's backstop takes the links.
+                await externalLogins.EraseAllAsync(currentUser.UserId.Value, CancellationToken.None);
             }
 
             return Results.NoContent();

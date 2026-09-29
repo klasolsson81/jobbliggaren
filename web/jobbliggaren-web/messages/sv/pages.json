@@ -636,6 +636,7 @@
       "external": {
         "providerNames": {
           "google": "Google",
+          "linkedin": "LinkedIn",
           "github": "GitHub"
         },
         "title": "Logga in med {provider}",

@@ -219,7 +219,14 @@ public class ExternalProviderKeyTests
         key.ShouldBe(ExternalProviderKey.GitHub);
     }
 
-    // "linkedin" stays unknown until 6c (#1746) adds its key.
+    [Fact]
+    public void TryParse_ShouldFindLinkedIn_WhenGivenItsKey()
+    {
+        ExternalProviderKey.TryParse("linkedin", out var key).ShouldBeTrue();
+
+        key.ShouldBe(ExternalProviderKey.LinkedIn);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -229,14 +236,17 @@ public class ExternalProviderKeyTests
     [InlineData("GitHub")]
     [InlineData("GITHUB")]
     [InlineData("github ")]
-    [InlineData("linkedin")]
+    [InlineData("LinkedIn")]
+    [InlineData("LINKEDIN")]
+    [InlineData("linkedin ")]
+    [InlineData("myspace")]
     [InlineData("..")]
     public void TryParse_ShouldRefuse_WhenTheKeyIsNotKnownSpelledExactly(string? raw) =>
         ExternalProviderKey.TryParse(raw, out _).ShouldBeFalse();
 
     [Fact]
-    public void Known_ShouldBeGoogleThenGitHub_InTheOrderTheLoginPageListsThem() =>
-        ExternalProviderKey.Known.ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.GitHub]);
+    public void Known_ShouldBeGoogleLinkedInThenGitHub_InTheOrderTheLoginPageListsThem() =>
+        ExternalProviderKey.Known.ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.LinkedIn, ExternalProviderKey.GitHub]);
 
     [Fact]
     public void Known_ShouldFitTheKeyBound_ForEveryKey() =>
@@ -249,6 +259,10 @@ public class ExternalProviderKeyTests
     [Fact]
     public void LoginMethod_ShouldBeGitHub_WhenTheKeyIsGitHub() =>
         ExternalProviderKey.GitHub.LoginMethod.ShouldBe(LoginMethod.GitHub);
+
+    [Fact]
+    public void LoginMethod_ShouldBeLinkedIn_WhenTheKeyIsLinkedIn() =>
+        ExternalProviderKey.LinkedIn.LoginMethod.ShouldBe(LoginMethod.LinkedIn);
 
     [Fact]
     public void LoginMethod_ShouldBeOneProviderMethodPerKey_AndNeverACodeOrALink()

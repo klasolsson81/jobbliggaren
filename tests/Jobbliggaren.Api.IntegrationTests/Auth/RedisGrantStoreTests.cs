@@ -342,11 +342,15 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
                 new GrantSubject.ChangeEmail(Guid.NewGuid(), "a@b.se"),
                 new GrantSubject.ChangeEmail(Guid.NewGuid(), longest),
             ],
+            // Every provider: since #1746 the keys differ in length (dotnet-architect N3), and the ceiling is the bound.
             GrantPurpose.LoginCompleteExternal =>
             [
-                new GrantSubject.LoginCompleteExternal(Verified("a@b.se"), ExternalProviderKey.Google, shortSubject),
-                new GrantSubject.LoginCompleteExternal(Verified(longest), ExternalProviderKey.Google, longestSubject),
-                new GrantSubject.LoginCompleteExternal(escapedAddress, ExternalProviderKey.Google, escapedSubject),
+                .. ExternalProviderKey.Known.SelectMany(provider => new GrantSubject[]
+                {
+                    new GrantSubject.LoginCompleteExternal(Verified("a@b.se"), provider, shortSubject),
+                    new GrantSubject.LoginCompleteExternal(Verified(longest), provider, longestSubject),
+                    new GrantSubject.LoginCompleteExternal(escapedAddress, provider, escapedSubject),
+                }),
             ],
             _ => throw new InvalidOperationException($"No length row for grant purpose {purpose}."),
         };
@@ -454,7 +458,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
             .ShouldBe("""{"p":3,"e":"a@b.se","u":"11111111-2222-3333-4444-555555555555"}""");
 
         // Purpose 4 byte for byte as #1744 wrote it, so a purpose-4 grant alive across the deploy still redeems, and
-        // GitHub's in the same shape (#1745, ADR 0142 Amendment (18)). Each subject is its production adapter's.
+        // GitHub's and LinkedIn's in the same shape (#1745, #1746). Each subject is its production adapter's.
         var google = await GoogleIdentities.ProofAsync(GoogleUserInfoShapes.Gmail("1", "a"));
         (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(google.Email, google.Provider, google.Subject)))
             .ShouldBe("""{"p":4,"e":"a@gmail.com","u":null,"pr":"google","s":"1"}""");
@@ -462,6 +466,10 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
             GitHubApiShapes.User(58323117, "grant-gh"), GitHubApiShapes.Emails.PrimaryVerified("a@firma.example"));
         (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(github.Email, github.Provider, github.Subject)))
             .ShouldBe("""{"p":4,"e":"a@firma.example","u":null,"pr":"github","s":"58323117"}""");
+        var linkedin = await LinkedInIdentities.ProofAsync(
+            LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.DocumentedSub, "a@firma.example"));
+        (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(linkedin.Email, linkedin.Provider, linkedin.Subject)))
+            .ShouldBe("""{"p":4,"e":"a@firma.example","u":null,"pr":"linkedin","s":"782bbtaQ"}""");
     }
 
     // What IssueAsync wrote, opened under the purpose's own protector, with the padding trimmed.

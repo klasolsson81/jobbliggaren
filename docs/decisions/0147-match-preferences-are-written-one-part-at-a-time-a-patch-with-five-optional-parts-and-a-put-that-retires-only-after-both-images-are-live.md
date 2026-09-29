@@ -152,7 +152,7 @@ chose.
    `CriterionMatchingAdCountApiTests`, `CompanyWatchesMatchCountApiTests` and
    `CompanyWatchesMatchCountCrossUserIsolationTests`); removes the parity guard's PUT fact; and deletes
    the sentences that motivate fields by the full-replace PUT (`JobSeekerProfileDto.cs:29-37,42-46,48-52,55-58`,
-   `MatchPreferencesContractParityTests.cs:20-26,87-88` and `SetMatchPreferencesCommand.cs:24-26`).
+   `MatchPreferencesContractParityTests.cs:22-27,161-162` (after PR A) and `SetMatchPreferencesCommand.cs:24-26`).
 
 Each gate is recorded with digest, sha and time in the respective PR's body. PR A and PR B say
 "Part of #1918"; #1918 is closed by hand when PR C merges, since a squash drops `Closes`.

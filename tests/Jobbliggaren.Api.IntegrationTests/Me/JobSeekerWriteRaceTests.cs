@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
@@ -28,6 +29,7 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
     private const string ConsentPath = "/api/v1/me/background-match-notification-consent";
     private const string FollowPath = "/api/v1/me/followed-company-notification-consent";
     private const string ProfilePath = "/api/v1/me/profile";
+    private const string MatchPreferencesPath = "/api/v1/me/match-preferences";
 
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -210,5 +212,79 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
             .ToList();
         added.ShouldBe(
             ["JobSeeker.DigestCadenceUpdated", "JobSeeker.DigestCadenceUpdated", "JobSeeker.DigestCadenceUpdated"]);
+    }
+
+    private static Task<HttpResponseMessage> PatchMatchPreferencesAsync(
+        HttpClient client, string json, CancellationToken ct) =>
+        client.PatchAsync(MatchPreferencesPath, new StringContent(json, Encoding.UTF8, "application/json"), ct);
+
+    // #1918 — two tabs writing different parts of the match preferences. The held skills
+    // request has read the row before the other tab's occupations commit; its replay reads that commit
+    // and lays only the skills over it.
+    [Fact]
+    public async Task An_occupations_patch_committed_inside_a_skills_patch_stands_and_the_skills_still_land()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        (await PatchMatchPreferencesAsync(
+            _client,
+            """
+            {
+              "occupations": {"preferredOccupationGroups": ["grp_a", "grp_b"], "preferredOccupationExperience": [{"conceptId": "grp_a", "years": 4}]},
+              "skills": {"preferredSkills": ["sk_a", "sk_b"]},
+              "locations": {"preferredRegions": ["reg_a"], "preferredMunicipalities": ["kn_a"], "preferredRemote": true},
+              "employmentTypes": {"preferredEmploymentTypes": ["et_a"]},
+              "experience": {"experienceYears": 7}
+            }
+            """,
+            ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var seeded = (await ReadSeekerAsync(userId, ct)).MatchPreferences;
+        seeded.ShouldBe(MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_a", "grp_b"],
+            preferredRegions: ["reg_a"],
+            preferredEmploymentTypes: ["et_a"],
+            preferredMunicipalities: ["kn_a"],
+            preferredSkills: ["sk_a", "sk_b"],
+            experienceYears: 7,
+            preferredOccupationExperience: [new OccupationExperience("grp_a", 4)],
+            preferredRemote: true).Value);
+
+        HttpStatusCode? occupationsStatus = null;
+        MatchPreferences? rightAfterOccupations = null;
+        _factory.JobSeekerSaveRace.Arm(userId, times: 1, async raceCt =>
+        {
+            occupationsStatus = (await PatchMatchPreferencesAsync(
+                _competitor,
+                """{"occupations":{"preferredOccupationGroups":["grp_c"],"preferredOccupationExperience":[{"conceptId":"grp_c","years":2}]}}""",
+                raceCt)).StatusCode;
+            rightAfterOccupations = (await ReadSeekerAsync(userId, raceCt)).MatchPreferences;
+        });
+        HttpResponseMessage skillsSave;
+        try
+        {
+            skillsSave = await PatchMatchPreferencesAsync(
+                _client, """{"skills":{"preferredSkills":["sk_z"]}}""", ct);
+        }
+        finally
+        {
+            _factory.JobSeekerSaveRace.Disarm();
+        }
+
+        _factory.JobSeekerSaveRace.Fired.ShouldBe(1);
+        occupationsStatus.ShouldBe(HttpStatusCode.NoContent);
+        skillsSave.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        rightAfterOccupations.ShouldNotBeNull();
+        rightAfterOccupations.PreferredOccupationGroups.ShouldBe(["grp_c"]);
+        rightAfterOccupations.PreferredSkills.ShouldBe(seeded.PreferredSkills);
+
+        var stored = (await ReadSeekerAsync(userId, ct)).MatchPreferences;
+        stored.PreferredOccupationGroups.ShouldBe(["grp_c"]);
+        stored.PreferredOccupationExperience.ShouldBe([new OccupationExperience("grp_c", 2)]);
+        stored.PreferredSkills.ShouldBe(["sk_z"]);
+        stored.PreferredRegions.ShouldBe(seeded.PreferredRegions);
+        stored.PreferredMunicipalities.ShouldBe(seeded.PreferredMunicipalities);
+        stored.PreferredRemote.ShouldBe(seeded.PreferredRemote);
+        stored.PreferredEmploymentTypes.ShouldBe(seeded.PreferredEmploymentTypes);
+        stored.ExperienceYears.ShouldBe(seeded.ExperienceYears);
     }
 }

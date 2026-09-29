@@ -1,5 +1,7 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
 using Jobbliggaren.Domain.JobSeekers;
 using Shouldly;
@@ -59,6 +61,78 @@ public class MatchPreferencesContractParityTests
     [Fact]
     public void EveryStatedDimension_ReachesTheReadProjection()
         => AssertParity(typeof(JobSeekerProfileDto), "read projection");
+
+    // #1918 — the per-part write partitions the dimensions: each one sits in exactly
+    // one part. A dimension in no part cannot be written; a dimension in two parts is written by
+    // either, so saving one part could silently overwrite the other's value. The command carries
+    // nothing but its parts, and a part carries nothing but dimensions.
+    [Fact]
+    public void EveryStatedDimension_BelongsToExactlyOnePartOfThePerPartWrite()
+    {
+        var commandMembers = typeof(UpdateMatchPreferencesCommand)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var parts = commandMembers
+            .Where(p => p.PropertyType.Name.EndsWith("PartInput", StringComparison.Ordinal))
+            .ToArray();
+        parts.ShouldNotBeEmpty("the partition measures nothing if the command exposes no parts");
+        commandMembers.Select(p => p.Name).Except(parts.Select(p => p.Name)).ShouldBeEmpty(
+            "a member of the per-part command outside every *PartInput is a write the partition does not see");
+
+        var dimensions = StatedDimensions().ToHashSet(StringComparer.Ordinal);
+        var owners = dimensions.ToDictionary(
+            dimension => dimension,
+            dimension => parts
+                .Where(part => MembersOf(part.PropertyType).Contains(dimension))
+                .Select(part => part.Name)
+                .ToArray(),
+            StringComparer.Ordinal);
+
+        owners.Where(o => o.Value.Length == 0).Select(o => o.Key).Order(StringComparer.Ordinal).ShouldBeEmpty(
+            "every stated MatchPreferences dimension must be writable through exactly one part");
+        owners.Where(o => o.Value.Length > 1)
+            .Select(o => $"{o.Key} in {string.Join(" and ", o.Value)}")
+            .ShouldBeEmpty("a dimension in two parts is overwritten by a save of either");
+        parts
+            .SelectMany(part => MembersOf(part.PropertyType)
+                .Where(member => !dimensions.Contains(member))
+                .Select(member => $"{part.Name}.{member}"))
+            .ShouldBeEmpty("a part member that is not a MatchPreferences dimension binds a value nothing stores");
+    }
+
+    // A member missing from a present part is a 400 at binding, never a default that erases a
+    // value: a missing bool binds to false, a missing list to null. The years overlay is the single
+    // exception: its absence keeps the stored years.
+    [Fact]
+    public void EveryPartMember_IsRequiredOnTheWire_ExceptTheYearsOverlay()
+    {
+        var parts = typeof(UpdateMatchPreferencesCommand)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.PropertyType)
+            .ToArray();
+        parts.ShouldNotBeEmpty();
+
+        var members = parts
+            .SelectMany(part => part.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(member => (Name: $"{part.Name}.{member.Name}", Member: member)))
+            .ToArray();
+        members.ShouldNotBeEmpty("the check measures nothing if the parts expose no members");
+
+        members
+            .Where(m => m.Member.Name != nameof(MatchPreferences.PreferredOccupationExperience)
+                        && m.Member.GetCustomAttribute<JsonRequiredAttribute>() is null)
+            .Select(m => m.Name)
+            .ShouldBeEmpty("every part member except the years overlay carries [property: JsonRequired]");
+        members
+            .Where(m => m.Member.Name == nameof(MatchPreferences.PreferredOccupationExperience)
+                        && m.Member.GetCustomAttribute<JsonRequiredAttribute>() is not null)
+            .Select(m => m.Name)
+            .ShouldBeEmpty("the years overlay is optional: an absent overlay keeps the stored years");
+    }
+
+    private static HashSet<string> MembersOf(Type part) =>
+        part.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
     private static void AssertParity(Type contract, string role)
     {

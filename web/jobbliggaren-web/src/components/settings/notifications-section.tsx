@@ -5,8 +5,7 @@
 // control that started the write. None of that runs in a Server Component.
 
 import { type RefObject, useEffect, useId, useRef, useState, useTransition } from "react";
-import { useFormatter, useTranslations } from "next-intl";
-import { formatTime } from "@/lib/i18n/format";
+import { useTranslations } from "next-intl";
 import type { DigestCadence } from "@/lib/dto/me";
 import {
   updateDigestCadenceAction,
@@ -15,9 +14,7 @@ import {
 } from "@/lib/actions/me";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { Segment, type SegmentOption } from "@/components/ui/segment";
-
-/** The outcome of one write, owned by the control that started it (#1391). */
-type WriteOutcome = { ok: true; at: Date } | { ok: false; error: string };
+import { Outcome, type WriteOutcome } from "./write-outcome";
 
 /** A switch, or the checked option of a segment: the control a group's write started from. */
 const GROUP_CONTROL = '[role="switch"], [role="radiogroup"] button[aria-checked="true"]';
@@ -205,32 +202,6 @@ function useFocusReturn(pending: boolean): RefObject<HTMLDivElement | null> {
     target.querySelector<HTMLElement>(GROUP_CONTROL)?.focus();
   }, [pending]);
   return returnRef;
-}
-
-/**
- * The receipt or the refusal under one control. Mutually exclusive live regions, the shape the
- * settings cards have shipped since #1391: a refusal is an assertive alert, otherwise a polite status
- * that stays mounted so a later receipt is announced.
- */
-function Outcome({ id, outcome }: { id: string; outcome: WriteOutcome | null }) {
-  const t = useTranslations("settings");
-  const format = useFormatter();
-  if (outcome?.ok === false) {
-    return (
-      <p id={id} role="alert" className="jp-settings-group__message text-body-sm text-danger-600">
-        {outcome.error}
-      </p>
-    );
-  }
-  return (
-    <p
-      role="status"
-      aria-live="polite"
-      className="jp-settings-group__message text-body-sm text-text-secondary"
-    >
-      {outcome?.ok ? t("savedAt", { time: formatTime(format, outcome.at) }) : ""}
-    </p>
-  );
 }
 
 /** The ids of the texts that describe a control, or nothing when none is shown. */

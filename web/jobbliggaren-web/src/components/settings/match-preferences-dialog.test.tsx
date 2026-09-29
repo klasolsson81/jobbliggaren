@@ -9,23 +9,21 @@ import type {
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
+import type { MatchPart, PartValue } from "./match-preferences-shared";
 
-const {
-  updateMock,
-  cvSuggestMock,
-  parsedSuggestMock,
-  skillSearchMock,
-  skillSuggestMock,
-} = vi.hoisted(() => ({
-  updateMock: vi.fn(),
-  cvSuggestMock: vi.fn(),
-  parsedSuggestMock: vi.fn(),
-  skillSearchMock: vi.fn(),
-  skillSuggestMock: vi.fn(),
-}));
+// The sections reference these server actions; none runs in jsdom. The dialog itself writes
+// through `onSave`, which the card owns.
+const { cvSuggestMock, parsedSuggestMock, skillSearchMock, skillSuggestMock } = vi.hoisted(
+  () => ({
+    cvSuggestMock: vi.fn(),
+    parsedSuggestMock: vi.fn(),
+    skillSearchMock: vi.fn(),
+    skillSuggestMock: vi.fn(),
+  })
+);
 vi.mock("@/lib/actions/match-preferences", () => ({
-  updateMatchPreferencesAction: updateMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
   searchSkillsAction: skillSearchMock,
@@ -52,400 +50,345 @@ const employmentTypes: ReadonlyArray<TaxonomyOption> = [
     conceptId: "kpPX_CNN_gDU",
     label: "Tillsvidareanställning (inkl. eventuell provanställning)",
   },
+  { conceptId: "gro4_cWF_6D7", label: "Vikariat" },
 ];
 
-function renderDialog(
-  overrides?: Partial<React.ComponentProps<typeof MatchPreferencesDialog>>
-) {
-  const onSaved = vi.fn();
+const EMPTY = {
+  occupations: { part: "occupations", groups: [], experience: [] },
+  skills: { part: "skills", skills: [], skillGroups: [] },
+  locations: { part: "locations", regions: [], municipalities: [], remote: false },
+  employmentTypes: { part: "employmentTypes", types: [] },
+  experience: { part: "experience", years: null },
+} satisfies Record<MatchPart, PartValue>;
+
+const FILLED = {
+  occupations: { part: "occupations", groups: ["grp_backend"], experience: [] },
+  skills: {
+    part: "skills",
+    skills: ["skill_react"],
+    skillGroups: [{ conceptId: "skill_react", label: "React", memberConceptIds: ["skill_react"] }],
+  },
+  locations: { part: "locations", regions: ["region_sthlm"], municipalities: [], remote: false },
+  employmentTypes: { part: "employmentTypes", types: ["gro4_cWF_6D7"] },
+  experience: { part: "experience", years: 5 },
+} satisfies Record<MatchPart, PartValue>;
+
+const SAVED: ActionResult = { success: true };
+const REFUSED_TEXT = "Ändringen kunde inte sparas. Försök igen om en stund.";
+const REFUSED: ActionResult = { success: false, error: REFUSED_TEXT };
+
+function renderDialog(value: PartValue) {
+  const onSave = vi.fn<(value: PartValue) => Promise<ActionResult>>().mockResolvedValue(SAVED);
   const onOpenChange = vi.fn();
   render(
     <MatchPreferencesDialog
       open
       onOpenChange={onOpenChange}
+      value={value}
       occupationFields={occupationFields}
       regions={regions}
       employmentTypes={employmentTypes}
-      persistedOccupationGroups={[]}
-      persistedRegions={[]}
-      persistedMunicipalities={[]}
-      persistedRemote={false}
-      persistedEmploymentTypes={[]}
-      persistedSkills={[]}
-      persistedExperienceYears={null}
-      persistedOccupationExperience={[]}
-      onSaved={onSaved}
       importCvHref="/cv/importera"
-      {...overrides}
+      onSave={onSave}
+      onCloseAutoFocus={vi.fn()}
     />
   );
-  return { onSaved, onOpenChange };
+  return { onSave, onOpenChange };
 }
 
 beforeEach(() => {
-  updateMock.mockReset();
-  cvSuggestMock.mockReset();
-  parsedSuggestMock.mockReset();
-  skillSearchMock.mockReset();
-  skillSuggestMock.mockReset();
-  updateMock.mockResolvedValue({ success: true });
-  skillSearchMock.mockResolvedValue({ success: true, options: [] });
-  skillSuggestMock.mockResolvedValue({ kind: "noCv" });
+  cvSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
+  parsedSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
+  skillSearchMock.mockReset().mockResolvedValue({ success: true, options: [] });
+  skillSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
 });
 
-describe("MatchPreferencesDialog — shell + draft", () => {
-  it("renderar titel + tre facet-sektioner", () => {
-    renderDialog();
-    expect(
-      screen.getByRole("heading", { name: "Lägg till i matchning" })
-    ).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Yrken" })).toBeInTheDocument();
-    // Spår 3 PR-D: region-sektionen är nu en län→kommun-kaskad ("Orter").
-    expect(screen.getByRole("group", { name: "Orter" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("group", { name: "Anställningsformer" })
-    ).toBeInTheDocument();
+describe("one dialog per part (#1918 Binding 3)", () => {
+  it.each([
+    ["occupations", "Yrken", "Spara yrken", "wide"],
+    ["skills", "Kompetenser", "Spara kompetenser", "narrow"],
+    ["locations", "Orter", "Spara orter", "wide"],
+    ["employmentTypes", "Anställningsformer", "Spara anställningsformer", "narrow"],
+    ["experience", "Antal års erfarenhet", "Spara erfarenhet", "narrow"],
+  ] as const)("%s: titled by the part, saved by name, no subheading and no lede", (part, title, save, width) => {
+    renderDialog(FILLED[part]);
+    const dialog = screen.getByRole("dialog", { name: title });
+
+    expect(within(dialog).getAllByRole("heading")).toHaveLength(1);
+    expect(within(dialog).getByRole("heading", { name: title })).toBeInTheDocument();
+    expect(dialog).not.toHaveAttribute("aria-describedby");
+    expect(within(dialog).getByRole("button", { name: save })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeInTheDocument();
+    expect(dialog.classList.contains("jp-matchdialog--narrow")).toBe(width === "narrow");
   });
 
-  it("renderar exakt EN stäng-knapp (radix Close, civic-restylad) som stänger", async () => {
+  it("renderar exakt EN stäng-knapp (radix Close)", async () => {
     const user = userEvent.setup();
-    const { onOpenChange } = renderDialog();
-    // Regressionsvakt: dialogen hade tidigare BÅDE en egen .jp-matchdialog__close
-    // OCH shadcns inbyggda Close → två "Stäng" i DOM (dubblerad för SR). Nu är
-    // den inbyggda radix-Close den enda stäng-kontrollen.
+    const { onOpenChange } = renderDialog(FILLED.skills);
     expect(screen.getAllByRole("button", { name: "Stäng" })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Stäng" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("seedar draften från den persisterade mängden vid öppning (pinnade chips)", () => {
-    renderDialog({
-      persistedRegions: ["region_sthlm"],
-      persistedEmploymentTypes: ["kpPX_CNN_gDU"],
-    });
-    const ortGroup = screen.getByRole("group", { name: "Orter" });
-    expect(
-      within(ortGroup).getByRole("button", { name: "Ta bort Stockholms län" })
-    ).toBeInTheDocument();
+  it("renderar utan Radix missing-description-varning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderDialog(FILLED.occupations);
+    const logged = [...warnSpy.mock.calls, ...errorSpy.mock.calls].flat().join(" ");
+    expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});
+
+describe("focus on open (#1918 Binding 5)", () => {
+  it.each(["occupations", "skills", "locations", "employmentTypes"] as const)(
+    "%s: the title, never Rensa",
+    (part) => {
+      renderDialog(FILLED[part]);
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getByRole("heading")).toHaveFocus();
+      expect(within(dialog).getByRole("heading")).toHaveAttribute("tabindex", "-1");
+      expect(within(dialog).getByRole("button", { name: "Rensa" })).not.toHaveFocus();
+    }
+  );
+
+  it("experience: the field, named by the title and without a hint (Binding 4)", () => {
+    renderDialog(FILLED.experience);
+    const field = screen.getByRole("spinbutton", { name: "Antal års erfarenhet" });
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue(5);
+    expect(field).not.toHaveAttribute("aria-describedby");
+  });
+});
+
+describe("an empty part opens its picker directly", () => {
+  it.each([
+    ["occupations", "Lägg till yrken"],
+    ["skills", "Lägg till kompetens"],
+    ["locations", "Lägg till orter"],
+  ] as const)("%s", (part, picker) => {
+    renderDialog(EMPTY[part]);
+    expect(screen.getByRole("button", { name: picker })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("Spår 3 PR-D: seedar kommun-chips ur preferredMunicipalities", () => {
-    renderDialog({
-      persistedMunicipalities: ["mun_sthlm"],
-    });
-    const ortGroup = screen.getByRole("group", { name: "Orter" });
-    // Kommun-namnet faller tillbaka på id:t här (fixturens region har inga
-    // municipalities) — chippen renderas ändå (labelsForSelected-fallback).
-    expect(
-      within(ortGroup).getByRole("button", { name: "Ta bort mun_sthlm" })
-    ).toBeInTheDocument();
+  it.each([
+    ["occupations", "Lägg till yrken"],
+    ["skills", "Lägg till kompetens"],
+    ["locations", "Lägg till orter"],
+  ] as const)("%s, when filled, keeps it closed", (part, picker) => {
+    renderDialog(FILLED[part]);
+    expect(screen.getByRole("button", { name: picker })).toHaveAttribute("aria-expanded", "false");
   });
+});
 
-  it("Spara skriver den fulla mängden och anropar onSaved + stänger", async () => {
+describe("save writes the part and only the part", () => {
+  it("Yrken: the chosen groups and their years, then closes", async () => {
     const user = userEvent.setup();
-    const { onSaved, onOpenChange } = renderDialog({
-      persistedRegions: ["region_sthlm"],
-    });
+    const { onSave, onOpenChange } = renderDialog(EMPTY.occupations);
 
-    // Lägg till ett yrke via disclosure-kaskaden: öppna picker → välj
-    // yrkesområde → kryssa grupp.
-    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
     await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
     await user.click(screen.getByRole("checkbox", { name: "Backendutvecklare" }));
+    await user.type(screen.getByRole("spinbutton", { name: "År i yrket Backendutvecklare" }), "8");
+    await user.click(screen.getByRole("button", { name: "Spara yrken" }));
 
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
-
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    // Spår 3 PR-D: region + kommun submittas atomiskt i samma PUT.
-    // STEG 3 / ADR 0079: kompetens + erfarenhet i SAMMA PUT (page-wipe-guard).
-    expect(updateMock).toHaveBeenCalledWith({
-      preferredOccupationGroups: ["grp_backend"],
-      preferredRegions: ["region_sthlm"],
-      preferredMunicipalities: [],
-      preferredRemote: false,
-      preferredEmploymentTypes: [],
-      preferredSkills: [],
-      experienceYears: null,
-      // exp-per-occ PR-4: per-yrke-overlayn skickas med (tom här — inga år angivna).
-      preferredOccupationExperience: [],
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onSave).toHaveBeenCalledWith({
+      part: "occupations",
+      groups: ["grp_backend"],
+      experience: [{ conceptId: "grp_backend", years: 8 }],
     });
-    expect(onSaved).toHaveBeenCalledWith({
-      occupations: ["grp_backend"],
+  });
+
+  it("Yrken: a removed occupation takes its years with it", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({
+      part: "occupations",
+      groups: ["grp_backend", "grp_frontend"],
+      experience: [
+        { conceptId: "grp_backend", years: 4 },
+        { conceptId: "grp_frontend", years: 2 },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Backendutvecklare" }));
+    await user.click(screen.getByRole("button", { name: "Spara yrken" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        part: "occupations",
+        groups: ["grp_frontend"],
+        experience: [{ conceptId: "grp_frontend", years: 2 }],
+      })
+    );
+  });
+
+  it("Kompetenser: a twin chip drops both member ids, and the names ride along", async () => {
+    const user = userEvent.setup();
+    const csharp = {
+      conceptId: "esco_csharp",
+      label: "C#",
+      memberConceptIds: ["esco_csharp", "af_csharp"],
+    };
+    const { onSave } = renderDialog({
+      part: "skills",
+      skills: ["esco_csharp", "af_csharp", "skill_sql"],
+      skillGroups: [csharp, { conceptId: "skill_sql", label: "SQL", memberConceptIds: ["skill_sql"] }],
+    });
+
+    expect(screen.getAllByRole("button", { name: "Ta bort C#" })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Ta bort C#" }));
+    await user.click(screen.getByRole("button", { name: "Spara kompetenser" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]![0]).toMatchObject({ part: "skills", skills: ["skill_sql"] });
+  });
+
+  it("Orter: region, municipality and distans travel together (NOTE-1)", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog({
+      part: "locations",
       regions: ["region_sthlm"],
-      municipalities: [],
-      employment: [],
-      skills: [],
-      experienceYears: null,
-      remote: false,
-      occupationExperience: [],
-      skillGroups: [],
-    });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Spår 3 PR-D (NOTE-1): pre-fyllda kommuner submittas atomiskt med regioner, aldrig nollade", async () => {
-    const user = userEvent.setup();
-    const { onSaved } = renderDialog({
-      persistedRegions: ["region_sthlm"],
-      persistedMunicipalities: ["mun_a", "mun_b"],
+      municipalities: ["mun_a"],
+      remote: true,
     });
 
-    // Spara utan att röra ort: läs-tillbaka måste bära BÅDA axlarna oförändrade.
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+    await user.click(screen.getByRole("button", { name: "Ta bort mun_a" }));
+    await user.click(screen.getByRole("button", { name: "Spara orter" }));
 
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    expect(updateMock).toHaveBeenCalledWith({
-      preferredOccupationGroups: [],
-      preferredRegions: ["region_sthlm"],
-      preferredMunicipalities: ["mun_a", "mun_b"],
-      preferredRemote: false,
-      preferredEmploymentTypes: [],
-      preferredSkills: [],
-      experienceYears: null,
-      preferredOccupationExperience: [],
-    });
-    expect(onSaved).toHaveBeenCalledWith({
-      occupations: [],
-      regions: ["region_sthlm"],
-      municipalities: ["mun_a", "mun_b"],
-      employment: [],
-      skills: [],
-      experienceYears: null,
-      remote: false,
-      occupationExperience: [],
-      skillGroups: [],
-    });
-  });
-
-  it("STEG 3 / ADR 0079 (page-wipe-guard): pre-fyllda skills + erfarenhet submittas atomiskt, aldrig nollade", async () => {
-    const user = userEvent.setup();
-    const { onSaved } = renderDialog({
-      persistedSkills: ["skill_react"],
-      persistedExperienceYears: 7,
-      persistedSkillGroups: [
-        { conceptId: "skill_react", label: "React", memberConceptIds: ["skill_react"] },
-      ],
-    });
-
-    // Spara utan att röra kompetens/erfarenhet: båda måste bäras oförändrade.
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
-
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    expect(updateMock).toHaveBeenCalledWith({
-      preferredOccupationGroups: [],
-      preferredRegions: [],
-      preferredMunicipalities: [],
-      preferredRemote: false,
-      preferredEmploymentTypes: [],
-      preferredSkills: ["skill_react"],
-      experienceYears: 7,
-      preferredOccupationExperience: [],
-    });
-    expect(onSaved).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skills: ["skill_react"],
-        experienceYears: 7,
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        part: "locations",
+        regions: ["region_sthlm"],
+        municipalities: [],
+        remote: true,
       })
     );
   });
 
-  it("#277: ett sparat twin-par renderar EN kompetens-chip (cold-load via grupperad resolve)", () => {
-    renderDialog({
-      persistedSkills: ["esco_csharp", "af_csharp"],
-      persistedSkillGroups: [
-        {
-          conceptId: "esco_csharp",
-          label: "C#",
-          memberConceptIds: ["esco_csharp", "af_csharp"],
-        },
-      ],
-    });
-    const skills = screen.getByRole("group", { name: "Kompetenser" });
-    expect(
-      within(skills).getAllByRole("button", { name: "Ta bort C#" })
-    ).toHaveLength(1);
-  });
-
-  it("#277: att ta bort en twin-chip i dialogen droppar BÅDA member-id på spara (flat union)", async () => {
+  it("Anställningsformer: the checked types", async () => {
     const user = userEvent.setup();
-    const { onSaved } = renderDialog({
-      persistedSkills: ["esco_csharp", "af_csharp"],
-      persistedSkillGroups: [
-        {
-          conceptId: "esco_csharp",
-          label: "C#",
-          memberConceptIds: ["esco_csharp", "af_csharp"],
-        },
-      ],
-    });
+    const { onSave } = renderDialog(EMPTY.employmentTypes);
 
-    const skills = screen.getByRole("group", { name: "Kompetenser" });
-    await user.click(
-      within(skills).getByRole("button", { name: "Ta bort C#" })
-    );
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+    await user.click(screen.getByRole("checkbox", { name: "Vikariat" }));
+    await user.click(screen.getByRole("button", { name: "Spara anställningsformer" }));
 
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    // Save-payloaden förblir en FLAT string[] — twin-parets BÅDA id är borta.
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ preferredSkills: [] })
-    );
-    expect(onSaved).toHaveBeenCalledWith(
-      expect.objectContaining({ skills: [] })
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ part: "employmentTypes", types: ["gro4_cWF_6D7"] })
     );
   });
 
-  it("exp-per-occ PR-4: per-yrke-år editeras och submittas (full-replace, scopad till valda yrken)", async () => {
+  it.each([
+    ["a number", "12", 12],
+    ["an emptied field, as not stated", "", null],
+  ])("Antal års erfarenhet: %s", async (_row, typed, years) => {
     const user = userEvent.setup();
-    const { onSaved } = renderDialog({
-      persistedOccupationGroups: ["grp_backend"],
-    });
+    const { onSave } = renderDialog(FILLED.experience);
 
-    // Yrket renderas med ett "ungefärliga år"-fält (per-yrke aria-label).
-    const yearsInput = screen.getByRole("spinbutton", {
-      name: "År i yrket Backendutvecklare",
-    });
-    await user.type(yearsInput, "8");
+    const field = screen.getByRole("spinbutton", { name: "Antal års erfarenhet" });
+    await user.clear(field);
+    if (typed !== "") await user.type(field, typed);
+    await user.click(screen.getByRole("button", { name: "Spara erfarenhet" }));
 
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
-
-    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        preferredOccupationGroups: ["grp_backend"],
-        preferredOccupationExperience: [{ conceptId: "grp_backend", years: 8 }],
-      })
-    );
-    expect(onSaved).toHaveBeenCalledWith(
-      expect.objectContaining({
-        occupationExperience: [{ conceptId: "grp_backend", years: 8 }],
-      })
-    );
-  });
-
-  it("exp-per-occ PR-4: en persisterad per-yrke-overlay pre-fylls i fältet", () => {
-    renderDialog({
-      persistedOccupationGroups: ["grp_backend"],
-      persistedOccupationExperience: [{ conceptId: "grp_backend", years: 4 }],
-    });
-    const yearsInput = screen.getByRole("spinbutton", {
-      name: "År i yrket Backendutvecklare",
-    });
-    expect(yearsInput).toHaveValue(4);
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ part: "experience", years }));
   });
 
   it("Avbryt stänger utan att skriva", async () => {
     const user = userEvent.setup();
-    const { onOpenChange } = renderDialog();
+    const { onSave, onOpenChange } = renderDialog(FILLED.skills);
     await user.click(screen.getByRole("button", { name: "Avbryt" }));
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("misslyckad save visar role=alert utan att stänga", async () => {
-    const user = userEvent.setup();
-    updateMock.mockResolvedValue({ success: false, error: "Serverfel" });
-    const { onOpenChange } = renderDialog();
-    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Serverfel");
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-  });
-
-  it("pinnad chip kan tas bort i dialogen (edit) innan save", async () => {
-    const user = userEvent.setup();
-    renderDialog({ persistedRegions: ["region_sthlm"] });
-    await user.click(
-      screen.getByRole("button", { name: "Ta bort Stockholms län" })
-    );
-    expect(
-      screen.queryByRole("button", { name: "Ta bort Stockholms län" })
-    ).toBeNull();
   });
 });
 
-describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
+describe("a refused save (#1918 Major 5)", () => {
+  it("says why in the foot, keeps the dialog and its draft, and hands focus back to Spara", async () => {
+    const user = userEvent.setup();
+    const { onSave, onOpenChange } = renderDialog(EMPTY.employmentTypes);
+    onSave.mockResolvedValue(REFUSED);
+
+    await user.click(screen.getByRole("checkbox", { name: "Vikariat" }));
+    const save = screen.getByRole("button", { name: "Spara anställningsformer" });
+    await user.click(save);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(REFUSED_TEXT);
+    expect(save).toHaveAttribute("aria-describedby", alert.id);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("checkbox", { name: "Vikariat" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    await waitFor(() => expect(save).toHaveFocus());
+  });
+
+  it("shows Sparar… and disables both buttons while the write is out", async () => {
+    const user = userEvent.setup();
+    const { onSave, onOpenChange } = renderDialog(FILLED.experience);
+    let settle: (result: ActionResult) => void = () => {};
+    onSave.mockImplementation(
+      () =>
+        new Promise<ActionResult>((resolve) => {
+          settle = resolve;
+        })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Spara erfarenhet" }));
+
+    const busy = await screen.findByRole("button", { name: "Sparar…" });
+    expect(busy).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Avbryt" })).toBeDisabled();
+    settle(SAVED);
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+});
+
+// #1918 B1 as it reaches the dialogs (senior-cto-advisor 6.8). The section tests pin the other
+// three; Anställningsformer's list is its own control, so focus lands on it.
+describe("Anställningsformer: focus after a removal", () => {
+  it("the last chip leaves focus on the list's first option", async () => {
+    const user = userEvent.setup();
+    renderDialog(FILLED.employmentTypes);
+
+    screen.getByRole("button", { name: "Ta bort Vikariat" }).focus();
+    await user.keyboard("{Delete}");
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Tillsvidareanställning (inkl. eventuell provanställning)",
+      })
+    ).toHaveFocus();
+  });
+
+  it("Rensa leaves focus on the list's first option", async () => {
+    const user = userEvent.setup();
+    renderDialog(FILLED.employmentTypes);
+
+    await user.click(screen.getByRole("button", { name: "Rensa" }));
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Tillsvidareanställning (inkl. eventuell provanställning)",
+      })
+    ).toHaveFocus();
+  });
+});
+
+describe("Yrken: CV-förslag", () => {
   it("inget CV → lugn tom-state med inline 'Ladda upp CV'-knapp (ingen sid-länk)", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
-    renderDialog();
+    renderDialog(FILLED.occupations);
 
-    await user.click(
-      screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
-    );
+    await user.click(screen.getByRole("button", { name: "Föreslå utifrån mitt CV" }));
 
-    // Spår 4: laddar upp inline i dialogen i stället för att navigera bort till
-    // /cv/importera-sidan. Det fulla inline-upload→förslag-flödet (med stubbad
-    // CvUploadForm) testas i occupation-section.test.tsx.
     expect(await screen.findByText("Inget CV uppladdat")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Ladda upp CV" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ladda upp CV" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Importera CV" })).toBeNull();
   });
 
-  it("CV utan läsbar roll → lugn rad", async () => {
-    const user = userEvent.setup();
-    cvSuggestMock.mockResolvedValue({ kind: "noRole" } satisfies CvSuggestResult);
-    renderDialog();
-
-    await user.click(
-      screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
-    );
-
-    expect(
-      await screen.findByText(/Vi kunde inte läsa ett yrke ur ditt CV/)
-    ).toBeInTheDocument();
-  });
-
-  it("CV med kandidater → PRE-ADDAS som borttagbara chips i Yrken (ej en separat checklista)", async () => {
-    const user = userEvent.setup();
-    cvSuggestMock.mockResolvedValue({
-      kind: "candidates",
-      candidates: [
-        {
-          occupationGroupConceptId: "grp_backend",
-          occupationGroupLabel: "Backendutvecklare",
-        },
-      ],
-    } satisfies CvSuggestResult);
-    renderDialog();
-
-    await user.click(
-      screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
-    );
-
-    // Kandidaten pre-addas till draften som en borttagbar chip (propose-and-
-    // approve — draft-only, inget skrivs). Ingen separat kryss-checklista.
-    const yrken = screen.getByRole("group", { name: "Yrken" });
-    expect(
-      await within(yrken).findByRole("button", {
-        name: "Ta bort Backendutvecklare",
-      })
-    ).toBeInTheDocument();
-    // Inte längre en kandidat-checklista.
-    expect(
-      screen.queryByRole("group", { name: "Föreslagna yrkesgrupper" })
-    ).toBeNull();
-    // Deterministisk copy — aldrig "AI". Inget skrivs förrän Spara.
-    expect(screen.queryByText(/AI/)).toBeNull();
-    expect(updateMock).not.toHaveBeenCalled();
-  });
-
-  it("error → role=alert", async () => {
-    const user = userEvent.setup();
-    cvSuggestMock.mockResolvedValue({ kind: "error" } satisfies CvSuggestResult);
-    renderDialog();
-
-    await user.click(
-      screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /Kunde inte läsa ditt CV just nu/
-    );
-  });
-
-  it("en pre-addad CV-chip kan tas bort (propose-and-approve)", async () => {
+  it("CV med kandidater → PRE-ADDAS som borttagbara chips, inget skrivs", async () => {
     const user = userEvent.setup();
     cvSuggestMock.mockResolvedValue({
       kind: "candidates",
@@ -456,88 +399,53 @@ describe("MatchPreferencesDialog — CV-förslag (fyra states)", () => {
         },
       ],
     } satisfies CvSuggestResult);
-    renderDialog();
+    const { onSave } = renderDialog(FILLED.occupations);
 
-    await user.click(
-      screen.getByRole("button", { name: "Föreslå utifrån mitt CV" })
-    );
-    const yrken = screen.getByRole("group", { name: "Yrken" });
-    const remove = await within(yrken).findByRole("button", {
-      name: "Ta bort Frontendutvecklare",
-    });
-    await user.click(remove);
+    await user.click(screen.getByRole("button", { name: "Föreslå utifrån mitt CV" }));
+
     expect(
-      within(yrken).queryByRole("button", { name: "Ta bort Frontendutvecklare" })
-    ).toBeNull();
+      await screen.findByRole("button", { name: "Ta bort Frontendutvecklare" })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/AI/)).toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
   });
-});
 
-describe("MatchPreferencesDialog — yrkestitel-fältet borttaget (redesign)", () => {
-  it("renderar inte längre 'Föreslå utifrån en yrkestitel'-fältet", () => {
-    renderDialog();
-    expect(
-      screen.queryByLabelText("Föreslå utifrån en yrkestitel")
-    ).toBeNull();
-    expect(screen.queryByRole("button", { name: "Föreslå" })).toBeNull();
-  });
-});
+  it("error → role=alert", async () => {
+    const user = userEvent.setup();
+    cvSuggestMock.mockResolvedValue({ kind: "error" } satisfies CvSuggestResult);
+    renderDialog(FILLED.occupations);
 
-describe("MatchPreferencesDialog — a11y (Radix description-wiring)", () => {
-  // Regression: explicit aria-describedby på DialogContent + explicit id på
-  // DialogDescription besegrade Radix auto-wiring och gav konsolvarningen
-  // "Missing `Description` or `aria-describedby={undefined}`".
-  it("renderar utan Radix missing-description-varning", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    renderDialog();
-    const logged = [...warnSpy.mock.calls, ...errorSpy.mock.calls]
-      .flat()
-      .join(" ");
-    expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
-    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
-    warnSpy.mockRestore();
-    errorSpy.mockRestore();
+    await user.click(screen.getByRole("button", { name: "Föreslå utifrån mitt CV" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Kunde inte läsa ditt CV just nu/);
   });
 });
 
 describe("MatchPreferencesDialog — locale en (#1537)", () => {
-  it("namnger anställningsformen ur katalogen, inte ur propens källetikett", () => {
-    // Dialogen bygger sina egna options (den delar inte kortets), så den behöver sin
-    // egen pinne. Under `sv` är katalogvärdet byte-identiskt med propen och kan därför
-    // inte skilja katalogvägen från en genomsläppning.
+  it("names the employment type from the catalogue and the part in English", () => {
     rawRender(
-      <NextIntlClientProvider
-        locale="en"
-        messages={enMessages}
-        timeZone="Europe/Stockholm"
-      >
+      <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
         <MatchPreferencesDialog
           open
           onOpenChange={vi.fn()}
+          value={FILLED.employmentTypes}
           occupationFields={occupationFields}
           regions={regions}
-          employmentTypes={employmentTypes}
-          persistedOccupationGroups={[]}
-          persistedRegions={[]}
-          persistedMunicipalities={[]}
-          persistedRemote={false}
-          persistedEmploymentTypes={[]}
-          persistedSkills={[]}
-          persistedExperienceYears={null}
-          persistedOccupationExperience={[]}
-          onSaved={vi.fn()}
+          employmentTypes={[employmentTypes[0]!]}
           importCvHref="/cv/importera"
+          onSave={vi.fn()}
+          onCloseAutoFocus={vi.fn()}
         />
       </NextIntlClientProvider>
     );
 
+    expect(screen.getByRole("dialog", { name: "Employment types" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save employment types" })).toBeInTheDocument();
     expect(
       screen.getByText(/Permanent employment \(including any trial employment\)/)
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(
-        /Tillsvidareanställning \(inkl\. eventuell provanställning\)/
-      )
+      screen.queryByText(/Tillsvidareanställning \(inkl\. eventuell provanställning\)/)
     ).toBeNull();
   });
 });

@@ -1,45 +1,62 @@
 "use client";
 
-// "use client": kortet håller lokal vald-mängd-state (tre dimensioner),
-// optimistisk chip-borttagning med useTransition runt save-action +
-// revert-vid-fel, tangentbords-borttagning med fokus-flytt till grannen, samt
-// en dialog-öppna-affordans. Inget av detta går i en Server Component.
+// "use client": the card holds each part as the server last acknowledged it and the chip removals
+// still in flight, writes each part through its own queue, and moves focus after a removal and when
+// a part's dialog closes. None of that runs in a Server Component.
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState, useTransition } from "react";
-import { useFormatter, useLocale, useTranslations } from "next-intl";
+import {
+  type ReactNode,
+  type Ref,
+  startTransition,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
-import { formatTime } from "@/lib/i18n/format";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { SkillGroup } from "@/lib/dto/skills";
+import type { ActionResult } from "@/lib/actions/_action-result";
+import type { UpdateMatchPreferencesInput } from "@/lib/actions/match-preferences-schemas";
 import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import { Button } from "@/components/ui/button";
 import {
   flattenOccupationGroups,
   filterOptions,
   groupsForSelected,
+  hasValues,
   labelsForSelected,
-  projectOccupationExperience,
-  recordFromOccupationExperience,
-  type Option,
+  toPatch,
+  withoutMembers,
+  type EmploymentTypesValue,
+  type ExperienceValue,
+  type LocationsValue,
+  type MatchPart,
   type OccupationExperienceEntry,
+  type OccupationsValue,
+  type Option,
+  type PartValue,
   type SkillChip,
+  type SkillsValue,
 } from "./match-preferences-shared";
-import type { SkillGroup } from "@/lib/dto/skills";
-import { PreferenceChip } from "./preference-chip";
+import { ChipList } from "./section-helpers";
+import { Outcome, type WriteOutcome } from "./write-outcome";
 
 // #748: the dialog's static import chain (dialog + OccupationSection +
 // SkillSection + RegionMunicipalityCascade + CV-upload/suggest wiring, ~2.5k
 // lines of client code) is code-split out of the /mina-sidor route bundle
 // and fetched on first open. `ssr: false` is deliberate: the dialog only ever
-// renders client-side after a click (gated behind `dialogRequested`), and it
+// renders client-side after a click (gated behind the first opening), and it
 // gives next/dynamic its OWN Suspense boundary (fallback null) so a first-open
 // chunk fetch never bubbles up to the route's loading.tsx and flashes a
-// whole-page skeleton. The trigger button stays statically rendered → no CLS.
+// whole-page skeleton. The part buttons stay statically rendered → no CLS.
 const MatchPreferencesDialogLazy = dynamic(
   () => import("./match-preferences-dialog").then((m) => m.MatchPreferencesDialog),
   { ssr: false }
@@ -49,16 +66,48 @@ const MatchPreferencesDialogLazy = dynamic(
 // dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
 export { flattenOccupationGroups, filterOptions };
 
-/** Yrken/Kompetenser/Orter/Anställningsformer — facetterna kortet renderar.
- * "orter" är EN dimension i två granulariteter (län + kommun, Spår 3 PR-D);
- * "skills" är CV-seedade kompetenser (STEG 3 / ADR 0079). */
-type Facet = "occupations" | "skills" | "orter" | "employment";
+/** The parts drawn as chips; Antal års erfarenhet is one value. */
+type ListPart = Exclude<MatchPart, "experience">;
+const LIST_PARTS: ReadonlyArray<ListPart> = [
+  "occupations",
+  "skills",
+  "locations",
+  "employmentTypes",
+];
 
-/** A rendered chip + the FULL set of ids it stands for. Most facets are 1:1
- *  (`memberConceptIds === [conceptId]`); a skill chip is a GROUP whose member
- *  ids (the ESCO + AF twin) are all dropped on removal (#277). Structurally a
- *  `SkillChip` — reused so the uniform chip render carries member ids. */
-type RenderChip = SkillChip;
+/** Each part as the server last acknowledged it. */
+interface Parts {
+  readonly occupations: OccupationsValue;
+  readonly skills: SkillsValue;
+  readonly locations: LocationsValue;
+  readonly employmentTypes: EmploymentTypesValue;
+  readonly experience: ExperienceValue;
+}
+
+/** The chip members whose removal is written or waiting to be, per part. */
+type Removals = Readonly<Record<ListPart, ReadonlySet<string>>>;
+
+const NO_REMOVALS: Removals = {
+  occupations: new Set(),
+  skills: new Set(),
+  locations: new Set(),
+  employmentTypes: new Set(),
+};
+
+const NO_OUTCOMES: Readonly<Record<MatchPart, WriteOutcome | null>> = {
+  occupations: null,
+  skills: null,
+  locations: null,
+  employmentTypes: null,
+  experience: null,
+};
+
+const SETTLED: Promise<unknown> = Promise.resolve();
+
+// The delivered form of a text button (`START_OVER_LINK` in change-email-setting.tsx): underlined
+// at rest, and a 40/44 px hit area without a taller box.
+const PART_BUTTON =
+  "-my-2 h-auto px-0 py-2 text-brand-700 underline underline-offset-2 max-md:-my-2.5 max-md:py-2.5";
 
 interface MatchPreferencesCardProps {
   /** Yrkesområden (med underordnade yrkesgrupper) → kortet plattar själv. */
@@ -72,7 +121,7 @@ interface MatchPreferencesCardProps {
   readonly initialRegions: ReadonlyArray<string>;
   /** Spår 3 PR-D: kommun-axeln (sparade kommun-concept-id från profilen). */
   readonly initialMunicipalities: ReadonlyArray<string>;
-  /** #551 punkt 4: distans-axeln (pre-fill, full-replace page-wipe-vakt). */
+  /** #551 punkt 4: distans-axeln. */
   readonly initialRemote: boolean;
   readonly initialEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (sparade från profilen). */
@@ -91,8 +140,7 @@ interface MatchPreferencesCardProps {
   /**
    * exp-per-occ (ADR 0079-amendment PR-4): den persisterade per-yrke-
    * erfarenhets-overlayn (gles delmängd av `initialOccupationGroups`). Förs
-   * vidare till dialogen som pre-fill och adopteras lokalt efter save så
-   * kortets läs-rader är koherenta utan remount.
+   * vidare till Yrken-dialogen som pre-fill.
    */
   readonly initialOccupationExperience: ReadonlyArray<OccupationExperienceEntry>;
   /**
@@ -106,6 +154,10 @@ interface MatchPreferencesCardProps {
 /** CV-importflödets route (verifierad on-disk: app/(app)/cv/importera). */
 const IMPORT_CV_HREF = "/cv/importera";
 
+/**
+ * The Matchning card of /mina-sidor (#1918): five parts, each changed on its own through its own
+ * dialog, and each write carrying only its own part (ADR 0147).
+ */
 export function MatchPreferencesCard({
   occupationFields,
   regions,
@@ -127,20 +179,6 @@ export function MatchPreferencesCard({
   // Stabil identitet: en ny collator per render hade legat i memons deps nedan och
   // gjort den till en garanterad miss.
   const collator = useMemo(() => new Intl.Collator(locale), [locale]);
-  const format = useFormatter();
-  // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
-  const facetLabel: Record<Facet, string> = {
-    occupations: t("matchPrefs.facetOccupations"),
-    skills: t("matchPrefs.facetSkills"),
-    orter: t("matchPrefs.facetOrter"),
-    employment: t("matchPrefs.facetEmployment"),
-  };
-  const facetEmpty: Record<Facet, string> = {
-    occupations: t("matchPrefs.emptyOccupations"),
-    skills: t("matchPrefs.emptySkills"),
-    orter: t("matchPrefs.emptyOrter"),
-    employment: t("matchPrefs.emptyEmployment"),
-  };
   const occupationOptions = useMemo(
     () => flattenOccupationGroups(occupationFields),
     [occupationFields]
@@ -160,237 +198,133 @@ export function MatchPreferencesCard({
   // Anställningsform är allmänsubstantiv och byter språk med locale:n (#1537); ort och
   // yrkesgrupp ovan är egennamn och passerar oöversatta.
   const employmentOptions = useMemo<ReadonlyArray<Option>>(
-    () =>
-      codedTaxonomyOptions(tEnum, collator, employmentTypes),
+    () => codedTaxonomyOptions(tEnum, collator, employmentTypes),
     [employmentTypes, tEnum, collator]
   );
 
-  const [occupationGroups, setOccupationGroups] = useState<
-    ReadonlyArray<string>
-  >(initialOccupationGroups);
-  const [selectedRegions, setSelectedRegions] =
-    useState<ReadonlyArray<string>>(initialRegions);
-  const [selectedMunicipalities, setSelectedMunicipalities] =
-    useState<ReadonlyArray<string>>(initialMunicipalities);
-  const [selectedRemote, setSelectedRemote] = useState<boolean>(initialRemote);
-  const [selectedEmployment, setSelectedEmployment] = useState<
-    ReadonlyArray<string>
-  >(initialEmploymentTypes);
-  const [selectedSkills, setSelectedSkills] =
-    useState<ReadonlyArray<string>>(initialSkills);
-  const [experienceYears, setExperienceYears] = useState<number | null>(
-    initialExperienceYears
-  );
-  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay. Förs
-  // till dialogen som pre-fill och adopteras efter save (annars driver kortets
-  // läs-rader isär från SSOT tills remount). En map för O(1)-uppslag per chip.
-  const [occupationExperience, setOccupationExperience] = useState<
-    Readonly<Record<string, number | null>>
-  >(() => recordFromOccupationExperience(initialOccupationExperience));
-  // Skill group-store (canonical conceptId → SkillGroup). The flat skill
-  // taxonomy is never shipped to the FE as a tree, so a saved skill has no tree
-  // lookup — the card adopts the groups the dialog surfaced (post-save) and
-  // otherwise falls back to the id (groupsForSelected). Seeded server-side from
-  // the persisted skills' grouped reverse-lookup (ADR 0047 + #277) so a
-  // returning user sees NAMES and ONE chip per twin-par on a cold load without
-  // opening the dialog; the on-save adoption (onDialogSaved) refreshes it after.
-  const [skillGroups, setSkillGroups] =
-    useState<ReadonlyArray<SkillGroup>>(initialSkillGroups);
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  // #748: latches true on the first "Lägg till" click and stays true, so the
-  // code-split dialog mounts on demand (never in the initial route JS) but is
-  // kept mounted afterwards — Radix still unmounts the dialog CONTENT on close
-  // (close animation + open-keyed draft reseed intact), and reopen is instant.
-  const [dialogRequested, setDialogRequested] = useState(false);
-  const [isSaving, startSaving] = useTransition();
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const addButtonRef = useRef<HTMLButtonElement>(null);
-  // Refs till varje chips ⨯-knapp, nyckel "facet:conceptId". Populeras ENBART
-  // via ref-callback (commit-tid) — aldrig läst/skriven under render (WCAG
-  // 2.4.3 fokus-flytt sker i en queueMicrotask EFTER commit).
-  const removeRefs = useRef(new Map<string, HTMLButtonElement | null>());
-  const refKey = (facet: Facet, conceptId: string) => `${facet}:${conceptId}`;
-
-  interface PrefSets {
-    occupations: ReadonlyArray<string>;
-    regions: ReadonlyArray<string>;
-    municipalities: ReadonlyArray<string>;
-    remote: boolean;
-    employment: ReadonlyArray<string>;
-    skills: ReadonlyArray<string>;
-  }
-
-  const currentSets = (): PrefSets => ({
-    occupations: occupationGroups,
-    regions: selectedRegions,
-    municipalities: selectedMunicipalities,
-    remote: selectedRemote,
-    employment: selectedEmployment,
-    skills: selectedSkills,
+  // The ref is what a queued write reads when it runs; the state is what renders. Both change
+  // together, and only when a write succeeds.
+  const [parts, setParts] = useState<Parts>(() => ({
+    occupations: {
+      part: "occupations",
+      groups: initialOccupationGroups,
+      experience: initialOccupationExperience,
+    },
+    skills: { part: "skills", skills: initialSkills, skillGroups: initialSkillGroups },
+    locations: {
+      part: "locations",
+      regions: initialRegions,
+      municipalities: initialMunicipalities,
+      remote: initialRemote,
+    },
+    employmentTypes: { part: "employmentTypes", types: initialEmploymentTypes },
+    experience: { part: "experience", years: initialExperienceYears },
+  }));
+  const partsRef = useRef(parts);
+  // Not useOptimistic: its layer drops only when every pending transition has settled, so one
+  // refused removal would stay hidden until an unrelated write finished.
+  const [removals, setRemovals] = useState<Removals>(NO_REMOVALS);
+  const [outcomes, setOutcomes] = useState(NO_OUTCOMES);
+  const queues = useRef<Record<MatchPart, Promise<unknown>>>({
+    occupations: SETTLED,
+    skills: SETTLED,
+    locations: SETTLED,
+    employmentTypes: SETTLED,
+    experience: SETTLED,
   });
+  const partButtons = useRef<Partial<Record<MatchPart, HTMLButtonElement | null>>>({});
+  // One dialog instance per opening, so its draft is seeded from the part as shown then.
+  const [dialog, setDialog] = useState<{
+    readonly seq: number;
+    readonly value: PartValue;
+    readonly open: boolean;
+  } | null>(null);
 
-  /** Persisterar HELA mängden (full-replace) med revert-vid-fel. Region + kommun
-   *  skickas atomiskt i samma PUT (NOTE-1). STEG 3 / ADR 0079: kompetens +
-   *  erfarenhet skickas i SAMMA PUT så en chip-borttagning i en annan dimension
-   *  aldrig nollar dem (page-wipe-guard). exp-per-occ (ADR 0079-amendment PR-4):
-   *  per-yrke-overlayn skickas också med, scopad till de NYA yrkena — så en
-   *  chip-borttagning i en annan dimension aldrig nollar overlayn, OCH ett
-   *  borttaget yrke tappar sin overlay-rad (subset-regeln). */
-  function persist(next: PrefSets, revert: () => void) {
-    setSaveError(null);
-    const occupationExperiencePayload = projectOccupationExperience(
-      occupationExperience,
-      next.occupations
-    );
-    startSaving(async () => {
-      const result = await updateMatchPreferencesAction({
-        preferredOccupationGroups: [...next.occupations],
-        preferredRegions: [...next.regions],
-        preferredMunicipalities: [...next.municipalities],
-        preferredRemote: next.remote,
-        preferredEmploymentTypes: [...next.employment],
-        preferredSkills: [...next.skills],
-        experienceYears,
-        preferredOccupationExperience: [...occupationExperiencePayload],
+  function send(patch: UpdateMatchPreferencesInput): Promise<ActionResult> {
+    return new Promise((resolve) => {
+      startTransition(async () => {
+        try {
+          resolve(await updateMatchPreferencesAction(patch));
+        } catch {
+          resolve({ success: false, error: t("matchPrefs.errors.network") });
+        }
       });
-      if (result.success) {
-        setSavedAt(new Date());
-      } else {
-        revert();
-        setSaveError(result.error);
-      }
     });
   }
 
   /**
-   * Ort-facetten ritar två axlar (län + kommun): hitta vilken ett id bor i.
-   * Invariant: region- och kommun-concept-id ligger i DISJUNKTA namnrymder i
-   * JobTech-taxonomin, så "finns i selectedRegions" entydigt skiljer axlarna.
-   * Skulle ett framtida taxonomi-id kollidera mellan axlarna måste detta byta
-   * till en id→axel-karta byggd ur trädet.
+   * ADR 0147 D9: a part's writes run one after another, and each binds its payload when it runs,
+   * after the part's previous write has an outcome. No write leans on Next
+   * dispatching Server Actions one at a time.
    */
-  function ortAxisOf(conceptId: string): "regions" | "municipalities" {
-    return selectedRegions.includes(conceptId) ? "regions" : "municipalities";
+  function enqueueWrite(
+    part: MatchPart,
+    bind: () => { value: PartValue; patch: UpdateMatchPreferencesInput },
+    {
+      settle,
+      refusalUnderPart,
+    }: { readonly settle?: () => void; readonly refusalUnderPart: boolean }
+  ): Promise<ActionResult> {
+    setOutcomes((prev) => ({ ...prev, [part]: null }));
+    const run = queues.current[part].then(async () => {
+      const { value, patch } = bind();
+      const result = await send(patch);
+      if (result.success) {
+        partsRef.current = withPart(partsRef.current, value);
+        setParts(partsRef.current);
+      }
+      settle?.();
+      if (result.success || refusalUnderPart) {
+        setOutcomes((prev) => ({
+          ...prev,
+          [part]: result.success
+            ? { ok: true, at: new Date() }
+            : { ok: false, error: result.error },
+        }));
+      }
+      return result;
+    });
+    queues.current[part] = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   }
 
   /**
-   * Optimistisk borttagning av en chip: ta bort lokalt direkt (ingen spinner),
-   * persistera hela nya mängden, revert vid fel. `keyboard` → flytta fokus till
-   * grannen (eller "Lägg till" om facetten blev tom), aldrig till body.
-   *
-   * Ort-facetten kombinerar två axlar — `axisFor` pekar ut vilken state-lista
-   * id:t faktiskt bor i (län ELLER kommun), så grannskaps-/revert-logiken
-   * fortsätter att vara axel-exakt.
+   * Hides the chip at once and writes the part without it. A refusal restores this removal's own
+   * members, never a snapshot from the click, so the part again shows what the server holds.
    */
-  // #277: `memberConceptIds` carries the FULL set of ids a chip stands for.
-  // For most facets that is just `[conceptId]`, but a skill chip is a GROUP — its
-  // member ids (the ESCO + AF twin) must ALL be dropped in one removal, otherwise
-  // a saved twin-pair would leave a dangling member id behind.
-  function removeChip(
-    facet: Facet,
-    conceptId: string,
-    keyboard: boolean,
-    memberConceptIds: ReadonlyArray<string> = [conceptId]
-  ) {
-    const prev = currentSets();
-
-    // Grannen att flytta fokus till (CHIP-ordning, inte rå member-lista): nästa
-    // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
-    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
-    // member-id ej är egna chips) får en korrekt chip-granne med en ref.
-    //
-    // Ligger ovanför distans-grenen MED FLIT: varje borttagningsväg måste
-    // återställa fokus (WCAG 2.4.3), och en väg som returnerar tidigt tappar det
-    // till <body>. Det var precis vad distans-grenen gjorde i sin första form.
-    const chipIds = facetData[facet].map((c) => c.conceptId);
-    const chipIndex = chipIds.indexOf(conceptId);
-    const neighbourConceptId =
-      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
-    function restoreFocus() {
-      if (!keyboard) return;
-      queueMicrotask(() => {
-        const target =
-          neighbourConceptId !== null
-            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
-            : null;
-        if (target) target.focus();
-        else addButtonRef.current?.focus();
-      });
-    }
-
-    // #551 punkt 4 — distans är en BOOLEAN, inte ett id i en lista, så den kan
-    // aldrig gå genom list-maskineriet nedan. Utan denna gren klassar ortAxisOf
-    // sentinel-id:t som en kommun (allt som inte finns i selectedRegions) och
-    // borttagningen blir en tyst no-op.
-    if (conceptId === DISTANS_CHIP_ID) {
-      const next: PrefSets = { ...prev, remote: false };
-      setSelectedRemote(false);
-      restoreFocus();
-      persist(next, () => setSelectedRemote(prev.remote));
-      return;
-    }
-    const axisFor: keyof PrefSets =
-      facet === "occupations"
-        ? "occupations"
-        : facet === "skills"
-          ? "skills"
-          : facet === "employment"
-            ? "employment"
-            : ortAxisOf(conceptId);
-    const list = prev[axisFor];
-    // Drop EVERY member id of the chip's group (difference), not just the
-    // canonical — so a twin chip removes both twin ids in one action.
-    const drop = new Set(memberConceptIds);
-    const nextList = list.filter((v) => !drop.has(v));
-    const next: PrefSets = { ...prev, [axisFor]: nextList };
-
-    applyAxis(axisFor, nextList);
-    restoreFocus();
-
-    persist(next, () => applyAxis(axisFor, prev[axisFor]));
-  }
-
-  /** Skriver EN axel till rätt state-setter. */
-  function applyAxis(axis: keyof PrefSets, value: ReadonlyArray<string>) {
-    if (axis === "occupations") setOccupationGroups(value);
-    else if (axis === "regions") setSelectedRegions(value);
-    else if (axis === "municipalities") setSelectedMunicipalities(value);
-    else if (axis === "skills") setSelectedSkills(value);
-    else setSelectedEmployment(value);
-  }
-
-  function onDialogSaved(saved: {
-    occupations: ReadonlyArray<string>;
-    regions: ReadonlyArray<string>;
-    municipalities: ReadonlyArray<string>;
-    remote: boolean;
-    employment: ReadonlyArray<string>;
-    skills: ReadonlyArray<string>;
-    experienceYears: number | null;
-    occupationExperience: ReadonlyArray<OccupationExperienceEntry>;
-    skillGroups: ReadonlyArray<SkillGroup>;
-  }) {
-    // Dialogen skrev den fulla mängden (SSOT). Anta den lokalt så kortets chips
-    // är koherenta direkt, och visa status-raden. (revalidatePath om-renderar
-    // RSC men byter inte kortets useState-värden — därför adopterar vi här.)
-    setOccupationGroups(saved.occupations);
-    setSelectedRegions(saved.regions);
-    setSelectedMunicipalities(saved.municipalities);
-    setSelectedRemote(saved.remote);
-    setSelectedEmployment(saved.employment);
-    setSelectedSkills(saved.skills);
-    setExperienceYears(saved.experienceYears);
-    // exp-per-occ (ADR 0079-amendment PR-4): adoptera den sparade per-yrke-overlayn.
-    setOccupationExperience(
-      recordFromOccupationExperience(saved.occupationExperience)
+  function removeChip(part: ListPart, members: ReadonlyArray<string>) {
+    const own = new Set(members);
+    setRemovals((prev) => ({ ...prev, [part]: new Set([...prev[part], ...own]) }));
+    void enqueueWrite(
+      part,
+      () => {
+        const value = withoutMembers(partsRef.current[part], own);
+        // The card renders no years, so it sends none and the server keeps them for the
+        // occupations still chosen (ADR 0147 D2).
+        const patch =
+          value.part === "occupations"
+            ? { occupations: { preferredOccupationGroups: [...value.groups] } }
+            : toPatch(value);
+        return { value, patch };
+      },
+      {
+        settle: () =>
+          setRemovals((prev) => ({
+            ...prev,
+            [part]: new Set([...prev[part]].filter((id) => !own.has(id))),
+          })),
+        refusalUnderPart: true,
+      }
     );
-    // Adoptera grupperna dialogen löst upp (sök/CV-förslag) så kortets
-    // kompetens-chips renderar EN chip per twin-par med namn (#277).
-    setSkillGroups(saved.skillGroups);
-    setSavedAt(new Date());
+  }
+
+  function saveFromDialog(value: PartValue): Promise<ActionResult> {
+    return enqueueWrite(value.part, () => ({ value, patch: toPatch(value) }), {
+      refusalUnderPart: false,
+    });
   }
 
   if (degraded) {
@@ -404,183 +338,186 @@ export function MatchPreferencesCard({
     );
   }
 
-  // Each rendered chip carries its member-id set: most facets are 1:1
+  // What the card shows: each part as acknowledged, without the removals still in flight.
+  const shown: Parts = {
+    occupations: withoutMembers(parts.occupations, removals.occupations),
+    skills: withoutMembers(parts.skills, removals.skills),
+    locations: withoutMembers(parts.locations, removals.locations),
+    employmentTypes: withoutMembers(parts.employmentTypes, removals.employmentTypes),
+    experience: parts.experience,
+  };
+
+  // Each rendered chip carries its member-id set: most parts are 1:1
   // (`[conceptId]`), but a SKILL chip is a GROUP whose member ids (the ESCO + AF
-  // twin) must ALL be dropped on removal (#277). `asChips` lifts a plain
-  // {conceptId,label} Option to that shape; skills use `groupsForSelected`
-  // directly so a saved twin-pair collapses to ONE chip.
-  const asChips = (
-    options: ReadonlyArray<Option>
-  ): ReadonlyArray<RenderChip> =>
+  // twin) must ALL be dropped on removal (#277).
+  const asChips = (options: ReadonlyArray<Option>): ReadonlyArray<SkillChip> =>
     options.map((o) => ({ ...o, memberConceptIds: [o.conceptId] }));
 
-  const facetData: Record<Facet, ReadonlyArray<RenderChip>> = {
-    occupations: asChips(labelsForSelected(occupationGroups, occupationOptions)),
-    // Kompetens-chips: EN chip per grupp (twin-par) ur den adopterade grupp-
-    // storen; saknade faller tillbaka på id (ingen träd-uppslagning för skills).
-    skills: groupsForSelected(selectedSkills, skillGroups),
-    // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
-    // #551 punkt 4 — distans först (bredaste ort-valet), annars visar kortet
-    // "Hela landet (ingen ort vald)" för en sparad Distans-preferens.
-    orter: asChips([
-      ...(selectedRemote
+  const chips: Readonly<Record<ListPart, ReadonlyArray<SkillChip>>> = {
+    occupations: asChips(labelsForSelected(shown.occupations.groups, occupationOptions)),
+    skills: groupsForSelected(shown.skills.skills, shown.skills.skillGroups),
+    // Distans först (bredaste ort-valet), sedan valda län, sedan enskilda kommuner.
+    locations: asChips([
+      ...(shown.locations.remote
         ? [{ conceptId: DISTANS_CHIP_ID, label: t("matchPrefs.cascade.distans") }]
         : []),
-      ...labelsForSelected(selectedRegions, regionOptions),
-      ...labelsForSelected(selectedMunicipalities, municipalityOptions),
+      ...labelsForSelected(shown.locations.regions, regionOptions),
+      ...labelsForSelected(shown.locations.municipalities, municipalityOptions),
     ]),
-    employment: asChips(labelsForSelected(selectedEmployment, employmentOptions)),
+    employmentTypes: asChips(labelsForSelected(shown.employmentTypes.types, employmentOptions)),
   };
+
+  const title: Readonly<Record<MatchPart, string>> = {
+    occupations: t("matchPrefs.facetOccupations"),
+    skills: t("matchPrefs.facetSkills"),
+    locations: t("matchPrefs.facetOrter"),
+    employmentTypes: t("matchPrefs.facetEmployment"),
+    experience: t("matchPrefs.experience.label"),
+  };
+  const empty: Readonly<Record<ListPart, string>> = {
+    occupations: t("matchPrefs.emptyOccupations"),
+    skills: t("matchPrefs.emptySkills"),
+    locations: t("matchPrefs.emptyOrter"),
+    employmentTypes: t("matchPrefs.emptyEmployment"),
+  };
+
+  function openDialog(part: MatchPart) {
+    setDialog((prev) => ({ seq: (prev?.seq ?? 0) + 1, value: shown[part], open: true }));
+  }
+
+  const years = shown.experience.years;
 
   return (
     <section className="jp-card jp-matchprefs">
       <h2 className="jp-card__title">{t("matchPrefs.title")}</h2>
 
-      <div className="jp-matchprefs__facets">
-        {(["occupations", "skills", "orter", "employment"] as const).map((facet) => {
-          const chips = facetData[facet];
-          const headId = `match-facet-${facet}`;
-          return (
-            <section
-              key={facet}
-              className="jp-matchprefs__facet"
-              role="group"
-              aria-labelledby={headId}
-            >
-              <p
-                id={headId}
-                className="jp-popover__title jp-matchprefs__facethead"
-              >
-                {facetLabel[facet]}
-              </p>
-              {chips.length === 0 ? (
-                <p className="jp-matchprefs__empty text-body-sm text-text-primary">
-                  {facetEmpty[facet]}
-                </p>
-              ) : (
-                <ul className="jp-chiplist">
-                  {chips.map((chip) => (
-                    <li key={chip.conceptId}>
-                      <PreferenceChip
-                        ref={(el) => {
-                          removeRefs.current.set(
-                            refKey(facet, chip.conceptId),
-                            el
-                          );
-                        }}
-                        label={chip.label}
-                        onRemove={() =>
-                          removeChip(
-                            facet,
-                            chip.conceptId,
-                            false,
-                            chip.memberConceptIds
-                          )
-                        }
-                        onRemoveKey={() =>
-                          removeChip(
-                            facet,
-                            chip.conceptId,
-                            true,
-                            chip.memberConceptIds
-                          )
-                        }
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          );
-        })}
-        {/* Erfarenhet: en enkel läs-rad (en siffra, inte chips). Ärlig tom-rad
-            när inget angetts. Redigeras i dialogen. */}
-        <section
-          className="jp-matchprefs__facet"
-          role="group"
-          aria-labelledby="match-facet-experience"
-        >
-          <p
-            id="match-facet-experience"
-            className="jp-popover__title jp-matchprefs__facethead"
-          >
-            {t("matchPrefs.experience.label")}
-          </p>
-          <p className="jp-matchprefs__empty text-body-sm text-text-primary">
-            {experienceYears === null
-              ? t("matchPrefs.experience.reviewEmpty")
-              : t("matchPrefs.experience.reviewValue", { years: experienceYears })}
-          </p>
-        </section>
-      </div>
-
-      <div className="jp-matchprefs__addrow">
-        <Button
-          ref={addButtonRef}
-          type="button"
-          variant="secondary"
-          aria-haspopup="dialog"
-          onClick={() => {
-            setDialogRequested(true);
-            setDialogOpen(true);
+      {LIST_PARTS.map((part) => (
+        <PartGroup
+          key={part}
+          title={title[part]}
+          filled={hasValues(shown[part])}
+          outcome={outcomes[part]}
+          onEdit={() => openDialog(part)}
+          buttonRef={(el) => {
+            partButtons.current[part] = el;
           }}
         >
-          {t("matchPrefs.add")}
-        </Button>
-        {/* Ömsesidigt uteslutande live-regioner: fel = assertiv alert (cause +
-            action), annars artig status-kvittens "Sparat HH:mm". Aldrig en
-            alert nästlad i en status-region (inkonsekvent SR-annonsering). */}
-        {saveError ? (
-          <p role="alert" className="text-body-sm text-danger-600">
-            {t("matchPrefs.saveError")}
-          </p>
-        ) : (
-          <p
-            role="status"
-            aria-live="polite"
-            className="text-body-sm text-text-secondary"
-          >
-            {!isSaving && savedAt
-              ? t("matchPrefs.savedAt", {
-                  time: formatTime(format, savedAt),
-                })
-              : ""}
-          </p>
-        )}
-      </div>
+          <ChipList
+            className="jp-chiplist"
+            items={chips[part]}
+            onRemove={(chip) => removeChip(part, chip.memberConceptIds)}
+            focusAfterLast={() => partButtons.current[part]}
+          />
+          {chips[part].length === 0 && (
+            <p className="text-body-sm text-text-primary">{empty[part]}</p>
+          )}
+        </PartGroup>
+      ))}
 
-      {dialogRequested && (
+      <PartGroup
+        title={title.experience}
+        filled={hasValues(shown.experience)}
+        outcome={outcomes.experience}
+        onEdit={() => openDialog("experience")}
+        buttonRef={(el) => {
+          partButtons.current.experience = el;
+        }}
+      >
+        <p className="text-body-sm text-text-primary">
+          {years === null
+            ? t("matchPrefs.experience.reviewEmpty")
+            : t("matchPrefs.experience.reviewValue", { years })}
+        </p>
+      </PartGroup>
+
+      {dialog !== null && (
         <MatchPreferencesDialogLazy
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          key={dialog.seq}
+          open={dialog.open}
+          onOpenChange={(open) =>
+            setDialog((current) =>
+              current !== null && current.seq === dialog.seq ? { ...current, open } : current
+            )
+          }
+          value={dialog.value}
           occupationFields={occupationFields}
           regions={regions}
           employmentTypes={employmentTypes}
-          persistedOccupationGroups={occupationGroups}
-          persistedRegions={selectedRegions}
-          persistedMunicipalities={selectedMunicipalities}
-          persistedRemote={selectedRemote}
-          persistedEmploymentTypes={selectedEmployment}
-          persistedSkills={selectedSkills}
-          persistedExperienceYears={experienceYears}
-          // exp-per-occ (ADR 0079-amendment PR-4): pre-fill dialogen med overlayn
-          // scopad till de fortfarande valda yrkena (subset-regeln).
-          persistedOccupationExperience={projectOccupationExperience(
-            occupationExperience,
-            occupationGroups
-          )}
-          persistedSkillGroups={skillGroups}
-          onSaved={onDialogSaved}
           importCvHref={IMPORT_CV_HREF}
-          // #748 (WCAG 2.4.3): return focus to the invoking "Lägg till" button
-          // when the dialog closes. Radix's default targets a null triggerRef
-          // (controlled dialog, no DialogTrigger) and would drop focus to body.
+          onSave={saveFromDialog}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            addButtonRef.current?.focus();
+            partButtons.current[dialog.value.part]?.focus();
           }}
         />
       )}
+    </section>
+  );
+}
+
+function withPart(parts: Parts, value: PartValue): Parts {
+  switch (value.part) {
+    case "occupations":
+      return { ...parts, occupations: value };
+    case "skills":
+      return { ...parts, skills: value };
+    case "locations":
+      return { ...parts, locations: value };
+    case "employmentTypes":
+      return { ...parts, employmentTypes: value };
+    case "experience":
+      return { ...parts, experience: value };
+  }
+}
+
+/**
+ * One part: its name as an h3 with its button to the right (below it on a narrow card), what it
+ * holds.
+ */
+function PartGroup({
+  title,
+  filled,
+  outcome,
+  onEdit,
+  buttonRef,
+  children,
+}: {
+  readonly title: string;
+  /** The part holds something: "Ändra", else "Lägg till". */
+  readonly filled: boolean;
+  readonly outcome: WriteOutcome | null;
+  readonly onEdit: () => void;
+  readonly buttonRef: Ref<HTMLButtonElement>;
+  readonly children: ReactNode;
+}) {
+  const t = useTranslations("settings");
+  const titleId = useId();
+  const buttonId = useId();
+  const errorId = useId();
+  return (
+    <section className="jp-settings-group" aria-labelledby={titleId}>
+      <div className="jp-matchprefs__parthead">
+        <h3 id={titleId} className="jp-settings-group__title">
+          {title}
+        </h3>
+        {/* One element whatever its text, so focus that lands on it survives the switch. */}
+        <Button
+          ref={buttonRef}
+          id={buttonId}
+          type="button"
+          variant="link"
+          size="sm"
+          className={PART_BUTTON}
+          aria-labelledby={`${buttonId} ${titleId}`}
+          aria-haspopup="dialog"
+          aria-describedby={outcome?.ok === false ? errorId : undefined}
+          onClick={onEdit}
+        >
+          {filled ? t("matchPrefs.change") : t("matchPrefs.add")}
+        </Button>
+      </div>
+      {children}
+      <Outcome id={errorId} outcome={outcome} />
     </section>
   );
 }

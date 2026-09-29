@@ -125,21 +125,72 @@ beforeEach(() => {
   parsedSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
 });
 
-describe("OccupationSection — rubrik (showHeading)", () => {
-  it("visar 'Yrken'-rubriken som default (dialogen)", () => {
-    render(<HostHarness headingId="h" />);
-    expect(screen.getByText("Yrken")).toBeInTheDocument();
+describe("OccupationSection — ingen egen rubrik (#1918)", () => {
+  it("renderar ingen rubrik: dialogens eller stegets titel namnger sektionen", () => {
+    render(<HostHarness />);
+    expect(screen.queryByText("Yrken")).toBeNull();
+    expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it("döljer 'Yrken'-rubriken när showHeading=false (wizarden — DialogTitle bär den)", () => {
-    render(<HostHarness showHeading={false} />);
-    expect(screen.queryByText("Yrken")).toBeNull();
-  });
-
-  it("visar bara Rensa-länken (ingen rubrik) i wizard-läget när något är valt", () => {
-    render(<HostHarness showHeading={false} initial={["grp_backend"]} />);
-    expect(screen.queryByText("Yrken")).toBeNull();
+  it("visar bara Rensa-länken när något är valt", () => {
+    render(<HostHarness initial={["grp_backend"]} />);
     expect(screen.getByRole("button", { name: "Rensa" })).toBeInTheDocument();
+  });
+
+  it("initialPickerOpen öppnar väljaren utan att flytta fokus dit", () => {
+    render(<HostHarness initialPickerOpen />);
+    expect(screen.getByRole("button", { name: "Lägg till yrken" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByLabelText("Filtrera yrkesgrupper")).not.toHaveFocus();
+  });
+});
+
+// #1918 B1 as it reaches the dialogs (senior-cto-advisor 6.8): the chip's ⨯ and "Rensa" remove
+// themselves, so focus moves on, whichever key or pointer did it — never to <body>.
+describe("OccupationSection — fokus efter borttagning (WCAG 2.4.3)", () => {
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+    ["Delete", "{Delete}"],
+  ])("%s på ⨯ flyttar fokus till nästa chips ⨯", async (_key, keys) => {
+    const user = userEvent.setup();
+    render(<YearsHost initial={["grp_backend", "grp_frontend"]} />);
+
+    screen.getByRole("button", { name: "Ta bort Backendutvecklare" }).focus();
+    await user.keyboard(keys);
+
+    expect(screen.getByRole("button", { name: "Ta bort Frontendutvecklare" })).toHaveFocus();
+  });
+
+  it("utan nästa chip landar fokus på föregående chips ⨯", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness initial={["grp_backend", "grp_frontend"]} />);
+
+    screen.getByRole("button", { name: "Ta bort Frontendutvecklare" }).focus();
+    await user.keyboard("{Delete}");
+
+    expect(screen.getByRole("button", { name: "Ta bort Backendutvecklare" })).toHaveFocus();
+  });
+
+  it("den sista chippen lämnar fokus på 'Lägg till yrken'", async () => {
+    const user = userEvent.setup();
+    render(<YearsHost initial={["grp_backend"]} />);
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Backendutvecklare" }));
+
+    expect(screen.getByRole("button", { name: "Lägg till yrken" })).toHaveFocus();
+  });
+
+  it("Rensa lämnar fokus på 'Lägg till yrken'", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness initial={["grp_backend", "grp_frontend"]} />);
+
+    await user.click(screen.getByRole("button", { name: "Rensa" }));
+
+    expect(screen.getByRole("button", { name: "Lägg till yrken" })).toHaveFocus();
+    expect(document.body).not.toHaveFocus();
   });
 });
 
@@ -484,6 +535,30 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     });
     // Befintliga 3 bevaras — seedens 9 skriver inte över.
     expect(backend).toHaveValue(3);
+  });
+
+  it("?:et står vid etiketten 'År i yrket', en gång, på första raden (#1918 m7)", () => {
+    render(<YearsHost initial={["grp_backend", "grp_frontend"]} />);
+
+    const help = screen.getAllByRole("button", { name: "Om år i yrket" });
+    expect(help).toHaveLength(1);
+    const labelled = help[0]!.closest(".jp-labelhelp");
+    expect(labelled).toHaveTextContent("År i yrket");
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]).toContainElement(help[0]!);
+  });
+
+  it("varje rads årsgrupp håller ?:ets plats, så fälten står på samma x (#1918 design-reviewer Minor 3)", () => {
+    render(<YearsHost initial={["grp_backend", "grp_frontend"]} />);
+
+    const groups = screen
+      .getAllByRole("listitem")
+      .map((row) => row.querySelector(".jp-occexp__years > .jp-labelhelp"));
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.querySelector(".jp-labelhelp__trigger")).not.toBeNull();
+    const spacer = groups[1]?.querySelector(".jp-labelhelp__spacer");
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toBeEmptyDOMElement();
   });
 
   it("att ta bort en yrkes-chip tar bort dess år-fält (lokalitet)", async () => {

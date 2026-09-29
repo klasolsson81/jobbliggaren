@@ -54,8 +54,7 @@
     "emptyOrter": "Hela landet (ingen ort vald)",
     "emptyEmployment": "Alla anställningsformer (inget valt)",
     "add": "Lägg till",
-    "saveError": "Ändringen kunde inte sparas. Försök igen.",
-    "savedAt": "Sparat {time}",
+    "change": "Ändra",
     "selectedOccupations": "Valda yrken",
     "selectedSkills": "Valda kompetenser",
     "selectedOrter": "Valda orter",
@@ -63,7 +62,6 @@
     "clear": "Rensa",
     "removeChip": "Ta bort {label}",
     "cascade": {
-      "heading": "Orter",
       "clear": "Rensa",
       "selectedAria": "Valda orter",
       "addOrter": "Lägg till orter",
@@ -79,9 +77,12 @@
       "wholeRegion": "Hela {label}"
     },
     "dialog": {
-      "title": "Lägg till i matchning",
       "saving": "Sparar…",
-      "save": "Spara matchning",
+      "saveOccupations": "Spara yrken",
+      "saveSkills": "Spara kompetenser",
+      "saveOrter": "Spara orter",
+      "saveEmployment": "Spara anställningsformer",
+      "saveExperience": "Spara erfarenhet",
       "cancel": "Avbryt"
     },
     "occupation": {
@@ -131,7 +132,8 @@
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
-      "saveFailed": "Kunde inte spara dina matchningsönskemål.",
+      "saveFailed": "Ändringen kunde inte sparas. Försök igen om en stund.",
+      "conflict": "En annan ändring sparades samtidigt. Ladda om sidan och försök igen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "invalidTitle": "Ogiltig yrkestitel.",
       "tooManyAttempts": "För många försök. Vänta en stund och försök igen.",

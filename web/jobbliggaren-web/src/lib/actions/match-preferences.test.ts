@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createTranslator } from "next-intl";
 import type { ResumeListItemDto } from "@/lib/dto/resumes";
+import svSettings from "../../../messages/sv/settings.json";
+import svErrors from "../../../messages/sv/errors.json";
+import svValidation from "../../../messages/sv/validation.json";
 
 // getResumes + deriveOccupations är server-only-BFF:er; mocka dem så vi kan
 // driva alla diskriminerade grenar utan backend/Bearer-session.
@@ -25,22 +29,36 @@ vi.mock("@/lib/api/skills", () => ({
   searchSkills: searchSkillsApiMock,
   getParsedResumeSkills: getParsedResumeSkillsMock,
 }));
-// next/cache revalidatePath är en no-op i test.
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-// getSessionId används av updateMatchPreferencesAction (ej testad här) — stubba.
-vi.mock("@/lib/auth/session", () => ({ getSessionId: vi.fn() }));
-// getTranslations används av searchSkillsAction:s fel-grenar — returnera nyckeln.
+const { revalidatePathMock, getSessionIdMock, authedFetchMock } = vi.hoisted(() => ({
+  revalidatePathMock: vi.fn(),
+  getSessionIdMock: vi.fn(),
+  authedFetchMock: vi.fn(),
+}));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/auth/session", () => ({ getSessionId: getSessionIdMock }));
+vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
+// A real translator over the Swedish catalogue, so an assertion reads the copy the user gets.
 vi.mock("next-intl/server", () => ({
-  getTranslations: vi.fn(async () => (key: string) => key),
+  getTranslations: async (namespace: string) =>
+    createTranslator({
+      locale: "sv",
+      messages: { settings: svSettings, errors: svErrors, validation: svValidation },
+      // The namespace arrives as a string at runtime; the cast only spares createTranslator a
+      // literal NamespaceKey, and the catalogue resolves it per call.
+      namespace: namespace as never,
+    }),
 }));
 
 import {
+  updateMatchPreferencesAction,
   suggestOccupationsFromCvAction,
   suggestOccupationsFromParsedResumeAction,
   searchSkillsAction,
   suggestSkillsFromParsedResumeAction,
 } from "./match-preferences";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
+
+type UpdateInput = Parameters<typeof updateMatchPreferencesAction>[0];
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -369,5 +387,112 @@ describe("suggestSkillsFromParsedResumeAction (STEG 3 / ADR 0079)", () => {
     expect(await suggestSkillsFromParsedResumeAction(VALID_ID)).toEqual({
       kind: "error",
     });
+  });
+});
+
+describe("updateMatchPreferencesAction (#1918, ADR 0147)", () => {
+  const ENDPOINT = "/api/v1/me/match-preferences";
+
+  beforeEach(() => {
+    revalidatePathMock.mockReset();
+    getSessionIdMock.mockReset().mockResolvedValue("sess-current");
+    authedFetchMock.mockReset().mockResolvedValue(new Response(null, { status: 204 }));
+  });
+
+  function sentBody(): unknown {
+    const init = authedFetchMock.mock.calls[0]?.[2] as RequestInit | undefined;
+    return JSON.parse(String(init?.body));
+  }
+
+  it("PATCHes exactly the part it is given and revalidates both pages", async () => {
+    const result = await updateMatchPreferencesAction({ skills: { preferredSkills: ["sk_a"] } });
+
+    expect(result).toEqual({ success: true });
+    expect(authedFetchMock).toHaveBeenCalledWith("sess-current", ENDPOINT, {
+      method: "PATCH",
+      body: JSON.stringify({ skills: { preferredSkills: ["sk_a"] } }),
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/oversikt");
+  });
+
+  it("sends occupations without the years key when the caller leaves it out", async () => {
+    await updateMatchPreferencesAction({ occupations: { preferredOccupationGroups: ["grp_a"] } });
+
+    expect(sentBody()).toEqual({ occupations: { preferredOccupationGroups: ["grp_a"] } });
+  });
+
+  it("sends the rail's four parts and no experience", async () => {
+    await updateMatchPreferencesAction({
+      occupations: {
+        preferredOccupationGroups: ["grp_a"],
+        preferredOccupationExperience: [{ conceptId: "grp_a", years: 3 }],
+      },
+      skills: { preferredSkills: [] },
+      locations: { preferredRegions: [], preferredMunicipalities: [], preferredRemote: true },
+      employmentTypes: { preferredEmploymentTypes: [] },
+    });
+
+    expect(Object.keys(sentBody() as object)).toEqual([
+      "occupations",
+      "skills",
+      "locations",
+      "employmentTypes",
+    ]);
+  });
+
+  it.each([
+    // m8: ADR 0146's replay cap, in the user's words rather than the generic state conflict.
+    [409, "En annan ändring sparades samtidigt. Ladda om sidan och försök igen."],
+    [429, "För många försök. Vänta en stund och försök igen."],
+    [500, "Ändringen kunde inte sparas. Försök igen om en stund."],
+  ])("maps %i to its copy and revalidates nothing", async (status, error) => {
+    authedFetchMock.mockResolvedValue(new Response(null, { status }));
+
+    expect(await updateMatchPreferencesAction({ experience: { experienceYears: 2 } })).toEqual({
+      success: false,
+      error,
+    });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("answers a lost connection in its own copy", async () => {
+    authedFetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    expect(await updateMatchPreferencesAction({ experience: { experienceYears: 2 } })).toEqual({
+      success: false,
+      error: "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
+    });
+  });
+
+  it("sends nothing without a session", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+
+    expect(await updateMatchPreferencesAction({ skills: { preferredSkills: [] } })).toEqual({
+      success: false,
+      error: "Du är inte inloggad.",
+    });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a body with no part", {}],
+    [
+      "the flat body of the full PUT",
+      {
+        preferredOccupationGroups: [],
+        preferredRegions: [],
+        preferredMunicipalities: [],
+        preferredRemote: false,
+        preferredEmploymentTypes: [],
+        preferredSkills: [],
+      },
+    ],
+  ])("refuses %s in its own copy and sends nothing", async (_row, body) => {
+    // A Server Action is a public endpoint, so a tab on an earlier build can post any body.
+    const result = await updateMatchPreferencesAction(body as unknown as UpdateInput);
+
+    expect(result).toEqual({ success: false, error: "Ogiltiga uppgifter." });
+    expect(authedFetchMock).not.toHaveBeenCalled();
   });
 });

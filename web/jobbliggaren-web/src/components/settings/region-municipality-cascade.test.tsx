@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
@@ -261,5 +262,67 @@ describe("#551 punkt 4 — Distans som eget ort-val", () => {
     const arg = onChange.mock.calls[0]?.[0];
     expect(arg).toBeDefined();
     expect(Object.hasOwn(arg!, "remote")).toBe(false);
+  });
+});
+
+/** Holds the ort choice as a dialog does, so a removal re-renders the cascade. */
+function StatefulCascade({ initial }: { initial: { region: string[]; municipality: string[] } }) {
+  const [ort, setOrt] = useState<{
+    region: ReadonlyArray<string>;
+    municipality: ReadonlyArray<string>;
+    remote: boolean;
+  }>({ ...initial, remote: true });
+  return (
+    <RegionMunicipalityCascade
+      regions={regions}
+      selectedRegions={ort.region}
+      selectedMunicipalities={ort.municipality}
+      remote={ort.remote}
+      onChange={(next) =>
+        setOrt((prev) => ({ ...next, remote: next.remote ?? prev.remote }))
+      }
+      idPrefix="test"
+    />
+  );
+}
+
+// #1918 B1 as it reaches the dialogs (senior-cto-advisor 6.8).
+describe("RegionMunicipalityCascade — fokus efter borttagning (WCAG 2.4.3)", () => {
+  it("borttagning flyttar fokus till nästa chips ⨯", async () => {
+    const user = userEvent.setup();
+    render(<StatefulCascade initial={{ region: ["r_vg"], municipality: [] }} />);
+
+    screen.getByRole("button", { name: "Ta bort Distans" }).focus();
+    await user.keyboard(" ");
+
+    expect(screen.getByRole("button", { name: "Ta bort Västra Götalands län" })).toHaveFocus();
+  });
+
+  it("den sista chippen lämnar fokus på 'Lägg till orter'", async () => {
+    const user = userEvent.setup();
+    render(<StatefulCascade initial={{ region: [], municipality: [] }} />);
+
+    screen.getByRole("button", { name: "Ta bort Distans" }).focus();
+    await user.keyboard("{Delete}");
+
+    expect(screen.getByRole("button", { name: "Lägg till orter" })).toHaveFocus();
+  });
+
+  it("Rensa lämnar fokus på 'Lägg till orter'", async () => {
+    const user = userEvent.setup();
+    render(<StatefulCascade initial={{ region: ["r_vg"], municipality: ["m_solna"] }} />);
+
+    await user.click(screen.getByRole("button", { name: "Rensa" }));
+
+    expect(screen.getByRole("button", { name: "Lägg till orter" })).toHaveFocus();
+  });
+
+  it("initialPickerOpen öppnar väljaren utan att flytta fokus dit", () => {
+    renderCascade({ initialPickerOpen: true });
+    expect(screen.getByRole("button", { name: "Lägg till orter" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByLabelText("Filtrera kommuner")).not.toHaveFocus();
   });
 });

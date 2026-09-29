@@ -1,6 +1,8 @@
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import type { ResumeListItemDto } from "@/lib/dto/resumes";
 import type { SkillGroup } from "@/lib/dto/skills";
+import type { UpdateMatchPreferencesInput } from "@/lib/actions/match-preferences-schemas";
+import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
 
 /** Platt taxonomi-val (concept-id → svenskt namn). */
 export interface Option {
@@ -131,7 +133,7 @@ export function projectOccupationExperience(
 
 // ── #277 (twin chips) — skill GROUP helpers ──────────────────────────────────
 // The unit of selection for skills is now a GROUP (one chip per shared
-// exact-label surface), but the persisted/saved set + the PUT payload stay a
+// exact-label surface), but the persisted/saved set stays a
 // FLAT `string[]` of ALL member ids (grade-inert). These pure helpers map
 // between the flat selected set and the group chips, consuming the BE-provided
 // `memberConceptIds` VERBATIM (the FE never re-derives membership from raw
@@ -253,4 +255,139 @@ export function isSkillGroupSelected(
   if (group.memberConceptIds.length === 0) return false;
   const present = new Set(selected);
   return group.memberConceptIds.every((id) => present.has(id));
+}
+
+// ── #1918 (ADR 0147) — the five parts, each written on its own ──────────────
+// The card and the per-part dialog share these: what a part holds, what is left of it without
+// some chips, and the PATCH part that replaces it. Pure (testable without rendering).
+
+export interface OccupationsValue {
+  readonly part: "occupations";
+  readonly groups: ReadonlyArray<string>;
+  /** The years per occupation, a sparse subset of `groups`. */
+  readonly experience: ReadonlyArray<OccupationExperienceEntry>;
+}
+
+export interface SkillsValue {
+  readonly part: "skills";
+  /** Every member id of every chosen group, flat. */
+  readonly skills: ReadonlyArray<string>;
+  /** What the chips are named by. The server stores only the ids. */
+  readonly skillGroups: ReadonlyArray<SkillGroup>;
+}
+
+export interface LocationsValue {
+  readonly part: "locations";
+  readonly regions: ReadonlyArray<string>;
+  readonly municipalities: ReadonlyArray<string>;
+  readonly remote: boolean;
+}
+
+export interface EmploymentTypesValue {
+  readonly part: "employmentTypes";
+  readonly types: ReadonlyArray<string>;
+}
+
+export interface ExperienceValue {
+  readonly part: "experience";
+  readonly years: number | null;
+}
+
+/** One part's whole value: what its dialog edits and what one write replaces. */
+export type PartValue =
+  | OccupationsValue
+  | SkillsValue
+  | LocationsValue
+  | EmploymentTypesValue
+  | ExperienceValue;
+
+export type MatchPart = PartValue["part"];
+
+/** Whether the part holds anything: "Ändra" when it does, "Lägg till" when it does not. */
+export function hasValues(value: PartValue): boolean {
+  switch (value.part) {
+    case "occupations":
+      return value.groups.length > 0;
+    case "skills":
+      return value.skills.length > 0;
+    case "locations":
+      return value.remote || value.regions.length > 0 || value.municipalities.length > 0;
+    case "employmentTypes":
+      return value.types.length > 0;
+    case "experience":
+      return value.years !== null;
+  }
+}
+
+/**
+ * The part without the given chip members. Remote is a flag, not an id, so a removed Distans
+ * chip arrives as `DISTANS_CHIP_ID`; an occupation takes its years with it.
+ */
+export function withoutMembers(
+  value: OccupationsValue,
+  members: ReadonlySet<string>
+): OccupationsValue;
+export function withoutMembers(value: SkillsValue, members: ReadonlySet<string>): SkillsValue;
+export function withoutMembers(
+  value: LocationsValue,
+  members: ReadonlySet<string>
+): LocationsValue;
+export function withoutMembers(
+  value: EmploymentTypesValue,
+  members: ReadonlySet<string>
+): EmploymentTypesValue;
+export function withoutMembers(value: PartValue, members: ReadonlySet<string>): PartValue;
+export function withoutMembers(value: PartValue, members: ReadonlySet<string>): PartValue {
+  if (members.size === 0) return value;
+  const keep = (id: string) => !members.has(id);
+  switch (value.part) {
+    case "occupations": {
+      const groups = value.groups.filter(keep);
+      return {
+        ...value,
+        groups,
+        experience: value.experience.filter((entry) => groups.includes(entry.conceptId)),
+      };
+    }
+    case "skills":
+      return { ...value, skills: value.skills.filter(keep) };
+    case "locations":
+      return {
+        ...value,
+        regions: value.regions.filter(keep),
+        municipalities: value.municipalities.filter(keep),
+        remote: value.remote && keep(DISTANS_CHIP_ID),
+      };
+    case "employmentTypes":
+      return { ...value, types: value.types.filter(keep) };
+    case "experience":
+      return value;
+  }
+}
+
+/** The PATCH body that replaces the part with `value`. */
+export function toPatch(value: PartValue): UpdateMatchPreferencesInput {
+  switch (value.part) {
+    case "occupations":
+      return {
+        occupations: {
+          preferredOccupationGroups: [...value.groups],
+          preferredOccupationExperience: [...value.experience],
+        },
+      };
+    case "skills":
+      return { skills: { preferredSkills: [...value.skills] } };
+    case "locations":
+      return {
+        locations: {
+          preferredRegions: [...value.regions],
+          preferredMunicipalities: [...value.municipalities],
+          preferredRemote: value.remote,
+        },
+      };
+    case "employmentTypes":
+      return { employmentTypes: { preferredEmploymentTypes: [...value.types] } };
+    case "experience":
+      return { experience: { experienceYears: value.years } };
+  }
 }

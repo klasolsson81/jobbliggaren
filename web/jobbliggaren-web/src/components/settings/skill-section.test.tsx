@@ -75,15 +75,67 @@ beforeEach(() => {
   skillSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies SkillSuggestResult);
 });
 
-describe("SkillSection — rubrik (showHeading)", () => {
-  it("visar 'Kompetenser'-rubriken som default (dialogen)", () => {
-    render(<HostHarness headingId="h" />);
-    expect(screen.getByText("Kompetenser")).toBeInTheDocument();
+describe("SkillSection — ingen egen rubrik (#1918)", () => {
+  it("renderar ingen rubrik: dialogens eller stegets titel namnger sektionen", () => {
+    render(<HostHarness />);
+    expect(screen.queryByText("Kompetenser")).toBeNull();
+    expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it("döljer rubriken när showHeading=false (wizarden — DialogTitle bär den)", () => {
-    render(<HostHarness showHeading={false} />);
-    expect(screen.queryByText("Kompetenser")).toBeNull();
+  it("initialPickerOpen öppnar sökningen utan att flytta fokus dit", () => {
+    render(<HostHarness initialPickerOpen />);
+    expect(screen.getByRole("button", { name: "Lägg till kompetens" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByLabelText("Sök kompetens")).not.toHaveFocus();
+  });
+});
+
+// #1918 B1 as it reaches the dialogs (senior-cto-advisor 6.8).
+describe("SkillSection — fokus efter borttagning (WCAG 2.4.3)", () => {
+  it("borttagning flyttar fokus till nästa chips ⨯", async () => {
+    const user = userEvent.setup();
+    render(
+      <HostHarness
+        initial={["skill_react", "skill_sql"]}
+        initialGroups={[singleton("skill_react", "React"), singleton("skill_sql", "SQL")]}
+      />
+    );
+
+    screen.getByRole("button", { name: "Ta bort React" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("button", { name: "Ta bort SQL" })).toHaveFocus();
+  });
+
+  it("den sista chippen lämnar fokus på 'Lägg till kompetens'", async () => {
+    const user = userEvent.setup();
+    render(
+      <HostHarness
+        initial={["skill_react"]}
+        initialGroups={[singleton("skill_react", "React")]}
+      />
+    );
+
+    screen.getByRole("button", { name: "Ta bort React" }).focus();
+    await user.keyboard("{Backspace}");
+
+    expect(screen.getByRole("button", { name: "Lägg till kompetens" })).toHaveFocus();
+  });
+
+  it("Rensa lämnar fokus på 'Lägg till kompetens'", async () => {
+    const user = userEvent.setup();
+    render(
+      <HostHarness
+        initial={["skill_react"]}
+        initialGroups={[singleton("skill_react", "React")]}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Rensa" }));
+
+    expect(screen.getByRole("button", { name: "Lägg till kompetens" })).toHaveFocus();
   });
 });
 

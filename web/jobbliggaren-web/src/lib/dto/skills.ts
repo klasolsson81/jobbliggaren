@@ -29,7 +29,7 @@ import { z } from "zod";
  * group whose `memberConceptIds` carries BOTH ids (a singleton carries exactly
  * one member = itself). The FE renders ONE chip per group; confirming/keeping it
  * stores ALL member ids; removing it removes ALL member ids. The user-confirmed
- * set + the PUT payload stay a FLAT `string[]` of all member ids (grade-inert).
+ * set stays a FLAT `string[]` of all member ids (grade-inert).
  * The schemas below are ADDITIVE — the legacy flat `{conceptId, label}` is kept
  * for any non-grouped reader, and `memberConceptIds` is OPTIONAL so a deploy-skew
  * (older BE response without the field) degrades gracefully to `[conceptId]`.

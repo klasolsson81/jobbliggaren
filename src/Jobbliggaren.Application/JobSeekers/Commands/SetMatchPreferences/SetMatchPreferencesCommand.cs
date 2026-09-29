@@ -30,8 +30,7 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.SetMatchPreferences;
 /// the per-occupation experience overlay — ~years stated for a preferred occupation group.
 /// A SPARSE overlay: an entry may exist only for a concept-id that is also in
 /// <see cref="PreferredOccupationGroups"/> (the subset invariant, enforced in
-/// <c>MatchPreferences.Create</c>), and not every group needs one. <see cref="ExperienceYears"/>
-/// is the legacy profile-level scalar this supersedes; both remain on the wire (additive).
+/// <c>MatchPreferences.Create</c>), and not every group needs one.
 /// Full-replace like every other dimension — omit ⇒ clear.
 /// </para>
 /// </summary>

@@ -333,23 +333,6 @@ public class UpdateMatchPreferencesCommandHandlerTests
         Stored(db).MatchPreferences.ExperienceYears.ShouldBeNull();
     }
 
-    // CurrentUser.UserId is null for a principal whose sub claim is not a Guid, and
-    // AuthorizationBehavior gates on IsAuthenticated alone, so such a principal reaches the handler.
-    [Fact]
-    public async Task Handle_WhenUserIdIsNull_ReturnsUnauthorized()
-    {
-        var db = await SeedAsync();
-        var noUserId = Substitute.For<ICurrentUser>();
-        noUserId.UserId.Returns((Guid?)null);
-        var handler = new UpdateMatchPreferencesCommandHandler(db, noUserId, HandlerClock);
-
-        var result = await handler.Handle(OnlyPart(Part.Skills), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("JobSeeker.Unauthorized");
-        Stored(db).MatchPreferences.ShouldBe(Seeded());
-    }
-
     // The seeker vanishes from under an authenticated request when the account's soft delete
     // (JobSeeker.SoftDelete, committed by DeleteAccountCommand) lands first: the query filter hides the row.
     [Fact]

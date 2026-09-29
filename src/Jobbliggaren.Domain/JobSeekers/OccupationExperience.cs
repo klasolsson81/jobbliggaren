@@ -3,8 +3,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// <summary>
 /// A per-occupation experience annotation (ADR 0079-amendment 2026-06-23) — the user's
 /// stated ~years of experience in one preferred occupation group (JobTech SSYK-4
-/// concept-id). Supersedes the single profile-level <see cref="MatchPreferences.ExperienceYears"/>
-/// scalar (ADR 0079 Beslut 1(e)).
+/// concept-id).
 ///
 /// <para>A <b>sparse overlay</b> on <see cref="MatchPreferences.PreferredOccupationGroups"/>:
 /// an entry MAY exist only for a concept-id that is also a preferred occupation group

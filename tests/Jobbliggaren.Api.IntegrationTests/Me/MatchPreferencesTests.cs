@@ -509,6 +509,22 @@ public class MatchPreferencesTests(ApiFactory factory)
         await ShouldHoldAsync(NothingWritten, ct);
     }
 
+    // A half-migrated client that sends a valid part beside a flat, PUT-shaped member.
+    [Fact]
+    public async Task PATCH_match_preferences_with_a_part_beside_a_flat_member_returns_400_and_writes_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedAllFivePartsAsync(ct);
+
+        var response = await PatchAsync(
+            """{"skills":{"preferredSkills":["sk_z"]},"experienceYears":12}""",
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        await ShouldHoldAsync(NothingWritten, ct);
+    }
+
     // A missing bool would bind to false, which reads as "does not want remote".
     [Fact]
     public async Task PATCH_match_preferences_locations_without_preferredRemote_returns_400_and_keeps_remote()
@@ -652,8 +668,7 @@ public class MatchPreferencesTests(ApiFactory factory)
         await ShouldHoldAsync(NothingWritten, ct);
     }
 
-    // A malformed body binds a null years entry. The full write drops it (M1 on
-    // SetMatchPreferencesCommandHandler); the per-part write may drop or refuse it, never answer 500.
+    // A malformed body binds a null years entry. The per-part write may drop or refuse it, never answer 500.
     [Fact]
     public async Task PATCH_match_preferences_with_a_null_years_entry_is_not_a_server_error()
     {

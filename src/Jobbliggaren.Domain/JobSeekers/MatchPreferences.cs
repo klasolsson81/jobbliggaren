@@ -31,7 +31,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 ///
 /// <para>
 /// <b>Deliberate divergence from <see cref="SearchCriteria"/>:</b> there is NO "at least
-/// one criterion" invariant. All four lists empty is a VALID <see cref="MatchPreferences"/>
+/// one criterion" invariant. All lists empty is a VALID <see cref="MatchPreferences"/>
 /// — a user who has not yet stated any preference (skipped onboarding). Empty → the
 /// corresponding match dimension reports <c>NotAssessed</c> downstream, never faked
 /// (ADR 0076 Decision 7). <see cref="Empty"/> is the honest "no preferences stated" default.
@@ -108,7 +108,7 @@ public sealed record MatchPreferences
     // before EF materializes via the value converter.
     private MatchPreferences() { }
 
-    /// <summary>The honest "no preferences stated" value — all four lists empty. Valid.</summary>
+    /// <summary>The honest "no preferences stated" value — all lists empty. Valid.</summary>
     public static readonly MatchPreferences Empty = new();
 
     // preferredMunicipalities is the additive 4th dimension (Spår 3, ADR 0076-amendment

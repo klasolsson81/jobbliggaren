@@ -11,12 +11,12 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 /// Replayed on a concurrency conflict (ADR 0146): the handler re-reads the row and lays only this
 /// request's parts over it, so two tabs writing two different parts both land.
 /// <para>
-/// Every member of a present part is required on the wire (<c>JsonRequired</c>, plus a non-null
-/// rule in the validator, since an explicit <c>null</c> passes <c>JsonRequired</c>). The one
+/// Every member of a present part is required on the wire (<c>JsonRequired</c>). The one
 /// exception is <see cref="OccupationsPartInput.PreferredOccupationExperience"/>: absent keeps the
 /// stated years of every occupation still chosen, <c>[]</c> clears them.
 /// </para>
 /// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record UpdateMatchPreferencesCommand(
     OccupationsPartInput? Occupations = null,
     SkillsPartInput? Skills = null,

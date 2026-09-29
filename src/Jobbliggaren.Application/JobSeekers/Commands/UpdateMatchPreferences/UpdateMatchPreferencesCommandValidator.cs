@@ -6,8 +6,8 @@ using Jobbliggaren.Domain.SavedSearches;
 namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 
 /// <summary>
-/// Pre-handler defense-in-depth for <see cref="UpdateMatchPreferencesCommand"/>: the same per-list
-/// cap and concept-id pattern as the full write, applied to the parts that are present.
+/// Pre-handler defense-in-depth for <see cref="UpdateMatchPreferencesCommand"/>: the per-list
+/// cap and concept-id pattern, applied to the parts that are present.
 /// <c>MatchPreferences.Create</c> stays the authoritative invariant source.
 /// </summary>
 public sealed class UpdateMatchPreferencesCommandValidator

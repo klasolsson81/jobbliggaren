@@ -86,7 +86,6 @@ public class UpdateMatchPreferencesCommandValidatorTests
     private static string[] Ids(int count, string prefix) =>
         [.. Enumerable.Range(1, count).Select(i => $"{prefix}{i}")];
 
-    // A flat, PUT-shaped body binds zero parts; without this rule it would be a silent 204.
     [Fact]
     public void Validate_WithNoPartPresent_IsInvalid()
     {

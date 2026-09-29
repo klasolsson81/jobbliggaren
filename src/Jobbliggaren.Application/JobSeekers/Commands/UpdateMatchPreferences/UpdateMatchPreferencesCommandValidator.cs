@@ -17,8 +17,6 @@ public sealed class UpdateMatchPreferencesCommandValidator
 
     public UpdateMatchPreferencesCommandValidator()
     {
-        // An empty PATCH would still bump UpdatedAt, and a flat, PUT-shaped body binds zero parts;
-        // both are refused rather than answered with a silent 204.
         RuleFor(c => c)
             .Must(c => c.Occupations is not null || c.Skills is not null || c.Locations is not null
                 || c.EmploymentTypes is not null || c.Experience is not null)

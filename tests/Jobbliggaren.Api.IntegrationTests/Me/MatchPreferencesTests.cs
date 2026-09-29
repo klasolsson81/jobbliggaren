@@ -492,8 +492,6 @@ public class MatchPreferencesTests(ApiFactory factory)
         await ShouldHoldAsync(NothingWritten, ct);
     }
 
-    // Unknown members are ignored at binding, so the PUT's flat shape binds zero parts: a 400, never a
-    // silent 204.
     [Fact]
     public async Task PATCH_match_preferences_with_a_flat_put_shaped_body_returns_400_and_writes_nothing()
     {

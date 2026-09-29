@@ -109,12 +109,6 @@ the client, would let a chip removal in a stale tab rewrite years the user canno
   not want remote".
 - **`experience: {}` is a 400**, since `experienceYears` is a required member; `{"experienceYears": null}`
   clears the stated years.
-- **A request with no part present is a 400**, by a validator rule modelled on
-  `UpdateSavedSearchCommandValidator`'s at-least-one-field rule. Three reasons: no product caller sends an
-  empty request; a no-op would still bump `UpdatedAt` (`JobSeeker.UpdateMatchPreferences`), which is an
-  UPDATE carrying `xmin` that can force a replay in a concurrent writer;
-  and a flat, PUT-shaped body sent to the PATCH binds zero parts, because unknown members are ignored,
-  and that must be a 400, never a silent 204.
 
 ### D4 — The response is 204, not the stored parts (R4)
 
@@ -286,7 +280,6 @@ The tests are fail/ok and fail/fail within a part, with ok/fail and ok/ok as con
 
 ### The empty request (D3) and the response (D4)
 
-- **An empty PATCH as a silent no-op.** Rejected for the three reasons in D3.
 - **A response that returns the stored parts.** Rejected for the reasons in D4.
 
 ### Removing the PUT, and how the PRs are cut (D5)

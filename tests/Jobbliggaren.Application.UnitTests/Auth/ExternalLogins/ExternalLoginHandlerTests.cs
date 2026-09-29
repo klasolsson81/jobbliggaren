@@ -159,7 +159,7 @@ public class GetExternalLoginProvidersQueryHandlerTests
         .ShouldBe(["google", "linkedin", "github"]);
 }
 
-/// <summary>#1744 — start: the flow is minted and the provider's URL carries the stored verifier's challenge.</summary>
+/// <summary>#1744 — start: the flow is minted and the provider is handed the stored verifier's challenge.</summary>
 public class StartExternalLoginCommandHandlerTests
 {
     private readonly IOAuthStateStore _states = Substitute.For<IOAuthStateStore>();

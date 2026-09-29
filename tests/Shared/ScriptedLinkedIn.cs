@@ -18,14 +18,17 @@ namespace Jobbliggaren.TestSupport;
 /// otherwise.
 /// </para>
 /// <para>
+/// MEASURED: the id_token carries no <c>nonce</c> claim. Three logins on the box on 2026-09-29 each received an
+/// id_token present, readable and addressed to our client alone, without one (EventId 1022 <c>NonceAbsent</c>; #1732
+/// comment 5884698337, ADR 0142 Amendment (21)), and LinkedIn documents none.
+/// </para>
+/// <para>
 /// DECLARED, not documented by LinkedIn: a <c>code_verifier</c> in a confidential client's request, and a wrong client
 /// secret, are answered 401 <c>invalid_client</c> (a third-party measurement of 2026-09-21,
-/// UsefulSoftwareCo/executor#2087); the error body is <c>{error, error_description}</c> (RFC 6749 §5.2); a code is
-/// consumed by its first exchange; and the id_token echoes the authorization request's <c>nonce</c>, which LinkedIn's
-/// id_token table does not list and OIDC Core §2 requires ("If present in the Authentication Request, Authorization
-/// Servers MUST include a nonce Claim"). Its <c>iss</c> is the live discovery document's value. The id_token is built
-/// here from JSON at run time and its signature segment is a marker nothing verifies. Any other host throws, so no test
-/// can reach the network, fetch a JWKS, or revoke.
+/// UsefulSoftwareCo/executor#2087); the error body is <c>{error, error_description}</c> (RFC 6749 §5.2); and a code is
+/// consumed by its first exchange. The id_token's <c>iss</c> is the live discovery document's value. The id_token is
+/// built here from JSON at run time and its signature segment is a marker nothing verifies. Any other host throws, so
+/// no test can reach the network, fetch a JWKS, or revoke.
 /// </para>
 /// </summary>
 internal sealed class ScriptedLinkedIn(string clientId, string clientSecret) : HttpMessageHandler
@@ -88,14 +91,13 @@ internal sealed class ScriptedLinkedIn(string clientId, string clientSecret) : H
 
     /// <summary>
     /// Registers a code LinkedIn handed the browser and the userinfo document its token will read. The id_token issued
-    /// for it echoes <paramref name="nonce"/> when given, and carries <paramref name="idTokenSubject"/>, or else the
-    /// document's <c>sub</c>, as its subject; <paramref name="redirectUri"/>, when given, must match the exchange's.
+    /// for it carries <paramref name="idTokenSubject"/>, or else the document's <c>sub</c>, as its subject;
+    /// <paramref name="redirectUri"/>, when given, must match the exchange's.
     /// </summary>
-    public void Expect(
-        string code, string userInfoJson, string? nonce = null, string? redirectUri = null, string? idTokenSubject = null)
+    public void Expect(string code, string userInfoJson, Uri? redirectUri = null, string? idTokenSubject = null)
     {
         lock (_gate)
-            _codes[code] = new Grant(userInfoJson, nonce, redirectUri, idTokenSubject ?? SubjectOf(userInfoJson));
+            _codes[code] = new Grant(userInfoJson, redirectUri?.OriginalString, idTokenSubject ?? SubjectOf(userInfoJson));
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -195,8 +197,6 @@ internal sealed class ScriptedLinkedIn(string clientId, string clientSecret) : H
             ["exp"] = IssuedAt + 3600,
             ["sub"] = grant.IdTokenSubject,
         };
-        if (grant.Nonce is not null)
-            claims["nonce"] = grant.Nonce;
 
         var payload = IdTokenClaims is { } change ? change(claims) : claims;
         if (payload is null)
@@ -267,5 +267,5 @@ internal sealed class ScriptedLinkedIn(string clientId, string clientSecret) : H
         string? Authorization,
         string Accept);
 
-    private sealed record Grant(string UserInfoJson, string? Nonce, string? RedirectUri, string IdTokenSubject);
+    private sealed record Grant(string UserInfoJson, string? RedirectUri, string IdTokenSubject);
 }

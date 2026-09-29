@@ -693,7 +693,7 @@ verified claim **fail-closed** (LinkedIn returns `email_verified` as a string in
 missing or unparsable = not verified) *(corrected in Amendment 2026-09-28 (20): LinkedIn's flag counts only as the
 JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)*. Linking to an existing account by email
 happens ONLY on a `VerifiedEmail`, else refuse. PKCE `S256` only *(corrected in Amendment 2026-09-28 (20): PKCE S256
-where the provider supports it; LinkedIn binds the code by an OIDC nonce)*. `redirect_uri` is **not** a parameter — the adapter
+where the provider supports it; LinkedIn binds the code by an OIDC nonce)* *(corrected in Amendment 2026-09-29 (21): LinkedIn echoes no nonce, measured on the box 2026-09-29, so neither PKCE nor a nonce binds its code, and code injection is a declared residual)*. `redirect_uri` is **not** a parameter — the adapter
 builds it from `EmailOptions.BaseUrl`, the one home of the public base URL (CTO bind 3; no
 `OAuth:RedirectBaseUrl`). `GET /auth/oauth/providers` = the registered `IExternalIdentityProvider`s'
 keys; a provider without keys is not registered — fail-closed, no flag. Links via Identity
@@ -810,7 +810,7 @@ account won in the meantime opens no session (EventId 1025). `IInboxProofRecorde
 2. The state must name a live flow for that provider. Otherwise `Auth.ExternalLoginUnusable` 410 (EventId 1021).
 3. The provider must accept the code with the flow's verifier. Otherwise the same 410; the adapter logs the cause
    (EventId 1022). *(Corrected in Amendment 2026-09-28 (20): with the flow's verifier, or, for LinkedIn, its nonce in
-   the id_token.)*
+   the id_token.)* *(Corrected in Amendment 2026-09-29 (21): LinkedIn's code is accepted with no value of the flow's; see D8.)*
 4. The address must be verified. Otherwise `Auth.ExternalEmailUnverified` 400.
 
 Each refusal the page words differently gets its own wire code; the cause lives only in the log.
@@ -1722,7 +1722,7 @@ records why.*
   `DeployComposeExternalLoginTests`) and `vps-deploy-stack.md` §3d's activation, with Chapter V read before the keys.
 
 **The adapter's form** (`senior-cto-advisor`, binding).
-- **The code is bound by the nonce** (form (b)), as `security-auditor`'s text below states it.
+- **The code is bound by the nonce** (form (b)), as `security-auditor`'s text below states it. *(corrected in Amendment 2026-09-29 (21): it is not; LinkedIn echoes no nonce, and form (a) stands as a declared residual)*
 - **The flag counts only as the JSON `true`** (J). A string, `"true"` included, is refused with a cause of its own,
   `FlagIsString`, so the activation's reading of EventId 1023 shows from the log, without PII, whether D8's sentence
   about a string form still describes LinkedIn. If it does, accepting the string is a follow-up PR on a measured premise.
@@ -1763,7 +1763,7 @@ does not show it (#1888's named skip, Major 2 (iii)). **What still bounds it** i
 
 **The code is bound by an OIDC nonce, not PKCE.** LinkedIn documents PKCE for native clients only, and a
 `code_verifier` fails its confidential token exchange (a third-party measurement, 2026-09-21). RFC 9700 §2.1.1 lets a
-confidential OpenID Connect client use `nonce` instead, transaction-specific and bound to the user agent.
+confidential OpenID Connect client use `nonce` instead, transaction-specific and bound to the user agent. *(corrected in Amendment 2026-09-29 (21): LinkedIn echoes no nonce, measured on the box 2026-09-29, so this form was not kept. No nonce is sent or checked, which withdraws the nonce clauses of the three bullets below. The id_token is still read, for `aud` our client alone (OIDC Core §3.1.3.7 (3)) and the `sub` equality (§5.3.2), and neither limits code injection.)*
 - The authorization request carries `nonce` = the flow's S256 challenge, derived from the verifier in the protected
   state record. No `code_challenge` is sent, and no `code_verifier`.
 - The id_token is read only from the token endpoint's response, over TLS to the pinned endpoint (OIDC Core §3.1.3.7
@@ -1777,9 +1777,9 @@ confidential OpenID Connect client use `nonce` instead, transaction-specific and
   aktiveringen". The first login on the box reads it.)* If LinkedIn does not echo the nonce: the check is deleted, the
   state and the `__Host-` Lax cookie bind the flow alone, and code injection is a declared residual, bounded by what
   keeps a code out of other hands: the callback's `no-referrer` and zero subresources, no 5xx line, exact redirect
-  matching, and a provider-bound state taken once.
+  matching, and a provider-bound state taken once. *(corrected in Amendment 2026-09-29 (21): this is the measured case. Three logins on the box on 2026-09-29 read an id_token present, readable and for our client alone, with no `nonce` claim (#1732, comment 5884698337). The parameter goes with the check. The state and the cookie bind the flow to the browser, never the code, and (21) restates the bound.)*
 - D8's "PKCE `S256` only" is corrected in place: PKCE S256 where the provider supports it; LinkedIn binds the code by
-  the nonce.
+  the nonce. *(corrected in Amendment 2026-09-29 (21): by neither; see D8)*
 
 **The access token** lives 60 days at LinkedIn, which documents no revocation. It is used at most once, against
 userinfo, dropped, and never stored or logged. Lapse, on any of: it is stored or logged; a scope beyond `openid email`;
@@ -1811,11 +1811,11 @@ place to record GitHub's shared client (`security-auditor` Minor 3).
 
 **Lapse trigger 4 fires in this PR** (a provider joins the `VerifiedEmail` rule and the outcome table).
 - **(a)** stands: the path mints no guessable secret; the state is 256 bits, single use and cookie-bound, the nonce
-  derives from a 256-bit verifier, the code is LinkedIn's. 0.003 %/day and 1.089 %/year unchanged; trigger 5 untouched.
+  derives from a 256-bit verifier, the code is LinkedIn's. 0.003 %/day and 1.089 %/year unchanged; trigger 5 untouched. *(corrected in Amendment 2026-09-29 (21): no nonce is sent, and the verifier binds nothing for LinkedIn; the rest of (a) stands)*
 - **(b)** does not hold for LinkedIn: the set that can obtain a session grows from those who can receive the code to
   those who hold LinkedIn's flag. Nothing is guessed, so the arithmetic does not bound it.
 - **(c)** For a LinkedIn-flagged address, a third party spending the mint budget no longer locks its holder out.
-- **(d)** The residual above, and code injection if the nonce is not echoed: declared, not measured.
+- **(d)** The residual above, and code injection if the nonce is not echoed: declared, not measured. *(corrected in Amendment 2026-09-29 (21): the nonce is not echoed, measured 2026-09-29; code injection is the declared residual)*
 - **(e)** Before merge, since a merge reaches the box without an activation step, and again at activation, never
   inherited: `Auth__RegistrationsOpen` in the running api container; whether any `Auth__OAuth__LinkedIn__` variable is
   set; the providers list from inside the web container; the accounts and whether each is the controller's (the hash of
@@ -1824,7 +1824,7 @@ place to record GitHub's shared client (`security-auditor` Minor 3).
   start (302 to `https://www.linkedin.com/oauth/v2/authorization` with `response_type=code`, `scope=openid email`, the
   box's callback, `state`, `nonce` and no `code_challenge`; the flow cookie's attributes); the LinkedIn app's
   registered redirects; the Chapter V readings; and, unless measured before merge, the first login's classes (nonce
-  echoed, `email_verified`'s form, `sub` and `email` under the scope).
+  echoed, `email_verified`'s form, `sub` and `email` under the scope). *(corrected in Amendment 2026-09-29 (21): the web start carries `state` and neither `nonce` nor `code_challenge`. The nonce was measured not echoed on 2026-09-29, and the other two classes are read at the first login after (21)'s merge.)*
 
 **When it reaches someone other than the controller:** trigger 1 (#734) or trigger 2. At either, `security-auditor`
 reads this amendment again, and Major 2 (LinkedIn) and, under Klas's answer (b) to question D, Major 4 (Amendment
@@ -1895,7 +1895,7 @@ EventId 1022 with `NonceAbsent`, `IdTokenSubjectUnusable`, `SubjectUnusable` or 
 `AddressAbsent`, `FlagAbsent`, `FlagIsString` or `FlagNotBoolean`, the keys come off until the follow-up PR has merged
 (`senior-cto-advisor` 7.7). The follow-up is, for `NonceAbsent`,
 deleting the nonce check, and, where `sub` or `email` needs `profile`, the scope `openid profile email`, each in
-`security-auditor`'s form and each followed by a new activation.
+`security-auditor`'s form and each followed by a new activation. *(Amendment 2026-09-29 (21): the first login logged `NonceAbsent`, Klas kept the keys, and (21) is that follow-up.)*
 
 **GitHub's logo rules, read 2026-09-28** (`design-reviewer` Minor 7, brand.github.com "Logo"; the page shows no date).
 They permit a GitHub logo "to inform others that your project integrates with GitHub", and forbid modifying it, which
@@ -1905,6 +1905,213 @@ DESIGN.md §3's rule for LinkedIn applies to GitHub in this PR.
 
 **Lapse triggers, read for PR L.** Trigger 4 fires, as `security-auditor`'s text above reads it. 1–3 and 5–7 are
 untouched.
+
+#### Amendment 2026-09-29 (21) (#1746, part 6c, the follow-up PR) — LinkedIn echoes no nonce: the check and its parameter go, and code injection is a declared residual
+
+*The follow-up Amendment (20) named for `NonceAbsent`, in the form `security-auditor` pre-signed in 6c's form round and
+`senior-cto-advisor` routed ("Följd-PR", `docs/reviews/2026-09-27-1746-form-cto.md`). `dotnet-architect` ruled the form
+and `security-auditor` signed it before code (`docs/reviews/2026-09-29-1746-nonce-form-{dotnet-architect,security-auditor}.md`).
+D8's contract paragraph, Amendment (14)'s callback order and Amendment (20) are corrected in place; this block records
+why.*
+
+**The activation, 2026-09-29** (#1732 comment 5884618928, in substance).
+- PR L #1919 merged as `ffeeec9d` at 04:31:41Z on Klas's GO, after the merge-day (e) reading (PR comment 5883681070).
+  On his GO the box's git was fast-forwarded `c2050e8` → `ffeeec9` at 05:39:19Z; the reconcile at 05:48:26Z rolled out
+  `sha-c464667` (#1924, `deploy/` unchanged since the merge), each running digest equal to that tag's on GHCR.
+- Chapter V was read before the keys, as §3d orders: the API Terms of Use (last revised 2022-12-13), the Privacy Policy
+  (effective 2025-11-03) and the BD DPA (effective 2021-10-28; §4, §10, Schedule A.2) name LinkedIn Ireland Unlimited
+  Company as they did on 2026-09-27; the app's holder is Klas, a private individual residing in Sweden; none of the
+  register's lapse conditions (1)–(5) had fired.
+- The app answered the box's callback with `scope=openid email` by a 303 to its sign-in, and an unregistered control
+  callback with its redirect_uri-mismatch page (05:46:04Z).
+- The secret was injected at 05:51:34Z, sha256-equal to the local client's (m-4 by analogy, Amendment (20)). The two
+  `.env` lines first landed only in nano's `.env.save`, as in 6b; they were verified masked and moved in place at
+  05:57:46Z on Klas's GO. `--check` exited 0 and api was recreated at 05:57:59Z, healthy.
+- Read at 06:00:47Z: registration `false`; providers `200 ["google","linkedin","github"]`; the web start a 302 to
+  LinkedIn's authorization endpoint with exactly `client_id`, `nonce`, `redirect_uri`, `response_type`, `scope` and
+  `state`, `scope=openid email`, a 43-character nonce distinct from the state and no `code_challenge`;
+  `__Host-jobbliggaren_oauth` with `Path=/; Max-Age=600; Secure; HttpOnly; SameSite=lax`; 2 accounts, both the
+  controller's by the two hashes of 2026-09-29; `AspNetUserLogins` `github:1,google:1`; 0 accounts in their restore
+  window; 0 rows on privacy version `2026-09-29`.
+
+**The first login, 2026-09-29** (#1732 comment 5884698337, in substance).
+- Klas, in Brave on Windows, so Amendment (15)'s Apple-WebKit residual stays open. Three attempts, at 06:03:10Z,
+  06:03:27Z and 06:03:38Z; each time the token exchange answered 200, then EventId 1022 `Provider=linkedin
+  Cause=NonceAbsent Status=200`, and the page showed "Inloggningen med LinkedIn slutfördes inte".
+- The adapter checks in a fixed order (`TryBindToThisFlow` at `ffeeec9d`), so that cause means LinkedIn's id_token was
+  present, readable and for our client alone, with no `nonce` claim. **LinkedIn does not echo the nonce.** Userinfo was
+  never called: `email_verified`'s form, and `sub` and `email` under `openid email`, are still unmeasured.
+- Read back at 06:08:56Z: `AspNetUserLogins` `github:1,google:1`; 2 accounts, none new; no account event; 3 × EventId
+  1022, all `NonceAbsent`, 0 × 1023 and 0 `login_succeeded`.
+
+**What LinkedIn documents, read 2026-09-29** (CLAUDE.md §9.5).
+- "Sign In with LinkedIn using OpenID Connect" (Microsoft Learn, updated 2024-08-08,
+  https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/sign-in-with-linkedin-v2): the word
+  "nonce" does not occur, and the ID Token Payload table lists `iss`, `sub`, `aud`, `iat` and `exp`.
+- "LinkedIn 3-Legged OAuth Flow" (Microsoft Learn, updated 2026-05-15,
+  https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow): the authorization request
+  takes `response_type`, `client_id`, `redirect_uri`, `state` (not required) and `scope`, and no `nonce`.
+- The discovery document (https://www.linkedin.com/oauth/.well-known/openid-configuration, read 11:51:08Z): no `nonce`
+  in `claims_supported`.
+- The measurement and the documentation agree. The echo was never documented; OIDC Core §2 was its only ground.
+
+**Klas's decision, 2026-09-29, verbatim:** *"varför måste du ta bort, vi är fortfarande i dev-läge, inga riktiga konton,
+kan inte allt vara kvar, och du ger mig startprompt för följd-PR ??"* The keys and the two `.env` lines stayed, against
+§3d's "deactivate at once, and keep the keys out until the follow-up PR has merged". LinkedIn stayed in the providers
+list and failed closed, since the check refused every login. It overrode the deactivation step once and left the rule
+in §3d as written. Because the keys stayed, **this PR's merge is the re-activation**: the image build rolls it out, so
+(e) is read before it merges.
+
+**`security-auditor`'s pre-signature** (`docs/reviews/2026-09-27-1746-form-security-auditor.md`, verbatim): "Visar den
+`NonceAbsent` förhandssignerar jag form (a): bara nonce-kontrollen raderas, och residualtexten i (19) gäller." Her
+"(19)" is Amendment (20) as merged.
+
+**The form** (`dotnet-architect`, binding).
+- The `nonce` parameter leaves the authorization request as well: a nonce sent and never checked is what OIDC Core
+  §3.1.3.7 (11) forbids, and nothing is left dormant (#1888's precedent, Amendment (18)). The request carries
+  `response_type`, `client_id`, `redirect_uri`, `scope` and `state`, the five parameters LinkedIn documents.
+- The port, both handlers and the state store do not change. The handler still mints and stores a verifier for every
+  flow, and the LinkedIn adapter reads neither the challenge nor the verifier.
+- The id_token path stays: `IdTokenAbsent`, `IdTokenMalformed`, `AudienceMismatch` (our client alone),
+  `IdTokenSubjectUnusable`, and userinfo's `sub` equal to the id_token's (`SubjectMismatch`). The first login measured
+  the first three. None of it limits the residual: an injected code still yields an id_token for our client, with the
+  victim's own `sub`.
+- `NonceAbsent` and `NonceMismatch` are deleted from the closed causes. EventId 1022 and its template do not change,
+  and the two names are not reused, since three lines on the box carry one of them.
+
+**`security-auditor`'s text** (`docs/reviews/2026-09-29-1746-nonce-form-security-auditor.md`, Q4a), verbatim except its
+one placeholder, the report file, resolved:
+
+**`security-auditor`, 2026-09-29: LinkedIn without the nonce, as pre-signed.** Nothing below re-grades a finding, and
+none of it is a §9.6 (3) acceptance (`docs/reviews/2026-09-29-1746-nonce-form-security-auditor.md`).
+
+**Major 3 (conditional), 2026-09-27: closed by the measurement, not by a fix.** Its premise was that LinkedIn's code
+can be bound to the flow. It cannot:
+- Three logins on the box on 2026-09-29 (06:03:10Z, 06:03:27Z, 06:03:38Z; #1732, comment 5884698337) each received a
+  200 token response. Its id_token was present, readable and addressed to our client alone, and carried no `nonce`
+  claim (EventId 1022 `NonceAbsent`).
+- LinkedIn documents no `nonce` in two places: among the authorization parameters ("3-Legged OAuth Flow", updated
+  2026-05-15), and in the id_token's payload ("Sign In with LinkedIn using OpenID Connect", updated 2024-08-08). Its
+  discovery document lists none in `claims_supported`.
+- It documents PKCE only for native clients, on an endpoint of its own that LinkedIn enables per app ("Authenticating
+  with OAuth 2.0 for Native Clients", updated 2023-04-03).
+- All four web readings are of 2026-09-29.
+The finding closes as pre-signed in 6c's form round. Form (a) stands as a declared residual. The premise returns, and
+the binding is owed again, if LinkedIn documents or echoes `nonce`, or accepts PKCE on its confidential web flow.
+**Home:** this amendment. **Reader:** Klas Olsson. Nothing detects it automatically.
+
+**Signed: `dotnet-architect`'s R1–R4 (`docs/reviews/2026-09-29-1746-nonce-form-dotnet-architect.md`), which are
+form (a).**
+- The authorization request carries exactly `response_type`, `client_id`, `redirect_uri`, `scope` and `state`, and
+  neither `nonce` nor `code_challenge`.
+  - A nonce that is sent and never checked breaks OIDC Core §3.1.3.7 (11)'s MUST and binds nothing. §3.1.2.1 makes
+    the nonce optional in this flow.
+  - A pin asserts the five keys, and asserts that the URL carries neither the flow's challenge nor its verifier.
+- The port, both handlers and the state store are unchanged. The verifier is still minted and stored for every flow.
+  LinkedIn's adapter uses neither it nor the challenge.
+- The id_token path stays, which is what "only the nonce check" meant.
+  - The id_token is read only from the token endpoint, over TLS. `aud` must be our client alone, checked before
+    `sub`, and userinfo's `sub` must equal the id_token's (§5.3.2).
+  - That is OIDC conformance for a token we receive. It limits nothing about code injection: an injected code yields
+    a valid id_token for our client, carrying the victim's `sub`. No text may say that it binds the flow.
+- `NonceAbsent` and `NonceMismatch` are deleted and never reused. Three historical 1022 lines on the box carry the
+  first of them.
+
+**The residual, as it now stands:** declared, not measured.
+- **Nothing binds LinkedIn's code to the flow.**
+  - The state and the `__Host-` Lax cookie bind the flow to the browser that started it. That stops login CSRF, but
+    they do not bind the code.
+  - Whoever obtains another member's unredeemed code for our client can therefore redeem it in a flow of their own
+    and log in as that member (RFC 9700 §4.5).
+- **What keeps a code out of other hands:**
+  - the callback's `Referrer-Policy: no-referrer` and its zero subresources;
+  - no log line that carries a code: the edge deletes `code` and `state` from the one line it writes, on a 5xx, and
+    the callback never answers 5xx;
+  - exact redirect matching at the authorization endpoint (measured 2026-09-27 and 2026-09-29).
+- **What confines a code that lands elsewhere:**
+  - LinkedIn's token endpoint refuses a code whose redirect does not match (its documented `invalid_redirect_uri`;
+    not measured);
+  - a redemption needs the client secret.
+  - The client the box uses also registers two other redirects (measured 2026-09-27): localhost (m-4) and the apex,
+    `https://jobbliggaren.se/api/auth/oauth/linkedin/callback`. The box does not serve the apex, which completed no
+    TLS handshake on 2026-09-29.
+- **The code's own life:**
+  - 30 minutes, as documented.
+  - Single use is RFC 6749 §4.1.2's MUST, not measured for LinkedIn.
+  - A member who has granted the app before is sent on without a consent screen (documented). A crafted request
+    therefore mints a code for a signed-in member without prompting.
+
+**The findings stand as graded.** M-1 (LinkedIn), Major 2 (LinkedIn) and Major 4 (Amendment (19)) are unsigned.
+- Before this merge every LinkedIn login on the box failed closed at the nonce check, before userinfo, so LinkedIn's
+  flag had bound nothing.
+- This merge makes M-1 (LinkedIn) and Major 2 (LinkedIn) reachable there for the first time, and adds LinkedIn to
+  Major 4's paths.
+- It therefore takes #1888's §12 STOPP shape and is merged on Klas's "GO merga".
+- No acceptance exists. The bound of §9.6 (3) is neither claimed nor measured.
+
+**Lapse trigger 4 fires at this merge.** The keys stayed on the box by Klas's decision of 2026-09-29, so the merge is
+the activation.
+- **(a)** stands. The path mints no guessable secret: the state is 256 bits, single use and cookie-bound, and the
+  code is LinkedIn's. 0.003 %/day and 1.089 %/year are unchanged, and trigger 5 is untouched.
+- **(b)** does not hold for LinkedIn, as (20) reads it, and code injection widens the set: besides those who hold
+  LinkedIn's flag, it includes whoever obtains another member's unredeemed code. Nothing is guessed, so the
+  arithmetic bounds neither.
+- **(c)** is unchanged from (20).
+- **(d)** Two residuals, both declared and not measured: (20)'s, and code injection above.
+- **(e)** is read on the merge day before merge, and again at the first login after the rollout. It is never
+  inherited.
+  - Before merge:
+    - `Auth__RegistrationsOpen` and the `Auth__OAuth__LinkedIn__` variables in the running api container;
+    - the providers list from inside the web container;
+    - the accounts, and whether each is the controller's;
+    - `identity."AspNetUserLogins"` by provider, and the accounts in their restore window;
+    - `User.*` and `Account.*` audit events since the last reading;
+    - EventId 1022 by cause, 1023, and `Method=LinkedIn` logins since the api started;
+    - `public.job_seekers` rows on the current privacy version;
+    - the running api image, as the `sha-` tag whose digest it equals;
+    - the app's registered redirects: the box's callback accepted, a control refused, and whether the localhost
+      and apex redirects are still registered.
+    - On a merge day after 2026-09-29, also §3d condition 1 (Chapter V).
+  - At the first login after the rollout:
+    - the running api digest is the merge's `sha-` tag, read before the login;
+    - the web start: a 302 with exactly the five keys above, `scope=openid email`, and the flow cookie's attributes;
+    - the login's classes: `email_verified`'s form, and whether `sub` and `email` arrive under the scope.
+
+**When it reaches someone other than the controller:** trigger 1 (#734) or trigger 2. At either, `security-auditor`
+reads (20) and this amendment again. Major 2 (LinkedIn) and Major 4 are reported as Blockers, and the code-injection
+residual is read with them. **Home:** this amendment. **Reader:** Klas Olsson. Nothing detects trigger 2
+automatically.
+
+**DoD 8.** No new personal data.
+- The id_token and the access token are received and not stored, as in (20). The id_token never carried a `nonce`,
+  and none is sent.
+- No new endpoint, scope, recipient or source. Chapter V is unchanged, and its lapse conditions (3) and (4) do not
+  fire.
+- The privacy policy and the cookie policy do not change: neither names the nonce or PKCE.
+- The register's LinkedIn entry loses its nonce clause, and its delivered line records the code's binding as not
+  delivered.
+
+*(End of `security-auditor`'s text.)*
+
+**(e), read before the panel, 2026-09-29T15:15:41Z**, read-only on the box over `ssh jp-vps` (`docker exec` into the
+running containers). Counts only.
+- The running api, web and worker are GHCR's `sha-c464667` (their RepoDigests equal the tag's manifest digests,
+  `8148576a…`, `472421c0…` and `44a0053e…`), healthy; the box's git is `ffeeec9`.
+- `Auth__RegistrationsOpen` `false`; 2 `Auth__OAuth__LinkedIn__` variables; providers `200
+  ["google","linkedin","github"]`.
+- Since the api's recreate at 05:57:59Z: 3 × EventId 1022, all `NonceAbsent`; 0 × 1023; 0 logins with
+  `Method=LinkedIn`.
+- 2 accounts, 0 created after the first login's read-back (06:08:56Z); 2 of 2 match the controller hash set, one each
+  of its two hashes; no `User.*` or `Account.*` event since 06:08:56Z.
+- `AspNetUserLogins` `github:1,google:1`; 0 accounts in their restore window, so 0 links held by one; 0
+  `public.job_seekers` rows on privacy version `2026-09-29`, which this PR does not move.
+- The app's redirects (15:15:44Z, with the local client the box shares): the box's callback accepted (a 303 to
+  LinkedIn's sign-in), an unregistered control refused (LinkedIn's mismatch page), and localhost and the apex still
+  registered (a 303 each).
+- The reading is taken again on the merge day right before merge, and at the first login after the rollout.
+
+**Lapse triggers, read for this PR.** Trigger 4 fires at this merge, as `security-auditor`'s text above reads it. 1–3
+and 5–7 are untouched.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -3092,7 +3299,7 @@ nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw
 by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)), activated on the box 2026-09-27 (the
 readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in two PRs by Klas's answer (Amendment
 2026-09-27 (19)): PR P #1904 the login page per his notes and a quiet continuation hop · PR L LinkedIn in one click, by
-Klas's decision, with a deleted account's links erased at the request for every provider (Amendment 2026-09-28 (20)) →
+Klas's decision, with a deleted account's links erased at the request for every provider (Amendment 2026-09-28 (20)) · the follow-up: LinkedIn echoes no nonce, so the check and its parameter are deleted (Amendment 2026-09-29 (21)) →
 **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

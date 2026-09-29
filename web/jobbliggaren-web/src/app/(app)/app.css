@@ -1013,7 +1013,7 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
   gap: 10px;
 }
 .jp-wizard--rail .jp-occexp__row {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   padding: 12px 14px;
   gap: 12px;
   background: var(--jp-surface);
@@ -1025,6 +1025,7 @@ a.jp-settingsnav__item[aria-current="page"]:hover {
 }
 .jp-wizard--rail .jp-occexp__chip {
   display: flex;
+  flex: 1 1 16rem;
   align-items: center;
   gap: 10px;
 }

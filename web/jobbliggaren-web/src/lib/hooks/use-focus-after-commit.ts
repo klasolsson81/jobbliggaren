@@ -1,5 +1,7 @@
 "use client";
 
+// "use client": a layout-effect hook that moves DOM focus — browser-only.
+
 import { useCallback, useLayoutEffect, useRef } from "react";
 
 /**

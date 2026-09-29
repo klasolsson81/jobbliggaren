@@ -246,7 +246,6 @@ export function MatchPreferencesCard({
         try {
           resolve(await updateMatchPreferencesAction(patch));
         } catch {
-          // The action itself could not be reached; its own copy for a lost connection holds.
           resolve({ success: false, error: t("matchPrefs.errors.network") });
         }
       });
@@ -255,7 +254,7 @@ export function MatchPreferencesCard({
 
   /**
    * ADR 0147 D9: a part's writes run one after another, and each binds its payload when it runs,
-   * after the part's previous write has an outcome, never at the click. No write leans on Next
+   * after the part's previous write has an outcome. No write leans on Next
    * dispatching Server Actions one at a time.
    */
   function enqueueWrite(

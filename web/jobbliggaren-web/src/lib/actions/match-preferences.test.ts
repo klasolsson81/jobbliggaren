@@ -56,9 +56,9 @@ import {
   searchSkillsAction,
   suggestSkillsFromParsedResumeAction,
 } from "./match-preferences";
+import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 
 type UpdateInput = Parameters<typeof updateMatchPreferencesAction>[0];
-import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { render as rawRender } from "@testing-library/react/pure";
 import { NextIntlClientProvider } from "next-intl";
@@ -104,12 +104,22 @@ function renderCard(overrides?: Partial<CardProps>) {
 // reads what the card shows behind it.
 const part = (name: string) => screen.getByRole("region", { name, hidden: true });
 
+/** The backdrop Radix renders behind an open dialog: a click on it is a click outside. */
+function dialogOverlay(): HTMLElement {
+  const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
+  if (overlay === null) throw new Error("no dialog is open");
+  return overlay;
+}
+
 /** The chips a part shows, by name. */
 function chipsOf(name: string): string[] {
   return within(part(name))
     .queryAllByRole("button", { name: /^Ta bort /, hidden: true })
     .map((button) => (button.getAttribute("aria-label") ?? "").replace(/^Ta bort /, ""));
 }
+
+/** Every held write's answer, so none is left out when its test ends. */
+const heldAnswers: Array<(result: ActionResult) => void> = [];
 
 /** Writes that stay out until the test answers them, in the order they were sent. */
 function heldWrites() {
@@ -118,6 +128,7 @@ function heldWrites() {
     () =>
       new Promise<ActionResult>((resolve) => {
         answers.push(resolve);
+        heldAnswers.push(resolve);
       })
   );
   return answers;
@@ -129,6 +140,13 @@ beforeEach(() => {
   parsedSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
   skillSearchMock.mockReset().mockResolvedValue({ success: true, options: [] });
   skillSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
+});
+
+// A write left out would hold its transition, and every later test's with it: React entangles
+// pending async transitions. Writes still queued behind it are answered at once.
+afterEach(() => {
+  updateMock.mockResolvedValue(SAVED);
+  for (const answer of heldAnswers.splice(0)) answer(SAVED);
 });
 
 describe("flattenOccupationGroups", () => {
@@ -434,6 +452,47 @@ describe("(d): a part's writes run in turn, each bound when it runs", () => {
     }
   );
 
+  // dotnet-architect N1: with three writes, "minus its own members" and "minus every pending
+  // removal" part ways.
+  it("each write carries only its own removal: A, B and C removed while the first is out", async () => {
+    const user = userEvent.setup();
+    const answers = heldWrites();
+    renderCard({
+      regions: [...regions, { conceptId: "region_skane", label: "Skåne län", municipalities: [] }],
+      initialRegions: ["region_sthlm", "region_vg", "region_skane"],
+    });
+    const sent = (index: number): ReadonlyArray<string> =>
+      updateMock.mock.calls[index]![0].locations.preferredRegions;
+    let server: ReadonlyArray<string> = ["region_sthlm", "region_vg", "region_skane"];
+    const answer = (index: number, result: ActionResult) => {
+      if (result.success) server = sent(index);
+      answers[index]!(result);
+    };
+
+    await user.click(screen.getByRole("button", { name: `Ta bort ${STHLM}` }));
+    await user.click(screen.getByRole("button", { name: `Ta bort ${VG}` }));
+    await user.click(screen.getByRole("button", { name: "Ta bort Skåne län" }));
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(sent(0)).toEqual(["region_vg", "region_skane"]);
+    expect(chipsOf("Orter")).toEqual([]);
+
+    answer(0, SAVED);
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(2));
+    expect(sent(1)).toEqual(["region_skane"]);
+
+    answer(1, SAVED);
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(3));
+    expect(sent(2)).toEqual([]);
+
+    answer(2, REFUSED);
+    await waitFor(() => {
+      expect(chipsOf("Orter")).toEqual(["Skåne län"]);
+      expect(within(part("Orter")).getByText(REFUSED_TEXT)).toBeInTheDocument();
+    });
+    expect(server).toEqual(["region_skane"]);
+  });
+
   it("never disables a chip or the part's button while a write is out", async () => {
     const user = userEvent.setup();
     const answers = heldWrites();
@@ -555,6 +614,8 @@ describe("the part's dialog (#1918 Binding 3–5)", () => {
       user.click(screen.getByRole("button", { name: "Avbryt" }))],
     ["×", async (user: ReturnType<typeof userEvent.setup>) =>
       user.click(screen.getByRole("button", { name: "Stäng" }))],
+    ["a click on the overlay", async (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(dialogOverlay())],
     ["Spara", async (user: ReturnType<typeof userEvent.setup>) =>
       user.click(screen.getByRole("button", { name: "Spara orter" }))],
   ])("closing by %s puts focus back on the part's button", async (_way, close) => {
@@ -652,6 +713,100 @@ describe("the part's dialog (#1918 Binding 3–5)", () => {
     );
     // The card shows what the server holds: the refused draft reached nothing.
     expect(chipsOf("Anställningsformer")).toEqual(["Vikariat"]);
+  });
+});
+
+// design-reviewer's ruling (a1) on PR #1928, and code-reviewer's (c).
+describe("the part's dialog while its save is out", () => {
+  type User = ReturnType<typeof userEvent.setup>;
+
+  /** Opens Orter, removes Stockholms län from the draft and saves, with the write held. */
+  async function saveHeld(user: User) {
+    const answers = heldWrites();
+    renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
+    await user.click(screen.getByRole("button", { name: "Ändra Orter" }));
+    const dialog = await screen.findByRole("dialog", { name: "Orter" });
+    expect(within(dialog).getByRole("status").textContent).toBe("");
+    await user.click(within(dialog).getByRole("button", { name: "Ta bort Stockholms län" }));
+    await user.click(within(dialog).getByRole("button", { name: "Spara orter" }));
+    return { answers, dialog };
+  }
+
+  it.each([
+    ["Escape", async (user: User) => user.keyboard("{Escape}")],
+    ["×", async (user: User) => user.click(screen.getByRole("button", { name: "Stäng" }))],
+    ["a click on the overlay", async (user: User) => user.click(dialogOverlay())],
+  ])("%s does nothing while the save runs, and the landed save then closes it", async (_way, attempt) => {
+    const user = userEvent.setup();
+    const { answers, dialog } = await saveHeld(user);
+
+    await attempt(user);
+
+    expect(screen.getByRole("dialog", { name: "Orter" })).toBe(dialog);
+    expect(within(dialog).getByRole("button", { name: "Sparar…" })).toBeDisabled();
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Sparar…");
+    expect(within(dialog).getByRole("button", { name: "Ta bort Västra Götalands län" })).toBeEnabled();
+
+    answers[0]!(SAVED);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Ändra Orter" })).toHaveFocus()
+    );
+    expect(within(part("Orter")).getByText(/^Sparat \d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(chipsOf("Orter")).toEqual(["Västra Götalands län"]);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused save stays open with the draft and the alert, and Esc then closes it", async () => {
+    const user = userEvent.setup();
+    const { answers, dialog } = await saveHeld(user);
+
+    answers[0]!(REFUSED);
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(REFUSED_TEXT);
+    expect(within(dialog).queryByRole("status")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Ta bort Stockholms län" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Ta bort Västra Götalands län" })).toBeInTheDocument();
+    expect(chipsOf("Orter")).toEqual(["Stockholms län", "Västra Götalands län"]);
+    await waitFor(() =>
+      expect(within(dialog).getByRole("button", { name: "Spara orter" })).toHaveFocus()
+    );
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Ändra Orter" })).toHaveFocus()
+    );
+  });
+
+  it("waits for a removal still out in the part: one write at a time, the dialog's after the removal's answer", async () => {
+    const user = userEvent.setup();
+    const answers = heldWrites();
+    renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholms län" }));
+    await user.click(screen.getByRole("button", { name: "Ändra Orter" }));
+    const dialog = await screen.findByRole("dialog", { name: "Orter" });
+    await user.click(within(dialog).getByRole("button", { name: "Ta bort Västra Götalands län" }));
+    await user.click(within(dialog).getByRole("button", { name: "Spara orter" }));
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(updateMock.mock.calls[0]![0].locations.preferredRegions).toEqual(["region_vg"]);
+    expect(within(dialog).getByRole("button", { name: "Sparar…" })).toBeDisabled();
+
+    answers[0]!(SAVED);
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(2));
+    expect(updateMock.mock.calls[1]![0]).toEqual({
+      locations: { preferredRegions: [], preferredMunicipalities: [], preferredRemote: false },
+    });
+
+    answers[1]!(SAVED);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(chipsOf("Orter")).toEqual([]);
   });
 });
 

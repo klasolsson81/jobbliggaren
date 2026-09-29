@@ -367,7 +367,13 @@ function PartDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && isSaving) return;
+        onOpenChange(next);
+      }}
+    >
       <DialogContent
         className={wide ? "jp-matchdialog" : "jp-matchdialog jp-matchdialog--narrow"}
         aria-labelledby={titleId}
@@ -414,9 +420,13 @@ function PartDialog({
           >
             {t("matchPrefs.dialog.cancel")}
           </Button>
-          {saveError && (
+          {saveError ? (
             <p id={errorId} role="alert" className="text-body-sm text-danger-600">
               {saveError}
+            </p>
+          ) : (
+            <p role="status" aria-live="polite" className="sr-only">
+              {isSaving ? t("matchPrefs.dialog.saving") : ""}
             </p>
           )}
         </div>

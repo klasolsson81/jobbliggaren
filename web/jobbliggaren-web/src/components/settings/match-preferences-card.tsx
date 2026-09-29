@@ -260,7 +260,10 @@ export function MatchPreferencesCard({
   function enqueueWrite(
     part: MatchPart,
     bind: () => { value: PartValue; patch: UpdateMatchPreferencesInput },
-    settle?: () => void
+    {
+      settle,
+      refusalUnderPart,
+    }: { readonly settle?: () => void; readonly refusalUnderPart: boolean }
   ): Promise<ActionResult> {
     setOutcomes((prev) => ({ ...prev, [part]: null }));
     const run = queues.current[part].then(async () => {
@@ -271,12 +274,14 @@ export function MatchPreferencesCard({
         setParts(partsRef.current);
       }
       settle?.();
-      setOutcomes((prev) => ({
-        ...prev,
-        [part]: result.success
-          ? { ok: true, at: new Date() }
-          : { ok: false, error: result.error },
-      }));
+      if (result.success || refusalUnderPart) {
+        setOutcomes((prev) => ({
+          ...prev,
+          [part]: result.success
+            ? { ok: true, at: new Date() }
+            : { ok: false, error: result.error },
+        }));
+      }
       return result;
     });
     queues.current[part] = run.then(
@@ -305,16 +310,21 @@ export function MatchPreferencesCard({
             : toPatch(value);
         return { value, patch };
       },
-      () =>
-        setRemovals((prev) => ({
-          ...prev,
-          [part]: new Set([...prev[part]].filter((id) => !own.has(id))),
-        }))
+      {
+        settle: () =>
+          setRemovals((prev) => ({
+            ...prev,
+            [part]: new Set([...prev[part]].filter((id) => !own.has(id))),
+          })),
+        refusalUnderPart: true,
+      }
     );
   }
 
   function saveFromDialog(value: PartValue): Promise<ActionResult> {
-    return enqueueWrite(value.part, () => ({ value, patch: toPatch(value) }));
+    return enqueueWrite(value.part, () => ({ value, patch: toPatch(value) }), {
+      refusalUnderPart: false,
+    });
   }
 
   if (degraded) {
@@ -462,7 +472,7 @@ function withPart(parts: Parts, value: PartValue): Parts {
 
 /**
  * One part: its name as an h3 with its button to the right (below it on a narrow card), what it
- * holds, and the outcome of its latest write (#1391's form).
+ * holds.
  */
 function PartGroup({
   title,

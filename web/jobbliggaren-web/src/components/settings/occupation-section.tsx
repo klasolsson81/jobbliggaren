@@ -555,19 +555,19 @@ function OccupationChipsWithYears({
               </span>
               <span className="jp-occexp__years">
                 {/* The "?" sits at the label it explains, once, on the first row (#1918 m7). */}
-                {index === 0 ? (
-                  <span className="jp-labelhelp">
-                    {yearsLabel}
+                <span className="jp-labelhelp">
+                  {yearsLabel}
+                  {index === 0 ? (
                     <InfoDialog
                       ariaLabel={t("matchPrefs.occupation.yearsWhatIsThis")}
                       title={t("matchPrefs.occupation.yearsLabel")}
                       paragraphs={[t("matchPrefs.occupation.yearsHint")]}
                       triggerClassName="jp-labelhelp__trigger"
                     />
-                  </span>
-                ) : (
-                  yearsLabel
-                )}
+                  ) : (
+                    <span className="jp-labelhelp__spacer" aria-hidden="true" />
+                  )}
+                </span>
                 <Input
                   type="number"
                   inputMode="numeric"

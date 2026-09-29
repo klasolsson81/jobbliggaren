@@ -3186,7 +3186,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 2px;
 }
-.jp-labelhelp__trigger {
+.jp-labelhelp__trigger,
+.jp-labelhelp__spacer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3199,7 +3200,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 @media (pointer: coarse) {
-  .jp-labelhelp__trigger {
+  .jp-labelhelp__trigger,
+  .jp-labelhelp__spacer {
     min-height: 44px;
     min-width: 44px;
   }

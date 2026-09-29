@@ -118,8 +118,8 @@ function chipsOf(name: string): string[] {
     .map((button) => (button.getAttribute("aria-label") ?? "").replace(/^Ta bort /, ""));
 }
 
-/** Every held write's answer, so none is left out when its test ends. */
-const heldAnswers: Array<(result: ActionResult) => void> = [];
+/** How to answer every held promise, so none is left out when its test ends. */
+const releases: Array<() => void> = [];
 
 /** Writes that stay out until the test answers them, in the order they were sent. */
 function heldWrites() {
@@ -128,7 +128,7 @@ function heldWrites() {
     () =>
       new Promise<ActionResult>((resolve) => {
         answers.push(resolve);
-        heldAnswers.push(resolve);
+        releases.push(() => resolve(SAVED));
       })
   );
   return answers;
@@ -142,11 +142,11 @@ beforeEach(() => {
   skillSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
 });
 
-// A write left out would hold its transition, and every later test's with it: React entangles
+// A promise left out would hold its transition, and every later test's with it: React entangles
 // pending async transitions. Writes still queued behind it are answered at once.
 afterEach(() => {
   updateMock.mockResolvedValue(SAVED);
-  for (const answer of heldAnswers.splice(0)) answer(SAVED);
+  for (const release of releases.splice(0)) release();
 });
 
 describe("flattenOccupationGroups", () => {
@@ -726,10 +726,11 @@ describe("the part's dialog while its save is out", () => {
     renderCard({ initialRegions: ["region_sthlm", "region_vg"] });
     await user.click(screen.getByRole("button", { name: "Ändra Orter" }));
     const dialog = await screen.findByRole("dialog", { name: "Orter" });
-    expect(within(dialog).getByRole("status").textContent).toBe("");
+    const status = within(dialog).getByRole("status");
+    expect(status.textContent).toBe("");
     await user.click(within(dialog).getByRole("button", { name: "Ta bort Stockholms län" }));
     await user.click(within(dialog).getByRole("button", { name: "Spara orter" }));
-    return { answers, dialog };
+    return { answers, dialog, status };
   }
 
   it.each([
@@ -760,12 +761,12 @@ describe("the part's dialog while its save is out", () => {
 
   it("a refused save stays open with the draft and the alert, and Esc then closes it", async () => {
     const user = userEvent.setup();
-    const { answers, dialog } = await saveHeld(user);
+    const { answers, dialog, status } = await saveHeld(user);
 
     answers[0]!(REFUSED);
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(REFUSED_TEXT);
-    expect(within(dialog).queryByRole("status")).toBeNull();
+    expect(status.textContent).toBe("");
     expect(within(dialog).queryByRole("button", { name: "Ta bort Stockholms län" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Ta bort Västra Götalands län" })).toBeInTheDocument();
     expect(chipsOf("Orter")).toEqual(["Stockholms län", "Västra Götalands län"]);
@@ -778,6 +779,100 @@ describe("the part's dialog while its save is out", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Ändra Orter" })).toHaveFocus()
+    );
+  });
+
+  // design-reviewer Blocker 1: the status stays mounted beside the alert, never in its place.
+  it("a retry after a refusal says Sparar… in the same status node", async () => {
+    const user = userEvent.setup();
+    const { answers, dialog, status } = await saveHeld(user);
+    expect(status).toHaveTextContent("Sparar…");
+
+    answers[0]!(REFUSED);
+    await within(dialog).findByRole("alert");
+    expect(within(dialog).getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("");
+
+    await user.click(within(dialog).getByRole("button", { name: "Spara orter" }));
+
+    expect(within(dialog).getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Sparar…");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
+  // design-reviewer Minor 2: M5 puts a dialog save's refusal in the foot and its receipt under the part.
+  it("a refused save is told once, in the dialog's foot and never also under the part", async () => {
+    const user = userEvent.setup();
+    const { answers, dialog } = await saveHeld(user);
+
+    answers[0]!(REFUSED);
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(REFUSED_TEXT);
+    expect(screen.getAllByText(REFUSED_TEXT)).toHaveLength(1);
+    expect(within(part("Orter")).queryByRole("alert", { hidden: true })).toBeNull();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(within(part("Orter")).queryByRole("alert")).toBeNull();
+  });
+
+  // code-reviewer's new Major and dotnet-architect N4: the lock follows the dialog's own save, and
+  // React ties every concurrent async transition together.
+  it.each([
+    ["Escape", async (user: User) => user.keyboard("{Escape}")],
+    ["×", async (user: User) => user.click(screen.getByRole("button", { name: "Stäng" }))],
+    ["a click on the overlay", async (user: User) => user.click(dialogOverlay())],
+  ])("after a refusal, %s closes it while another part's write is still out", async (_way, close) => {
+    const user = userEvent.setup();
+    const answers = heldWrites();
+    renderCard({
+      initialRegions: ["region_sthlm", "region_vg"],
+      initialEmploymentTypes: ["gro4_cWF_6D7"],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Vikariat" }));
+    await user.click(screen.getByRole("button", { name: "Ändra Orter" }));
+    const dialog = await screen.findByRole("dialog", { name: "Orter" });
+    await user.click(within(dialog).getByRole("button", { name: "Spara orter" }));
+    expect(updateMock).toHaveBeenCalledTimes(2);
+
+    answers[1]!(REFUSED);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(REFUSED_TEXT);
+
+    await close(user);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Ändra Orter" })).toHaveFocus()
+    );
+  });
+
+  it("after a refusal, Esc closes it while the editor's skill search is still out", async () => {
+    const user = userEvent.setup();
+    const answers = heldWrites();
+    skillSearchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(() => resolve({ success: true, options: [] }));
+        })
+    );
+    renderCard();
+
+    await user.click(screen.getByRole("button", { name: "Lägg till Kompetenser" }));
+    const dialog = await screen.findByRole("dialog", { name: "Kompetenser" });
+    await user.click(within(dialog).getByRole("button", { name: "Spara kompetenser" }));
+    await user.type(within(dialog).getByLabelText("Sök kompetens"), "rea");
+    await waitFor(() => expect(skillSearchMock).toHaveBeenCalledWith("rea"));
+
+    answers[0]!(REFUSED);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(REFUSED_TEXT);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till Kompetenser" })).toHaveFocus()
     );
   });
 

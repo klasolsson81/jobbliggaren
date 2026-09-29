@@ -1,6 +1,6 @@
 "use client";
 
-// "use client": each part's dialog holds that part's draft, runs its save in a transition, and
+// "use client": each part's dialog holds that part's draft, and
 // places focus on open and after a refused save. None of that runs in a Server Component. The
 // editors are the shared sections (ADR 0077 STEG 5), the same ones the first-time rail mounts.
 
@@ -12,7 +12,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
@@ -341,22 +340,23 @@ function PartDialog({
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const saveRef = useRef<HTMLButtonElement | null>(null);
   const errorId = useId();
-  const [isSaving, startSaving] = useTransition();
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // A pending save disables its button, and Chromium then drops focus to <body>. A refused save
   // hands it back once the button is enabled again (WCAG 2.4.3).
   const refocusSave = useRef(false);
   useLayoutEffect(() => {
-    if (isSaving || !refocusSave.current) return;
+    if (saving || !refocusSave.current) return;
     refocusSave.current = false;
     saveRef.current?.focus();
-  }, [isSaving]);
+  }, [saving]);
 
   function onSave() {
     setSaveError(null);
-    startSaving(async () => {
-      const result = await save();
+    setSaving(true);
+    void save().then((result) => {
+      setSaving(false);
       if (result.success) {
         onOpenChange(false);
       } else {
@@ -370,7 +370,7 @@ function PartDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && isSaving) return;
+        if (!next && saving) return;
         onOpenChange(next);
       }}
     >
@@ -403,11 +403,11 @@ function PartDialog({
             ref={saveRef}
             type="button"
             onClick={onSave}
-            disabled={isSaving}
+            disabled={saving}
             aria-describedby={saveError ? errorId : undefined}
           >
             <PendingLabel
-              pending={isSaving}
+              pending={saving}
               idle={saveLabel}
               busy={t("matchPrefs.dialog.saving")}
             />
@@ -416,17 +416,16 @@ function PartDialog({
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            disabled={isSaving}
+            disabled={saving}
           >
             {t("matchPrefs.dialog.cancel")}
           </Button>
-          {saveError ? (
+          <p role="status" aria-live="polite" className="sr-only">
+            {saving ? t("matchPrefs.dialog.saving") : ""}
+          </p>
+          {saveError && (
             <p id={errorId} role="alert" className="text-body-sm text-danger-600">
               {saveError}
-            </p>
-          ) : (
-            <p role="status" aria-live="polite" className="sr-only">
-              {isSaving ? t("matchPrefs.dialog.saving") : ""}
             </p>
           )}
         </div>

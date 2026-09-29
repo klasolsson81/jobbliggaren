@@ -548,6 +548,19 @@ describe("OccupationSection — per-yrke-erfarenhet (exp-per-occ PR-4)", () => {
     expect(rows[0]).toContainElement(help[0]!);
   });
 
+  it("varje rads årsgrupp håller ?:ets plats, så fälten står på samma x (#1918 design-reviewer Minor 3)", () => {
+    render(<YearsHost initial={["grp_backend", "grp_frontend"]} />);
+
+    const groups = screen
+      .getAllByRole("listitem")
+      .map((row) => row.querySelector(".jp-occexp__years > .jp-labelhelp"));
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.querySelector(".jp-labelhelp__trigger")).not.toBeNull();
+    const spacer = groups[1]?.querySelector(".jp-labelhelp__spacer");
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toBeEmptyDOMElement();
+  });
+
   it("att ta bort en yrkes-chip tar bort dess år-fält (lokalitet)", async () => {
     const user = userEvent.setup();
     render(<YearsHost initial={["grp_backend"]} />);

@@ -46,4 +46,11 @@ describe("OAuth callback inventory — an edge-log verdict per provider key", ()
       expect.arrayContaining(["code", "state", "error", "error_description", "error_uri"])
     );
   });
+
+  // The keys the verdicts' header cites from LinkedIn's documentation (#1746).
+  it("judges every key LinkedIn documents on its callback", () => {
+    expect(Object.keys(EDGE_LOG_VERDICT)).toEqual(
+      expect.arrayContaining(["code", "state", "error", "error_description"])
+    );
+  });
 });

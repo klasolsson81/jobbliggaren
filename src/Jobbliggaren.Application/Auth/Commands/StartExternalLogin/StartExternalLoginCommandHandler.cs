@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 
 /// <summary>
 /// #1744 — mints the flow (ADR 0142 D8): a PKCE verifier kept in the protected record, the state that keys it, and
-/// the provider's authorization URL carrying the S256 challenge. Reads no account; a provider not registered here
+/// the provider's authorization URL. Reads no account; a provider not registered here
 /// is not found, and a start past <see cref="ExternalLoginPolicy.StartBudget"/> writes nothing.
 /// </summary>
 public sealed partial class StartExternalLoginCommandHandler(

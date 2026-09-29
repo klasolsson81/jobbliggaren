@@ -29,8 +29,14 @@ describe("getExternalLoginProviders", () => {
     expect(await getExternalLoginProviders()).toEqual(["google", "github"]);
   });
 
+  it("offers all three when the api lists them", async () => {
+    backendAnswers(200, '["google","linkedin","github"]');
+
+    expect(await getExternalLoginProviders()).toEqual(["google", "linkedin", "github"]);
+  });
+
   it("drops a key this build cannot start", async () => {
-    backendAnswers(200, '["linkedin","google","myspace"]');
+    backendAnswers(200, '["LinkedIn","google","myspace"]');
 
     expect(await getExternalLoginProviders()).toEqual(["google"]);
   });

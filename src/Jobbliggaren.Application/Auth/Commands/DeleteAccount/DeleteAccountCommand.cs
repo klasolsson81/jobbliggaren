@@ -22,7 +22,8 @@ namespace Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 /// löser in granten server-side FÖRE handlern körs (C5, epik #481) — en kapad long-lived session kan
 /// alltså inte radera kontot utan koden som mejlats till kontots egen adress. Granten når aldrig
 /// handlern och loggas aldrig. Endpoint ansvarar för <c>ISessionStore.MarkUserDeletedAsync</c> +
-/// <c>InvalidateAllForUserAsync</c> post-commit för att avsluta alla aktiva sessioner.
+/// <c>InvalidateAllForUserAsync</c> post-commit för att avsluta alla aktiva sessioner, och sist för
+/// <c>IExternalLoginEraser.EraseAllAsync</c> (ADR 0142 Amendment (20), ADR 0146 D3).
 /// </summary>
 public sealed record DeleteAccountCommand(string? ReauthGrant)
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IReauthenticatingRequest, IAuditableCommand<Result<Guid>>,

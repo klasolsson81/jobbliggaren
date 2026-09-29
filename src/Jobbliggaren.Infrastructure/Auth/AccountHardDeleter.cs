@@ -13,7 +13,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
 /// PostgreSQL + AspNet Identity-implementation av <see cref="IAccountHardDeleter"/>.
-/// Korsar AppDbContext (domain-aggregat) och AppIdentityDbContext (via UserManager).
+/// Korsar AppDbContext (domain-aggregat) och AppIdentityDbContext (via UserManager,
+/// och direkt för bakstoppet som raderar externa inloggningar).
 /// Architecture test verifierar att porten endast anropas av HardDeleteAccountsJob.
 ///
 /// Atomicitet-modell (per ADR 0024 D6 + delbeslut 3-tillägg + TD-13 C6):
@@ -29,6 +30,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// </summary>
 public sealed partial class AccountHardDeleter(
     AppDbContext db,
+    AppIdentityDbContext identity,
     UserManager<ApplicationUser> userManager,
     IAuditTrailEraser auditTrailEraser,
     IUserDataKeyStore dataKeyStore,
@@ -329,6 +331,21 @@ public sealed partial class AccountHardDeleter(
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is not null)
             await userManager.DeleteAsync(user);
+    }
+
+    public async Task<int> EraseExternalLoginsOfAccountsPendingDeletionAsync(CancellationToken cancellationToken)
+    {
+        // Two contexts, one database: the same materialise-then-filter shape as the orphan sweep above.
+        var pendingDeletion = await db.JobSeekers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(js => js.DeletedAt != null)
+            .Select(js => js.UserId)
+            .ToListAsync(cancellationToken);
+
+        return await identity.UserLogins
+            .Where(login => pendingDeletion.Contains(login.UserId))
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     // #508 — reverse-orphan är utelåsta konton (JobSeeker utan Identity-user) som aldrig

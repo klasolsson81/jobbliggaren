@@ -10,7 +10,7 @@ public interface IExternalIdentityProvider
 {
     ExternalProviderKey Key { get; }
 
-    /// <summary>The provider's authorization URL for this flow: S256 only, the state echoed back by the provider.</summary>
+    /// <summary>The provider's authorization URL for this flow, the state echoed back by the provider.</summary>
     Uri BuildAuthorizeUrl(OAuthState state, PkceChallenge challenge);
 
     /// <summary>

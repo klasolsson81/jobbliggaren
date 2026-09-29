@@ -370,13 +370,17 @@ Alla tre startas av CC som bakgrundsprocesser.
    404 vid första skarpa utskicket. Valideringen är registrerad **inuti Scaleway-armen** just för
    att `Email` ska förbli valfri på default-vägen; `EmailOptions` har medvetet ingen
    `ValidateOnStart`.
-   **Ett andra villkorat undantag (#1744, #1745):** `Auth:OAuth:Google` och `Auth:OAuth:GitHub` är
-   VALFRIA, och tomma eller saknade betyder att ingen extern inloggning finns. Sätter du en
-   leverantörs `ClientId` registreras den, och då vägrar API:t att starta, med nyckeln namngiven,
-   om inte dess `ClientSecret` också är satt och `Email:BaseUrl` är https, eller http mot localhost
-   i Development. Klientens redirect-URI (GitHub: "Authorization callback URL") måste vara exakt
-   `http://localhost:3000/api/auth/oauth/{google|github}/callback` lokalt. Använd egna klienter för
-   localhost, aldrig lådans (security-auditor m-8). GitHub-klienten är en GitHub OAuth App.
+   **Ett andra villkorat undantag (#1744, #1745, #1746):** `Auth:OAuth:Google`, `Auth:OAuth:GitHub`
+   och `Auth:OAuth:LinkedIn` är VALFRIA, och tomma eller saknade betyder att ingen extern inloggning
+   finns. Sätter du en leverantörs `ClientId` registreras den, och då vägrar API:t att starta, med
+   nyckeln namngiven, om inte dess `ClientSecret` också är satt och `Email:BaseUrl` är https, eller
+   http mot localhost i Development. Klientens redirect-URI (GitHub: "Authorization callback URL")
+   måste vara exakt `http://localhost:3000/api/auth/oauth/{google|github|linkedin}/callback` lokalt.
+   För Google: en egen klient för localhost, aldrig lådans (security-auditor m-8). Lådan delar
+   Klas lokala GitHub- och LinkedIn-klient, enligt hans accept 2026-09-27 (ADR 0142 Amendment (19),
+   för LinkedIn per analogi (20)); varje annan maskin använder en egen klient. GitHub-klienten är en
+   GitHub OAuth App. LinkedIn-klienten kräver produkten "Sign In with LinkedIn using OpenID Connect",
+   eftersom inloggningen ber om `openid email`.
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090

@@ -11,4 +11,7 @@ public enum LoginMethod
 
     /// <summary>A GitHub login (#1745, ADR 0142 D8 and Amendment (18)).</summary>
     GitHub = 4,
+
+    /// <summary>A LinkedIn login (#1746, ADR 0142 D8).</summary>
+    LinkedIn = 5,
 }

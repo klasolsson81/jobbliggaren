@@ -359,9 +359,10 @@ services:
       # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
-      # External login (ADR 0142 D8): Google (#1744) and GitHub (#1745). Every line defaults EMPTY and
-      # never `:?`: a blank client id registers no provider (each provider's registration reads it
-      # raw), and a pointer is blank for the reason x-app-email gives its Scaleway pointers.
+      # External login (ADR 0142 D8): Google (#1744), GitHub (#1745) and LinkedIn (#1746). Every line
+      # defaults EMPTY and never `:?`: a blank client id registers no provider (each provider's
+      # registration reads it raw), and a pointer is blank for the reason x-app-email gives its
+      # Scaleway pointers.
       # jobbliggaren-inject-secrets.sh writes a secret (JBL_INJECT_<PROVIDER>=1 before the .env edit).
       # Api only: the Worker never composes a provider. Pinned by DeployComposeExternalLoginTests;
       # activation order in docs/runbooks/vps-deploy-stack.md §3d.
@@ -369,6 +370,8 @@ services:
       Auth__OAuth__Google__ClientSecret_FILE: ${AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE:-}
       Auth__OAuth__GitHub__ClientId: ${AUTH_OAUTH_GITHUB_CLIENT_ID:-}
       Auth__OAuth__GitHub__ClientSecret_FILE: ${AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE:-}
+      Auth__OAuth__LinkedIn__ClientId: ${AUTH_OAUTH_LINKEDIN_CLIENT_ID:-}
+      Auth__OAuth__LinkedIn__ClientSecret_FILE: ${AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE:-}
       # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
       # (docs/runbooks/release-checklist.md 2.7). Default pinned by
       # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an

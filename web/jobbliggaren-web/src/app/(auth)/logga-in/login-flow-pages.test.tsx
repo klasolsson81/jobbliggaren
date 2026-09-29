@@ -246,8 +246,9 @@ describe("/logga-in/kod", () => {
     }
   );
 
-  it.each<["google" | "github", string]>([
+  it.each<["google" | "linkedin" | "github", string]>([
     ["google", "Logga in med Google"],
+    ["linkedin", "Logga in med LinkedIn"],
     ["github", "Logga in med GitHub"],
   ])("titles an outcome reached through %s by the provider, never by a code", async (via, title) => {
     mocks.readLoginFlow.mockResolvedValue({ ...closed, via });
@@ -303,8 +304,9 @@ describe("/logga-in/villkor", () => {
     expect(container.textContent).not.toMatch(/@/);
   });
 
-  it.each<["google" | "github", string]>([
+  it.each<["google" | "linkedin" | "github", string]>([
     ["google", "Kontot skapas på den primära e-postadressen i Google-kontot du valde."],
+    ["linkedin", "Kontot skapas på den primära e-postadressen i LinkedIn-kontot du valde."],
     ["github", "Kontot skapas på den primära e-postadressen i GitHub-kontot du valde."],
   ])("says the account is created on the address of the %s account, not one confirmed by a code", async (via, line) => {
     mocks.readLoginFlow.mockResolvedValue({ ...consent, via });

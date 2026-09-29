@@ -5,12 +5,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
@@ -27,6 +30,8 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// <item>Tom/saknad grant → 400 (ValidationBehavior före re-auth) och kontot raderas inte</item>
 /// <item>Grant-vägrans-paritet: en okänd grant, en förbrukad, en annan användares och dess ägares därefter
 ///   ger byte-identisk 401 — ingen av dem avslöjar varför</item>
+/// <item>#1746: the account's external logins go at the request for every provider, and a failure in that erasure
+///   leaves the account deleted and signed out</item>
 /// </list>
 ///
 /// OBS rate-limit: AccountDeletion-policyn är UserId-partitionerad med PermitLimit=1/60s och hålls
@@ -262,6 +267,96 @@ public class DeleteMeTests(ApiFactory factory)
         auditEntries.Count.ShouldBe(1, "exakt en Account.Deleted-rad ska skrivas per POST /me/delete");
         auditEntries[0].AggregateType.ShouldBe("JobSeeker");
         auditEntries[0].UserId.ShouldBe(user.Id);
+    }
+
+    // ── #1746 (ADR 0142 Amendment (20), security-auditor Minor 2): the links go at the request ──
+    // Each link is written by the production writer, as a login with that provider writes it before the account asks to
+    // be deleted. The loop runs over Known, so a later provider is covered without editing these rows.
+
+    private async Task<Guid> LinkEveryKnownProviderAsync(string email)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);
+        user.ShouldNotBeNull();
+        var writer = scope.ServiceProvider.GetRequiredService<IExternalLoginWriter>();
+        foreach (var provider in ExternalProviderKey.Known)
+        {
+            var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+            (await writer.LinkAsync(user.Id, provider, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        }
+
+        return user.Id;
+    }
+
+    private async Task<int> LinksOfAsync(Guid userId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
+            .AsNoTracking()
+            .CountAsync(login => login.UserId == userId, Ct);
+    }
+
+    [Fact]
+    public async Task POST_me_delete_erases_the_accounts_login_for_every_provider_and_no_other_accounts()
+    {
+        var email = NewAddress("links");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var userId = await LinkEveryKnownProviderAsync(email);
+        var bystander = NewAddress("links-bystander");
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, bystander, ct: Ct);
+        var bystanderId = await LinkEveryKnownProviderAsync(bystander);
+        (await LinksOfAsync(userId)).ShouldBe(ExternalProviderKey.Known.Count);
+        var grant = await MintGrantAsync(sessionId, email);
+
+        var response = await PostDeleteAsync(sessionId, grant);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await LinksOfAsync(userId)).ShouldBe(0);
+        (await LinksOfAsync(bystanderId)).ShouldBe(ExternalProviderKey.Known.Count);
+
+        // No event of its own: Account.Deleted records the deletion (ADR 0024 D4), and the seed wrote none either.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.AuditLogEntries.AsNoTracking()
+                .CountAsync(e => (e.UserId == userId || e.AggregateId == userId)
+                                 && e.EventType.StartsWith("User.ExternalLogin"), Ct))
+            .ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task POST_me_delete_whose_erasure_fails_leaves_the_account_deleted_and_signed_out_with_its_links()
+    {
+        // The actor: a database failure in the erasure after the soft delete committed. Session, grant and delete all go
+        // through the derived host. The links it leaves are the state HardDeleteAccountsJob's backstop exists for.
+        await using var host = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddScoped<IExternalLoginEraser, FailingEraser>()));
+        var client = host.CreateClient();
+        var email = NewAddress("erasure-fails");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(host, email, ct: Ct);
+        var userId = await LinkEveryKnownProviderAsync(email);
+        var grant = await ReauthTestHelpers.MintGrantAsync(_factory, client, sessionId, email, Ct);
+
+        using var delete = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/delete")
+        {
+            Content = JsonContent.Create(new { reauthGrant = grant }),
+        };
+        delete.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+
+        var response = await client.SendAsync(delete, Ct);
+        response.StatusCode.ShouldBe(
+            HttpStatusCode.InternalServerError, await response.Content.ReadAsStringAsync(Ct));
+
+        (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull().DeletedAt.ShouldNotBeNull();
+        using var me = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me");
+        me.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        (await client.SendAsync(me, Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await LinksOfAsync(userId)).ShouldBe(ExternalProviderKey.Known.Count);
+    }
+
+    private sealed class FailingEraser : IExternalLoginEraser
+    {
+        public Task EraseAllAsync(Guid userId, CancellationToken ct) =>
+            Task.FromException(new NpgsqlException("the connection was lost after the soft delete committed"));
     }
 
     // Idempotency-testet är inte möjligt via ren API-yta: en andra POST /me/delete kräver ny session,

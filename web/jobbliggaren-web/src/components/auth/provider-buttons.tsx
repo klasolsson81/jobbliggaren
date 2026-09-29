@@ -1,7 +1,11 @@
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { externalLoginStartHref, type ExternalProviderKey } from "@/lib/auth/external-login";
+import {
+  EXTERNAL_PROVIDER_KEYS,
+  externalLoginStartHref,
+  type ExternalProviderKey,
+} from "@/lib/auth/external-login";
 
 // The three identity providers (ADR 0142 D8). A Server Component: a row that starts a login is a
 // link, and a row that does nothing needs no client code either.
@@ -13,24 +17,24 @@ import { externalLoginStartHref, type ExternalProviderKey } from "@/lib/auth/ext
 //
 // An active row is an `<a href>`, never a form and never `next/link`: the CSP's `form-action` would
 // refuse a form that navigates to the provider, and a prefetch must not start a flow. It carries the
-// provider's official mark, unmodified (DESIGN.md §3). Its hover shows on the border, so the mark's
-// white ground matches the row in rest and in hover (design-reviewer D2).
-//
-// Reach order for a Swedish job seeker, not alphabetical.
-const PROVIDERS = ["google", "linkedin", "github"] as const;
+// provider's official mark, unmodified, where DESIGN.md §3 admits one. Its hover shows on the border, so
+// the mark's white ground matches the row in rest and in hover (design-reviewer D2).
+
+type Mark = { src: string; px: number; className: string };
 
 /**
  * Each provider's asset, byte-identical and with exactly one consumer: this file
  * (`provider-marks.test.ts`), always in a 20x20 slot. Google's is rendered 40x40 in that window, so
  * the asset's own frame falls outside it by layout rather than by an edited file; GitHub's has no
- * frame and is fitted whole, never stretched out of its 294:288 ratio.
+ * frame and is fitted whole, never stretched out of its 294:288 ratio. LinkedIn's row has none.
  */
-const MARKS: Readonly<Record<ExternalProviderKey, { src: string; px: number; className: string }>> = {
+const MARKS: Readonly<Record<ExternalProviderKey, Mark | null>> = {
   google: {
     src: "/provider-marks/google-g-light-square-4x.png",
     px: 40,
     className: "absolute -top-2.5 -left-2.5 h-10 w-10 max-w-none",
   },
+  linkedin: null,
   github: {
     src: "/provider-marks/github-invertocat-black.png",
     px: 20,
@@ -52,8 +56,9 @@ export function ProviderButtons({
   // The Button primitive lifts every row to 44 px at ≤768 px (DESIGN.md §5).
   return (
     <ul className="flex flex-col gap-2">
-      {PROVIDERS.map((provider) => {
+      {EXTERNAL_PROVIDER_KEYS.map((provider) => {
         const live = active.find((key) => key === provider);
+        const mark = live === undefined ? null : MARKS[live];
         return (
           <li key={provider}>
             {live === undefined ? (
@@ -76,17 +81,19 @@ export function ProviderButtons({
                 className="h-auto min-h-10 w-full justify-center gap-3 px-3 py-1.5 text-center whitespace-normal hover:border-brand-700 hover:bg-background"
               >
                 <a href={externalLoginStartHref(live, next)}>
-                  <span aria-hidden="true" className="relative size-5 shrink-0 overflow-hidden">
-                    <Image
-                      src={MARKS[live].src}
-                      alt=""
-                      width={MARKS[live].px}
-                      height={MARKS[live].px}
-                      unoptimized
-                      loading="eager"
-                      className={MARKS[live].className}
-                    />
-                  </span>
+                  {mark === null ? null : (
+                    <span aria-hidden="true" className="relative size-5 shrink-0 overflow-hidden">
+                      <Image
+                        src={mark.src}
+                        alt=""
+                        width={mark.px}
+                        height={mark.px}
+                        unoptimized
+                        loading="eager"
+                        className={mark.className}
+                      />
+                    </span>
+                  )}
                   <span>{t(`auth.passwordless.entry.providers.${live}`)}</span>
                 </a>
               </Button>

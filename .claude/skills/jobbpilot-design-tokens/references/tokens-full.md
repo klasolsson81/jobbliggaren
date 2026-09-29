@@ -161,6 +161,7 @@ Aldrig drop-shadows på knappar eller godtyckliga ytor — djup via border.
 | `--jp-r-md` | `6px` | `rounded-md` | **DEFAULT** — knappar, kort, rader, popovers |
 | `--jp-r-lg` | `8px` | `rounded-lg` | Modal, större paneler |
 | `--jp-r-pill` | `9999px` | `rounded-pill` | Status dots, pills, avatar |
+| `--jp-r-chip` | `19px` | — | Endast `.jp-chip`: exakt pill på en rad, hörn när den radbryts (#1914, ADR 0052) |
 
 ADR 0052: 6px rad/kort, 4px inputs, 8px modal.
 

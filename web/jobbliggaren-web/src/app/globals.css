@@ -182,6 +182,9 @@
   --jp-r-md:   6px;
   --jp-r-lg:   8px;
   --jp-r-pill: 9999px;
+  /* .jp-chip only: half the tallest single-line chip (38px at <=768), so a one-line chip is
+     still an exact pill and a wrapped one keeps corners instead of a rounder capsule (#1914). */
+  --jp-r-chip: 19px;
 
   /* Typografi — font-familjer kommer från next/font (--font-sans/--font-mono) */
   --jp-font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -3496,11 +3499,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Preference chip — .jp-chip / .jp-chip--removable ──
    (Matchning modern-civic RE-BIND, 2026-06-20-matchning-modern-chips-design §1.4)
-   En NY klass-grupp som komponerar ENBART befintliga --jp-*-tokens (inga nya
-   tokens). EJ .jp-tag (11px uppercase = fel), EJ .jp-pill (status-dot = fel),
+   EJ .jp-tag (11px uppercase = fel), EJ .jp-pill (status-dot = fel),
    EJ .jp-matchchip (graderad read-only = fel). Innehållsnamn → mixed-case 13px,
-   outline (border-only) civic-read; pill-radie (det dokumenterade radie-
-   undantaget). Båda teman flippar gratis (token-drivna). */
+   outline (border-only) civic-read. Båda teman flippar gratis (token-drivna). */
 .jp-chip {
   display: inline-flex;
   align-items: center;
@@ -3512,7 +3513,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   background: transparent;
   border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-pill);
+  border-radius: var(--jp-r-chip);
   max-width: 100%;
 }
 /* Modifier: chippen bär en borttagnings-knapp → mindre höger-padding (⨯ äger

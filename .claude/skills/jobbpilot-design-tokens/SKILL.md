@@ -275,6 +275,7 @@ Use Tailwind spacing utilities — all values are multiples of 4px:
 | `rounded-md` | `--jp-r-md` | 6px | **DEFAULT** — knappar, kort, rader, popovers |
 | `rounded-lg` | `--jp-r-lg` | 8px | Modal, större paneler |
 | `rounded-pill` | `--jp-r-pill` | 9999px | Status dots, pills, avatar |
+| — | `--jp-r-chip` | 19px | Endast `.jp-chip`: exakt pill på en rad, hörn när den radbryts (#1914, ADR 0052) |
 
 ADR 0052-regeln: 6px rad/kort-default, 4px inputs, 8px modal. Radier > 8px
 är förbjudna — hero-plattan är 6px (`--jp-r-md`) sedan ADR 0068, och det

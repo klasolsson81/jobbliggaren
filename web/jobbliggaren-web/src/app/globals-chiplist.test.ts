@@ -28,6 +28,11 @@ describe("globals.css — the chip list keeps a long chip inside its container (
     expect(block(".jp-chiplist > li")).toMatch(/min-width:\s*0\s*;/);
   });
 
+  // Klas 2026-09-29 (a): a wrapped chip keeps corners; on one line --jp-r-chip still draws a pill.
+  it("gives the chip its own corner radius, not the pill radius", () => {
+    expect(block(".jp-chip")).toMatch(/border-radius:\s*var\(--jp-r-chip\)\s*;/);
+  });
+
   it("wraps a long label inside the chip, never an ellipsis", () => {
     const label = block(".jp-chip__label");
     expect(label).toMatch(/overflow-wrap:\s*anywhere\s*;/);

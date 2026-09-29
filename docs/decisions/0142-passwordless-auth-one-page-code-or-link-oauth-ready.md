@@ -3298,8 +3298,10 @@ nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw
 `dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in three PRs (Amendment 2026-09-26 (16)): PR 1 #1882 the code-bound link, inert for GitHub · PR 2 #1883 activatable (Amendment 2026-09-27 (17)) · PR 3 #1888 one click,
 by Klas's decision, the code-bound link deleted (Amendment 2026-09-27 (18)), activated on the box 2026-09-27 (the
 readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in two PRs by Klas's answer (Amendment
-2026-09-27 (19)): PR P #1904 the login page per his notes and a quiet continuation hop · PR L LinkedIn in one click, by
-Klas's decision, with a deleted account's links erased at the request for every provider (Amendment 2026-09-28 (20)) · the follow-up: LinkedIn echoes no nonce, so the check and its parameter are deleted (Amendment 2026-09-29 (21)) →
+2026-09-27 (19)) and a follow-up: PR P #1904 the login page per his notes and a quiet continuation hop · PR L #1919
+LinkedIn in one click, by Klas's decision, with a deleted account's links erased at the request for every provider
+(Amendment 2026-09-28 (20)) · the follow-up #1929: LinkedIn echoes no nonce, so the check and its parameter are deleted
+(Amendment 2026-09-29 (21)) →
 **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

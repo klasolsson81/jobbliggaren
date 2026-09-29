@@ -95,10 +95,12 @@ describe("LoginFlowNotice", () => {
   });
 
   it.each([
-    ["externalUnverified", "Google kan inte intyga din e-postadress", "Logga in med en kod i stället: skriv in din e-postadress nedan."],
-    ["externalNotCompleted", "Inloggningen med Google slutfördes inte", "Försök igen med Google, eller skriv in din e-postadress nedan."],
-  ] as const)("%s names its provider and the remedy on THIS page, and takes focus", async (notice, title, body) => {
-    render(<LoginFlowNotice notice={notice} provider="google" />);
+    ["externalUnverified", "google", "Google kan inte intyga din e-postadress", "Logga in med en kod i stället: skriv in din e-postadress nedan."],
+    ["externalNotCompleted", "google", "Inloggningen med Google slutfördes inte", "Försök igen med Google, eller skriv in din e-postadress nedan."],
+    ["externalUnverified", "linkedin", "LinkedIn kan inte intyga din e-postadress", "Logga in med en kod i stället: skriv in din e-postadress nedan."],
+    ["externalNotCompleted", "linkedin", "Inloggningen med LinkedIn slutfördes inte", "Försök igen med LinkedIn, eller skriv in din e-postadress nedan."],
+  ] as const)("%s names its provider (%s) and the remedy on THIS page, and takes focus", async (notice, provider, title, body) => {
+    render(<LoginFlowNotice notice={notice} provider={provider} />);
 
     const panel = screen.getByRole("status");
     expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();

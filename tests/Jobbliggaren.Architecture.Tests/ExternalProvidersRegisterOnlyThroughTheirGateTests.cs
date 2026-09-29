@@ -35,7 +35,7 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     // The control: an empty set would make BuildsByHand scan for nothing.
     [Fact]
     public void The_adapters_are_found_by_reflection_so_the_scans_below_are_not_empty() =>
-        Adapters.ShouldBe([nameof(GitHubIdentityProvider), nameof(GoogleIdentityProvider)]);
+        Adapters.ShouldBe([nameof(GitHubIdentityProvider), nameof(GoogleIdentityProvider), nameof(LinkedInIdentityProvider)]);
 
     [Fact]
     public void Each_registered_adapter_is_registered_only_in_its_own_gate_file()
@@ -91,6 +91,7 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [InlineData("services.Add(new ServiceDescriptor(typeof(IExternalIdentityProvider), typeof(GoogleIdentityProvider), lifetime));")]
     [InlineData("services.AddSingleton<" + "\n" + "        IExternalIdentityProvider, GoogleIdentityProvider>();")]
     [InlineData("services.AddSingleton<IExternalIdentityProvider, GitHubIdentityProvider>();")]
+    [InlineData("services.AddSingleton<IExternalIdentityProvider, LinkedInIdentityProvider>();")]
     [InlineData("using Provider = Jobbliggaren.Application.Auth.ExternalLogins.IExternalIdentityProvider;")]
     [InlineData("using Provider = global::Jobbliggaren.Application.Auth.ExternalLogins.IExternalIdentityProvider;")]
     [InlineData("using Provider = Application.Auth.ExternalLogins.IExternalIdentityProvider;")]
@@ -102,6 +103,7 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [InlineData("services.TryAddEnumerable(ServiceDescriptor.Singleton<IExternalIdentityProvider, GitHubIdentityProvider>());", "GitHubIdentityProvider")]
     [InlineData("services.Add(new ServiceDescriptor(typeof(IExternalIdentityProvider), typeof(GitHubIdentityProvider), lifetime));", "GitHubIdentityProvider")]
     [InlineData("services.AddSingleton<" + "\n" + "        IExternalIdentityProvider, GoogleIdentityProvider>();", "GoogleIdentityProvider")]
+    [InlineData("services.AddSingleton<IExternalIdentityProvider, LinkedInIdentityProvider>();", "LinkedInIdentityProvider")]
     public void The_scan_reads_the_adapter_a_registration_names(string text, string adapter) =>
         RegisteredAdapters(text).ShouldBe([adapter]);
 
@@ -118,6 +120,9 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [InlineData("GitHubIdentityProvider github = new(factory, options, callbacks, logger);")]
     [InlineData("var github = ActivatorUtilities.CreateInstance<GitHubIdentityProvider>(sp);")]
     [InlineData("new" + "\n" + "    GitHubIdentityProvider(factory, options, callbacks, logger)")]
+    [InlineData("var linkedin = new LinkedInIdentityProvider(factory, options, callbacks, logger);")]
+    [InlineData("LinkedInIdentityProvider linkedin = new(factory, options, callbacks, logger);")]
+    [InlineData("var linkedin = ActivatorUtilities.CreateInstance<LinkedInIdentityProvider>(sp);")]
     public void The_scan_recognises_a_list_or_an_adapter_built_by_hand(string text) => BuildsByHand(text).ShouldBeTrue();
 
     [Theory]

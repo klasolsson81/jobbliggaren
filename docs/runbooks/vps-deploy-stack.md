@@ -570,7 +570,7 @@ Expect `1`, `0`, the T of the pre-read, and both containers `(healthy)`.
 **The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
 body.
 
-## 3d. External login: activation and deactivation (#1744 Google, #1745 GitHub)
+## 3d. External login: activation and deactivation (#1744 Google, #1745 GitHub, #1746 LinkedIn)
 
 A merge makes Google login **possible**; keys on this box make it **live**. Activation is Klas's step,
 done with him, and it has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G
@@ -652,8 +652,10 @@ as Google's does, by Klas's decision over `security-auditor`'s M-1, which stands
    Google's activation required, and its consent grants the grant selector Google's use. Diff
    `deploy/redis/*.acl.template` between the box's git and the merge commit; it is expected to be
    unchanged.
-4. **The GitHub OAuth App** (security-auditor m-4). A separate OAuth App for this box, never the one a
-   developer uses on localhost. Its authorization callback URL is exactly
+4. **The GitHub OAuth App** (security-auditor m-4). The box shares the OAuth App used on localhost, by
+   Klas's acceptance on 2026-09-27: "varför kan jag inte använda samma nyckel som i appsettings ? Jag
+   accepterar risken" (ADR 0142 Amendment (19), where the hash reading is). If the local secret is
+   rotated, the box's secret file is replaced too. Its authorization callback URL is exactly
    `https://${SITE_HOST}/api/auth/oauth/github/callback`, and nothing else. Any wildcard or
    subdirectory matching of callback URLs the app offers is off: it would let a code be sent to another
    path. Record whether the app issues expiring user tokens: GitHub does not document whether revoking
@@ -696,6 +698,82 @@ answers "registration closed" while registration is shut. Registration is never 
 is the M-7 flip, and opening it makes `security-auditor`'s Major 2 under Amendment (18) Blocker class.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google.
+
+### LinkedIn login (#1746)
+
+The same shape as GitHub's above. Three things differ. LinkedIn's `email_verified` binds a login in one
+click by Klas's decision over `security-auditor`'s M-1 (LinkedIn), which stands (ADR 0142 Amendment
+(20)). Its web flow takes no PKCE, so the flow's challenge travels as the OIDC `nonce` and comes back in
+the id_token. And its subject ids are pairwise: each app gives a member a different one.
+
+**Before the keys.** Each condition is read on the day, never inherited, and Chapter V comes first:
+
+1. **Chapter V.** LinkedIn's API Terms name LinkedIn Ireland Unlimited Company the contracting party,
+   since the app's holder is an individual residing in a Designated Country, and for a member in the
+   EU/EEA or Switzerland its Privacy Policy names it the controller, so the server's exchange stays
+   inside the EEA and no Art. 45 decision is relied on (`security-auditor`, 2026-09-27). Read that day:
+   the API Terms' party clause and the app holder's residence, the BD DPA's sections 4 and 10 and
+   Schedule A.2, and the Privacy Policy's sentence naming the controller. If any lapse condition in the
+   register's LinkedIn entry has fired, the keys are not placed.
+2. **The box's git contains the merge**, read as for GitHub: `git -C /opt/jobbliggaren merge-base
+   --is-ancestor <merge-commit> HEAD` exits 0. On an older tree `JBL_INJECT_LINKEDIN` is ignored.
+3. **The volatile ACL.** Nothing new, as for GitHub: diff `deploy/redis/*.acl.template` between the
+   box's git and the merge commit; it is expected to be unchanged.
+4. **The LinkedIn app.** The box uses the local development client, by Klas's m-4 acceptance applied
+   by analogy (ADR 0142 Amendment (20)). Its authorized redirect URLs include exactly
+   `https://${SITE_HOST}/api/auth/oauth/linkedin/callback`; LinkedIn matches them exactly. The app
+   carries the product "Sign In with LinkedIn using OpenID Connect".
+5. **A new client id means new subject ids** (`dotnet-architect` N4). Before the client id changes,
+   including a move to an app of the box's own, delete the `linkedin` rows:
+   `DELETE FROM identity."AspNetUserLogins" WHERE login_provider = 'linkedin';`. Each member's next
+   login links again through the address. The secret can be rotated freely.
+
+**Activation, in this order.** Inject before you edit.
+
+```bash
+sudo JBL_INJECT_LINKEDIN=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+# The LinkedIn secret is written before the host secrets are prompted for. At the prompt for
+# Backup__RcloneConfigBase64 (#197), Ctrl+C: the LinkedIn file is already in place.
+# then set, in deploy/.env:
+#   AUTH_OAUTH_LINKEDIN_CLIENT_ID=<the client id>
+#   AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__LinkedIn__ClientSecret
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
+cd /opt/jobbliggaren/deploy
+sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+```
+
+**The reading, dated, as a comment on #1732.** Counts, never printouts:
+
+- `Auth__RegistrationsOpen` in the running api container;
+- the number of accounts, and whether every one is the controller's, counted as for GitHub;
+- `identity."AspNetUserLogins"` grouped by `login_provider`, and the links held by accounts in their
+  restore window, expected 0 (`account-deletion.md` §3.3);
+- `public.job_seekers` rows carrying the new `privacy_policy_version`;
+- the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
+- the web start: a 302 to `https://www.linkedin.com/oauth/v2/authorization` with exactly
+  `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email`,
+  `state` and `nonce`, and no `code_challenge`; and the flow cookie's attributes;
+- the Chapter V readings above, and the app's registered redirect URLs.
+
+If the reading does not show `linkedin`, both `.env` lines are removed and api is re-created.
+The next amendment of ADR 0142 transcribes the comment.
+
+**Expected on the first login.** LinkedIn's verified address names the account, as Google's does, and
+no code is sent. If an account holds that address, the callback signs in and links LinkedIn:
+`login_succeeded … Method=LinkedIn`, one `User.ExternalLoginLinked` row and one `linkedin` row in
+`AspNetUserLogins`. If no account holds the address, the callback answers "registration closed" while
+registration is shut, and registration is never opened for this. The first login also measures what
+the build could not: that LinkedIn echoes the nonce, the form of `email_verified`, and that `sub` and
+`email` arrive under `openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
+
+**If the first login fails on one of those.** EventId 1022 with `NonceAbsent`, `IdTokenSubjectUnusable`,
+`SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent`, `FlagAbsent`, `FlagIsString` or
+`FlagNotBoolean`: deactivate at once, and keep the keys out until the follow-up PR has merged. An active
+row that never works is not left standing. Any other refusal at the first login: deactivate, and file
+the defect, as for Google.
+
+**Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
+rows can stay: they match only this app's subject ids.
 
 ## 4. Host-side prerequisites
 

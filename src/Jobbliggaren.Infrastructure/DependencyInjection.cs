@@ -1780,6 +1780,8 @@ public static class DependencyInjection
         services.AddSingleton<RegisteredProviders>();
         services.AddScoped<IExternalLoginLookup, IdentityExternalLoginStore>();
         services.AddScoped<IExternalLoginWriter, IdentityExternalLoginStore>();
+        // #1746: outside the gate below, since a provider whose keys were removed keeps its rows.
+        services.AddScoped<IExternalLoginEraser, IdentityExternalLoginStore>();
         services.AddScoped<ExternalLoginLinker>();
         services.AddExternalIdentityProviders(configuration);
 

@@ -57,6 +57,12 @@ describe("the provider-marks directory", () => {
   it("holds exactly the marks pinned here", () => {
     expect([...readdirSync(MARKS_DIR)].sort()).toEqual(MARKS.map((mark) => basename(mark.file)).sort());
   });
+
+  // DESIGN.md §3 (#1746): LinkedIn's rules admit no mark for sign-in, so none may be listed above either.
+  it("holds no LinkedIn mark", () => {
+    expect(readdirSync(MARKS_DIR).filter((file) => /linkedin|in-?bug/i.test(file))).toEqual([]);
+    expect(MARKS.filter((mark) => /linkedin|in-?bug/i.test(basename(mark.file)))).toEqual([]);
+  });
 });
 
 describe.each(MARKS)("the mark $file", (mark) => {

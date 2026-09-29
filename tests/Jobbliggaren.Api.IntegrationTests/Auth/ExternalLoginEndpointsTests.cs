@@ -29,7 +29,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// flow's challenge and redirect URI, and the callback completes it. Every identity is a documented userinfo shape
 /// read by the adapter itself. The #1744 acceptance rows are marked.
 /// <para>
-/// #1745: this stays the provider-neutral file and Google's; GitHub's login end to end is <c>GitHubLoginTests</c>.
+/// #1745: this stays the provider-neutral file and Google's; GitHub's login end to end is <c>GitHubLoginTests</c>,
+/// and #1746 LinkedIn's is <c>LinkedInLoginTests</c>.
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -70,7 +71,8 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var state = body.GetProperty("state").GetString()!;
         var query = HttpUtility.ParseQueryString(new Uri(body.GetProperty("authorizeUrl").GetString()!).Query);
         query["state"].ShouldBe(state);
-        return new StartedFlow(state, query["code_challenge"]!, query["redirect_uri"]!);
+        // LinkedIn carries the flow's challenge as the OIDC nonce, since its web flow takes no PKCE.
+        return new StartedFlow(state, query["code_challenge"] ?? query["nonce"]!, query["redirect_uri"]!);
     }
 
     // What Google does after the user consents: it hands the browser a code bound to this flow's challenge and
@@ -141,7 +143,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<string[]>(Ct)).ShouldBe(["google", "github"]);
+        (await response.Content.ReadFromJsonAsync<string[]>(Ct)).ShouldBe(["google", "linkedin", "github"]);
         response.Headers.CacheControl!.ToString().ShouldBe("public, max-age=300");
     }
 
@@ -154,9 +156,12 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var configuration = factory.Services.GetRequiredService<IConfiguration>();
         configuration["Auth:OAuth:Google:ClientId"].ShouldBe(ApiFactory.GoogleClientId);
         configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe(ApiFactory.GitHubClientId);
+        configuration["Auth:OAuth:LinkedIn:ClientId"].ShouldBe(ApiFactory.LinkedInClientId);
 
         factory.Services.GetServices<IExternalIdentityProvider>().Select(provider => provider.GetType())
-            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
+            .ShouldBe(
+                [typeof(GoogleIdentityProvider), typeof(LinkedInIdentityProvider), typeof(GitHubIdentityProvider)],
+                ignoreOrder: true);
     }
 
     [Fact]
@@ -243,6 +248,10 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     [Theory]
     [InlineData("google", "github")]
     [InlineData("github", "google")]
+    [InlineData("google", "linkedin")]
+    [InlineData("linkedin", "google")]
+    [InlineData("github", "linkedin")]
+    [InlineData("linkedin", "github")]
     public async Task A_flow_started_for_one_provider_is_refused_at_the_others_callback_and_spent(
         string startedFor, string presentedTo)
     {
@@ -253,11 +262,10 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var flow = await StartAsync(provider: startedFor);
         var address = NewAddress("korsad");
         var otherRedirect = flow.RedirectUri.Replace($"/{startedFor}/", $"/{presentedTo}/", StringComparison.Ordinal);
-        var code = presentedTo == "github"
-            ? GitHubAuthorises(flow.Challenge, otherRedirect, address)
-            : GoogleAuthorises(flow with { RedirectUri = otherRedirect }, Workspace(NewSubject(), address));
+        var code = Authorises(presentedTo, flow with { RedirectUri = otherRedirect }, address);
         var googleRequests = factory.Google.Requests.Count;
         var githubRequests = factory.GitHub.Requests.Count;
+        var linkedinRequests = factory.LinkedIn.Requests.Count;
 
         var crossed = await CallbackAsync(code, flow.State, provider: presentedTo);
         var unknown = await CallbackAsync(code, OAuthState.Generate().Reveal(), provider: presentedTo);
@@ -265,13 +273,29 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         (await ComparableAsync(crossed)).ShouldBe(await ComparableAsync(unknown));
         factory.Google.Requests.Count.ShouldBe(googleRequests);
         factory.GitHub.Requests.Count.ShouldBe(githubRequests);
+        factory.LinkedIn.Requests.Count.ShouldBe(linkedinRequests);
 
         // The take spent the flow: its own provider's callback, with a code that provider would accept, is refused.
-        var ownCode = startedFor == "github"
-            ? GitHubAuthorises(flow.Challenge, flow.RedirectUri, address)
-            : GoogleAuthorises(flow, Workspace(NewSubject(), address));
+        var ownCode = Authorises(startedFor, flow, address);
         (await CallbackAsync(ownCode, flow.State, provider: startedFor)).StatusCode.ShouldBe(HttpStatusCode.Gone);
         (await UserIdOfAsync(address)).ShouldBeNull();
+    }
+
+    private string Authorises(string provider, StartedFlow flow, string address) => provider switch
+    {
+        "github" => GitHubAuthorises(flow.Challenge, flow.RedirectUri, address),
+        "linkedin" => LinkedInAuthorises(flow.Challenge, flow.RedirectUri, address),
+        _ => GoogleAuthorises(flow, Workspace(NewSubject(), address)),
+    };
+
+    // What LinkedIn does after the member consents: a code bound to the redirect URI, whose id_token echoes the nonce
+    // (the challenge it was given), as OIDC Core §2 requires and ScriptedLinkedIn declares.
+    private string LinkedInAuthorises(string challenge, string redirectUri, string primary)
+    {
+        var code = $"AQT{Guid.NewGuid():N}";
+        factory.LinkedIn.Expect(
+            code, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), primary), challenge, redirectUri);
+        return code;
     }
 
     // What GitHub does after the user approves the app: a code bound to the challenge and redirect URI it was given.
@@ -289,6 +313,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
 
     [Theory]
     [InlineData("GitHub")]
+    [InlineData("LinkedIn")]
     [InlineData("myspace")]
     public async Task Starting_a_provider_this_host_did_not_register_is_not_found(string provider)
     {

@@ -16,6 +16,11 @@
     <!-- #1745 - DeployComposeExternalLoginTests joins each provider variable compose reads to its line here. -->
     <Content Include="..\..\deploy\.env.example"
              Link="deploy\.env.example" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1746 - and each provider secret compose reads to the injection script's row and to its test's case. -->
+    <Content Include="..\..\deploy\systemd\jobbliggaren-inject-secrets.sh"
+             Link="deploy\systemd\jobbliggaren-inject-secrets.sh" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\deploy\systemd\jobbliggaren-inject-secrets.test.sh"
+             Link="deploy\systemd\jobbliggaren-inject-secrets.test.sh" CopyToOutputDirectory="PreserveNewest" />
     <!-- #1735 - the dev stack's compose file and the Api's Development settings.
          DeployComposeVolatileRedisTests reads both: the non-persisted Redis exists in both stacks, and
          the dev Api is pointed at it by a committed value rather than by an environment variable. -->

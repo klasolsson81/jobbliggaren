@@ -58,6 +58,9 @@
     <Compile Include="..\Shared\ScriptedGitHub.cs" Link="Shared\ScriptedGitHub.cs" />
     <Compile Include="..\Shared\GitHubApiShapes.cs" Link="Shared\GitHubApiShapes.cs" />
     <Compile Include="..\Shared\GitHubIdentities.cs" Link="Shared\GitHubIdentities.cs" />
+    <Compile Include="..\Shared\ScriptedLinkedIn.cs" Link="Shared\ScriptedLinkedIn.cs" />
+    <Compile Include="..\Shared\LinkedInUserInfoShapes.cs" Link="Shared\LinkedInUserInfoShapes.cs" />
+    <Compile Include="..\Shared\LinkedInIdentities.cs" Link="Shared\LinkedInIdentities.cs" />
     <!-- #1232 — Phase A provisioning for the migration oracle. Linked rather than duplicated so
          the Worker suite's CompanyRegisterPlanFixture can adopt the same posture without a
          second copy. -->

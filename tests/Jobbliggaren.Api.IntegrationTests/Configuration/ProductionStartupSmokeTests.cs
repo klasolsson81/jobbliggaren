@@ -121,11 +121,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
 
-        // #1745 — a full Google and GitHub client in the environment, as compose passes them on the box.
+        // #1745, #1746 — a full Google, GitHub and LinkedIn client in the environment, as compose passes them on the box.
         Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", "configured-client-id");
         Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", "configured-client-secret");
         Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientId", "configured-github-client-id");
         Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientSecret", "configured-github-client-secret");
+        Environment.SetEnvironmentVariable("Auth__OAuth__LinkedIn__ClientId", "configured-linkedin-client-id");
+        Environment.SetEnvironmentVariable("Auth__OAuth__LinkedIn__ClientSecret", "configured-linkedin-client-secret");
         _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
         // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
@@ -148,6 +150,8 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", null);
         Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientId", null);
         Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientSecret", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__LinkedIn__ClientId", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__LinkedIn__ClientSecret", null);
         _redisEnvironment?.Dispose();
 
         await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
@@ -338,16 +342,18 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     }
 
     [Fact]
-    public void Both_providers_are_composed_in_Production_env_from_their_clients()
+    public void Every_provider_is_composed_in_Production_env_from_its_client()
     {
         // #1745: read before the neutraliser (test-writer Minor H), so this is the Production composition's own
         // registration from the clients compose passes on the box.
         var configuration = _factory.Services.GetRequiredService<IConfiguration>();
         configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe("configured-github-client-id");
         configuration["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
+        configuration["Auth:OAuth:LinkedIn:ClientId"].ShouldBe("configured-linkedin-client-id");
 
-        _factory.ComposedExternalProviders.ShouldNotBeNull()
-            .ShouldBe([typeof(GoogleIdentityProvider), typeof(GitHubIdentityProvider)], ignoreOrder: true);
+        _factory.ComposedExternalProviders.ShouldNotBeNull().ShouldBe(
+            [typeof(GoogleIdentityProvider), typeof(LinkedInIdentityProvider), typeof(GitHubIdentityProvider)],
+            ignoreOrder: true);
     }
 
     // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture

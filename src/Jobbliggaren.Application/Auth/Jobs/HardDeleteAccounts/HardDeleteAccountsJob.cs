@@ -7,11 +7,13 @@ namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 /// Schemalagt orchestrator-jobb som hard-deletar konton vars 30-dagars
 /// restore-fönster gått ut (ADR 0024 D6 + GDPR Art. 17).
 ///
-/// Tre-stegs-algoritm:
+/// Fyra-stegs-algoritm:
 /// 1. Steg 0 — Orphan-cleanup (Identity-rader utan matchande JobSeeker)
 /// 2. Steg 1 — Hämta soft-deletade JobSeekers äldre än cutoff (= now − 30d)
 /// 3. Steg 2 — Per JobSeeker: anonymize audit + hard-delete cascade
 ///    (transactional) + Identity-DELETE (separat boundary)
+/// 4. Steg 3 — Bakstopp: externa inloggningar som ligger kvar på
+///    soft-deletade konton (ADR 0142 Amendment (20)), vid varje körning
 ///
 /// Implementation-detaljer ligger i <see cref="IAccountHardDeleter"/>-port.
 /// Orchestratorn håller bara loop + cancel-token-management + progress-log.
@@ -52,12 +54,6 @@ public sealed partial class HardDeleteAccountsJob(
 
         LogAccountsFound(logger, jobSeekerIds.Count, cutoff);
 
-        if (jobSeekerIds.Count == 0)
-        {
-            LogComplete(logger, 0, 0);
-            return;
-        }
-
         // Steg 2 — Per-account hard-delete. Per-id loop matchar audit-paritet-
         // mönstret från BackgroundMatchingJob (ADR 0023): isolering per
         // konto, en failure rullar inte tillbaka andra.
@@ -92,6 +88,12 @@ public sealed partial class HardDeleteAccountsJob(
         }
 
         LogComplete(logger, processed, failed);
+
+        // Steg 3 — last, so a failure here never delays a hard delete, and on every run, the ones that find no
+        // mature account included. It propagates, and Hangfire retries the run (the steps before are idempotent).
+        var erased = await hardDeleter.EraseExternalLoginsOfAccountsPendingDeletionAsync(cancellationToken);
+        if (erased > 0)
+            LogExternalLoginsErased(logger, erased);
     }
 
     [LoggerMessage(Level = LogLevel.Information,
@@ -113,4 +115,9 @@ public sealed partial class HardDeleteAccountsJob(
     [LoggerMessage(EventId = 2502, Level = LogLevel.Error,
         Message = "HardDeleteAccountsJob: hard-delete misslyckades för JobSeekerId={JobSeekerId} — fortsätter med nästa konto, denna plockas upp av nästa cron")]
     private static partial void LogAccountFailed(ILogger logger, Guid jobSeekerId, Exception exception);
+
+    // Count only: no user id, no provider, never the provider's identifier. Runbook account-deletion.md §3.2.
+    [LoggerMessage(EventId = 2505, Level = LogLevel.Warning,
+        Message = "HardDeleteAccountsJob: raderade {Count} externa inloggningar som låg kvar på soft-deletade konton (Steg 3, bakstopp)")]
+    private static partial void LogExternalLoginsErased(ILogger logger, int count);
 }

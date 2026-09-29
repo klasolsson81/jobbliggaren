@@ -11,6 +11,9 @@ const AUTHORIZE = `https://accounts.google.com/o/oauth2/v2/auth?client_id=x&stat
 // `GitHubIdentityProvider.BuildAuthorizeUrl`'s shape. `ExternalLoginMirrorWireContractTests` binds the endpoint to
 // the adapter's own.
 const GITHUB_AUTHORIZE = `https://github.com/login/oauth/authorize?client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Fgithub%2Fcallback&scope=user%3Aemail&state=${STATE}&code_challenge=c&code_challenge_method=S256`;
+// `LinkedInIdentityProvider.BuildAuthorizeUrl`'s shape: no PKCE, the flow's challenge as the OIDC nonce. The same
+// wire test binds the endpoint.
+const LINKEDIN_AUTHORIZE = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Flinkedin%2Fcallback&scope=openid%20email&state=${STATE}&nonce=c`;
 
 function start(query = "", { provider = "google", headers = {} as Record<string, string> } = {}) {
   const request = new NextRequest(`http://localhost/api/auth/oauth/${provider}/start${query}`, {
@@ -84,7 +87,7 @@ describe("the external login start", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({ next: relayed });
   });
 
-  it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "linkedin"])(
+  it.each(["..", "../challenge", "google/../x", "github/../google", "GOOGLE", "GitHub", "evil", "LinkedIn", "LINKEDIN", "linkedin/../google"])(
     "sends the segment %j back to the login page without a request or a cookie",
     async (provider) => {
       const fetchMock = backendAnswers(200, { authorizeUrl: AUTHORIZE, state: STATE });
@@ -162,12 +165,30 @@ describe("the external login start", () => {
     expect(cookie).toMatch(/SameSite=lax/i);
   });
 
+  it("sends the browser to LinkedIn's own endpoint through LinkedIn's own api route, with the same state cookie", async () => {
+    const fetchMock = backendAnswers(200, { authorizeUrl: LINKEDIN_AUTHORIZE, state: STATE });
+
+    const response = await start("?next=%2Fcv", { provider: "linkedin" });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://test-backend/api/v1/auth/oauth/linkedin/start");
+    expect(JSON.parse(String(init?.body))).toEqual({ next: "/cv" });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(LINKEDIN_AUTHORIZE);
+    const cookie = setCookie(response, "__Host-jobbliggaren_oauth") ?? "";
+    expect(cookie.startsWith(`__Host-jobbliggaren_oauth=${STATE};`)).toBe(true);
+    expect(cookie).toMatch(/Max-Age=600/);
+    expect(cookie).toMatch(/SameSite=lax/i);
+  });
+
   // Declared unreachable: the api builds each provider's authorization request from that adapter's own endpoint
-  // (`GoogleIdentityProvider` / `GitHubIdentityProvider`). Only safe degradation is asserted: a start answers
-  // only its own provider's endpoint, never any known one.
+  // (`GoogleIdentityProvider` / `GitHubIdentityProvider` / `LinkedInIdentityProvider`). Only safe degradation is
+  // asserted: a start answers only its own provider's endpoint, never any known one.
   it.each([
     ["a GitHub start answered with Google's endpoint", "github", AUTHORIZE],
     ["a Google start answered with GitHub's endpoint", "google", GITHUB_AUTHORIZE],
+    ["a LinkedIn start answered with Google's endpoint", "linkedin", AUTHORIZE],
+    ["a GitHub start answered with LinkedIn's endpoint", "github", LINKEDIN_AUTHORIZE],
   ] as const)("sends the browser back with its own provider's notice and no state cookie on %s", async (_, provider, authorizeUrl) => {
     backendAnswers(200, { authorizeUrl, state: STATE });
 

@@ -14,8 +14,8 @@ en mejlad begäran (§4.3). Flödet har två faser:
 
 | Fas | När | Vad | Vem |
 |---|---|---|---|
-| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API |
-| **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. | `HardDeleteAccountsJob` (Hangfire) |
+| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. Kontots externa inloggningar raderas, för alla leverantörer (#1746). | Användaren via API |
+| **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. Sist raderas externa inloggningar som ligger kvar på soft-deletade konton (Steg 3). | `HardDeleteAccountsJob` (Hangfire) |
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
 fönstret kan kontot återställas (admin-yta planerad till Fas 6 — manuell
@@ -41,7 +41,8 @@ servern (#1740). Backend:
 7. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
 8. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
 9. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
-10. Klient får `204 No Content`
+10. **Post-commit (sist, #1746):** `IExternalLoginEraser.EraseAllAsync(userId)` raderar kontots rader i `identity."AspNetUserLogins"`, för alla leverantörer (ADR 0142 Amendment (20)). Steget ligger sist, så att ett fel här aldrig lämnar en session levande. Fallerar det blir svaret 500, kontot är raderat och utloggat, och Steg 3 i `HardDeleteAccountsJob` tar länkarna (§2.3)
+11. Klient får `204 No Content`
 
 ### 2.2 Login under restore-fönstret
 
@@ -56,7 +57,7 @@ Beskedet når alltså bara den som läser kontots inkorg.
 
 ### 2.3 Hard-delete (`HardDeleteAccountsJob`)
 
-Hangfire-jobb kör 04:00 UTC daily. Tre steg:
+Hangfire-jobb kör 04:00 UTC daily. Fyra steg:
 
 **Steg 0 — Orphan-cleanup (#508 grace-fönster + reverse-orphan-detektor):**
 - Hitta `ApplicationUser` utan matchande `JobSeeker` (varken aktiv eller soft-deletad)
@@ -82,6 +83,13 @@ Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 4. Hard-delete `JobSeeker`
 5. `SaveChangesAsync` + `Commit`
 6. **Separat boundary:** `UserManager.DeleteAsync(applicationUser)` — om denna failar plockas raden upp av Steg 0 nästa körning
+
+**Steg 3 — Bakstopp för externa inloggningar (#1746, ADR 0142 Amendment (20)):**
+- Raderar varje rad i `identity."AspNetUserLogins"` vars `user_id` har en `job_seekers`-rad med
+  `deleted_at` satt, för alla leverantörer. Kontot och dess Identity-rad står kvar till hard-delete.
+- Körs sist och vid varje körning, också när Steg 1 inte hittar något moget konto, så att ett fel
+  här aldrig fördröjer en hard-delete.
+- Ett tal över 0 loggas (EventId 2505, §3.2). Ett fel propagerar och Hangfire kör om jobbet (§5.2).
 
 ---
 
@@ -139,6 +147,20 @@ alltså en `ApplicationUser` UTAN `JobSeeker` — reverse-orphan-queryn selekter
 populationen (2503:s) och kan per konstruktion inte innehålla raden. En operatör som kör fel
 query hittar inte id:t och riskerar att stänga ärendet som "raden är borta".
 
+Vid kvarliggande externa inloggningar (`HardDeleteAccountsJob`, Steg 3, EventId 2505, Warning,
+count-only; loggas bara när talet är över 0):
+
+```
+HardDeleteAccountsJob: raderade {N} externa inloggningar som låg kvar på soft-deletade konton
+(Steg 3, bakstopp)
+```
+
+Ett tal över 0 betyder att raderingen vid begäran (§2.1 steg 10) inte tog länkarna för något konto:
+ett fel efter commit i `POST /me/delete` (§5.1), en inloggning som läste kontot som aktivt före
+raderingen och skrev sin länk efter den, en operatörsväg som hoppade över steget (§4.3), eller första
+körningen efter att #1746 driftsattes (konton som redan låg i fönstret). Raden bär varken user id,
+leverantör eller leverantörens identifierare.
+
 ### 3.3 Verifiera flöde-state
 
 ```sql
@@ -174,6 +196,18 @@ SELECT js.id, js.user_id
 FROM public.job_seekers js
 LEFT JOIN identity."AspNetUsers" u ON u.id = js.user_id
 WHERE u.id IS NULL;
+
+-- Externa inloggningar på soft-deletade konton (#1746) — ska vara 0. Samma predikat som
+-- Steg 3 i HardDeleteAccountsJob, som tar dem vid nästa körning.
+SELECT count(*)
+FROM identity."AspNetUserLogins" l
+JOIN public.job_seekers js ON js.user_id = l.user_id
+WHERE js.deleted_at IS NOT NULL;
+
+-- Är talet inte 0 och ska raderna bort före nästa körning: samma predikat.
+DELETE FROM identity."AspNetUserLogins" l
+USING public.job_seekers js
+WHERE js.user_id = l.user_id AND js.deleted_at IS NOT NULL;
 ```
 
 ---
@@ -256,6 +290,9 @@ WHERE resume_id IN (
     WHERE js.user_id = '<userId>'::uuid
 );
 
+-- Externa inloggningar som ligger kvar på kontot (#1746, se nedan)
+DELETE FROM identity."AspNetUserLogins" WHERE user_id = '<userId>'::uuid;
+
 -- 3. Verifiera state
 SELECT 'jobseeker' AS tbl, COUNT(*) FROM job_seekers WHERE user_id = '<userId>'::uuid AND deleted_at IS NULL
 UNION ALL
@@ -275,6 +312,10 @@ framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
 
 **Audit-trail:** restore-händelsen skrivs INTE automatiskt (saknas
 `AccountRestored`-command i Fas 1). Logga manuellt i ops-channel.
+
+**Externa inloggningar (#1746):** de raderades vid begäran och återställs inte. Kontot saknar länk
+tills innehavaren nästa gång loggar in med leverantören, och länken skrivs då som vid varje första
+inloggning: adressen först.
 
 ---
 
@@ -397,17 +438,31 @@ JOIN public.job_seekers js ON js.user_id = u.id
 WHERE u.normalized_email = upper(:'adress');
 ```
 
-Är `deleted_at` redan satt är kontot redan raderat och klockan går; gå direkt till svaret nedan.
+Är `deleted_at` redan satt är kontot redan raderat och klockan går. Kör §3.3:s fråga om externa
+inloggningar på konton i restore-fönstret (ska vara 0, annars dess `DELETE`), och gå sedan direkt till
+svaret nedan.
 
-**Steg 2 — sätt raderingstriggern.**
+**Steg 2 — sätt raderingstriggern och radera kontots externa inloggningar.**
 
 ```sql
-UPDATE job_seekers SET deleted_at = NOW()
-WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u
-              WHERE u.id = job_seekers.user_id AND u.normalized_email = upper(:'adress'))
-RETURNING user_id;
+WITH deleted AS (
+    UPDATE job_seekers SET deleted_at = NOW()
+    WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u
+                  WHERE u.id = job_seekers.user_id AND u.normalized_email = upper(:'adress'))
+    RETURNING user_id
+), unlinked AS (
+    DELETE FROM identity."AspNetUserLogins" l USING deleted d
+    WHERE l.user_id = d.user_id RETURNING l.user_id
+)
+SELECT d.user_id, (SELECT count(*) FROM unlinked) AS links_removed FROM deleted d;
 ```
+
+En sats, och därmed en transaktion i psql:s autocommit: raderingstriggern och kontots rader i
+`identity."AspNetUserLogins"`, för alla leverantörer (#1746, ADR 0142 Amendment (20)), som
+självbetjäningen gör (§2.1 steg 10). Inget `user_id` klistras in för hand, eftersom `DELETE` läser det
+ur `UPDATE`:ens `RETURNING` (PostgreSQL, "Data-Modifying Statements in WITH"). 0 rader i svaret betyder
+att ingenting ändrades. `links_removed` är 0 för ett konto utan länkar.
 
 `NOW()` och inte en backdatering: självbetjäningen ger 30 dagars återställning, och den som mejlar
 får samma. `HardDeleteAccountsJob` raderar kontot vid första passet efter fönstret (§2.3).
@@ -446,6 +501,10 @@ begäransposten hör hemma i den personuppgiftsansvariges ärendeakt, samma hem 
   är `jobbliggaren:user:<userId>:deleted` redan planterad → `GetAsync`
   fail-closed-avvisar (och evicerar) kvarvarande sessioner. Endast om Redis var nere för
   BÅDA anropen (500:an kommer då från `MarkUserDeletedAsync`) saknas tombstonen — se Åtgärd steg 3.
+- **Kontots externa inloggningar ligger kvar** (#1746): raderingen körs sist (§2.1 steg 10) och
+  nåddes aldrig. Steg 3 i `HardDeleteAccountsJob` tar dem vid nästa körning (04:00 UTC), eller direkt
+  om jobbet körs manuellt (§5.2). Samma sak om raderingen själv fallerar efter att sessionerna rivits:
+  svaret är 500, kontot är raderat och utloggat, och länkarna tas av Steg 3.
 
 **Åtgärd:**
 1. Verifiera DB-state (§3.3) — JobSeeker.DeletedAt ska vara satt
@@ -465,9 +524,10 @@ andra kvar.
 
 `HardDeleteAccountsJob` catches and logs per-account failures and continues the loop
 (EventId 2502). Investigate the failed account and the final failed count; an
-account failure alone does not fail the entire job. Startup/orphan-cleanup failures
-and cancellation can still end the run. `HardDeleteAccountsJobTests` pins the
-per-account continuation behavior.
+account failure alone does not fail the entire job. Startup/orphan-cleanup failures,
+cancellation and a failure in Steg 3 (#1746) can still end the run. Steg 3 runs after
+the whole loop, so a failure there comes after every hard delete of the run, and Hangfire's
+retry takes the links. `HardDeleteAccountsJobTests` pins the per-account continuation behavior.
 
 **Åtgärd:**
 1. Hangfire retry:ar automatiskt (default 10 retries)

@@ -208,7 +208,7 @@ public sealed class RestoreDrillFixture : IAsyncLifetime
     /// A SUBSET of <c>Worker/Program.cs</c>, not its composition root. <c>AddApplication</c>,
     /// <c>AddJobSources</c>, the matching engine, email and Hangfire are all omitted because the
     /// hard-delete path reaches none of them — <c>AccountHardDeleter</c> takes <c>AppDbContext</c>,
-    /// <c>UserManager</c>, <c>IAuditTrailEraser</c>, <c>IUserDataKeyStore</c>,
+    /// <c>AppIdentityDbContext</c>, <c>UserManager</c>, <c>IAuditTrailEraser</c>, <c>IUserDataKeyStore</c>,
     /// <c>IDateTimeProvider</c> and a logger. A narrower graph is a stronger oracle; do not read
     /// this as Worker parity.
     /// </summary>

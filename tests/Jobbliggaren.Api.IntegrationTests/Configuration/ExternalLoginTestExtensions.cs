@@ -18,6 +18,7 @@ internal static class ExternalLoginTestExtensions
         services.RemoveAll<IExternalIdentityProvider>();
         services.PostConfigure<GoogleOAuthOptions>(options => options.ClientSecret = "neutralised-client-secret"); // gitleaks:allow
         services.PostConfigure<GitHubOAuthOptions>(options => options.ClientSecret = "neutralised-client-secret"); // gitleaks:allow
+        services.PostConfigure<LinkedInOAuthOptions>(options => options.ClientSecret = "neutralised-client-secret"); // gitleaks:allow
         services.PostConfigure<ExternalLoginRedirectOptions>(options => options.SiteBaseUrl = "https://jobbliggaren.example");
     }
 }

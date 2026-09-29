@@ -924,17 +924,30 @@ oauth_client_cases() {   # oauth_client_cases <secret file> <env prefix> <sample
 
 oauth_client_cases "Auth__OAuth__Google__ClientSecret" "GOOGLE" "gate.apps.googleusercontent.com"
 oauth_client_cases "Auth__OAuth__GitHub__ClientSecret" "GITHUB" "gate-github-client-id"
+oauth_client_cases "Auth__OAuth__LinkedIn__ClientSecret" "LINKEDIN" "gate-linkedin-client-id"
 
-# The two providers are independent: one configured client never demands the other's secret.
+# The providers are independent: one configured client never demands another's secret.
 seed_delivering_box
 printf '%s' "seeded-value-for-Auth__OAuth__GitHub__ClientSecret" > "$SECRETS/Auth__OAuth__GitHub__ClientSecret"
 printf '%s\n' "AUTH_OAUTH_GITHUB_CLIENT_ID=gate-github-client-id" \
   "AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__GitHub__ClientSecret" >> "$ENV_FIXTURE"
 run_check || true
-if ! grep -qE "Auth__OAuth__Google__ClientSecret|AUTH_OAUTH_GOOGLE" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   a configured GitHub client demands nothing for Google"
+if ! grep -qE "Auth__OAuth__(Google|LinkedIn)__ClientSecret|AUTH_OAUTH_(GOOGLE|LINKEDIN)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a configured GitHub client demands nothing for Google or LinkedIn"
 else
-  fail=$((fail + 1)); echo "  FAIL a configured GitHub client demanded Google's secret" >&2
+  fail=$((fail + 1)); echo "  FAIL a configured GitHub client demanded another provider's secret" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_delivering_box
+printf '%s' "seeded-value-for-Auth__OAuth__LinkedIn__ClientSecret" > "$SECRETS/Auth__OAuth__LinkedIn__ClientSecret"
+printf '%s\n' "AUTH_OAUTH_LINKEDIN_CLIENT_ID=gate-linkedin-client-id" \
+  "AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__LinkedIn__ClientSecret" >> "$ENV_FIXTURE"
+run_check || true
+if ! grep -qE "Auth__OAuth__(Google|GitHub)__ClientSecret|AUTH_OAUTH_(GOOGLE|GITHUB)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a configured LinkedIn client demands nothing for Google or GitHub"
+else
+  fail=$((fail + 1)); echo "  FAIL a configured LinkedIn client demanded another provider's secret" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 

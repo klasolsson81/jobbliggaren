@@ -11,12 +11,14 @@ public readonly record struct ExternalProviderKey
 {
     public static readonly ExternalProviderKey Google = new("google");
 
+    public static readonly ExternalProviderKey LinkedIn = new("linkedin");
+
     public static readonly ExternalProviderKey GitHub = new("github");
 
     public const int MaximumLength = 32;
 
     /// <summary>Every key this build knows, in the order the login page lists them.</summary>
-    public static IReadOnlyList<ExternalProviderKey> Known { get; } = [Google, GitHub];
+    public static IReadOnlyList<ExternalProviderKey> Known { get; } = [Google, LinkedIn, GitHub];
 
     private ExternalProviderKey(string value) => Value = value;
 
@@ -25,6 +27,7 @@ public readonly record struct ExternalProviderKey
     /// <summary>How a session earned through this provider is recorded (one home for the mapping).</summary>
     public LoginMethod LoginMethod =>
         this == Google ? LoginMethod.Google
+        : this == LinkedIn ? LoginMethod.LinkedIn
         : this == GitHub ? LoginMethod.GitHub
         : throw new UnreachableException($"No login method for provider key '{Value}'.");
 

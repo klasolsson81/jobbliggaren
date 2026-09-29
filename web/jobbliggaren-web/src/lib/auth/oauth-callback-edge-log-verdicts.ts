@@ -11,11 +11,14 @@ import type { EdgeLogVerdicts } from "@/test/edge-log-pin";
  * reported in practice, which is why they are judged here too. GitHub's "Troubleshooting
  * authorization request errors" (read 2026-09-26, #1745) documents `error`, `error_description`,
  * `error_uri` and `state` on a refused authorization, and `code` and `state` on success.
+ * LinkedIn's "3-Legged OAuth Flow" (Microsoft Learn, read 2026-09-27, #1746) documents `code` and
+ * `state` on success, and `error`, `error_description` and `state` on a failed request, where
+ * `error` is `user_cancelled_login` or `user_cancelled_authorize`.
  */
 export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   code: {
     verdict: "must-not-reach-a-stored-log-post",
-    reason: "A single-use authorization code. With the flow's verifier it is exchanged for the identity.",
+    reason: "A single-use authorization code.",
   },
   state: {
     verdict: "must-not-reach-a-stored-log-post",
@@ -43,7 +46,9 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   },
   error: {
     verdict: "kept",
-    reason: "An OAuth 2.0 error code from the closed set RFC 6749 §4.1.2.1 defines.",
+    reason:
+      "An error code, never free text: RFC 6749 §4.1.2.1's closed set, or a value the provider " +
+      "documents (LinkedIn's user_cancelled_login and user_cancelled_authorize).",
   },
   error_uri: {
     verdict: "kept",

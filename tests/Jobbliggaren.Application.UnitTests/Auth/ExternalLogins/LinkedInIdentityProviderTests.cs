@@ -14,10 +14,10 @@ namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
 
 /// <summary>
 /// #1746 (ADR 0142 D8) — the LinkedIn adapter against <see cref="ScriptedLinkedIn"/>: the authorization URL, the token
-/// exchange, the id_token's binding to the flow, the userinfo read, the address rule, the failure answers and what
-/// reaches the log. Row names follow the 6c form round's table (test-writer §3.2). The address the rule admits binds a
-/// login as Google's does, by Klas's decision. A shape LinkedIn does not document is declared as such and asserts only
-/// that the adapter refuses it.
+/// exchange, the id_token, the userinfo read, the address rule, the failure answers and what reaches the log. Row names
+/// follow the 6c form round's table (test-writer §3.2). The address the rule admits binds a login as Google's does, by
+/// Klas's decision. A shape LinkedIn does not document is declared as such and asserts only that the adapter refuses
+/// it.
 /// </summary>
 public sealed class LinkedInIdentityProviderTests : IDisposable
 {
@@ -48,14 +48,12 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private string Nonce => _verifier.ToChallenge().Value;
-
     private static string Member() => LinkedInUserInfoShapes.Member(Sub, Primary);
 
     private Task<ExternalExchange> ExchangeAsync(
         string userInfoJson, CancellationToken? ct = null, string? idTokenSubject = null, string redirectUri = RedirectUri)
     {
-        _linkedin.Expect(Code, userInfoJson, Nonce, redirectUri, idTokenSubject);
+        _linkedin.Expect(Code, userInfoJson, redirectUri: new Uri(redirectUri), idTokenSubject: idTokenSubject);
         return CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, ct ?? Ct);
     }
 
@@ -88,7 +86,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     // ---------- A: the authorization URL ----------
 
     [Fact]
-    public void BuildAuthorizeUrl_ShouldCarryTheCodeFlowTheEmailScopeAndTheChallengeAsTheNonce_WhenAFlowStarts()
+    public void BuildAuthorizeUrl_ShouldCarryTheFiveDocumentedParametersAndNothingOfTheVerifier_WhenAFlowStarts()
     {
         var state = OAuthState.Generate();
         var challenge = _verifier.ToChallenge();
@@ -97,16 +95,17 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         var query = HttpUtility.ParseQueryString(url.Query);
 
         url.GetLeftPart(UriPartial.Path).ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
-        // Exactly these keys: no code_challenge and no code_challenge_method, which LinkedIn's web flow does not take.
+        // Exactly these keys: no code_challenge, which LinkedIn's web flow does not take, and no nonce, which it does
+        // not echo (ScriptedLinkedIn).
         query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(
-            ["client_id", "nonce", "redirect_uri", "response_type", "scope", "state"]);
+            ["client_id", "redirect_uri", "response_type", "scope", "state"]);
         query["response_type"].ShouldBe("code");
         query["client_id"].ShouldBe(ClientId);
         query["redirect_uri"].ShouldBe(RedirectUri);
         query["scope"].ShouldBe("openid email");
         query["state"].ShouldBe(state.Reveal());
-        query["nonce"].ShouldBe(challenge.Value);
-        query["nonce"].ShouldNotBe(_verifier.Reveal());
+        url.AbsoluteUri.ShouldNotContain(challenge.Value);
+        url.AbsoluteUri.ShouldNotContain(_verifier.Reveal());
     }
 
     [Theory]
@@ -182,7 +181,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     {
         // DECLARED (executor#2087, RFC 6749 §5.2): 401 invalid_client. It shares its status with an unknown code, so
         // only the class tells the two apart at activation.
-        _linkedin.Expect(Code, Member(), Nonce, RedirectUri);
+        _linkedin.Expect(Code, Member(), redirectUri: new Uri(RedirectUri));
 
         (await CreateSut(clientSecret: "another-test-secret").ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
             .ShouldBeOfType<ExternalExchange.Failed>();
@@ -261,56 +260,11 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         bearer.Length.ShouldBe("Bearer ".Length + 1000);
     }
 
-    // ---------- N: the id_token binds the code to this flow ----------
+    // ---------- N: the id_token ----------
 
     [Fact]
-    public async Task ExchangeAsync_ShouldIdentify_WhenTheIdTokenEchoesTheFlowsNonceForThisClient() =>
+    public async Task ExchangeAsync_ShouldIdentify_WhenTheIdTokenIsForThisClientAndCarriesNoNonce() =>
         (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Identified>();
-
-    public static TheoryData<string> NoncesThatAreNotTheFlows => new()
-    {
-        "another flow's challenge", "the verifier itself", "one letter in another case", "a trailing space", "empty",
-        "a number",
-    };
-
-    [Theory]
-    [MemberData(nameof(NoncesThatAreNotTheFlows))]
-    public async Task ExchangeAsync_ShouldRefuseAfterOneRequest_WhenTheIdTokenNonceIsNotTheFlows(string form)
-    {
-        // A code minted for another flow (RFC 9700 §4.5): the access token is never used. OIDC Core §2: case-sensitive.
-        JsonNode? nonce = form switch
-        {
-            "another flow's challenge" => PkceVerifier.Generate().ToChallenge().Value,
-            "the verifier itself" => _verifier.Reveal(),
-            "one letter in another case" => FlipFirstLetter(Nonce),
-            "a trailing space" => Nonce + " ",
-            "empty" => "",
-            _ => 5,
-        };
-        ClaimsWith("nonce", nonce);
-
-        (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Failed>();
-
-        _linkedin.Requests.Count.ShouldBe(1);
-        LoggedCause(1022, "NonceMismatch").ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task ExchangeAsync_ShouldRefuseAfterOneRequest_WhenTheIdTokenCarriesNoNonce()
-    {
-        // OIDC Core §3.1.3.7 (11): a nonce sent MUST come back. LinkedIn's id_token table does not list the claim, so
-        // this is the cause the first real login would show if LinkedIn drops it.
-        _linkedin.IdTokenClaims = claims =>
-        {
-            claims.Remove("nonce");
-            return claims;
-        };
-
-        (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Failed>();
-
-        _linkedin.Requests.Count.ShouldBe(1);
-        LoggedCause(1022, "NonceAbsent").ShouldBeTrue();
-    }
 
     public static TheoryData<string> AudiencesThatAreNotOnlyOurs => new()
     {
@@ -448,13 +402,13 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task ExchangeAsync_ShouldNameTheBinding_WhenAnotherFlowsIdTokenAlsoNamesNoMember()
+    public async Task ExchangeAsync_ShouldNameTheAudience_WhenAnotherClientsIdTokenAlsoNamesNoMember()
     {
-        // DECLARED: a code minted for another flow whose id_token also lacks `sub`. The binding is read before the
-        // content, so the cause names the stronger signal (dotnet-architect's form, point 3).
+        // DECLARED: an id_token for another client that also lacks `sub`. The audience is read before the subject, and
+        // vps-deploy-stack.md §3d routes the two causes apart (dotnet-architect's form, 2026-09-29, R3).
         _linkedin.IdTokenClaims = claims =>
         {
-            claims["nonce"] = PkceVerifier.Generate().ToChallenge().Value;
+            claims["aud"] = "li-other-client-id";
             claims.Remove("sub");
             return claims;
         };
@@ -462,7 +416,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         (await ExchangeAsync(Member())).ShouldBeOfType<ExternalExchange.Failed>();
 
         _linkedin.Requests.Count.ShouldBe(1);
-        LoggedCause(1022, "NonceMismatch").ShouldBeTrue();
+        LoggedCause(1022, "AudienceMismatch").ShouldBeTrue();
         LoggedCause(1022, "IdTokenSubjectUnusable").ShouldBeFalse();
     }
 
@@ -758,10 +712,10 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     [Fact]
     public async Task ExchangeAsync_ShouldLogNoCredentialNoIdentifierNoAddressAndNoProfile()
     {
-        // A refused flag, a nonce that is not the flow's, a subject userinfo does not share, and a refused code with
+        // A refused flag, an id_token for another client, a subject userinfo does not share, and a refused code with
         // LinkedIn's description: every line the adapter writes, over one surface.
         await ExchangeAsync(LinkedInUserInfoShapes.Unverified(Sub, Primary));
-        ClaimsWith("nonce", PkceVerifier.Generate().ToChallenge().Value);
+        ClaimsWith("aud", "li-other-client-id");
         await ExchangeAsync(Member());
         _linkedin.IdTokenClaims = null;
         await ExchangeAsync(Member(), idTokenSubject: "Zz9other");
@@ -775,7 +729,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
 
         foreach (var secret in new[]
                  {
-                     Code, _verifier.Reveal(), Nonce, ClientSecret, "scripted-access-token", "scripted-signature",
+                     Code, _verifier.Reveal(), ClientSecret, "scripted-access-token", "scripted-signature",
                      Segment("""{"alg":"RS256","kid":"scripted"}"""), Sub, "Zz9other", Primary, "Anna Berg",
                      "media.licdn.com", ScriptedLinkedIn.ErrorDescriptionMarker,
                  })
@@ -787,15 +741,4 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     [Fact]
     public void Options_ShouldPrintNoPartOfTheSecret_WhenInterpolated() =>
         $"{new LinkedInOAuthOptions { ClientId = ClientId, ClientSecret = ClientSecret }}".ShouldNotContain(ClientSecret);
-
-    private static string FlipFirstLetter(string value)
-    {
-        var at = 0;
-        while (!char.IsAsciiLetter(value[at]))
-            at++;
-
-        var letter = value[at];
-        var flipped = char.IsUpper(letter) ? char.ToLowerInvariant(letter) : char.ToUpperInvariant(letter);
-        return string.Concat(value.AsSpan(0, at), flipped.ToString(), value.AsSpan(at + 1));
-    }
 }

@@ -11,9 +11,8 @@ const AUTHORIZE = `https://accounts.google.com/o/oauth2/v2/auth?client_id=x&stat
 // `GitHubIdentityProvider.BuildAuthorizeUrl`'s shape. `ExternalLoginMirrorWireContractTests` binds the endpoint to
 // the adapter's own.
 const GITHUB_AUTHORIZE = `https://github.com/login/oauth/authorize?client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Fgithub%2Fcallback&scope=user%3Aemail&state=${STATE}&code_challenge=c&code_challenge_method=S256`;
-// `LinkedInIdentityProvider.BuildAuthorizeUrl`'s shape: no PKCE, the flow's challenge as the OIDC nonce. The same
-// wire test binds the endpoint.
-const LINKEDIN_AUTHORIZE = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Flinkedin%2Fcallback&scope=openid%20email&state=${STATE}&nonce=c`;
+// `LinkedInIdentityProvider.BuildAuthorizeUrl`'s shape: no PKCE and no nonce. The same wire test binds the endpoint.
+const LINKEDIN_AUTHORIZE = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Flinkedin%2Fcallback&scope=openid%20email&state=${STATE}`;
 
 function start(query = "", { provider = "google", headers = {} as Record<string, string> } = {}) {
   const request = new NextRequest(`http://localhost/api/auth/oauth/${provider}/start${query}`, {

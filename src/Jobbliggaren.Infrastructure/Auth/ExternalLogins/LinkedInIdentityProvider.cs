@@ -10,11 +10,10 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 
 /// <summary>
 /// LinkedIn over <see cref="HttpClient"/> (#1746, ADR 0142 D8): "Sign In with LinkedIn using OpenID Connect", scope
-/// <c>openid email</c>. LinkedIn's web flow takes no PKCE and refuses a verifier, so the flow's S256 challenge travels
-/// as the OIDC <c>nonce</c>, and the id_token in the token response must echo it for our client before the access
-/// token is used (RFC 9700 §4.5.3.2). The id_token is read over TLS from the fixed token endpoint and never verified by
-/// signature (OIDC Core §3.1.3.7 (6)); the identity comes from userinfo. The access token is used once and dropped:
-/// LinkedIn documents no revocation. Nothing that identifies the person, nor any credential, is logged.
+/// <c>openid email</c>. LinkedIn's web flow takes no PKCE and refuses a verifier. The id_token is read over TLS from
+/// the fixed token endpoint and never verified by signature (OIDC Core §3.1.3.7 (6)); the identity comes from userinfo.
+/// The access token is used once and dropped: LinkedIn documents no revocation. Nothing that identifies the person,
+/// nor any credential, is logged.
 /// <para>
 /// <b>LinkedIn is never the mailbox.</b> Its verified primary address is admitted as a <see cref="VerifiedEmail"/> by
 /// Klas's decision (Amendment (20)), over security-auditor's M-1, which stands. The flag is the JSON <c>true</c>; every
@@ -58,7 +57,6 @@ internal sealed partial class LinkedInIdentityProvider(
             ("redirect_uri", RedirectUri),
             ("scope", Scope),
             ("state", state.Reveal()),
-            ("nonce", challenge.Value),
         ];
 
         var query = string.Join('&', parameters.Select(p => $"{p.Name}={Uri.EscapeDataString(p.Value)}"));
@@ -71,7 +69,7 @@ internal sealed partial class LinkedInIdentityProvider(
         var client = httpClientFactory.CreateClient(HttpClientName);
         try
         {
-            return await RedeemCodeAsync(client, code, verifier, ct) is { } redeemed
+            return await RedeemCodeAsync(client, code, ct) is { } redeemed
                 ? await ReadUserInfoAsync(client, redeemed, ct)
                 : new ExternalExchange.Failed();
         }
@@ -93,8 +91,7 @@ internal sealed partial class LinkedInIdentityProvider(
         }
     }
 
-    private async Task<Redemption?> RedeemCodeAsync(
-        HttpClient client, AuthorizationCode code, PkceVerifier verifier, CancellationToken ct)
+    private async Task<Redemption?> RedeemCodeAsync(HttpClient client, AuthorizationCode code, CancellationToken ct)
     {
         // client_secret_post, and never a code_verifier: LinkedIn's web flow refuses one.
         using var content = new FormUrlEncodedContent(
@@ -132,9 +129,9 @@ internal sealed partial class LinkedInIdentityProvider(
             return null;
         }
 
-        if (!TryBindToThisFlow(tokenRoot, verifier, out var idTokenSubject, out var unbound))
+        if (!TryReadIdTokenSubject(tokenRoot, out var idTokenSubject, out var failure))
         {
-            LogExchangeFailed(logger, Key.Value, unbound, status);
+            LogExchangeFailed(logger, Key.Value, failure, status);
             return null;
         }
 
@@ -163,10 +160,8 @@ internal sealed partial class LinkedInIdentityProvider(
             _ => ExchangeFailure.TokenRefused,
         };
 
-    // The id_token must be for our client and echo this flow's nonce, so a code minted for another flow is never
-    // redeemed into a login here. `iss` and `exp` are not read (senior-cto-advisor, 6c form round, §7).
-    private bool TryBindToThisFlow(
-        JsonElement tokenRoot, PkceVerifier verifier, out ExternalSubject subject, out ExchangeFailure failure)
+    // The id_token must be for our client. `iss` and `exp` are not read (senior-cto-advisor, 6c form round, §7).
+    private bool TryReadIdTokenSubject(JsonElement tokenRoot, out ExternalSubject subject, out ExchangeFailure failure)
     {
         subject = default;
         failure = ExchangeFailure.IdTokenAbsent;
@@ -184,17 +179,6 @@ internal sealed partial class LinkedInIdentityProvider(
         failure = ExchangeFailure.AudienceMismatch;
         if (!IsOurAudience(claims))
             return false;
-
-        failure = ExchangeFailure.NonceAbsent;
-        if (!claims.TryGetProperty("nonce", out var nonce))
-            return false;
-
-        failure = ExchangeFailure.NonceMismatch;
-        if (nonce.ValueKind != JsonValueKind.String
-            || !string.Equals(nonce.GetString(), verifier.ToChallenge().Value, StringComparison.Ordinal))
-        {
-            return false;
-        }
 
         failure = ExchangeFailure.IdTokenSubjectUnusable;
         if (ExternalSubject.TryCreate(StringOrNull(claims, "sub")) is not { } idTokenSubject)
@@ -337,8 +321,6 @@ internal sealed partial class LinkedInIdentityProvider(
         IdTokenAbsent,
         IdTokenMalformed,
         AudienceMismatch,
-        NonceAbsent,
-        NonceMismatch,
         IdTokenSubjectUnusable,
         UserInfoRefused,
         SubjectUnusable,

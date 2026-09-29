@@ -10,8 +10,7 @@ namespace Jobbliggaren.TestSupport;
 /// (<see cref="LinkedInUserInfoShapes"/>) through <see cref="LinkedInIdentityProvider"/> over
 /// <see cref="ScriptedLinkedIn"/>. A test that needs a LinkedIn identity or an <see cref="ExternalLoginProof"/> takes one
 /// from here, never from a hand-built <see cref="VerifiedEmail"/>: only the adapter's parse may decide that an address
-/// qualifies (AGENTS.md §5 <c>Tests:</c>). The id_token echoes the flow's nonce, as OIDC Core §2 requires and
-/// <see cref="ScriptedLinkedIn"/> declares.
+/// qualifies (AGENTS.md §5 <c>Tests:</c>).
 /// </summary>
 internal static class LinkedInIdentities
 {
@@ -26,7 +25,7 @@ internal static class LinkedInIdentities
         using var linkedin = new ScriptedLinkedIn(ClientId, ClientSecret);
         const string code = "scripted-identity-code";
         var verifier = PkceVerifier.Generate();
-        linkedin.Expect(code, userInfoJson, nonce: verifier.ToChallenge().Value);
+        linkedin.Expect(code, userInfoJson);
 
         var provider = new LinkedInIdentityProvider(
             new NamedClientFactory(LinkedInIdentityProvider.HttpClientName, linkedin),

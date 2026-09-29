@@ -60,7 +60,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     private static string Workspace(string sub, string address) =>
         GoogleUserInfoShapes.Workspace(sub, address, hostedDomain: "firma.example");
 
-    private sealed record StartedFlow(string State, string Challenge, string RedirectUri);
+    private sealed record StartedFlow(string State, string? Challenge, string RedirectUri);
 
     private async Task<StartedFlow> StartAsync(
         string next = "/ansokningar/abc-123", HttpClient? client = null, string provider = "google")
@@ -71,8 +71,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var state = body.GetProperty("state").GetString()!;
         var query = HttpUtility.ParseQueryString(new Uri(body.GetProperty("authorizeUrl").GetString()!).Query);
         query["state"].ShouldBe(state);
-        // LinkedIn carries the flow's challenge as the OIDC nonce, since its web flow takes no PKCE.
-        return new StartedFlow(state, query["code_challenge"] ?? query["nonce"]!, query["redirect_uri"]!);
+        return new StartedFlow(state, query["code_challenge"], query["redirect_uri"]!);
     }
 
     // What Google does after the user consents: it hands the browser a code bound to this flow's challenge and
@@ -256,9 +255,8 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         string startedFor, string presentedTo)
     {
         // P13, §3.6's end-to-end layer (ADR 0142 Amendment (14) L801). Actor: an attacker, or a confused browser,
-        // who copies the challenge out of the started flow's public authorize URL into the other provider's authorize
-        // request; that provider then hands out a VALID code for it, so a refusal can come only from the provider
-        // binding and never from the code.
+        // who presents this flow's state at the other provider's callback with a VALID code from that provider, so a
+        // refusal can come only from the provider binding and never from the code.
         var flow = await StartAsync(provider: startedFor);
         var address = NewAddress("korsad");
         var otherRedirect = flow.RedirectUri.Replace($"/{startedFor}/", $"/{presentedTo}/", StringComparison.Ordinal);
@@ -284,22 +282,21 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     private string Authorises(string provider, StartedFlow flow, string address) => provider switch
     {
         "github" => GitHubAuthorises(flow.Challenge, flow.RedirectUri, address),
-        "linkedin" => LinkedInAuthorises(flow.Challenge, flow.RedirectUri, address),
+        "linkedin" => LinkedInAuthorises(flow.RedirectUri, address),
         _ => GoogleAuthorises(flow, Workspace(NewSubject(), address)),
     };
 
-    // What LinkedIn does after the member consents: a code bound to the redirect URI, whose id_token echoes the nonce
-    // (the challenge it was given), as OIDC Core §2 requires and ScriptedLinkedIn declares.
-    private string LinkedInAuthorises(string challenge, string redirectUri, string primary)
+    // What LinkedIn does after the member consents: a code bound to the redirect URI.
+    private string LinkedInAuthorises(string redirectUri, string primary)
     {
         var code = $"AQT{Guid.NewGuid():N}";
         factory.LinkedIn.Expect(
-            code, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), primary), challenge, redirectUri);
+            code, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), primary), redirectUri: redirectUri);
         return code;
     }
 
     // What GitHub does after the user approves the app: a code bound to the challenge and redirect URI it was given.
-    private string GitHubAuthorises(string challenge, string redirectUri, string primary)
+    private string GitHubAuthorises(string? challenge, string redirectUri, string primary)
     {
         var code = $"scripted-{Guid.NewGuid():N}";
         factory.GitHub.Expect(

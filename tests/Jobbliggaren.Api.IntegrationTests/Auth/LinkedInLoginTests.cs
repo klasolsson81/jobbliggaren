@@ -26,8 +26,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <c>LoginProofChainTests.A_provider_login_can_reach_no_login_code</c>.
 /// <para>
 /// Every premise is minted by production: the flow by the start route, and the LinkedIn identity by the real
-/// <see cref="LinkedInIdentityProvider"/> over <see cref="ScriptedLinkedIn"/> (a documented userinfo shape, and an
-/// id_token that echoes the flow's nonce as OIDC Core §2 requires and ScriptedLinkedIn declares).
+/// <see cref="LinkedInIdentityProvider"/> over <see cref="ScriptedLinkedIn"/> (a documented userinfo shape).
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -52,7 +51,7 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
 
     private static string NewAddress(string label) => $"li-{label}-{Guid.NewGuid():N}@firma.example";
 
-    private sealed record StartedFlow(string State, string Nonce, string RedirectUri);
+    private sealed record StartedFlow(string State, string RedirectUri);
 
     private async Task<StartedFlow> StartAsync(string next = "/ansokningar/abc-123", HttpClient? client = null)
     {
@@ -60,15 +59,15 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
         var query = HttpUtility.ParseQueryString(new Uri(body.GetProperty("authorizeUrl").GetString()!).Query);
-        return new StartedFlow(body.GetProperty("state").GetString()!, query["nonce"]!, query["redirect_uri"]!);
+        return new StartedFlow(body.GetProperty("state").GetString()!, query["redirect_uri"]!);
     }
 
-    // What LinkedIn does after the member consents: a code bound to this flow's redirect URI, whose id_token echoes the
-    // nonce it was given, and whose token reads the given userinfo document.
+    // What LinkedIn does after the member consents: a code bound to this flow's redirect URI, whose token reads the
+    // given userinfo document.
     private string LinkedInAuthorises(StartedFlow flow, string userInfoJson)
     {
         var code = $"AQT{Guid.NewGuid():N}";
-        factory.LinkedIn.Expect(code, userInfoJson, flow.Nonce, flow.RedirectUri);
+        factory.LinkedIn.Expect(code, userInfoJson, redirectUri: flow.RedirectUri);
         return code;
     }
 
@@ -146,7 +145,7 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
     // ── the start ──
 
     [Fact]
-    public async Task A_linkedin_start_points_at_linkedins_authorize_endpoint_with_a_nonce_per_flow()
+    public async Task A_linkedin_start_points_at_linkedins_authorize_endpoint_with_the_five_documented_parameters()
     {
         var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
         var before = store.Writes;
@@ -159,16 +158,14 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
         var url = new Uri(body.GetProperty("authorizeUrl").GetString()!);
         url.GetLeftPart(UriPartial.Path).ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
         var query = HttpUtility.ParseQueryString(url.Query);
+        query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(
+            ["client_id", "redirect_uri", "response_type", "scope", "state"]);
         query["response_type"].ShouldBe("code");
         query["client_id"].ShouldBe(ApiFactory.LinkedInClientId);
         query["scope"].ShouldBe("openid email");
         new Uri(query["redirect_uri"]!).AbsolutePath.ShouldBe("/api/auth/oauth/linkedin/callback");
         query["state"].ShouldBe(body.GetProperty("state").GetString());
-        query["code_challenge"].ShouldBeNull();
-        // The flow's S256 challenge: 43 base64url characters, a new one for every flow (RFC 9700 §4.5).
-        query["nonce"].ShouldNotBeNull().Length.ShouldBe(43);
-        (await StartAsync()).Nonce.ShouldNotBe(query["nonce"]);
-        store.Writes.ShouldBe(before + 2);
+        store.Writes.ShouldBe(before + 1);
     }
 
     // ── an existing account ──
@@ -323,7 +320,7 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
     public async Task The_token_request_carries_no_verifier()
     {
         // LinkedIn's web flow takes no PKCE, and a verifier in a confidential client's request is answered 401
-        // invalid_client (declared, executor#2087): the flow's binding is the nonce instead.
+        // invalid_client (declared, executor#2087).
         var address = NewAddress("utan-verifierare");
         await AccountAsync(address);
         var requestsBefore = factory.LinkedIn.Requests.Count;
@@ -333,24 +330,6 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
         var token = factory.LinkedIn.Requests.Skip(requestsBefore).First();
         token.Uri.AbsoluteUri.ShouldBe(ScriptedLinkedIn.TokenEndpoint);
         token.Form.Keys.ShouldNotContain("code_verifier");
-    }
-
-    [Fact]
-    public async Task A_code_minted_for_another_flow_is_refused_by_its_nonce_and_links_nothing()
-    {
-        // RFC 9700 §4.5, authorization code injection: someone who holds another member's code puts it into a flow of
-        // their own. LinkedIn minted the code for the victim's nonce, which the id_token echoes (declared, OIDC Core §2).
-        var address = NewAddress("offer");
-        var userId = await AccountAsync(address);
-        var victimFlow = await StartAsync();
-        var attackerFlow = await StartAsync();
-        var victimCode = LinkedInAuthorises(victimFlow, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), address));
-
-        var response = await CallbackAsync(victimCode, attackerFlow.State);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.Gone);
-        (await LoginRowsAsync(userId)).ShouldBeEmpty();
-        (await LinkedAuditPayloadsAsync(userId)).ShouldBeEmpty();
     }
 
     // ── three providers ──

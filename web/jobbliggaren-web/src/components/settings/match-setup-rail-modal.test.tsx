@@ -172,7 +172,7 @@ describe("MatchSetupRailModal — skip och stäng", () => {
 });
 
 describe("MatchSetupRailModal — ett save på slutet → Klart-läget", () => {
-  it("Spara matchning kallar full-replace-PUT och visar Klart", async () => {
+  it("Spara matchning skriver railens fyra delar, utan erfarenhet, och visar Klart", async () => {
     updateMock.mockResolvedValue({ success: true });
     const user = userEvent.setup();
     renderModal({ persistedOccupationGroups: ["grp_backend"] });
@@ -184,9 +184,17 @@ describe("MatchSetupRailModal — ett save på slutet → Klart-läget", () => {
     await user.click(screen.getByRole("button", { name: "Spara matchning" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
-    // Full-replace-payloaden bär alla dimensioner (draften seedad från persisted).
-    expect(updateMock.mock.calls[0]![0]).toMatchObject({
-      preferredOccupationGroups: ["grp_backend"],
+    // Defect (a), ADR 0147: the rail edits no "Antal års erfarenhet", so its write carries no
+    // `experience` part and the server keeps what is stated. Strict: an `experience` key, even
+    // undefined, fails.
+    expect(updateMock.mock.calls[0]![0]).toStrictEqual({
+      occupations: {
+        preferredOccupationGroups: ["grp_backend"],
+        preferredOccupationExperience: [],
+      },
+      skills: { preferredSkills: [] },
+      locations: { preferredRegions: [], preferredMunicipalities: [], preferredRemote: false },
+      employmentTypes: { preferredEmploymentTypes: [] },
     });
     // Klart-läget efter lyckad save.
     await waitFor(() =>
@@ -294,9 +302,9 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
 describe("#551 punkt 4 — Distans-valet överlever till MatchPreferences.PreferredRemote", () => {
   // Acceptanskriteriet för wizard-halvan: det användaren kryssar i Orter-steget
   // måste nå den persisterade axeln. Utan den här pinnen kan hela kedjan
-  // (kaskad → draft → full-replace-PUT) gå sönder i vilken led som helst utan
+  // (kaskad → draft → skrivningen) gå sönder i vilken led som helst utan
   // att något test märker det — en av dem tappades faktiskt tyst under bygget.
-  it("en PÅ-slagen Distans-ruta skickas som preferredRemote: true i full-replace-PUT:en", async () => {
+  it("en PÅ-slagen Distans-ruta skickas som preferredRemote: true i ortdelen", async () => {
     updateMock.mockResolvedValue({ success: true });
     const user = userEvent.setup();
     // STEP_ORTER = 3 (wizardens Orter-steg; modalen öppnar annars på START).
@@ -317,7 +325,7 @@ describe("#551 punkt 4 — Distans-valet överlever till MatchPreferences.Prefer
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock.mock.calls[0]![0]).toMatchObject({
-      preferredRemote: true,
+      locations: { preferredRemote: true },
     });
   });
 
@@ -339,7 +347,7 @@ describe("#551 punkt 4 — Distans-valet överlever till MatchPreferences.Prefer
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock.mock.calls[0]![0]).toMatchObject({
-      preferredRemote: true,
+      locations: { preferredRemote: true },
     });
   });
 });

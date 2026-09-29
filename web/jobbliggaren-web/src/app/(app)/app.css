@@ -186,37 +186,23 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   outline-color: var(--jp-on-fill);
 }
 
-/* ── Matchnings-summeringskort: facet-grupper + add-rad ──
-   (samma RE-BIND §1.1/§1.6). Hairlines mellan facet-grupperna (--jp-border-soft,
-   den lugna rytmen), add-rad med "Lägg till" vänster + status höger. */
-.jp-matchprefs__facets {
+/* ── Matchning: five parts, each a .jp-settings-group (#1918) ──
+   The part's button sits right of its h3, as Notiser's controls sit right of their text (GOV.UK
+   summary list); a card too narrow for both puts the button on its own line under the h3. */
+.jp-matchprefs__parthead {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 16px;
+  margin-bottom: 8px;
 }
-.jp-matchprefs__facet {
-  padding: 16px 0;
-}
-.jp-matchprefs__facet:first-child {
-  padding-top: 8px;
-}
-.jp-matchprefs__facet + .jp-matchprefs__facet {
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-matchprefs__facethead {
-  margin: 0 0 10px;
-}
-.jp-matchprefs__empty {
+.jp-matchprefs__parthead .jp-settings-group__title {
   margin: 0;
 }
-.jp-matchprefs__addrow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--jp-border-soft);
+/* The status line stays mounted so a later receipt is announced; it takes room only with text. */
+.jp-matchprefs .jp-settings-group__message:not(:empty) {
+  margin-top: 8px;
 }
 
 /* ── Standardmodal-skin (.jp-stdmodal) — ADR 0077 / design-bind A.2 ──
@@ -258,6 +244,11 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-lg);
   box-shadow: var(--jp-shadow-modal);
+}
+/* Kompetenser, Anställningsformer and Antal års erfarenhet carry no two-column cascade (#1918). */
+.jp-matchdialog--narrow {
+  width: min(640px, 100%);
+  max-width: min(640px, 100%);
 }
 /* Den inbyggda shadcn/radix-Close ÄR dialogens stäng-kontroll, civic-restylad
    (default-shadcn-looken får ej skeppas). En egen extra stäng-knapp vore en
@@ -327,7 +318,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   gap: 12px;
   margin-bottom: 10px;
 }
-/* Clear-only-raden (wizarden, ingen rubrik): den ensamma Rensa-länken
+/* Clear-only-raden (ingen rubrik): den ensamma Rensa-länken
    vänsterställs explicit i stället för att förlita sig på space-between. */
 .jp-matchdialog__sectionhead--clearonly {
   justify-content: flex-start;
@@ -977,8 +968,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   margin-bottom: 4px;
 }
 
-/* Sektionerna monteras med showHeading={false}: dölj deras inbyggda clear-only-
-   rad (railen renderar egna captions; Kompetenser bär sin egen "Rensa alla"). */
+/* Dölj sektionernas inbyggda clear-only-rad (railen renderar egna captions;
+   Kompetenser bär sin egen "Rensa alla"). */
 .jp-wizard--rail .jp-matchdialog__sectionhead--clearonly {
   display: none;
 }

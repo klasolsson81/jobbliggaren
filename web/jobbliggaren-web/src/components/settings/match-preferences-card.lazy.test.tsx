@@ -21,7 +21,7 @@ import type {
 //      revert to a static import makes it true → RED. Immune to beforeEach and
 //      async timing.
 //   2. the live spy after render + a flushed tick, before any click — dropping
-//      the `{dialogRequested && …}` gate mounts the lazy dialog at render, whose
+//      the `{dialog !== null && …}` gate mounts the lazy dialog at render, whose
 //      loader then evaluates the module → RED. The flush defeats the async race.
 const dialogModuleEvaluated = vi.hoisted(() => ({ current: false }));
 vi.mock("./match-preferences-dialog", async (importOriginal) => {
@@ -109,7 +109,7 @@ beforeEach(() => {
 });
 
 describe("MatchPreferencesCard — code-split dialog (#748)", () => {
-  it("does not evaluate the dialog module until 'Lägg till' is clicked", async () => {
+  it("does not evaluate the dialog module until a part's 'Lägg till' is clicked", async () => {
     // Kill M2 (revert to static import): the module must not have loaded when
     // this test file imported the card.
     expect(evaluatedAtFileLoad).toBe(false);
@@ -125,28 +125,28 @@ describe("MatchPreferencesCard — code-split dialog (#748)", () => {
     expect(dialogModuleEvaluated.current).toBe(false);
     expect(screen.queryByRole("dialog")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Lägg till" }));
+    await user.click(screen.getByRole("button", { name: "Lägg till Yrken" }));
 
     // First open loads the chunk and mounts the real dialog with props threaded
-    // through the lazily-loaded boundary (taxonomy → sections). Kills M3 (trigger
-    // sets only dialogOpen, not dialogRequested): the dialog would never mount.
-    const dialog = await screen.findByRole("dialog");
+    // through the lazily-loaded boundary (taxonomy → sections). Kills M3 (the
+    // button never sets the dialog state): the dialog would never mount.
+    const dialog = await screen.findByRole("dialog", { name: "Yrken" });
     expect(dialog).toBeInTheDocument();
     expect(dialogModuleEvaluated.current).toBe(true);
-    expect(screen.getByRole("group", { name: /yrke/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
   });
 
   it("reopens after close (gate latches; content remounts and reseeds)", async () => {
     const user = userEvent.setup();
     renderCard();
 
-    await user.click(screen.getByRole("button", { name: "Lägg till" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lägg till Yrken" }));
+    expect(await screen.findByRole("dialog", { name: "Yrken" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    await user.click(screen.getByRole("button", { name: "Lägg till" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lägg till Kompetenser" }));
+    expect(await screen.findByRole("dialog", { name: "Kompetenser" })).toBeInTheDocument();
   });
 });

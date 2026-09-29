@@ -43,7 +43,7 @@ interface MatchSetupLauncherProps {
 /**
  * Match-setup-launcher (epik #526) — den enda mount-punkten på /oversikt.
  * Skriver inget själv utöver dismissal-cookien; den enda preferens-skrivningen är
- * rail-modalens befintliga MatchPreferences-PUT (som revalidate:ar /oversikt, så
+ * rail-modalens befintliga MatchPreferences-skrivning (som revalidate:ar /oversikt, så
  * notisen byter av sig själv efter en sparning).
  */
 export function MatchSetupLauncher({

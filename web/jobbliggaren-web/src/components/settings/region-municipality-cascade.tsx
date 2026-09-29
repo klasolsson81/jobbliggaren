@@ -14,12 +14,13 @@
 // JobbFilterPopover misspositioneras + slåss med Radix Dialogens fokus-trap
 // inuti modalen, exakt som OccupationSection redan motiverar för yrke).
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronRight, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
+import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import {
   toggleWholeRegion,
   toggleMunicipalityInRegion,
@@ -51,16 +52,10 @@ interface RegionMunicipalityCascadeProps {
    * båda axlarna, aldrig två separata setters som kan glida isär.
    */
   readonly onChange: (next: OrtChoice) => void;
-  /**
-   * Visa sektionens egna "Orter"-rubrik. Default true (dialogen). Wizarden
-   * sätter false: där bär steg-rubriken ("Orter") rubriken, och en andra
-   * inline-rubrik vore en dubblett. När false renderas bara Rensa-länken.
-   */
-  readonly showHeading?: boolean;
-  /** rubrik-id som värden kopplar `aria-labelledby` mot (för role=group). */
-  readonly headingId?: string;
   /** Unik DOM-id-prefix så sektionen kan monteras i flera värdar (dialog/wizard). */
   readonly idPrefix?: string;
+  /** Open the "Lägg till orter" picker at mount: an empty part opens its picker directly (#1918). */
+  readonly initialPickerOpen?: boolean;
 }
 
 /**
@@ -80,12 +75,14 @@ export function RegionMunicipalityCascade({
   selectedMunicipalities,
   remote,
   onChange,
-  showHeading = true,
-  headingId,
   idPrefix = "match-dialog",
+  initialPickerOpen = false,
 }: RegionMunicipalityCascadeProps) {
   const t = useTranslations("settings");
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(initialPickerOpen);
+  // The picker's own button: where focus goes when the last chip, or everything by "Rensa", goes.
+  const ctaRef = useRef<HTMLButtonElement | null>(null);
+  const focusAfterCommit = useFocusAfterCommit();
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
@@ -229,43 +226,33 @@ export function RegionMunicipalityCascade({
 
   return (
     <>
-      {showHeading ? (
-        <div className="jp-matchdialog__sectionhead">
-          <span id={headingId} className="jp-popover__title">
-            {t("matchPrefs.cascade.heading")}
-          </span>
-          {hasAnySelected && (
-            <button
-              type="button"
-              className="jp-clearlink"
-              onClick={() => commit({ region: [], municipality: [] }, false)}
-            >
-              {t("matchPrefs.cascade.clear")}
-            </button>
-          )}
+      {/* The title of the dialog or the step names the section; Rensa stays while anything is
+          chosen. */}
+      {hasAnySelected && (
+        <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
+          <button
+            type="button"
+            className="jp-clearlink"
+            onClick={() => {
+              focusAfterCommit(() => ctaRef.current);
+              commit({ region: [], municipality: [] }, false);
+            }}
+          >
+            {t("matchPrefs.cascade.clear")}
+          </button>
         </div>
-      ) : (
-        hasAnySelected && (
-          <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
-            <button
-              type="button"
-              className="jp-clearlink"
-              onClick={() => commit({ region: [], municipality: [] }, false)}
-            >
-              {t("matchPrefs.cascade.clear")}
-            </button>
-          </div>
-        )
       )}
 
       <PinnedChips
         items={pinnedChips}
         onRemove={removeChip}
         ariaLabel={t("matchPrefs.cascade.selectedAria")}
+        focusAfterLast={() => ctaRef.current}
       />
 
       <div className="jp-occpicker">
         <button
+          ref={ctaRef}
           type="button"
           className="jp-occpicker__cta"
           aria-expanded={pickerOpen}

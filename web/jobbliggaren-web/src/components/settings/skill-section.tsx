@@ -8,7 +8,7 @@
 // 0079 STEG 3), but the flat 20k skill vocabulary has NO hierarchy, so a SEARCH
 // box replaces the cascade. INGEN AI (deterministic, ADR 0071); CV proposals are
 // PRE-ADDED to the draft as chips but never written to the server until the
-// host's "Spara matchning" (propose-and-approve, ADR 0040 Beslut 4 / 0079
+// host saves (propose-and-approve, ADR 0040 Beslut 4 / 0079
 // Beslut 1).
 //
 // #277 (twin chips): the unit of selection is a GROUP (one chip per shared
@@ -37,6 +37,7 @@ import {
   type SkillSuggestResult,
 } from "@/lib/actions/match-preferences";
 import type { SkillGroup } from "@/lib/dto/skills";
+import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import {
   addSkillGroup,
   groupsForSelected,
@@ -68,13 +69,8 @@ interface SkillSectionProps {
    * id-kollision (dialog vs wizard).
    */
   readonly idPrefix?: string;
-  /** rubrik-id som värden kopplar `aria-labelledby` mot (för role=group). */
-  readonly headingId?: string;
-  /**
-   * Visa sektionens egna "Kompetenser"-rubrik. Default true (dialogen).
-   * Wizarden sätter false — där bär DialogTitle rubriken.
-   */
-  readonly showHeading?: boolean;
+  /** Open the search at mount: an empty part opens its picker directly (#1918). */
+  readonly initialPickerOpen?: boolean;
   /**
    * Wizard-prefill: kör CV-förslaget automatiskt när sektionen monteras (en
    * gång). Förslagen PRE-ADDAS till draften (chips) — de skrivs ALDRIG till
@@ -122,8 +118,7 @@ export function SkillSection({
   onReplace,
   onClear,
   idPrefix = "match-dialog-skill",
-  headingId,
-  showHeading = true,
+  initialPickerOpen = false,
   autoSuggestFromCv = false,
   parsedResumeId,
   initialGroups = [],
@@ -168,8 +163,11 @@ export function SkillSection({
   }, [knownGroups]);
 
   // ── "Lägg till kompetens"-disclosure (search) ──
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(initialPickerOpen);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // The disclosure's own button: where focus goes when the last chip, or everything by "Rensa", goes.
+  const ctaRef = useRef<HTMLButtonElement | null>(null);
+  const focusAfterCommit = useFocusAfterCommit();
 
   // Search state: query, latest results (GROUPS), a pending flag and an abort
   // handle so a stale in-flight request never overwrites a newer one.
@@ -303,33 +301,28 @@ export function SkillSection({
 
   return (
     <>
-      {/* Sektionshuvud: rubrik (dialogen) eller bara Rensa-länken (wizarden,
-          där DialogTitle bär "Kompetenser"). Behåll Rensa när något är valt. */}
-      {showHeading ? (
-        <div className="jp-matchdialog__sectionhead">
-          <span id={headingId} className="jp-popover__title">
-            {t("matchPrefs.facetSkills")}
-          </span>
-          {selected.length > 0 && (
-            <button type="button" className="jp-clearlink" onClick={onClear}>
-              {t("matchPrefs.clear")}
-            </button>
-          )}
+      {/* The title of the dialog or the step names the section; Rensa stays while anything is
+          chosen. */}
+      {selected.length > 0 && (
+        <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
+          <button
+            type="button"
+            className="jp-clearlink"
+            onClick={() => {
+              focusAfterCommit(() => ctaRef.current);
+              onClear();
+            }}
+          >
+            {t("matchPrefs.clear")}
+          </button>
         </div>
-      ) : (
-        selected.length > 0 && (
-          <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
-            <button type="button" className="jp-clearlink" onClick={onClear}>
-              {t("matchPrefs.clear")}
-            </button>
-          </div>
-        )
       )}
 
       <PinnedChips
         items={skillChips}
         onRemove={onRemovePinned}
         ariaLabel={t("matchPrefs.selectedSkills")}
+        focusAfterLast={() => ctaRef.current}
       />
 
       {/* CV-förslagets honest states (pending/noCv/noRole/error/unauthorized).
@@ -343,6 +336,7 @@ export function SkillSection({
           Sök-fält i stället för kaskad (platt skill-vokabulär utan hierarki). */}
       <div className="jp-occpicker">
         <button
+          ref={ctaRef}
           type="button"
           className="jp-occpicker__cta"
           aria-expanded={pickerOpen}

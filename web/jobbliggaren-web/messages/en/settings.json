@@ -54,8 +54,7 @@
     "emptyOrter": "Whole country (no place selected)",
     "emptyEmployment": "All employment types (none selected)",
     "add": "Add",
-    "saveError": "The change could not be saved. Try again.",
-    "savedAt": "Saved {time}",
+    "change": "Change",
     "selectedOccupations": "Selected occupations",
     "selectedSkills": "Selected skills",
     "selectedOrter": "Selected places",
@@ -63,7 +62,6 @@
     "clear": "Clear",
     "removeChip": "Remove {label}",
     "cascade": {
-      "heading": "Places",
       "clear": "Clear",
       "selectedAria": "Selected places",
       "addOrter": "Add places",
@@ -79,9 +77,12 @@
       "wholeRegion": "All of {label}"
     },
     "dialog": {
-      "title": "Add to matching",
       "saving": "Saving…",
-      "save": "Save matching",
+      "saveOccupations": "Save occupations",
+      "saveSkills": "Save skills",
+      "saveOrter": "Save places",
+      "saveEmployment": "Save employment types",
+      "saveExperience": "Save experience",
       "cancel": "Cancel"
     },
     "occupation": {
@@ -107,7 +108,7 @@
       "yearsAria": "Years in the occupation {label}",
       "yearsHint": "Optional, and it does not affect your match grade.",
       "yearsWhatIsThis": "About years in the occupation",
-      "reviewYearsValue": "{years} years",
+      "reviewYearsValue": "{years, plural, one {# year} other {# years}}",
       "reviewYearsEmpty": "Years not stated"
     },
     "skill": {
@@ -125,13 +126,14 @@
     },
     "experience": {
       "label": "Years of experience",
-      "reviewValue": "{years} years",
+      "reviewValue": "{years, plural, one {# year} other {# years}}",
       "reviewEmpty": "Not stated"
     },
     "errors": {
       "notLoggedIn": "You are not logged in.",
       "invalidInput": "Invalid details.",
-      "saveFailed": "Could not save your matching preferences.",
+      "saveFailed": "The change could not be saved. Try again in a moment.",
+      "conflict": "Another change was saved at the same time. Reload the page and try again.",
       "network": "Could not reach the server. Check your network connection.",
       "invalidTitle": "Invalid occupation title.",
       "tooManyAttempts": "Too many attempts. Wait a moment and try again.",

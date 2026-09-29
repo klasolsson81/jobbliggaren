@@ -12,33 +12,26 @@ import type { OccupationCandidate } from "@/lib/dto/match-preferences";
 import type { SkillGroup } from "@/lib/dto/skills";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
-  makeSetMatchPreferencesSchema,
-  type SetMatchPreferencesInput,
+  makeUpdateMatchPreferencesSchema,
+  type UpdateMatchPreferencesInput,
 } from "./match-preferences-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
 
 /**
- * F4-12 PR-B (ADR 0076) — sparar användarens matchnings-önskemål
- * (yrkesgrupper + regioner + kommuner + anställningsformer) via
- * `PUT /api/v1/me/match-preferences` (204 No Content vid lyckat).
+ * ADR 0147 — writes one to five parts of the user's match preferences through
+ * `PATCH /api/v1/me/match-preferences` (204 No Content on success).
  * Speglar `me.ts` `updateMyProfileAction`: getSessionId-vakt → safeParse →
  * fetch → `mapActionError` på !ok (body läses ALDRIG, TD-10) → network-
  * fallback → `revalidatePath`.
  *
- * Full-replace: `input` bär HELA den aktuella mängden per dimension. Alla
- * fyra tomma är tillåtet (rensar önskemålen — ärlig not-assessed-state).
- *
- * Spår 3 PR-D (ADR 0076-amendment 2026-06-21): region + kommun skickas i SAMMA
- * PUT (atomiskt). Eftersom det är ett full-replace ersätts hela ort-paret som
- * en enhet, så ett spar av regioner aldrig nollar angivna kommuner och vice
- * versa (CTO/architect NOTE-1). `parsed.data` bär nu `preferredMunicipalities`.
+ * A 409 is ADR 0146's replay cap, and gets copy of its own (#1918 m8).
  *
  * Revaliderar både `/mina-sidor` (kortet) och `/oversikt` (setup-nudgen
  * styrs av `hasStatedDesiredOccupation` som ändras av detta skriv).
  */
 export async function updateMatchPreferencesAction(
-  input: SetMatchPreferencesInput
+  input: UpdateMatchPreferencesInput
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
@@ -47,24 +40,24 @@ export async function updateMatchPreferencesAction(
     return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
 
   const t = await getTranslations("validation");
-  const parsed = makeSetMatchPreferencesSchema(t).safeParse(input);
+  const parsed = makeUpdateMatchPreferencesSchema(t).safeParse(input);
   if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? ts("matchPrefs.errors.invalidInput"),
-    };
+    return { success: false, error: ts("matchPrefs.errors.invalidInput") };
   }
 
   try {
     const res = await authedFetch(sessionId, `/api/v1/me/match-preferences`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(parsed.data),
     });
 
     if (!res.ok) {
       return {
         success: false,
-        error: mapActionError(res, ts("matchPrefs.errors.saveFailed"), te),
+        error:
+          res.status === 409
+            ? ts("matchPrefs.errors.conflict")
+            : mapActionError(res, ts("matchPrefs.errors.saveFailed"), te),
       };
     }
   } catch {

@@ -5,7 +5,7 @@
 // "Lägg till yrken"-kaskaden. Extraherad ur match-preferences-dialog (ADR 0077
 // STEG 5) och delad med match-setup-rail-modal (epik #526). INGEN AI (deterministisk, ADR 0071);
 // CV-förslag PRE-ADDAS till draften (chips) men skrivs ALDRIG till servern förrän
-// värdens "Spara matchning" (propose-and-approve, ADR 0040 Beslut 4 / 0076).
+// värden sparar (propose-and-approve, ADR 0040 Beslut 4 / 0076).
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronRight, Plus } from "lucide-react";
@@ -24,13 +24,14 @@ import {
   suggestOccupationsFromParsedResumeAction,
   type CvSuggestResult,
 } from "@/lib/actions/match-preferences";
+import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import {
   filterOptions,
   flattenOccupationGroups,
   labelsForSelected,
   type Option,
 } from "./match-preferences-shared";
-import { CheckItem, PinnedChips } from "./section-helpers";
+import { CheckItem, PinnedChips, useChipRemovalFocus } from "./section-helpers";
 import { PreferenceChip } from "./preference-chip";
 
 interface OccupationSectionProps {
@@ -54,14 +55,8 @@ interface OccupationSectionProps {
    * id-kollision (dialog vs wizard). Default behåller dialogens tidigare id:n.
    */
   readonly idPrefix?: string;
-  /** rubrik-id som värden kopplar `aria-labelledby` mot (för role=group). */
-  readonly headingId?: string;
-  /**
-   * Visa sektionens egna "Yrken"-rubrik. Default true (dialogen). Wizarden sätter
-   * false — där bär DialogTitle ("Yrken") rubriken, och en andra inline-rubrik
-   * vore en dubblett. När false renderas bara Rensa-länken (när något är valt).
-   */
-  readonly showHeading?: boolean;
+  /** Open the "Lägg till yrken" picker at mount: an empty part opens its picker directly (#1918). */
+  readonly initialPickerOpen?: boolean;
   /**
    * Wizard-prefill: kör CV-förslaget automatiskt när sektionen monteras (en
    * gång). Förslagen PRE-ADDAS till draften (chips) — de skrivs ALDRIG till
@@ -121,8 +116,7 @@ export function OccupationSection({
   onClear,
   importCvHref,
   idPrefix = "match-dialog",
-  headingId,
-  showHeading = true,
+  initialPickerOpen = false,
   autoSuggestFromCv = false,
   parsedResumeId,
   experienceByConceptId,
@@ -143,8 +137,11 @@ export function OccupationSection({
   // absolut-positionerad popover skulle misspositioneras + slåss med Radix
   // Dialogens fokus-trap/Esc inuti modalen (se rapport). Disclosuren bär samma
   // markup som tidigare inline-kaskad, dold bakom EN knapp.
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(initialPickerOpen);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // The picker's own button: where focus goes when the last chip, or everything by "Rensa", goes.
+  const ctaRef = useRef<HTMLButtonElement | null>(null);
+  const focusAfterCommit = useFocusAfterCommit();
 
   // CV-förslag (pending/diskriminerat). noCv/noRole/error/unauthorized visas
   // inline; "candidates" pre-addas till draften (chips) i stället för att
@@ -268,27 +265,21 @@ export function OccupationSection({
 
   return (
     <>
-      {/* Sektionshuvud: rubrik (dialogen) eller bara Rensa-länken (wizarden,
-          där DialogTitle bär "Yrken"). Behåll alltid Rensa när något är valt. */}
-      {showHeading ? (
-        <div className="jp-matchdialog__sectionhead">
-          <span id={headingId} className="jp-popover__title">
-            {t("matchPrefs.facetOccupations")}
-          </span>
-          {selected.length > 0 && (
-            <button type="button" className="jp-clearlink" onClick={onClear}>
-              {t("matchPrefs.clear")}
-            </button>
-          )}
+      {/* The title of the dialog or the step names the section; Rensa stays while anything is
+          chosen. */}
+      {selected.length > 0 && (
+        <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
+          <button
+            type="button"
+            className="jp-clearlink"
+            onClick={() => {
+              focusAfterCommit(() => ctaRef.current);
+              onClear();
+            }}
+          >
+            {t("matchPrefs.clear")}
+          </button>
         </div>
-      ) : (
-        selected.length > 0 && (
-          <div className="jp-matchdialog__sectionhead jp-matchdialog__sectionhead--clearonly">
-            <button type="button" className="jp-clearlink" onClick={onClear}>
-              {t("matchPrefs.clear")}
-            </button>
-          </div>
-        )
       )}
 
       {/* exp-per-occ (ADR 0079-amendment PR-4): när year-redigering är aktiverad
@@ -302,12 +293,14 @@ export function OccupationSection({
           onExperienceChange={onExperienceChange}
           idPrefix={idPrefix}
           selectedAriaLabel={t("matchPrefs.selectedOccupations")}
+          focusAfterLast={() => ctaRef.current}
         />
       ) : (
         <PinnedChips
           items={occupationChips}
           onRemove={onToggle}
           ariaLabel={t("matchPrefs.selectedOccupations")}
+          focusAfterLast={() => ctaRef.current}
         />
       )}
 
@@ -329,6 +322,7 @@ export function OccupationSection({
       {/* Manuell tillägg: EN tydlig CTA → inline-disclosure (kollapsad default). */}
       <div className="jp-occpicker">
         <button
+          ref={ctaRef}
           type="button"
           className="jp-occpicker__cta"
           aria-expanded={pickerOpen}
@@ -517,6 +511,7 @@ function OccupationChipsWithYears({
   onExperienceChange,
   idPrefix,
   selectedAriaLabel,
+  focusAfterLast,
 }: {
   readonly items: ReadonlyArray<Option>;
   readonly experienceByConceptId: Readonly<Record<string, number | null>>;
@@ -524,14 +519,22 @@ function OccupationChipsWithYears({
   readonly onExperienceChange: (conceptId: string, years: number | null) => void;
   readonly idPrefix: string;
   readonly selectedAriaLabel: string;
+  readonly focusAfterLast: () => HTMLElement | null | undefined;
 }) {
   const t = useTranslations("settings");
+  const { buttons, beforeRemove } = useChipRemovalFocus();
   const hintId = `${idPrefix}-occ-years-hint`;
   if (items.length === 0) return null;
+  const ids = items.map((it) => it.conceptId);
+  const yearsLabel = (
+    <span className="jp-occexp__years-label" aria-hidden="true">
+      {t("matchPrefs.occupation.yearsLabel")}
+    </span>
+  );
   return (
     <div className="jp-matchdialog__pinned">
       <ul className="jp-occexp" aria-label={selectedAriaLabel}>
-        {items.map((it) => {
+        {items.map((it, index) => {
           // `undefined` (ingen nyckel) och `null` renderar båda ett tomt fält;
           // `0` renderar "0" (skilt värde). Distinktionen 0-vs-null bevaras.
           const years = experienceByConceptId[it.conceptId];
@@ -539,14 +542,32 @@ function OccupationChipsWithYears({
             <li key={it.conceptId} className="jp-occexp__row">
               <span className="jp-occexp__chip">
                 <PreferenceChip
+                  ref={(el) => {
+                    if (el) buttons.current.set(it.conceptId, el);
+                    else buttons.current.delete(it.conceptId);
+                  }}
                   label={it.label}
-                  onRemove={() => onRemove(it.conceptId)}
+                  onRemove={() => {
+                    beforeRemove(ids, it.conceptId, focusAfterLast);
+                    onRemove(it.conceptId);
+                  }}
                 />
               </span>
               <span className="jp-occexp__years">
-                <span className="jp-occexp__years-label" aria-hidden="true">
-                  {t("matchPrefs.occupation.yearsLabel")}
-                </span>
+                {/* The "?" sits at the label it explains, once, on the first row (#1918 m7). */}
+                {index === 0 ? (
+                  <span className="jp-labelhelp">
+                    {yearsLabel}
+                    <InfoDialog
+                      ariaLabel={t("matchPrefs.occupation.yearsWhatIsThis")}
+                      title={t("matchPrefs.occupation.yearsLabel")}
+                      paragraphs={[t("matchPrefs.occupation.yearsHint")]}
+                      triggerClassName="jp-labelhelp__trigger"
+                    />
+                  </span>
+                ) : (
+                  yearsLabel
+                )}
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -575,13 +596,6 @@ function OccupationChipsWithYears({
       <p id={hintId} className="sr-only">
         {t("matchPrefs.occupation.yearsHint")}
       </p>
-      <div className="mt-1">
-        <InfoDialog
-          ariaLabel={t("matchPrefs.occupation.yearsWhatIsThis")}
-          title={t("matchPrefs.occupation.yearsLabel")}
-          paragraphs={[t("matchPrefs.occupation.yearsHint")]}
-        />
-      </div>
     </div>
   );
 }

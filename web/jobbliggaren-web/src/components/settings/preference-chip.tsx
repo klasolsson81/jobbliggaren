@@ -11,13 +11,11 @@ import { useTranslations } from "next-intl";
 interface PreferenceChipProps {
   /** Visningsnamnet (svenskt taxonomi-label). */
   readonly label: string;
-  /** Ta bort detta val. */
-  readonly onRemove: () => void;
   /**
-   * Tangent-borttagning (Delete/Backspace) på den fokuserade ⨯-knappen. Ägaren
-   * sköter fokus-flytt till grannen efteråt; chippen rapporterar bara intentet.
+   * Ta bort detta val: klick, Enter och Space (knappens egen aktivering) samt Delete/Backspace.
+   * Ägaren flyttar fokus efteråt, oavsett väg (WCAG 2.4.3).
    */
-  readonly onRemoveKey?: () => void;
+  readonly onRemove: () => void;
 }
 
 /**
@@ -26,10 +24,10 @@ interface PreferenceChipProps {
  * enda interaktiva delen är ⨯-knappen (ett riktigt `<button>` med aria-label);
  * själva chip-texten är inte fokuserbar (ingen tvetydig "vad gör klick på
  * chippen"). Ref vidarebefordras till ⨯-knappen så ägaren kan flytta fokus
- * till grannen efter tangent-borttagning (WCAG 2.4.3).
+ * till grannen efter borttagning (WCAG 2.4.3).
  */
 export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>(
-  function PreferenceChip({ label, onRemove, onRemoveKey }, ref) {
+  function PreferenceChip({ label, onRemove }, ref) {
     const t = useTranslations("settings");
     return (
       <span className="jp-chip jp-chip--removable">
@@ -45,7 +43,7 @@ export const PreferenceChip = forwardRef<HTMLButtonElement, PreferenceChipProps>
           onKeyDown={(e) => {
             if (e.key === "Delete" || e.key === "Backspace") {
               e.preventDefault();
-              (onRemoveKey ?? onRemove)();
+              onRemove();
             }
           }}
         >

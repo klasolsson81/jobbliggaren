@@ -200,7 +200,6 @@ export function WatchFilterDialog({
               // den på `remote !== undefined`, och den här ytan skickade den aldrig.
               remote={draftRemote}
               onChange={onOrtChange}
-              showHeading={false}
               idPrefix="watch-filter-ort"
             />
           </section>

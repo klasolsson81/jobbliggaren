@@ -142,8 +142,8 @@ interface MatchSetupRailModalProps {
  * Match-setup-rail-modal (epik #526, förslag 2a). EN Radix-Dialog med fast
  * storlek: en steglista (rail) till vänster + huvudyta till höger som byter
  * innehåll per steg utan att skalet ändrar mått. Fri navigering (inget steg är
- * obligatoriskt). Skriver ENBART till `MatchPreferences` via det befintliga
- * full-replace-PUT:et vid "Spara matchning" (propose-and-approve, ADR 0040/0071
+ * obligatoriskt). Skriver ENBART till `MatchPreferences`, vid "Spara matchning"
+ * (propose-and-approve, ADR 0040/0071
  * — inget skrivs innan dess). Sedan CV-pivot 5c (R4) försöker varje uppladdning
  * auto-promota: en ren, säker parse blir direkt ett kanoniskt CV (railens
  * förslag läser då det promotade Resume:t), en icke-ren stannar som
@@ -312,7 +312,7 @@ export function MatchSetupRailModal({
   // #551 punkt 4 — distans FÖRST, samma ordning som kaskadens pinnade chips
   // (bredaste ort-valet först). Utan denna post läser rail-metan, steg 3:s
   // tom-notis OCH Granska-steget ett rent Distans-val som "inga orter valda /
-  // hela landet" — medan PUT:en skickar preferredRemote: true.
+  // hela landet" — medan skrivningen skickar preferredRemote: true.
   const ortChips: ReadonlyArray<Option> = [
     ...(draftRemote
       ? [{ conceptId: DISTANS_CHIP_ID, label: t("orter.distans") }]
@@ -394,14 +394,20 @@ export function MatchSetupRailModal({
       draftOccupations
     );
     startSaving(async () => {
+      // The four parts the rail edits, in one write. It carries no `experience`, so a stated
+      // "Antal års erfarenhet" is left as stored (ADR 0147 D5, defect (a)).
       const result = await updateMatchPreferencesAction({
-        preferredOccupationGroups: [...draftOccupations],
-        preferredRegions: [...draftRegions],
-        preferredMunicipalities: [...draftMunicipalities],
-        preferredRemote: draftRemote,
-        preferredEmploymentTypes: [...draftEmployment],
-        preferredSkills: [...draftSkills],
-        preferredOccupationExperience: [...occupationExperience],
+        occupations: {
+          preferredOccupationGroups: [...draftOccupations],
+          preferredOccupationExperience: [...occupationExperience],
+        },
+        skills: { preferredSkills: [...draftSkills] },
+        locations: {
+          preferredRegions: [...draftRegions],
+          preferredMunicipalities: [...draftMunicipalities],
+          preferredRemote: draftRemote,
+        },
+        employmentTypes: { preferredEmploymentTypes: [...draftEmployment] },
       });
       if (result.success) {
         onSaved?.({
@@ -815,7 +821,6 @@ export function MatchSetupRailModal({
                         onClear={() => setDraftOccupations([])}
                         importCvHref={importCvHref}
                         idPrefix="match-rail-occ"
-                        showHeading={false}
                         experienceByConceptId={draftOccupationExperience}
                         onExperienceChange={onOccupationExperienceChange}
                         onSeedExperience={seedOccupationExperience}
@@ -867,7 +872,6 @@ export function MatchSetupRailModal({
                         onReplace={(next) => setDraftSkills(next)}
                         onClear={() => setDraftSkills([])}
                         idPrefix="match-rail-skill"
-                        showHeading={false}
                         initialGroups={allSkillGroups}
                         onGroupsChange={setDiscoveredSkillGroups}
                         autoSuggestFromCv
@@ -895,7 +899,6 @@ export function MatchSetupRailModal({
                         selectedMunicipalities={draftMunicipalities}
                         remote={draftRemote}
                         onChange={onOrtChange}
-                        showHeading={false}
                         idPrefix="match-rail-ort"
                       />
                     </>
@@ -904,7 +907,6 @@ export function MatchSetupRailModal({
                   {step === STEP_FORMER && (
                     <div className="jp-wizard__formercheck">
                       <FacetSection
-                        title={t("rail.step.former")}
                         options={employmentOptions}
                         selected={draftEmployment}
                         onToggle={(id) =>
@@ -912,7 +914,6 @@ export function MatchSetupRailModal({
                         }
                         onClear={() => setDraftEmployment([])}
                         pinnedAriaLabel={t("rail.step.former")}
-                        showHeading={false}
                       />
                       <InfoNote>
                         {t.rich("former.note", { b: (c) => <b>{c}</b> })}

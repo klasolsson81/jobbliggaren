@@ -8,8 +8,24 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/** The field is named by an element outside it, as its dialog's title names it (#1918 Binding 4). */
+function Named({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (next: number | null) => void;
+}) {
+  return (
+    <>
+      <h2 id="experience-title">Antal års erfarenhet</h2>
+      <ExperienceField value={value} onChange={onChange} labelledBy="experience-title" />
+    </>
+  );
+}
+
 /** Stateful host so the controlled input reflects each keystroke (mirrors the
- *  real wizard/dialog hosts) — required for multi-digit typing/clamping. */
+ *  real dialog host) — required for multi-digit typing/clamping. */
 function StatefulHost({
   initial = null,
   onChange,
@@ -19,7 +35,7 @@ function StatefulHost({
 }) {
   const [value, setValue] = useState<number | null>(initial);
   return (
-    <ExperienceField
+    <Named
       value={value}
       onChange={(next) => {
         setValue(next);
@@ -30,25 +46,27 @@ function StatefulHost({
 }
 
 describe("ExperienceField (STEG 3 / ADR 0079)", () => {
-  it("renderar label utan hjälptext, inget exempel-värde i fältet", () => {
-    render(<ExperienceField value={null} onChange={vi.fn()} />);
-    const input = screen.getByLabelText("Antal års erfarenhet");
+  it("takes its name from the element it is labelled by, with no label or hint of its own", () => {
+    render(<Named value={null} onChange={vi.fn()} />);
+    const input = screen.getByRole("spinbutton", { name: "Antal års erfarenhet" });
     expect(input).toHaveValue(null);
-    // Inget placeholder-exempel (hård Klas-regel).
+    expect(input).toHaveAttribute("aria-labelledby", "experience-title");
+    expect(screen.queryByText("Antal års erfarenhet", { selector: "label" })).toBeNull();
+    // Inget placeholder-exempel (hård Klas-regel) och ingen hint (DESIGN.md §8 regel 3).
     expect(input).not.toHaveAttribute("placeholder");
     expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("ett angivet värde visas i fältet", () => {
-    render(<ExperienceField value={5} onChange={vi.fn()} />);
-    expect(screen.getByLabelText("Antal års erfarenhet")).toHaveValue(5);
+    render(<Named value={5} onChange={vi.fn()} />);
+    expect(screen.getByRole("spinbutton", { name: "Antal års erfarenhet" })).toHaveValue(5);
   });
 
   it("inmatning emitterar ett heltal", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(<StatefulHost onChange={onChange} />);
-    await user.type(screen.getByLabelText("Antal års erfarenhet"), "8");
+    await user.type(screen.getByRole("spinbutton", { name: "Antal års erfarenhet" }), "8");
     expect(onChange).toHaveBeenLastCalledWith(8);
   });
 
@@ -56,7 +74,7 @@ describe("ExperienceField (STEG 3 / ADR 0079)", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(<StatefulHost initial={3} onChange={onChange} />);
-    await user.clear(screen.getByLabelText("Antal års erfarenhet"));
+    await user.clear(screen.getByRole("spinbutton", { name: "Antal års erfarenhet" }));
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -64,7 +82,7 @@ describe("ExperienceField (STEG 3 / ADR 0079)", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(<StatefulHost onChange={onChange} />);
-    await user.type(screen.getByLabelText("Antal års erfarenhet"), "99");
+    await user.type(screen.getByRole("spinbutton", { name: "Antal års erfarenhet" }), "99");
     expect(onChange).toHaveBeenLastCalledWith(70);
   });
 });

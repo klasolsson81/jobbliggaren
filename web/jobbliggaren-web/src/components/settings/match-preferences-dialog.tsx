@@ -1,265 +1,366 @@
 "use client";
 
-// "use client": dialogen håller DRAFT-state för tre dimensioner och en
-// useTransition runt save-action. De tre väljar-sektionerna (yrken med
-// CV-suggest + titel-derive + kaskad/filter, regioner, anställningsformer) är
-// extraherade till delade presentations-komponenter (ADR 0077 STEG 5) och delas
-// med match-setup-rail-modal — ingen logik dupliceras. Inget av detta går i en
-// Server Component.
+// "use client": each part's dialog holds that part's draft, runs its save in a transition, and
+// places focus on open and after a refused save. None of that runs in a Server Component. The
+// editors are the shared sections (ADR 0077 STEG 5), the same ones the first-time rail mounts.
 
-import { useState, useTransition } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PendingLabel } from "@/components/forms/pending-label";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import {
-  updateMatchPreferencesAction,
-} from "@/lib/actions/match-preferences";
-import {
+  hasValues,
   projectOccupationExperience,
   recordFromOccupationExperience,
   toggle,
-  type Option,
+  type EmploymentTypesValue,
+  type ExperienceValue,
+  type LocationsValue,
+  type OccupationsValue,
+  type PartValue,
+  type SkillsValue,
 } from "./match-preferences-shared";
-import type { SkillGroup } from "@/lib/dto/skills";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
 import { ExperienceField } from "./experience-field";
 import { FacetSection } from "./facet-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
-import type { OrtChoice } from "@/lib/job-ads/ort-selection";
 
 interface MatchPreferencesDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  /** The part as the card shows it. The draft is seeded from it at mount; the card mounts one
+   *  dialog per opening. */
+  readonly value: PartValue;
   readonly occupationFields: ReadonlyArray<TaxonomyOccupationField>;
   readonly regions: ReadonlyArray<TaxonomyRegion>;
   readonly employmentTypes: ReadonlyArray<TaxonomyOption>;
-  /** Den PERSISTERADE mängden (SSOT) — dialogens draft seedas från den vid öppning. */
-  readonly persistedOccupationGroups: ReadonlyArray<string>;
-  readonly persistedRegions: ReadonlyArray<string>;
-  /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
-  readonly persistedMunicipalities: ReadonlyArray<string>;
-  /**
-   * #551 punkt 4: distans-axeln (pre-fill). Obligatorisk med flit — ett
-   * valfritt fält hade låtit en glömd wiring tyst bli `false`, alltså "användaren
-   * vill inte ha distans", vilket är ett annat påstående än "ingen frågade".
-   */
-  readonly persistedRemote: boolean;
-  readonly persistedEmploymentTypes: ReadonlyArray<string>;
-  /** STEG 3 / ADR 0079: kompetens-axeln + (profil-nivå) erfarenhet (pre-fill).
-   *  exp-per-occ (ADR 0079-amendment PR-4): den profil-nivå ExperienceField är
-   *  KVAR i dialogen (Klas scopade borttagningen till WIZARDEN). */
-  readonly persistedSkills: ReadonlyArray<string>;
-  readonly persistedExperienceYears: number | null;
-  /** exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (pre-fill).
-   *  Full-replace via dialogens egna PUT (ingen page-wipe). */
-  readonly persistedOccupationExperience: ReadonlyArray<{
-    readonly conceptId: string;
-    readonly years: number | null;
-  }>;
-  /** STEG 3 / ADR 0079 + #277: GRUPPER för sparade kompetens-concept-id
-   *  (chip-render). Ett sparat twin-par renderas som EN chip via gruppens
-   *  member-id (BE-resolvad cold-load via ResolveSkillLabels). */
-  readonly persistedSkillGroups?: ReadonlyArray<SkillGroup>;
-  /**
-   * Anropas efter lyckad save med den sparade fulla mängden, så kortet kan
-   * anta den lokalt (annars driver kortets klient-state isär från SSOT tills
-   * en remount — revalidatePath om-renderar RSC men byter inte useState-värden).
-   */
-  readonly onSaved: (saved: {
-    occupations: ReadonlyArray<string>;
-    regions: ReadonlyArray<string>;
-    municipalities: ReadonlyArray<string>;
-    employment: ReadonlyArray<string>;
-    skills: ReadonlyArray<string>;
-    experienceYears: number | null;
-    remote: boolean;
-    // exp-per-occ (ADR 0079-amendment PR-4): den sparade per-yrke-overlayn
-    // (scopad till valda yrken), så kortet kan adoptera den lokalt.
-    occupationExperience: ReadonlyArray<{
-      readonly conceptId: string;
-      readonly years: number | null;
-    }>;
-    /** GRUPPER för de sparade kompetenserna så kortet kan rendera EN chip per
-     *  twin-par (skills saknar träd-uppslagning). Spegel av SkillSections
-     *  grupp-store (#277). */
-    skillGroups: ReadonlyArray<SkillGroup>;
-  }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
   readonly importCvHref: string;
+  /** Writes the part. The card queues it behind the part's earlier writes (ADR 0147 D9). */
+  readonly onSave: (value: PartValue) => Promise<ActionResult>;
   /**
    * #748 (WCAG 2.4.3): forwarded to Radix `DialogContent`. This is a CONTROLLED
    * dialog with no `DialogTrigger`, so Radix's default close-autofocus targets a
-   * null `triggerRef` and focus falls to `document.body`. The parent passes a
-   * handler that returns focus to the invoking control instead.
+   * null `triggerRef` and focus falls to `document.body`. The card passes a
+   * handler that returns focus to the part's own button instead.
    */
-  readonly onCloseAutoFocus?: (event: Event) => void;
+  readonly onCloseAutoFocus: (event: Event) => void;
 }
 
-export function MatchPreferencesDialog({
+/** One dialog, parameterised by the part it edits (#1918). */
+export function MatchPreferencesDialog(props: MatchPreferencesDialogProps) {
+  const { value } = props;
+  switch (value.part) {
+    case "occupations":
+      return <OccupationsDialog {...props} value={value} />;
+    case "skills":
+      return <SkillsDialog {...props} value={value} />;
+    case "locations":
+      return <LocationsDialog {...props} value={value} />;
+    case "employmentTypes":
+      return <EmploymentTypesDialog {...props} value={value} />;
+    case "experience":
+      return <ExperienceDialog {...props} value={value} />;
+  }
+}
+
+type PartDialogProps<V extends PartValue> = Omit<MatchPreferencesDialogProps, "value"> & {
+  readonly value: V;
+};
+
+function OccupationsDialog({
   open,
   onOpenChange,
-  occupationFields,
-  regions,
-  employmentTypes,
-  persistedOccupationGroups,
-  persistedRegions,
-  persistedRemote,
-  persistedMunicipalities,
-  persistedEmploymentTypes,
-  persistedSkills,
-  persistedExperienceYears,
-  persistedOccupationExperience,
-  persistedSkillGroups = [],
-  onSaved,
-  importCvHref,
   onCloseAutoFocus,
-}: MatchPreferencesDialogProps) {
+  value,
+  occupationFields,
+  importCvHref,
+  onSave,
+}: PartDialogProps<OccupationsValue>) {
+  const t = useTranslations("settings");
+  const titleId = useId();
+  const [groups, setGroups] = useState<ReadonlyArray<string>>(value.groups);
+  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (draft). CV-förslagets år
+  // mergas in via onSeedExperience utan att skriva över ett befintligt värde.
+  const [years, setYears] = useState<Readonly<Record<string, number | null>>>(() =>
+    recordFromOccupationExperience(value.experience)
+  );
+
+  return (
+    <PartDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title={t("matchPrefs.facetOccupations")}
+      titleId={titleId}
+      saveLabel={t("matchPrefs.dialog.saveOccupations")}
+      wide
+      save={() =>
+        onSave({
+          part: "occupations",
+          groups,
+          // Only the occupations still chosen carry years (the subset rule).
+          experience: projectOccupationExperience(years, groups),
+        })
+      }
+    >
+      <OccupationSection
+        occupationFields={occupationFields}
+        selected={groups}
+        onToggle={(conceptId) => setGroups((prev) => toggle(prev, conceptId))}
+        onReplace={setGroups}
+        onClear={() => setGroups([])}
+        importCvHref={importCvHref}
+        idPrefix="match-dialog"
+        initialPickerOpen={!hasValues(value)}
+        experienceByConceptId={years}
+        onExperienceChange={(conceptId, next) =>
+          setYears((prev) => ({ ...prev, [conceptId]: next }))
+        }
+        onSeedExperience={(seed) =>
+          setYears((prev) => {
+            const next = { ...prev };
+            for (const [conceptId, seeded] of Object.entries(seed)) {
+              if (!(conceptId in next)) next[conceptId] = seeded;
+            }
+            return next;
+          })
+        }
+      />
+    </PartDialog>
+  );
+}
+
+function SkillsDialog({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
+  value,
+  onSave,
+}: PartDialogProps<SkillsValue>) {
+  const t = useTranslations("settings");
+  const titleId = useId();
+  const [skills, setSkills] = useState<ReadonlyArray<string>>(value.skills);
+  // SkillSection's group store, mirrored so the card names the saved chips (#277).
+  const [skillGroups, setSkillGroups] = useState(value.skillGroups);
+
+  return (
+    <PartDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title={t("matchPrefs.facetSkills")}
+      titleId={titleId}
+      saveLabel={t("matchPrefs.dialog.saveSkills")}
+      wide={false}
+      save={() => onSave({ part: "skills", skills, skillGroups })}
+    >
+      <SkillSection
+        selected={skills}
+        onReplace={setSkills}
+        onClear={() => setSkills([])}
+        idPrefix="match-dialog-skill"
+        initialPickerOpen={!hasValues(value)}
+        initialGroups={value.skillGroups}
+        onGroupsChange={setSkillGroups}
+      />
+    </PartDialog>
+  );
+}
+
+function LocationsDialog({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
+  value,
+  regions,
+  onSave,
+}: PartDialogProps<LocationsValue>) {
+  const t = useTranslations("settings");
+  const titleId = useId();
+  const [ort, setOrt] = useState(value);
+
+  return (
+    <PartDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title={t("matchPrefs.facetOrter")}
+      titleId={titleId}
+      saveLabel={t("matchPrefs.dialog.saveOrter")}
+      wide
+      save={() => onSave(ort)}
+    >
+      {/* The cascade emits the whole ort pair in one call, so region and municipality are
+          saved together (NOTE-1). */}
+      <RegionMunicipalityCascade
+        regions={regions}
+        selectedRegions={ort.regions}
+        selectedMunicipalities={ort.municipalities}
+        remote={ort.remote}
+        onChange={(next) =>
+          setOrt((prev) => ({
+            ...prev,
+            regions: next.region,
+            municipalities: next.municipality,
+            remote: next.remote ?? prev.remote,
+          }))
+        }
+        idPrefix="match-dialog-ort"
+        initialPickerOpen={!hasValues(value)}
+      />
+    </PartDialog>
+  );
+}
+
+function EmploymentTypesDialog({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
+  value,
+  employmentTypes,
+  onSave,
+}: PartDialogProps<EmploymentTypesValue>) {
   const t = useTranslations("settings");
   const tEnum = useTranslations("jobads.enums");
-  const collator = new Intl.Collator(useLocale());
+  const locale = useLocale();
+  const titleId = useId();
   // Allmänsubstantiv, alltså locale-copy (#1537).
-  const employmentOptions: ReadonlyArray<Option> = codedTaxonomyOptions(
-    tEnum,
-    collator,
-    employmentTypes,
+  const options = useMemo(
+    () => codedTaxonomyOptions(tEnum, new Intl.Collator(locale), employmentTypes),
+    [tEnum, locale, employmentTypes]
   );
+  const [types, setTypes] = useState<ReadonlyArray<string>>(value.types);
 
-  // ── DRAFT-state. Seedas från den persisterade mängden VID ÖPPNING via en
-  // seed-nyckel — när `open` flippar till true återställs drafterna till SSOT.
-  // (Render-tids-derivation, inte setState-i-effect.)
-  const [seededFor, setSeededFor] = useState(false);
-  const [draftOccupations, setDraftOccupations] = useState<ReadonlyArray<string>>(
-    persistedOccupationGroups
+  return (
+    <PartDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title={t("matchPrefs.facetEmployment")}
+      titleId={titleId}
+      saveLabel={t("matchPrefs.dialog.saveEmployment")}
+      wide={false}
+      save={() => onSave({ part: "employmentTypes", types })}
+    >
+      <FacetSection
+        options={options}
+        selected={types}
+        onToggle={(conceptId) => setTypes((prev) => toggle(prev, conceptId))}
+        onClear={() => setTypes([])}
+        pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
+      />
+    </PartDialog>
   );
-  const [draftRegions, setDraftRegions] = useState<ReadonlyArray<string>>(
-    persistedRegions
-  );
-  const [draftMunicipalities, setDraftMunicipalities] = useState<
-    ReadonlyArray<string>
-  >(persistedMunicipalities);
-  const [draftRemote, setDraftRemote] = useState<boolean>(persistedRemote);
-  const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
-    persistedEmploymentTypes
-  );
-  const [draftSkills, setDraftSkills] = useState<ReadonlyArray<string>>(
-    persistedSkills
-  );
-  const [draftExperience, setDraftExperience] = useState<number | null>(
-    persistedExperienceYears
-  );
-  // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-erfarenhets-overlay (draft).
-  // Seedas vid öppning från den persisterade overlayn; CV-förslagets år mergas
-  // in via onSeedExperience (utan att skriva över ett befintligt värde).
-  const [draftOccupationExperience, setDraftOccupationExperience] = useState<
-    Readonly<Record<string, number | null>>
-  >(() => recordFromOccupationExperience(persistedOccupationExperience));
-  // Speglar SkillSections grupp-store så onSaved kan bära EN chip per twin-par
-  // ut till kortet (#277).
-  const [skillGroups, setSkillGroups] = useState<ReadonlyArray<SkillGroup>>(
-    persistedSkillGroups
-  );
+}
 
-  // Save.
+function ExperienceDialog({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
+  value,
+  onSave,
+}: PartDialogProps<ExperienceValue>) {
+  const t = useTranslations("settings");
+  const titleId = useId();
+  const [years, setYears] = useState(value.years);
+  const fieldRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <PartDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
+      title={t("matchPrefs.experience.label")}
+      titleId={titleId}
+      saveLabel={t("matchPrefs.dialog.saveExperience")}
+      wide={false}
+      focusOnOpen={fieldRef}
+      save={() => onSave({ part: "experience", years })}
+    >
+      <ExperienceField
+        value={years}
+        onChange={setYears}
+        labelledBy={titleId}
+        inputRef={fieldRef}
+      />
+    </PartDialog>
+  );
+}
+
+/**
+ * The frame every part shares: the part's name as the title, the editor as the whole body (no
+ * subheading, no lede: DESIGN.md §8 rules 1–2), and the save named by the part. A refused save
+ * keeps the dialog and its draft, and says why in the foot.
+ */
+function PartDialog({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
+  title,
+  titleId,
+  saveLabel,
+  wide,
+  save,
+  focusOnOpen,
+  children,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onCloseAutoFocus: (event: Event) => void;
+  readonly title: string;
+  /** Names the dialog, and the experience field through `aria-labelledby`. */
+  readonly titleId: string;
+  readonly saveLabel: string;
+  /** Yrken and Orter carry a two-column cascade. */
+  readonly wide: boolean;
+  readonly save: () => Promise<ActionResult>;
+  /** Focused on open. The title when absent. */
+  readonly focusOnOpen?: RefObject<HTMLElement | null>;
+  readonly children: ReactNode;
+}) {
+  const t = useTranslations("settings");
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const saveRef = useRef<HTMLButtonElement | null>(null);
+  const errorId = useId();
   const [isSaving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Seed/återställ drafterna när dialogen öppnas. Render-tids-flagga
-  // (react-hooks/set-state-in-effect-fri).
-  if (open && !seededFor) {
-    setSeededFor(true);
-    setDraftOccupations(persistedOccupationGroups);
-    setDraftRegions(persistedRegions);
-    setDraftMunicipalities(persistedMunicipalities);
-    setDraftRemote(persistedRemote);
-    setDraftEmployment(persistedEmploymentTypes);
-    setDraftSkills(persistedSkills);
-    setDraftExperience(persistedExperienceYears);
-    setDraftOccupationExperience(
-      recordFromOccupationExperience(persistedOccupationExperience)
-    );
-    setSaveError(null);
-  }
-  if (!open && seededFor) {
-    setSeededFor(false);
-  }
-
-  function toggleOccupation(conceptId: string) {
-    setDraftOccupations((prev) => toggle(prev, conceptId));
-  }
-
-  // exp-per-occ (ADR 0079-amendment PR-4): användaren ändrade ett yrkes år.
-  // `null` (tomt fält) lagras explicit (skilt från "ingen nyckel").
-  function onOccupationExperienceChange(conceptId: string, years: number | null) {
-    setDraftOccupationExperience((prev) => ({ ...prev, [conceptId]: years }));
-  }
-
-  // exp-per-occ (ADR 0079-amendment PR-4): CV-förslaget seedar härledda år —
-  // mergas in MEN skriver ALDRIG över ett befintligt värde (persisterat eller
-  // användar-angivet). `0` och `null` bevaras skilt.
-  function seedOccupationExperience(seed: Readonly<Record<string, number | null>>) {
-    setDraftOccupationExperience((prev) => {
-      const next = { ...prev };
-      for (const [conceptId, years] of Object.entries(seed)) {
-        if (!(conceptId in next)) next[conceptId] = years;
-      }
-      return next;
-    });
-  }
-
-  // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
-  // dialogen speglar det i två draft-states men submittar dem atomiskt (NOTE-1).
-  function onOrtChange(next: OrtChoice) {
-    setDraftRegions(next.region);
-    setDraftMunicipalities(next.municipality);
-    // Kaskaden bär distans-axeln bara när ytan skickat in den; `?? draftRemote`
-    // håller värdet oförändrat i stället för att läsa ett utelämnat fält som av.
-    setDraftRemote(next.remote ?? draftRemote);
-  }
+  // A pending save disables its button, and Chromium then drops focus to <body>. A refused save
+  // hands it back once the button is enabled again (WCAG 2.4.3).
+  const refocusSave = useRef(false);
+  useLayoutEffect(() => {
+    if (isSaving || !refocusSave.current) return;
+    refocusSave.current = false;
+    saveRef.current?.focus();
+  }, [isSaving]);
 
   function onSave() {
     setSaveError(null);
-    // exp-per-occ (ADR 0079-amendment PR-4): projicera overlayn till wire-formen,
-    // ENBART för fortfarande valda yrken (subset-regeln) — borttaget yrke tappar
-    // sin rad. Full-replace genom dialogens egen PUT (ingen page-wipe).
-    const occupationExperience = projectOccupationExperience(
-      draftOccupationExperience,
-      draftOccupations
-    );
     startSaving(async () => {
-      const result = await updateMatchPreferencesAction({
-        preferredOccupationGroups: [...draftOccupations],
-        // Region + kommun submittas atomiskt i samma full-replace-PUT (NOTE-1).
-        preferredRegions: [...draftRegions],
-        preferredMunicipalities: [...draftMunicipalities],
-        preferredRemote: draftRemote,
-        preferredEmploymentTypes: [...draftEmployment],
-        // STEG 3 / ADR 0079: kompetens + (profil-nivå) erfarenhet i SAMMA PUT
-        // (page-wipe-guard). exp-per-occ PR-4: + per-yrke-overlayn.
-        preferredSkills: [...draftSkills],
-        experienceYears: draftExperience,
-        preferredOccupationExperience: [...occupationExperience],
-      });
+      const result = await save();
       if (result.success) {
-        onSaved({
-          occupations: draftOccupations,
-          regions: draftRegions,
-          municipalities: draftMunicipalities,
-          remote: draftRemote,
-          employment: draftEmployment,
-          skills: draftSkills,
-          experienceYears: draftExperience,
-          occupationExperience,
-          skillGroups,
-        });
         onOpenChange(false);
       } else {
+        refocusSave.current = true;
         setSaveError(result.error);
       }
     });
@@ -268,104 +369,42 @@ export function MatchPreferencesDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="jp-matchdialog"
+        className={wide ? "jp-matchdialog" : "jp-matchdialog jp-matchdialog--narrow"}
+        aria-labelledby={titleId}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (focusOnOpen?.current ?? titleRef.current)?.focus();
+        }}
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="jp-matchdialog__head">
-          <DialogTitle className="jp-matchdialog__title">
-            {t("matchPrefs.dialog.title")}
+          {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent, inte en egen
+              knapp — undviker dubblerad "Stäng" för skärmläsare och ärver ESC-stängning. */}
+          <DialogTitle
+            ref={titleRef}
+            id={titleId}
+            tabIndex={-1}
+            className="jp-matchdialog__title"
+          >
+            {title}
           </DialogTitle>
-          {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent (civic-
-              restylad i globals.css), inte en egen knapp — undviker dubblerad
-              "Stäng" för skärmläsare och ärver ESC-stängning. Fokus-retur till
-              den öppnande kontrollen sköts av onCloseAutoFocus (WCAG 2.4.3) —
-              denna trigger-lösa controlled dialog har ingen triggerRef att ärva
-              den från (#748). */}
         </div>
 
-        <div className="jp-matchdialog__body">
-          <section
-            className="jp-matchdialog__section"
-            role="group"
-            aria-labelledby="match-dialog-occ-head"
-          >
-            <OccupationSection
-              occupationFields={occupationFields}
-              selected={draftOccupations}
-              onToggle={toggleOccupation}
-              onReplace={(next) => setDraftOccupations(next)}
-              onClear={() => setDraftOccupations([])}
-              importCvHref={importCvHref}
-              idPrefix="match-dialog"
-              headingId="match-dialog-occ-head"
-              // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-år-fält, konsekvent
-              // med wizarden. Full-replace genom dialogens egen PUT (ingen page-wipe).
-              experienceByConceptId={draftOccupationExperience}
-              onExperienceChange={onOccupationExperienceChange}
-              onSeedExperience={seedOccupationExperience}
-            />
-          </section>
-
-          <section
-            className="jp-matchdialog__section"
-            role="group"
-            aria-labelledby="match-dialog-skill-head"
-          >
-            <SkillSection
-              selected={draftSkills}
-              onReplace={(next) => setDraftSkills(next)}
-              onClear={() => setDraftSkills([])}
-              idPrefix="match-dialog-skill"
-              headingId="match-dialog-skill-head"
-              initialGroups={persistedSkillGroups}
-              onGroupsChange={setSkillGroups}
-            />
-            {/* Erfarenhet bor i samma sektion som kompetens (samma steg/host). */}
-            <div className="mt-4">
-              <ExperienceField
-                value={draftExperience}
-                onChange={setDraftExperience}
-                idPrefix="match-dialog-experience"
-              />
-            </div>
-          </section>
-
-          <section
-            className="jp-matchdialog__section"
-            role="group"
-            aria-labelledby="match-dialog-region-head"
-          >
-            <RegionMunicipalityCascade
-              regions={regions}
-              selectedRegions={draftRegions}
-              selectedMunicipalities={draftMunicipalities}
-              remote={draftRemote}
-              onChange={onOrtChange}
-              headingId="match-dialog-region-head"
-              idPrefix="match-dialog-ort"
-            />
-          </section>
-
-          <section
-            className="jp-matchdialog__section"
-            role="group"
-            aria-labelledby="match-dialog-employment-head"
-          >
-            <FacetSection
-              title={t("matchPrefs.facetEmployment")}
-              options={employmentOptions}
-              selected={draftEmployment}
-              onToggle={(id) => setDraftEmployment((prev) => toggle(prev, id))}
-              onClear={() => setDraftEmployment([])}
-              pinnedAriaLabel={t("matchPrefs.selectedEmployment")}
-              headingId="match-dialog-employment-head"
-            />
-          </section>
-        </div>
+        <div className="jp-matchdialog__body">{children}</div>
 
         <div className="jp-matchdialog__foot">
-          <Button type="button" onClick={onSave} disabled={isSaving}>
-            {isSaving ? t("matchPrefs.dialog.saving") : t("matchPrefs.dialog.save")}
+          <Button
+            ref={saveRef}
+            type="button"
+            onClick={onSave}
+            disabled={isSaving}
+            aria-describedby={saveError ? errorId : undefined}
+          >
+            <PendingLabel
+              pending={isSaving}
+              idle={saveLabel}
+              busy={t("matchPrefs.dialog.saving")}
+            />
           </Button>
           <Button
             type="button"
@@ -376,7 +415,7 @@ export function MatchPreferencesDialog({
             {t("matchPrefs.dialog.cancel")}
           </Button>
           {saveError && (
-            <p role="alert" className="text-body-sm text-danger-600">
+            <p id={errorId} role="alert" className="text-body-sm text-danger-600">
               {saveError}
             </p>
           )}

@@ -76,7 +76,9 @@ where the actor is retired, does the seam name the pin?**
 *Blocker:* PII handling without GDPR test; a production fact asserted off a
 premise production cannot produce (§5 `Tests:`, hence §12 — a §5 finding is
 never graded below merge-blocking). *Major:* handler without test (→
-test-writer), InMemory provider use, `DateTime.Now` non-determinism.
+test-writer), a test that asserts through the InMemory provider what it cannot witness (those go
+against Testcontainers; the house fake for unit tests is allowed, ADR 0009 Amendment
+2026-09-29), `DateTime.Now` non-determinism.
 
 **5. Conventions (§3–4):** C# — file-scoped namespaces, NRT without bare `!`,
 `Async` suffix, `CancellationToken` propagated end-to-end, `IReadOnlyList<T>`

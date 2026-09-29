@@ -92,3 +92,32 @@ which side of it a caller sits on.
 
 **Referenser:** ADR 0146 D2, D4; `IAppDbContext.cs:49-66`; `UnitOfWorkBehavior.cs:44`;
 `AccountHardDeleter.cs:315-320`.
+
+## Amendment 2026-09-29 — the InMemory fake is allowed for handler unit tests
+
+**Trigger:** code-reviewer's ungraded escalation on PR #1924 (#1918), 2026-09-29. Two texts stood
+against each other:
+- **For the ban:** the original decision's line *"EF Core In-Memory provider är förbjuden (false
+  positives på transaktioner, constraints, concurrency)"*, which code-reviewer's charter grades as a
+  Major.
+- **Against it:** the house fake `IAppDbContext`. `TestAppDbContextFactory`
+  (`tests/Jobbliggaren.Application.UnitTests/Common/TestAppDbContextFactory.cs:16`,
+  `UseInMemoryDatabase`) serves 120 files in Application.UnitTests (measured 2026-09-29 with `git grep
+  -l TestAppDbContextFactory`). ADR 0103 builds on "the InMemory fake `IAppDbContext`", and AGENTS.md
+  §2.4 tests handlers "with fake DbContext + NSubstitute".
+
+**Klas's answer, 2026-09-29 (AskUserQuestion, verbatim):** *"(a) Faken får finnas (Rekommenderat)"*.
+Option (a) read: the fake is allowed for handler unit tests, and ADR 0009 and the charter are corrected
+so that the ban covers what InMemory cannot witness, which is pinned against Testcontainers.
+
+**What changes:** the ban is narrowed to its reason.
+- **Allowed:** the InMemory provider as the house fake for handler unit tests, where it stands in for
+  the port and the assertion is about the handler's own logic.
+- **Forbidden:** asserting through it anything it cannot witness — transactions, constraints,
+  concurrency (ADR 0146's xmin token and replay), jsonb and other provider translation, and request
+  binding. Those are pinned against a real PostgreSQL through Testcontainers, which stays the gold
+  standard for integration tests.
+- **Updated in the same PR:** code-reviewer's and test-writer's charters.
+
+**Referenser:** ADR 0103; ADR 0146; AGENTS.md §2.4; `.claude/agents/code-reviewer.md` (area 4);
+`.claude/agents/test-writer.md` ("What NOT to write").

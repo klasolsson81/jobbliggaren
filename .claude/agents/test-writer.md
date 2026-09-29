@@ -60,8 +60,11 @@ in full — that produces confirmation tests, not specification tests.
 
 - Tests that duplicate framework behavior — do not test that EF Core saves
   to the database; test your own domain logic
-- Tests using the EF Core In-Memory provider — it does not enforce constraints
-  and produces false positives; always use Testcontainers for integration tests
+- Tests that assert through the EF Core In-Memory provider what it cannot witness —
+  constraints, transactions, concurrency (the xmin replay), jsonb, provider translation,
+  request binding. It produces false positives there; those go against Testcontainers.
+  The house fake (`TestAppDbContextFactory`) stays for handler unit tests
+  (ADR 0009 Amendment 2026-09-29).
 - Time-dependent tests without a controllable clock — use `IDateTimeProvider`
   (injected) or `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing`
 - Happy-path-only test classes — every class must cover at least one success

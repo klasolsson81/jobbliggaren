@@ -3593,12 +3593,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-wrap: wrap;
   gap: 8px;
 }
-/* A flex item is never narrower than its content by default, so without this the chip's
-   `max-width: 100%` never engaged and a long label ran past its container (#1914). */
-.jp-chiplist > li {
-  min-width: 0;
-  max-width: 100%;
-}
 
 /* Dekorativ puls (opacitet, ingen scale) — stängs av vid reduced-motion. */
 @keyframes jp-wizard-count-pulse {

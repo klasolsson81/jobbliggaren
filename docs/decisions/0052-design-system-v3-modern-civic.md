@@ -278,7 +278,7 @@ No CSS change either way: the code ships 6px today and stays there until #1103 r
 
 ### The decision
 
-The question put to Klas, verbatim: *"Får en chip som bryts över flera rader få 19 px-hörn, som en ny radie under pill-undantaget i DESIGN.md §5, i stället för att bli en allt rundare kapsel?"* Option (a) read *"Ja, med token i DESIGN.md §5 och tokens-skillen"*; option (b) read *"Nej, behåll kapseln: kapseln behålls, och texten når ramen från tre rader"*. Klas answered *"(a) Ja, 19 px (Rekommenderat)"*.
+The question put to Klas, verbatim: *"Får en chip som bryts över flera rader få 19 px-hörn, som en ny radie under pill-undantaget i DESIGN.md §5, i stället för att bli en allt rundare kapsel?"* Option (a) read *"Ja, med token i DESIGN.md §5 och tokens-skillen"*; option (b) read *"Kapseln behålls, och texten når ramen från tre rader"*. Klas answered *"(a) Ja, 19 px (Rekommenderat)"*.
 
 The radius canon gains one token, `--jp-r-chip: 19px`, defined in `:root` beside `--jp-r-pill` in `web/jobbliggaren-web/src/app/globals.css` and used only by `.jp-chip`. 19px is half the height of the tallest single-line chip: 38px at ≤768, where the remove/edit button is 32px. CSS scales a radius down to half the box height, so a single-line chip still draws an exact pill (effective radius measured 14.1 / 15 / 19px at chip heights 28 / 30 / 38px), while a chip that wraps keeps 19px corners instead of becoming an ever-rounder capsule.
 

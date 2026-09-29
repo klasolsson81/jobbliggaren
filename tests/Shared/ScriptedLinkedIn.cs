@@ -94,10 +94,10 @@ internal sealed class ScriptedLinkedIn(string clientId, string clientSecret) : H
     /// for it carries <paramref name="idTokenSubject"/>, or else the document's <c>sub</c>, as its subject;
     /// <paramref name="redirectUri"/>, when given, must match the exchange's.
     /// </summary>
-    public void Expect(string code, string userInfoJson, string? redirectUri = null, string? idTokenSubject = null)
+    public void Expect(string code, string userInfoJson, Uri? redirectUri = null, string? idTokenSubject = null)
     {
         lock (_gate)
-            _codes[code] = new Grant(userInfoJson, redirectUri, idTokenSubject ?? SubjectOf(userInfoJson));
+            _codes[code] = new Grant(userInfoJson, redirectUri?.OriginalString, idTokenSubject ?? SubjectOf(userInfoJson));
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)

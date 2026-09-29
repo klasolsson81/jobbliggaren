@@ -53,7 +53,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     private Task<ExternalExchange> ExchangeAsync(
         string userInfoJson, CancellationToken? ct = null, string? idTokenSubject = null, string redirectUri = RedirectUri)
     {
-        _linkedin.Expect(Code, userInfoJson, redirectUri: redirectUri, idTokenSubject: idTokenSubject);
+        _linkedin.Expect(Code, userInfoJson, redirectUri: new Uri(redirectUri), idTokenSubject: idTokenSubject);
         return CreateSut().ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, ct ?? Ct);
     }
 
@@ -181,7 +181,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
     {
         // DECLARED (executor#2087, RFC 6749 §5.2): 401 invalid_client. It shares its status with an unknown code, so
         // only the class tells the two apart at activation.
-        _linkedin.Expect(Code, Member(), redirectUri: RedirectUri);
+        _linkedin.Expect(Code, Member(), redirectUri: new Uri(RedirectUri));
 
         (await CreateSut(clientSecret: "another-test-secret").ExchangeAsync(AuthorizationCode.FromRaw(Code), _verifier, Ct))
             .ShouldBeOfType<ExternalExchange.Failed>();

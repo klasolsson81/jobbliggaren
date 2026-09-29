@@ -291,7 +291,7 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     {
         var code = $"AQT{Guid.NewGuid():N}";
         factory.LinkedIn.Expect(
-            code, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), primary), redirectUri: redirectUri);
+            code, LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.NewSub(), primary), redirectUri: new Uri(redirectUri));
         return code;
     }
 

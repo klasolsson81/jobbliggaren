@@ -62,12 +62,12 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
         return new StartedFlow(body.GetProperty("state").GetString()!, query["redirect_uri"]!);
     }
 
-    // What LinkedIn does after the member consents: a code bound to this flow's redirect URI, whose token reads the
-    // given userinfo document.
+    // What LinkedIn does after the member consents: a code bound to the redirect URI, whose token reads the given
+    // userinfo document.
     private string LinkedInAuthorises(StartedFlow flow, string userInfoJson)
     {
         var code = $"AQT{Guid.NewGuid():N}";
-        factory.LinkedIn.Expect(code, userInfoJson, redirectUri: flow.RedirectUri);
+        factory.LinkedIn.Expect(code, userInfoJson, redirectUri: new Uri(flow.RedirectUri));
         return code;
     }
 

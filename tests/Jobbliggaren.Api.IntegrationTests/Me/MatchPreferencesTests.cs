@@ -9,14 +9,6 @@ using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 
-// F4-12 PR-B (ADR 0076) — PUT /api/v1/me/match-preferences end-to-end mot
-// Testcontainers Postgres. Endpoint-/integration-lagret: auth-gate (401),
-// full-replace-semantik (PUT bär hela settet, mergar inte), all-empty är en
-// giltig write (rensar preferenser → HasStatedDesiredOccupation false) och
-// 400 ProblemDetails vid ogiltig concept-id (ej 500). Round-trip bevisas mot
-// GET /api/v1/me/profile, vars DTO projicerar de tre listorna.
-//
-// Handler-/validator-enhetstester lever i Application.UnitTests (PR #121) — dupliceras ej.
 [Collection("Api")]
 public class MatchPreferencesTests(ApiFactory factory)
 {
@@ -31,20 +23,15 @@ public class MatchPreferencesTests(ApiFactory factory)
 
     private static object Body(
         string[]? occupationGroups = null,
-        string[]? regions = null,
-        string[]? employmentTypes = null,
         string[]? skills = null,
         int? experienceYears = null,
-        object[]? occupationExperience = null,
-        bool remote = false) => new
+        object[]? occupationExperience = null) => new
         {
-            preferredOccupationGroups = occupationGroups,
-            preferredRegions = regions,
-            preferredEmploymentTypes = employmentTypes,
-            preferredSkills = skills,
-            experienceYears,
-            preferredOccupationExperience = occupationExperience,
-            preferredRemote = remote,
+            occupations = new { preferredOccupationGroups = occupationGroups ?? [], preferredOccupationExperience = occupationExperience ?? [] },
+            skills = new { preferredSkills = skills ?? [] },
+            locations = new { preferredRegions = Array.Empty<string>(), preferredMunicipalities = Array.Empty<string>(), preferredRemote = false },
+            employmentTypes = new { preferredEmploymentTypes = Array.Empty<string>() },
+            experience = new { experienceYears },
         };
 
     private async Task<JsonElement> GetProfileAsync(CancellationToken ct)
@@ -58,57 +45,11 @@ public class MatchPreferencesTests(ApiFactory factory)
         [.. json.GetProperty(property).EnumerateArray().Select(e => e.GetString()!)];
 
     [Fact]
-    public async Task PUT_match_preferences_without_auth_returns_401()
-    {
-        var ct = TestContext.Current.CancellationToken;
-
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(occupationGroups: ["grp_12345"]),
-            ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-    }
-
-    // #551 punkt 4 — the WIRE contract for the distans axis, and this pin exists
-    // because its absence shipped a defect. The FE profile schema was made to require
-    // `preferredRemote` on the strength of a comment asserting the backend projected
-    // it. It did not. Every unit suite stayed green — the FE fixtures had been updated
-    // to match the assumption, which is a production fact asserted off a premise
-    // production could not produce (§5 `Tests:`) — and only the observe-only Playwright
-    // job, which blocks nothing, caught the parse failure.
-    //
-    // The axis is on the profile DTO for the same page-wipe reason as the lists: the
-    // write is a full-replace PUT, so without the round-trip, saving any other
-    // dimension sends preferredRemote: false and silently switches the user's Distans
-    // preference off.
-    [Fact]
-    public async Task PUT_match_preferences_round_trips_preferredRemote_through_the_profile()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(occupationGroups: ["grp_12345"], remote: true),
-            ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var profile = await GetProfileAsync(ct);
-        profile.TryGetProperty("preferredRemote", out var remote)
-            .ShouldBeTrue("profil-DTO:n MÅSTE bära preferredRemote — FE:s schema kräver en bool, "
-                + "och ett saknat fält får varje profilläsning att fela i parsningen");
-        remote.GetBoolean().ShouldBeTrue();
-    }
-
-    [Fact]
     public async Task Profile_carries_preferredRemote_false_for_a_user_who_never_set_it()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        // Ingen PUT alls: default-fallet är det som varje ny användare möter, och det
-        // är där ett utelämnat fält hade slagit hårdast.
         var profile = await GetProfileAsync(ct);
         profile.TryGetProperty("preferredRemote", out var remote)
             .ShouldBeTrue("profil-DTO:n MÅSTE bära preferredRemote även för en användare som "
@@ -118,100 +59,14 @@ public class MatchPreferencesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task PUT_match_preferences_with_valid_set_returns_204_and_round_trips()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_12345"],
-                regions: ["stockholm_AB"],
-                employmentTypes: ["et_fast"]),
-            ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var profile = await GetProfileAsync(ct);
-        ReadStringArray(profile, "preferredOccupationGroups").ShouldBe(["grp_12345"]);
-        ReadStringArray(profile, "preferredRegions").ShouldBe(["stockholm_AB"]);
-        ReadStringArray(profile, "preferredEmploymentTypes").ShouldBe(["et_fast"]);
-        profile.GetProperty("hasStatedDesiredOccupation").GetBoolean().ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task PUT_match_preferences_twice_full_replaces_not_merges()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var first = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_AAA"],
-                regions: ["region_X"],
-                employmentTypes: ["et_AAA"]),
-            ct);
-        first.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var second = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_BBB"],
-                regions: ["region_Y"],
-                employmentTypes: ["et_BBB"]),
-            ct);
-        second.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        // Full-replace: endast set Y kvar — set X ska INTE vara mergat in.
-        var profile = await GetProfileAsync(ct);
-        ReadStringArray(profile, "preferredOccupationGroups").ShouldBe(["grp_BBB"]);
-        ReadStringArray(profile, "preferredRegions").ShouldBe(["region_Y"]);
-        ReadStringArray(profile, "preferredEmploymentTypes").ShouldBe(["et_BBB"]);
-    }
-
-    [Fact]
-    public async Task PUT_match_preferences_all_empty_clears_and_returns_204()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        // Sätt först något → bevisa sedan att all-empty rensar.
-        var seed = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_12345"],
-                regions: ["stockholm_AB"],
-                employmentTypes: ["et_fast"]),
-            ct);
-        seed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var cleared = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: [],
-                regions: [],
-                employmentTypes: []),
-            ct);
-        cleared.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var profile = await GetProfileAsync(ct);
-        ReadStringArray(profile, "preferredOccupationGroups").ShouldBeEmpty();
-        ReadStringArray(profile, "preferredRegions").ShouldBeEmpty();
-        ReadStringArray(profile, "preferredEmploymentTypes").ShouldBeEmpty();
-        profile.GetProperty("hasStatedDesiredOccupation").GetBoolean().ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task PUT_match_preferences_with_invalid_concept_id_returns_400()
+    public async Task PATCH_match_preferences_with_invalid_concept_id_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         // "bad id!" bryter ^[A-Za-z0-9_-]{1,32}$ (blanksteg + '!') → validation-fail.
         // 400 ProblemDetails, INTE 500.
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(occupationGroups: ["bad id!"]),
             ct);
@@ -219,57 +74,13 @@ public class MatchPreferencesTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
-    // STEG 3 (ADR 0079) — confirmed skills + stated experience round-trip end-to-end
-    // through the PUT command and the GET profile DTO projection (the page-wipe guard).
     [Fact]
-    public async Task PUT_match_preferences_with_skills_and_experience_round_trips()
+    public async Task PATCH_match_preferences_with_out_of_range_experience_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_12345"],
-                skills: ["skill_java", "skill_spring"],
-                experienceYears: 5),
-            ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var profile = await GetProfileAsync(ct);
-        ReadStringArray(profile, "preferredSkills").ShouldBe(["skill_java", "skill_spring"]);
-        profile.GetProperty("experienceYears").GetInt32().ShouldBe(5);
-        ReadStringArray(profile, "preferredOccupationGroups").ShouldBe(["grp_12345"]);
-    }
-
-    // STEG 3 (ADR 0079) — experience can be omitted (null = not stated); the DTO
-    // projects null and the round-trip preserves "not stated".
-    [Fact]
-    public async Task PUT_match_preferences_without_experience_projects_null()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(occupationGroups: ["grp_12345"]),
-            ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var profile = await GetProfileAsync(ct);
-        profile.GetProperty("experienceYears").ValueKind.ShouldBe(JsonValueKind.Null);
-        ReadStringArray(profile, "preferredSkills").ShouldBeEmpty();
-    }
-
-    // STEG 3 (ADR 0079) — out-of-range experience is a 400 ProblemDetails, not 500.
-    [Fact]
-    public async Task PUT_match_preferences_with_out_of_range_experience_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(experienceYears: 999),
             ct);
@@ -277,16 +88,13 @@ public class MatchPreferencesTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
-    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay binds from
-    // the nested JSON array, persists to jsonb, and round-trips through the GET profile DTO
-    // projection (the read-side page-wipe partner). A null-years entry preserves "not stated".
     [Fact]
-    public async Task PUT_match_preferences_with_occupation_experience_round_trips()
+    public async Task PATCH_match_preferences_with_occupation_experience_round_trips()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(
                 occupationGroups: ["grp_12345", "grp_67890"],
@@ -310,46 +118,21 @@ public class MatchPreferencesTests(ApiFactory factory)
         withoutYears.GetProperty("years").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
-    // ADR 0079-amendment — an overlay entry for a group NOT in preferredOccupationGroups is a
-    // subset-invariant failure → 400 ProblemDetails (MatchPreferences.OrphanOccupationExperience),
-    // not 500.
     [Fact]
-    public async Task PUT_match_preferences_with_orphan_occupation_experience_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-
-        var response = await _client.PutAsJsonAsync(
-            "/api/v1/me/match-preferences",
-            Body(
-                occupationGroups: ["grp_12345"],
-                occupationExperience: [new { conceptId = "grp_not_preferred", years = (int?)3 }]),
-            ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task PUT_match_preferences_over_cap_returns_400()
+    public async Task PATCH_match_preferences_over_cap_returns_400()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         // MaxConceptIds = 400 → 401 element överskrider per-list-taket.
         var overCap = Enumerable.Range(0, 401).Select(i => $"grp_{i}").ToArray();
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
             Body(occupationGroups: overCap),
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
-
-    // ===============================================================
-    // #1918 — PATCH /api/v1/me/match-preferences, the per-part write: five optional
-    // part objects, a present part replaced whole, an absent one left alone. The bodies are raw
-    // JSON because which parts and members are PRESENT is the contract under test.
-    // ===============================================================
 
     private const string PatchPath = "/api/v1/me/match-preferences";
 
@@ -449,6 +232,63 @@ public class MatchPreferencesTests(ApiFactory factory)
             new() { ["experienceYears"] = "12" }),
         _ => throw new ArgumentOutOfRangeException(nameof(part), part, null),
     };
+
+    [Fact]
+    public async Task Retired_method_returns_405_and_writes_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedAllFivePartsAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(PatchPath, Body(occupationGroups: ["grp_c"]), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
+        await ShouldHoldAsync(NothingWritten, ct);
+    }
+
+    [Fact]
+    public async Task PATCH_match_preferences_all_empty_clears_all_parts_and_the_stated_occupation_flag()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedAllFivePartsAsync(ct);
+        (await GetProfileAsync(ct)).GetProperty("hasStatedDesiredOccupation").GetBoolean().ShouldBeTrue();
+
+        var response = await _client.PatchAsJsonAsync(PatchPath, Body(), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await ShouldHoldAsync(new Dictionary<string, string>
+        {
+            ["preferredOccupationGroups"] = "[]",
+            ["preferredOccupationExperience"] = "[]",
+            ["preferredSkills"] = "[]",
+            ["preferredRegions"] = "[]",
+            ["preferredMunicipalities"] = "[]",
+            ["preferredRemote"] = "false",
+            ["preferredEmploymentTypes"] = "[]",
+            ["experienceYears"] = "null",
+        }, ct);
+        (await GetProfileAsync(ct)).GetProperty("hasStatedDesiredOccupation").GetBoolean().ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("""{"occupations":{"preferredOccupationGroups":["grp_c"],"preferredOccupationExperiance":[]}}""")]
+    [InlineData("""{"skills":{"preferredSkills":["sk_z"],"preferredSkill":[]}}""")]
+    [InlineData("""{"locations":{"preferredRegions":[],"preferredMunicipalities":[],"preferredRemote":false,"preferedRemote":true}}""")]
+    [InlineData("""{"employmentTypes":{"preferredEmploymentTypes":[],"preferredEmploymentType":[]}}""")]
+    [InlineData("""{"experience":{"experienceYears":12,"experianceYears":3}}""")]
+    [InlineData("""{"occupations":{"preferredOccupationGroups":["grp_a"],"preferredOccupationExperience":[{"conceptId":"grp_a","yeers":2}]}}""")]
+    public async Task PATCH_match_preferences_with_a_misspelled_nested_member_returns_400_and_writes_nothing(string body)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedAllFivePartsAsync(ct);
+
+        var response = await PatchAsync(body, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        await ShouldHoldAsync(NothingWritten, ct);
+    }
 
     [Fact]
     public async Task PATCH_match_preferences_without_auth_returns_401()

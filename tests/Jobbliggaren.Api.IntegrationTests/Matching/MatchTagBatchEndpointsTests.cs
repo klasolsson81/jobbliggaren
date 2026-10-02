@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.Common;
@@ -25,7 +26,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <para>
 /// A user registered via <c>RegisterAndGetSessionIdAsync</c> already HAS a JobSeeker.
 /// We state their match preferences via the existing
-/// <c>PUT /me/match-preferences</c> endpoint, then seed JobAds whose facet columns
+/// <c>PATCH /me/match-preferences</c> endpoint, then seed JobAds whose facet columns
 /// (occupation_group / region / employment, Postgres generated columns derived from
 /// raw_payload) carry the SAME concept-ids — so the deterministic ladder produces a known
 /// grade per ad.
@@ -48,14 +49,14 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         string[] occupationGroups, string[] regions, string[] employmentTypes,
         CancellationToken ct)
     {
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
-            new
-            {
-                preferredOccupationGroups = occupationGroups,
-                preferredRegions = regions,
-                preferredEmploymentTypes = employmentTypes,
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(occupationGroups, []),
+                Skills: new([]),
+                Locations: new(regions, [], false),
+                EmploymentTypes: new(employmentTypes),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

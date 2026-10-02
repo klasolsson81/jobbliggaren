@@ -30,13 +30,7 @@ namespace Jobbliggaren.Application.UnitTests.Taxonomy;
 /// catch a bad choice, since <c>-</c> passes every backend gate); this test owns
 /// the other half — that the corpus really does obey the charset.</para>
 ///
-/// <para><b>Which seam, precisely.</b> The pattern exists as twelve independent
-/// literals across eleven files in Domain and Application (measured 2026-08-01;
-/// `SetMatchPreferencesCommandValidator` carries two, and a thirteenth is frozen
-/// inside migration `20260609214512_C2SearchParityReverseLookupAndRecentExpansion`),
-/// so no single call site is "the" production gate and this test does not claim
-/// one. It
-/// asserts through TWO, which matter for different reasons:
+/// <para>
 /// <see cref="ListJobAdsQueryValidator"/> is what a <c>/jobb</c> search actually
 /// hits, where a rejection is the 400 named above; and
 /// <see cref="SearchCriteria"/> is the capture/persistence gate, where a

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -44,20 +45,19 @@ public class CompanyWatchesMatchCountApiTests(ApiFactory factory)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
-    // Sets the authenticated user's Fast match preferences (full-replace PUT). occupation + region so
+    // Sets the authenticated user's Fast match preferences. occupation + region so
     // an ad tagged with (group, region) grades Good (one confirmed secondary; employment NotAssessed).
     private async Task SetPreferencesAsync(
         string occupationGroup, string region, CancellationToken ct)
     {
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             PrefsEndpoint,
-            new
-            {
-                preferredOccupationGroups = new[] { occupationGroup },
-                preferredRegions = new[] { region },
-                preferredEmploymentTypes = Array.Empty<string>(),
-                preferredSkills = Array.Empty<string>(),
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(new[] { occupationGroup }, []),
+                Skills: new(Array.Empty<string>()),
+                Locations: new(new[] { region }, [], false),
+                EmploymentTypes: new(Array.Empty<string>()),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

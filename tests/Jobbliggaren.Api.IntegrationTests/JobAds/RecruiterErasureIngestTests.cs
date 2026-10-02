@@ -9,6 +9,7 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -1633,7 +1634,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var seekerId = await SeedJobSeekerAsync(ct);
-        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
+        await UpdateMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
         var response = await EraseAsync("Vendela-Hjorthen", ct);
 
@@ -1655,7 +1656,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var seekerId = await SeedJobSeekerAsync(ct);
-        await SetMatchPreferencesAsync(seekerId, "Almqvist-Rehnberg", ct);
+        await UpdateMatchPreferencesAsync(seekerId, "Almqvist-Rehnberg", ct);
 
         var probe = await EraseAsync("Almqvist-Rehnberg", ct, dryRun: true);
 
@@ -1726,14 +1727,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var seeded = await SeedJobSeekerAsync(ct);
-        await SetMatchPreferencesAsync(seeded, "Konsult-Vendela-Hjorthen", ct);
+        await UpdateMatchPreferencesAsync(seeded, "Konsult-Vendela-Hjorthen", ct);
         await SeedJobSeekerAsync(ct);
         var neutral = await SeedJobSeekerAsync(ct);
 
         // One neutral profile carries NON-EMPTY match preferences. All-empty lists serialise to
         // arrays with no string values, which jsonb_path_query skips — so with only empty ones a
         // bare wildcard on that disjunct would leave this fact green.
-        await SetMatchPreferencesAsync(neutral, "Thorvaldsen-Ek", ct);
+        await UpdateMatchPreferencesAsync(neutral, "Thorvaldsen-Ek", ct);
 
         var probe = await EraseAsync("Vendela-Hjorthen", ct, dryRun: true);
 
@@ -1922,7 +1923,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var seekerId = await SeedJobSeekerAsync(ct);
-        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
+        await UpdateMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -2462,14 +2463,18 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         return seeker.Id;
     }
 
-    private async Task SetMatchPreferencesAsync(JobSeekerId seekerId, string occupationGroup, CancellationToken ct)
+    private async Task UpdateMatchPreferencesAsync(JobSeekerId seekerId, string occupationGroup, CancellationToken ct)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var seeker = await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.Id == seekerId, ct);
 
-        seeker.UpdateMatchPreferences(MatchPreferences.Create([occupationGroup], null, null).Value, clock);
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(seeker.UserId);
+        var command = new UpdateMatchPreferencesCommand(Occupations: new([occupationGroup], []));
+        var result = await new UpdateMatchPreferencesCommandHandler(db, currentUser, clock).Handle(command, ct);
+        result.IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
     }
 

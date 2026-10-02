@@ -373,3 +373,23 @@ PR B and PR C are scoped in D5 and D9.
   *Building Evolutionary Architectures* (2017), ch. 5 (expand/contract): both as cited by
   senior-cto-advisor.
 - WCAG 2.1, 2.4.3.
+
+## Delivery amendment — 2026-10-03 (D5 step 5, #1918 PR C)
+
+- **G2 measured:** read-only SSH on `jp-vps` at `2026-10-02T22:17:04Z`.
+  `jobbliggaren-web` ran manifest
+  `sha256:e04dde4079d0c4572d8df25f2845b9090dfeb7b0c94b7caf74b18b351ae40bf2`,
+  exactly matching `ghcr.io/klasolsson81/jobbliggaren-web:sha-5307e37`.
+  Commit `5307e375dd9d14caca91778ef8639a2a7e75b7be` contains PR B's
+  merge `ee51bc8fb`, satisfying D5 step 4.
+- **D5 step 5 delivered in PR C:** the PUT route, `SetMatchPreferences`
+  command/handler/validator and their unit tests are retired. Integration setup
+  and still-needed write/read facts use PATCH; facts already covered and the
+  parity guard's PUT case are deleted. The full-replace rationale and PR A's
+  named skips are deleted.
+- **Nested input binding (N3):** the five `*PartInput` records and
+  `OccupationExperienceInput` disallow unmapped JSON members. Six integration
+  rows reject misspelled members with 400 and verify no write. Removing each
+  type's guard independently makes its corresponding row fail: every mutation
+  ran six rows with one failure. After byte-restoring the sources, the control
+  ran all six rows with zero failures.

@@ -65,12 +65,16 @@ def main():
     if not re.fullmatch(r"[1-9][0-9]*", number):
         raise ValueError("Invalid PR number")
     token = os.environ["GH_TOKEN"]
+    checks_token = os.environ["CHECKS_TOKEN"]
+    app_id = int(os.environ["CODEX_REVIEW_APP_ID"])
+    if not checks_token or app_id <= 0 or app_id == 15368:
+        raise ValueError("A dedicated GitHub App must publish the review gate")
 
     def api(path, data=None, method=None):
         request = urllib.request.Request(
             f"https://api.github.com/repos/{repository}/{path}",
             data=None if data is None else json.dumps(data).encode(),
-            headers={"Authorization": f"Bearer {token}",
+            headers={"Authorization": f"Bearer {checks_token if 'check-runs' in path else token}",
                      "Accept": "application/vnd.github+json",
                      "X-GitHub-Api-Version": "2022-11-28"},
             method=method,
@@ -84,11 +88,11 @@ def main():
             return
         if codex_scope(repository, pr):
             results = api(f"commits/{pr['head']['sha']}/check-runs?check_name={CHECK_NAME}&per_page=100")
-            latest = max(results["check_runs"], key=lambda result: result["id"], default=None)
+            trusted = [result for result in results["check_runs"] if result.get("app", {}).get("id") == app_id]
+            latest = max(trusted, key=lambda result: result["id"], default=None)
             expected = review_identity(repository, pr)
             if (latest and latest.get("external_id") == expected and
-                    latest.get("conclusion") == "success" and
-                    latest.get("app", {}).get("slug") == "github-actions"):
+                    latest.get("conclusion") == "success"):
                 return
             api("check-runs", {"name": CHECK_NAME, "head_sha": pr["head"]["sha"],
                               "status": "completed", "conclusion": "failure",

@@ -55,8 +55,10 @@ additional findings; the driving session still owns fixes and re-review.
 
 ## Enforcement and commissioning
 
-Branch protection requires `ci` plus our own `codex-review-gate` check from
-GitHub Actions. This is not the name of a native Codex service check.
+Branch protection requires `ci` from GitHub Actions plus our own
+`codex-review-gate` check from a dedicated GitHub App, pinned by numeric App ID.
+This is not the name of a native Codex service check. A PR-controlled Actions job
+can copy a check name, so `github-actions` must never be its accepted publisher.
 The trusted default-branch workflow exempts same-repository PRs with neither
 the `codex-review` label nor the `codex/` prefix.
 It refuses exemptions for forks and for SHAs currently shared with a Codex PR.
@@ -65,10 +67,40 @@ checks are SHA-bound, not cryptographic proof of which tool wrote a PR.
 
 Install the workflow through a normally reviewed PR first. Before requiring
 the new check, verify an actual Codex report pair, a clean attestation, rejection
-of a stale head, and a CC exemption. Do not claim enforcement is active until
+of a stale head, and a CC exemption. Also verify that a successful Actions job
+with the same name cannot satisfy the requirement and that a PR job requesting
+the publisher environment is denied access. Do not claim enforcement is active until
 the branch-protection API reads both required checks back. Existing CC PRs need
 an exemption run before enabling the requirement. Keep unavailable native
 review evidence as an explicit open commissioning dependency.
+
+### Dedicated publisher setup
+
+Register a private GitHub App owned by the repository owner, installed only on
+`jobbliggaren`. Disable its webhook; it needs no server or OAuth callback.
+Grant only repository **Checks: read and write**, with the mandatory Metadata
+read permission. The workflow's ordinary `GITHUB_TOKEN` reads PRs and writer
+permissions; the App installation token reads and publishes checks only.
+
+Create environment `codex-review-publisher` with **Selected branches and tags**
+and exactly one **branch** rule: `main`. Add no tag or PR-ref rules; do not use
+the broader protected-branches option. Configure this restriction before storing
+any key. Store environment variables `CODEX_REVIEW_APP_ID` (numeric App ID) and
+`CODEX_REVIEW_APP_CLIENT_ID`, and environment secret
+`CODEX_REVIEW_APP_PRIVATE_KEY`. Never store the key as a repository secret,
+commit it, log it, or paste it into chat. Generate and install credentials through
+the owner's secure GitHub setup flow.
+
+The SHA-pinned token action scopes its short-lived token to this repository and
+revokes it after the job. Only trusted default-branch code runs with the key;
+no PR checkout, artifacts, caches, or scripts enter the publisher job. Repository
+administrators and existing main workflows remain trusted. Missing credentials
+must fail without publishing a fallback success.
+
+Before activation, read back the environment's exact branch policy and verify
+the check response's `app.id` equals `CODEX_REVIEW_APP_ID`. Configure required
+checks as `ci` with App ID `15368` and `codex-review-gate` with the dedicated
+App's ID, preserving strict up-to-date checks and all other protections.
 
 ## References
 

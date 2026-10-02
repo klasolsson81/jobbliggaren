@@ -451,6 +451,16 @@ fresh branches and not sharing a reviewed/exempt head across PRs. Forks receive
 no automatic exemption. The same-SHA open-Codex guard prevents an ordinary CC
 exemption from overwriting a waiting Codex result.
 
+The check publisher must be a dedicated GitHub App, pinned by numeric App ID in
+branch protection. A PR-controlled Actions job can copy both a check name and
+the `github-actions` identity; `external_id` is not a merge predicate. Therefore
+the Actions identity is rejected as publisher. The App receives Checks write
+only, is installed on this repository only, and keeps its key in an environment
+restricted to the exact `main` branch. Ordinary metadata reads retain the
+read-only workflow token. PR jobs cannot access the publisher environment;
+trusted main workflows and repository administrators remain within the boundary.
+Commissioning includes same-name Actions spoofing and environment-access refusal.
+
 Repository-wide native automatic triggers are replaced by Codex session requests
 because both tools use the same GitHub identity. This does not run an unattended
 fix worker. Code Review's documented P0/P1 reporting does not establish P2

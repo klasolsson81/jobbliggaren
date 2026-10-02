@@ -78,12 +78,14 @@ class ReviewAttestationTests(unittest.TestCase):
     def test_revocation_needs_no_clean_report_claim(self):
         self.check(inputs={"head_sha": "a" * 40, "base_sha": "c" * 40, "base_ref": "main", "verdict": "blocked"})
 
-    def run_event(self, responses, event_name="workflow_dispatch"):
+    def run_event(self, responses, event_name="workflow_dispatch", env_overrides=None):
         event = {"inputs": self.inputs | {"pr_number": "123"},
                  "repository": {"default_branch": "main"}, "pull_request": {"number": 123}}
         requests = []
+        tokens = []
 
         def request_api(request, timeout):
+            tokens.append(request.get_header("Authorization"))
             requests.append((request.get_method(), request.full_url,
                              None if request.data is None else json.loads(request.data)))
             result = responses.pop(0)
@@ -92,15 +94,18 @@ class ReviewAttestationTests(unittest.TestCase):
             return io.BytesIO(json.dumps(result).encode())
 
         env = {"GITHUB_EVENT_PATH": "event.json", "GITHUB_REPOSITORY": self.repo,
-               "GH_TOKEN": "test-token", "GITHUB_ACTOR": "owner",
+               "GH_TOKEN": "test-token", "CHECKS_TOKEN": "test-checks-token",
+               "CODEX_REVIEW_APP_ID": "98765", "GITHUB_ACTOR": "owner",
                "GITHUB_REF": "refs/heads/main", "GITHUB_RUN_ID": "42",
                "GITHUB_EVENT_NAME": event_name}
+        env.update(env_overrides or {})
         with patch.dict("os.environ", env), patch("builtins.open", return_value=io.StringIO(json.dumps(event))), \
                 patch("urllib.request.urlopen", side_effect=request_api):
             try:
                 main()
             finally:
                 self.requests = requests
+                self.tokens = tokens
         self.assertEqual([], responses)
         return requests
 
@@ -109,6 +114,8 @@ class ReviewAttestationTests(unittest.TestCase):
         self.assertEqual(self.inputs["head_sha"], calls[2][2]["head_sha"])
         self.assertTrue(calls[2][2]["external_id"].startswith("codex:123:" + self.inputs["head_sha"] + ":"))
         self.assertEqual("success", calls[4][2]["conclusion"])
+        self.assertEqual(["Bearer test-token", "Bearer test-token", "Bearer test-checks-token",
+                          "Bearer test-token", "Bearer test-checks-token"], self.tokens)
 
     def test_move_between_check_creation_and_completion_fails_check(self):
         moved = copy.deepcopy(self.pr)
@@ -148,14 +155,14 @@ class ReviewAttestationTests(unittest.TestCase):
 
     def test_unrelated_label_event_preserves_current_attestation(self):
         result = {"id": 5, "external_id": review_identity(self.repo, self.pr),
-                  "conclusion": "success", "app": {"slug": "github-actions"}}
+                  "conclusion": "success", "app": {"id": 98765}}
         calls = self.run_event([self.pr, {"check_runs": [result]}], "pull_request_target")
         self.assertTrue(all(method == "GET" for method, _, _ in calls))
 
     def test_prior_exemption_or_another_pr_attestation_is_not_codex_approval(self):
         for external_id in ("non-codex:123:", "codex:456:"):
             result = {"id": 5, "external_id": external_id + "a" * 40,
-                      "conclusion": "success", "app": {"slug": "github-actions"}}
+                      "conclusion": "success", "app": {"id": 98765}}
             calls = self.run_event([self.pr, {"check_runs": [result]}, {}], "pull_request_target")
             self.assertEqual("failure", calls[-1][2]["conclusion"])
 
@@ -181,7 +188,7 @@ class ReviewAttestationTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.check(pr=moved)
             result = {"id": 5, "external_id": review_identity(self.repo, self.pr),
-                      "conclusion": "success", "app": {"slug": "github-actions"}}
+                      "conclusion": "success", "app": {"id": 98765}}
             calls = self.run_event([moved, {"check_runs": [result]}, {}], "pull_request_target")
             self.assertEqual("failure", calls[-1][2]["conclusion"])
 
@@ -206,6 +213,22 @@ class ReviewAttestationTests(unittest.TestCase):
         trigger = re.search(r"pull_request_target:\s+types:\s*\[([^]]+)\]", workflow)
         self.assertIsNotNone(trigger)
         self.assertIn("edited", {event.strip() for event in trigger.group(1).split(",")})
+
+    def test_actions_check_cannot_impersonate_the_publisher(self):
+        spoof = {"id": 99, "external_id": review_identity(self.repo, self.pr),
+                 "conclusion": "success", "app": {"id": 15368}}
+        calls = self.run_event([self.pr, {"check_runs": [spoof]}, {}], "pull_request_target")
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+        trusted = spoof | {"id": 5, "app": {"id": 98765}}
+        calls = self.run_event([self.pr, {"check_runs": [trusted, spoof]}], "pull_request_target")
+        self.assertTrue(all(method == "GET" for method, _, _ in calls))
+
+    def test_missing_publisher_or_actions_identity_fails_before_api_calls(self):
+        for settings in ({"CHECKS_TOKEN": ""}, {"CODEX_REVIEW_APP_ID": "15368"},
+                         {"CODEX_REVIEW_APP_ID": ""}, {"CODEX_REVIEW_APP_ID": "0"}):
+            with self.subTest(settings=settings), self.assertRaises(ValueError):
+                self.run_event([], env_overrides=settings)
+            self.assertEqual([], self.requests)
 
 
 if __name__ == "__main__":

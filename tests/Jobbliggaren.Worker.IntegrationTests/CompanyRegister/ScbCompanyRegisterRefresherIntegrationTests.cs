@@ -36,9 +36,15 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         var ct = TestContext.Current.CancellationToken;
         await ResetAsync(ct);
 
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var run2Time = await db.Database.SqlQueryRaw<DateTimeOffset>(
+            "SELECT now() AS \"Value\"").SingleAsync(ct);
+        var run1Time = run2Time.AddDays(-7);
+
         // --- Run 1: clean, fetched 1000 ≥ absolute floor, no prior baseline → sweep APPLIES ---
         var run1 = await BuildRefresher(
-            new FakeSource([Legal("5560000078"), PnrShaped()], fetched: 1000), T0).RefreshAsync(ct);
+            new FakeSource([Legal("5560000078"), PnrShaped()], fetched: 1000), run1Time).RefreshAsync(ct);
 
         run1.RowsExcludedPersonnummerShaped.ShouldBe(1); // the GDPR guard fired end-to-end
         run1.RowsUpserted.ShouldBe(1);
@@ -51,7 +57,7 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
 
         // --- Run 2: fetched 100 < 0.80 × 1000 → relative floor SKIPS the sweep ---
         var run2 = await BuildRefresher(
-            new FakeSource([Legal("5560000078")], fetched: 100), T1).RefreshAsync(ct);
+            new FakeSource([Legal("5560000078")], fetched: 100), run2Time).RefreshAsync(ct);
 
         run2.SweepApplied.ShouldBeFalse();
         // Proves GetMaxObservedTotalRowsFetchedAsync read run 1's TotalRowsFetched=1000 from audit_log

@@ -1,0 +1,21 @@
+name: Codex publisher boundary probe
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  same-name-check:
+    name: codex-review-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo 'This Actions-origin check must not satisfy the dedicated App requirement.'
+  environment-refusal:
+    name: Publisher environment must reject a PR ref
+    runs-on: ubuntu-latest
+    environment: codex-review-publisher
+    timeout-minutes: 2
+    steps:
+      - run: exit 1

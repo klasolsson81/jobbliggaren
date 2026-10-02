@@ -80,13 +80,10 @@ export const jobSeekerProfileSchema = z.object({
   // tillbaka för pre-fill så region + kommun submittas atomiskt (NOTE-1).
   preferredMunicipalities: z.array(z.string()).readonly(),
   // #551 punkt 4: distans-axeln. Required, INTE optional: ett utelämnat fält hade
-  // maskerat kontraktsdrift som "användaren vill inte ha distans". Läses tillbaka
-  // för pre-fill så ett spar av någon annan dimension aldrig nollar den (samma
-  // full-replace page-wipe-vakt som region/kommun).
+  // maskerat kontraktsdrift som "användaren vill inte ha distans".
   //
   // ⚠ Det som gör `required` SANT är inte den här kommentaren utan pinnar på andra
   // sidan wire:t. Namnen står OBRUTNA så ett svep hittar dem:
-  //   MatchPreferencesTests.PUT_match_preferences_round_trips_preferredRemote_through_the_profile
   //   MatchPreferencesTests.Profile_carries_preferredRemote_false_for_a_user_who_never_set_it
   //   MatchPreferencesContractParityTests — fäller varje dimension som inte når
   //   läsprojektionen ELLER skrivkontraktet. Den ordningen är inte akademisk: det här fältet gjordes
@@ -100,8 +97,7 @@ export const jobSeekerProfileSchema = z.object({
   // returns both additively (`IReadOnlyList<string>` never null; the int is
   // nullable) → required keys (`undefined` would mask contract drift).
   // `.readonly()` mirrors `IReadOnlyList<string>`. `experienceYears` is `null`
-  // when not stated. Read back for pre-fill so saving any other dimension
-  // never zeroes them (the full-replace page-wipe guard).
+  // when not stated.
   preferredSkills: z.array(z.string()).readonly(),
   experienceYears: z.number().int().nullable(),
   // exp-per-occ (ADR 0079-amendment PR-4): the persisted per-occupation
@@ -110,9 +106,7 @@ export const jobSeekerProfileSchema = z.object({
   // not specified; the engine never scores it, ADR 0071). Backend always
   // returns the array (`IReadOnlyList<...>` never null) → required key, with a
   // tolerant `.default([])` so an older backend that omits it still parses
-  // (forward-compat, ADR 0020 §4). Read back for pre-fill so the wizard/dialog
-  // seed each occupation's year input and a save never zeroes the overlay
-  // (full-replace page-wipe guard).
+  // (forward-compat, ADR 0020 §4).
   preferredOccupationExperience: z
     .array(
       z.object({

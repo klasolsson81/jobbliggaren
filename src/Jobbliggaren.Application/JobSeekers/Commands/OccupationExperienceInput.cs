@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Application.JobSeekers.Commands;
 
 /// <summary>
@@ -6,4 +8,5 @@ namespace Jobbliggaren.Application.JobSeekers.Commands;
 /// the handlers map it to the VO so <c>MatchPreferences.Create</c> enforces the
 /// cap/format/distinct/range/subset invariants. <see cref="Years"/> is nullable: null = "not stated".
 /// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OccupationExperienceInput(string ConceptId, int? Years);

@@ -6,6 +6,7 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -262,18 +263,17 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
-    /// <summary>Full-replace PUT: occupation + region so a matching ad grades Good.</summary>
+    /// <summary>occupation + region so a matching ad grades Good.</summary>
     private async Task SetPreferencesAsync(string group, string region, CancellationToken ct)
     {
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             PrefsEndpoint,
-            new
-            {
-                preferredOccupationGroups = new[] { group },
-                preferredRegions = new[] { region },
-                preferredEmploymentTypes = Array.Empty<string>(),
-                preferredSkills = Array.Empty<string>(),
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(new[] { group }, []),
+                Skills: new(Array.Empty<string>()),
+                Locations: new(new[] { region }, [], false),
+                EmploymentTypes: new(Array.Empty<string>()),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

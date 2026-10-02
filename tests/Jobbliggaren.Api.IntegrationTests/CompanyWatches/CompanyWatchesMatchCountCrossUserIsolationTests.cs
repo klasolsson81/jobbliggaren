@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -44,15 +45,14 @@ public class CompanyWatchesMatchCountCrossUserIsolationTests(ApiFactory factory)
     private static async Task SetPreferencesAsync(
         HttpClient client, string occupationGroup, string region, CancellationToken ct)
     {
-        var response = await client.PutAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             PrefsEndpoint,
-            new
-            {
-                preferredOccupationGroups = new[] { occupationGroup },
-                preferredRegions = new[] { region },
-                preferredEmploymentTypes = Array.Empty<string>(),
-                preferredSkills = Array.Empty<string>(),
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(new[] { occupationGroup }, []),
+                Skills: new(Array.Empty<string>()),
+                Locations: new(new[] { region }, [], false),
+                EmploymentTypes: new(Array.Empty<string>()),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

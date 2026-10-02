@@ -8,8 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobSeekers.Commands.UpdateMatchPreferences;
 
 // #1918 — the per-part write's early 400 gate. A request must carry at least one part;
-// inside a present part every list must be non-null ([] is the only way to clear); each list keeps the
-// cap and the concept-id format of the full write; the years overlay keeps its cap and per-entry rules.
+// inside a present part every list must be non-null ([] is the only way to clear).
 // MatchPreferences.Create stays the authoritative source, including the subset and distinct rules.
 //
 // A member MISSING from a present part is refused at binding ([JsonRequired]) and never reaches the

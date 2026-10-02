@@ -19,7 +19,7 @@ def review_identity(repository, pr):
 def codex_scope(repository, pr):
     return (pr["head"]["repo"] is not None and
             pr["head"]["repo"]["full_name"] == repository and
-            (pr["head"]["ref"].startswith("codex/") or
+            (pr.get("codex_review_seen", False) or pr["head"]["ref"].startswith("codex/") or
              any(label["name"] == "codex-review" for label in pr.get("labels", []))))
 
 
@@ -34,6 +34,8 @@ def validate(inputs, repository, pr, permission, ref, default_branch):
         raise ValueError("PR is closed or the reviewed head is stale")
     if pr["base"]["repo"]["full_name"] != repository:
         raise ValueError("Wrong repository")
+    if pr["base"]["ref"] != default_branch:
+        raise ValueError("The review gate only attests PRs targeting the default branch")
     if (not re.fullmatch(r"[0-9a-f]{40}", inputs.get("base_sha", "")) or
             inputs["base_sha"] != pr["base"]["sha"] or
             inputs.get("base_ref") != pr["base"]["ref"]):
@@ -82,7 +84,29 @@ def main():
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.load(response)
 
-    pr = api(f"pulls/{number}")
+    history_scopes = {}
+
+    def include_scope_history(pr):
+        if codex_scope(repository, pr) or not pr["head"]["repo"] or pr["head"]["repo"]["full_name"] != repository:
+            return pr
+        pr_number = pr["number"]
+        if pr_number not in history_scopes:
+            page = 1
+            while True:
+                events = api(f"issues/{pr_number}/events?per_page=100&page={page}")
+                marked = any(event.get("event") == "labeled" and
+                             event.get("label", {}).get("name") == "codex-review" for event in events)
+                if marked or len(events) < 100:
+                    history_scopes[pr_number] = marked
+                    break
+                page += 1
+        pr["codex_review_seen"] = history_scopes[pr_number]
+        return pr
+
+    def read_pr():
+        return include_scope_history(api(f"pulls/{number}"))
+
+    pr = read_pr()
     if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target":
         if pr["state"] != "open":
             return
@@ -106,8 +130,8 @@ def main():
         page = 1
         while True:
             siblings = api(f"pulls?state=open&per_page=100&page={page}")
-            if any(codex_scope(repository, sibling) and
-                   sibling["head"]["sha"] == pr["head"]["sha"] for sibling in siblings):
+            if any(sibling["head"]["sha"] == pr["head"]["sha"] and
+                   codex_scope(repository, include_scope_history(sibling)) for sibling in siblings):
                 raise ValueError("SHA is shared with a Codex PR; no exemption")
             if len(siblings) < 100:
                 break
@@ -127,7 +151,7 @@ def main():
                               "external_id": review_identity(repository, pr)})
     try:
         # Re-read after creating the check: a moved head never receives approval.
-        validate(inputs, repository, api(f"pulls/{number}"), permission,
+        validate(inputs, repository, read_pr(), permission,
                  os.environ["GITHUB_REF"], event["repository"]["default_branch"])
         approved = inputs["verdict"] == "approved"
         summary = (f"PR #{number}, head {inputs['head_sha']}. "

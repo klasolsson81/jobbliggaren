@@ -132,7 +132,7 @@ class ReviewAttestationTests(unittest.TestCase):
     def test_cc_branch_exemption_needs_no_native_reports(self):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
-        calls = self.run_event([cc, [cc], {}], "pull_request_target")
+        calls = self.run_event([cc, [], [cc], {}], "pull_request_target")
         self.assertEqual("success", calls[-1][2]["conclusion"])
         self.assertTrue(calls[-1][2]["external_id"].startswith("non-codex:"))
 
@@ -177,7 +177,7 @@ class ReviewAttestationTests(unittest.TestCase):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(ValueError):
-            self.run_event([cc, [cc] * 100, [self.pr]], "pull_request_target")
+            self.run_event([cc, [], [cc] * 100, [self.pr]], "pull_request_target")
         self.assertTrue(self.requests[-1][1].endswith("page=2"))
         self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
@@ -198,6 +198,14 @@ class ReviewAttestationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_event([self.pr, {"permission": "write"}, {"id": 1}, moved, {}])
         self.assertEqual("failure", self.requests[-1][2]["conclusion"])
+
+    def test_nondefault_target_cannot_receive_an_attestation(self):
+        other_base = copy.deepcopy(self.pr)
+        other_base["base"]["ref"] = "stacked-parent"
+        self.inputs["base_ref"] = "stacked-parent"
+        with self.assertRaises(ValueError):
+            self.run_event([other_base, {"permission": "write"}])
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
     def test_native_github_code_report_is_scoped_to_this_pr(self):
         self.check(inputs=self.inputs | {"code_report": "https://github.com/owner/repo/pull/123#pullrequestreview-1"})
@@ -229,6 +237,32 @@ class ReviewAttestationTests(unittest.TestCase):
             with self.subTest(settings=settings), self.assertRaises(ValueError):
                 self.run_event([], env_overrides=settings)
             self.assertEqual([], self.requests)
+
+    def test_removed_codex_label_remains_scoped_across_history_pages(self):
+        removed = copy.deepcopy(self.pr)
+        removed["head"]["ref"] = "refactor/nonstandard"
+        events = [{"event": "labeled", "label": {"name": "codex-review"}}]
+        calls = self.run_event([removed, [{"event": "commented"}] * 100, events,
+                                {"check_runs": []}, {}], "pull_request_target")
+        self.assertIn("page=2", calls[2][1])
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_removed_label_on_same_sha_sibling_blocks_exemption(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        sibling = copy.deepcopy(cc)
+        sibling["number"] = 456
+        events = [{"event": "labeled", "label": {"name": "codex-review"}}]
+        with self.assertRaises(ValueError):
+            self.run_event([cc, [], [cc, sibling], events], "pull_request_target")
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
+    def test_unavailable_scope_history_cannot_mint_an_exemption(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        with self.assertRaises(OSError):
+            self.run_event([cc, OSError("offline")], "pull_request_target")
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
 
 if __name__ == "__main__":

@@ -7,7 +7,15 @@ CC keeps its existing branch conventions, CI and mandatory-agent process.
 The label or prefix expresses the trusted owner's policy, not detected authorship.
 Keep the scope marker for the entire PR. Do not switch policy on an existing PR
 without coordinating with its driving session; existing unmarked PRs predate this policy.
+The gate also reads label-event history: once labeled `codex-review`, a PR stays
+in scope even after label removal. Unavailable history cannot grant an exemption.
 Never reuse a reviewed or exempt commit as the head of a different PR.
+The enforced target is `main`, which must remain the default branch. Stacked
+PRs may be reviewed earlier, but receive a merge attestation only after targeting
+main and completing reviews against that head/base. Other target branches do not
+run the publisher. Invalidation is event-driven; GitHub does not atomically
+compare our base fingerprint at the instant of merge. Strict up-to-date protection
+remains required alongside the publisher check.
 
 ## Repository settings
 
@@ -60,7 +68,7 @@ Branch protection requires `ci` from GitHub Actions plus our own
 This is not the name of a native Codex service check. A PR-controlled Actions job
 can copy a check name, so `github-actions` must never be its accepted publisher.
 The trusted default-branch workflow exempts same-repository PRs with neither
-the `codex-review` label nor the `codex/` prefix.
+the `codex/` prefix nor a current or historical `codex-review` label.
 It refuses exemptions for forks and for SHAs currently shared with a Codex PR.
 Writers must preserve the fresh-branch/unique-head convention above; GitHub
 checks are SHA-bound, not cryptographic proof of which tool wrote a PR.

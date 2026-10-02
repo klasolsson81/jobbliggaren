@@ -5,6 +5,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.Common;
@@ -87,15 +88,14 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         string[] occupationGroups, string[] regions, string[] employmentTypes,
         CancellationToken ct, string[]? skills = null)
     {
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
-            new
-            {
-                preferredOccupationGroups = occupationGroups,
-                preferredRegions = regions,
-                preferredEmploymentTypes = employmentTypes,
-                preferredSkills = skills ?? [],
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(occupationGroups, []),
+                Skills: new(skills ?? []),
+                Locations: new(regions, [], false),
+                EmploymentTypes: new(employmentTypes),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

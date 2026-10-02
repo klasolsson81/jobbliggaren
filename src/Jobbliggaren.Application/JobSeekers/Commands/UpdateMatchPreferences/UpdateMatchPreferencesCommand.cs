@@ -25,22 +25,27 @@ public sealed record UpdateMatchPreferencesCommand(
     ExperiencePartInput? Experience = null)
     : ICommand<Result>, IAuthenticatedRequest, IReplayOnConcurrencyConflict;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OccupationsPartInput(
     [property: JsonRequired] IReadOnlyList<string> PreferredOccupationGroups,
     IReadOnlyList<OccupationExperienceInput>? PreferredOccupationExperience = null);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record SkillsPartInput(
     [property: JsonRequired] IReadOnlyList<string> PreferredSkills);
 
 /// <summary>Regions, municipalities and distans are one part: they fold into one "ort" dimension.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record LocationsPartInput(
     [property: JsonRequired] IReadOnlyList<string> PreferredRegions,
     [property: JsonRequired] IReadOnlyList<string> PreferredMunicipalities,
     [property: JsonRequired] bool PreferredRemote);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record EmploymentTypesPartInput(
     [property: JsonRequired] IReadOnlyList<string> PreferredEmploymentTypes);
 
 /// <summary><c>null</c> clears the stated years; the member itself must be present.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ExperiencePartInput(
     [property: JsonRequired] int? ExperienceYears);

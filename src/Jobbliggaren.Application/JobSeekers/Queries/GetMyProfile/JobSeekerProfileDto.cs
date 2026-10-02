@@ -26,36 +26,13 @@ public sealed record JobSeekerProfileDto(
     // has stated at least one desired occupation-group. Drives the "ange vilka
     // yrken du söker inom"-affordance (no stored flag; empty preferences = false).
     bool HasStatedDesiredOccupation,
-    // F4-12 (ADR 0076) — the stated match preferences, projected so the settings
-    // card pre-fills the user's current selections. Required because the write is
-    // a full-replace PUT: without the current lists, editing would silently wipe
-    // prior selections. Concept-id projections of the VO (no domain leak, no PII).
-    // PreferredMunicipalities is the Spår 3 read-side partner (ADR 0076-amendment
-    // 2026-06-21, PR-D): the län→kommun cascade's full-replace PUT MUST round-trip
-    // municipalities through this projection, or saving region preferences would wipe
-    // the user's stated municipalities (the one wipe-risk in the arc — landed here
-    // atomically with the FE send).
     IReadOnlyList<string> PreferredOccupationGroups,
     IReadOnlyList<string> PreferredRegions,
     IReadOnlyList<string> PreferredEmploymentTypes,
     IReadOnlyList<string> PreferredMunicipalities,
-    // #551 punkt 4 — the distans axis, and it is on this record for exactly the
-    // page-wipe reason the paragraph above gives for municipalities. The write is a
-    // full-replace PUT, so without round-tripping this flag, saving ANY other
-    // dimension would send preferredRemote: false and silently switch off a user's
-    // stated Distans preference. The FE also cannot pre-fill the picker without it.
     bool PreferredRemote,
-    // ADR 0079 STEG 3 — the confirmed skill concept-ids + stated years of experience,
-    // projected so the settings/wizard skill section pre-fills the user's current set.
-    // Required for the same full-replace-PUT page-wipe reason as the lists above: without
-    // round-tripping skills + experience, saving any other dimension would silently wipe
-    // them. Concept-id + scalar projections of the VO (no domain leak, no PII).
     IReadOnlyList<string> PreferredSkills,
     int? ExperienceYears,
-    // ADR 0079-amendment (exp-per-occ PR-3) — the per-occupation experience overlay,
-    // projected so the wizard's per-occupation year inputs pre-fill. SAME full-replace
-    // page-wipe reason: without round-tripping it, saving any other dimension would wipe
-    // the overlay. A {conceptId, years} projection of the VO (no domain leak, no PII).
     IReadOnlyList<OccupationExperienceDto> PreferredOccupationExperience)
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(

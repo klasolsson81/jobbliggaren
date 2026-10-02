@@ -6,9 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.Matching.Commands.MarkMatchesSeen;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-5 — advances <c>JobSeeker.LastSeenMatchesAt</c> to now. Mirrors
-/// <c>SetMatchPreferencesCommandHandler</c>'s auth + owner-scope shape: loads the JobSeeker
-/// TRACKED so the <c>UnitOfWorkBehavior</c> persists the change. <c>SetLastSeenMatches</c> is
+/// ADR 0080 Vag 4 PR-5 — advances <c>JobSeeker.LastSeenMatchesAt</c> to now. <c>SetLastSeenMatches</c> is
 /// monotonic (the aggregate guards it), so a stale/duplicate call never moves the watermark
 /// backwards. NO AI/LLM, no PII.
 /// </summary>

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -65,15 +66,14 @@ public class RelatedSurfacingEndToEndTests(ApiFactory factory)
     // default helper exactly — only the group concept-id varies.
     private async Task SetExactOccupationAsync(string occupationGroup, CancellationToken ct)
     {
-        var response = await _client.PutAsJsonAsync(
+        var response = await _client.PatchAsJsonAsync(
             "/api/v1/me/match-preferences",
-            new
-            {
-                preferredOccupationGroups = new[] { occupationGroup },
-                preferredRegions = Array.Empty<string>(),
-                preferredEmploymentTypes = Array.Empty<string>(),
-                preferredSkills = Array.Empty<string>(),
-            },
+            new UpdateMatchPreferencesCommand(
+                Occupations: new(new[] { occupationGroup }, []),
+                Skills: new(Array.Empty<string>()),
+                Locations: new(Array.Empty<string>(), [], false),
+                EmploymentTypes: new(Array.Empty<string>()),
+                Experience: new(null)),
             ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }

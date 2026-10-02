@@ -50,7 +50,7 @@ def validate(inputs, repository, pr, permission, ref, default_branch):
             codex_report = url.hostname in ("chatgpt.com", "app.chatgpt.com") and url.path.startswith("/codex/")
             github_review = (key == "code_report" and url.hostname == "github.com" and
                              url.path == f"/{repository}/pull/{pr['number']}" and
-                             re.fullmatch(r"pullrequestreview-[0-9]+", url.fragment))
+                             re.fullmatch(r"(?:pullrequestreview|issuecomment)-[0-9]+", url.fragment))
             if (url.scheme != "https" or not (codex_report or github_review) or
                     url.username or url.password or url.port):
                 raise ValueError(f"Supply a Codex report link: {key}")

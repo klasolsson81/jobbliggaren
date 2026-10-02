@@ -41,7 +41,7 @@ automation; it does not run an unattended coding worker after the session stops.
    number, full head SHA, `base_ref`, `base_sha`, both report URLs, `verdict=approved` and
    `attestation=both-complete-zero-medium-plus`. This explicitly attests that both
    reports completed against that head/base and no blocking findings remain. A
-   code report can use its GitHub `pullrequestreview` URL; the Security Report
+   code report can use its GitHub review or no-findings comment URL; the Security Report
    uses its Codex task URL. The workflow
    verifies the writer's authority and commit, not the reports' contents.
 6. Read back the green `codex-review-gate` for that head, then set `agents-done`

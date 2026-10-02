@@ -194,9 +194,10 @@ class ReviewAttestationTests(unittest.TestCase):
 
     def test_native_github_code_report_is_scoped_to_this_pr(self):
         self.check(inputs=self.inputs | {"code_report": "https://github.com/owner/repo/pull/123#pullrequestreview-1"})
+        self.check(inputs=self.inputs | {"code_report": "https://github.com/owner/repo/pull/123#issuecomment-1"})
         for url in ("https://github.com/owner/repo/pull/456#pullrequestreview-1",
                     "https://github.com/other/repo/pull/123#pullrequestreview-1",
-                    "https://github.com/owner/repo/pull/123#issuecomment-1"):
+                    "https://github.com/owner/repo/pull/123#discussion-1"):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 self.check(inputs=self.inputs | {"code_report": url})
 

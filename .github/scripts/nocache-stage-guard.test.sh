@@ -197,6 +197,17 @@ df "$r" api/Dockerfile 'FROM scratch AS runtime'
 df "$r" web/Dockerfile 'FROM scratch AS base' 'FROM scratch' 'RUN apk --no-cache upgrade'
 expect "synthetic stage-N is not matchable" "$r" 1
 
+for filter in '' runtime; do
+  r=$(mk "apt_targeted_${filter:-missing}" "          - { name: api, context: \".\", file: \"api/Dockerfile\", nocache: \"$filter\" }")
+  df "$r" api/Dockerfile 'FROM scratch AS runtime' \
+    'RUN apt-get update \' \
+    '    && apt-get install -y --no-install-recommends --only-upgrade libssl3t64 openssl \' \
+    '    && rm -rf /var/lib/apt/lists/*'
+  want=1
+  [ "$filter" = runtime ] && want=0
+  expect "targeted apt upgrade: ${filter:-missing filter}" "$r" "$want"
+done
+
 echo "== 3. refusals — 'could not run' is not 'passed' =="
 missing="$TMPROOT/no_workflow"; mkdir -p "$missing"
 expect "workflow absent" "$missing" 2

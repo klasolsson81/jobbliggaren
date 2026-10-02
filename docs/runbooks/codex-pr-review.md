@@ -22,10 +22,11 @@ automation; it does not run an unattended coding worker after the session stops.
 ## Same-PR loop
 
 1. Push and create the PR with `automerge` and `codex-review`, without `agents-done`.
-2. On creation and after each changed head (including a pure base merge), the
+2. On creation, each changed head (including a pure base merge), or changed base, the
    Codex driving session posts `@codex review` and `@codex security review` as
    separate comments. Never interpret an old review as covering a new commit.
-3. Read both completed reports and their reviewed SHA. Follow the report links
+3. Record the head SHA, base branch and base SHA before requesting review; verify
+   they are unchanged when reading both completed reports. Follow the report links
    in Codex, including the full Security Report. A reaction, empty comment list,
    timeout, rate limit, failed task or missing access is not a clean result.
 4. Fix every valid Medium/High/Critical security finding and every reported
@@ -37,12 +38,14 @@ automation; it does not run an unattended coding worker after the session stops.
    valid Medium+ finding to make this PR mergeable.
 5. Complete the local mandatory panel, keeping `agents-done`'s existing meaning.
    On the final head, dispatch `codex-review-gate.yml` from **main** with the PR
-   number, full head SHA, both report URLs, `verdict=approved` and
+   number, full head SHA, `base_ref`, `base_sha`, both report URLs, `verdict=approved` and
    `attestation=both-complete-zero-medium-plus`. This explicitly attests that both
-   reports completed on that SHA and no blocking findings remain. The workflow
+   reports completed against that head/base and no blocking findings remain. A
+   code report can use its GitHub `pullrequestreview` URL; the Security Report
+   uses its Codex task URL. The workflow
    verifies the writer's authority and commit, not the reports' contents.
 6. Read back the green `codex-review-gate` for that head, then set `agents-done`
-   and watch CI/merge as usual. A new SHA needs a new external attestation.
+   and watch CI/merge as usual. A new head or base needs a new external attestation.
    To revoke a result, first disable auto-merge and remove `agents-done`, then
    dispatch the same workflow for the current SHA with `verdict=blocked`.
 

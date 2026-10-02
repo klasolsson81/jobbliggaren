@@ -1,5 +1,6 @@
 """Publish a SHA-bound owner attestation; never infer approval from silence."""
 
+import hashlib
 import json
 import os
 import re
@@ -8,6 +9,11 @@ from urllib.parse import urlparse
 
 
 CHECK_NAME = "codex-review-gate"
+
+
+def review_identity(repository, pr):
+    target = json.dumps([repository, pr["base"]["ref"], pr["base"]["sha"]])
+    return f"codex:{pr['number']}:{pr['head']['sha']}:{hashlib.sha256(target.encode()).hexdigest()}"
 
 
 def codex_scope(repository, pr):
@@ -28,6 +34,10 @@ def validate(inputs, repository, pr, permission, ref, default_branch):
         raise ValueError("PR is closed or the reviewed head is stale")
     if pr["base"]["repo"]["full_name"] != repository:
         raise ValueError("Wrong repository")
+    if (not re.fullmatch(r"[0-9a-f]{40}", inputs.get("base_sha", "")) or
+            inputs["base_sha"] != pr["base"]["sha"] or
+            inputs.get("base_ref") != pr["base"]["ref"]):
+        raise ValueError("Reviewed base branch or SHA is stale")
     if not codex_scope(repository, pr):
         raise ValueError("Attestation requires a same-repository Codex PR")
     if inputs.get("verdict") not in ("approved", "blocked"):
@@ -37,9 +47,12 @@ def validate(inputs, repository, pr, permission, ref, default_branch):
             raise ValueError("Explicit completed-report attestation required")
         for key in ("code_report", "security_report"):
             url = urlparse(inputs.get(key, ""))
-            if (url.scheme != "https" or url.hostname not in
-                    ("chatgpt.com", "app.chatgpt.com") or url.username or
-                    url.password or url.port or not url.path.strip("/")):
+            codex_report = url.hostname in ("chatgpt.com", "app.chatgpt.com") and url.path.startswith("/codex/")
+            github_review = (key == "code_report" and url.hostname == "github.com" and
+                             url.path == f"/{repository}/pull/{pr['number']}" and
+                             re.fullmatch(r"pullrequestreview-[0-9]+", url.fragment))
+            if (url.scheme != "https" or not (codex_report or github_review) or
+                    url.username or url.password or url.port):
                 raise ValueError(f"Supply a Codex report link: {key}")
 
 
@@ -72,7 +85,7 @@ def main():
         if codex_scope(repository, pr):
             results = api(f"commits/{pr['head']['sha']}/check-runs?check_name={CHECK_NAME}&per_page=100")
             latest = max(results["check_runs"], key=lambda result: result["id"], default=None)
-            expected = f"codex:{number}:{pr['head']['sha']}"
+            expected = review_identity(repository, pr)
             if (latest and latest.get("external_id") == expected and
                     latest.get("conclusion") == "success" and
                     latest.get("app", {}).get("slug") == "github-actions"):
@@ -81,7 +94,7 @@ def main():
                               "status": "completed", "conclusion": "failure",
                               "external_id": expected,
                               "output": {"title": "Waiting for Codex reports",
-                                         "summary": "Owner must read and attest both completed current-head reports."}})
+                                         "summary": "Owner must attest completed reports for the current head and base."}})
             return
         # A fork cannot mint an exemption for a commit also used by this repo.
         if not pr["head"]["repo"] or pr["head"]["repo"]["full_name"] != repository:
@@ -107,13 +120,14 @@ def main():
     run_url = f"https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
     check = api("check-runs", {"name": CHECK_NAME, "head_sha": inputs["head_sha"],
                               "status": "in_progress", "details_url": run_url,
-                              "external_id": f"codex:{number}:{inputs['head_sha']}"})
+                              "external_id": review_identity(repository, pr)})
     try:
         # Re-read after creating the check: a moved head never receives approval.
         validate(inputs, repository, api(f"pulls/{number}"), permission,
                  os.environ["GITHUB_REF"], event["repository"]["default_branch"])
         approved = inputs["verdict"] == "approved"
         summary = (f"PR #{number}, head {inputs['head_sha']}. "
+                   f"Base {inputs['base_ref']} at {inputs['base_sha']}. "
                    f"Attested by {os.environ['GITHUB_ACTOR']}. "
                    "This validates an authorized attestation, not report contents.\n\n"
                    f"Code report: {inputs.get('code_report', '')}\n\n"

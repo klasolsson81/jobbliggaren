@@ -2,7 +2,7 @@ name: Codex review gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -11,6 +11,14 @@ on:
         type: string
       head_sha:
         description: Full SHA read in both completed Codex reports
+        required: true
+        type: string
+      base_ref:
+        description: Reviewed target branch name
+        required: true
+        type: string
+      base_sha:
+        description: Full reviewed target branch SHA
         required: true
         type: string
       verdict:

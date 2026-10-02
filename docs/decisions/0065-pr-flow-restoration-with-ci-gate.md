@@ -428,3 +428,35 @@ allow_deletions: false
 **Sista direct-push:** `ee87f14` (2026-05-25, audit-fixar Medel-4 + Medel-7 inför laptop-demo). Denna commit gick direct under ADR 0019 strax innan protection aktiverades — sista commit utan PR.
 
 **Första PR-cykeln under denna ADR:** öppnas vid nästa förändring efter ADR 0065-mergen.
+
+## Amendment 2026-10-03 — Codex external PR reviews
+
+Klas requests native Codex code/security review and same-PR correction of all
+Medium+ findings, repeated until clean, while CC continues its existing flow.
+The CTO selected a separate SHA-bound attestation check: `codex-review-gate`.
+Codex sessions label new PRs `codex-review`, use fresh `codex/` branches, and request both native reviews after
+each new head. Trusted non-Codex repository branches are exempt. `ci` and the
+mandatory local panel remain; `agents-done` does not attest external reports.
+
+Native Security Review can complete with no PR comments. Therefore silence,
+reactions and timeouts cannot approve a commit. The driving session reads both
+completed reports and dispatches the trusted default-branch workflow with the
+full SHA and report links. The check verifies an authorized attestation, not the
+report contents. New commits, including pure base merges, need fresh evidence.
+
+Rejected: label-only enforcement (not SHA-bound), guessed native check names
+(unverified semantics), and treating no comments as clean (ambiguous completion).
+GitHub checks bind to commits, so label/prefix policy depends on trusted writers using
+fresh branches and not sharing a reviewed/exempt head across PRs. Forks receive
+no automatic exemption. The same-SHA open-Codex guard prevents an ordinary CC
+exemption from overwriting a waiting Codex result.
+
+Repository-wide native automatic triggers are replaced by Codex session requests
+because both tools use the same GitHub identity. This does not run an unattended
+fix worker. Code Review's documented P0/P1 reporting does not establish P2
+coverage; the local panel remains. See
+[the runbook](../runbooks/codex-pr-review.md) for the loop and commissioning.
+
+Implementation must be verified and the additional required check enabled in
+branch protection before enforcement is considered active. The dated protection
+snapshot above remains historical evidence, not the new desired configuration.

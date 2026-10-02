@@ -307,6 +307,9 @@ jobs:
       - name: Codex agent set parity (blocking, ADR 0135 Am.2)
         run: bash .github/scripts/codex-agent-parity-guard.sh
 
+      - name: Codex review attestation refusal tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_codex_review_gate.py' -v
+
       # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
       # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
       # på en äldre git returnerar den `git-too-old` i stället för

@@ -1,0 +1,177 @@
+import copy
+import io
+import json
+import unittest
+from unittest.mock import patch
+
+from codex_review_gate import codex_scope, main, validate
+
+
+class ReviewAttestationTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = "owner/repo"
+        self.inputs = {"head_sha": "a" * 40, "verdict": "approved",
+                       "attestation": "both-complete-zero-medium-plus",
+                       "code_report": "https://chatgpt.com/codex/tasks/code",
+                       "security_report": "https://chatgpt.com/codex/tasks/security"}
+        self.pr = {"state": "open", "head": {"sha": "a" * 40,
+                   "ref": "codex/fix/example", "repo": {"full_name": self.repo}},
+                   "base": {"repo": {"full_name": self.repo}}}
+
+    def check(self, inputs=None, pr=None, permission="write", ref="refs/heads/main"):
+        validate(self.inputs if inputs is None else inputs, self.repo,
+                 self.pr if pr is None else pr, permission, ref, "main")
+
+    def test_explicit_current_head_writer_attestation_is_admitted(self):
+        self.check()
+
+    def test_new_content_and_pure_base_merge_both_invalidate_old_sha(self):
+        # Both GitHub push forms change head.sha; neither inherits old evidence.
+        changed = copy.deepcopy(self.pr)
+        changed["head"]["sha"] = "b" * 40
+        with self.assertRaises(ValueError):
+            self.check(pr=changed)
+
+    def test_missing_completion_or_report_is_not_approval(self):
+        for key in ("attestation", "code_report", "security_report", "head_sha"):
+            with self.subTest(key=key):
+                incomplete = self.inputs.copy()
+                incomplete.pop(key)
+                with self.assertRaises(ValueError):
+                    self.check(inputs=incomplete)
+
+    def test_untrusted_actor_and_workflow_ref_are_refused(self):
+        for permission in ("read", "triage", "none"):
+            with self.subTest(permission=permission), self.assertRaises(ValueError):
+                self.check(permission=permission)
+        with self.assertRaises(ValueError):
+            self.check(ref="refs/heads/codex/fix/example")
+
+    def test_fork_and_cc_cannot_use_codex_attestation(self):
+        for ref, repository in (("fix/example", self.repo), ("codex/fix/x", "fork/repo")):
+            changed = copy.deepcopy(self.pr)
+            changed["head"].update(ref=ref, repo={"full_name": repository})
+            self.assertFalse(codex_scope(self.repo, changed))
+            with self.assertRaises(ValueError):
+                self.check(pr=changed)
+
+    def test_closed_pr_and_wrong_repository_refused(self):
+        changed = copy.deepcopy(self.pr)
+        changed["state"] = "closed"
+        with self.assertRaises(ValueError):
+            self.check(pr=changed)
+        changed = copy.deepcopy(self.pr)
+        changed["base"]["repo"]["full_name"] = "another/repo"
+        with self.assertRaises(ValueError):
+            self.check(pr=changed)
+
+    def test_invalid_verdict_and_untrusted_links_refused(self):
+        for key, value in (("verdict", "unknown"), ("code_report", "https://evil.test/report"),
+                           ("security_report", "https://chatgpt.com@evil.test/report"),
+                           ("code_report", "https://user:pass@chatgpt.com/report")):
+            changed = self.inputs | {key: value}
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.check(inputs=changed)
+
+    def test_revocation_needs_no_clean_report_claim(self):
+        self.check(inputs={"head_sha": "a" * 40, "verdict": "blocked"})
+
+    def run_event(self, responses, event_name="workflow_dispatch"):
+        event = {"inputs": self.inputs | {"pr_number": "123"},
+                 "repository": {"default_branch": "main"}, "pull_request": {"number": 123}}
+        requests = []
+
+        def request_api(request, timeout):
+            requests.append((request.get_method(), request.full_url,
+                             None if request.data is None else json.loads(request.data)))
+            result = responses.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return io.BytesIO(json.dumps(result).encode())
+
+        env = {"GITHUB_EVENT_PATH": "event.json", "GITHUB_REPOSITORY": self.repo,
+               "GH_TOKEN": "test-token", "GITHUB_ACTOR": "owner",
+               "GITHUB_REF": "refs/heads/main", "GITHUB_RUN_ID": "42",
+               "GITHUB_EVENT_NAME": event_name}
+        with patch.dict("os.environ", env), patch("builtins.open", return_value=io.StringIO(json.dumps(event))), \
+                patch("urllib.request.urlopen", side_effect=request_api):
+            try:
+                main()
+            finally:
+                self.requests = requests
+        self.assertEqual([], responses)
+        return requests
+
+    def test_full_attestation_writes_check_to_reviewed_head(self):
+        calls = self.run_event([self.pr, {"permission": "write"}, {"id": 1}, self.pr, {}])
+        self.assertEqual(self.inputs["head_sha"], calls[2][2]["head_sha"])
+        self.assertEqual("codex:123:" + self.inputs["head_sha"], calls[2][2]["external_id"])
+        self.assertEqual("success", calls[4][2]["conclusion"])
+
+    def test_move_between_check_creation_and_completion_fails_check(self):
+        moved = copy.deepcopy(self.pr)
+        moved["head"]["sha"] = "b" * 40
+        with self.assertRaises(ValueError):
+            self.run_event([self.pr, {"permission": "write"}, {"id": 1}, moved, {}])
+        self.assertEqual("failure", self.requests[-1][2]["conclusion"])
+
+    def test_report_api_failure_never_becomes_success(self):
+        with self.assertRaises(OSError):
+            self.run_event([self.pr, {"permission": "write"}, {"id": 1}, OSError("offline"), {}])
+        self.assertEqual("failure", self.requests[-1][2]["conclusion"])
+
+    def test_cc_branch_exemption_needs_no_native_reports(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        calls = self.run_event([cc, [cc], {}], "pull_request_target")
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+        self.assertTrue(calls[-1][2]["external_id"].startswith("non-codex:"))
+
+    def test_codex_push_does_not_issue_an_exemption(self):
+        calls = self.run_event([self.pr, {"check_runs": []}, {}], "pull_request_target")
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_codex_label_covers_nonstandard_branch_name(self):
+        labeled = copy.deepcopy(self.pr)
+        labeled["head"]["ref"] = "refactor/other-convention"
+        labeled["labels"] = [{"name": "codex-review"}]
+        self.assertTrue(codex_scope(self.repo, labeled))
+        calls = self.run_event([labeled, {"check_runs": []}, {}], "pull_request_target")
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_full_revocation_publishes_failure(self):
+        self.inputs = {"head_sha": "a" * 40, "verdict": "blocked"}
+        calls = self.run_event([self.pr, {"permission": "write"}, {"id": 1}, self.pr, {}])
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_unrelated_label_event_preserves_current_attestation(self):
+        result = {"id": 5, "external_id": "codex:123:" + "a" * 40,
+                  "conclusion": "success", "app": {"slug": "github-actions"}}
+        calls = self.run_event([self.pr, {"check_runs": [result]}], "pull_request_target")
+        self.assertTrue(all(method == "GET" for method, _, _ in calls))
+
+    def test_prior_exemption_or_another_pr_attestation_is_not_codex_approval(self):
+        for external_id in ("non-codex:123:", "codex:456:"):
+            result = {"id": 5, "external_id": external_id + "a" * 40,
+                      "conclusion": "success", "app": {"slug": "github-actions"}}
+            calls = self.run_event([self.pr, {"check_runs": [result]}, {}], "pull_request_target")
+            self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_fork_cannot_issue_an_exemption(self):
+        fork = copy.deepcopy(self.pr)
+        fork["head"]["repo"]["full_name"] = "fork/repo"
+        with self.assertRaises(ValueError):
+            self.run_event([fork], "pull_request_target")
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
+    def test_same_sha_codex_on_second_page_blocks_cc_exemption(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        with self.assertRaises(ValueError):
+            self.run_event([cc, [cc] * 100, [self.pr]], "pull_request_target")
+        self.assertTrue(self.requests[-1][1].endswith("page=2"))
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
+
+if __name__ == "__main__":
+    unittest.main()

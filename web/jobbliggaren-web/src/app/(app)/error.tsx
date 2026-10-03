@@ -4,6 +4,7 @@ import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (app)/error — the signed-in app's runtime error boundary (#995 / B3). A
@@ -27,6 +28,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 export default function AppError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored

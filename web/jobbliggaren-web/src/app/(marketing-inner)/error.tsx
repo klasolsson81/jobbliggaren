@@ -4,6 +4,7 @@ import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (marketing-inner)/error — the runtime error boundary for every inner public
@@ -26,6 +27,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 export default function MarketingInnerError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <main

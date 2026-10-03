@@ -94,9 +94,18 @@ describe("error boundaries read the props Next passes (#1949)", () => {
     // that threw once more before committing to the boundary, and the replay
     // would already succeed.
     const control = { shouldThrow: true };
+    // The recovered child carries the page landmark every group's shell or
+    // page owns (`<main id="main" tabIndex={-1}>`); a successful retry hands
+    // focus to it. It sits inside the recovered tree rather than around the
+    // boundary because global-error replaces the whole document, and <html>
+    // nested under a <main> is not a tree React will mount.
     function Child() {
       if (control.shouldThrow) throw new Error("transient-render-failure");
-      return <p>recovered-child-content</p>;
+      return (
+        <main id="main" tabIndex={-1}>
+          <p>recovered-child-content</p>
+        </main>
+      );
     }
     const router = stubRouter();
     const uncaught: unknown[] = [];
@@ -106,6 +115,10 @@ describe("error boundaries read the props Next passes (#1949)", () => {
     };
     window.addEventListener("error", onError);
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Only the animation frame is faked: the focus hand-off after a successful
+    // retry runs on the next frame (useFocusMainOnUnmount), and userEvent's own
+    // timers stay real.
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
     try {
       render(
         <AppRouterContext.Provider value={router}>
@@ -124,7 +137,13 @@ describe("error boundaries read the props Next passes (#1949)", () => {
       expect(router.refresh, "retry re-fetches the segment; reset alone would replay the failed payload").toHaveBeenCalledTimes(1);
       expect(await screen.findByText("recovered-child-content")).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Sidan kunde inte visas" })).not.toBeInTheDocument();
+
+      // The surface took focus on mount and is gone: without the hand-off a
+      // keyboard user is left on <body> (design-reviewer Major 4).
+      vi.advanceTimersToNextFrame();
+      expect(document.activeElement).toBe(document.getElementById("main"));
     } finally {
+      vi.useRealTimers();
       window.removeEventListener("error", onError);
       consoleError.mockRestore();
     }

@@ -3,6 +3,7 @@
 import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (admin)/error — the runtime error boundary for the admin surfaces.
@@ -20,6 +21,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 export default function AdminError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="flex flex-col gap-4">

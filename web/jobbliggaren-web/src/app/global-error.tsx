@@ -3,6 +3,7 @@
 import type { ErrorInfo } from "next/error";
 import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 import svFallback from "../../messages/sv/fallback.json";
 import svMetadata from "../../messages/sv/metadata.json";
 // global-error REPLACES the root layout (it renders its own <html>/<body>), so
@@ -34,6 +35,7 @@ import "./globals.css";
 function GlobalErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     // min-h-[60vh] + justify-center mirrors the root not-found: this renders

@@ -3,6 +3,7 @@
 import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (auth)/error — the runtime error boundary for /logga-in and its steps.
@@ -26,6 +27,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 export default function AuthError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="flex flex-col gap-4">

@@ -4,6 +4,7 @@ import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (guest)/gast/error — the runtime error boundary for the guest mirrors
@@ -25,6 +26,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 export default function GuestError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="jp-container jp-page flex flex-col gap-4">

@@ -38,6 +38,13 @@
     "adsTooBroadAdvice": "En bevakning som matchar fler företag än vi kan räkna annonser för får inga tal här.",
     "matchingTooBroadAdvice": "En bevakning med fler annonser än vi kan matcha visar inte hur många av dem som matchar dig."
   },
+  "setup": {
+    "title": "Fortsätt komma igång",
+    "body": "Välj yrken och kompetenser för din matchning. CV är valfritt.",
+    "unavailable": "Valen för matchning kunde inte hämtas.",
+    "retry": "Försök igen",
+    "retrying": "Hämtar…"
+  },
   "cards": {
     "requiresYou": "Kräver åtgärd",
     "requiresYouEmpty": "Inget kräver åtgärd just nu.",

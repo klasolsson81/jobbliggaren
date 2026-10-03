@@ -14,8 +14,17 @@ function text(el: Element | null): string {
 }
 
 describe("MatchingCard", () => {
+  it("an unavailable profile is neither an empty account nor a measured matching count", () => {
+    render(<MatchingCard matchCount={42} matchHref={null} setupState="unavailable" span={4} />);
+    expect(within(card()).getByText(COPY.cards.matchingUnavailable)).toBeInTheDocument();
+    expect(within(card()).queryByRole("link")).toBeNull();
+    expect(within(card()).queryByText(COPY.notices.calloutText)).toBeNull();
+    expect(text(card().querySelector(".jp-ov-num__value"))).toBe(COPY.cards.unmeasured);
+    const heading = within(card()).getByRole("heading", { name: COPY.cards.matching });
+    expect(heading).toHaveAttribute("tabindex", "-1");
+  });
   it("a count renders as the big number with its unit, the basis line, and the solid CTA to that count's list", () => {
-    render(<MatchingCard matchCount={245} matchHref={HREF} hasStatedOccupation span={4} />);
+    render(<MatchingCard matchCount={245} matchHref={HREF} setupState="configured" span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("245");
     expect(text(card().querySelector(".jp-ov-num__unit"))).toBe("annonser matchar dina val");
     expect(within(card()).getByText(COPY.cards.matchingBasis)).toBeInTheDocument();
@@ -28,7 +37,7 @@ describe("MatchingCard", () => {
   });
 
   it("a counted zero is a real answer: 0 with no line beneath, and an EMPHASISED way to the whole list — never the solid level", () => {
-    render(<MatchingCard matchCount={0} matchHref={HREF} hasStatedOccupation span={4} />);
+    render(<MatchingCard matchCount={0} matchHref={HREF} setupState="configured" span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("0");
     expect(text(card().querySelector(".jp-ov-num__unit"))).toBe("annonser matchar dina val");
     expect(within(card()).queryByText(COPY.notices.matchTextZero)).toBeNull();
@@ -43,15 +52,15 @@ describe("MatchingCard", () => {
   });
 
   it("an unmeasured count renders an en-dash, the unavailable copy and NO CTA", () => {
-    render(<MatchingCard matchCount={null} matchHref={HREF} hasStatedOccupation span={4} />);
+    render(<MatchingCard matchCount={null} matchHref={HREF} setupState="configured" span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe(COPY.cards.unmeasured);
     expect(card().querySelector(".jp-ov-num__unit")).toBeNull();
     expect(within(card()).getByText(COPY.cards.matchingUnavailable)).toBeInTheDocument();
     expect(within(card()).queryByRole("link")).toBeNull();
   });
 
-  it("no stated occupation: the setup callout takes the card, with the page's only settings link", () => {
-    render(<MatchingCard matchCount={42} matchHref={HREF} hasStatedOccupation={false} span={4} />);
+  it("no stated occupation: the setup callout takes the card, with its existing settings link", () => {
+    render(<MatchingCard matchCount={42} matchHref={HREF} setupState="incomplete" span={4} />);
     expect(card().querySelector(".jp-ov-num")).toBeNull();
     expect(within(card()).getByText(COPY.notices.calloutText)).toBeInTheDocument();
     const cta = within(card()).getByRole("link", { name: /Ställ in matchning/ });
@@ -61,7 +70,7 @@ describe("MatchingCard", () => {
   });
 
   it("the span prop reaches the grid attribute", () => {
-    render(<MatchingCard matchCount={1} matchHref={HREF} hasStatedOccupation span={6} />);
+    render(<MatchingCard matchCount={1} matchHref={HREF} setupState="configured" span={6} />);
     expect(card()).toHaveAttribute("data-span", "6");
   });
 });

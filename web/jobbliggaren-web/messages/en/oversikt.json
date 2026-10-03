@@ -38,6 +38,13 @@
     "adsTooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here.",
     "matchingTooBroadAdvice": "A watch with more ads than we can match does not show how many of them match you."
   },
+  "setup": {
+    "title": "Continue setup",
+    "body": "Choose occupations and skills for matching. A CV is optional.",
+    "unavailable": "Matching options could not be loaded.",
+    "retry": "Try again",
+    "retrying": "Loading…"
+  },
   "cards": {
     "requiresYou": "Needs action",
     "requiresYouEmpty": "Nothing needs action right now.",

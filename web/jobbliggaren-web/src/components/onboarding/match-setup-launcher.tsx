@@ -1,101 +1,80 @@
 "use client";
 
-// "use client": klient-ö på /oversikt som äger matchnings-setup-modalens öppna-
-// state och kör dismissal-cookien (markSetupWelcomeSeen) på close i en transition.
-// Ersätter den gamla WelcomeSetupModal (epik #526): välkomst + CV-upload + wizard
-// är nu ETT flöde i MatchSetupRailModal. Server-komponenten (/oversikt) avgör om
-// modalen ska auto-öppnas (nytt konto utan angivet yrke, eller ?matchsetup=1 från
-// notisen) och matar in taxonomi + persisterad SSOT som serialiserbara props.
-
-import { useState, useTransition } from "react";
+// Owns the opening snapshot, focus return and dismissal transition.
+import { useRef, useState, useTransition, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { MatchSetupRailModal } from "@/components/settings/match-setup-rail-modal";
 import { markSetupWelcomeSeen } from "@/lib/onboarding/setup-welcome-actions";
-import type { SkillGroup } from "@/lib/dto/skills";
-import type {
-  TaxonomyOccupationField,
-  TaxonomyOption,
-  TaxonomyRegion,
-} from "@/lib/dto/taxonomy";
+
+export type MatchSetupData = Pick<ComponentProps<typeof MatchSetupRailModal>,
+  "occupationFields" | "regions" | "employmentTypes" |
+  "persistedOccupationGroups" | "persistedRegions" | "persistedMunicipalities" |
+  "persistedRemote" | "persistedEmploymentTypes" | "persistedSkills" |
+  "persistedSkillGroups" | "persistedOccupationExperience" | "importCvHref"
+> & { readonly resumeStep: 0 | 1 };
 
 interface MatchSetupLauncherProps {
-  /** Auto-öppna vid mount (server avgör: showWelcome ELLER ?matchsetup=1). */
-  readonly autoOpen: boolean;
-  readonly occupationFields: ReadonlyArray<TaxonomyOccupationField>;
-  readonly regions: ReadonlyArray<TaxonomyRegion>;
-  readonly employmentTypes: ReadonlyArray<TaxonomyOption>;
-  readonly persistedOccupationGroups: ReadonlyArray<string>;
-  readonly persistedRegions: ReadonlyArray<string>;
-  readonly persistedMunicipalities: ReadonlyArray<string>;
-  /** #551 punkt 4: distans-axeln (pre-fill). */
-  readonly persistedRemote: boolean;
-  readonly persistedEmploymentTypes: ReadonlyArray<string>;
-  readonly persistedSkills: ReadonlyArray<string>;
-  /** The saved skills resolved to named groups on the server (ADR 0047). */
-  readonly persistedSkillGroups: ReadonlyArray<SkillGroup>;
-  readonly persistedOccupationExperience: ReadonlyArray<{
-    readonly conceptId: string;
-    readonly years: number | null;
-  }>;
-  readonly importCvHref: string;
+  readonly request: "welcome" | "resume" | null;
+  readonly data: MatchSetupData | null;
 }
 
-/**
- * Match-setup-launcher (epik #526) — den enda mount-punkten på /oversikt.
- * Skriver inget själv utöver dismissal-cookien; den enda preferens-skrivningen är
- * rail-modalens befintliga MatchPreferences-skrivning (som revalidate:ar /oversikt, så
- * notisen byter av sig själv efter en sparning).
- */
-export function MatchSetupLauncher({
-  autoOpen,
-  occupationFields,
-  regions,
-  employmentTypes,
-  persistedOccupationGroups,
-  persistedRegions,
-  persistedMunicipalities,
-  persistedRemote,
-  persistedEmploymentTypes,
-  persistedSkills,
-  persistedSkillGroups,
-  persistedOccupationExperience,
-  importCvHref,
-}: MatchSetupLauncherProps) {
+export function MatchSetupLauncher({ request, data }: MatchSetupLauncherProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(autoOpen);
   const [, startTransition] = useTransition();
+  const openerRef = useRef<HTMLElement | null>(null);
+  const readyRequest = data === null ? null : request;
+  const [opening, setOpening] = useState(() => ({
+    request: readyRequest,
+    open: readyRequest !== null,
+    data,
+    initialStep: request === "resume" ? data?.resumeStep : 0,
+  }));
+
+  // A new server read may remove setup eligibility while Save is still returning.
+  // Keep the opening snapshot until close so the rail can present its Done receipt.
+  if (readyRequest !== opening.request) {
+    setOpening({
+      request: readyRequest,
+      open: opening.open || readyRequest !== null,
+      data: opening.open ? opening.data : data,
+      initialStep: opening.open ? opening.initialStep : request === "resume" ? data?.resumeStep : 0,
+    });
+  }
 
   function handleOpenChange(next: boolean) {
-    setOpen(next);
+    setOpening((previous) => ({ ...previous, open: next }));
     if (!next) {
-      // Stäng/spara-klar: markera välkomsten sedd (auto-open-naggen återkommer
-      // inte) och rensa ?matchsetup-parametern så en refresh/bakåt inte
-      // återöppnar modalen. router.refresh läser om RSC:n (cookie + nya
-      // preferenser efter en ev. sparning) — mirror den gamla welcome-modalen.
       startTransition(async () => {
         await markSetupWelcomeSeen();
-        router.replace("/oversikt");
+        router.replace("/oversikt", { scroll: false });
         router.refresh();
       });
     }
   }
 
+  function handleCloseAutoFocus(event: Event) {
+    event.preventDefault();
+    const opener = openerRef.current;
+    const target = opener?.isConnected && opener !== document.body
+      ? opener
+      : document.getElementById("oversikt-continue-setup") ??
+        document.getElementById("oversikt-card-matching");
+    target?.focus();
+  }
+
+  if (opening.data === null) return null;
+
   return (
     <MatchSetupRailModal
-      open={open}
+      {...opening.data}
+      open={opening.open}
+      initialStep={opening.initialStep}
       onOpenChange={handleOpenChange}
-      occupationFields={occupationFields}
-      regions={regions}
-      employmentTypes={employmentTypes}
-      persistedOccupationGroups={persistedOccupationGroups}
-      persistedRegions={persistedRegions}
-      persistedMunicipalities={persistedMunicipalities}
-      persistedRemote={persistedRemote}
-      persistedEmploymentTypes={persistedEmploymentTypes}
-      persistedSkills={persistedSkills}
-      persistedSkillGroups={persistedSkillGroups}
-      persistedOccupationExperience={persistedOccupationExperience}
-      importCvHref={importCvHref}
+      onOpenAutoFocus={() => {
+        const active = document.activeElement;
+        openerRef.current = active instanceof HTMLElement ? active : null;
+      }}
+      onCloseAutoFocus={handleCloseAutoFocus}
     />
   );
 }

@@ -1549,7 +1549,6 @@ planning questions the same day; both answers are quoted verbatim below.
 It supersedes these presentation bindings, of the amendment above and earlier ones:
 
 1. **Colour carries the outcome, beside an icon and a word** (DESIGN.md §3):
-   - matched evidence and a Match dimension take the success family;
    - a Partial or NoMatch dimension and a missing skill take `--jp-warning`;
    - a missing obligatory requirement, and nothing else, takes `--jp-danger`.
 

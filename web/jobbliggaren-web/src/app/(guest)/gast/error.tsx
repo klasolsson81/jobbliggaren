@@ -1,8 +1,10 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (guest)/gast/error — the runtime error boundary for the guest mirrors
@@ -21,14 +23,10 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * contract but is deliberately neither shown nor logged — no stack trace to the
  * user, and Next reports uncaught errors itself (§5: no console output).
  */
-export default function GuestError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function GuestError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="jp-container jp-page flex flex-col gap-4">
@@ -37,7 +35,7 @@ export default function GuestError({
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}

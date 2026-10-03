@@ -1,7 +1,9 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (admin)/error — the runtime error boundary for the admin surfaces.
@@ -16,14 +18,10 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * contract but is deliberately neither shown nor logged — no stack trace to the
  * user, and Next reports uncaught errors itself (§5: no console output).
  */
-export default function AdminError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function AdminError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="flex flex-col gap-4">
@@ -32,7 +30,7 @@ export default function AdminError({
       <div>
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}

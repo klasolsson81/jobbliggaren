@@ -1,7 +1,9 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 import svFallback from "../../messages/sv/fallback.json";
 import svMetadata from "../../messages/sv/metadata.json";
 // global-error REPLACES the root layout (it renders its own <html>/<body>), so
@@ -30,13 +32,10 @@ import "./globals.css";
  * Theme-aware: the app is light-only in the MVP (DARK_MODE_ENABLED = false), so
  * no ThemeScript is needed here; the civic light tokens resolve directly.
  */
-function GlobalErrorSurface({
-  unstable_retry,
-}: {
-  unstable_retry: () => void;
-}) {
+function GlobalErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     // min-h-[60vh] + justify-center mirrors the root not-found: this renders
@@ -46,12 +45,12 @@ function GlobalErrorSurface({
       <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
-        {/* unstable_retry() re-fetches and re-renders (the documented Next 16.2+
+        {/* retry() re-fetches and re-renders (the documented Next 16.3+
             recovery for a transient throw); reset() would only re-render without
             re-fetching. */}
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}
@@ -70,12 +69,7 @@ function GlobalErrorSurface({
   );
 }
 
-export default function GlobalError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function GlobalError({ retry }: ErrorInfo) {
   return (
     <html lang="sv" className="h-full font-sans">
       {/* global-error replaces the root layout, so Next's metadata /
@@ -88,7 +82,7 @@ export default function GlobalError({
       </head>
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
         <NextIntlClientProvider locale="sv" messages={{ fallback: svFallback }}>
-          <GlobalErrorSurface unstable_retry={unstable_retry} />
+          <GlobalErrorSurface retry={retry} />
         </NextIntlClientProvider>
       </body>
     </html>

@@ -1,7 +1,9 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
+import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 
 /**
  * (auth)/error — the runtime error boundary for /logga-in and its steps.
@@ -22,14 +24,10 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * in (auth)/layout.tsx itself still reaches global-error: a segment's error.tsx
  * cannot catch its own layout.
  */
-export default function AuthError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function AuthError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  useFocusMainOnUnmount();
 
   return (
     <div className="flex flex-col gap-4">
@@ -38,7 +36,7 @@ export default function AuthError({
       <div>
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}

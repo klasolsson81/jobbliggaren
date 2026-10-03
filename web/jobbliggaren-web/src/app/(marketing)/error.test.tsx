@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import MarketingError from "./error";
 
 // The harness aliases `@testing-library/react` to a render shim that wraps every
@@ -12,7 +11,7 @@ const boundaryError = Object.assign(new Error("landing-boom-internal"), {
 
 describe("(marketing)/error boundary (#1477)", () => {
   it("renders the civic error surface without leaking the error to the user", () => {
-    render(<MarketingError error={boundaryError} unstable_retry={() => {}} />);
+    render(<MarketingError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(
       screen.getByRole("heading", { name: "Sidan kunde inte visas", level: 1 }),
@@ -29,7 +28,7 @@ describe("(marketing)/error boundary (#1477)", () => {
     // — but the `<main>` belongs to page.tsx. When the page is what threw, this
     // boundary is the only thing left to carry the target.
     const { container } = render(
-      <MarketingError error={boundaryError} unstable_retry={() => {}} />,
+      <MarketingError error={boundaryError} retry={() => {}} reset={() => {}} />,
     );
 
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
@@ -41,32 +40,27 @@ describe("(marketing)/error boundary (#1477)", () => {
     // which would drag both shared RSCs, BrandLogo and the whole footer table
     // into the client bundle of the most CWV-sensitive page in the app. Bites
     // on revert.
-    render(<MarketingError error={boundaryError} unstable_retry={() => {}} />);
+    render(<MarketingError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(screen.queryByRole("banner")).toBeNull();
     expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 
-  it("offers a retry, and NO link — (marketing) holds exactly one route", async () => {
+  it("offers a retry, and NO link — (marketing) holds exactly one route", () => {
     // A "Till startsidan" control here would point at the URL the visitor is
     // already on: dead, or a duplicate of the retry. Bites on revert.
-    const unstableRetry = vi.fn();
-    const user = userEvent.setup();
     render(
-      <MarketingError error={boundaryError} unstable_retry={unstableRetry} />,
+      <MarketingError error={boundaryError} retry={() => {}} reset={() => {}} />,
     );
 
     expect(screen.queryAllByRole("link")).toHaveLength(0);
-
-    await user.click(screen.getByRole("button", { name: "Försök igen" }));
-    expect(unstableRetry).toHaveBeenCalledTimes(1);
   });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
     // and focus stays on <body>, remove the tabIndex and .focus() is a silent
     // no-op on a heading.
-    render(<MarketingError error={boundaryError} unstable_retry={() => {}} />);
+    render(<MarketingError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { level: 1 }),

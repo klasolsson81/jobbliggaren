@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { STALE_BUILD_RELOADED_NOTICE_KEY } from "@/lib/stale-build/stale-build-reload";
@@ -87,17 +86,11 @@ describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
     expect(screen.getByText(LINE)).toBeInTheDocument();
   });
 
-  it("N-strict: under <StrictMode> the line shows once and the stamp is removed", async () => {
-    // Vitest's StrictMode double-renders but runs each effect's set-up ONCE here
-    // (measured 2026-10-03: react-dom 19.3.0 double-invokes effects only for a root
-    // created strict), so this row pins the double RENDER only; the double set-up
-    // is measured on `next dev` (session log, #1948).
+  it("N-strict: under StrictMode (next dev's default) the line shows once and the stamp is removed", async () => {
+    // RTL's option puts <StrictMode> above the intl wrapper, where react-dom's effect
+    // double-invoke reaches it; nested under the wrapper it is not reached (measured).
     stamp();
-    render(
-      <StrictMode>
-        <ReloadedAfterUpdateNotice placement="inline" />
-      </StrictMode>,
-    );
+    render(<ReloadedAfterUpdateNotice placement="inline" />, { reactStrictMode: true });
 
     expect(await screen.findByText(LINE)).toBeInTheDocument();
     expect(screen.getAllByText(LINE)).toHaveLength(1);
@@ -115,20 +108,36 @@ describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
   });
 
   describe("placement (design-reviewer Major 2 on #1955): the layout chooses the rail and the gap", () => {
-    it("rail: the region carries the content rail and the line brings the gap above (the band below brings its own)", async () => {
+    it("rail: the band and the content rail arrive with the line, which brings the gap above (the band below brings its own)", async () => {
       stamp();
       render(<ReloadedAfterUpdateNotice placement="rail" />);
 
-      expect(screen.getByRole("status")).toHaveClass("jp-container", "w-full");
-      expect(await screen.findByText(LINE)).toHaveClass("jp-banner", "jp-banner--before-band");
+      // Empty: no class, so no colour and no height.
+      expect(screen.getByRole("status")).not.toHaveAttribute("class");
+      const line = await screen.findByText(LINE);
+      expect(screen.getByRole("status")).toHaveClass("jp-banner-band");
+      expect(line.parentElement).toHaveClass("jp-container");
+      expect(line).toHaveClass("jp-banner", "jp-banner--before-band");
+    });
+
+    it("plate: the band and the rail, and the line brings the gap on both sides (an edge-to-edge plate below)", async () => {
+      stamp();
+      render(<ReloadedAfterUpdateNotice placement="plate" />);
+
+      const line = await screen.findByText(LINE);
+      expect(screen.getByRole("status")).toHaveClass("jp-banner-band");
+      expect(line.parentElement).toHaveClass("jp-container");
+      expect(line).toHaveClass("jp-banner", "jp-banner--before-plate");
+      expect(line).not.toHaveClass("jp-banner--before-band");
     });
 
     it("inline: no rail of its own, and the line brings the gap below", async () => {
       stamp();
       render(<ReloadedAfterUpdateNotice placement="inline" />);
 
-      expect(screen.getByRole("status")).not.toHaveAttribute("class");
       const line = await screen.findByText(LINE);
+      expect(screen.getByRole("status")).not.toHaveAttribute("class");
+      expect(line.parentElement).toBe(screen.getByRole("status"));
       expect(line).toHaveClass("jp-banner");
       expect(line).not.toHaveClass("jp-banner--before-band");
     });
@@ -145,7 +154,8 @@ describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
 
       const line = await screen.findByText(LINE);
       if (expected === "rail") {
-        expect(screen.getByRole("status")).toHaveClass("jp-container");
+        expect(screen.getByRole("status")).toHaveClass("jp-banner-band");
+        expect(line.parentElement).toHaveClass("jp-container");
         expect(line).toHaveClass("jp-banner--before-band");
       } else {
         expect(screen.getByRole("status")).not.toHaveAttribute("class");

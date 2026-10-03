@@ -49,7 +49,7 @@ export default async function MarketingLayout({ children }: { children: ReactNod
     <NextIntlClientProvider locale={locale} messages={messages}>
       <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
         <SiteHeader stats={stats} />
-        <ReloadedAfterUpdateNotice placement="rail" />
+        <ReloadedAfterUpdateNotice placement="plate" />
         {children}
         <SiteFooter />
       </div>

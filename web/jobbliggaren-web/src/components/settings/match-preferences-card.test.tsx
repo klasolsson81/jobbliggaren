@@ -155,6 +155,11 @@ beforeEach(() => {
 afterEach(() => {
   updateMock.mockResolvedValue(SAVED);
   for (const release of releases.splice(0)) release();
+  // S1 leaves the two stamps, a Storage.prototype spy and a call on the seam behind, and a
+  // later stale row would be refused by the 60 s guard — order-dependent, so reset here.
+  sessionStorage.clear();
+  vi.restoreAllMocks();
+  vi.mocked(reloadDocument).mockClear();
 });
 
 describe("flattenOccupationGroups", () => {

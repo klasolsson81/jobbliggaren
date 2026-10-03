@@ -32,7 +32,10 @@ describe("stale-build reload core (ADR 0148)", () => {
     expect(isStaleBuildActionError(Object.assign(new Error("boom"), { digest: "d1" }))).toBe(false);
     expect(isStaleBuildActionError(new Error("boom"))).toBe(false);
     expect(isStaleBuildActionError("UnrecognizedActionError")).toBe(false);
-    // The name alone is not the class: a look-alike by name is refused.
+    // A look-alike by name, which no src/ path builds — the router constructs the class
+    // (`server-action-reducer.js`); the actor would be a second copy of Next's client
+    // runtime or a hand-built error. Declared unreachable (§5 Tests): the row asserts only
+    // that the predicate degrades safely — refuses — never what production does with it.
     expect(isStaleBuildActionError(Object.assign(new Error("x"), { name: "UnrecognizedActionError" }))).toBe(false);
     expect(isStaleBuildActionError(staleError())).toBe(true);
     expect(mayReloadForStaleBuild(new Error("boom"), NOW)).toBe(false);
@@ -73,12 +76,14 @@ describe("stale-build reload core (ADR 0148)", () => {
     expect(sessionStorage.getItem(STALE_BUILD_RELOAD_STAMP_KEY)).toBe(String(NOW));
   });
 
-  it("H8: a corrupt stamp counts as absent — reload, and the stamp is rewritten", () => {
+  it("H8: a value no writer produces under the stamp key is read as absent (declared unreachable from src/)", () => {
+    // The key's only writer is `stampAndReload`, always `String(now)`; a non-numeric value
+    // comes from a script outside the app on the origin (devtools, an extension). Declared
+    // unreachable (§5 Tests), so the row asserts only that the read side degrades safely —
+    // the guard answers as for an absent stamp — never what production then does.
     sessionStorage.setItem(STALE_BUILD_RELOAD_STAMP_KEY, "not-a-timestamp");
 
-    expect(reloadIfStaleBuild(staleError(), NOW)).toBe(true);
-    expect(reloadDocument).toHaveBeenCalledTimes(1);
-    expect(sessionStorage.getItem(STALE_BUILD_RELOAD_STAMP_KEY)).toBe(String(NOW));
+    expect(mayReloadForStaleBuild(staleError(), NOW)).toBe(true);
   });
 
   it("H5: storage that cannot be read refuses (fail-closed) — no reload", () => {

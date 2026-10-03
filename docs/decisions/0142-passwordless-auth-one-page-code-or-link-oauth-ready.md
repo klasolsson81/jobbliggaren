@@ -691,7 +691,7 @@ constructor, in Amendment 2026-09-25 (14))* — "provider asserts verified" is c
 the **type**, so no caller can read the string and forget the bool. Every adapter parses the
 verified claim **fail-closed** (LinkedIn returns `email_verified` as a string in some responses;
 missing or unparsable = not verified) *(corrected in Amendment 2026-09-28 (20): LinkedIn's flag counts only as the
-JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)* *(answered in Amendment 2026-10-03 (22): at each of the four LinkedIn logins of 2026-10-02 userinfo carried `email_verified` as the JSON `true`, with 0 × EventId 1023, so no string form has been seen and (20)'s follow-up does not arise)*. Linking to an existing account by email
+JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)* *(answered in Amendment 2026-10-03 (22): at each of the four LinkedIn logins read back at 2026-10-02T22:11:57Z userinfo carried `email_verified` as the JSON `true`, with 0 × EventId 1023, so no string form has been seen and (20)'s follow-up does not arise)*. Linking to an existing account by email
 happens ONLY on a `VerifiedEmail`, else refuse. PKCE `S256` only *(corrected in Amendment 2026-09-28 (20): PKCE S256
 where the provider supports it; LinkedIn binds the code by an OIDC nonce)* *(corrected in Amendment 2026-09-29 (21): LinkedIn echoes no nonce, measured on the box 2026-09-29, so neither PKCE nor a nonce binds its code, and code injection is a declared residual)*. `redirect_uri` is **not** a parameter — the adapter
 builds it from `EmailOptions.BaseUrl`, the one home of the public base URL (CTO bind 3; no

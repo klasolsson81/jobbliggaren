@@ -792,19 +792,19 @@ registration is shut, and registration is never opened for this. The first login
 the build could not: the form of `email_verified`, and that `sub` and `email` arrive under
 `openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
 
-**A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
-measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
-`prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22),
-Klas's decision). Someone at a shared computer who wants another LinkedIn account signs out of LinkedIn first.
-
-**A Cancel** on LinkedIn's sign-in page goes to the request's `redirect_uri`, this box's callback (read
-2026-10-02), and LinkedIn documents the same for a Cancel on its permission page.
-
 **If the first login fails on one of those.** EventId 1022 with `IdTokenSubjectUnusable`,
 `SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent`, `FlagAbsent`, `FlagIsString` or
 `FlagNotBoolean`: deactivate at once, and keep the keys out until the follow-up PR has merged. An active
 row that never works is not left standing. Any other refusal at the first login: deactivate, and file
 the defect, as for Google.
+
+**A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
+measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
+`prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22),
+Klas's decision). Someone at a shared computer who wants another LinkedIn account signs out of LinkedIn first.
+
+**A Cancel** on LinkedIn's sign-in page names the request's `redirect_uri`, this box's callback (read
+2026-10-02), and LinkedIn documents that a Cancel on its permission page goes to the request's `redirect_uri`.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
 rows can stay: they match only this app's subject ids.

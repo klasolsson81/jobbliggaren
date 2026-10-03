@@ -376,7 +376,7 @@ Alla tre startas av CC som bakgrundsprocesser.
    nyckeln namngiven, om inte dess `ClientSecret` också är satt och `Email:BaseUrl` är https, eller
    http mot localhost i Development. Klientens redirect-URI (GitHub: "Authorization callback URL")
    måste vara exakt `http://localhost:3000/api/auth/oauth/{google|github|linkedin}/callback` lokalt.
-   För Google: en egen klient för localhost, aldrig lådans (security-auditor m-8). Lådan delar
+   Lådan delar
    Klas lokala GitHub- och LinkedIn-klient, enligt hans accept 2026-09-27 (ADR 0142 Amendment (19),
    för LinkedIn per analogi (20)); varje annan maskin använder en egen klient. GitHub-klienten är en
    GitHub OAuth App. LinkedIn-klienten kräver produkten "Sign In with LinkedIn using OpenID Connect",

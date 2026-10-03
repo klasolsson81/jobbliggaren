@@ -3,7 +3,7 @@
 - **Date:** 2026-10-03 (report returned ~2026-10-03T03:5xZ)
 - **Agent:** `security-auditor`, report-only, the same agent as `2026-10-03-1926-form-security-auditor.md`, resumed
   with the session's batch (Klas's three answers, the LinkedIn probe, GitHub's reorder and Cancel, #734's free row)
-- **Transcription:** the agent's last SubagentHandback message, byte-extracted from its transcript; nothing below the
+- **Transcription:** the agent's SubagentHandback message, byte-extracted from its transcript; nothing below the
   rule is the session's.
 
 ---

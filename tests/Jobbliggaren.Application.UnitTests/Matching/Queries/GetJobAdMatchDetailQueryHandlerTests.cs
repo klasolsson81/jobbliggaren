@@ -9,6 +9,8 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Taxonomy;
+using Jobbliggaren.Infrastructure.TextAnalysis;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
@@ -139,7 +141,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
             if (_throwOnScoreFull is not null)
                 throw _throwOnScoreFull; // NotFoundException for a missing ad → propagate
             return new ValueTask<FullScoredMatch>(
-                new FullScoredMatch(_score!, _isRelated, [], _causes));
+                new FullScoredMatch(_score!, _isRelated, [], _causes, LegacyFixtureEvidence(_score!)));
         }
 
         // The modal handler must NOT touch any of the batch / Fast methods.
@@ -155,6 +157,17 @@ public class GetJobAdMatchDetailQueryHandlerTests
             IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "ScoreFullBatchAsync (batch) ska inte anropas av single-ad modal-handlern (CTO D3 — döda inte batch-kontraktet för en enskild fråga).");
+    }
+
+    // These legacy projection fixtures predate concept identity. The synthetic ids below
+    // are unreachable taxonomy inputs and assert only safe read-side preservation. Real
+    // producer identity and partition coherence are covered by scorer/endpoint integration tests.
+    private static FullMatchConceptEvidence LegacyFixtureEvidence(FullMatchScore score)
+    {
+        static MatchConceptPartition Pair(MatchDimension dimension) => new(
+            [.. dimension.Matched.Select((display, index) => new MatchConceptEvidence($"fixture-matched-{index}", display))],
+            [.. dimension.Missing.Select((display, index) => new MatchConceptEvidence($"fixture-missing-{index}", display))]);
+        return new(Pair(score.SkillOverlap), Pair(score.MustHaveCoverage), Pair(score.NiceToHaveCoverage));
     }
 
     // ---------------------------------------------------------------
@@ -239,7 +252,8 @@ public class GetJobAdMatchDetailQueryHandlerTests
         ICurrentUser? user = null, ITaxonomyReadModel? taxonomy = null,
         IAppDbContext? db = null) =>
         new(db ?? TestAppDbContextFactory.Create(), builder, scorer,
-            taxonomy ?? new FakeTaxonomy(), user ?? _currentUser);
+            taxonomy ?? new FakeTaxonomy(), user ?? _currentUser,
+            new SkillResolver(new SkillTaxonomyIndex(new LocalTextAnalyzer(new SnowballStemmer()))));
 
     // =================================================================
     // Anonymous → null, builder + scorer never called (the modal is auth-gated)
@@ -268,7 +282,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldReturnTopGradeWithAllSevenDimensionRows_WhenMustHaveMatchAndStrongAndSkillMatch()
+    public async Task Handle_ShouldReturnTopGradeWithAllSevenDimensionRows_WhenMustHaveMatchAndSkillPartial()
     {
         var ct = TestContext.Current.CancellationToken;
         var jobAdId = Guid.NewGuid();
@@ -278,9 +292,9 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
                 RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["Stockholm"]),
                 EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["kpPX_CNN_gDU"])),
-            SkillOverlap: Dim(MatchDimensionVerdict.Match, matched: ["C#", "SQL"], missing: ["Kubernetes"]),
+            SkillOverlap: Dim(MatchDimensionVerdict.Partial, matched: ["C#", "SQL"], missing: ["Kubernetes"]),
             MustHaveCoverage: Dim(MatchDimensionVerdict.Match, matched: ["C#"], missing: []),
-            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.Vacuous));
         var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp"));
         var scorer = new FakeScorer(score);
         var sut = CreateHandler(builder, scorer);
@@ -301,12 +315,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
         result.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
 
         // Three Full rows — the modal's civic-useful "what you're missing" direction.
-        result.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Partial);
         result.SkillOverlap.Matched.ShouldBe(["C#", "SQL"]);
         result.SkillOverlap.Missing.ShouldBe(["Kubernetes"]);
         result.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         result.MustHaveCoverage.Matched.ShouldContain("C#");
-        result.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        result.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Vacuous);
 
         // Single-ad read used (not the batch); the ad we asked for was scored.
         scorer.ScoreFullCallCount.ShouldBe(1);
@@ -849,7 +863,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
                 RegionFit: Dim(MatchDimensionVerdict.Match),
                 EmploymentFit: Dim(MatchDimensionVerdict.Match)),
-            SkillOverlap: Dim(MatchDimensionVerdict.Match),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
             MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
             NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
 }

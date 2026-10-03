@@ -5,6 +5,8 @@ import {
   isListMatchGrade,
   matchGradeSchema,
   jobAdMatchBatchSchema,
+  matchDimensionDetailSchema,
+  matchSkillDimensionDetailSchema,
 } from "./job-ad-match";
 
 /**
@@ -85,5 +87,44 @@ describe("WATCH_MATCHING_GRADES (bevakningarnas matchningströskel, #1547)", () 
     // includeRelated rung and ranks BELOW Good, so it is outside the threshold.
     expect(WATCH_MATCHING_GRADES).not.toContain("Top");
     expect(WATCH_MATCHING_GRADES).not.toContain("Related");
+  });
+});
+
+describe("additive identity contract compatibility", () => {
+  const legacy = { verdict: "Match", matched: ["boka", "boka"], missing: [] };
+  const grouped = { ...legacy, conceptEvidence: {
+    matched: [{ display: "boka", members: [
+      { conceptId: "BXay_uH7_Yz7", display: "boka" },
+      { conceptId: "gLYa_mFP_NVA", display: "boka" },
+    ] }], missing: [],
+  } };
+  it("old display schema still reads the new API's legacy fields exactly", () => {
+    expect(matchDimensionDetailSchema.parse(grouped)).toEqual(legacy);
+  });
+  it.each([undefined, null])("new schema accepts absent/null identity from an old API (%s)", (conceptEvidence) => {
+    expect(matchSkillDimensionDetailSchema.parse({ ...legacy, conceptEvidence }).matched).toEqual(legacy.matched);
+  });
+  it("new schema retains identities and every legacy display occurrence", () => {
+    expect(matchSkillDimensionDetailSchema.parse(grouped)).toEqual(grouped);
+  });
+  it("accepts genuinely empty evidence without treating it as absent", () => {
+    const row = { verdict: "Vacuous", matched: [], missing: [], conceptEvidence: { matched: [], missing: [] } };
+    expect(matchSkillDimensionDetailSchema.parse(row)).toEqual(row);
+  });
+  it.each([
+    { matched: [], missing: [] },
+    { matched: [{ display: "boka", members: [] }], missing: [] },
+    { matched: [{ display: "boka", members: [{ conceptId: "", display: "boka" }] }], missing: [] },
+    { matched: [{ display: "boka", members: [{ conceptId: "one", display: "boka" }, { conceptId: "one", display: "boka" }] }], missing: [] },
+    { matched: [{ display: "boka", members: [{ conceptId: "one", display: "other" }, { conceptId: "two", display: "boka" }] }], missing: [] },
+    "not-an-object",
+  ])("rejects present malformed/lossy identity rather than falling back", (conceptEvidence) => {
+    expect(matchSkillDimensionDetailSchema.safeParse({ ...legacy, conceptEvidence }).success).toBe(false);
+  });
+  it("rejects a concept repeated across matched and missing sides", () => {
+    expect(matchSkillDimensionDetailSchema.safeParse({ verdict: "Partial", matched: ["boka"], missing: ["boka"], conceptEvidence: {
+      matched: [{ display: "boka", members: [{ conceptId: "same", display: "boka" }] }],
+      missing: [{ display: "boka", members: [{ conceptId: "same", display: "boka" }] }],
+    } }).success).toBe(false);
   });
 });

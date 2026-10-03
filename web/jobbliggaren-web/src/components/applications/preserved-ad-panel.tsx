@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
 import { RecruiterContactBlock } from "@/components/job-ads/recruiter-contact-block";
+import contactLinkStyles from "@/components/job-ads/recruiter-contact-link.module.css";
 import type { AdSnapshotDto } from "@/lib/types/applications";
 
 interface PreservedAdPanelProps {
@@ -150,7 +151,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
           where no regex reaches it, so the contacts alone do not decide. */}
       {(preservedAd.description != null || preservedAd.contacts.length > 0) && (
         <p className="jp-recruiter-notice mt-2">
-          <Link href="/kontaktperson-i-annons">
+          <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
             {tUi("preservedAd.recruiterNoticeLink")}
           </Link>
         </p>

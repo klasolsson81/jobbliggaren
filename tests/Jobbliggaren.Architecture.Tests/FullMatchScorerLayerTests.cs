@@ -89,7 +89,7 @@ public class FullMatchScorerLayerTests
     }
 
     [Fact]
-    public void FullScoredMatch_carries_exactly_Score_SsykIsRelated_MatchedSkillEvidence_and_Causes()
+    public void FullScoredMatch_carries_exactly_frozen_Score_and_categorical_or_identity_evidence()
     {
         var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
 
@@ -102,14 +102,33 @@ public class FullMatchScorerLayerTests
             .ToList();
 
         propNames.ShouldBe(
-            ["Score", "SsykIsRelated", "MatchedSkillConceptIds", "Causes"],
+            ["Score", "SsykIsRelated", "MatchedSkillConceptIds", "Causes", "ConceptEvidence"],
             ignoreOrder: true,
             "FullScoredMatch ska bära EXAKT { Score (frusen FullMatchScore), SsykIsRelated, " +
-            "MatchedSkillConceptIds, Causes } — ingen extra scoring-dimension och ingen opak " +
+            "MatchedSkillConceptIds, Causes, ConceptEvidence } — ingen extra scoring-dimension och ingen opak " +
             "total. SsykIsRelated är en KATEGORISK ladder-gren (MatchGrade.Related-cap); " +
             "MatchedSkillConceptIds är string-list-EVIDENS (matchade skill-concept-ids); Causes " +
             "är bundna per-dimensions-DISKRIMINATORER. Ingen av dem är en " +
             $"magnitud. Faktiska: [{string.Join(", ", propNames)}].");
+    }
+
+    [Fact]
+    public void Concept_evidence_types_have_exactly_identity_display_and_partition_properties()
+    {
+        var assembly = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
+        var evidence = typeof(Jobbliggaren.Application.Matching.Abstractions.MatchConceptEvidence);
+        var partition = typeof(Jobbliggaren.Application.Matching.Abstractions.MatchConceptPartition);
+        var full = typeof(Jobbliggaren.Application.Matching.Abstractions.FullMatchConceptEvidence);
+        foreach (var type in new[] { evidence, partition, full })
+            type.Assembly.ShouldBe(assembly);
+        evidence.GetProperties().Select(p => p.Name).ShouldBe(["ConceptId", "Display"], ignoreOrder: true);
+        evidence.GetProperties().Select(p => p.PropertyType).ShouldAllBe(t => t == typeof(string));
+        partition.GetProperties().Select(p => p.Name).ShouldBe(["Matched", "Missing"], ignoreOrder: true);
+        partition.GetProperties().Select(p => p.PropertyType).ShouldAllBe(t => t == typeof(IReadOnlyList<Jobbliggaren.Application.Matching.Abstractions.MatchConceptEvidence>));
+        full.GetProperties().Select(p => p.Name).ShouldBe(["SkillOverlap", "MustHaveCoverage", "NiceToHaveCoverage"], ignoreOrder: true);
+        full.GetProperties().Select(p => p.PropertyType).ShouldAllBe(t => t == partition);
+        typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch)
+            .GetProperty("ConceptEvidence")!.PropertyType.ShouldBe(full);
     }
 
     [Fact]

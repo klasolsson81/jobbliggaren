@@ -204,9 +204,7 @@
     "match": {
       "heading": "Matching",
       "settingsCta": "Set up matching",
-      "uploadCvCta": "Upload CV",
       "noStatedOccupation": "You have not stated which occupations you are looking for.",
-      "uploadCvFoot": "A CV is required for a Strong match and a Top match.",
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
       "requested": "The ad asks for: {items}",
@@ -238,7 +236,7 @@
         "Partial": "Partial",
         "NoMatch": "Missing",
         "NotAssessed": "Not assessed",
-        "Vacuous": "None stated"
+        "Vacuous": "No extracted evidence"
       },
       "dimension": {
         "ssykOverlap": "Occupation",
@@ -246,7 +244,7 @@
         "regionFit": "Place",
         "employmentFit": "Employment type",
         "skillOverlap": "Skills",
-        "mustHaveCoverage": "Must-have requirements",
+        "mustHaveCoverage": "Mandatory requirements",
         "niceToHaveCoverage": "Nice to have"
       },
       "notAssessedReason": {
@@ -274,27 +272,27 @@
         "ssykOverlap": "{count, plural, one {The ad states an occupation that is missing from our register.} other {The ad states # occupations that are missing from our register.}}",
         "regionFit": "{count, plural, one {The ad states a location that is missing from our register.} other {The ad states # locations that are missing from our register.}}"
       },
-      "mustHaveSummary": {
-        "Match": "You meet all the must-have requirements in the ad.",
-        "Partial": "You meet some of the ad's must-have requirements.",
-        "NoMatch": "You do not meet the ad's must-have requirements.",
-        "Vacuous": "The ad states no specific must-have requirements."
-      },
-      "requirements": {
-        "met": "Met",
-        "unmet": "Not met"
-      },
       "titleSummary": {
         "Match": "Your role matches the ad's title.",
         "Partial": "Your role partly matches the ad's title.",
         "NoMatch": "Your role differs from the ad's title."
+      },
+      "skillsFoot": "Choose skills to see which requirements match.",
+      "evidence": {
+        "matched": "Matches your skills",
+        "missing": "Not matched"
+      },
+      "requirementsEmpty": {
+        "both": "The matching data has no extracted skill requirements. Read the requirements in the ad text.",
+        "mustHave": "The matching data has no extracted mandatory skill requirements. Read the requirements in the ad text.",
+        "niceToHave": "The matching data has no extracted desirable skills. Read the requirements in the ad text."
       }
     },
     "gradeFilter": {
       "toggleLabel": "Matching",
       "groupLabel": "Show match grades",
       "helpTitle": "About the matching filter",
-      "help": "Filters the list by how well the ads fit your choices (occupation, location, employment type). A card's label can show a different level because it also weighs whether your CV meets the ad's requirements: the same ad can read Top match or a level below the filter. Top match is based on your CV and appears only on the cards, not as its own filter. Turn matching off to hide the levels entirely.",
+      "help": "Filters the list by how well ads fit your occupation, location and employment choices. Card labels also use your chosen skills and extracted skill requirements, so the same ad may show a different level from the filter. Top match appears only on cards, not as a separate filter. Turn off matching to hide the labels.",
       "relatedToggleLabel": "Show related occupations",
       "relatedToggleHelp": "Includes occupations similar to the ones you picked. They are tagged Related occupation and ranked below your exact matches.",
       "onlyMatchedLabel": "Show only matched",

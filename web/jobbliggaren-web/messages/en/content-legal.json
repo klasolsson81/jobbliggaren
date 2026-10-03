@@ -354,7 +354,7 @@
         ],
         "list": [
           "NEXT_LOCALE: remembers whether you chose Swedish or English. It is set when you change the language yourself and lasts 365 days.",
-          "__Host-jobbliggaren_apps_view: remembers whether you chose the list or the board on the My applications page. It is set when you switch the view yourself and lasts 365 days.",
+          "__Host-jobbliggaren_apps_view: remembers which view you chose on the My applications page. It is set when you switch the view yourself and lasts 365 days.",
           "__Host-jobbliggaren_guest_welcomed and __Host-jobbliggaren_setup_welcomed: remember that you have already closed a welcome box, so that it is not shown again in the same browser. They last 365 days."
         ]
       },

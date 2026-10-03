@@ -3,7 +3,7 @@
 #
 # usage:  jobbliggaren-reconcile.sh            the unit's apply
 #         jobbliggaren-reconcile.sh --stage    first boot only: verify and tag a release, apply nothing
-#         jobbliggaren-reconcile.sh --status   read-only: what is selected, applied and running
+#         jobbliggaren-reconcile.sh --status   read-only: what is selected, applied, running and checked out
 #
 # WHAT IT APPLIES. Until #1238 this pulled five `latest` tags, and between the first and the last of
 # them a pull could land on a mixed set that every gate then verified, because an attestation binds
@@ -147,6 +147,16 @@ if [ "$mode" = status ]; then
   rec_digest=$(field "$receipt" JBL_RECEIPT_RECORD_DIGEST)
   log "receipt:   release $rec_digest, source $(field "$receipt" JBL_RELEASE_SOURCE_SHA), sequence $(field "$receipt" JBL_RELEASE_SEQUENCE)"
   differs=""
+  # A manual compose command re-creates from THIS checkout's compose file and `:applied`, so a checkout
+  # advanced past the applied release would put its images under a configuration they were not released
+  # with — the pairing an apply refuses.
+  deploy_here=$("$RECORD_TOOL" deploy-hash "$CHECKOUT") || cannot_answer "could not hash the deployment files in $CHECKOUT"
+  if [ "$deploy_here" = "$(field "$receipt" JBL_RELEASE_DEPLOY_SHA256)" ]; then
+    log "config:    the checkout's deployment files match the receipt"
+  else
+    log "config:    the checkout's deployment files DIFFER from the receipt's"
+    differs+=" config"
+  fi
   for name in "${RELEASE_IMAGES[@]}"; do
     want=$(image_id "$OURS_PREFIX$name@$(field "$receipt" "JBL_RELEASE_IMAGE_${name^^}")" || true)
     have=$(image_id "$OURS_PREFIX$name:$APPLIED_TAG" || true)
@@ -173,7 +183,7 @@ if [ "$mode" = status ]; then
     log "verdict:   INCONSISTENT —$differs"
     exit 1
   fi
-  log "verdict:   consistent — :applied, the receipt and the running containers name release $rec_digest"
+  log "verdict:   consistent — the checkout's deployment files, :applied, the receipt and the running containers name release $rec_digest"
   exit 0
 fi
 

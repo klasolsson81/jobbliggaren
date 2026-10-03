@@ -603,10 +603,16 @@ channel "$REC"
 run_sut
 expect_exit 0 "--status after an apply is consistent" --status
 check 'said "verdict:   consistent"' "and says so"
+printf 'services:\n  api: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+expect_exit 1 "--status sees a checkout advanced past the applied release's configuration" --status
+check 'said "config:    the checkout'"'"'s deployment files DIFFER"' "and names it"
+printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
 printf '%s' "$(idof other)" >"$REG/running/api"
+rm -f "$REG/docker-calls" "$REG/up-args" "$TMPROOT/lock"
 expect_exit 1 "--status sees a container running something else" --status
 check 'said "running:   api DIFFERS"' "and names it"
-check '[ ! -f "$REG/up-args" ] || [ "$(grep -c "^compose" "$REG/docker-calls")" -ge 0 ]' "(--status is read-only: it takes no lock and applies nothing)"
+check '[ ! -e "$TMPROOT/lock" ] && [ ! -f "$REG/up-args" ] && ! grep -qE "^(pull|tag|rmi|create|run) " "$REG/docker-calls"' \
+  "(--status is read-only: it takes no lock, pulls, tags or runs nothing, and applies nothing)"
 
 echo "-- the lock"
 reset

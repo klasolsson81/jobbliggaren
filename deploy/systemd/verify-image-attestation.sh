@@ -50,11 +50,12 @@ readonly SIGNER_REF="refs/heads/main"
 readonly CERT_IDENTITY="https://github.com/${SIGNER_REPO}/${SIGNER_WORKFLOW}@${SIGNER_REF}"
 
 usage() {
-  echo "usage: $0 <image@sha256:digest>" >&2
+  echo "usage: $0 <image@sha256:digest> [<source-sha>]" >&2
   echo "  Takes a DIGEST reference. A tag is refused, not resolved." >&2
+  echo "  <source-sha>, 40 lowercase hex, also requires the certificate to name that commit." >&2
 }
 
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   usage
   exit 2
 fi
@@ -67,6 +68,27 @@ case "${1:-}" in
 esac
 
 readonly REF="$1"
+
+# THE SECOND ARGUMENT BINDS WHICH TREE, not only who built it (#1238). The identity below proves
+# the image came out of our workflow on main; it says nothing about which commit, so an api from
+# one commit and a web from another both verify. Fulcio stamps the run's `sha` claim into the
+# certificate, and `release-images.yml` builds exactly `github.sha`, so requiring that claim to
+# equal the release's source commit closes the mixed set at the signature, where it cannot be
+# argued with. Measured 2026-10-03 with cosign 2.5.0 against a published image: the right commit
+# verifies, another commit exits 1 with "no matching attestations" (the refusal arm below).
+#
+# ONE CALLER MAY OMIT IT: jobbliggaren-release-record.sh's first check of a record digest, which
+# runs before the record has been read and so before the commit it names is known. Every image
+# check, and that same record's second check, passes the commit.
+EXPECTED_SHA=""
+if [ "$#" -eq 2 ]; then
+  case "$2" in
+    *[!0-9a-f]*) usage; exit 2 ;;
+  esac
+  [ "${#2}" -eq 40 ] || { usage; exit 2; }
+  EXPECTED_SHA="$2"
+fi
+readonly EXPECTED_SHA
 
 # A tag reaching this point is a caller bug, and resolving it here would silently reintroduce
 # the second lookup this script exists to remove. Refuse rather than help.
@@ -95,18 +117,29 @@ fi
 # Captured, not piped. A pipeline's exit status is the LAST command's, so `cosign … | grep …`
 # would report grep's verdict on an empty stream — the shape that has produced a green gate
 # over an unmeasured run in this repo before.
-output=$(
-  cosign verify-attestation \
-    --new-bundle-format \
-    --type slsaprovenance1 \
-    --certificate-oidc-issuer "$OIDC_ISSUER" \
-    --certificate-identity "$CERT_IDENTITY" \
-    "$REF" 2>&1
-) && status=0 || status=$?
+# The ref and repository claims are pinned beside the SAN, and not because they are redundant with
+# it today. The SAN names the WORKFLOW FILE's ref (`job_workflow_ref`); were this workflow ever made
+# reusable (`on: workflow_call`), a branch's workflow could call `…@refs/heads/main` and carry a
+# main SAN while its ref and sha claims name the branch — and with the commit now read from the
+# record, that branch's release would pass. Measured 2026-10-03 with cosign 2.5.0 against a
+# published image: both pins verify it; a wrong ref or repository exits 1, naming the claim.
+args=(
+  verify-attestation
+  --new-bundle-format
+  --type slsaprovenance1
+  --certificate-oidc-issuer "$OIDC_ISSUER"
+  --certificate-identity "$CERT_IDENTITY"
+  --certificate-github-workflow-ref "$SIGNER_REF"
+  --certificate-github-workflow-repository "$SIGNER_REPO"
+)
+if [ -n "$EXPECTED_SHA" ]; then
+  args+=(--certificate-github-workflow-sha "$EXPECTED_SHA")
+fi
+output=$(cosign "${args[@]}" "$REF" 2>&1) && status=0 || status=$?
 
 if [ "$status" -eq 0 ]; then
   echo "verified: $REF"
-  echo "  built by $SIGNER_WORKFLOW on $SIGNER_REF in $SIGNER_REPO"
+  echo "  built by $SIGNER_WORKFLOW on $SIGNER_REF in $SIGNER_REPO${EXPECTED_SHA:+ from $EXPECTED_SHA}"
   exit 0
 fi
 

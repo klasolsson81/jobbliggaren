@@ -81,13 +81,17 @@ expect_exit() {
 }
 
 readonly DIGEST_REF="ghcr.io/klasolsson81/jobbliggaren-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+readonly SOURCE_SHA="ad2ce55f980cda593821af6bf90997f4c8fe3713"
 
 echo "verify-image-attestation.sh"
 
 echo "-- usage"
 stub_cosign 0
 expect_exit 2 "no argument is a usage error, not a pass"
-expect_exit 2 "two arguments is a usage error" "$DIGEST_REF" extra
+expect_exit 2 "a second argument that is not a source SHA is a usage error" "$DIGEST_REF" extra
+expect_exit 2 "three arguments is a usage error" "$DIGEST_REF" "$SOURCE_SHA" extra
+expect_exit 2 "an UPPERCASE source SHA is refused — the certificate's claim is lowercase" "$DIGEST_REF" "${SOURCE_SHA^^}"
+expect_exit 2 "a 39-character source SHA is refused" "$DIGEST_REF" "${SOURCE_SHA:0:39}"
 expect_exit 2 "--help exits 2, never 0" --help
 
 echo "-- the digest requirement"
@@ -179,6 +183,12 @@ assert_arg "--certificate-oidc-issuer" "the issuer matcher is EXACT — never th
 assert_arg "--type" "the predicate type is constrained at all"
 assert_arg "slsaprovenance1" "and it is SLSA provenance v1, not v0.2"
 assert_arg "verify-attestation" "the subcommand verifies a PREDICATE, not merely a signature"
+# The ref and repository claims beside the SAN (#1238): the SAN names the workflow FILE's ref, and a
+# reusable workflow called from a branch would carry main's SAN with the branch's ref and sha.
+assert_arg "--certificate-github-workflow-ref" "the certificate's ref claim is constrained"
+assert_arg "refs/heads/main" "and constrained to main"
+assert_arg "--certificate-github-workflow-repository" "the certificate's repository claim is constrained"
+assert_arg "klasolsson81/jobbliggaren" "and constrained to this repository"
 
 # The negative half: a regexp matcher must never appear, whatever its value. Asserting the
 # exact flag is present does not exclude a regexp flag ALSO being passed, and cosign would
@@ -192,6 +202,30 @@ for forbidden in --certificate-identity-regexp --certificate-oidc-issuer-regexp;
     echo "  ok   $forbidden is never passed"
   fi
 done
+
+echo "-- the source commit (#1238)"
+# Without the second argument the commit is not constrained — today's single-argument callers keep
+# exactly the behaviour they had.
+if grep -qxF -- "--certificate-github-workflow-sha" "$TMPROOT/last-args"; then
+  fail=$((fail + 1))
+  echo "  FAIL a single-argument call constrains a commit nobody asked for" >&2
+else
+  pass=$((pass + 1))
+  echo "  ok   a single-argument call does not constrain the commit"
+fi
+
+stub_cosign 0
+expect_exit 0 "a digest plus a 40-hex source SHA is accepted" "$DIGEST_REF" "$SOURCE_SHA"
+assert_arg "--certificate-github-workflow-sha" "the certificate's commit claim is constrained"
+assert_arg "$SOURCE_SHA" "and it is constrained to the commit the caller named"
+
+# The message cosign 2.5.0 printed on 2026-10-03 when the commit did not match, verbatim.
+stub_cosign 1 'Error: no matching attestations: failed to verify certificate identity: no matching CertificateIdentity found, last error: expected GithubWorkflowSHA to be "9f17dca890f3815e81cb360487cdefb88f7ac72d", got "ad2ce55f980cda593821af6bf90997f4c8fe3713"'
+expect_exit 1 "an image built from ANOTHER commit is a refusal, never an outage" "$DIGEST_REF" "9f17dca890f3815e81cb360487cdefb88f7ac72d"
+
+# Restore the single-argument call's arguments for the absence checks below.
+stub_cosign 0
+run_sut "$DIGEST_REF" || true
 
 # A trust root passed with --trusted-root would silence revocation. Its ABSENCE is the
 # decision (see the script header), so it is pinned as an absence.

@@ -47,6 +47,13 @@ deploy/systemd/* text eol=lf
 # default is core.autocrlf=true, so the file was LF only by accident of how it was written.)
 deploy/backup/* text eol=lf
 
+# The compose file is part of what a release record binds (#1238, ADR 0149): the box hashes its on-disk
+# bytes and compares them with the hash the publisher took of the committed ones, and the hash refuses a
+# carriage return rather than guessing. Pinned so that every checkout host — the box, CI, a Windows
+# worktree — holds the bytes git holds. `deploy/redis/healthcheck.sh`, the other bound file, is already
+# pinned by `deploy/redis/.gitattributes`.
+deploy/docker-compose.yml text eol=lf
+
 # AGENTS.md mäts i bytes av CI-vakten och läses av Codex på disk — en axel, LF (ADR 0135).
 AGENTS.md text eol=lf
 web/jobbliggaren-web/AGENTS.md text eol=lf

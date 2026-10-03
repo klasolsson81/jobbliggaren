@@ -17,6 +17,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
+import { reloadIfStaleBuild } from "@/lib/stale-build/stale-build-reload";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -245,7 +246,10 @@ export function MatchPreferencesCard({
       startTransition(async () => {
         try {
           resolve(await updateMatchPreferencesAction(patch));
-        } catch {
+        } catch (e) {
+          // A page from a previous build: the document is being replaced (ADR 0148 D8),
+          // so no inline error — the promise stays pending with the page.
+          if (reloadIfStaleBuild(e)) return;
           resolve({ success: false, error: t("matchPrefs.errors.network") });
         }
       });

@@ -24,8 +24,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// or <c>null</c> when the ad earns no positive tag (occupation/SSYK not a Match — the gate).
 /// The modal renders the breakdown either way.</param>
 /// <param name="SsykOverlap">The occupation-group dimension row.</param>
-/// <param name="TitleSimilarity">The title dimension row (NotAssessed on the preference path
-/// — no CV title is read in F4-16; LatestRole→title is a forward-note, not this STEG).</param>
+/// <param name="TitleSimilarity">The evidence-only comparison against the primary CV's latest role;
+/// NotAssessed when that role is unavailable. It never affects the grade.</param>
 /// <param name="RegionFit">The region dimension row.</param>
 /// <param name="EmploymentFit">The employment-type dimension row.</param>
 /// <param name="SkillOverlap">The confirmed-skill ∩ ad-skill coverage row (drives the golden grade).</param>

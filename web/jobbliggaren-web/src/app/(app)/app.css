@@ -2263,6 +2263,40 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   color: var(--jp-ink-2);
   font-variant-numeric: tabular-nums;
 }
+
+.jp-ov-setup { min-width: 0; }
+.jp-ov-setup__link {
+  width: 100%;
+  height: auto;
+  min-height: 88px;
+  padding: 20px;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  white-space: normal;
+}
+.jp-ov-setup__copy { display: grid; gap: 8px; }
+.jp-ov-setup__title {
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1.3;
+}
+.jp-ov-setup__body {
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-regular);
+  line-height: 1.5;
+}
+.jp-ov-setup__link > svg { flex: 0 0 auto; }
+.jp-ov-setup__link:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 3px;
+}
+.jp-ov-setup__error { margin-top: 12px; }
+.jp-ov-setup__error p {
+  margin: 0 0 12px;
+  color: var(--jp-ink-1);
+  font-size: var(--text-body);
+}
 /* "N nya": sidans enda pill, och en LÄNK till annonserna den räknar (#1576). margin-left auto
    sätter den vid huvudets högerkant. Scopad under huvudet (0,2,0) för att vinna över den globala
    länkfärgen `a:not(.jp-btn, …)` (0,1,1) — mätt 2026-09-13: utan scopet renderade texten i

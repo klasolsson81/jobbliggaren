@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { NOTICE_ICONS } from "./notice-icons";
 import { NoticeDismissButton } from "./notice-dismiss-button";
 import { NoticeListCard } from "./notice-list-card";
@@ -11,6 +13,8 @@ import type { SectionNoticeData } from "./notice-types";
 interface RequiresYouCardProps {
   /** The action notices — every kind but `info`. The orchestrator does the split. */
   readonly notices: ReadonlyArray<SectionNoticeData>;
+  readonly needsSetup: boolean;
+  readonly setupUnavailable?: boolean;
 }
 
 /**
@@ -22,17 +26,48 @@ interface RequiresYouCardProps {
  * The empty state keeps the card and swaps the warning bar for a neutral one (CSS on
  * `data-empty`): a card that vanished would take the grid's shape with it.
  *
- * A Client Component only because `renderRow` is a function prop into `NoticeListCard`, and a
- * function cannot cross the RSC boundary — the card holds no state of its own.
+ * Client rendering supports the row callbacks and a transition for taxonomy retry.
  */
-export function RequiresYouCard({ notices }: RequiresYouCardProps) {
+export function RequiresYouCard({ notices, needsSetup, setupUnavailable }: RequiresYouCardProps) {
   const t = useTranslations("oversikt.cards");
+  const tSetup = useTranslations("oversikt.setup");
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
   return (
     <NoticeListCard
       id="oversikt-card-requires-you"
       title={t("requiresYou")}
       notices={notices}
       emptyText={t("requiresYouEmpty")}
+      leadingContent={needsSetup ? (
+        <div className="jp-ov-setup">
+          <Link
+            id="oversikt-continue-setup"
+            className="jp-btn jp-btn--emphasis jp-ov-setup__link"
+            href="/oversikt?matchsetup=1"
+            scroll={false}
+          >
+            <span className="jp-ov-setup__copy">
+              <span className="jp-ov-setup__title">{tSetup("title")}</span>{" "}
+              <span className="jp-ov-setup__body">{tSetup("body")}</span>
+            </span>
+            <ArrowRight size={20} aria-hidden="true" />
+          </Link>
+          {setupUnavailable && (
+            <div className="jp-ov-setup__error">
+              <p role="alert">{tSetup("unavailable")}</p>
+              <button
+                type="button"
+                className="jp-btn jp-btn--sm jp-btn--emphasis"
+                disabled={retrying}
+                onClick={() => startRetry(() => router.refresh())}
+              >
+                {retrying ? tSetup("retrying") : tSetup("retry")}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : undefined}
       span={8}
       modifier="jp-ov-card--requires"
       listAs="ol"

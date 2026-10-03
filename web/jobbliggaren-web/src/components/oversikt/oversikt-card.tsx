@@ -14,6 +14,7 @@ interface OversiktCardProps {
   readonly icon: LucideIcon;
   /** Right-hand slot in the head row — the "N nya" pill on Bevakade företag. */
   readonly aside?: ReactNode;
+  readonly focusableTitle?: boolean;
   readonly children: ReactNode;
 }
 
@@ -34,6 +35,7 @@ export function OversiktCard({
   span,
   icon: Icon,
   aside,
+  focusableTitle,
   children,
 }: OversiktCardProps) {
   return (
@@ -46,7 +48,7 @@ export function OversiktCard({
         <span className="jp-ov-card__icon" aria-hidden="true">
           <Icon size={20} aria-hidden="true" />
         </span>
-        <h2 className="jp-ov-card__title" id={id}>
+        <h2 className="jp-ov-card__title" id={id} tabIndex={focusableTitle ? -1 : undefined}>
           {title}
         </h2>
         {aside}

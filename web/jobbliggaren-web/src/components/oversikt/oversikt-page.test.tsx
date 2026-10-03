@@ -89,7 +89,7 @@ function renderOversikt(
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
     kind: "ok",
-    data: { ...baseProfile, hasStatedDesiredOccupation, ...profileOverrides },
+    data: { ...baseProfile, hasStatedDesiredOccupation, preferredOccupationGroups: hasStatedDesiredOccupation ? ["grp_backend"] : [], ...profileOverrides },
   };
   return render(
     <OversiktPage
@@ -388,7 +388,7 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     );
     expect(within(card(COPY.cards.events)).getByRole("link", { name: /^Visa annonser/ })).toHaveAttribute(
       "href",
-      "/jobb",
+      "/jobb?occupationGroup=grp_backend",
     );
   });
 

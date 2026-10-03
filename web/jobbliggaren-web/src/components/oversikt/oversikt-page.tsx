@@ -51,6 +51,7 @@ import {
 import { RecentEventsCard } from "./recent-events-card";
 import { RequiresYouCard } from "./requires-you-card";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";
+import { getSetupState } from "@/lib/onboarding/setup-state";
 
 interface OversiktPageProps {
   readonly profile: ApiResult<JobSeekerProfileDto>;
@@ -91,6 +92,7 @@ interface OversiktPageProps {
    * får ALDRIG blanka annonstalen — de är kortets poäng och beror inte på trädet.
    */
   readonly criterionReference: CriterionReference | null;
+  readonly setupUnavailable?: boolean;
 }
 
 /**
@@ -114,6 +116,7 @@ export function OversiktPage({
   companyWatches,
   criteria,
   criterionReference,
+  setupUnavailable,
 }: OversiktPageProps) {
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
@@ -146,8 +149,8 @@ export function OversiktPage({
   // F4-12 PR-B (ADR 0076): setup-läge ↔ matchtal är ÖMSESIDIGT uteslutande, styrt av
   // `hasStatedDesiredOccupation`. Yrke angett → Matchning-kortet bär talet och match-notisen
   // renderas. Ej angett → kortet bär setup-callouten. Aldrig båda.
-  const hasStatedOccupation =
-    profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
+  const setupState = getSetupState(profile);
+  const hasStatedOccupation = setupState === "configured";
 
   // Trust-invariant (harmoniserad 2026-07-03, CTO H2): länken bär EXAKT samma facetter som
   // backend-counten hård-filtrerar på och INGA matchGrades — /jobb-landningens TotalCount ==
@@ -401,12 +404,12 @@ export function OversiktPage({
         />
 
         <div className="jp-ov-grid">
-          <RequiresYouCard notices={actionNotices} />
+          <RequiresYouCard notices={actionNotices} needsSetup={setupState === "incomplete"} setupUnavailable={setupUnavailable} />
           <ApplicationsCard pipeline={pipeline} />
           <MatchingCard
             matchCount={matchCount}
             matchHref={matchHref}
-            hasStatedOccupation={hasStatedOccupation}
+            setupState={setupState}
             span={siblingSpan}
           />
           <CompaniesCard

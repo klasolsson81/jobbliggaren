@@ -76,7 +76,7 @@ Handoffen tar bort per-sektionskugghjulen och lämnar öppet om notisinställnin
 - Notisbyggarna i `oversikt-page.tsx` (vilka notiser som finns, deras text, länkar och tider) — oförändrade. Kräver dig = `warning`/`success`/`brand`; Senaste händelser = `info`. Intervju (`brand`) blir därmed åtgärd — det är handoffens flytt, och den enda semantiska ändringen i notisdatat.
 - `NoticeToolbar`, `MarkAllReadRow`, `useDismissedNotices`, `useNoticePrefs` — oförändrade i beteende. Läst-foten (`.jp-notice-foot`) behålls i botten av Kräver dig respektive Senaste händelser, så `MarkAllReadRow`:s fokusmål består.
 - **Branschbevakningar summeras aldrig** (CTO #1681 del 3 D1). Vid en bevakning bär kortet dess tal; vid två eller fler blir kortet `span 12` med en rad per bevakning, och Matchning + Bevakade företag blir `span 6` så raden förblir jämn. Ett summerat tal hade brutit D1 och dubblat en duplicerad bevakning exakt.
-- Setup-läget (`!hasStatedDesiredOccupation`) ersätter Matchning-kortets innehåll i samma cell — ömsesidigt uteslutande mot matchtalet som förut (ADR 0076). Det är den enda inställningslänken på sidan, och bara i det läget.
+- Setup is incomplete only for a successfully loaded profile without a persisted desired occupation (ADR 0076). The Matching card keeps its setup link instead of the count; a second, prominent continuation appears above genuine rows inside Kräver åtgärd (#1943). Profile-read failure is unavailable, never incomplete.
 - Gästsidan `/gast/oversikt` renderar de gamla komponenterna byte-identiskt (gästläget är ute ur MVP 2026-08-30; migrering → #1585).
 - Ingen ny backend: inga per-användar-deltan ("+N sedan igår"), inga nya tidsstämplar. Matchnings- och bevakningsnotisernas `timeToday` är fortsatt MOCK-märkt i koden; en riktig händelselogg (statusändringar, företagshändelser, riktiga stämplar) är följd-PR:er under epik #1662/#1666.
 
@@ -107,3 +107,9 @@ Handoffen tar bort per-sektionskugghjulen och lämnar öppet om notisinställnin
 ### Implementation note — 2026-10-03 (#1942)
 
 The action card now uses “Kräver åtgärd” (“Needs action”) in both its heading and empty text, matching the applications queue. Notice predicates, counts, dismissal and destinations remain as decided above. The matching setup card drops its duration hint; its explanation and setup destination remain.
+
+### Amendment — 2026-10-03 (#1943)
+
+Decision 3 permits a full-width outline/emphasis continuation inside Kräver åtgärd for an incomplete, loaded profile. Its heading and body form one native link, with a visible focus indicator; it introduces no solid CTA, new token or notice row. Genuine action rows remain below it. Their unread counts, warning bar, dismissal and read foot retain their meaning. The contradictory empty text yields to the continuation.
+
+Decision 5 now has two setup entrances, both to `/oversikt?matchsetup=1`: the upper continuation and the existing Matching-card link. Completion remains at least one persisted desired occupation; CV and other choices stay optional. Dismissal controls automatic welcome only. Explicit resume starts at occupations when matching choices exist, otherwise Start; automatic welcome always starts at Start. The launcher stays mounted and retains the opening's data through revalidation so saving can display Done. Close restores the surviving opener, then the upper link, then the Matching heading. Failed taxonomy reads offer a localized error and a page-refresh retry. No API contracts or preference-write paths change.

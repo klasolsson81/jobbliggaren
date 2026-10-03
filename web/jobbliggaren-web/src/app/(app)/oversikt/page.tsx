@@ -17,6 +17,7 @@ import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
 import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
+import { getSetupState, hasSavedMatchingChoices } from "@/lib/onboarding/setup-state";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher";
 import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
@@ -43,8 +44,7 @@ export const dynamic = "force-dynamic";
 export default async function OversiktRoute({
   searchParams,
 }: {
-  // ?matchsetup=1 — notisen "Ställ in matchning" öppnar rail-modalen (epik #526);
-  // mirror /cv:s ?matchning=1-prompt-precedent.
+  // Both setup links resume the existing rail with ?matchsetup=1.
   searchParams: Promise<{ matchsetup?: string }>;
 }) {
   const user = await getServerSession();
@@ -53,7 +53,7 @@ export default async function OversiktRoute({
   // #742 — starta taxonomi-hämtningen EAGER (oawaitad) så den överlappar fan-out:en
   // istället för att serialisera en round-trip EFTER den för setup-gren-användare
   // (första-gången/onboarding = appens långsammaste paint). Konsumeras först när
-  // `shouldMountSetup` (nedan); för icke-setup-laddningar slängs löftet. Det ligger
+  // `setupRequest` (nedan); för icke-setup-laddningar slängs löftet. Det ligger
   // off the critical path (körs parallellt med fan-out:en, resultatet konsumeras
   // aldrig) → noll adderad wall-clock-latency. `getTaxonomyTree` returnerar ett
   // Result och kastar aldrig i en giltig request-scope (cookie-läsning + try/catch),
@@ -155,38 +155,17 @@ export default async function OversiktRoute({
     r.kind === "ok" ? r.data : null,
   );
 
-  // ADR 0077 STEG 5 — välkomst-/första-setup-modal. Visas bara när profilen
-  // laddats, inget yrke ännu angetts (`hasStatedDesiredOccupation`) OCH cookien
-  // saknas (användaren har inte redan stängt/skippat den i denna webbläsare).
-  // Cookien bryter "om-nagg vid tom preferens"-loopen utan backend-skrivning
-  // (ADR 0076 Decision 3). Setup-nudgen i Översikt-feeden lever kvar som
-  // komplementär post-skip-påminnelse.
   const setupWelcomeSeen = await hasSeenSetupWelcome();
   const { matchsetup: matchsetupParam } = await searchParams;
 
-  // Matchnings-setup behövs så länge inget yrke angetts. Modalen auto-öppnas i
-  // två fall: (a) nytt konto som inte redan stängt/skippat den i denna webbläsare
-  // (cookien), ELLER (b) användaren klickade notisen "Ställ in matchning"
-  // (?matchsetup=1). Notisen visas bara för needsSetup-användare, så param-vägen
-  // ligger alltid inom needsSetup. Cookien bryter "om-nagg vid tom preferens"-
-  // loopen utan backend-skrivning (ADR 0076 Decision 3); notisen är den
-  // komplementära post-skip-ingången.
-  const needsSetup =
-    profile.kind === "ok" && !profile.data.hasStatedDesiredOccupation;
-  const showWelcome = needsSetup && !setupWelcomeSeen;
-  const openSetupFromParam = matchsetupParam === "1";
-  const shouldMountSetup = needsSetup && (showWelcome || openSetupFromParam);
+  const setupState = getSetupState(profile);
+  const setupRequest = setupState !== "incomplete" ? null
+    : matchsetupParam === "1" ? "resume"
+    : !setupWelcomeSeen ? "welcome" : null;
 
-  // Taxonomin behövs ENBART när modalen faktiskt ska monteras (yrkes-/region-/
-  // anställningsform-väljaren behöver trädet). Löftet startades EAGER ovan (#742)
-  // så det redan är i luften parallellt med fan-out:en; här awaitas det bara i
-  // setup-grenen — icke-setup-laddningar konsumerar det aldrig. Degraderar civilt:
-  // utan taxonomi visas ingen modal (väljaren vore tom) → modalen utelämnas hellre
-  // än renderas trasig.
-  //
-  // The saved skills are resolved to names here, as on the Matchning page (ADR 0047); without them
-  // the rail shows raw concept-ids. A failed read gives `[]` and the rail keeps its id fallback.
-  const setupProfile = shouldMountSetup && profile.kind === "ok" ? profile.data : null;
+  // Only an opening request consumes the eagerly started taxonomy read. A failed read
+  // leaves the continuation available with a retry; saved skills keep their id fallback.
+  const setupProfile = setupRequest !== null && profile.kind === "ok" ? profile.data : null;
   const [taxonomy, persistedSkillGroups] = setupProfile
     ? await Promise.all([
         taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null)),
@@ -208,24 +187,26 @@ export default async function OversiktRoute({
         companyWatches={companyWatches}
         criteria={criteria}
         criterionReference={criterionReference}
+        setupUnavailable={setupRequest !== null && taxonomy === null}
       />
-      {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (
-        <MatchSetupLauncher
-          autoOpen
-          occupationFields={taxonomy.occupationFields}
-          regions={taxonomy.regions}
-          employmentTypes={taxonomy.employmentTypes}
-          persistedOccupationGroups={profile.data.preferredOccupationGroups}
-          persistedRegions={profile.data.preferredRegions}
-          persistedMunicipalities={profile.data.preferredMunicipalities}
-          persistedRemote={profile.data.preferredRemote}
-          persistedEmploymentTypes={profile.data.preferredEmploymentTypes}
-          persistedSkills={profile.data.preferredSkills}
-          persistedSkillGroups={persistedSkillGroups}
-          persistedOccupationExperience={profile.data.preferredOccupationExperience}
-          importCvHref={IMPORT_CV_HREF}
-        />
-      )}
+      <MatchSetupLauncher
+        request={setupRequest}
+        data={taxonomy !== null && setupProfile !== null ? {
+          occupationFields: taxonomy.occupationFields,
+          regions: taxonomy.regions,
+          employmentTypes: taxonomy.employmentTypes,
+          persistedOccupationGroups: setupProfile.preferredOccupationGroups,
+          persistedRegions: setupProfile.preferredRegions,
+          persistedMunicipalities: setupProfile.preferredMunicipalities,
+          persistedRemote: setupProfile.preferredRemote,
+          persistedEmploymentTypes: setupProfile.preferredEmploymentTypes,
+          persistedSkills: setupProfile.preferredSkills,
+          persistedSkillGroups,
+          persistedOccupationExperience: setupProfile.preferredOccupationExperience,
+          importCvHref: IMPORT_CV_HREF,
+          resumeStep: hasSavedMatchingChoices(setupProfile) ? 1 : 0,
+        } : null}
+      />
       {/* DEV-ONLY — remove before launch (Klas), with the flag and the endpoint
           (docs/runbooks/release-checklist.md). Wipes the caller's own test data so the
           welcome setup can run again.

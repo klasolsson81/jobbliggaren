@@ -1535,3 +1535,52 @@ user to matching settings; it does not require CV upload.
 
 The dated aggregate measurement and reproducible read-only SQL belong in
 docs/research/issues/1864-match-detail-evidence.md. They are observations, not live constants.
+
+---
+
+## Amendment 2026-10-03 (b) — #1963: the job card presents the evidence as a checklist (Checklistan)
+
+This amendment changes how the job-ad detail **presents** the evidence (the intercepted modal and
+`/jobb/[id]`). It changes no verdict, grade, extraction, persistence or wire shape. The data rules of
+the amendment above stand: concept identity on the wire, strict parsing, and display strings are not
+identities. Klas approved the Claude Design handoff "Checklistan" on 2026-10-03 and answered two
+planning questions the same day; both answers are quoted verbatim below.
+
+It supersedes these presentation bindings, of the amendment above and earlier ones:
+
+1. **Colour carries the outcome, beside an icon and a word** (DESIGN.md §3):
+   - matched evidence and a Match dimension take the success family;
+   - a Partial or NoMatch dimension and a missing skill take `--jp-warning`;
+   - a missing obligatory requirement, and nothing else, takes `--jp-danger`.
+
+   Unmatched evidence is no longer neutral ink with a dashed border.
+2. **A dimension without an assessment (NotAssessed, Vacuous) is not rendered.** This retires "NotAssessed
+   stays" and the neutral "Ej bedömt" rendering for the detail. An AdSilent NoMatch dimension (place,
+   employment type) is still rendered, with the ad's reason as its value, because it lowers the grade.
+   Klas: *"Visa som orange rad (Rekommenderas)"*. When the ad states no occupation group, the grade is
+   null and no row explains why, so the ad's reason stands as one neutral line under the section's
+   heading. A Titel row keeps the warning tone for Partial and NoMatch, although the title never moves
+   the grade; with #1871 open it renders for almost no one.
+3. **A chip shows its group's display only.** Distinct member words are no longer shown. The taxonomy's own
+   qualifiers stay, because they tell distinct concepts apart. Klas: *"Behåll taxonomins parenteser
+   (Rekommenderas)"*. Comma suffixes also stay until he decides otherwise.
+4. **"Cross-dimension repetition remains meaningful" is narrowed.** A skill-overlap group that shares a concept id
+   with a requirement chip on the same side is shown once, in the requirement group. Cross-side
+   repetition is never merged, and display-only legacy evidence is never deduplicated.
+5. **The counter beside the skills** counts distinct matched and not-in-profile skills over every rendered
+   chip, collapsed ones included; overlapping id sets count once. Legacy evidence gets no counter. The
+   counter counts the named chips shown beside it and enters no wire, so the Goodhart guard
+   (Decision 4) is untouched. Percentages, ratios, "x av y", gauges and rings stay forbidden.
+6. **The matching-settings link** is shown only in the notice for a user with no stated occupation. The
+   notice for a user without confirmed skills names where the skills are chosen instead of linking there.
+
+The following are unchanged:
+- the five wire verdicts;
+- the grade ladder;
+- the requirement note's substance;
+- the rule that empty extracted data never implies a requirement-free ad.
+
+The producer facts this rests on were measured at `ad2ce55f9` on 2026-10-03:
+- `MatchScorer` scores an AdSilent place or employment type as NoMatch, which floors the grade at Basic;
+- 167 of the 20,679 v30 skill labels carry a parenthesis that belongs to the concept;
+- stripping those parentheses made three sets of distinct concepts read identically.

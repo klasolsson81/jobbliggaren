@@ -30,7 +30,7 @@ via `--jp-*` tokens in both light and `[data-theme="dark"]`.
 ## Anti-AI-design enforcement (CRITICAL)
 
 Actively reject, even when requested: gradient backgrounds (`bg-linear-to-*` —
-sole exception: hero plate `--jp-hero-gradient` per ADR 0068), glassmorphism
+sole exceptions: the scoped ones DESIGN.md §3 lists), glassmorphism
 (`backdrop-blur`, `bg-white/10`), glow effects, violet/indigo primaries, neon
 borders, animated gradients, `shadow-2xl`-everywhere, emoji in JSX, prominent
 "Powered by AI" badges, hero typography >48px in app UI, radius > 8px (pills/

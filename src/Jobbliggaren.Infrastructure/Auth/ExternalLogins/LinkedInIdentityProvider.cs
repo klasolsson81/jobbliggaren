@@ -30,9 +30,12 @@ internal sealed partial class LinkedInIdentityProvider(
 
     // Constants from LinkedIn's discovery document (www.linkedin.com/oauth/.well-known/openid-configuration) and its
     // "3-Legged OAuth Flow" page, read 2026-09-27, never fetched at run time.
-    internal static readonly Uri AuthorizationEndpoint = new("https://www.linkedin.com/oauth/v2/authorization");
     internal static readonly Uri TokenEndpoint = new("https://www.linkedin.com/oauth/v2/accessToken");
     internal static readonly Uri UserInfoEndpoint = new("https://api.linkedin.com/v2/userinfo");
+
+    // LinkedIn's api host, not the documented www host, so that LinkedIn asks for the sign-in (#1945, ADR 0142
+    // Amendment (23)).
+    internal static readonly Uri AuthorizationEndpoint = new("https://api.linkedin.com/oauth/v2/authorization");
 
     internal const string Scope = "openid email";
 

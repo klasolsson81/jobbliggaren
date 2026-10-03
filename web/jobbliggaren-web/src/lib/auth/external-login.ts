@@ -19,7 +19,7 @@ export const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
 /** The one URL each provider's authorization request may point at; a start answers nothing else. */
 export const AUTHORIZATION_ENDPOINTS: Readonly<Record<ExternalProviderKey, string>> = {
   google: "https://accounts.google.com/o/oauth2/v2/auth",
-  linkedin: "https://www.linkedin.com/oauth/v2/authorization",
+  linkedin: "https://api.linkedin.com/oauth/v2/authorization",
   github: "https://github.com/login/oauth/authorize",
 };
 

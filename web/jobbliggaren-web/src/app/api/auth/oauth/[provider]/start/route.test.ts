@@ -11,8 +11,9 @@ const AUTHORIZE = `https://accounts.google.com/o/oauth2/v2/auth?client_id=x&stat
 // `GitHubIdentityProvider.BuildAuthorizeUrl`'s shape. `ExternalLoginMirrorWireContractTests` binds the endpoint to
 // the adapter's own.
 const GITHUB_AUTHORIZE = `https://github.com/login/oauth/authorize?client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Fgithub%2Fcallback&scope=user%3Aemail&prompt=select_account&state=${STATE}&code_challenge=c&code_challenge_method=S256`;
-// `LinkedInIdentityProvider.BuildAuthorizeUrl`'s shape: no PKCE and no nonce. The same wire test binds the endpoint.
-const LINKEDIN_AUTHORIZE = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Flinkedin%2Fcallback&scope=openid%20email&state=${STATE}`;
+// `LinkedInIdentityProvider.BuildAuthorizeUrl`'s shape: no PKCE and no nonce, on LinkedIn's api host (#1945). The same
+// wire test binds the endpoint.
+const LINKEDIN_AUTHORIZE = `https://api.linkedin.com/oauth/v2/authorization?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2Flinkedin%2Fcallback&scope=openid%20email&state=${STATE}`;
 
 function start(query = "", { provider = "google", headers = {} as Record<string, string> } = {}) {
   const request = new NextRequest(`http://localhost/api/auth/oauth/${provider}/start${query}`, {
@@ -197,6 +198,21 @@ describe("the external login start", () => {
     expect(response.headers.get("location")).toBe("/logga-in");
     expect(setCookie(response, "__Host-jobbliggaren_oauth")).toBeUndefined();
     expect(noticeOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider });
+  });
+
+  // Reachable during a rollout, not declared unreachable: the api image from before #1945 answers a LinkedIn start
+  // with LinkedIn's documented www endpoint while this web already names the api host (the two images move
+  // independently; measured on the box 2026-10-03T08:48:24Z). The start then fails closed with LinkedIn's own notice
+  // and no state cookie (ADR 0142 Amendment (23)).
+  it("sends the browser back with LinkedIn's notice and no state cookie on a LinkedIn start answered with the www endpoint", async () => {
+    backendAnswers(200, { authorizeUrl: LINKEDIN_AUTHORIZE.replace("api.linkedin.com", "www.linkedin.com"), state: STATE });
+
+    const response = await start("", { provider: "linkedin" });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/logga-in");
+    expect(setCookie(response, "__Host-jobbliggaren_oauth")).toBeUndefined();
+    expect(noticeOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "linkedin" });
   });
 
   it("sends the browser back with a notice when the api cannot be reached", async () => {

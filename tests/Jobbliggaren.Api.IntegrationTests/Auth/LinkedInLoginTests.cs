@@ -156,7 +156,7 @@ public sealed class LinkedInLoginTests(ApiFactory factory) : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
         body.EnumerateObject().Select(p => p.Name).ShouldBe(["authorizeUrl", "state"]);
         var url = new Uri(body.GetProperty("authorizeUrl").GetString()!);
-        url.GetLeftPart(UriPartial.Path).ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
+        url.GetLeftPart(UriPartial.Path).ShouldBe("https://api.linkedin.com/oauth/v2/authorization");
         var query = HttpUtility.ParseQueryString(url.Query);
         query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(
             ["client_id", "redirect_uri", "response_type", "scope", "state"]);

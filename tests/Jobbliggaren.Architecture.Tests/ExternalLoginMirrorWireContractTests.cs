@@ -67,10 +67,12 @@ public class ExternalLoginMirrorWireContractTests
     public void The_github_adapter_points_at_githubs_documented_authorize_endpoint() =>
         GitHubIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://github.com/login/oauth/authorize");
 
-    // "LinkedIn 3-Legged OAuth Flow" and the live discovery document, read 2026-09-27.
+    // LinkedIn's api host, which LinkedIn does not document for authorization: measured on 2026-10-03 to show the
+    // sign-in page to a member signed in at www (#1945, ADR 0142 Amendment (23)). The literal is the mirror theory's
+    // independent oracle: a consistent revert of both sides to www passes the theory and is red here.
     [Fact]
-    public void The_linkedin_adapter_points_at_linkedins_documented_authorize_endpoint() =>
-        LinkedInIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
+    public void The_linkedin_adapter_points_at_linkedins_api_host_authorize_endpoint() =>
+        LinkedInIdentityProvider.AuthorizationEndpoint.AbsoluteUri.ShouldBe("https://api.linkedin.com/oauth/v2/authorization");
 
     [Fact]
     public void The_callback_the_provider_returns_to_is_a_route_the_web_serves()

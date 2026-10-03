@@ -150,8 +150,8 @@ def main():
                 current.get("merge_commit_sha") != pr.get("merge_commit_sha")):
             raise ValueError("PR changed while reconciling checks")
 
-    def latest_attestation(pr):
-        results = api(f"commits/{pr['head']['sha']}/check-runs?check_name={CHECK_NAME}&per_page=100")
+    def latest_attestation(sha):
+        results = api(f"commits/{sha}/check-runs?check_name={CHECK_NAME}&per_page=100")
         trusted = [result for result in results["check_runs"] if result.get("app", {}).get("id") == app_id]
         return max(trusted, key=lambda result: result["id"], default=None)
 
@@ -162,12 +162,18 @@ def main():
         if pr["base"]["ref"] != "main":
             raise ValueError("Only main-target PRs are supported")
         if codex_scope(repository, pr):
-            latest = latest_attestation(pr)
+            latest = latest_attestation(pr["head"]["sha"])
+            merge_sha = pr.get("merge_commit_sha")
+            merge_latest = latest_attestation(merge_sha) if merge_sha else None
             expected = review_identity(repository, pr)
-            if (latest and latest.get("external_id") == expected and latest.get("conclusion") == "success" and
-                    latest.get("output", {}).get("summary") and latest.get("details_url")):
+            if (all(result and result.get("external_id") == expected and result.get("conclusion") == "success" and
+                    result.get("output", {}).get("summary") and result.get("details_url")
+                    for result in (latest, merge_latest)) and
+                    latest["output"]["summary"] == merge_latest["output"]["summary"] and
+                    latest["details_url"] == merge_latest["details_url"]):
                 require_same_snapshot(pr)
-                if latest_attestation(pr) != latest:
+                current_results = (latest_attestation(pr["head"]["sha"]), latest_attestation(merge_sha))
+                if current_results != (latest, merge_latest):
                     raise ValueError("Attestation changed during renewal")
                 publish(pr, {"status": "completed", "conclusion": "success", "external_id": expected,
                              "details_url": latest["details_url"],
@@ -219,13 +225,31 @@ def main():
                     reconcile(read_current(item["number"]))
                 except Exception:
                     failed.append(item["number"])
+                    try:
+                        publish(item, {"status": "completed", "conclusion": "failure",
+                                       "external_id": review_identity(repository, item),
+                                       "output": {"title": "Reconciliation failed",
+                                                  "summary": "Current PR policy could not be verified."}})
+                    except Exception:
+                        print(f"Could not revoke every target for PR #{item['number']}")
             if len(prs) < 100:
                 break
             page += 1
         if failed:
             raise ValueError(f"Reconciliation failed for PRs: {failed}")
         return
-    pr = read_current(number)
+    try:
+        pr = read_current(number)
+    except Exception:
+        snapshot = event.get("pull_request", {})
+        if (os.environ["GITHUB_EVENT_NAME"] == "pull_request_target" and snapshot.get("state") == "open" and
+                (snapshot.get("head", {}).get("repo") or {}).get("full_name") == repository and
+                snapshot.get("base", {}).get("repo", {}).get("full_name") == repository):
+            publish(snapshot, {"status": "completed", "conclusion": "failure",
+                               "external_id": review_identity(repository, snapshot),
+                               "output": {"title": "Current PR could not be read",
+                                          "summary": "The event snapshot is revoked; retry current policy evaluation."}})
+        raise
     if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target" or inputs.get("verdict") == "refresh":
         reconcile(pr)
         return

@@ -89,9 +89,10 @@ review evidence as an explicit open commissioning dependency.
 ### Check renewal
 
 The main-branch workflow reconciles open main PRs daily. It republishes only
-an exact-match latest successful App attestation, preserving the original writer,
+matching latest successful App results on both head and test-merge, preserving the original writer,
 report links and attestation time; it records republication separately. It never
-searches past a newer failure or treats renewal as a new code/security review.
+searches past a newer failure on either target or treats renewal as a new code/security review.
+A failed initial PR read revokes known same-repository event/list snapshot targets.
 CC exemptions are recalculated from scope history. An unavailable test-merge is
 retried briefly and fails closed; a later event or daily run retries reconciliation.
 For immediate recovery, dispatch the workflow on main with the current PR/head/base

@@ -28,7 +28,7 @@ input-fält) via `data-theme="dark"` on `<html>` — see `dark-mode.md`.
 | `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
 | `--jp-accent-100` | `#D3E7DC` | `#0E2A1E` | Avatar-bg |
 | `--jp-accent-50` | `#E9F2ED` | `#0E2A1E` | Selektions-bg (popover-rad, selekterad) |
-| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070) |
+| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070); typographic roles: DESIGN.md §§6/11 |
 
 `#6EE7A8` (dark-accent-700) används ENDAST som text/länk/fokus/border —
 ALDRIG fill bakom vit text.
@@ -127,7 +127,7 @@ Tema-stabila (omdefinieras INTE i dark; plattan får 1px
 | `--jp-hero-gradient` | `linear-gradient(118deg, var(--jp-hero-from) 0%, var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%)` | Plattans bakgrund |
 | `--jp-hero-bg` | `#14503A` | **SOLID ankare** — pagehero-knapp-text/border |
 | `--jp-hero-ink` | `#FFFFFF` | Text på gradienten |
-| `--jp-hero-ink-soft` | `rgba(255, 255, 255, 0.78)` | Lede/kicker på gradienten |
+| `--jp-hero-ink-soft` | `rgba(255, 255, 255, 0.78)` | Kicker och hjälprader på gradienten |
 | `--jp-hero-pill-bg` | `#FFFFFF` | Banner-lokala vita kontroller (tema-stabila) |
 | `--jp-hero-pill-ink` | `#0C1A2E` | Kontroll-text (v3-ink) |
 | `--jp-hero-pill-border` | `#CBD5E1` | Kontroll-border |

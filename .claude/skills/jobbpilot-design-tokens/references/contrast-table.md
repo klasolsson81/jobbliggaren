@@ -187,6 +187,7 @@ tillbaka till en ring, eftersom vitt är osynligt mot dem.
 | `hero-pill-ink` (#0C1A2E) | `hero-pill-bg` (#FFFFFF) | ~17.5:1 | AAA ✓ | Tema-stabila vita kontroller i plattan |
 | vit (#FFFFFF) | `hero-sok-bg` (#0C1A2E) | ~17.5:1 | AAA ✓ | Sök-knapp (ink, INTE grön) |
 | `--jp-focus` = `accent-800` (#15603F) | `accent-50` (#E9F2ED) | ~6.6:1 | AA ✓ | **Femte fokus-scopet** (`.jp-pagehero__helpedctl`). Pillen hålls ljus i BÅDA teman av `.jp-pagehero__inner`s tema-pin — utan den är `accent-50` i dark `#0E2A1E` och ringen faller till ~2.0:1, så pinnen är bärande för den här raden. Plattans VITA ring är osynlig mot en ljus pill. `accent-800` dark-skiftas aldrig ⇒ håller i båda teman. `accent-700` får **inte** användas här: dess dark-värde `#6EE7A8` mot samma pill = ~1.35:1, WCAG 2.4.7-fail |
+| `--jp-gold` | `--jp-hero-gradient` under band line boxes | ≥4.5:1 required in rendered geometry | AA floor | DESIGN.md §§6/11; `.jp-pagehero__lede` with `min(60ch, 75%)`, `.jp-hero__lede` with `42ch`; historical form measurement: ADR 0144 Amendment 2026-09-28 (#1917) |
 
 ---
 

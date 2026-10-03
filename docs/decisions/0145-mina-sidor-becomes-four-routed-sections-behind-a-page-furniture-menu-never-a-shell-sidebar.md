@@ -478,3 +478,6 @@ accent-700 ring at 2px offset, `:focus-visible` true, visible around the plate. 
 two rows at 320/375/390, one row at 600/768/900, every item at least 44px, menu
 horizontal overflow 0 at every width measured, the current item in view, the plate kept,
 the old bottom line gone.
+
+
+**Amendment 2026-09-28 (#1917):** D1's "title only, no lede" clause and Klas's third answer, "Band utan ingress", are superseded by ADR 0144 Amendment 2026-09-28 (#1917); the band-line rule lives in DESIGN.md §6, §8 rule 8 and §11.

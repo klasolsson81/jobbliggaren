@@ -438,11 +438,17 @@ Codex sessions label new PRs `codex-review`, use fresh `codex/` branches, and re
 each new head. Trusted non-Codex repository branches are exempt. `ci` and the
 mandatory local panel remain; `agents-done` does not attest external reports.
 
-Native Security Review can complete with no PR comments. Therefore silence,
-reactions and timeouts cannot approve a commit. The driving session reads both
-completed reports and dispatches the trusted default-branch workflow with the
-full SHA and report links. The check verifies an authorized attestation, not the
-report contents. New commits, including pure base merges, need fresh evidence.
+Klas's later 2026-10-03 directive makes completed native bot evidence in GitHub
+sufficient for the reviewed head/base. The driving session verifies completion
+of both reviews and reads their GitHub findings; it does not require a separate
+full web report or Codex task URL. An attributable green/no-findings completion
+counts; silence, generic CI green, unqualified reactions, failed/pending tasks
+and stale results do not. Both report locators may use the bot's same-PR GitHub
+review or completion/summary comment. The trusted default-branch workflow still
+requires explicit authorized attestation, current full head/base and both links;
+it verifies authority and commit, not the linked evidence's contents or author.
+New commits, including pure base merges, need fresh evidence. All Medium-plus
+security findings and P0/P1/P2 code defects retain their existing closure duty.
 
 Rejected: label-only enforcement (not SHA-bound), guessed native check names
 (unverified semantics), and treating no comments as clean (ambiguous completion).

@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       head_sha:
-        description: Full SHA read in both completed Codex reports
+        description: Full SHA verified in both completed native review results
         required: true
         type: string
       base_ref:
@@ -30,13 +30,13 @@ on:
         options: [blocked, approved, refresh]
         default: blocked
       code_report:
-        description: Codex code review report URL
+        description: Native Code Review evidence URL (same-PR GitHub or Codex)
         type: string
       security_report:
-        description: Codex security review report URL
+        description: Native Security Review evidence URL (same-PR GitHub or Codex)
         type: string
       attestation:
-        description: Type both-complete-zero-medium-plus only after reading both reports
+        description: Type both-complete-zero-medium-plus after verifying both completed results and GitHub findings
         type: string
 
 permissions:

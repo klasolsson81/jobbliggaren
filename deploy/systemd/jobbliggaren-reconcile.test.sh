@@ -162,6 +162,8 @@ image)
   case "$fmt" in
   *RepoDigests*)
     repo="${ref%%@*}"; repo="${repo%:*}"
+    # A docker that reports another repo digest for the release image than the one pulled.
+    if [ -f "$REG/repodigest-as" ] && [[ $repo == *-release ]]; then printf '%s@%s\n' "$repo" "$(cat "$REG/repodigest-as")"; exit 0; fi
     for f in "$REG"/local/*; do
       n=$(basename "$f")
       [ "$(cat "$f")" = "$id" ] || continue
@@ -279,7 +281,7 @@ applied_is() { # <sha>: every :applied tag names that release's image
 reset() {
   rm -rf "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
   mkdir -p "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
-  rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/tag-count \
+  rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
     "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
   default_compose
@@ -369,9 +371,12 @@ printf '%s\n' "$REC1" >"$PIN"
 expect_exit 0 "a digest pin applies exactly that record"
 reset
 REC1=$(release "$SHA1" 10)
-printf 'sha256:%s\n' "$(printf 'a%.0s' $(seq 64))" >"$PIN"
-touch "$REG/known/sha256:$(printf 'a%.0s' $(seq 64))"
-expect_exit 1 "a digest pin whose pull lands on another digest refuses"
+printf '%s\n' "$REC1" >"$PIN"
+printf '%s' "$(digest_of something-else)" >"$REG/repodigest-as"
+expect_exit 1 "a digest pin whose pulled image carries another repo digest refuses"
+# Bound to the message — measured by mutation: with the equality check deleted, the later read of the
+# other digest still failed, green for the wrong reason.
+check 'said "but $PIN pins $REC1"' "and it is the pin's own equality check that answered"
 
 for bad in "" "latest" "sha-$SHA1 sha-$SHA2" "sha-${SHA1:0:7}"; do
   reset
@@ -554,6 +559,19 @@ touch "$REG/up-fails" "$REG/rmi-fails"
 rm -f "$REG/local/$(key "$PREFIX-api:applied")"
 expect_exit 2 "a restore that itself fails says :applied may be mixed (2)"
 check 'said "may be mixed"' "and says so"
+# Killed a surviving mutant: the case below has NO web container at all, so the "no single container"
+# check answered and the image comparison was never reached. Here web keeps the previous release.
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/up-skips-web"
+expect_exit 1 "a service still running the PREVIOUS release's image after up fails the postcondition"
+check 'said "service web runs"' "and it is the image comparison that answered"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT" && applied_is "$SHA1"' "the receipt still names the applied release, and :applied is put back"
+
 reset
 REC=$(release "$SHA1" 10)
 channel "$REC"

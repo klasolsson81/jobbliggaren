@@ -110,6 +110,7 @@ if [ "$1 $2 $3" = "buildx imagetools create" ]; then
   while [ "$#" -gt 0 ]; do case "$1" in -t) target="$2"; shift 2 ;; --prefer-index=false) shift ;; *) src="$1"; shift ;; esac; done
   d="${src#*@}"
   if [ -n "${wrapped:-}" ] || [ -f "$REG/wrap-moves" ]; then d="sha256:$(printf '%s' "index-of-$d" | sha256sum | cut -d' ' -f1)"; fi
+  if [ -f "$REG/wrap-tags-matching" ] && [[ $target == *"$(cat "$REG/wrap-tags-matching")"* ]]; then d="sha256:$(printf '%s' "index-of-$d" | sha256sum | cut -d' ' -f1)"; fi
   printf '%s' "$d" >"$REG/tags/$(key "$target")"
   exit 0
 fi
@@ -169,7 +170,7 @@ digest_of() { printf 'sha256:%s' "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1
 reset_registry() {
   rm -rf "$REG"/tags/* "$REG"/blobs/* "$REG"/media/* "$REG"/attested/* "$REG"/containers/* "$REG"/flip "$REG"/flip-count
   mkdir -p "$REG/flip" "$REG/flip-count"
-  rm -f "$REG"/deny "$REG"/release-exists "$REG"/fail-lookups "$REG"/fail-pulls "$REG"/wrap-moves "$REG"/push-as-index \
+  rm -f "$REG"/deny "$REG"/release-exists "$REG"/fail-lookups "$REG"/fail-pulls "$REG"/wrap-moves "$REG"/wrap-tags-matching "$REG"/push-as-index \
     "$REG"/seal-during-push "$REG"/docker-calls "$REG"/verifier-calls
 }
 # The five images a cell set published for <commit>, each attested as built from it.
@@ -414,6 +415,20 @@ rm -f "$REG/attested/$NEW"
 : >"$REG/docker-calls"
 expect_exit 1 "the mover proves its own precondition: an unproven record moves nothing" advance "$NEW" "$C3"
 check 'no_tag_moved' "and nothing moved"
+
+# Killed a surviving mutant: a precondition read WITHOUT the commit passed any proven record.
+reset_registry
+OTHER=$(fresh_release "$C2")
+: >"$REG/docker-calls"
+expect_exit 1 "the mover refuses a proven record that is ANOTHER commit's release" advance "$OTHER" "$C3"
+check 'no_tag_moved' "and nothing moved"
+
+# Killed a surviving mutant: without the per-move read-back only dev and latest were re-checked
+# later, so a seal landing on a re-wrapped digest went unnoticed.
+reset_registry
+NEW=$(fresh_release "$C3")
+printf ':sha-' >"$REG/wrap-tags-matching"
+expect_exit 1 "a seal that lands on a re-wrapped digest is red even when dev and latest land right" advance "$NEW" "$C3"
 
 reset_registry
 NEW=$(fresh_release "$C3")

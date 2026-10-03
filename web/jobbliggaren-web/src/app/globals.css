@@ -4937,8 +4937,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* The band the line stands on in the rail mountings: the same canvas .jp-pagehero paints,
    so the line and its gaps sit on one surface with the band below rather than on the
-   layout's white (design-reviewer 2(b) on #1955). Painted only while the line shows. */
+   layout's white (design-reviewer 2(b) on #1955). Painted only while the line shows.
+   flow-root: a formatting context, so the banner's top margin stays inside the band
+   instead of collapsing through it onto the layout's white. */
 .jp-banner-band {
+  display: flow-root;
   background: var(--jp-canvas);
 }
 

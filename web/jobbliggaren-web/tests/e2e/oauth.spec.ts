@@ -33,6 +33,7 @@ test.describe("Fortsätt med Google", () => {
     expect(`${authorization.origin}${authorization.pathname}`).toBe(AUTHORIZATION_ENDPOINT);
     expect(authorization.searchParams.get("response_type")).toBe("code");
     expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(authorization.searchParams.get("prompt")).toBe("select_account consent");
     expect(new URL(authorization.searchParams.get("redirect_uri") ?? "").pathname).toBe(
       "/api/auth/oauth/google/callback"
     );

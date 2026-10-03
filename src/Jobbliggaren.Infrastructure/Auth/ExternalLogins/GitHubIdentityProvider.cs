@@ -40,6 +40,9 @@ internal sealed partial class GitHubIdentityProvider(
 
     internal const string Scope = "user:email";
 
+    // Our authorization request asks GitHub for its account picker (#1926, ADR 0142 Amendment (22)).
+    internal const string Prompt = "select_account";
+
     // Requests without a User-Agent are rejected by GitHub's REST API; the version is pinned so the fields read here
     // cannot change under a default.
     internal const string UserAgent = "Jobbliggaren";
@@ -65,6 +68,7 @@ internal sealed partial class GitHubIdentityProvider(
             ("client_id", options.Value.ClientId),
             ("redirect_uri", RedirectUri),
             ("scope", Scope),
+            ("prompt", Prompt),
             ("state", state.Reveal()),
             ("code_challenge", challenge.Value),
             ("code_challenge_method", PkceChallenge.Method),

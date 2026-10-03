@@ -35,6 +35,10 @@ internal sealed partial class GoogleIdentityProvider(
 
     internal const string Scope = "openid email";
 
+    // Our authorization request asks Google for its account chooser and its permission page (#1926, ADR 0142
+    // Amendment (22)).
+    internal const string Prompt = "select_account consent";
+
     private const string GmailSuffix = "@gmail.com";
 
     public ExternalProviderKey Key => ExternalProviderKey.Google;
@@ -49,6 +53,7 @@ internal sealed partial class GoogleIdentityProvider(
             ("redirect_uri", RedirectUri),
             ("response_type", "code"),
             ("scope", Scope),
+            ("prompt", Prompt),
             ("state", state.Reveal()),
             ("code_challenge", challenge.Value),
             ("code_challenge_method", PkceChallenge.Method),

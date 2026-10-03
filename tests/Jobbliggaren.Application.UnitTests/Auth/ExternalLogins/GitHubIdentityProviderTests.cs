@@ -89,12 +89,13 @@ public sealed class GitHubIdentityProviderTests : IDisposable
         var query = HttpUtility.ParseQueryString(url.Query);
 
         url.GetLeftPart(UriPartial.Path).ShouldBe("https://github.com/login/oauth/authorize");
-        // Exactly these keys: no response_type (GitHub documents none), no login, no prompt, no allow_signup.
+        // Exactly these keys: no response_type (GitHub documents none), no login, no allow_signup.
         query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(
-            ["client_id", "code_challenge", "code_challenge_method", "redirect_uri", "scope", "state"]);
+            ["client_id", "code_challenge", "code_challenge_method", "prompt", "redirect_uri", "scope", "state"]);
         query["client_id"].ShouldBe(ClientId);
         query["redirect_uri"].ShouldBe(RedirectUri);
         query["scope"].ShouldBe("user:email");
+        query["prompt"].ShouldBe("select_account");
         query["state"].ShouldBe(state.Reveal());
         query["code_challenge"].ShouldBe(challenge.Value);
         query["code_challenge_method"].ShouldBe("S256");

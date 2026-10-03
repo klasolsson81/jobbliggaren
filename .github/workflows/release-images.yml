@@ -1,4 +1,5 @@
-# Publishes the five container images the production stack pulls (#196).
+# Publishes the five container images the production stack runs (#196), and since #1238 one release
+# record naming all five, which is what the box applies (ADR 0149).
 #
 # NO PUSH TRIGGER, AND NO DISPATCH FROM `arm` — both were considered and both are refused
 # on measurement (senior-cto-advisor, 2026-08-05).
@@ -21,25 +22,39 @@
 #
 # So the trigger is a reconciler, which is the same answer `delete-merged-branches.yml`
 # reached for the same cause: the only mechanism whose trigger survives the condition it
-# exists to repair. The build is SHA-idempotent, so an extra trigger costs one manifest lookup.
-# It does NOT follow that a missed schedule self-heals on the next one: measure the schedule's
-# actual delivery before relying on it — the command is in parallel-sessions.md §8.1, and
-# .claude/hooks/main-ahead-of-images.sh is what notices when it has not.
+# exists to repair. A run for an already-released commit is a no-op apart from re-verifying
+# what was released. It does NOT follow that a missed schedule self-heals on the next one:
+# measure the schedule's actual delivery before relying on it — the command is in
+# parallel-sessions.md §8.1, and .claude/hooks/main-ahead-of-images.sh is what notices when it
+# has not.
 #
-# The owning session dispatches manually; CLAUDE.md §6.5
-# already requires it to watch its PR to merge, so it is standing at the right moment.
+# WHAT A RUN PUBLISHES (#1238). `prepare` fixes ONE commit, `github.sha`; five cells build, scan,
+# push and attest one image each from exactly that tree; then `publish` — which runs only when all
+# five cells succeeded — verifies all five as built from that commit, writes ONE immutable record
+# naming them (`ghcr.io/klasolsson81/jobbliggaren-release:sha-<commit>`), attests it, and only then
+# moves the `dev` channel to it, followed by the five `latest` tags the box's pre-#1238 consumer
+# still pulls. A delayed or failed cell therefore publishes nothing a consumer follows. The decision
+# logic lives in `.github/scripts/publish-release.sh` and `deploy/systemd/jobbliggaren-release-record.sh`,
+# each with its own fixture suite; this file is wiring, and `attestation-publish-order-guard.sh`
+# holds its order.
+#
+# NEVER RE-RUN A RUN FROM BEFORE #1238 — dispatch a new one. A re-run executes the workflow file of
+# the original commit: per-cell `latest` moves and a checkout of the moving `main`.
+#
+# The owning session dispatches manually after a merge; CLAUDE.md §6.5 already requires it to watch
+# its PR to merge, so it is standing at the right moment.
 name: release-images
 
 on:
   schedule:
-    # Hourly. A no-op run is a checkout and two manifest lookups per image — cheap rather
-    # than free, and free in billing terms because Actions on standard runners costs
+    # Hourly. A no-op run is a checkout, a record lookup and its verification per cell — cheap
+    # rather than free, and free in billing terms because Actions on standard runners costs
     # nothing for public repositories.
     - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       ref:
-        description: "Ref to build. Defaults to main; set it to prove a change to this workflow before it is on main."
+        description: "Ref to build. Defaults to main; set it to prove a change to this workflow before it is on main (never published)."
         required: false
         default: main
       push:
@@ -48,44 +63,86 @@ on:
         required: false
         default: true
 
-# `packages: write` is what pushing to GHCR needs; nothing here writes to the repository.
-# `id-token: write` mints the OIDC token the provenance attestation is signed against, and
-# `attestations: write` is what records it. The box refuses any image without one (#196).
-permissions:
-  contents: read
-  packages: write
-  id-token: write
-  attestations: write
+# Nothing at workflow level: each job names what it needs. `packages: write` pushes to GHCR,
+# `id-token: write` mints the OIDC token an attestation is signed against, `attestations: write`
+# records it. The box refuses any image or record without one (#196, ADR 0149).
+permissions: {}
 
 concurrency:
   group: release-images
   cancel-in-progress: false
 
 jobs:
-  # ONE SHA FOR THE WHOLE RUN. Each cell used to check out `main` itself, so a merge
-  # landing between two cells starting gave different `sha-<short>` to different images in
-  # the same run — and the box pins ONE tag for all five in its .env. Three would exist,
-  # two would not, and the deploy would fail or fall back to `latest` and get a mixed set.
-  # Resolving once also makes a re-run of the same run-ID reproducible, which it was not.
+  # ONE COMMIT FOR THE WHOLE RUN, and when the run publishes it is `github.sha` — the commit the
+  # signing certificate names. Cosign pins that claim on the box, so an image built from any other
+  # tree would fail there; the checks below make the run refuse first. Checking out the moving
+  # `main` instead, as this job did until #1238, built the tip at checkout time under the trigger's
+  # commit, which a merge landing between the two would have split.
+  #
+  # The publish decision guards against MISTAKES, not intent: a branch's copy of this file runs when
+  # dispatched from that branch, and could drop the condition. The real boundary is the consumer's
+  # check of the certificate's workflow, ref, repository and commit — a build from anywhere but main
+  # verifies nowhere.
   prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
       short: ${{ steps.resolve.outputs.short }}
+      publish: ${{ steps.mode.outputs.publish }}
     steps:
+      # Inputs reach the shell as environment, never as `${{ }}` inside the script, and the ref is
+      # charset-checked before it is written to GITHUB_OUTPUT: a newline in it would write outputs.
+      - name: Publish or dry run
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_PUSH: ${{ inputs.push }}
+        run: |
+          case "$INPUT_REF" in
+            "" | main) publish_ref=1 ;;
+            *) publish_ref=0 ;;
+          esac
+          [[ $INPUT_REF =~ ^[A-Za-z0-9._/-]{0,200}$ ]] || { echo "::error::refusing ref input '$INPUT_REF'"; exit 1; }
+          publish=false
+          if [ "$EVENT" = schedule ]; then
+            publish=true
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_PUSH" = true ] && [ "$publish_ref" = 1 ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            publish=true
+          fi
+          if [ "$publish" = true ]; then checkout="$GITHUB_SHA"; else checkout="${INPUT_REF:-main}"; fi
+          echo "publish=$publish" >>"$GITHUB_OUTPUT"
+          echo "checkout=$checkout" >>"$GITHUB_OUTPUT"
+          echo "publish=$publish (event $EVENT, ref input '${INPUT_REF}', run from $GITHUB_REF)"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.ref || 'main' }}
-      - id: resolve
+          ref: ${{ steps.mode.outputs.checkout }}
+      - name: Resolve
+        id: resolve
+        env:
+          PUBLISH: ${{ steps.mode.outputs.publish }}
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          sha=$(git rev-parse HEAD)
+          if [ "$PUBLISH" = true ] && [ "$sha" != "$GITHUB_SHA" ]; then
+            echo "::error::checked out $sha, but a publishing run builds exactly $GITHUB_SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          echo "short=${sha:0:7}" >>"$GITHUB_OUTPUT"
 
   release:
     name: ${{ matrix.name }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -97,18 +154,28 @@ jobs:
           - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile" }
 
     steps:
-      # The SHA `prepare` resolved, not the triggering ref. The build answers "what was on
-      # main when this run started" — one answer for all five cells — which is what makes
-      # re-running harmless and a missed trigger recoverable.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
+      - name: The tree is the commit this run publishes
+        if: needs.prepare.outputs.publish == 'true'
+        env:
+          PREPARED: ${{ needs.prepare.outputs.sha }}
+        run: |
+          if ! { [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && [ "$PREPARED" = "$GITHUB_SHA" ]; }; then
+            echo "::error::this cell checked out $(git rev-parse HEAD) (prepared: $PREPARED), not $GITHUB_SHA"
+            exit 1
+          fi
+
       - name: Image name
         id: tag
+        env:
+          SHORT: ${{ needs.prepare.outputs.short }}
+          NAME: ${{ matrix.name }}
         run: |
-          echo "sha=${{ needs.prepare.outputs.short }}" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHORT" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-$NAME" >> "$GITHUB_OUTPUT"
 
       # An undefined repository variable renders to the EMPTY STRING, not to an error, so
       # the web Dockerfile's own guard is what would fire — and it cannot know the thing to
@@ -128,19 +195,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # THE IDEMPOTENCE, and it is what removes the trigger from the critical path: if this
-      # SHA is already published there is nothing to do, and
-      # an extra trigger costs a lookup.
-      #
-      # BOTH TAGS MUST AGREE, not just the immutable one. Keyed on `sha-` alone, a run
-      # where `docker push sha-X` succeeded and `docker push latest` failed would be
-      # skipped forever after: `latest` would point at the previous SHA indefinitely while
-      # every run reported green, and `latest` is what an unpinned reconcile pulls. That is
-      # the green-silent-inert shape this file's own header condemns.
-      #
-      # Any failure to read either digest resolves to `already=false`, i.e. build and push.
-      # The reason is logged rather than swallowed: a permanent auth or CLI breakage would
-      # otherwise look identical to normal operation while rebuilding five images hourly.
       # PINNED TO THE BOX'S VERSION, not to latest. Debian 13 ships cosign 2.5.0 and apt
       # security-maintains it; running a newer cosign here would let a bundle-format change pass
       # CI and then be refused on the box, which is the failure this whole gate exists to make
@@ -153,60 +207,55 @@ jobs:
         with:
           cosign-release: "v2.5.0"
 
-      # A THIRD CONDITION SINCE #196's ATTESTATION REPAIR: the attestation must exist too.
-      # What it catches is an attestation that was readable when it was published and is not
-      # readable now — deleted, expired, or unreachable in GHCR's referrers. It no longer has
-      # to catch a failed attest step: `latest` is published after `Attest` succeeds, so that
-      # run leaves the two tags disagreeing and the next run rebuilds on the first condition.
+      # A RELEASED COMMIT IS FROZEN (#1238). Once `release:sha-<commit>` exists and proves itself —
+      # read in the verify-first order, naming this commit, and this cell's recorded image verifying
+      # as built from it — nothing in this cell runs: a published release's images are never rebuilt
+      # or re-pointed. A record that exists and does NOT prove itself fails the cell loudly; it is
+      # never overwritten (repair: deleting that version, Klas's decision).
+      - name: Frozen?
+        id: frozen
+        if: needs.prepare.outputs.publish == 'true'
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          NAME: ${{ matrix.name }}
+        run: bash .github/scripts/publish-release.sh frozen "$SOURCE_SHA" "$NAME" >>"$GITHUB_OUTPUT"
+
+      # THE IDEMPOTENCE BELOW A RECORD, and it is what removes the trigger from the critical path:
+      # an image this commit already published is reused when it verifies AS BUILT FROM THIS COMMIT —
+      # the certificate's commit claim, not merely our workflow — so a re-pointed `sha-<short>` can
+      # never be reused into a release. `latest` is no longer consulted: since #1238 it moves only in
+      # `publish`, after the whole set.
       #
-      # AND IT IS MEASURED IN THE REGISTRY, NOT THROUGH THE ATTESTATIONS API. The box reads the
-      # bundle from GHCR's referrers; an attestation that exists in the API but not in the
-      # registry would satisfy an API check while the box refuses forever — the same defect one
-      # layer up. So the predicate calls the SAME script the box calls: it measures the layer
-      # that matters, and the presence is proven where a failure has a reader.
-      #
-      # WHAT IT DOES NOT DO IS FAIL THIS JOB. A verifier that cannot answer sends this run down
-      # the rebuild path with a `::warning::` and exit 0, so a structural breakage — cosign
-      # gone, bundle format moved, GHCR referrers unreadable — rebuilds five images every hour,
-      # green, for as long as it lasts. That is deliberate (the alternative is a red publish
-      # pipeline on every transient registry hiccup) but it is NOT a drift alarm, and this
-      # comment previously claimed it was. The cosign version here is pinned to the box's, which
-      # ISOLATES CI from the box's drift rather than exposing it; a divergence between them
-      # surfaces on the box, in the journal, and #1175 is why that has no reader yet.
-      - name: Skip only if both tags agree AND the attestation is readable from the registry
+      # WHAT IT DOES NOT DO IS FAIL THIS JOB. A verifier that cannot answer sends this run down the
+      # rebuild path with a `::warning::` — `publish` then verifies the rebuilt digest, blocking, so a
+      # structural breakage now turns the run red there instead of rebuilding green every hour.
+      - name: Skip only if this commit's image is already published and proven
         id: published
+        if: steps.frozen.outputs.frozen != 'true'
+        env:
+          IMAGE: ${{ steps.tag.outputs.image }}
+          SHORT: ${{ steps.tag.outputs.sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
-          img="${{ steps.tag.outputs.image }}"
-          # STDERR IS DISCARDED HERE, WHICH IS A CHANGE FROM THE ORIGINAL AND IS THE POINT.
-          # Under `2>&1` a failed lookup put the error text INTO the variable, so two identical
-          # failures compared equal, `already=true` followed, and the tag pair was declared
-          # settled on the strength of two error messages. The reason for a failure is no longer
-          # captured, and that trade is deliberate: an unexplained rebuild is recoverable, a
-          # permanent skip on two matching errors is not. (`|| x=""` is retained for readers;
-          # Actions runs `bash -e {0}` without pipefail, so the pipe already returns `tr`'s
-          # status and the fallback never fires.)
-          sha_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:sha-${{ steps.tag.outputs.sha }}" 2>/dev/null | tr -d '"') || sha_digest=""
-          latest_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:latest" 2>/dev/null | tr -d '"') || latest_digest=""
-          if [ -z "$sha_digest" ] || [ "$sha_digest" != "$latest_digest" ]; then
-            echo "already=false" >> "$GITHUB_OUTPUT"
-            echo "Building. sha-tag digest: [$sha_digest] latest digest: [$latest_digest]"
-            exit 0
-          fi
-          # Captured into a variable rather than read from `$?` inside a branch: `$?` is the
-          # status of the last command run, which any added line silently changes. The repo has
-          # measured that class twice (a pipe's status read as a tool's), so the code is written
-          # so a later edit cannot introduce it.
+          # STDERR IS DISCARDED: under `2>&1` a failed lookup put the error text into the variable,
+          # and two identical failures once compared equal.
+          digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$IMAGE:sha-$SHORT" 2>/dev/null | tr -d '"') || digest=""
+          case "$digest" in
+            sha256:*) ;;
+            *)
+              echo "already=false" >> "$GITHUB_OUTPUT"
+              echo "Building: $IMAGE:sha-$SHORT does not resolve."
+              exit 0
+              ;;
+          esac
           verify_status=0
-          deploy/systemd/verify-image-attestation.sh "$img@$sha_digest" || verify_status=$?
+          deploy/systemd/verify-image-attestation.sh "$IMAGE@$digest" "$SOURCE_SHA" || verify_status=$?
           if [ "$verify_status" -eq 0 ]; then
             echo "already=true" >> "$GITHUB_OUTPUT"
-            echo "Both tags resolve to $sha_digest and it carries a verifiable attestation; nothing to do."
+            echo "$IMAGE:sha-$SHORT is $digest, attested as built from $SOURCE_SHA; nothing to do."
           else
             echo "already=false" >> "$GITHUB_OUTPUT"
-            # 1 is "no attestation", 2 is "could not answer", and this branch takes both. The
-            # message reports which, because naming "missing attestation" during a TUF outage
-            # would put a false cause in the log beside the verifier's own honest one.
-            echo "::warning::$sha_digest is published under both tags but did not verify (verifier exit $verify_status — 1: no attestation, 2: could not answer) — rebuilding. The box applies the same predicate, so it would refuse this image."
+            echo "::warning::$digest did not verify as built from $SOURCE_SHA (verifier exit $verify_status — 1: not proven, 2: could not answer) — rebuilding."
           fi
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -247,44 +296,30 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
 
-      # ONE TAG HERE, AND THAT IS THE WHOLE POINT OF THE SPLIT. `sha-<short>` is the rollback
-      # handle the box pins in its `.env`; `latest` is what an unpinned reconcile pulls, and it
-      # is published further down, only once the attestation exists. Publishing both here is
-      # what put an unattested image on `latest` for 56 minutes on 2026-08-11 (#1314): the
-      # `Attest` step failed after this step had already moved the tag, so the box pulled an
-      # image it then refused, hourly, until a later run rebuilt it.
-      # THE REF CONDITION IS A SECURITY GATE, NOT TIDINESS. Without it a `workflow_dispatch`
-      # with `ref: <some-branch>` builds that branch's tree, pushes it as `latest`, and — since
-      # the attestation below binds WHO built the image, never WHICH TREE was built — attests it
-      # under an identity the box accepts. The box would verify and deploy a branch. Attestation
-      # cannot close this; only the push condition can. The dry-run purpose is untouched:
-      # proving a build never required pushing it.
+      # ONE TAG HERE, AND ONLY THE IMMUTABLE ONE. `sha-<short>` names this build; every mutable
+      # tag — `dev`, `latest` — moves in `publish`, after the whole set and its record are attested
+      # (#1314 measured what moving `latest` before the attestation costs; #1238 what moving it per
+      # cell costs). A dry run or a run that may not publish never pushes.
       - name: Push ${{ matrix.name }}
         id: push
-        if: steps.published.outputs.already == 'false' && (github.event_name != 'workflow_dispatch' || (inputs.push && (inputs.ref == 'main' || inputs.ref == '')))
+        if: steps.published.outputs.already == 'false' && needs.prepare.outputs.publish == 'true'
+        env:
+          IMAGE: ${{ steps.tag.outputs.image }}
+          SHORT: ${{ steps.tag.outputs.sha }}
         run: |
-          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"
+          docker push "$IMAGE:sha-$SHORT"
           # The registry manifest digest, which only exists after the push — `load: true` means
           # build-push-action never produced one. `{{json .Manifest.Digest}}` deliberately: the
           # bare template silently falls back to the full pretty output on Docker 29 (measured
           # 2026-08-08), which would feed a paragraph of text to the attest action as a digest.
-          digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' \
-            "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" | tr -d '"')
-          case "$digest" in
-            sha256:*) ;;
-            *) echo "::error::could not resolve a manifest digest after push: [$digest]"; exit 1 ;;
-          esac
+          digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$IMAGE:sha-$SHORT" | tr -d '"')
+          [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::could not resolve a manifest digest after push: [$digest]"; exit 1; }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      # WITHOUT THIS THE BOX REFUSES EVERY IMAGE, by design — the reconcile wrapper treats an
-      # absent attestation exactly like a bad one. `push-to-registry` writes the bundle to GHCR
-      # under the referrers tag scheme, which is where both the box and the skip predicate above
-      # read it from; GHCR does not implement the OCI referrers API endpoint, and the tag scheme
-      # is what makes discovery work anyway.
-      #
-      # The attestation binds to the DIGEST, so moving `latest` onto that digest afterwards
-      # neither invalidates it nor needs a second attestation: the tag is a name for the same
-      # manifest the bundle already covers.
+      # WITHOUT THIS THE BOX REFUSES EVERY IMAGE, by design — it treats an absent attestation exactly
+      # like a bad one. `push-to-registry` writes the bundle to GHCR under the referrers tag scheme,
+      # which is where both the box and the checks in this file read it from; GHCR does not implement
+      # the OCI referrers API endpoint, and the tag scheme is what makes discovery work anyway.
       - name: Attest ${{ matrix.name }}
         id: attest
         if: steps.push.outcome == 'success' && steps.push.outputs.digest != ''
@@ -294,47 +329,84 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      # `latest` MOVES LAST, AND ONLY OVER AN ATTESTED DIGEST. This is the ordering the box's
-      # trust chain assumes and did not have: the reconcile unit pulls `latest`, verifies it,
-      # and refuses the whole apply if it does not verify — so a `latest` that can point at an
-      # unattested image is a self-inflicted outage, not a caught intrusion.
-      #
-      # THE GUARD NAMES THE ATTEST STEP RATHER THAN RELYING ON THE JOB'S STATUS. A skipped
-      # `Push` (a dry-run dispatch) leaves the job successful, so a bare `if:` — which inherits
-      # the implicit `success()` — would publish `latest` from a build deliberately not pushed.
-      # `steps.attest.outcome == 'success'` is true in exactly one case: the attestation ran and
-      # succeeded. Failure and skip both leave `latest` where it was.
-      #
-      # WHEN THIS STEP DOES NOT RUN, `latest` KEEPS POINTING AT THE PREVIOUS ATTESTED DIGEST.
-      # The box pulls that, verifies it, and applies it — stale but serving, and silent, which
-      # is the right shape for a fault that lies with the publisher rather than the image.
-      # The next run sees the two tags disagree and rebuilds; the repair path is unchanged.
-      #
-      # THE RESIDUAL IS REAL AND IS NAMED HERE RATHER THAN PRETENDED AWAY. `sha-<short>` is
-      # published before the attestation exists, so between the push above and the attest above
-      # — and permanently, if the attest fails — that tag can resolve to a publicly pullable
-      # image carrying no attestation. It is fail-closed at the consumer: the box verifies
-      # whatever it pulls, so even a rollback that pins such a `sha-` tag is refused rather than
-      # applied. Closing it entirely would need a staging repository, which buys nothing the
-      # consumer-side gate does not already provide.
-      - name: Publish latest ${{ matrix.name }}
-        if: steps.attest.outcome == 'success'
+  # THE FAN-IN (#1238, ADR 0149). Runs only when all five cells succeeded — `needs` with the implicit
+  # `success()` is what makes a delayed or failed cell structurally harmless: nothing below runs, so
+  # nothing a consumer follows moves. Four steps, in an order `attestation-publish-order-guard.sh`
+  # pins: write (or prove) the record → attest it → verify it, blocking → only then move tags.
+  publish:
+    needs: [prepare, release]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      # FULL HISTORY: the record's sequence is the commit count of its source, and releases are
+      # ordered by ancestry in this clone — a shallow clone would make both meaningless, and the record
+      # tool refuses one.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+
+      - name: The tree is the commit this run publishes
+        env:
+          PREPARED: ${{ needs.prepare.outputs.sha }}
         run: |
-          # A NON-BLOCKING PROBE, deliberately not a gate. `steps.attest.outcome` says the
-          # attest action reported success; it does not say the bundle is readable from GHCR's
-          # referrers, which is where the box reads it. Gating on that would put an UNMEASURED
-          # dependency on referrer propagation into the publish path — #1314 measured
-          # push-to-attest at 3-5 s but never measured attest-to-readable, and that unknown is
-          # the whole reason this PR exists. So it is measured rather than enforced: every
-          # publish records whether the producer can already read what the consumer will read.
-          # If these warnings never appear the gate is safe to add; if they do, the window's
-          # size comes from data instead of a guess. It never fails the step.
-          probe_status=0
-          deploy/systemd/verify-image-attestation.sh \
-            "${{ steps.tag.outputs.image }}@${{ steps.push.outputs.digest }}" >/dev/null 2>&1 || probe_status=$?
-          if [ "$probe_status" -ne 0 ]; then
-            echo "::warning::attestation for ${{ steps.push.outputs.digest }} is not yet readable from the registry (verifier exit $probe_status). Publishing latest anyway; the box re-verifies on every reconcile."
+          if ! { [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && [ "$PREPARED" = "$GITHUB_SHA" ]; }; then
+            echo "::error::the fan-in checked out $(git rev-parse HEAD) (prepared: $PREPARED), not $GITHUB_SHA"
+            exit 1
           fi
-          docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
-                     "${{ steps.tag.outputs.image }}:latest"
-          docker push "${{ steps.tag.outputs.image }}:latest"
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v2.5.0"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      # A released commit is proven again (its record and all five recorded images, against the
+      # commit); otherwise the five `sha-<short>` images are verified as built from the commit and a
+      # new record is pushed under a PENDING tag that nothing reads. The immutable `sha-<commit>` name
+      # is created only in `advance`, after the record's own attestation verifies.
+      - name: Record
+        id: record
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: bash .github/scripts/publish-release.sh record "$SOURCE_SHA" >>"$GITHUB_OUTPUT"
+
+      - name: Attest the record
+        id: attest
+        if: steps.record.outputs.attest == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ${{ steps.record.outputs.repo }}
+          subject-digest: ${{ steps.record.outputs.digest }}
+          push-to-registry: true
+
+      # BLOCKING, with a bounded retry. Measured 2026-10-03 over 120 runs and 334 publishes: an
+      # attestation was readable from the registry the moment the attest step returned, every time —
+      # the evidence the pre-#1238 probe was collecting before it could become a gate. Reads the
+      # record through the box's own read function, so every run exercises that path end to end.
+      - name: Verified
+        id: verified
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          RECORD_DIGEST: ${{ steps.record.outputs.digest }}
+        run: bash .github/scripts/publish-release.sh verify "$RECORD_DIGEST" "$SOURCE_SHA"
+
+      - name: Advance
+        id: advance
+        if: steps.verified.outcome == 'success'
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          RECORD_DIGEST: ${{ steps.record.outputs.digest }}
+        run: bash .github/scripts/publish-release.sh advance "$RECORD_DIGEST" "$SOURCE_SHA"

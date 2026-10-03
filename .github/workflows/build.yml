@@ -255,7 +255,8 @@ jobs:
   scripts:
     name: scripts (bash fixtures)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Raised from 5 when #1238 added two suites that build git histories and run a fake registry.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -559,13 +560,25 @@ jobs:
       - name: nocache-stage-guard (fixturer + den riktiga matrisen)
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
-      # #1314. `latest` is what the box pulls, and the box refuses the whole apply when what it
-      # pulled carries no attestation from our workflow. The repair is the step ORDER, and its
-      # whole correctness lives in one `if:` expression and the position of one step — nothing
-      # in Actions, buildx or cosign checks either. The incident that measured it, and what the
-      # guard refuses, are in `attestation-publish-order-guard.sh`'s own header.
-      - name: attestation-publish-order-guard (fixturer + det riktiga workflowet)
+      # #1314 and #1238. Nothing a consumer follows may move before the whole release is attested,
+      # and only the fan-in's gated `advance` step may move it. That order lives in strings across
+      # `release-images.yml` and `publish-release.sh`, and nothing in Actions, buildx or cosign
+      # checks any of them. The rules and the incidents behind them are in the guard's own header;
+      # every case mutates the REAL files.
+      - name: attestation-publish-order-guard (fixturer + de riktiga filerna)
         run: bash .github/scripts/attestation-publish-order-guard.test.sh
+
+      # #1238. The publisher's decisions — frozen, record, verify, advance — against a file-backed
+      # fake registry, a stub verifier, the real record tool and a real git history: an incomplete or
+      # mixed set publishes nothing, a release is never rewritten, an old run never moves `dev`, and
+      # every move lands on the digest it names.
+      - name: publish-release (fixturer)
+        run: bash .github/scripts/publish-release.test.sh
+
+      # #1238, ADR 0149 R3. The rollback window is every record since the first, for exactly as long
+      # as nothing deletes package versions; this makes that a rule rather than a measurement.
+      - name: package-retention-guard (fixturer + det riktiga trädet)
+        run: bash .github/scripts/package-retention-guard.test.sh
 
       # #1519. `rescan-images.yml` scans the PUBLISHED images, and what it scans is resolved by
       # this script out of `release-images.yml`'s OWN matrix — no sixth copy of the image names.

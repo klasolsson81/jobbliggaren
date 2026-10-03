@@ -257,6 +257,9 @@ expect_exit 0 "a receipt is one digest line and a valid record" receipt "$TMPROO
 check 'cmp -s "$TMPROOT/out" "$TMPROOT/receipt"' "and it is echoed byte for byte"
 cp "$TMPROOT/rec.env" "$TMPROOT/receipt"
 expect_exit 1 "a receipt without its digest line refuses" receipt "$TMPROOT/receipt"
+# Bound to the message — measured by mutation: with the line-1 check deleted, the shortened record
+# still fails validation and this case stayed green for the wrong reason.
+check 'grep -q "line 1 must be JBL_RECEIPT_RECORD_DIGEST" "$TMPROOT/err"' "  … and it is the digest-line check that answered"
 {
   printf 'JBL_RECEIPT_RECORD_DIGEST=%s\n' "$D_CADDY"
   sed '/^JBL_RELEASE_SEQUENCE=/d' "$TMPROOT/rec.env"
@@ -424,6 +427,9 @@ image_holds "$TMPROOT/good.env"
 cp "$TMPROOT/good.env" "$TMPROOT/image/second.env"
 read_case 0 0
 expect_exit 1 "an archive with a second member refuses" read "$REF"
+# Bound to the message — measured by mutation: with the one-member check deleted, the regular-file
+# check still refused (the listing's last line names the second file), green for the wrong reason.
+check 'grep -q "holds more than one member" "$TMPROOT/err"' "  … and it is the one-member check that answered"
 
 image_holds "$TMPROOT/good.env"
 touch "$TMPROOT/create-fails"

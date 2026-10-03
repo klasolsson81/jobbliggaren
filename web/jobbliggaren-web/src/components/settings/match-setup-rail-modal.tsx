@@ -136,6 +136,8 @@ interface MatchSetupRailModalProps {
   }) => void;
   /** Starta på ett visst steg (default Start). */
   readonly initialStep?: number;
+  readonly onOpenAutoFocus?: (event: Event) => void;
+  readonly onCloseAutoFocus?: (event: Event) => void;
 }
 
 /**
@@ -167,6 +169,8 @@ export function MatchSetupRailModal({
   importCvHref,
   onSaved,
   initialStep = STEP_START,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
 }: MatchSetupRailModalProps) {
   const t = useTranslations("matchsetup");
   const tEnum = useTranslations("jobads.enums");
@@ -556,7 +560,15 @@ export function MatchSetupRailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-stdmodal jp-wizard--rail">
+      <DialogContent
+        className="jp-stdmodal jp-wizard--rail"
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event);
+          event.preventDefault();
+          titleRef.current?.focus();
+        }}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         {/* Mobil topp-rad (dold på desktop): sigill + titel. Kryss = radix Close. */}
         <div className="jp-wizard__mobilebar">
           <BrandMarkSvg

@@ -12,6 +12,7 @@ interface NoticeListCardProps {
   readonly notices: ReadonlyArray<SectionNoticeData>;
   /** The single row rendered when nothing is unread — the card never disappears. */
   readonly emptyText: string;
+  readonly leadingContent?: ReactNode;
   /** Column span in the 12-column grid. */
   readonly span: 8 | 12;
   /** Extra class on the section: `jp-ov-card--requires` for the warning-barred card. */
@@ -42,6 +43,7 @@ export function NoticeListCard({
   title,
   notices,
   emptyText,
+  leadingContent,
   span,
   modifier,
   listAs: List,
@@ -80,10 +82,12 @@ export function NoticeListCard({
         </span>
       </div>
 
+      {leadingContent}
+
       <List className={listClassName}>
         {unread.length > 0 ? (
           unread.map((n) => renderRow(n, false, handleDismiss, handleRestore))
-        ) : read.length > 0 ? null : (
+        ) : read.length > 0 || leadingContent ? null : (
           /* The empty row yields to the read foot: "all read" is not "nothing here". */
           <li className="jp-ov-list-empty">{emptyText}</li>
         )}

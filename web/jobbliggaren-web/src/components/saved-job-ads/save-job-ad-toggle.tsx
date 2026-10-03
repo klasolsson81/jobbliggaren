@@ -30,8 +30,7 @@ interface SaveJobAdToggleProps {
  * Backend är idempotent (ADR 0032 §5 ON CONFLICT) → race-säkert mot
  * dubbelklick. Pending visas via subtle opacity i stället för disabled-state.
  *
- * Stilen är `jp-btn--secondary` paritet med övriga modal-footer-knappar
- * (civic-utility, inga konkurrerande CTA-hierarkier).
+ * Stilen är `jp-btn--tonal` i vila, som Bevaka i jobbkortets sidfot (DESIGN.md §6).
  */
 export function SaveJobAdToggle({
   jobAdId,
@@ -88,7 +87,7 @@ export function SaveJobAdToggle({
       <button
         type="button"
         // #1000 (V1) — blue state-tint when saved (live client state, matches the SPARAD tag).
-        className={`jp-btn jp-btn--secondary${saved ? " jp-btn--on-saved" : ""}`}
+        className={`jp-btn jp-btn--tonal${saved ? " jp-btn--on-saved" : ""}`}
         // No aria-label: the accessible name is the visible text; state rides aria-pressed (2.5.3).
         aria-pressed={saved}
         onClick={handleClick}

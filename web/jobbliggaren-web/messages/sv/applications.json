@@ -226,7 +226,8 @@
     },
     "harAnsokt": {
       "applied": "Ansökt",
-      "markAsApplied": "Markera som ansökt"
+      "markAsApplied": "Markera som ansökt",
+      "viewApplication": "Visa ansökan"
     },
     "jobInfo": {
       "title": "Om annonsen",

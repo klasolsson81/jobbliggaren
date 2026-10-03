@@ -2069,29 +2069,51 @@ a.jp-adminnav__link[aria-current="page"]::after {
    irreversibel handling bekräftas i en dialog som namnger CV:t. Att ge den
    destruktiva kontrollen en hover kräver att danger-rampen först får den tvilling
    accent har — en tokenändring med DESIGN.md-behandling, inte en regel här. */
-/* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
-   när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
-   client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-
-   taggen). Icke-grön (grönt reserverat, ADR 0068) — ikonerna tappar sin gröna tint:
-   Bevakar → --jp-follow (teal), Sparad/Ansökt → --jp-info (blå), paritet taggarna. */
-.jp-btn--secondary.jp-btn--on-follow {
+/* The job-ad footer (#1963, DESIGN.md §6): Spara and Bevaka rest tonal, "Markera som ansökt" rests in
+   the info tone of the applied axis, and the no-occupation notice's link is an info outline. */
+.jp-btn--tonal {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+  border-color: var(--jp-surface-3);
+}
+.jp-btn--tonal:hover {
+  border-color: var(--jp-border-strong);
+}
+.jp-btn--info-soft {
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+  border-color: var(--jp-info);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-btn--info-soft:hover {
+  background: var(--jp-info-border);
+}
+.jp-btn--info-outline {
+  background: var(--jp-surface);
+  color: var(--jp-info);
+  border-color: var(--jp-info);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-btn--info-outline:hover {
+  background: var(--jp-surface-2);
+}
+/* #1000 (V1) — a STATE toggle carries its state colour when ON, matching the list tags. Not green
+   (green is reserved, ADR 0068): Bevakar → --jp-follow (teal), Sparad → --jp-info (blue). */
+.jp-btn--tonal.jp-btn--on-follow {
   background: var(--jp-follow-bg);
   color: var(--jp-follow);
   border-color: var(--jp-follow);
 }
-.jp-btn--secondary.jp-btn--on-saved,
-.jp-btn--secondary.jp-btn--on-applied {
+.jp-btn--tonal.jp-btn--on-saved {
   background: var(--jp-info-bg);
   color: var(--jp-info);
   border-color: var(--jp-info);
 }
-/* Behåll tinten på hover (bas-`:hover` byter bg till surface-3 → skulle gråa ut den). */
-.jp-btn--secondary.jp-btn--on-follow:hover {
-  background: var(--jp-follow-bg);
+.jp-btn--tonal.jp-btn--on-follow:hover {
+  border-color: var(--jp-follow);
 }
-.jp-btn--secondary.jp-btn--on-saved:hover,
-.jp-btn--secondary.jp-btn--on-applied:hover {
-  background: var(--jp-info-bg);
+.jp-btn--tonal.jp-btn--on-saved:hover {
+  border-color: var(--jp-info);
 }
 .jp-btn--ghost {
   background: transparent;
@@ -2853,6 +2875,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-ui);
   color: var(--jp-ink-1);
 }
+/* The job-ad header's dates (#1963): the deadline first, then the publishing date. */
+.jp-modal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin: 10px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-modal__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.jp-modal__date-icon {
+  flex-shrink: 0;
+  color: var(--jp-ink-2);
+}
+.jp-modal__date-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--jp-fw-medium);
+  white-space: nowrap;
+}
+.jp-modal__date-value--deadline {
+  font-weight: var(--jp-fw-semibold);
+}
 .jp-modal__body {
   padding: 20px 24px 24px;
   overflow: auto;
@@ -2860,8 +2909,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-direction: column;
   gap: 20px;
 }
-.jp-modal__body > .jp-job__meta {
-  margin-top: 0;
+/* The job modal follows the viewport (#1963, ADR 0053 Amendment 2026-10-03); a phone or a short
+   landscape screen gets a full-screen sheet whose head and foot stay while the body scrolls. */
+.jp-modal.jp-modal--sheet {
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
+}
+@media (max-width: 768px), (max-height: 500px) {
+  .jp-modal-scrim.jp-modal-scrim--sheet {
+    padding: 0;
+  }
+  .jp-modal.jp-modal--sheet {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    animation: jp-fade 140ms ease;
+  }
+  .jp-modal--sheet .jp-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overscroll-behavior: contain;
+  }
+  .jp-modal--sheet .jp-modal__foot {
+    border-radius: 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
 }
 /* Modal loading chrome (logo Fas 2, ADR 0070) — Suspense fallback while the
    modal detail streams in (ModalLoadingShell). Reuses the .jp-modal-scrim /
@@ -2925,29 +2999,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-semibold);
 }
-/* F4-16 (design-reviewer 2026-06-20 §2.F) — matchnings-sektionen i JobAdDetail
-   (modal + fullsida). Sitter i .jp-modal__body-flexkolumnen ovanför
-   Annonsbeskrivning. Token-only, ingen ny färg. */
-.jp-modal__matchsection {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.jp-modal__matchsection-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 .jp-modal__matchrows {
   display: flex;
   flex-direction: column;
 }
-/* En rad per dimension: label · verdict (prick+ord) · bevis. 3-kolumns grid på
-   4px-rastret, hårfin separator. Verdict-ord bär betydelsen (WCAG 1.4.1);
-   pricken är dekorativ. INGEN mätare/fyllning — Goodhart-linjen håller på
-   rad-altitud (design §2.B). */
 .jp-modal__matchrow {
   display: grid;
   grid-template-columns: 160px 116px 1fr;
@@ -2969,45 +3024,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-medium);
 }
-.jp-modal__matchrow-verdict {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--jp-ink-1);
-  font-weight: var(--jp-fw-semibold);
-  white-space: nowrap;
-}
-/* Verdict-prick: ärver currentColor (fylld). "Matchar" sätter success;
-   "Delvis"/"Saknas" stannar neutral ink (ett saknat meritvärde är inget fel —
-   ALDRIG röd, design §2.B). */
-.jp-modal__matchrow-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--jp-r-pill);
-  background: currentColor;
-  flex-shrink: 0;
-}
-.jp-modal__matchrow-verdict[data-verdict="Match"] {
-  color: var(--jp-success);
-}
-/* "Ej bedömt" = HÅLIG prick (transparent fyllning + ring) — den ENDA håliga
-   pricken, så NotAssessed aldrig förväxlas med NoMatch (CLAUDE.md §5). */
-.jp-modal__matchrow-dot--hollow {
-  background: transparent;
-  border: 1.5px solid var(--jp-border-strong);
-}
 .jp-modal__matchrow-evidence {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: var(--jp-ink-1);
-}
-.jp-modal__matchrow-evidence .jp-modal__matchrow-missing {
-  /* Anti-röd-vakt: samma ink som föräldern, med descendant-specificitet (0,2,0) så en
-     enkelklass-regel (0,1,0) inte kan färga saknat rött (DESIGN.md §3 — statusfärger
-     endast för status; formen §6). Ej ink-2 — §4
-     läsbarhetsdoktrin gör bevis-text till innehållstext, inte metadata. */
   color: var(--jp-ink-1);
 }
 @media (max-width: 560px) {
@@ -3678,14 +3699,50 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-wrap: wrap;
 }
 .jp-modal__foot__spacer { flex: 1; }
-/* The applied note: a full-width row of its own inside the foot, under the buttons. */
-.jp-modal__footnote {
-  flex-basis: 100%;
-  font-size: var(--text-body-sm);
-  text-align: right;
+/* The job-ad footer (#1963): Spara and Bevaka start the row, the applied state and the primary end it.
+   At ≤560px the groups stack in DOM order, so focus order and reading order stay the visual order. */
+.jp-modal__foot.jp-modal__foot--split {
+  align-items: center;
+  background: var(--jp-surface);
 }
-.jp-modal__footnote a {
-  text-decoration: underline;
+.jp-modal__footgroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.jp-modal__footgroup--end {
+  margin-inline-start: auto;
+}
+.jp-modal__foot--split .jp-btn {
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .jp-modal__foot.jp-modal__foot--split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .jp-modal__footgroup--end {
+    margin-inline-start: 0;
+  }
+  .jp-modal__footgroup > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .jp-modal__foot--split .jp-btn {
+    --jp-btn-px: 12px;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    white-space: normal;
+  }
+  /* A phone keeps the sheet's head and foot fixed (ADR 0053 Amendment 2026-10-03); the narrower
+     gutter gives the title, the rows and the labels the width the fixed edges cost them. */
+  .jp-modal--sheet .jp-modal__head,
+  .jp-modal--sheet .jp-modal__body,
+  .jp-modal--sheet .jp-modal__foot {
+    padding-inline: 16px;
+  }
 }
 
 /* ── Status pills (för ansökningar) ──────────────── */
@@ -7154,16 +7211,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-hero__hint {
   margin-top: 8px;
   color: var(--jp-hero-ink-soft);
-}
-
-/* Modal-matchfotens signpost — klassen fanns i TSX men regeln saknades
-   (spökklass); värdena bars av 2 identiska inline-block. Definierad här. */
-.jp-modal__matchfoot {
-  margin: 12px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--jp-border-soft);
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
 }
 
 /* ADR 0144 D4 row 10's line (Art. 14(5)(b), #842): the link to /kontaktperson-i-annons

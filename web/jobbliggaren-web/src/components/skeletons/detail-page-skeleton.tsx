@@ -37,15 +37,15 @@ export function DetailPageSkeleton({ label }: { label: string }) {
           <div style={{ flex: 1 }}>
             <span className="jp-skeleton block h-6 w-72 max-w-full" />
             <span className="jp-skeleton mt-2 block h-4 w-40 max-w-full" />
+            <div className="jp-modal__meta">
+              {[0, 1].map((item) => (
+                <span key={item} className="jp-skeleton block h-4 w-44" />
+              ))}
+            </div>
           </div>
         </header>
         <div className="jp-modal__body">
-          <div className="jp-job__meta">
-            {[0, 1].map((item) => (
-              <span key={item} className="jp-skeleton block h-4 w-44" />
-            ))}
-          </div>
-          <div className="mt-5 flex flex-col gap-2.5">
+          <div className="flex flex-col gap-2.5">
             <span className="jp-skeleton block h-3 w-32" />
             {[0, 1, 2, 3, 4].map((line) => (
               <span
@@ -55,9 +55,8 @@ export function DetailPageSkeleton({ label }: { label: string }) {
             ))}
           </div>
         </div>
-        <div className="jp-modal__foot">
-          <span className="jp-modal__foot__spacer" />
-          <span className="jp-skeleton block h-10 w-28" />
+        <div className="jp-modal__foot jp-modal__foot--split">
+          <span className="jp-modal__footgroup--end jp-skeleton block h-10 w-28" />
           <span className="jp-skeleton block h-10 w-32" />
         </div>
       </div>

@@ -26,7 +26,7 @@ interface FollowCompanyToggleProps {
  *
  * <para>Parity SaveJobAdToggle: optimistic + rollback, NEVER `disabled` (Klas PR5 — undo without waiting
  * on the pending action; the backend is idempotent so a double-click is race-safe). Pending shows via
- * subtle opacity. `jp-btn--secondary` (no competing CTA hierarchy). Following ≠ notification consent —
+ * subtle opacity. `jp-btn--tonal` at rest (DESIGN.md §6). Following ≠ notification consent —
  * that is a separate opt-in in settings (ADR 0087 D5, out of #455 scope).</para>
  */
 export function FollowCompanyToggle({
@@ -85,7 +85,7 @@ export function FollowCompanyToggle({
       <button
         type="button"
         // #1000 (V1) — teal state-tint when following (live client state, matches the BEVAKAR tag).
-        className={`jp-btn jp-btn--secondary${following ? " jp-btn--on-follow" : ""}`}
+        className={`jp-btn jp-btn--tonal${following ? " jp-btn--on-follow" : ""}`}
         // No aria-label override: the accessible name is the visible text ("Bevaka företaget" /
         // "Bevakar företaget") so it always contains the visible label (WCAG 2.5.3); the toggle state
         // rides aria-pressed, never a divergent action verb ("Sluta bevaka…") that would break 2.5.3.

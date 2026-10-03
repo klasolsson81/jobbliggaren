@@ -9,5 +9,5 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 // formless wait — the right place for BrandSpinner, not a skeleton.
 export default function Loading() {
   const t = useTranslations("pages");
-  return <ModalLoadingShell statusText={t("jobb.loading")} />;
+  return <ModalLoadingShell statusText={t("jobb.loading")} variant="sheet" />;
 }

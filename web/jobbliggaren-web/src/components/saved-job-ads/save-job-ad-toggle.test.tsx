@@ -32,7 +32,9 @@ describe("SaveJobAdToggle", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Sparad")).toBeInTheDocument();
     // #1000 (V1) — blue state-tint when saved (matches the SPARAD tag).
+    // #1963 — the state rides the tonal base, the button family the footer uses at rest.
     expect(screen.getByRole("button", { name: "Sparad" })).toHaveClass(
+      "jp-btn--tonal",
       "jp-btn--on-saved"
     );
   });

@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ErrorBoundary } from "next/dist/client/components/error-boundary";
 import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
 import type { ErrorInfo } from "next/error";
@@ -127,7 +127,8 @@ describe("every error boundary reloads once on a stale-build action error (ADR 0
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
     const heading = await screen.findByRole("heading", { name: "Sidan kunde inte visas" });
     expect(reloadDocument).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(heading);
+    // useFocusOnMount focuses in an effect, which can run after the heading is found.
+    await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
   it("C2: through Next's own ErrorBoundary, a child that throws the router's error reaches the boundary under the name `error`", () => {

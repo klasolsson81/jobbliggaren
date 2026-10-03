@@ -43,7 +43,7 @@ function CountMeta({
   const bold = (chunks: React.ReactNode) => <b>{chunks}</b>;
   if (newCount > 0) {
     return (
-      <div className="jp-job__meta" style={{ marginTop: 8 }}>
+      <div className="jp-job__meta jp-job__meta--search-count" style={{ marginTop: 8 }}>
         <span>
           {t.rich("hitsWithNew", {
             b: bold,
@@ -55,7 +55,7 @@ function CountMeta({
     );
   }
   return (
-    <div className="jp-job__meta" style={{ marginTop: 8 }}>
+    <div className="jp-job__meta jp-job__meta--search-count" style={{ marginTop: 8 }}>
       <span>
         {t.rich("hits", {
           b: bold,

@@ -98,7 +98,7 @@ interface OversiktPageProps {
  * non-async — synkron next-intl-translator).
  *
  * Bygger notiserna som förut (#726) och delar dem på KIND: allt utom `info` är åtgärder och
- * går till Kräver dig, `info` går till Senaste händelser. De fyra stående tillstånden (ansökningar,
+ * går till Kräver åtgärd, `info` går till Senaste händelser. De fyra stående tillstånden (ansökningar,
  * matchning, bevakade företag, branschbevakningar) är egna kort med ett tal och en CTA var.
  *
  * Degraderad fallback: ApiResult-fel på en enskild källa ger ett kort med en en-dash och
@@ -342,7 +342,7 @@ export function OversiktPage({
   ];
 
   // Kind-splitten (ADR 0140 Beslut 5): allt utom `info` kräver något av läsaren — uppföljning,
-  // deadline, erbjudande, intervju — och går till Kräver dig; `info` är händelser. Varje lista
+  // deadline, erbjudande, intervju — och går till Kräver åtgärd; `info` är händelser. Varje lista
   // behåller konstruktionsordningen.
   const actionNotices = allNotices.filter((n) => n.kind !== "info");
   const infoNotices = allNotices.filter((n) => n.kind === "info");

@@ -14,7 +14,7 @@ interface RequiresYouCardProps {
 }
 
 /**
- * "Kräver dig" — the action queue at the top of `/oversikt` (ADR 0140): follow-ups, deadlines,
+ * "Kräver åtgärd" — the action queue at the top of `/oversikt` (ADR 0140): follow-ups, deadlines,
  * interviews and offers, one row each with an icon box in the notice's kind colour, its label
  * and time, its text and its row action. The row CTA is `.jp-btn--sm .jp-btn--emphasis`:
  * emphasised, never solid — N rows would be N solid buttons (DESIGN.md §6, CTO-bind 2026-07-12).

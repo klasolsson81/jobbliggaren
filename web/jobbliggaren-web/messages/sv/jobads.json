@@ -30,7 +30,8 @@
   "companyWatches": {
     "listLabel": "Bevakade företag",
     "emptyTitle": "Du bevakar inga företag än",
-    "emptyBody": "Öppna en annons under Jobb och välj <i>Bevaka företaget</i>.",
+    "emptyBody": "Välj Bevaka vid företaget du vill följa.",
+    "emptyCta": "Sök företag",
     "unknownCompany": "Företagets namn är inte tillgängligt",
     "orgNr": "Org.nr {orgNr}",
     "protectedIdentity": "Skyddad identitet",
@@ -92,8 +93,8 @@
     "emptyTitle": "Inga senaste sökningar",
     "emptyBody": "Gör en sökning under Jobb. Den sparas här automatiskt.",
     "listLabel": "Senaste sökningar",
-    "hitsWithNew": "<b>{currentCount, number}</b> träffar, varav <b>{newCount, number}</b> nya",
-    "hits": "<b>{currentCount, number}</b> träffar",
+    "hitsWithNew": "{currentCount, plural, one {<b>#</b> träff} other {<b>#</b> träffar}}, varav {newCount, plural, one {<b>#</b> ny} other {<b>#</b> nya}}",
+    "hits": "{currentCount, plural, one {<b>#</b> träff} other {<b>#</b> träffar}}",
     "runAgain": "Kör igen",
     "removeSearch": "Ta bort sökningen: {label}",
     "label": {

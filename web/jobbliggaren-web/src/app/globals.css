@@ -785,6 +785,7 @@ a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-
   --jp-surface-2:  #F4F6FA;
   --jp-surface-3:  #E8EDF4;
   --jp-ink-1: #0C1A2E;
+  --jp-success: #16793B;
   --jp-ink-2: #455366;
   --jp-ink-3: #4F5D72;  /* #296: mirror :root tertiary darken — always-light header strip */
   --jp-border:      #C9D2E0;
@@ -1042,13 +1043,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-drawer-trigger { display: inline-flex; }
 }
 
-/* App-header live-stats (ADR 0064 — inloggad-paritet med landing-topbar).
-   Klient-polling var 10:e min i HeaderStats.tsx; delta-pill fade-in:as när
-   newToday ökar sedan senaste polling (Klas-direktiv 2026-05-24 — variant
-   "Fade-in + stay"). Storlek + flex-column-layout sattes per Klas-direktiv
-   2026-05-24
-   "samma stil, font, färger, placering till höger". Döljs på <900px
-   paritet med .jp-nav. */
 .jp-header-stats {
   display: flex;
   align-items: center;
@@ -1068,6 +1062,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   letter-spacing: -0.01em;
 }
+.jp-header-stats__num--new { color: var(--jp-success); }
 .jp-header-stats__label {
   font-family: var(--jp-font-mono);
   font-size: var(--text-overline);
@@ -1100,6 +1095,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 @media (prefers-reduced-motion: reduce) {
   .jp-header-stats__delta { animation: none; }
+}
+@media (max-width: 1100px) {
+  .jp-shell .jp-header-stats { display: none; }
 }
 @media (max-width: 900px) {
   .jp-header-stats { display: none; }
@@ -1499,7 +1497,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 10px;
   /* Höjd + textstorlek = delade kontroll-tokens (SSOT). EN form för hela
-     /jobb-filterraden: Ort/Yrke/Filter + Matchning + Dölj ansökta. */
+     /jobb-filterraden: Ort/Yrke/Filter + Matchning. */
   height: var(--jp-control-h);
   padding: 0 var(--jp-control-px);
   background: var(--jp-hero-pill-bg);
@@ -1510,6 +1508,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-medium);
   cursor: pointer;
 }
+.jp-hero-hide-applied {
+  --jp-focus: var(--jp-accent-800);
+  background: var(--jp-hero-pill-bg);
+  border: 1px solid var(--jp-hero-pill-border);
+  border-radius: var(--jp-r-sm);
+  display: flex;
+  align-items: center;
+  min-height: var(--jp-control-h);
+  padding: 0 var(--jp-control-px);
+}
+.jp-hero-hide-applied .jp-togglerow { align-items: center; padding: 0; gap: 12px; }
+.jp-hero-hide-applied .jp-togglerow__label {
+  color: var(--jp-hero-pill-ink);
+  font-size: var(--jp-control-fs);
+}
+.jp-hero-hide-applied .jp-togglerow__switch {
+  background: var(--jp-hero-pill-bg);
+}
+.jp-hero-hide-applied .jp-togglerow__switch[data-checked="true"] {
+  background: var(--jp-accent-800);
+}
+.jp-hero-hide-applied .jp-togglerow__thumb { background: var(--jp-hero-pill-ink); }
+.jp-hero-hide-applied .jp-togglerow__switch[data-checked="true"] .jp-togglerow__thumb {
+  background: var(--jp-on-fill);
+}
+@media (max-width: 768px) {
+  .jp-hero-hide-applied { min-height: 44px; }
+}
+
 .jp-hero-pill[data-active="true"] {
   /* accent-800 är tema-stabil (EJ dark-skiftad) — rätt token för vit pill
      (accent-700 flippar till #6EE7A8 i dark = för svag på vitt). */
@@ -2580,6 +2607,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   align-items: center;
 }
+.jp-job__meta.jp-job__meta--search-count b { margin-left: 0; }
+
 .jp-job__meta b,
 .jp-app__meta b {
   font-family: var(--jp-font-sans);

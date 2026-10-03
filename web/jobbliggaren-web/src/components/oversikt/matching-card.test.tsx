@@ -56,7 +56,7 @@ describe("MatchingCard", () => {
     expect(within(card()).getByText(COPY.notices.calloutText)).toBeInTheDocument();
     const cta = within(card()).getByRole("link", { name: /Ställ in matchning/ });
     expect(cta).toHaveAttribute("href", "/oversikt?matchsetup=1");
-    expect(within(card()).getByText(COPY.notices.calloutHint)).toBeInTheDocument();
+
     expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
   });
 

@@ -1,3 +1,6 @@
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
+import svMessages from "../../../messages/sv";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -269,5 +272,35 @@ describe("RecentSearchRow", () => {
       "11111111-1111-1111-1111-111111111111",
       expect.stringContaining("Kunde inte"),
     );
+  });
+});
+
+
+describe("RecentSearchRow count grammar", () => {
+  it.each([
+    ["sv", 0, 0, "0 träffar"],
+    ["sv", 1, 0, "1 träff"],
+    ["sv", 1, 1, "1 träff, varav 1 ny"],
+    ["sv", 42, 2, "42 träffar, varav 2 nya"],
+    ["en", 0, 0, "0 hits"],
+    ["en", 1, 0, "1 hit"],
+    ["en", 1, 1, "1 hit, of which 1 new"],
+    ["en", 42, 2, "42 hits, of which 2 new"],
+  ] as const)("%s / %i hits / %i new: %s", (locale, currentCount, newCount, text) => {
+    const { container } = render(
+      <NextIntlClientProvider
+        locale={locale}
+        messages={locale === "sv" ? svMessages : enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <RecentSearchRow
+          item={makeDto()}
+          count={{ currentCount, newCount }}
+          onDeleted={() => undefined}
+          onDeleteFailed={() => undefined}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(container.querySelector(".jp-job__meta")?.textContent).toBe(text);
   });
 });

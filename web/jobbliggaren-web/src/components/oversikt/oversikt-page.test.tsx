@@ -33,7 +33,7 @@ vi.mock("next/navigation", () => ({
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 //
 // ADR 0140: sidan är sex kort i ett rutnät. Notiserna byggs som förut per källa och delas på
-// KIND: allt utom `info` går till Kräver dig, `info` till Senaste händelser. De fyra stående
+// KIND: allt utom `info` går till Kräver åtgärd, `info` till Senaste händelser. De fyra stående
 // tillstånden är egna kort. Setup-läge ↔ matchtal är ÖMSESIDIGT uteslutande
 // (profile.data.hasStatedDesiredOccupation). Listkorten är client-lokalt localStorage-backade,
 // så localStorage rensas mellan testen.
@@ -275,8 +275,8 @@ describe("OversiktPage — kompositionen (ADR 0140)", () => {
   });
 });
 
-describe("OversiktPage — kind-splitten mellan Kräver dig och Senaste händelser", () => {
-  it("varning och brand (intervju) går till Kräver dig; info går till händelserna", () => {
+describe("OversiktPage — kind-splitten mellan Kräver åtgärd och Senaste händelser", () => {
+  it("varning och brand (intervju) går till Kräver åtgärd; info går till händelserna", () => {
     const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
     renderOversikt(true, {
       matchCount: 42,
@@ -298,7 +298,7 @@ describe("OversiktPage — kind-splitten mellan Kräver dig och Senaste händels
     expect(within(events).getByText("1 oläst")).toBeInTheDocument();
   });
 
-  it("utan notiser står båda listkorten kvar med sin tomrad, och Kräver dig tappar varningskanten", () => {
+  it("utan notiser står båda listkorten kvar med sin tomrad, och Kräver åtgärd tappar varningskanten", () => {
     renderOversikt(true, { matchCount: null });
     const requires = card(COPY.cards.requiresYou);
     expect(within(requires).getByText(COPY.cards.requiresYouEmpty)).toBeInTheDocument();
@@ -403,7 +403,7 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
 });
 
 describe("OversiktPage — deadline-notis (riktig expiresAt, #726)", () => {
-  it("sparad annons med deadline inom fönstret → rad i Kräver dig med företagsnamn och CTA till /sparade", () => {
+  it("sparad annons med deadline inom fönstret → rad i Kräver åtgärd med företagsnamn och CTA till /sparade", () => {
     // Relativt today = new Date() i komponenten: +3 dagar ligger inom 7-dagarsfönstret.
     const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
     renderOversikt(true, {

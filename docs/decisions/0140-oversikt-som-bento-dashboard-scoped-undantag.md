@@ -102,3 +102,8 @@ Handoffen tar bort per-sektionskugghjulen och lämnar öppet om notisinställnin
 - ADR 0068 (scoped-undantagets form), ADR 0038, ADR 0116, ADR 0117, ADR 0076
 - `docs/reviews/2026-09-07-1681-part3-form-cto.md` (D1)
 - Issue #1723
+
+
+### Implementation note — 2026-10-03 (#1942)
+
+The action card now uses “Kräver åtgärd” (“Needs action”) in both its heading and empty text, matching the applications queue. Notice predicates, counts, dismissal and destinations remain as decided above. The matching setup card drops its duration hint; its explanation and setup destination remain.

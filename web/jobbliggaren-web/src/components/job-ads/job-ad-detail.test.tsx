@@ -20,9 +20,9 @@ const baseAd: Omit<JobAdDetailDto, "contacts"> = {
 
 const RECRUITER_NOTICE = "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.";
 const declaredContact: AdContactDto = {
-  name: "Anna Lindqvist",
+  name: "Kontakt Test",
   role: "Rekryterande chef",
-  email: "anna@example.com",
+  email: "contact@example.test",
   phone: null,
   isDerived: false,
 };
@@ -157,16 +157,23 @@ describe("JobAdDetail", () => {
     ).toBeNull();
   });
 
-  // ADR 0144 D4 row 10 (Art. 14(5)(b), #842 R5): the recruiter notice renders on the detail
-  // surface with or without contacts, visible, pointing at the public notice (security-auditor
-  // #1828 Minor 1). The contact block renders nothing for [], so the link is its sibling.
+  it("omits the contact area and notice when contacts are absent", () => {
+    render(<JobAdDetail jobAd={baseAd} headless />);
+    expect(screen.queryByRole("region", { name: "Kontakt" })).toBeNull();
+    expect(screen.queryByRole("link", { name: RECRUITER_NOTICE })).toBeNull();
+  });
+
   it.each([
-    ["without contacts", [] as AdContactDto[]],
-    ["with contacts", [declaredContact]],
-  ])("renders the recruiter notice %s", (_label, contacts) => {
-    render(<JobAdDetail jobAd={baseAd} contacts={contacts} headless />);
-    const link = screen.getByRole("link", { name: RECRUITER_NOTICE });
-    expect(link).toHaveAttribute("href", "/kontaktperson-i-annons");
+    ["declared", declaredContact],
+    ["name only", { name: "Kontakt Test", role: null, email: null, phone: null, isDerived: false }],
+    ["email only", { name: null, role: null, email: "contact@example.test", phone: null, isDerived: false }],
+    ["phone only", { name: null, role: null, email: null, phone: "+46 70 000 00 00", isDerived: false }],
+    ["derived email", { name: null, role: null, email: "derived@example.test", phone: null, isDerived: true }],
+  ] as const)("always renders one notice with an admitted %s contact", (_label, contact) => {
+    render(<JobAdDetail jobAd={baseAd} contacts={[contact]} headless />);
+    expect(screen.getAllByRole("region", { name: "Kontakt" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: RECRUITER_NOTICE })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: RECRUITER_NOTICE })).toHaveAttribute("href", "/kontaktperson-i-annons");
   });
 
   it("places the recruiter notice directly after the contact block", () => {

@@ -6,7 +6,7 @@ import styles from "./recruiter-contact-link.module.css";
  * RecruiterContactBlock — #842 PR4. Pure presentational Server Component (no
  * "use client", zero interactivity), rendered on EXACTLY the two DETAIL surfaces
  * the re-bind (R2) allows: the job-ad detail and the application detail's
- * preserved-ad panel. NEVER on a list/browse card — a card renders ~20 ads per
+ * follow-up workflow. NEVER on a list/browse card — a card renders ~20 ads per
  * page over the whole corpus, and structured recruiter contacts there would be a
  * bulk-harvest surface (the schema split in dto/job-ads.ts makes that
  * structurally impossible; this component simply must never be imported by a card).

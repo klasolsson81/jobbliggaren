@@ -175,6 +175,8 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 
 ## 8. Copy-riktlinjer (sammanfattning)
 
+**Application contacts (#1944, 2026-10-03):** available frozen contacts appear after status actions and before follow-ups in the shared full-page/modal body, with one contact region and one whole contact-person notice. No contact produces no contact area or local notice. The same contacts-only notice rule applies to job-ad detail. Source liveness never refills an erased/minimized snapshot. Declared/derived provenance, contact methods and the notice route/copy stay intact.
+
 - **Du-tilltal** alltid — "du" inte "Du" eller "ni"
 - **Direkt:** 10 ord där möjligt, inte 25
 - **Konkret:** siffror, datum, namn — "Intervjun är 14 apr kl 10:00" slår "Du har en kommande intervju"

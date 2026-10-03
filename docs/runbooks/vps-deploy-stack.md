@@ -585,9 +585,12 @@ amendment).
    against the rendered policy (redis-service-boundaries.md): the `api-volatile` user carries a
    selector for `~jobbliggaren:auth/oauth-state/v1/*` with `+set` and `+getdel`, and its budget selector
    names `~jobbliggaren:budget/external-login-starts/v1/*`. Without either, every start answers 503.
-3. **The Google client.** Its authorized redirect URI is exactly
-   `https://${SITE_HOST}/api/auth/oauth/google/callback`. Use a separate client for localhost, so this
-   client's secret never sits on a developer machine (security-auditor m-8).
+3. **The Google client** (security-auditor m-8). The box shares the Google client used on localhost, by
+   Klas's answer of 2026-10-03, "(a) Ja, som GitHub och LinkedIn" (ADR 0142 Amendment (22), where the hash
+   reading and the option's whole text are). If the local secret is rotated, the box's secret file is
+   replaced too. Its authorized redirect URIs include exactly
+   `https://${SITE_HOST}/api/auth/oauth/google/callback`. Probe every registered one on the day, with an
+   unregistered control, and record by host whether this box serves it.
 
 **Activation, in this order.** Inject before you edit: a client id without its secret file is a
 refused api start.
@@ -608,15 +611,20 @@ Re-create, never `docker restart`: the variables are read at container creation.
 - `Auth__RegistrationsOpen` in the running api container;
 - the number of accounts, and whether every one is the controller's;
 - `count(*)` of `identity."AspNetUserLogins"`, expected 0 before the first Google login;
-- the providers list, read from inside the web container, expected `["google"]`.
+- the web start: a 302 to `https://accounts.google.com/o/oauth2/v2/auth` with exactly `client_id`,
+  `code_challenge`, `code_challenge_method`, `prompt`, `redirect_uri`, `response_type`, `scope` and `state`:
+  `prompt=select_account consent`, `scope=openid email`, S256, the box's callback and no `access_type`; and the
+  flow cookie's attributes;
+- the providers list, read from inside the web container, expected `["google","linkedin","github"]`.
 
 The next amendment of ADR 0142 transcribes the comment.
 
-**Expected on the first login.** Both accounts on this box are `+` aliases, and Google returns the
-primary address without a tag. A Google login therefore answers "registration closed" until one
-account's address is changed, on Mina sidor, to the Google account's address. That fires no trigger.
-The first successful login also measures the type of `email_verified`: a success means it was the
-JSON `true`. A refusal logs EventId 1023 with its cause class, never the address.
+**Expected on the first login.** The first successful login measures the type of `email_verified`: a
+success means it was the JSON `true`. A refusal logs EventId 1023 with its cause class, never the address.
+
+**Every login asks.** The request carries `prompt=select_account consent` (#1926), so every Google login shows
+Google's account chooser and then its permission page. A Cancel on the permission page returns to `/logga-in` on
+the host the flow started on, with "Inloggningen med Google slutfördes inte".
 
 **Take the first successful Google login in Safari** (iOS or macOS). Landing signed in on `/oversikt`
 is Apple WebKit's reading of the continuation hop, which no committed instrument measures (ADR 0142
@@ -655,11 +663,21 @@ as Google's does, by Klas's decision over `security-auditor`'s M-1, which stands
 4. **The GitHub OAuth App** (security-auditor m-4). The box shares the OAuth App used on localhost, by
    Klas's acceptance on 2026-09-27: "varför kan jag inte använda samma nyckel som i appsettings ? Jag
    accepterar risken" (ADR 0142 Amendment (19), where the hash reading is). If the local secret is
-   rotated, the box's secret file is replaced too. Its authorization callback URL is exactly
-   `https://${SITE_HOST}/api/auth/oauth/github/callback`, and nothing else. Any wildcard or
-   subdirectory matching of callback URLs the app offers is off: it would let a code be sent to another
-   path. Record whether the app issues expiring user tokens: GitHub does not document whether revoking
-   a token also revokes its refresh token.
+   rotated, the box's secret file is replaced too. Read on the day:
+   - **Where a refusal lands.** GitHub sends every refusal, a Cancel included, to the app's first redirect URI
+     by order of entry, whatever the request named, and sends a request that names no redirect there too (ADR
+     0142 Amendment (22)). By Klas's decision of 2026-10-03 the first is
+     `https://jobbliggaren.se/api/auth/oauth/github/callback`, the host real users will register on (#734).
+     Until the apex is this box, a Cancel on this box lands on a host that does not answer, so read that the
+     apex completes no TLS handshake over IPv4 or IPv6; if it does, the apex stops being the first that day
+     (Amendment (22)). Take one Cancel on GitHub's authorization page from this box and record the host it
+     lands on: the order of entry is read from a Cancel, not from the page's list.
+   - **"Allow wildcard matching" is unchecked on every redirect URI.** It would let a code be sent to any
+     subdomain and any further path, and GitHub enables it for an app that had a single callback URL before
+     2026-08-03. A redirect URI removed and added again is read again.
+   - **"Enable Device Flow" is unchecked.** Nothing here uses it.
+   - Whether the app issues expiring user tokens: GitHub does not document whether revoking a token also
+     revokes its refresh token.
 
 **Activation, in this order.** Inject before you edit.
 
@@ -682,10 +700,12 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
   account's whole normalised address, with the `+` tag stripped and the domain included, never the
   local part alone (security-auditor m-4 on #1882);
 - `identity."AspNetUserLogins"` grouped by `login_provider`;
-- the providers list, read from inside the web container, expected `["google","github"]`;
-- the web start: a 302 to `https://github.com/login/oauth/authorize` with `scope=user:email`, S256, no
-  `offline_access`, the box's callback, and the flow cookie's attributes;
-- the Chapter V readings above, and the OAuth App's settings.
+- the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
+- the web start: a 302 to `https://github.com/login/oauth/authorize` with exactly `client_id`,
+  `code_challenge`, `code_challenge_method`, `prompt`, `redirect_uri`, `scope` and `state`:
+  `prompt=select_account`, `scope=user:email`, S256, no `offline_access`, the box's callback; and the flow
+  cookie's attributes;
+- the Chapter V readings above, and the OAuth App's settings in point 4.
 
 If the reading does not show `github`, both `.env` lines are removed and api is re-created.
 The next amendment of ADR 0142 transcribes the comment.
@@ -696,6 +716,10 @@ does, and no code is sent. If an account holds that address, the callback signs 
 `AspNetUserLogins`. The next GitHub login finds the link. If no account holds the address, the callback
 answers "registration closed" while registration is shut. Registration is never opened for this: that
 is the M-7 flip, and opening it makes `security-auditor`'s Major 2 under Amendment (18) Blocker class.
+
+**Every login asks.** The request carries `prompt=select_account` (#1926), and the token is revoked after each
+login, so every GitHub login shows the account picker and then the authorization page. A Cancel on the
+authorization page lands where point 4 says.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google.
 
@@ -767,6 +791,14 @@ no code is sent. If an account holds that address, the callback signs in and lin
 registration is shut, and registration is never opened for this. The first login also measures what
 the build could not: the form of `email_verified`, and that `sub` and `email` arrive under
 `openid email`. Take it in Safari if one is at hand (Amendment (15)'s residual).
+
+**A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
+measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
+`prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22),
+Klas's decision). Someone at a shared computer who wants another LinkedIn account signs out of LinkedIn first.
+
+**A Cancel** on LinkedIn's sign-in page goes to the request's `redirect_uri`, this box's callback (read
+2026-10-02), and LinkedIn documents the same for a Cancel on its permission page.
 
 **If the first login fails on one of those.** EventId 1022 with `IdTokenSubjectUnusable`,
 `SubjectUnusable` or `UserInfoRefused`, or 1023 with `AddressAbsent`, `FlagAbsent`, `FlagIsString` or

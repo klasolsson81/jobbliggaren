@@ -2401,8 +2401,6 @@ form report's (i) with its Variant A and Close A in place and her batch's answer
 `security-auditor`'s text below:
 - LinkedIn's "3-Legged OAuth Flow" (updated 2026-05-15) documents a query parameter `enable_extended_login=true` for
   social and passkey sign-in on further platforms. It is not a way to ask again, and the request does not carry it.
-- LinkedIn's discovery document is served from `www.linkedin.com` and from `api.linkedin.com` alike, and both copies name
-  `www` for `authorization_endpoint` and `token_endpoint` and `api` for `userinfo_endpoint`.
 - `supabase/auth` (master, `internal/api/provider/linkedin_oidc.go`): `defaultLinkedinOIDCAPIBase = "api.linkedin.com"`
   feeds both `AuthURL` and `TokenURL`, with no `prompt`. Supabase issue #50831 (opened 2026-09-24) carries no comment and
   no answer.
@@ -2441,7 +2439,7 @@ R1–R4; the pair measured by (i)).
   mirror theory alone would pass a consistent revert of both sides) and the web start test's fixture, which also gains
   the rollout-skew row: an api image from before this change answering the www endpoint fails closed with LinkedIn's
   notice and no state cookie. The five-key pins stay as #1926's guard.
-- Mutations against the committed change: every mutant red on exactly the rows R4 names (the adapter alone, the web alone,
+- Mutations against the committed change: every mutant red (the adapter alone, the web alone,
   both, a path typo on either side, the token endpoint moved to the api host, `prompt` added), with the controls green
   before and after.
 - Nothing else changes: the port, the handlers, the exchange, userinfo, the callback and every scope.
@@ -2547,9 +2545,6 @@ source or transfer. The privacy policy says LinkedIn handles the login and names
 names no LinkedIn cookie, so neither changes. The register does not change.
 
 *(End of `security-auditor`'s text.)*
-
-**Lapse triggers, read for this PR:** in `security-auditor`'s text above, which from this amendment on is the one home
-of LinkedIn's lapse set; §3d points here and restates nothing.
 
 ### D9 — Test harness first (part 0.5)
 

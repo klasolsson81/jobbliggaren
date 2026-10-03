@@ -13,6 +13,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
+import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 export default async function AppLayout({
   children,
@@ -72,6 +73,7 @@ export default async function AppLayout({
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
+        <ReloadedAfterUpdateNotice placement="app" />
         {children}
         {modal}
       </AppShell>

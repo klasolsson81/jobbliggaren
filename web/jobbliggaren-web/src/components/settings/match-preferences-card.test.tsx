@@ -33,6 +33,14 @@ vi.mock("@/lib/actions/match-preferences", () => ({
   searchSkillsAction: skillSearchMock,
   suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
+// The stale-build reload's one seam (ADR 0148): mocked so S1 can count it.
+vi.mock("@/lib/stale-build/reload-document", () => ({ reloadDocument: vi.fn() }));
+import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
+import { reloadDocument } from "@/lib/stale-build/reload-document";
+import {
+  STALE_BUILD_RELOADED_NOTICE_KEY,
+  STALE_BUILD_RELOAD_STAMP_KEY,
+} from "@/lib/stale-build/stale-build-reload";
 
 import {
   MatchPreferencesCard,
@@ -147,6 +155,11 @@ beforeEach(() => {
 afterEach(() => {
   updateMock.mockResolvedValue(SAVED);
   for (const release of releases.splice(0)) release();
+  // S1 leaves the two stamps, a Storage.prototype spy and a call on the seam behind, and a
+  // later stale row would be refused by the 60 s guard — order-dependent, so reset here.
+  sessionStorage.clear();
+  vi.restoreAllMocks();
+  vi.mocked(reloadDocument).mockClear();
 });
 
 describe("flattenOccupationGroups", () => {
@@ -393,6 +406,30 @@ describe("the outcome sits under its part (#1918 Major 5, #1391)", () => {
       "Kunde inte nå servern. Kontrollera din nätverksanslutning."
     );
     expect(chipsOf("Anställningsformer")).toEqual(["Vikariat"]);
+    // S2 (ADR 0148 D8): a generic rejection is not a stale build — no reload.
+    expect(reloadDocument).not.toHaveBeenCalled();
+  });
+
+  it("S1 (ADR 0148 D8): a write refused as a stale-build action id reloads the page and shows no inline error", async () => {
+    // The card catches its action's rejection itself (module-level
+    // startTransition), so no boundary ever sees it: the catch calls the core.
+    // The error is the router's own class, what `server-action-reducer.js`
+    // constructs on `x-nextjs-action-not-found: 1`.
+    const user = userEvent.setup();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    updateMock.mockRejectedValue(
+      new UnrecognizedActionError('Server Action "00a89fc0" was not found on the server.')
+    );
+    renderCard({ initialEmploymentTypes: ["gro4_cWF_6D7"] });
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Vikariat" }));
+
+    await vi.waitFor(() => expect(reloadDocument).toHaveBeenCalledTimes(1));
+    expect(within(part("Anställningsformer")).queryByRole("alert")).not.toBeInTheDocument();
+    expect(setItem.mock.calls.map(([key]) => key)).toEqual([
+      STALE_BUILD_RELOAD_STAMP_KEY,
+      STALE_BUILD_RELOADED_NOTICE_KEY,
+    ]);
   });
 });
 

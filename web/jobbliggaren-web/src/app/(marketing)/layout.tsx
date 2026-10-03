@@ -5,6 +5,7 @@ import { pickClientMessages } from "@/i18n/client-messages";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 import { getLandingStats } from "@/components/landing/landing-stats";
+import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 /**
  * Landing boundary (#737) and, since #1477, the landing's chrome.
@@ -48,6 +49,7 @@ export default async function MarketingLayout({ children }: { children: ReactNod
     <NextIntlClientProvider locale={locale} messages={messages}>
       <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
         <SiteHeader stats={stats} />
+        <ReloadedAfterUpdateNotice placement="plate" />
         {children}
         <SiteFooter />
       </div>

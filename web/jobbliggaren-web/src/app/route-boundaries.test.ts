@@ -41,18 +41,39 @@ function exists(file: string): boolean {
   }
 }
 
-/** Walk a parsed source for a real, zero-argument `notFound()` call. */
-function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
+/** Walk a parsed source for a real call of the named identifier with the given arity. */
+function hasCall(sourceFile: ts.SourceFile, name: string, argumentCount: number): boolean {
   let found = false;
   const visit = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === "notFound" &&
-      node.arguments.length === 0
+      node.expression.text === name &&
+      node.arguments.length === argumentCount
     ) {
       found = true;
     }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+/** Walk a parsed source for a real, zero-argument `notFound()` call. */
+function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
+  return hasCall(sourceFile, "notFound", 0);
+}
+
+/** Walk a parsed source for a JSX element of the named component (`<Name />` or `<Name>…</Name>`). */
+function rendersElement(sourceFile: ts.SourceFile, name: string): boolean {
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    const tag = ts.isJsxSelfClosingElement(node)
+      ? node.tagName
+      : ts.isJsxElement(node)
+        ? node.openingElement.tagName
+        : null;
+    if (tag && ts.isIdentifier(tag) && tag.text === name) found = true;
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
@@ -131,6 +152,78 @@ describe("route-level failure boundaries (#1477)", () => {
   it("the app root keeps its own last-resort boundaries", () => {
     expect(exists(resolve(APP_ROOT, "global-error.tsx"))).toBe(true);
     expect(exists(resolve(APP_ROOT, "not-found.tsx"))).toBe(true);
+  });
+
+  it("the scanner counts useReloadOnStaleBuild(error) CALLS, not mentions of them", () => {
+    const calls = (source: string) => hasCall(parse("probe.tsx", source), "useReloadOnStaleBuild", 1);
+    expect(calls("const reloading = useReloadOnStaleBuild(error);")).toBe(true);
+    expect(calls("// every boundary calls useReloadOnStaleBuild(error) first\nexport {};")).toBe(false);
+    expect(calls('import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";\nexport {};')).toBe(false);
+    expect(calls("useReloadOnStaleBuild();")).toBe(false);
+  });
+
+  it("the scanner counts <ReloadedAfterUpdateNotice /> ELEMENTS, not mentions of them", () => {
+    const renders = (source: string) => rendersElement(parse("probe.tsx", source), "ReloadedAfterUpdateNotice");
+    expect(renders("export default function L() { return <div><ReloadedAfterUpdateNotice />{null}</div>; }")).toBe(true);
+    expect(renders("// the layout renders <ReloadedAfterUpdateNotice /> first\nexport {};")).toBe(false);
+    expect(renders('import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";\nexport {};')).toBe(false);
+  });
+
+  it("every layout with a sibling error.tsx renders the line a reloaded page shows (ADR 0148 D7)", () => {
+    // After a stale-build reload the user is on the same page in the new build
+    // with nothing to say why their click did nothing (design-reviewer Major 3
+    // on #1948). The line is read from the reload's stamp by one client
+    // component, mounted at the top of the content in every group layout that
+    // owns a boundary — the root layout owns none (global-error.tsx is not an
+    // error.tsx), so it is exempt.
+    const owners = directories(APP_ROOT).filter(
+      (d) => exists(resolve(d, "layout.tsx")) && exists(resolve(d, "error.tsx"))
+    );
+
+    expect(
+      owners.length,
+      "no layout with a sibling error.tsx found — the walk is broken, so the rule below is vacuous"
+    ).toBeGreaterThanOrEqual(6);
+
+    const missing = owners
+      .filter((d) => {
+        const file = resolve(d, "layout.tsx");
+        return !rendersElement(parse(file, readFileSync(file, "utf8")), "ReloadedAfterUpdateNotice");
+      })
+      .map((d) => toPosix(relative(APP_ROOT, d)));
+
+    expect(
+      missing,
+      "these layouts own an error boundary but render no ReloadedAfterUpdateNotice, so a " +
+        "page that reloaded itself into a new build says nothing about the click that did not run"
+    ).toEqual([]);
+  });
+
+  it("every error boundary reloads once on a stale-build action error (ADR 0148)", () => {
+    // A page from a previous build meets the current one at its next Server
+    // Action, and the error it gets can land in ANY boundary — the header's
+    // "Logga ut" reaches global-error, a form inside a segment reaches that
+    // segment's error.tsx. So every boundary, the root's last resort included,
+    // calls the hook with the error it caught; one that does not shows the
+    // error surface for something that is not an error (#1948).
+    const boundaries = sourceFiles(APP_ROOT).filter(
+      (f) => /[\\/]error\.tsx$/.test(f) || /[\\/]global-error\.tsx$/.test(f)
+    );
+
+    expect(
+      boundaries.length,
+      "no error boundary found — the walk is broken, so the rule below is vacuous"
+    ).toBeGreaterThanOrEqual(7);
+
+    const missing = boundaries
+      .filter((f) => !hasCall(parse(f, readFileSync(f, "utf8")), "useReloadOnStaleBuild", 1))
+      .map((f) => toPosix(relative(APP_ROOT, f)));
+
+    expect(
+      missing,
+      "these boundaries do not call useReloadOnStaleBuild(error), so a stale page " +
+        "shows their error surface instead of reloading into the current build"
+    ).toEqual([]);
   });
 
   it("the scanner counts notFound() CALLS, not mentions of them", () => {

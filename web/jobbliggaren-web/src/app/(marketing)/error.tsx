@@ -4,6 +4,7 @@ import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
+import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
 
 /**
  * (marketing)/error — the runtime error boundary for the landing route `/`.
@@ -20,12 +21,13 @@ import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
  * It offers only a retry. `(marketing)` holds exactly one route, so a "to the
  * start page" control here would point at the URL the visitor is already on.
  *
- * Client Component by Next convention. The `error` prop is accepted to match
- * the boundary contract but is deliberately neither shown to the user (no stack
- * trace) nor logged here — Next reports uncaught errors on its own, and console
- * output is a §5 anti-pattern.
+ * Client Component by Next convention. The `error` prop is read by
+ * `useReloadOnStaleBuild` (ADR 0148: a page from a previous build reloads once
+ * instead of this surface) and nowhere else — never shown to the user (no
+ * stack trace), never logged here: Next reports uncaught errors on its own,
+ * and console output is a §5 anti-pattern.
  */
-export default function MarketingError({ retry }: ErrorInfo) {
+function MarketingErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   useFocusMainOnUnmount();
@@ -55,4 +57,16 @@ export default function MarketingError({ retry }: ErrorInfo) {
       </main>
     </div>
   );
+}
+
+export default function MarketingError({ error, retry }: ErrorInfo) {
+  // The surface is its own component so its hooks mount WITH it: when the stamp
+  // write fails, the hook flips from reloading to the surface a tick later, and
+  // `useFocusOnMount` then runs on the <h1> that now exists (code-reviewer M1 on
+  // #1955; the global-error form). Nothing renders while the document is being
+  // replaced — no flash of the error surface before the reload.
+  const reloading = useReloadOnStaleBuild(error);
+  if (reloading) return null;
+
+  return <MarketingErrorSurface retry={retry} />;
 }

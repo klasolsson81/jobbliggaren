@@ -6,6 +6,7 @@ import { GuestWelcomeModal } from "@/components/guest/guest-welcome-modal";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
 import { hasSeenGuestWelcome } from "@/lib/guest/guest-mode";
+import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 // F-Pre Punkt 5 — Gäst-tree (CTO-dom 2026-05-24 Beslut 1, Variant A).
 //
@@ -50,6 +51,7 @@ export default async function GuestLayout({
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <GuestShell>
+        <ReloadedAfterUpdateNotice placement="rail" />
         {children}
         {modal}
       </GuestShell>

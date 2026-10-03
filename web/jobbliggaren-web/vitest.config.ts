@@ -27,6 +27,14 @@ export default defineConfig({
         replacement: path.resolve(__dirname, "./src/test/render-intl.tsx"),
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // next/font/google has no loader outside the Next compiler, and since
+      // ADR 0148 global-error.tsx imports src/app/fonts.ts (it must set the
+      // font variables on the <html> it owns). The shim returns next/font's
+      // shape with inert values.
+      {
+        find: /^next\/font\/google$/,
+        replacement: path.resolve(__dirname, "./src/test/next-font-shim.ts"),
+      },
       // `server-only` är Next.js sentinel som inte exporteras som top-level
       // resolverbar modul (bara via Next.js compiled deps). Vite-side resolution
       // failer i transform-steget när client-komponenter följs genom server-

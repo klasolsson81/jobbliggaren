@@ -9,6 +9,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { HeaderStrip } from "@/components/site/header-strip";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
+import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 export default async function AdminLayout({
   children,
@@ -33,7 +34,7 @@ export default async function AdminLayout({
   // The declaration is verified for EQUALITY against the import graph by
   // client-namespace-payload.test.ts — do not edit it by hand-reasoning.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "fallback"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
@@ -61,6 +62,7 @@ export default async function AdminLayout({
           tabIndex={-1}
           className="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
         >
+          <ReloadedAfterUpdateNotice placement="inline" />
           {children}
         </main>
         {/* LP-3 (#256): shared deep-green footer at the bottom of the admin

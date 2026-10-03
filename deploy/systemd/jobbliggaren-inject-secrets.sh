@@ -788,9 +788,9 @@ a missing required variable fails here)"
   # handed to `docker run` as an image name and fail for the wrong stated reason.
   [[ "$image" =~ ^[a-z0-9./_-]+:[A-Za-z0-9._-]+$ ]]     || die "resolved api image is not an image reference: '${image}' (compose likely errored)"
   # THE RESOLUTION STAYS HERE, THE MEASUREMENT DOES NOT. What the two callers resolve genuinely
-  # differs — this one resolves a TAG out of the compose file with a human driving and nothing
-  # verified yet, while reconcile passes the digest it has just attested — so sharing the
-  # resolution would be sharing the wrong thing. The helper's own diagnostics reach stderr from
+  # differs — this one resolves a TAG out of the compose file with a human driving (`:applied`,
+  # which only a verified reconcile or `--stage` moves, #1238), while reconcile passes the digest
+  # it has just verified — so sharing the resolution would be sharing the wrong thing. The helper's own diagnostics reach stderr from
   # here, so this call adds no message of its own.
   "$RUNTIME_IDS" "$image"
 }

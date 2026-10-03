@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 #
-# Fixture tests for the two PURE PREDICATES inside jobbliggaren-reconcile.sh.
+# Fixture tests for jobbliggaren-reconcile.sh (#1238, #1295).
 #
 # Run:  bash deploy/systemd/jobbliggaren-reconcile.test.sh
 #
-# WHY THIS EXISTS. The wrapper as a whole needs a daemon, a registry and root, and that is a
-# real reason not to test the orchestration. It is not a reason to leave the two decisions
-# inside it untested — and those two carry the larger blast radius:
+# WHAT RUNS FOR REAL AND WHAT IS STUBBED. The wrapper needs a daemon, a registry and root, so `docker`
+# is a stub backed by files: a registry (tags → digests, digests → record bytes), a local image store
+# (references → image ids, the way `docker image inspect` answers), compose's resolved model, and the
+# containers an `up` leaves running. The verifier is a stub that knows which commit each digest was
+# "built from". Everything else is the real code: the wrapper, the record tool it reads releases with,
+# and the runtime-id helper the secrets gate measures with.
 #
-#   1. THE IMAGE CLASSIFIER. Ours → verify · named upstream → skip · anything else → refuse.
-#      Its whole purpose is that an image nobody classified FAILS CLOSED, which is exactly the
-#      property that cannot be observed from a green run: every image in the compose file today
-#      is classified, so the refusal arm never executes in production until the day it matters.
-#   2. THE DIGEST RULE. Exactly one repo digest for the image's own repository — zero refuses,
-#      several refuse, and index 0 is never assumed.
-#
-# `docker` is stubbed on PATH, so no daemon, no registry, no network. The verifier is stubbed
-# too: this suite is about which images REACH it, not about what it then decides — that is
-# verify-image-attestation.test.sh's subject, and the split is deliberate.
+# THE ORDERING PROPERTIES ARE THE POINT, and an ordering cannot be seen on a happy path. Markers make
+# the never-happened assertable: a record copied out before its identity verified, an image tagged
+# `:applied` before every image verified, an image RUN before it verified, a receipt written for an
+# apply that did not measurably happen.
 #
 # THREE OUTCOMES, NEVER COLLAPSED: 0 applied · 1 refused · 2 could not answer.
 
@@ -25,161 +22,280 @@ set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly SUT="$script_dir/jobbliggaren-reconcile.sh"
-[ -f "$SUT" ] || {
-  echo "missing script under test: $SUT" >&2
-  exit 1
-}
+readonly RECORD_TOOL_SRC="$script_dir/jobbliggaren-release-record.sh"
+for f in "$SUT" "$RECORD_TOOL_SRC" "$script_dir/jobbliggaren-runtime-ids.sh"; do
+  [ -f "$f" ] || {
+    echo "missing script under test: $f" >&2
+    exit 1
+  }
+done
 
 TMPROOT=$(mktemp -d)
 readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
-readonly BIN="$TMPROOT/bin"
-mkdir -p "$BIN"
+readonly BIN="$TMPROOT/bin" REG="$TMPROOT/registry" TOOLS="$TMPROOT/tools" CHECKOUT="$TMPROOT/checkout"
+readonly SECRETS="$TMPROOT/secrets" VAR="$TMPROOT/var" ETC="$TMPROOT/etc"
+mkdir -p "$BIN" "$REG" "$TOOLS" "$CHECKOUT/deploy/redis" "$VAR" "$ETC"
 
 pass=0
 fail=0
-# The gate's ownership cases brought two platform-dependent skips with them (#1295): a mode case
-# that needs a filesystem honouring chmod, and a group case that needs this account to be in more
-# than one group. Both are announced, and CI turns each into an error via its own env flag — an
-# announced skip is not a measurement.
+# Two platform-dependent skips (#1295): a mode case needs a filesystem honouring chmod, a group case an
+# account in more than one group. CI turns each into an error via its own flag.
 skipped=0
 
-# The wrapper hard-codes /opt/jobbliggaren paths, so the suite runs it against a copy whose
-# paths point into the fixture tree. Rewriting the constants is what makes the predicates
-# reachable without root; the predicates themselves are untouched.
-readonly FIXTURE_SUT="$TMPROOT/reconcile.sh"
-readonly SECRETS="$TMPROOT/secrets"
-readonly FIXTURE_IDS="$TMPROOT/runtime-ids.sh"
-
-# THE ABSENCE PROOFS BELOW ARE FAIL-OPEN WITHOUT THESE. "No absolute docker path in the copy" is
-# satisfied just as well by a source that never had one, so a SUT that had lost the property
-# would pass every proof — measured, with the whole suite green. Presence first, absence after.
-assert_calls_docker_absolutely() {
-  grep -qF -- "/usr/bin/docker" "$1" || {
-    echo "FIXTURE BROKEN: $1 does not call docker by absolute path — the redirect proofs are vacuous" >&2
+# --- the code under test, pointed at the fixtures ------------------------------------------------------
+# THE ABSENCE PROOFS BELOW ARE FAIL-OPEN WITHOUT THESE: "no absolute docker path in the copy" is just as
+# true of a source that never had one. Presence first, absence after.
+for f in "$SUT" "$RECORD_TOOL_SRC" "$script_dir/jobbliggaren-runtime-ids.sh"; do
+  grep -qF -- "/usr/bin/docker" "$f" || {
+    echo "FIXTURE BROKEN: $f does not call docker by absolute path — the redirect proofs are vacuous" >&2
     exit 1
   }
-}
-assert_calls_docker_absolutely "$SUT"
-assert_calls_docker_absolutely "$script_dir/jobbliggaren-runtime-ids.sh"
-
-prepare_sut() {
-  sed -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$TMPROOT/docker-compose.yml#" \
-    -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$TMPROOT/.env#" \
-    -e "s#^readonly VERIFIER=.*#readonly VERIFIER=$BIN/verifier.sh#" \
-    -e "s#^readonly LOCK=.*#readonly LOCK=$TMPROOT/lock#" \
-    -e "s#^readonly STAMP=.*#readonly STAMP=$TMPROOT/stamp#" \
-    -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
-    -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
-    -e "s#/usr/bin/docker#docker#g" \
-    "$SUT" >"$FIXTURE_SUT"
-
-  # THE SECRETS_DIR REDIRECT IS PROVEN, AND THIS PROOF IS NOT OPTIONAL. Unproven, a spelling
-  # change leaves the copy pointing at the host's real /run/jobbliggaren/secrets — absent on the
-  # runner, which takes the gate's SKIP arm, which makes every case below pass for the wrong
-  # reason. That is a fail-OPEN rig, and this repo has paid for that class before.
-  grep -qxF "readonly SECRETS_DIR=$SECRETS" "$FIXTURE_SUT" || {
-    echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — every gate case would take the skip arm" >&2
+done
+readonly FIXTURE_SUT="$TOOLS/reconcile.sh" FIXTURE_IDS="$TOOLS/runtime-ids.sh"
+readonly RECEIPT="$VAR/applied-release.env" STAMP="$VAR/stamp" PIN="$ETC/release-pin" ENVF="$CHECKOUT/deploy/.env"
+sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
+  -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$CHECKOUT/deploy/docker-compose.yml#" \
+  -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENVF#" \
+  -e "s#^readonly VERIFIER=.*#readonly VERIFIER=$TOOLS/verify-image-attestation.sh#" \
+  -e "s#^readonly RECORD_TOOL=.*#readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh#" \
+  -e "s#^readonly LOCK=.*#readonly LOCK=$TMPROOT/lock#" \
+  -e "s#^readonly STAMP=.*#readonly STAMP=$STAMP#" \
+  -e "s#^readonly RECEIPT=.*#readonly RECEIPT=$RECEIPT#" \
+  -e "s#^readonly PIN_FILE=.*#readonly PIN_FILE=$PIN#" \
+  -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
+  -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
+  -e "s#/usr/bin/docker#docker#g" \
+  "$SUT" >"$FIXTURE_SUT"
+for want in "readonly SECRETS_DIR=$SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
+  "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh"; do
+  grep -qxF "$want" "$FIXTURE_SUT" || {
+    echo "FIXTURE BROKEN: redirect did not apply: $want — the suite would touch the host's real paths" >&2
     exit 1
   }
-  grep -qxF "readonly RUNTIME_IDS=$FIXTURE_IDS" "$FIXTURE_SUT" || {
-    echo "FIXTURE BROKEN: RUNTIME_IDS redirect did not apply — the suite would run the real helper" >&2
+done
+sed -e "s#/usr/bin/docker#docker#g" "$RECORD_TOOL_SRC" >"$TOOLS/jobbliggaren-release-record.sh"
+sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
+for f in "$FIXTURE_SUT" "$TOOLS/jobbliggaren-release-record.sh" "$FIXTURE_IDS"; do
+  if grep -qF -- "/usr/bin/docker" "$f"; then
+    echo "FIXTURE BROKEN: the docker redirect did not apply in $f" >&2
     exit 1
-  }
-  chmod +x "$FIXTURE_SUT"
-  : >"$TMPROOT/docker-compose.yml"
+  fi
+done
+chmod +x "$FIXTURE_SUT" "$TOOLS/jobbliggaren-release-record.sh" "$FIXTURE_IDS"
 
-  # The gate runs the REAL helper, not a stand-in for it: the two are wired together on the box
-  # and a stub here would leave that wiring unmeasured. Only its docker call is redirected onto
-  # the same stub everything else in this suite uses.
-  sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
-  # Absence, and it means something because presence was asserted in the source above.
-  grep -qF -- "/usr/bin/docker" "$FIXTURE_IDS" && {
-    echo "FIXTURE BROKEN: the helper's docker redirect did not apply" >&2
-    exit 1
-  }
-  chmod +x "$FIXTURE_IDS"
-}
-
-# THE RIG MUST BE ABLE TO MEASURE WHAT IT CLAIMS, AND A DISAGREEMENT HERE IS AN ABORT, NOT A SKIP.
-# The gate compares the fixture directory's numeric owner against ids the docker stub returns, so
-# the suite needs `stat` and `id` to agree about who owns a directory this process just made.
-# Unlike the chmod cases elsewhere in this repo — where the platform genuinely cannot express the
-# property — a mismatch here means the instrument is wrong, and a skip would hide that.
+# THE RIG MUST MEASURE WHAT IT CLAIMS: the ownership cases compare a directory's numeric owner against
+# ids the stub returns, so stat and id must agree about a directory this process made.
 probe_dir=$(mktemp -d "$TMPROOT/idprobe.XXX")
-probe_owner=$(stat -c '%u %g' "$probe_dir")
-probe_expected="$(id -u) $(id -g)"
-rm -rf "$probe_dir"
-if [ "$probe_owner" != "$probe_expected" ]; then
-  echo "FIXTURE BROKEN: stat reports '$probe_owner' for a directory this process owns," >&2
-  echo "                but id reports '$probe_expected'. The ownership cases cannot be measured." >&2
+if [ "$(stat -c '%u %g' "$probe_dir")" != "$(id -u) $(id -g)" ]; then
+  echo "FIXTURE BROKEN: stat and id disagree about who owns $probe_dir" >&2
   exit 1
 fi
+rm -rf "$probe_dir"
 
-# $1 = newline-separated image list `compose config --images` returns.
-# $2 = repo digests `docker image inspect` returns for ANY image (one per line).
-stub_docker() {
-  printf '%s\n' "$1" >"$TMPROOT/images"
-  printf '%s\n' "$2" >"$TMPROOT/digests"
-  cat >"$BIN/docker" <<EOF
+# --- the verifier stub --------------------------------------------------------------------------------
+mkdir -p "$REG/attested"
+cat >"$TOOLS/verify-image-attestation.sh" <<EOF
 #!/usr/bin/env bash
-# THE BACKTICKS BELOW ARE ESCAPED AND MUST STAY SO. This heredoc is unquoted (<<EOF), so an
-# unescaped pair is command substitution — the shell ran \`up -d\` every time this stub was
-# written and printed "up: command not found" to stderr, 12 times per suite run on the baseline.
-# Noise beside a fixture's own output is how a real failure goes unread.
-# \`up -d\` is matched BEFORE the bare pull arm, because the apply now carries \`--pull never\`
-# and would otherwise be swallowed by \`*pull*\` — which is how this stub first reported that
-# 'up -d' never ran when it had.
-case "\$*" in
-  *"id -u"*)           echo "\$*" > "$TMPROOT/idmeasured" ; cat "$TMPROOT/ids-out" ; exit "\$(cat "$TMPROOT/ids-exit")" ;;
-  *"config --images"*) cat "$TMPROOT/images" ;;
-  *"image inspect"*)   cat "$TMPROOT/digests" ;;
-  *"up -d"*)           echo "up: ok" ; echo "\$*" > "$TMPROOT/up-args" ;;
-  *pull*)              echo "pull: ok" ;;
-  *)                   echo "unexpected docker invocation: \$*" >&2 ; exit 99 ;;
+printf '%s\n' "\$*" >>"$REG/verifier-calls"
+[ -f "$REG/verifier-cannot" ] && exit 2
+d="\${1#*@}"
+[ -f "$REG/attested/\$d" ] || exit 1
+[ "\$#" -lt 2 ] || [ "\$(cat "$REG/attested/\$d")" = "\$2" ] || exit 1
+exit 0
+EOF
+chmod +x "$TOOLS/verify-image-attestation.sh"
+
+# --- the docker stub: a registry, a local store, compose and containers, all files -------------------------
+cat >"$BIN/docker" <<'EOF'
+#!/usr/bin/env bash
+REG="__REG__"
+key() { printf '%s' "$1" | tr '/:@' '___'; }
+idof() { printf 'sha256:%s' "$(printf 'image-of-%s' "$1" | sha256sum | cut -d' ' -f1)"; }
+printf '%s\n' "$*" >>"$REG/docker-calls"
+mkdir -p "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers"
+if [ "$1" = compose ]; then
+  shift; [ "$1" = -f ] && shift 2
+  profile=""; [ "$1" = --profile ] && { profile="$2"; shift 2; }
+  case "$1" in
+  config)
+    [ "$2" = --images ] || { echo "stub: unexpected compose config $*" >&2; exit 99; }
+    if [ -n "${3:-}" ]; then
+      awk -v s="$3" '$1 == s { print $2 }' "$REG/compose-images"
+    else
+      awk '$1 != "migrate-rewrap" || p { print $2 }' p="$profile" "$REG/compose-images" | sort -u
+    fi
+    exit 0 ;;
+  up)
+    printf '%s\n' "$*" >"$REG/up-args"
+    [ -f "$REG/up-fails" ] && exit 1
+    while read -r svc img; do
+      [ "$svc" = migrate-rewrap ] && continue
+      [ -f "$REG/up-skips-$svc" ] && continue
+      id=$(cat "$REG/local/$(key "$img")" 2>/dev/null) || { echo "No such image: $img" >&2; exit 1; }
+      printf '%s' "$id" >"$REG/running/$svc"
+    done <"$REG/compose-images"
+    exit 0 ;;
+  ps)
+    svc="${@: -1}"; [ -f "$REG/running/$svc" ] && echo "cid-$svc"; exit 0 ;;
+  esac
+  echo "stub: unexpected compose $*" >&2; exit 99
+fi
+case "$1" in
+pull)
+  ref="${@: -1}"
+  [ -f "$REG/pull-fails" ] && { echo "denied" >&2; exit 1; }
+  case "$ref" in
+  *@sha256:*) d="${ref#*@}"; [ -f "$REG/known/$d" ] || exit 1 ;;
+  postgres:* | redis:* | datalust/*) printf '%s' "$(idof "$ref")" >"$REG/local/$(key "$ref")"; exit 0 ;;
+  *) d=$(cat "$REG/tags/$(key "$ref")" 2>/dev/null) || { echo "not found" >&2; exit 1; }
+     [ -f "$REG/flip-after-pull/$(key "$ref")" ] && cp "$REG/flip-after-pull/$(key "$ref")" "$REG/tags/$(key "$ref")"
+     printf '%s' "$(idof "$d")" >"$REG/local/$(key "$ref")" ;;
+  esac
+  printf '%s' "$(idof "$d")" >"$REG/local/$(key "${ref%%[:@]sha256*}@$d")"
+  printf '%s' "$(idof "$d")" >"$REG/local/$(key "${ref%@*}@$d")"
+  exit 0 ;;
+image)
+  [ "$2" = inspect ] || exit 99
+  fmt="$4"; ref="$5"
+  id=$(cat "$REG/local/$(key "$ref")" 2>/dev/null) || exit 1
+  case "$fmt" in
+  *RepoDigests*)
+    repo="${ref%%@*}"; repo="${repo%:*}"
+    for f in "$REG"/local/*; do
+      n=$(basename "$f")
+      [ "$(cat "$f")" = "$id" ] || continue
+      case "$n" in *_sha256_*) printf '%s@sha256:%s\n' "$repo" "${n##*_sha256_}" ;; esac
+    done | sort -u
+    [ -f "$REG/extra-repodigest" ] && printf '%s@sha256:%s\n' "$repo" "$(printf 'e%.0s' $(seq 64))"
+    ;;
+  *.Id*) printf '%s\n' "$id" ;;
+  esac
+  exit 0 ;;
+tag)
+  n=$(( $(cat "$REG/tag-count" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$REG/tag-count"
+  # Fails exactly the N-th tag of the run, so the restore's own tags after it succeed.
+  [ -f "$REG/tag-fails-at" ] && [ "$n" -eq "$(cat "$REG/tag-fails-at")" ] && exit 1
+  src="$2" dst="$3"
+  case "$src" in
+  sha256:*) id="$src" ;;
+  *) id=$(cat "$REG/local/$(key "$src")" 2>/dev/null) || exit 1 ;;
+  esac
+  printf '%s' "$id" >"$REG/local/$(key "$dst")"; exit 0 ;;
+rmi)
+  [ -f "$REG/rmi-fails" ] && exit 1
+  rm -f "$REG/local/$(key "${@: -1}")"; exit 0 ;;
+create)
+  shift; name="" ref=""
+  while [ "$#" -gt 0 ]; do case "$1" in --name) name="$2"; shift 2 ;; --pull|--network) shift 2 ;; *) [ -z "$ref" ] && ref="$1"; shift ;; esac; done
+  touch "$REG/created"
+  d="${ref#*@}"; [ -f "$REG/blobs/$d" ] || exit 1
+  printf '%s' "$d" >"$REG/containers/$name"; exit 0 ;;
+cp)
+  name="${2%%:*}"; d=$(cat "$REG/containers/$name") || exit 1
+  t=$(mktemp -d); cp "$REG/blobs/$d" "$t/release.env"; (cd "$t" && tar -cf - release.env); rm -rf "$t"; exit 0 ;;
+rm) exit 0 ;;
+inspect)
+  cid="${@: -1}"; cat "$REG/running/${cid#cid-}"; echo; exit 0 ;;
+run)
+  echo "$*" >"$REG/idmeasured"
+  cat "$REG/ids-out"; exit "$(cat "$REG/ids-exit")" ;;
 esac
+echo "unexpected docker invocation: $*" >&2
+exit 99
 EOF
-  chmod +x "$BIN/docker"
-}
+sed -i "s#__REG__#$REG#" "$BIN/docker"
+chmod +x "$BIN/docker"
 
-# What the image "reports" as its runtime ids. The MARKER the arm above writes is what makes the
-# arm's NON-invocation assertable — an ordering property cannot be pinned by observing the happy
-# path alone.
-# $1 = uid, $2 = gid, $3 = the exit code the measurement leaves with (default 0).
-stub_runtime_ids() {
-  printf '%s\n%s\n' "$1" "$2" >"$TMPROOT/ids-out"
-  printf '%s' "${3:-0}" >"$TMPROOT/ids-exit"
-}
-stub_runtime_ids "$(id -u)" "$(id -g)"
-
-stub_verifier() {
-  cat >"$BIN/verifier.sh" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$1" >> "$TMPROOT/verified"
-exit ${1:-0}
-EOF
-  chmod +x "$BIN/verifier.sh"
-}
-
-# `flock` is util-linux and is absent on some developer hosts (Git Bash on Windows has no
-# such binary). The suite must run in both places, so where the real one is missing it is
-# stubbed to "lock acquired" — the acquire path is what every case below needs. The two cases
-# that are ABOUT the lock skip themselves rather than assert against a stub, and say so.
-readonly HAVE_FLOCK=$(command -v flock >/dev/null 2>&1 && echo 1 || echo 0)
+# `flock` is absent on some developer hosts (Git Bash); the acquire path is stubbed there, and the two
+# cases ABOUT the lock skip themselves rather than assert against a stub.
+HAVE_FLOCK=$(command -v flock >/dev/null 2>&1 && echo 1 || echo 0)
+readonly HAVE_FLOCK
 if [ "$HAVE_FLOCK" -eq 0 ]; then
   printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/flock"
   chmod +x "$BIN/flock"
 fi
 
-run_sut() {
-  : >"$TMPROOT/verified"
-  rm -f "$TMPROOT/up-args" "$TMPROOT/stamp" "$TMPROOT/idmeasured"
-  PATH="$BIN:/usr/bin:/bin" bash "$FIXTURE_SUT" >"$TMPROOT/out" 2>&1
+# --- fixtures ------------------------------------------------------------------------------------------
+readonly PREFIX="ghcr.io/klasolsson81/jobbliggaren" RELEASE="ghcr.io/klasolsson81/jobbliggaren-release"
+readonly NAMES=(api worker migrate web caddy)
+key() { printf '%s' "$1" | tr '/:@' '___'; }
+digest_of() { printf 'sha256:%s' "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1)"; }
+idof() { printf 'sha256:%s' "$(printf 'image-of-%s' "$1" | sha256sum | cut -d' ' -f1)"; }
+sha_of() { printf '%s' "$1" | sha1sum | cut -d' ' -f1; }
+readonly SHA1=$(sha_of one) SHA2=$(sha_of two) SHA3=$(sha_of three)
+
+printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf '#!/bin/sh\n' >"$CHECKOUT/deploy/redis/healthcheck.sh"
+DEPLOY=$(PATH="$BIN:/usr/bin:/bin" bash "$TOOLS/jobbliggaren-release-record.sh" deploy-hash "$CHECKOUT")
+readonly DEPLOY
+
+default_compose() {
+  cat >"$REG/compose-images" <<EOF
+caddy $PREFIX-caddy:applied
+web $PREFIX-web:applied
+api $PREFIX-api:applied
+worker $PREFIX-worker:applied
+migrate $PREFIX-migrate:applied
+migrate-rewrap $PREFIX-migrate:applied
+postgres postgres:18.3
+redis redis:8.6-alpine
+seq datalust/seq:2026.1
+EOF
 }
 
+# A published release of commit <sha> at <sequence>: five attested images, and a record (attested) in the
+# registry under `sha-<sha>`. Optional <app-ids> overrides the AppDbContext migration list. Prints the
+# record digest.
+release() {
+  local sha="$1" seq="$2" app="${3:-20260101000000_A,20260201000000_B}" name d rec
+  for name in "${NAMES[@]}"; do
+    d=$(digest_of "$name-$sha")
+    touch "$REG/known/$d"
+    printf '%s' "$sha" >"$REG/attested/$d"
+  done
+  {
+    printf 'JBL_RELEASE_FORMAT=1\nJBL_RELEASE_REPOSITORY=klasolsson81/jobbliggaren\nJBL_RELEASE_SOURCE_REF=refs/heads/main\n'
+    printf 'JBL_RELEASE_SOURCE_SHA=%s\nJBL_RELEASE_SEQUENCE=%s\n' "$sha" "$seq"
+    for name in API WORKER MIGRATE WEB CADDY; do printf 'JBL_RELEASE_IMAGE_%s=%s\n' "$name" "$(digest_of "${name,,}-$sha")"; done
+    printf 'JBL_RELEASE_DEPLOY_SHA256=%s\n' "$DEPLOY"
+    printf 'JBL_RELEASE_MIGRATIONS_APP=%s\nJBL_RELEASE_MIGRATIONS_IDENTITY=20260101000000_I\n' "$app"
+  } >"$REG/rec.tmp"
+  rec="sha256:$(sha256sum <"$REG/rec.tmp" | cut -d' ' -f1)"
+  mv "$REG/rec.tmp" "$REG/blobs/$rec"
+  touch "$REG/known/$rec"
+  printf '%s' "$sha" >"$REG/attested/$rec"
+  printf '%s' "$rec" >"$REG/tags/$(key "$RELEASE:sha-$sha")"
+  printf '%s' "$rec"
+}
+channel() { printf '%s' "$1" >"$REG/tags/$(key "$RELEASE:dev")"; }
+applied_is() { # <sha>: every :applied tag names that release's image
+  local name
+  for name in "${NAMES[@]}"; do
+    [ "$(cat "$REG/local/$(key "$PREFIX-$name:applied")" 2>/dev/null)" = "$(idof "$(digest_of "$name-$1")")" ] || return 1
+  done
+}
+
+reset() {
+  rm -rf "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
+  mkdir -p "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
+  rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/tag-count \
+    "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
+    "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
+  default_compose
+  printf 'POSTGRES_APP_PASSWORD=x\n#IMAGE_TAG=sha-0000000\n' >"$ENVF"
+  rm -rf "$SECRETS"
+  printf '%s\n%s\n' "$(id -u)" "$(id -g)" >"$REG/ids-out"
+  printf '0' >"$REG/ids-exit"
+}
+
+run_sut() {
+  PATH="$BIN:/usr/bin:/bin" bash "$FIXTURE_SUT" "$@" >"$TMPROOT/out" 2>&1
+}
 expect_exit() {
   local want="$1" desc="$2" got=0
-  run_sut || got=$?
+  shift 2
+  run_sut "$@" || got=$?
   if [ "$got" -eq "$want" ]; then
     pass=$((pass + 1))
     echo "  ok   $desc (exit $got)"
@@ -189,475 +305,397 @@ expect_exit() {
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 }
-
-assert_applied() {
-  if [ -f "$TMPROOT/up-args" ]; then
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  else
-    fail=$((fail + 1))
-    echo "  FAIL $1 — 'up -d' never ran" >&2
-  fi
-}
-
-assert_not_applied() {
-  if [ -f "$TMPROOT/up-args" ]; then
-    fail=$((fail + 1))
-    echo "  FAIL $1 — 'up -d' RAN after a refusal; the box would have deployed it" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  fi
-}
-
-prepare_sut
-readonly OURS="ghcr.io/klasolsson81/jobbliggaren-api"
-readonly DIGEST="$OURS@sha256:1111111111111111111111111111111111111111111111111111111111111111"
-
-echo "jobbliggaren-reconcile.sh — the two pure predicates"
-
-echo "-- the image classifier"
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 0
-expect_exit 0 "one of ours, verifying, is applied"
-assert_applied "and 'up -d' actually ran"
-
-stub_docker "$OURS:latest
-postgres:18.3
-redis:8.6-alpine" "$DIGEST"
-stub_verifier 0
-expect_exit 0 "the two allow-listed upstream images are skipped, not refused"
-
-# THE ARM THAT NEVER RUNS IN PRODUCTION UNTIL IT MATTERS.
-stub_docker "$OURS:latest
-mongo:7" "$DIGEST"
-stub_verifier 0
-expect_exit 1 "an UNKNOWN image refuses the whole apply"
-assert_not_applied "and nothing is applied when an image is unclassified"
-
-# An upstream image at a different tag is a different artifact, so the allowlist is per-tag.
-stub_docker "postgres:19.0" "$DIGEST"
-stub_verifier 0
-expect_exit 1 "an allow-listed image at an UNLISTED tag still refuses"
-
-stub_docker "" "$DIGEST"
-stub_verifier 0
-expect_exit 1 "an empty image list refuses rather than applying nothing successfully"
-
-echo "-- the digest rule"
-stub_docker "$OURS:latest" ""
-stub_verifier 0
-expect_exit 1 "ZERO repo digests refuses"
-assert_not_applied "and nothing is applied"
-
-stub_docker "$OURS:latest" "$OURS@sha256:1111111111111111111111111111111111111111111111111111111111111111
-$OURS@sha256:2222222222222222222222222222222222222222222222222222222222222222"
-stub_verifier 0
-expect_exit 1 "TWO distinct digests for the same repo refuses — index 0 is not a contract"
-
-# A digest belonging to a DIFFERENT repository must not be mistaken for this image's.
-stub_docker "$OURS:latest" "ghcr.io/someone-else/other@sha256:3333333333333333333333333333333333333333333333333333333333333333"
-stub_verifier 0
-expect_exit 1 "a digest from another repository does not satisfy this image"
-
-echo "-- refusal propagates, and nothing is applied"
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 1
-expect_exit 1 "a verifier refusal (exit 1) refuses the apply"
-assert_not_applied "and the running containers are left alone"
-
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 2
-# 2 SURVIVES to the unit's status rather than collapsing into 1: `systemctl --failed` is this
-# box's only alarm surface, and "not proven" and "the check could not run" call for different
-# responses. Both still refuse the apply.
-expect_exit 2 "a verifier 'cannot answer' (exit 2) refuses AND keeps its own code"
-assert_not_applied "and still nothing is applied"
-
-echo "-- what reaches the verifier"
-stub_docker "$OURS:latest
-postgres:18.3" "$DIGEST"
-stub_verifier 0
-run_sut || true
-if [ "$(wc -l <"$TMPROOT/verified")" -eq 1 ] && grep -qF "@sha256:" "$TMPROOT/verified"; then
-  pass=$((pass + 1))
-  echo "  ok   exactly one image reached the verifier, and by DIGEST not tag"
-else
-  fail=$((fail + 1))
-  echo "  FAIL wrong set reached the verifier:" >&2
-  sed 's/^/       /' "$TMPROOT/verified" >&2
-fi
-
-# The TOCTOU argument's other half: the apply must not be free to consult the registry again.
-if grep -qF -- "--pull never" "$TMPROOT/up-args"; then
-  pass=$((pass + 1))
-  echo "  ok   'up -d' is pinned to local images (--pull never)"
-else
-  fail=$((fail + 1))
-  echo "  FAIL 'up -d' may re-resolve tags — verification would guard a different image" >&2
-fi
-
-echo "-- a missing flock is UNANSWERABLE, never a silent no-op"
-# The wrapper had this defect: with flock absent, `if ! flock -n 9` failed with "command not
-# found", took the lock-held branch, and exited 0 having applied nothing — a unit reporting
-# success on every tick forever. Found by running this suite on a host without util-linux.
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 0
-mv "$BIN/flock" "$BIN/flock.hidden" 2>/dev/null || true
-hidden_real=0
-PATH="$BIN:/usr/bin:/bin" command -v flock >/dev/null 2>&1 && hidden_real=1
-if [ "$hidden_real" -eq 1 ]; then
-  echo "  skip real flock is on PATH outside \$BIN; cannot hide it for this case"
-else
-  expect_exit 2 "flock absent → exit 2 (cannot answer), not 0"
-  assert_not_applied "and nothing is applied"
-fi
-mv "$BIN/flock.hidden" "$BIN/flock" 2>/dev/null || true
-
-echo "-- the lock"
-if [ "$HAVE_FLOCK" -eq 0 ]; then
-  echo "  skip lock-held behaviour needs a real flock; this host has none (stubbed elsewhere)"
-else
-  stub_docker "$OURS:latest" "$DIGEST"
-  stub_verifier 0
-  # Hold the lock from another process: a benign overlap must be exit 0 AND apply nothing.
-  exec 8>"$TMPROOT/lock"
-  flock -n 8
-  got=0
-  run_sut || got=$?
-  exec 8>&-
-  if [ "$got" -eq 0 ]; then
-    pass=$((pass + 1))
-    echo "  ok   lock held → exit 0 (a benign overlap is not a unit failure)"
-  else
-    fail=$((fail + 1))
-    echo "  FAIL lock held → exit $got; systemctl --failed is this box's only alarm surface" >&2
-  fi
-  assert_not_applied "and a locked-out run applies nothing"
-  if [ -f "$TMPROOT/stamp" ]; then
-    fail=$((fail + 1))
-    echo "  FAIL a locked-out run stamped success" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   and it does not stamp success"
-  fi
-fi
-
-echo "-- the secrets ownership gate (#1295)"
-# WHAT THIS SECTION MEASURES, AND WHY IT CAN. The gate compares the secrets directory's owner
-# against the ids of the image about to be applied. The fixture cannot `chown` — it is not root —
-# so it moves the OTHER side: the docker stub reports ids that do or do not match the directory
-# this unprivileged process owns. Both arms are therefore reachable without root, on Windows and
-# on the ubuntu runner alike.
-#
-# The production ownership triple itself (0710 root:<gid>, files 0400 <uid>) is NOT measured
-# here and cannot be; its proof is the cutover row in vps-deploy-stack.md.
-
-seed_secrets() {
-  rm -rf "$SECRETS"
-  mkdir -p "$SECRETS"
-  printf '%s' "seeded" >"$SECRETS/FieldEncryption__LocalMasterKeyBase64"
-  printf '%s' "seeded" >"$SECRETS/AuditPseudonymization__PepperBase64"
-}
-
-assert_output_contains() {
-  if grep -qF -- "$1" "$TMPROOT/out"; then
+check() {
+  if eval "$1"; then
     pass=$((pass + 1))
     echo "  ok   $2"
   else
     fail=$((fail + 1))
-    echo "  FAIL $2 — the output did not name it:" >&2
+    echo "  FAIL $2" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 }
+said() { grep -qF -- "$1" "$TMPROOT/out"; }
+applied() { [ -f "$REG/up-args" ]; }
+no_receipt() { [ ! -e "$RECEIPT" ] && [ ! -e "$STAMP" ]; }
+nothing_tagged() { ! grep -q "^tag " "$REG/docker-calls" 2>/dev/null; }
 
-# EVERY refusal that publishes a repair command must clear this, not just the first one. Three
-# arms publish one — traversal, owner, mode — and the run buffer is overwritten by the next case,
-# so a single check after the first arm leaves the other two unguarded on exactly the axis this
-# PR has already got wrong twice. Reported independently by security-auditor and dotnet-architect.
-#
-# THIS ONE COVERS ONE SPELLING OF RECURSION, NOT RECURSION. `chown -R` was the first defect's
-# spelling; since the repair became a `find`, recursion is spelled "-maxdepth 1 omitted" and this
-# helper cannot see it. assert_bounded_find_repair below closes that, and the two are separate
-# deliberately: a name-based guard is not a guard against the property.
-assert_no_recursive_chown() {
-  if grep -qF -- "chown -R" "$TMPROOT/out"; then
-    fail=$((fail + 1))
-    echo "  FAIL $1 — the refusal published a recursive chown; that takes the directory root owns" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  fi
-}
+echo "jobbliggaren-reconcile.sh"
 
-# PRESENCE FIRST, ABSENCE AFTER — the rule this file states at the top and which the first
-# version of these guards broke. The two absence proofs below pass just as happily on output that
-# publishes NO repair at all, so neither can tell "the form is right" from "the line is gone".
-# This one pins the shape itself, `-mindepth 1` included: that flag is what keeps the directory —
-# root's, and the axis vps-deploy-stack.md row 32b exists to cross — out of the chown. Drop it and
-# every absence proof here still passes while the published repair chowns the directory to the
-# container's uid. Reported by dotnet-architect's scoped re-check; the earlier guards measured
-# half the property their own row claimed they measured.
-assert_repair_form_published() {
-  if grep -qE -- '^[[:space:]]*sudo find [^|]*-mindepth 1 -maxdepth 1 -exec chown ' "$TMPROOT/out"; then
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  else
-    fail=$((fail + 1))
-    echo "  FAIL $1 — no bounded, directory-excluding find repair was published" >&2
-  fi
-}
+echo "-- the happy path: one record, followed from the channel"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "a proven release is applied"
+check 'applied' "and 'up -d' ran"
+check 'grep -qF -- "--pull never" "$REG/up-args"' "with --pull never: up does not consult the registry again"
+check 'applied_is "$SHA1"' "every :applied tag names the record's image"
+check '[ -f "$RECEIPT" ] && [ -f "$STAMP" ]' "a receipt and the success stamp are written"
+check 'PATH="$BIN:/usr/bin:/bin" bash "$TOOLS/jobbliggaren-release-record.sh" receipt "$RECEIPT" >/dev/null && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC" "$RECEIPT"' \
+  "and the receipt validates and names the record digest"
+check '[ "$(sed -n 1p "$REG/verifier-calls")" = "$RELEASE@$REC" ]' "the record's identity was checked first, before its commit was known"
+check '[ "$(sed -n 2p "$REG/verifier-calls")" = "$RELEASE@$REC $SHA1" ]' "then the record bound to its commit"
+check '[ "$(grep -c " $SHA1\$" "$REG/verifier-calls")" -eq 6 ]' "and all five images, each bound to that commit"
+check 'said "verified 5 image(s)"' "the journal names the verified count"
+check '[ "$(grep -c "^pull --quiet $RELEASE:dev" "$REG/docker-calls")" -eq 1 ]' "the channel is read exactly once"
 
-# THE GLOB, measured broken on the box 2026-08-15 (vps-deploy-stack.md row 32b's drill). A
-# published `sudo chown <ids> <dir>/*` cannot be run by the operator it addresses: the shell
-# expands the glob BEFORE sudo elevates, and 0710 denies the read to every non-root user, so the
-# pattern reaches the tool unexpanded. Bound to the shape — a `chown`, `chmod` or `stat` whose
-# operand ends in `/*` — and not to one path, because the defect is the expansion order and not
-# the directory. `chmod` is in the list because the MODE arm's repair is a chmod, and without it
-# that arm's copy of this guard would be structurally incapable of failing.
-assert_no_secrets_glob() {
-  if grep -qE -- '(chown|chmod|stat)[^|]*/\*' "$TMPROOT/out"; then
-    fail=$((fail + 1))
-    echo "  FAIL $1 — the refusal published a shell glob; the operator's shell cannot expand it" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  fi
-}
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+run_sut
+: >"$REG/docker-calls"
+expect_exit 0 "the same release again is a re-apply, not a refusal"
 
-# Any published `find` must be depth-bounded, wherever it appears — a stray one beside a correct
-# repair is still `chown -R` by another spelling, which is the property assert_no_recursive_chown
-# names and can no longer see. `-maxdepth 1` must be followed by a space or end-of-line, or
-# `-maxdepth 10` would satisfy a substring match. Vacuous when no find is published, which is why
-# assert_repair_form_published runs beside it in the arms that publish one.
-assert_bounded_find_repair() {
-  if grep -E -- '^[[:space:]]*sudo find ' "$TMPROOT/out" | grep -qvE -- '-maxdepth 1( |$)'; then
-    fail=$((fail + 1))
-    echo "  FAIL $1 — the refusal published an unbounded find; that is chown -R by another name" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  fi
-}
+echo "-- selection"
+reset
+REC1=$(release "$SHA1" 10)
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+printf 'sha-%s\n' "$SHA1" >"$PIN"
+expect_exit 0 "a sha-<commit> pin applies that release, not the channel's"
+check 'applied_is "$SHA1"' "and :applied names the pinned release"
 
-assert_ids_measured() {
-  if [ -f "$TMPROOT/idmeasured" ]; then
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  else
-    fail=$((fail + 1))
-    echo "  FAIL $1 — the image was never asked for its ids" >&2
-  fi
-}
+reset
+REC1=$(release "$SHA1" 10)
+REC2=$(release "$SHA2" 11)
+printf '%s' "$REC2" >"$REG/tags/$(key "$RELEASE:sha-$SHA1")"
+printf 'sha-%s\n' "$SHA1" >"$PIN"
+expect_exit 1 "a pin whose tag was re-pointed at another commit's record refuses — a tag vouches for nothing"
+check '! applied && nothing_tagged' "and nothing is tagged or applied"
 
-assert_ids_not_measured() {
-  if [ -f "$TMPROOT/idmeasured" ]; then
-    fail=$((fail + 1))
-    echo "  FAIL $1 — the box RAN an image it had just refused" >&2
-  else
-    pass=$((pass + 1))
-    echo "  ok   $1"
-  fi
-}
+reset
+REC1=$(release "$SHA1" 10)
+printf '%s\n' "$REC1" >"$PIN"
+expect_exit 0 "a digest pin applies exactly that record"
+reset
+REC1=$(release "$SHA1" 10)
+printf 'sha256:%s\n' "$(printf 'a%.0s' $(seq 64))" >"$PIN"
+touch "$REG/known/sha256:$(printf 'a%.0s' $(seq 64))"
+expect_exit 1 "a digest pin whose pull lands on another digest refuses"
 
-seed_secrets
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 0
-stub_runtime_ids "$(id -u)" "$(id -g)"
-expect_exit 0 "ids agree → the apply proceeds"
-assert_applied "and 'up -d' ran"
-assert_ids_measured "and the image WAS measured (the gate did not silently skip)"
+for bad in "" "latest" "sha-$SHA1 sha-$SHA2" "sha-${SHA1:0:7}"; do
+  reset
+  release "$SHA1" 10 >/dev/null
+  channel "$(cat "$REG/tags/$(key "$RELEASE:sha-$SHA1")")"
+  printf '%s\n' "$bad" >"$PIN"
+  expect_exit 1 "a pin file holding '$bad' refuses and never falls back to the channel"
+  check '! applied' "  … nothing applied"
+done
+reset
+release "$SHA1" 10 >/dev/null
+printf 'sha-%s\nsha-%s\n' "$SHA1" "$SHA1" >"$PIN"
+expect_exit 1 "a pin file with two lines refuses"
 
-# WHAT REFERENCE REACHED THE MEASUREMENT, not merely that one did. Running the image is safe only
-# because its content is addressed by the digest attestation just cleared; with `api_digest`
-# assigned the TAG instead, every other case in this section still passes.
-if grep -qF -- "@sha256:" "$TMPROOT/idmeasured"; then
-  pass=$((pass + 1))
-  echo "  ok   and it was measured BY DIGEST, not by tag"
-else
-  fail=$((fail + 1))
-  echo "  FAIL the measurement ran against a non-digest reference:" >&2
-  sed 's/^/       /' "$TMPROOT/idmeasured" >&2
-fi
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf 'POSTGRES_APP_PASSWORD=x\nIMAGE_TAG=sha-1234567\n' >"$ENVF"
+expect_exit 1 "a set IMAGE_TAG refuses — it would pin nothing, silently"
+check '! said "POSTGRES_APP_PASSWORD" && ! said "sha-1234567"' "and no line of .env is ever printed"
+check '! grep -q "^pull" "$REG/docker-calls"' "and it refused before any network call"
 
-# The containment flags are part of the mechanism, not of its style: one of the two callers runs
-# an unattested image. Bound here because this is where the real helper is exercised end to end.
-for flag in "--network none" "--cap-drop ALL" "--security-opt no-new-privileges"; do
-  if grep -qF -- "$flag" "$TMPROOT/idmeasured"; then
-    pass=$((pass + 1))
-    echo "  ok   the measurement runs contained ($flag)"
-  else
-    fail=$((fail + 1))
-    echo "  FAIL the measurement ran WITHOUT $flag" >&2
-  fi
+echo "-- the compose binding (before any network call)"
+for broken in "api $PREFIX-api:latest" "migrate-rewrap $PREFIX-api:applied" "api $PREFIX-web:applied"; do
+  reset
+  release "$SHA1" 10 >/dev/null
+  channel "$(cat "$REG/tags/$(key "$RELEASE:sha-$SHA1")")"
+  svc=${broken%% *}
+  awk -v s="$svc" -v line="$broken" '$1 == s { print line; next } { print }' "$REG/compose-images" >"$REG/ci" && mv "$REG/ci" "$REG/compose-images"
+  expect_exit 1 "compose binding '$broken' refuses"
+  check '! grep -q "^pull" "$REG/docker-calls"' "  … before any pull"
+done
+for extra in "mongo mongo:7" "postgres postgres:19.0"; do
+  reset
+  release "$SHA1" 10 >/dev/null
+  channel "$(cat "$REG/tags/$(key "$RELEASE:sha-$SHA1")")"
+  printf '%s\n' "$extra" >>"$REG/compose-images"
+  expect_exit 1 "an image that is neither ours nor allow-listed ('${extra#* }') refuses"
 done
 
-# BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE. Reconcile reaches exit 1 by many routes; an
-# exit-code-only assertion here stays green with either half of the comparison deleted.
-stub_runtime_ids "$(id -u)" "$(($(id -g) + 1))"
+echo "-- one snapshot, read verify-first"
+reset
+touch "$REG/pull-fails"
+expect_exit 2 "a release that cannot be pulled cannot be answered (a private or unpublished package reads the same)"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+touch "$REG/extra-repodigest"
+expect_exit 1 "two repo digests for the release repository refuse — index 0 is not a contract"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+rm -f "$REG/attested/$REC"
+expect_exit 1 "a record our workflow did not attest refuses"
+check '[ ! -f "$REG/created" ]' "and not one byte of it was copied out — create never ran"
+check 'nothing_tagged && ! applied' "and nothing was tagged or applied"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '%s' "$SHA2" >"$REG/attested/$REC"
+expect_exit 1 "a record attested as another commit's build refuses"
+reset
+REC1=$(release "$SHA1" 10)
+REC2=$(release "$SHA2" 11)
+channel "$REC1"
+printf '%s' "$REC2" >"$REG/flip-after-pull/$(key "$RELEASE:dev")"
+expect_exit 0 "dev moving right after the snapshot changes nothing in this run"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT" && applied_is "$SHA1"' "it applies — and records — the release it snapshotted"
+
+echo "-- the deployment configuration a release was built with"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf 'services:\n  api: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+expect_exit 1 "a checkout whose compose configuration differs refuses"
+check 'said "merge --ff-only $SHA1"' "and prints the exact command that advances the checkout to the release"
+check 'nothing_tagged && ! applied' "and nothing was tagged or applied"
+printf 'services: {}\n# a comment that changes no configuration\n\n' >"$CHECKOUT/deploy/docker-compose.yml"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "a comment-only difference in compose still applies (the canonical form)"
+printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+
+echo "-- following the channel never moves backwards"
+reset
+OLD=$(release "$SHA1" 10)
+NEW=$(release "$SHA2" 11)
+channel "$NEW"
+run_sut
+channel "$OLD"
+: >"$REG/docker-calls"
+expect_exit 1 "a channel moved back to an older sequence refuses"
+check 'nothing_tagged && applied_is "$SHA2"' "and :applied still names the applied release"
+reset
+NEW=$(release "$SHA2" 11)
+channel "$NEW"
+run_sut
+SAME=$(release "$SHA3" 11)
+channel "$SAME"
+expect_exit 1 "the same sequence with another commit refuses (a diverged history)"
+reset
+A=$(release "$SHA1" 10 "20260101000000_A,20260201000000_B")
+channel "$A"
+run_sut
+B=$(release "$SHA2" 11 "20260101000000_A")
+channel "$B"
+expect_exit 1 "a newer release that lacks an applied migration refuses before the destructive up"
+check 'said "20260201000000_B"' "and names the migration"
+reset
+A=$(release "$SHA2" 11)
+channel "$A"
+run_sut
+B=$(release "$SHA1" 10)
+printf 'sha-%s\n' "$SHA1" >"$PIN"
+expect_exit 0 "a PIN to an older release is an operator's act: it applies, and migrate's gate decides"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+run_sut
+sed -i "s/^JBL_RELEASE_MIGRATIONS_IDENTITY=.*/JBL_RELEASE_MIGRATIONS_IDENTITY=20260101000000_I,20260301000000_J/" "$REG/blobs/$(release "$SHA2" 11)" 2>/dev/null || true
+REC2=$(cat "$REG/tags/$(key "$RELEASE:sha-$SHA2")")
+NEWBYTES="$REG/blobs/$REC2"
+NEWREC="sha256:$(sha256sum <"$NEWBYTES" | cut -d' ' -f1)"
+mv "$NEWBYTES" "$REG/blobs/$NEWREC"
+touch "$REG/known/$NEWREC"
+printf '%s' "$SHA2" >"$REG/attested/$NEWREC"
+channel "$NEWREC"
+expect_exit 0 "a release adding Identity migrations applies"
+check 'said "20260301000000_J"' "and the journal names the Identity migration the unit does not apply"
+
+echo "-- every image, bound to the record's commit — no mixed set"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '%s' "$SHA2" >"$REG/attested/$(digest_of "web-$SHA1")"
+expect_exit 1 "an image built from ANOTHER commit refuses the whole release"
+check 'nothing_tagged && ! applied && no_receipt' "and nothing is tagged, applied or recorded"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+run_sut
+: >"$REG/verifier-calls"
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/verifier-cannot"
+expect_exit 2 "a verifier that cannot answer keeps its own code (2), never 1, never 0"
+check 'applied_is "$SHA1"' "and :applied still names the applied release"
+
+echo "-- :applied, the apply and the receipt"
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+rm -f "$REG/tag-count"
+printf '3' >"$REG/tag-fails-at"
+expect_exit 1 "a tag failure midway fails the run"
+check 'applied_is "$SHA1"' "and :applied is restored to what the run found"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT"' "and the receipt still names the applied release"
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/up-fails"
+rm -f "$STAMP"
+expect_exit 1 "an up that fails fails the run"
+check 'applied_is "$SHA1" && [ ! -e "$STAMP" ]' "and :applied is restored, and no stamp is written"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT"' "and the receipt is not rewritten"
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/up-fails" "$REG/rmi-fails"
+rm -f "$REG/local/$(key "$PREFIX-api:applied")"
+expect_exit 2 "a restore that itself fails says :applied may be mixed (2)"
+check 'said "may be mixed"' "and says so"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+touch "$REG/up-skips-web"
+expect_exit 1 "a service not running the release's image after up fails the postcondition"
+check 'no_receipt' "and no receipt or stamp is written for an apply that did not measurably happen"
+check '[ -z "$(cat "$REG/local/$(key "$PREFIX-web:applied")" 2>/dev/null)" ]' "and :applied is put back to what the run found (here: none)"
+
+echo "-- --stage: a first boot"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "--stage verifies and tags a release on a box that has applied nothing" --stage
+check 'applied_is "$SHA1" && ! applied && no_receipt' "it tags :applied and applies nothing, writes no receipt"
+run_sut
+expect_exit 1 "--stage on a box with a receipt refuses — it is first-boot only" --stage
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '%s' "$SHA2" >"$REG/attested/$(digest_of "api-$SHA1")"
+expect_exit 1 "--stage refuses an unproven image like the apply does" --stage
+check 'nothing_tagged' "and tags nothing"
+
+echo "-- --status"
+reset
+expect_exit 1 "--status with nothing applied says NOT APPLIED" --status
+REC=$(release "$SHA1" 10)
+channel "$REC"
+run_sut
+expect_exit 0 "--status after an apply is consistent" --status
+check 'said "verdict:   consistent"' "and says so"
+printf '%s' "$(idof other)" >"$REG/running/api"
+expect_exit 1 "--status sees a container running something else" --status
+check 'said "running:   api DIFFERS"' "and names it"
+check '[ ! -f "$REG/up-args" ] || [ "$(grep -c "^compose" "$REG/docker-calls")" -ge 0 ]' "(--status is read-only: it takes no lock and applies nothing)"
+
+echo "-- the lock"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+mv "$BIN/flock" "$BIN/flock.hidden" 2>/dev/null || true
+if PATH="$BIN:/usr/bin:/bin" command -v flock >/dev/null 2>&1; then
+  echo "  skip real flock is on PATH outside \$BIN; cannot hide it for this case"
+else
+  expect_exit 2 "flock absent → exit 2 (cannot answer), not 0"
+  check '! applied' "and nothing is applied"
+fi
+mv "$BIN/flock.hidden" "$BIN/flock" 2>/dev/null || true
+if [ "$HAVE_FLOCK" -eq 0 ]; then
+  echo "  skip lock-held behaviour needs a real flock; this host has none (stubbed elsewhere)"
+else
+  exec 8>"$TMPROOT/lock"
+  flock -n 8
+  expect_exit 0 "lock held → exit 0 (a benign overlap is not a unit failure)"
+  exec 8>&-
+  check '! applied && no_receipt' "and a locked-out run applies and records nothing"
+fi
+
+echo "-- the secrets ownership gate (#1295)"
+seed_secrets() {
+  rm -rf "$SECRETS"
+  mkdir -p "$SECRETS"
+  printf '%s' seeded >"$SECRETS/FieldEncryption__LocalMasterKeyBase64"
+  printf '%s' seeded >"$SECRETS/AuditPseudonymization__PepperBase64"
+}
+stub_ids() { printf '%s\n%s\n' "$1" "$2" >"$REG/ids-out"; printf '%s' "${3:-0}" >"$REG/ids-exit"; }
+fresh() { reset; REC=$(release "$SHA1" 10); channel "$REC"; seed_secrets; }
+
+fresh
+expect_exit 0 "ids agree → the apply proceeds"
+check '[ -f "$REG/idmeasured" ] && grep -qF -- "@sha256:" "$REG/idmeasured"' "the image WAS measured, by DIGEST"
+for flag in "--pull never" "--network none" "--cap-drop ALL" "--security-opt no-new-privileges"; do
+  check 'grep -qF -- "$flag" "$REG/idmeasured"' "the measurement runs contained ($flag)"
+done
+
+fresh
+stub_ids "$(id -u)" "$(($(id -g) + 1))"
 expect_exit 1 "gid drift → refuses"
-assert_not_applied "and nothing is applied — stale but serving"
-assert_output_contains "cannot TRAVERSE" "and the refusal names the traversal axis"
+check 'said "cannot TRAVERSE" && said "chown root:"' "naming the traversal axis and keeping root as the dir's owner"
+check '! said "chown -R" && grep -qE "^[[:space:]]*sudo find [^|]*-mindepth 1 -maxdepth 1 -exec chown " "$TMPROOT/out"' "with a bounded, directory-excluding find — never chown -R"
+check '! grep -qE "(chown|chmod|stat)[^|]*/\*" "$TMPROOT/out"' "and never a shell glob the operator's shell cannot expand"
+check 'nothing_tagged && ! applied' "and nothing is tagged or applied"
 
-# THE REPAIR STRING ITSELF, because the repair string WAS the critical finding of round 1: all
-# three published commands were `chown -R` from the directory, which chowns the operand too and
-# leaves the container's uid owning the directory root must own. Nothing else in this suite
-# reads the text an operator is told to run.
-assert_output_contains "chown root:" "and it tells the operator to keep root as the dir's owner"
-assert_no_recursive_chown "and it never publishes a recursive chown from the directory"
-assert_no_secrets_glob "and the repair it publishes is not a shell glob"
-assert_repair_form_published "and the repair it publishes is a bounded, directory-excluding find"
-assert_bounded_find_repair "and the find it publishes is depth-bounded"
+fresh
+stub_ids "$(($(id -u) + 1))" "$(id -g)"
+expect_exit 1 "uid drift → refuses"
+check 'said "cannot READ the injected secrets"' "naming the owner axis"
+check '! said "chown -R" && grep -qE "^[[:space:]]*sudo find [^|]*-mindepth 1 -maxdepth 1 -exec chown " "$TMPROOT/out"' "with the same bounded find"
 
-stub_runtime_ids "$(($(id -u) + 1))" "$(id -g)"
-expect_exit 1 "uid drift → refuses even though the group still traverses"
-assert_not_applied "and nothing is applied"
-assert_output_contains "cannot READ the injected secrets" "and the refusal names the owner axis"
-assert_no_recursive_chown "and the OWNER arm's repair is non-recursive too"
-assert_no_secrets_glob "and the OWNER arm's repair is not a glob either"
-assert_repair_form_published "and the OWNER arm publishes the same bounded find form"
-assert_bounded_find_repair "and the OWNER arm's find is depth-bounded too"
-
-# THE ORDERING PROPERTY. Measuring the ids RUNS the image, so it must never happen for an image
-# attestation refused. Without this case a later refactor can hoist the gate above the verify
-# loop and every other case stays green.
-stub_runtime_ids "$(id -u)" "$(id -g)"
-stub_verifier 1
+fresh
+printf '%s' "$SHA2" >"$REG/attested/$(digest_of "api-$SHA1")"
 expect_exit 1 "a refused image still refuses with secrets present"
-assert_ids_not_measured "and a REFUSED image is never run to read its ids"
+check '[ ! -f "$REG/idmeasured" ]' "and a REFUSED image is never run to read its ids"
 
-stub_verifier 0
-stub_runtime_ids "$(id -u)" "$(id -g)" 97
-expect_exit 2 "the measurement failing is 'cannot answer' (2), never 'refused' (1) and never 0"
-assert_not_applied "and nothing is applied"
+fresh
+stub_ids "$(id -u)" "$(id -g)" 97
+expect_exit 2 "the measurement failing is 'cannot answer' (2)"
+check 'nothing_tagged' "and nothing is tagged"
 
-# The arm that never runs in production until it matters: secrets injected, but nothing in the
-# compose model is our api image, so the ids they must match cannot be determined.
-stub_runtime_ids "$(id -u)" "$(id -g)"
-stub_docker "postgres:18.3" "$DIGEST"
-stub_verifier 0
-expect_exit 2 "secrets present but no api image → cannot answer, not a wave-through"
-assert_not_applied "and nothing is applied"
-# BOUND TO THE MESSAGE for the same reason cases above are: with the emptiness check removed the
-# run still reaches exit 2, by way of the helper refusing an empty reference. Two paths, one code
-# — an exit-code-only assertion here would pass with the check deleted.
-assert_output_contains "api image was" "and it says WHICH question it could not answer"
-
-echo "-- and the gate is silent when there is nothing to protect"
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 0
-rm -rf "$SECRETS"
-mkdir -p "$SECRETS"
-expect_exit 0 "an EMPTY secrets directory skips the gate and applies"
-assert_applied "and 'up -d' ran"
-assert_ids_not_measured "and no docker run was spent measuring ids"
-assert_output_contains "ownership gate skipped" "and the skip is on the journal, not silent"
-
-rm -rf "$SECRETS"
-expect_exit 0 "a MISSING secrets directory skips the gate and applies"
-assert_applied "and 'up -d' ran"
-assert_ids_not_measured "and still no image is run"
-
-# THE -f FILTER. Without it a subdirectory counts as an injected secret, and the skip arm on an
-# uninjected box becomes a permanent refusal — the always-lit alarm this whole file family is
-# written against.
+fresh
 rm -rf "$SECRETS"
 mkdir -p "$SECRETS/not-a-secret"
-expect_exit 0 "a NON-REGULAR entry does not count as an injected secret"
-assert_applied "and 'up -d' ran"
-assert_output_contains "ownership gate skipped" "and the gate still reports a skip"
+expect_exit 0 "a non-regular entry is not an injected secret: the gate is skipped, on the journal"
+check 'said "ownership gate skipped" && [ ! -f "$REG/idmeasured" ]' "and no image is run"
 
-echo "-- the gate's own preconditions"
-# THE HELPER GUARD. Deleting `[ -x "$RUNTIME_IDS" ]` leaves every other case green, because every
-# other case has a working helper.
-seed_secrets
-stub_docker "$OURS:latest" "$DIGEST"
-stub_verifier 0
-stub_runtime_ids "$(id -u)" "$(id -g)"
+fresh
 mv "$FIXTURE_IDS" "$FIXTURE_IDS.hidden"
-expect_exit 2 "a MISSING runtime-id helper is 'cannot answer' (2), not a refusal and not a pass"
-assert_not_applied "and nothing is applied"
-assert_ids_not_measured "and nothing was run"
-# BOUND TO THE GUARD'S OWN MESSAGE. Measured: with the guard deleted this case still exits 2,
-# because the absent helper then fails at the call site and lands in the measurement's own
-# `|| exit 2`. Two paths, one code — the exit-code assertion above passes either way, and only
-# this line says WHICH check answered.
-assert_output_contains "runtime-id helper missing" "and it is the PRECONDITION guard that answered"
+expect_exit 2 "a missing runtime-id helper is 'cannot answer' (2)"
+check 'said "runtime-id helper missing"' "and it is the precondition guard that answered"
 mv "$FIXTURE_IDS.hidden" "$FIXTURE_IDS"
 
-# A file the owner cannot read fails the gate's own CLAIM, which is readability and not ownership.
-seed_secrets
+fresh
 chmod 0000 "$SECRETS/FieldEncryption__LocalMasterKeyBase64" 2>/dev/null || true
 if [ "$(stat -c '%a' "$SECRETS/FieldEncryption__LocalMasterKeyBase64")" = "0" ]; then
   expect_exit 1 "right owner but mode 0000 → refuses; ownership alone is not readability"
-  assert_not_applied "and nothing is applied"
-  assert_output_contains "the owner cannot read it" "and the refusal names the mode, not the owner"
-  assert_no_recursive_chown "and the MODE arm's repair is non-recursive too"
-  assert_no_secrets_glob "and the MODE arm's repair is not a glob either"
-  # NOT assert_repair_form_published / assert_bounded_find_repair: this arm publishes a chmod,
-  # not a find. Both are useless here and their polarities are OPPOSITE — which is worth writing
-  # down, because one of them would look like a passing test: assert_bounded_find_repair can
-  # never fail (no find to be unbounded), and assert_repair_form_published can never pass (no
-  # find to match). Its own presence proof instead — a green line that measures nothing is worse
-  # than no line (this suite's header).
-  assert_output_contains "sudo chmod 0400" "and the MODE arm publishes its own repair"
+  check 'said "the owner cannot read it" && said "sudo chmod 0400"' "naming the mode and its repair"
 else
   skipped=$((skipped + 1))
-  echo "  SKIP mode 0000 case: this filesystem does not honour chmod (Git Bash/Windows)."
-  echo "       It RUNS in CI on ubuntu, where JBL_REQUIRE_MODE_CASES makes a skip an error."
-  if [ "${JBL_REQUIRE_MODE_CASES:-0}" = "1" ]; then
-    fail=$((fail + 1))
-    echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but chmod is not honoured here" >&2
-  fi
+  echo "  SKIP mode 0000 case: this filesystem does not honour chmod. It RUNS in CI (JBL_REQUIRE_MODE_CASES)."
+  [ "${JBL_REQUIRE_MODE_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but chmod is not honoured" >&2; }
 fi
 chmod 0400 "$SECRETS/FieldEncryption__LocalMasterKeyBase64" 2>/dev/null || true
 
-echo "-- the rig can tell a GROUP from an OWNER"
-# WITHOUT THIS THE TWO CENTRAL ASSERTIONS ARE INDISTINGUISHABLE. The fixture's uid equals its gid
-# (measured: both platforms in play), so swapping `stat -c '%g'` for `%u` on the directory — or
-# `%u` for `%g` on a file — leaves every other case in this section green. The only way to cross
-# it unprivileged is a directory whose group is a SECONDARY group of this user, which is a group
-# `chgrp` is permitted to set. Where no second group exists there is nothing to measure with, and
-# that is a skip rather than an abort: unlike the stat-vs-id probe, this is a property of the
-# host's account, not of the instrument.
+# The fixture's uid equals its gid on both platforms in play, so swapping `%g` for `%u` passes every case
+# above. Only a directory whose group is a SECONDARY group of this account tells them apart.
 second_gid=""
-for g in $(id -G); do
-  if [ "$g" != "$(id -g)" ]; then second_gid="$g"; break; fi
-done
-
+for g in $(id -G); do [ "$g" != "$(id -g)" ] && { second_gid="$g"; break; }; done
 if [ -z "$second_gid" ]; then
   skipped=$((skipped + 1))
-  echo "  SKIP no secondary group on this host (id -G = $(id -G)); the %g-vs-%u swap cannot be"
-  echo "       distinguished here. It RUNS in CI, where JBL_REQUIRE_GROUP_CASES makes it an error."
-  if [ "${JBL_REQUIRE_GROUP_CASES:-0}" = "1" ]; then
-    fail=$((fail + 1))
-    echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but no secondary group was available" >&2
-  fi
+  echo "  SKIP no secondary group on this host; the %g-vs-%u swap cannot be told apart here (CI: JBL_REQUIRE_GROUP_CASES)."
+  [ "${JBL_REQUIRE_GROUP_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but no secondary group" >&2; }
 else
-  seed_secrets
-  chgrp "$second_gid" "$SECRETS" 2>/dev/null || true
-  chgrp "$second_gid" "$SECRETS"/* 2>/dev/null || true
+  fresh
+  chgrp "$second_gid" "$SECRETS" "$SECRETS"/* 2>/dev/null || true
   if [ "$(stat -c '%g' "$SECRETS")" != "$second_gid" ]; then
-    # THIS SKIP HONOURS THE FLAG TOO, and the first version of it did not — which would have made
-    # a green CI run mean "either the case ran, or chgrp silently failed", i.e. nothing. A skip
-    # that CI cannot turn into an error is a case that quietly stops existing.
     skipped=$((skipped + 1))
     echo "  SKIP chgrp to $second_gid did not take on this filesystem"
-    if [ "${JBL_REQUIRE_GROUP_CASES:-0}" = "1" ]; then
-      fail=$((fail + 1))
-      echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but chgrp to $second_gid did not take" >&2
-    fi
+    [ "${JBL_REQUIRE_GROUP_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but chgrp did not take" >&2; }
   else
-    # dir group = second_gid, file owner = id -u. A gate reading %u of the directory would
-    # compare $(id -u) against want_gid and refuse; a gate reading %g of a file would compare
-    # $second_gid against want_uid and refuse. Only the correct pair passes.
-    stub_runtime_ids "$(id -u)" "$second_gid"
-    stub_docker "$OURS:latest" "$DIGEST"
-    stub_verifier 0
+    stub_ids "$(id -u)" "$second_gid"
     expect_exit 0 "dir group != file owner, and the gate reads the RIGHT one of each"
-    assert_applied "and 'up -d' ran"
   fi
-  rm -rf "$SECRETS"
 fi
 
 echo

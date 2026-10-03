@@ -54,20 +54,26 @@ esac
 # Absolute path, as jobbliggaren-reconcile.sh already does for docker: PATH resolution in a
 # root-run gate lets anything earlier on PATH answer the question.
 #
-# CONTAINED, because one of the two callers runs an image nothing has attested. Reading two
-# numbers needs no network, no capabilities and no way to acquire more — and the compose file
-# already sets `no-new-privileges` on all ten services, so an uncontained `docker run` here
-# would be the loosest execution on the box. `--network none` also removes the default bridge
-# and `NET_RAW` with it.
-out=$(/usr/bin/docker run --rm --network none --cap-drop ALL \
+# CONTAINED, although since #1238 neither caller names an unverified image: reconcile passes the
+# digest it has just verified, and injection resolves `:applied`, the local tag only a verified
+# reconcile or `--stage` moves. Reading two numbers needs no network, no capabilities and no way
+# to acquire more — and the compose file already sets `no-new-privileges` on all ten services, so
+# an uncontained `docker run` here would be the loosest execution on the box. `--network none`
+# also removes the default bridge and `NET_RAW` with it.
+#
+# `--pull never`: an image absent locally is an error, never a fetch. Without it `docker run`
+# would pull a missing reference — and anyone with `packages: write` can push a `:applied` tag
+# to the registry, whose `id` output would then decide who owns the master key files.
+out=$(/usr/bin/docker run --rm --pull never --network none --cap-drop ALL \
   --security-opt no-new-privileges --entrypoint sh "$ref" -c 'id -u; id -g' 2>/dev/null) \
-  || die "could not read the runtime ids from '${ref}' (is it pulled? is dockerd up?)"
+  || die "could not read the runtime ids from '${ref}' (is it present locally? is dockerd up?)"
 
 mapfile -t ids <<<"$out"
 
 # EXACTLY two lines, not "at least two". A third line is not a malformed answer to ignore — on
-# the injection path the image is unattested, and root then chowns the master key to whatever
-# the first two numeric lines said while a later line went unread. Measured 2026-08-12: without
+# the injection path the image is named by a local tag, not a digest checked in this run, and root
+# then chowns the master key to whatever the first two numeric lines said while a later line went
+# unread. Measured 2026-08-12: without
 # this, output of `1654\n1654\nEXTRA` exits 0 and reports the pair.
 [[ "${#ids[@]}" -eq 2 ]] || die "expected exactly two lines from '${ref}', got ${#ids[@]}"
 

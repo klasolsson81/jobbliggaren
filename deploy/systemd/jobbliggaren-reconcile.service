@@ -1,6 +1,7 @@
 [Unit]
-# Pulls the published images, verifies each one was built by our workflow on main, and applies
-# what moved. The deploy model is reconcile-pull, not push: `release-images` publishes on an
+# Reads one release record (the `dev` channel, or the pinned release), verifies it and the five
+# images it names as built by our workflow on main from the record's commit, and applies exactly
+# that set (#1238, ADR 0149). The deploy model is reconcile-pull, not push: `release-images` publishes on an
 # hourly schedule because automerge merges as a GitHub App and app-triggered events start no
 # workflow runs (measured counterfactual: #1107 app-merged, zero runs; #1108 human-merged, a
 # run after 5 s). Nothing tells the box a new image exists, so the box asks.
@@ -25,7 +26,8 @@ Type=oneshot
 ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh
 
 # Sized against what the run actually does, not a round number. The pull of five images
-# dominates on a cold digest change; verification adds five cosign invocations, each of which
+# dominates on a cold digest change; verification adds seven cosign invocations (the record
+# twice, each image once), each of which
 # may fetch a Sigstore TUF root and read the registry's referrers, and a slow-but-working
 # network is exactly the case that must not be cut off mid-apply. For reference: the migrate
 # container applied 80 migrations in 3.2 s on this box (2026-08-05), so the database is not

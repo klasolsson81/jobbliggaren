@@ -330,7 +330,7 @@
         "heading": "Vad är en cookie",
         "paragraphs": [
           "En cookie är en liten textfil som en webbplats sparar i din webbläsare. Filen kan läsas tillbaka vid senare besök och hjälper webbplatsen att till exempel hålla dig inloggad eller komma ihåg ditt språkval. Vissa kakor finns kvar bara så länge ditt besök pågår (sessionskakor), andra sparas under en bestämd tid (permanenta kakor).",
-          "Utöver kakor använder Jobbliggaren även lagring direkt i din webbläsare (så kallad localStorage och sessionStorage) för ett par funktioner. Den lagringen skickas aldrig till våra servrar och beskrivs separat längre ner."
+          "Utöver kakor använder Jobbliggaren även lagring direkt i din webbläsare (så kallade localStorage och sessionStorage) för några funktioner. Den lagringen skickas aldrig till våra servrar och beskrivs separat längre ner."
         ]
       },
       {
@@ -354,18 +354,19 @@
         ],
         "list": [
           "NEXT_LOCALE: kommer ihåg om du valt svenska eller engelska. Sätts när du själv byter språk och varar i 365 dagar.",
+          "__Host-jobbliggaren_apps_view: kommer ihåg om du valt lista eller tavla på sidan Mina ansökningar. Sätts när du själv byter vy och varar i 365 dagar.",
           "__Host-jobbliggaren_guest_welcomed och __Host-jobbliggaren_setup_welcomed: kommer ihåg att du redan stängt en välkomstruta, så att den inte visas igen i samma webbläsare. Varar i 365 dagar."
         ]
       },
       {
         "heading": "Lagring i webbläsaren (localStorage och sessionStorage)",
         "paragraphs": [
-          "Förutom kakor sparar Jobbliggaren ett par enkla inställningar direkt i din webbläsare med localStorage, och en teknisk markering med sessionStorage som bara finns kvar så länge fliken är öppen. Den här informationen lämnar aldrig din enhet och skickas inte till våra servrar. Du kan rensa lagringen när som helst via din webbläsares inställningar, vilket inte påverkar ditt konto eller dina sparade uppgifter."
+          "Förutom kakor sparar Jobbliggaren några enkla inställningar direkt i din webbläsare med localStorage, och en teknisk markering med sessionStorage som bara finns kvar så länge fliken är öppen. Den här informationen lämnar aldrig din enhet och skickas inte till våra servrar. Du kan rensa lagringen när som helst via din webbläsares inställningar, vilket inte påverkar ditt konto eller dina sparade uppgifter."
         ],
         "list": [
           "Vilka informationsrutor du har stängt på översiktssidan (localStorage).",
           "Vilka notiser du har valt att visa på översiktssidan (localStorage).",
-          "Ditt val av tema (ljust eller mörkt) (localStorage).",
+          "Ditt val av tema, ljust eller mörkt (localStorage).",
           "En tidpunkt som sätts när sidan laddar om sig själv efter att Jobbliggaren har uppdaterats, så att det bara sker en gång och sidan kan tala om det efteråt (sessionStorage). Innehåller bara tidpunkten."
         ]
       },

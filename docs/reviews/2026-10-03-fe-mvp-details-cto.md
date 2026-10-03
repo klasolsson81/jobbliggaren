@@ -10,6 +10,8 @@ Canonical charter: .claude/agents/senior-cto-advisor.md, 17,258 bytes.
 - Repair the pre-existing job modal focus defect in PR A, bounded to JobAdModalShell and its actual dismissal paths.
 - Correct the default-suite focus tests through the existing guest-ad producer and shared modal shell. No seed, conditional skip or new harness is required. Keep authenticated local evidence separate and close through a code-only fix plus rerun of the finding's measurement.
 
+- Repair existing shared contact methods and notice hit areas in PR A, then inherit the shared treatment in PR B's moved notice. Preserve typography, whole signed copy, destinations, provenance and current A visibility gates. The applicable A target Blocker must close before A publication/merge. B's derived-contact fixture correction remains B-owned; no third PR or Klas escalation is required.
+
 ## Escalations
 
 None. These decisions change neither grading nor matching/extraction policy and were executed in the authorized feature scope.

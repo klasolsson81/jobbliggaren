@@ -930,7 +930,7 @@ Every site that projects `JobAd` fields is now tabulated, with gating status and
 
 `job_ads.organization_number` is a **STORED GENERATED COLUMN**, derived from `raw_payload`. Its definition: `HasComputedColumnSql("raw_payload->'employer'->>'organization_number'", stored: true)`.
 
-**F1:** `Erase()` sets `RawPayload = null`. 
+**F1:** `Erase()` sets `RawPayload = null`.
 **F2:** When `raw_payload` becomes NULL, the generated column **Postgres-computes** the extraction result on NULL, which is NULL.
 **F3:** An erased ad's `organization_number` becomes NULL **by Postgres**, at the instant of erasure, with zero code.
 **F4:** `organization_number` **can be a personnummer** (sole traders' org.nr == national ID).

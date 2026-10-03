@@ -94,7 +94,7 @@ public sealed class LinkedInIdentityProviderTests : IDisposable
         var url = CreateSut().BuildAuthorizeUrl(state, challenge);
         var query = HttpUtility.ParseQueryString(url.Query);
 
-        url.GetLeftPart(UriPartial.Path).ShouldBe("https://www.linkedin.com/oauth/v2/authorization");
+        url.GetLeftPart(UriPartial.Path).ShouldBe("https://api.linkedin.com/oauth/v2/authorization");
         // Exactly these keys: no code_challenge, which LinkedIn's web flow does not take, no nonce, which it does not
         // echo (ScriptedLinkedIn), and no prompt, which LinkedIn does not document (ADR 0142 Amendment (22)).
         query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(

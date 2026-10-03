@@ -747,8 +747,8 @@ different one.
    box's git and the merge commit; it is expected to be unchanged.
 4. **The LinkedIn app.** The box uses the local development client, by Klas's m-4 acceptance applied
    by analogy (ADR 0142 Amendment (20)). Its authorized redirect URLs include exactly
-   `https://${SITE_HOST}/api/auth/oauth/linkedin/callback`; LinkedIn matches them exactly. The app
-   carries the product "Sign In with LinkedIn using OpenID Connect".
+   `https://${SITE_HOST}/api/auth/oauth/linkedin/callback`; LinkedIn matches them exactly, at `www.linkedin.com` and at `api.linkedin.com` (ADR 0142 Amendment (23)); read both on the day, with controls on a host this box serves, never on a foreign one.
+   The app carries the product "Sign In with LinkedIn using OpenID Connect".
 5. **A new client id means new subject ids** (`dotnet-architect` N4). Before the client id changes,
    including a move to an app of the box's own, delete the `linkedin` rows:
    `DELETE FROM identity."AspNetUserLogins" WHERE login_provider = 'linkedin';`. Each member's next
@@ -776,7 +776,7 @@ sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.
   restore window, expected 0 (`account-deletion.md` §3.3);
 - `public.job_seekers` rows carrying the new `privacy_policy_version`;
 - the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
-- the web start: a 302 to `https://www.linkedin.com/oauth/v2/authorization` with exactly
+- the web start: a 302 to `https://api.linkedin.com/oauth/v2/authorization` with exactly
   `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email` and
   `state`, and neither `nonce` nor `code_challenge`; and the flow cookie's attributes;
 - the Chapter V readings above, and the app's registered redirect URLs.
@@ -798,13 +798,16 @@ the build could not: the form of `email_verified`, and that `sub` and `email` ar
 row that never works is not left standing. Any other refusal at the first login: deactivate, and file
 the defect, as for Google.
 
-**A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
-measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
-`prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22),
-Klas's decision). Someone at a shared computer who wants another LinkedIn account signs out of LinkedIn first.
+**Every login through the button asks for the account.** The authorization request goes to `api.linkedin.com`,
+which LinkedIn does not document for it and which does not see a member's www session (measured 2026-10-03; ADR
+0142 Amendment (23), Klas's decision). Every login the button starts shows LinkedIn's sign-in page on
+`www.linkedin.com`, and, measured on 2026-10-03, no permission page follows for a member who has granted the app.
+A request edited back to the www host still asks nothing. The web start and the api name the host together, so both
+images run the same tag; one on each side refuses every LinkedIn start with the notice. If a login through the button
+shows no LinkedIn page, or fails at LinkedIn or at the exchange, (23)'s lapse applies.
 
 **A Cancel** on LinkedIn's sign-in page names the request's `redirect_uri`, this box's callback (read
-2026-10-02), and LinkedIn documents that a Cancel on its permission page goes to the request's `redirect_uri`.
+2026-10-02, and on 2026-10-03 for a flow through the api host, on the local stack), and LinkedIn documents that a Cancel on its permission page goes to the request's `redirect_uri`.
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
 rows can stay: they match only this app's subject ids.

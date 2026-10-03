@@ -4907,6 +4907,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-wrap: pretty;
 }
 
+/* .jp-banner — info-banner med 3px brand-vänsterkant, används sparsamt (DESIGN.md
+   §4-listan, ratificerad men oimplementerad fram till ADR 0148). Första konsument:
+   raden efter en omladdning (ReloadedAfterUpdateNotice, överst i innehållet).
+   Komponerar befintliga tokens — ingen ny token. */
+.jp-banner {
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--jp-brand-600);
+  background: var(--jp-brand-50);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  border-radius: var(--jp-r-sm);
+  text-wrap: pretty;
+}
+
 /* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.
    v3-motsvarighet = .jp-icon-btn (med bindestreck). Alias-styling. */
 .jp-iconbtn {

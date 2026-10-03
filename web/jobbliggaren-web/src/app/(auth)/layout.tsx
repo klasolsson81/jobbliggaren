@@ -5,6 +5,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
+import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 /**
  * Auth layout — wraps every route in `(auth)` (/logga-in and its steps) in
@@ -53,6 +54,7 @@ export default async function AuthLayout({
               <ChevronLeft size={16} aria-hidden="true" />
               <span>{t("auth.backToStart")}</span>
             </Link>
+            <ReloadedAfterUpdateNotice />
             {children}
           </div>
         </main>

@@ -79,7 +79,7 @@ hex; in prose use the token name, not raw hex.
 | `--jp-accent-300` | `#74C29A` | `#2E5C46` | — |
 | `--jp-accent-100` | `#D3E7DC` | `#0E2A1E` | Avatar-bg |
 | `--jp-accent-50` | `#E9F2ED` | `#0E2A1E` | Tinted bg (selekterad rad, popover-selektion) |
-| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070) |
+| `--jp-gold` | `#E8C77B` | — | **Signatur — sigillets guldrad** via `--jp-mark-accent` (ADR 0070); typographic roles: DESIGN.md §§6/11 |
 
 **Knapp-kontraktet:** 800/800-hover/900 dark-skiftas ALDRIG — primärknappen
 förblir mörkgrön med vit text i båda teman. `#6EE7A8` är ENDAST

@@ -82,14 +82,13 @@ export default async function HjalpcenterPage() {
             <h1 id="hjalpcenter-heading" className="jp-pagehero__title">
               {t("help.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("help.lede")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body text-text-primary">{t("help.intro")}</p>
-
-        <div className="mt-10 flex flex-col gap-10">
+        <div className="flex flex-col gap-10">
           {GROUPS.map((group) => (
             <div key={group.key}>
               <h2 className="text-body-lg font-semibold text-text-primary">

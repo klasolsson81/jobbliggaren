@@ -33,13 +33,13 @@ export default async function VillkorPage() {
             <h1 id="villkor-heading" className="jp-pagehero__title">
               {t("terms.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("terms.updated")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body-sm text-text-secondary">{t("terms.updated")}</p>
-        <p className="mt-4 text-body text-text-primary">{t("terms.intro")}</p>
+        <p className="text-body text-text-primary">{t("terms.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
           {sections.map((section) => (

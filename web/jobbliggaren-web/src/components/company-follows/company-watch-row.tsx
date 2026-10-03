@@ -148,7 +148,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
         className="jp-job jp-job--static"
       >
         <div className="jp-job__body">
-          <h3 className="jp-job__title">{displayName}</h3>
+          <h2 className="jp-job__title">{displayName}</h2>
           {mode === "matching" &&
             (item.matchingAdCount === null ? (
               // Honest not-assessed: the user stated no occupation, so matching is undefined. Render a

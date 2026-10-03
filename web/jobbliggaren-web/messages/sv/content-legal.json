@@ -191,7 +191,8 @@
       "description": "Jobbliggaren är en gratis svensk tjänst för att söka jobb och hålla ordning på dina ansökningar, byggd på Arbetsförmedlingens öppna data. Skapad av Klas Olsson."
     },
     "title": "Om Jobbliggaren",
-    "intro": "Jobbliggaren är en gratis svensk tjänst som hjälper dig att söka jobb och hålla ordning på dina ansökningar på ett och samma ställe. Tjänsten bygger på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken), så att du kan söka, spara och följa upp dina ansökningar utan att det kostar något.",
+    "lede": "En gratis tjänst för att söka jobb och följa ansökningar.",
+    "intro": "Tjänsten bygger på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken).",
     "whyHeading": "Varför Jobbliggaren finns",
     "whyParagraphs": [
       "Jobbliggaren är byggt av Klas Olsson, systemutvecklare med inriktning på .NET och AI, baserad i Göteborg. Det är ett självständigt hobbyprojekt, inte ett företag.",
@@ -219,7 +220,8 @@
       "description": "Kontakta Jobbliggaren via e-post med frågor, idéer eller felrapporter."
     },
     "title": "Kontakta oss",
-    "intro": "Jobbliggaren är ett litet hobbyprojekt, och vi tar gärna emot frågor, idéer och felrapporter. Hör av dig, så svarar vi så snart vi kan.",
+    "lede": "Frågor, idéer och felrapporter.",
+    "intro": "Jobbliggaren är ett litet hobbyprojekt. Hör av dig, så svarar vi så snart vi kan.",
     "emailLabel": "Du når oss på e-post:",
     "email": "kontakt@jobbliggaren.se",
     "aboutListIntro": "Du får gärna höra av dig om:",
@@ -463,7 +465,7 @@
       "description": "Hjälpcenter för Jobbliggaren. Här samlar vi guider och svar om hur tjänsten fungerar, hur matchningen och granskningen av ditt cv går till och hur du når oss."
     },
     "title": "Hjälpcenter",
-    "intro": "Här samlar vi hjälpen för Jobbliggaren på ett ställe. Nedan hittar du guider och svar om hur tjänsten fungerar, hur matchningen och granskningen av ditt cv går till och hur du kontaktar oss om du behöver mer hjälp.",
+    "lede": "Guider och svar om hur Jobbliggaren fungerar.",
     "guidesHeading": "Guider och svar",
     "guidesIntro": "Börja här om du undrar hur något fungerar eller vill komma igång.",
     "moreHeading": "Mer hjälp",
@@ -501,7 +503,8 @@
       "description": "Jobbliggaren är ett källtillgängligt civilt projekt. Här finns koden på GitHub, hur tjänsten är byggd, de öppna jobbdata den vilar på och varför matchningen är regelbaserad utan AI."
     },
     "title": "För utvecklare",
-    "intro": "Den här sidan är för dig som är nyfiken på hur Jobbliggaren fungerar under huven. Jobbliggaren är ett självständigt hobbyprojekt byggt i öppenhet, och vi berättar gärna hur det är gjort, vilka data det vilar på och varför matchningen ser ut som den gör.",
+    "lede": "Hur Jobbliggaren är byggt och vilka data det vilar på.",
+    "intro": "Jobbliggaren är ett självständigt hobbyprojekt byggt i öppenhet.",
     "sections": [
       {
         "heading": "Källtillgänglig kod",

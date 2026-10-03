@@ -211,7 +211,7 @@ function text(el: Element | null): string {
 beforeEach(() => window.localStorage.clear());
 
 describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
-  it("bär bara titeln: ingen kicker och ingen ingress", () => {
+  it("bär titeln och en statisk rad, utan kicker", () => {
     // The kicker said "Inloggad som" + the name or the address's local part. The account has no
     // name, and the shell's Mina sidor popup is where the address is shown.
     const { container } = renderOversikt(true);
@@ -219,8 +219,9 @@ describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
     expect(hero).not.toBeNull();
     expect(hero!.querySelector(".jp-pagehero__kicker")).toBeNull();
     const main = hero!.querySelector<HTMLElement>(".jp-pagehero__main")!;
-    expect([...main.children].map((c) => c.tagName)).toEqual(["H1"]);
-    expect(main.textContent).toBe(COPY.hero.title);
+    expect([...main.children].map((c) => c.tagName)).toEqual(["H1", "P"]);
+    expect(main.querySelector("h1")).toHaveTextContent(COPY.hero.title);
+    expect(main.querySelector("p.jp-pagehero__lede")).toHaveTextContent(COPY.hero.lede);
   });
 });
 

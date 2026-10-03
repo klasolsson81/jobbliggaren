@@ -420,3 +420,57 @@ PR, which amends this record for them.
   <mail>kontakt@jobbliggaren.se</mail>.", visible at the export button without a click while the
   export is not built. `legally-bound-copy.test.ts` pins the catalogue, and `privacy-card.test.tsx`
   pins that it renders as the export button's description.
+
+
+## Amendment 2026-09-28 — #1917: one line under every green band
+
+**Source and decision.** Klas's directive of 2026-09-28 and his planning answers:
+1. *"Alla sidor med 'band'."* Every `.jp-pagehero` and `.jp-hero` band is in scope, including guest and public information pages. The landing plate keeps its own lede.
+2. *"Ev så tänker jag att underrubriken kan ha våran guld-färgade textfärg, om inte design-reviewen sätter sig emot det starkt. Dvs samma färg vi har på landingpage och i 'footen'."*
+3. The draft table's direction: *"Rätt riktning"*.
+
+On 2026-09-28 Klas approved design-reviewer's corrected table, the intro deletions and gold with the 75% cap. The approved table is the one in `docs/reviews/2026-09-28-1917-form-design-reviewer.md`, not the earlier draft in `docs/sessions/2026-09-28-1917-band-form-brief.md`.
+
+**What this supersedes.** This directive replaces his third answer of 2026-09-27, *"Band utan ingress"*, and ADR 0145 D1's *"title only, no lede"* clause. For the band it also reverses #1824's six deleted lines on /oversikt, /ansokningar, /aktivitetsrapport, /statistik, /cv/importera and /gast/oversikt. Whether the band carries a line is no longer a density question; what that line says remains one. The rule's homes are DESIGN.md §6, §8 rule 8 and §11; it is not restated here.
+
+**Intro deletions, rows 24–29.** The new band line removes its overlapping statements from each page's intro, in both locales:
+
+| Page / key | Swedish intro after the deletion | English intro after the deletion |
+|---|---|---|
+| /om — `content-legal.about.intro` | Tjänsten bygger på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken). | The service uses open job data from Arbetsförmedlingen’s JobTech (Platsbanken). |
+| /kontakt — `content-legal.contact.intro` | Jobbliggaren är ett litet hobbyprojekt. Hör av dig, så svarar vi så snart vi kan. | Jobbliggaren is a small hobby project. Get in touch and we will reply as soon as we can. |
+| /hjalpcenter — `content-legal.help.intro` | Deleted. | Deleted. |
+| /tips — `content-tips.intro` | Deleted. | Deleted. |
+| /vanliga-fragor — `content-faq.intro` | Hittar du inte svaret kan du kontakta oss. | If you cannot find the answer, you can contact us. |
+| /for-utvecklare — `content-legal.developers.intro` | Jobbliggaren är ett självständigt hobbyprojekt byggt i öppenhet. | Jobbliggaren is an independent hobby project built in the open. |
+
+**The gold decision's dated ground.** In the form round on 2026-09-28, design-reviewer measured the production build of `cb9f00bb`, sampling the band's computed 118° gradient under every rendered line box, including kickers and titles wrapping across four to six lines. This is the form round's historical measurement, not #1917's implementation verification:
+
+- Without the cap, 16 of 114 cases at 320–720px fell below 4.5:1, minimum 4.33:1. Row 30's own /gast/oversikt line reached 4.47:1 at 390px. A character-count limit did not bound the failing geometry.
+- With `max-width: min(60ch, 75%)`, 0 of those 114 cases fell below 4.5:1, minimum 4.95:1. At ≥721px the separate reading was at least 4.84:1; at 1280px it was at least 6.39:1.
+- `.jp-hero__lede` at its existing 42ch measured at least 4.99:1. The 1280px light/dark reading was 7.02:1 in both themes.
+
+Under her DESIGN.md §11 veto, design-reviewer approved gold on conditions V1–V5 in `docs/reviews/2026-09-28-1917-form-design-reviewer.md`. The source artefacts were `C:/tmp/jobbliggaren-visual/1917/dr/gold-geometry.json`, `gold-hero-and-kicker.json` and `gold-dark-1280.json` in the same directory.
+
+**Decision 4 and the date move.** In security-auditor's form-round reading of 2026-09-28, no band key belonged to Decision 4's set. The moved `*.updated` keys are in `content-*`, which Decision 4 says "need no row". The existing date strings and keys move into the band without a second copy below it. This does not authorise changing a bound key or string. Her reading of rows 17–23, including her own V1–V2, follows verbatim; its viewport values are that dated form measurement:
+
+### Svar 1: datumet flyttas in i bandet (rad 17–23)
+**Signatur: nej, och ingen rad kräver den.** Mätt i worktree @ cb9f00bb:
+- Ingen `*.updated`-nyckel är en D4-rad. D4 undantar själv `content-*` med orden "need no row" (ADR 0144:198). Flytten ändrar varken sträng eller nyckel.
+- Två av datumen är bundna, men som sträng, nyckel och publicering, inte som position. `privacy.updated` och `terms.updated` är den publicerade halvan av versionsstämpeln: ADR 0142:452 ("the ISO date already in the copy"), paritetstestet läser nycklarna per path (TermsAcceptanceVersionsMatchPublishedPolicyTests.cs:71), och release-checklist.md:2476-2479 säger "…som ingen levande sida bär". En ren JSX-flytt rör inget av detta. Ändras nyckel eller sträng ändå går det till mig enligt D6.
+- Policyerna binder själva positionen med meningen "…med datum för senaste uppdatering högst upp" (content-legal.json sv/en: rad 177 integritet, 294 villkor, 389 cookies). Bandet ligger högst upp, så meningen förblir sann.
+- Rad 21 (tillgänglighetsredogörelsen) och rad 22–23 (förklaringssidorna) ligger utanför min domän. Jag har inga villkor för dem. ADR 0090 och 0071 nämner inte sidorna (grep).
+
+**Syns datumet lika bra som idag?** Mätt 2026-09-28 på main:s produktionsbygge (localhost:3916). Varje sidas egen datumparagraf flyttades in i bandet som `p.jp-pagehero__lede`. Kontrasten räknades mot bandets beräknade gradient, efter flytten, i varje samplad punkt under radboxen. Det blev 7 sidor × 320/360/390/430/768/1280/1920 = 49 fall. Jag mätte den svenska strängen (29 tecken), som är det sämsta fallet. Den engelska (24 tecken) mättes inte; kortare rad når en mörkare del av gradienten.
+- **Idag:** 14 px, #455366 på #FFFFFF = 7,83:1, första raden i innehållskolumnen.
+- **I bandet:** 16 px, 68–80 px högre upp, direkt efter h1. En skärmläsare läser det också direkt efter h1.
+  - Vitt 0,78: 5,33–7,54 vid 320–768 px och 8,34 vid ≥1280.
+  - Guld: 4,65–6,93 vid 320–768 px och 7,78 vid ≥1280.
+  - Lägst: guld på /kontaktperson-i-annons vid 320 (titeln på tre rader), 4,65. På /integritet, /villkor och /cookies vid 320: 4,73.
+- **Slutsats:** datumet blir mer framträdande (högre upp, större), får lägre kontrast än idag på mobil och klarar ≥4,5:1 i alla 49 fall i båda färgerna. Tröskel och färgval avgör design-reviewer; jag lägger ingen egen tröskel.
+
+**Villkor för att flytten ska stå utan min signatur (mätbara):**
+- **V1:** På /integritet, /villkor och /cookies renderas sidans egen `*.updated`-sträng som synlig text utan klick, i `.jp-pagehero__main` efter h1. Den får inte ligga i `sr-only`, `aria-hidden`, `InfoDialog`, `<details>` eller en tooltip. Om design-reviewer underkänner datumet som bandrad står det kvar som första element under bandet, som idag. Det flyttas aldrig längre ned och stryks aldrig. Grunden är "högst upp"-meningen ovan, för /integritet och /villkor även D6.
+- **V2:** Om bandraden på rad 17–20 blir något annat än sidans `*.updated`, och raden påstår eller sammanfattar behandling av personuppgifter, går den till mig före merge. Den står på Art. 13/14-informationen.
+
+Bryts V1 eller V2 gäller DESIGN.md §8 regel 7 och ADR 0142 D6, och ärendet går tillbaka till mig.

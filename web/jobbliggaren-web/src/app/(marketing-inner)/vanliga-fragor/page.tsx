@@ -61,6 +61,7 @@ export default async function VanligaFragorPage() {
             <h1 id="faq-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("lede")}</p>
           </div>
         </div>
       </section>

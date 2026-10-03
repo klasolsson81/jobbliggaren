@@ -62,15 +62,15 @@ describe("/ansokningar loading fallback (#1467)", () => {
     expect(belowHero?.querySelector(".justify-end")).toBeNull();
   });
 
-  it("renders the page's real title and no lede, as the page does", () => {
+  it("renders the page's real title and static line, as the page does", () => {
     const { container } = render(<Loading />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelector("h1.jp-pagehero__title")?.textContent).toBe(
       "Mina ansökningar"
     );
-    expect(main?.querySelector("p.jp-pagehero__lede")).toBeNull();
-    // No bar stands in for either — a bar left in __main would reserve a line the page
-    // does not have.
+    expect(main?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
+    expect(main?.querySelector("p.jp-pagehero__lede")).toHaveTextContent("Från utkast till avslut.");
+    // The static title and line wrap using the same content as the loaded page.
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 

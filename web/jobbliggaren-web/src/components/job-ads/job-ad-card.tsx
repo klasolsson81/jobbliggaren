@@ -9,6 +9,7 @@ import { MatchChip } from "./match-chip";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
+  headingLevel?: 2 | 3;
   /**
    * NY = oläst (per-användar watermark, #293/#306). Beräknas i `JobbResults`
    * (`createdAt > lastSeenJobsAt`) och bärs ner via `JobAdList`s `newIdSet`.
@@ -112,7 +113,7 @@ function formatPublishedAtWithTime(
  * CSS. Spara-knapp deferred (FE-action-fas).
  *
  * Tagg-system (pre-F6 Prompt 1, 2026-05-20): NY/färskhet/match renderas
- * VÄNSTERANSATT inom `.jp-job__title` h3 via `JobTags` + `MatchChip` (ADR 0118 —
+ * VÄNSTERANSATT inom `.jp-job__title` via `JobTags` + `MatchChip` (ADR 0118 —
  * inline-left, ersätter den tidigare högerjusteringen "Variant D" 2026-05-20).
  * NY-modell (#293/#306, ADR 0042 Beslut E-amendment 2026-06-28):
  * NY = OLÄST (per-användar watermark, beräknad i `JobbResults` mot
@@ -122,6 +123,7 @@ function formatPublishedAtWithTime(
  */
 export function JobAdCard({
   jobAd,
+  headingLevel = 3,
   isNew = false,
   isSaved = false,
   isApplied = false,
@@ -137,6 +139,7 @@ export function JobAdCard({
   const format = useFormatter();
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi, format);
   const expiresAt = formatDate(format, jobAd.expiresAt);
+  const Heading = headingLevel === 2 ? "h2" : "h3";
 
   // #380 — bär list-URL:ens view-state in i radlänken så modal-soft-nav inte
   // tappar filter/match-läget (se `listQuery`-doc). Tom query ⇒ naken länk.
@@ -163,7 +166,7 @@ export function JobAdCard({
       data-followed={isFollowed ? "" : undefined}
     >
       <div className="jp-job__body">
-        <h3 className="jp-job__title">
+        <Heading className="jp-job__title">
           <Link href={href} className="jp-job__rowlink" aria-describedby={describedBy}>
             {jobAd.title}
           </Link>
@@ -181,7 +184,7 @@ export function JobAdCard({
               [sist, direkt efter titel + ev. taggar] oavsett om taggraden
               renderar — den byter aldrig sida beroende på follow/spara-status). */}
           {matchGrade && <MatchChip id={`${idBase}-grade`} grade={matchGrade} />}
-        </h3>
+        </Heading>
         <div id={`${idBase}-company`} className="jp-job__company">
           {jobAd.companyName}
         </div>

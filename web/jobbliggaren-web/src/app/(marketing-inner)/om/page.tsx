@@ -31,6 +31,7 @@ export default async function OmPage() {
             <h1 id="om-heading" className="jp-pagehero__title">
               {t("about.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("about.lede")}</p>
           </div>
         </div>
       </section>

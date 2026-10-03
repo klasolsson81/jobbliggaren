@@ -274,7 +274,7 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
     // …and the lede is present and true: import is how you get a CV in. The empty state
     // carries no body prose at all; its import button is the next step.
     expect(
-      screen.getByText("Importera ett befintligt CV för en granskning."),
+      screen.getByText("Dina CV och deras granskningar."),
     ).toBeInTheDocument();
     expect(document.querySelector(".jp-empty__body")).toBeNull();
   });

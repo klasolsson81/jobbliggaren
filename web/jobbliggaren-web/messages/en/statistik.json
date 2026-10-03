@@ -1,5 +1,6 @@
 {
   "title": "Statistics",
+  "lede": "Replies, interviews and rejections for your applications.",
   "back": "Back to applications",
   "summary": "You have {total, number} applications in total, of which {sent, number} were sent.",
   "error": {

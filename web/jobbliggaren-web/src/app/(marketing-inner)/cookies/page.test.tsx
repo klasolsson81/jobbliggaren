@@ -1,15 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svLegal from "../../../../messages/sv/content-legal.json";
 import enLegal from "../../../../messages/en/content-legal.json";
 import CookiesPage from "./page";
 
+let locale: "sv" | "en" = "sv";
+
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: "content-legal") =>
     createTranslator({
-      locale: "sv",
-      messages: { "content-legal": svLegal },
+      locale,
+      messages: { "content-legal": locale === "sv" ? svLegal : enLegal },
       namespace,
     }),
 }));
@@ -20,6 +22,22 @@ async function renderPage() {
 }
 
 describe("/cookies page (#262)", () => {
+  beforeEach(() => { locale = "sv"; });
+
+  it.each(["sv", "en"] as const)("renders its published date visibly after h1 in the band (%s)", async (language) => {
+    locale = language;
+    const { container } = await renderPage();
+    const catalogue = language === "sv" ? svLegal : enLegal;
+    const band = container.querySelector(".jp-pagehero__main");
+    const date = screen.getByText(catalogue.cookies.updated);
+    expect(band?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
+    expect(date.parentElement).toBe(band);
+    expect(date.previousElementSibling?.tagName).toBe("H1");
+    expect(date).toBeVisible();
+    expect(date.closest('[aria-hidden="true"], .sr-only, details, [role="tooltip"]')).toBeNull();
+    expect(screen.getAllByText(catalogue.cookies.updated)).toHaveLength(1);
+  });
+
   it("renderar h1 och sektioner ur content-legal", async () => {
     await renderPage();
 

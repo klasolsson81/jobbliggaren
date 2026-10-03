@@ -4,7 +4,7 @@
     "description": "Konkreta råd för jobbsökandet: anpassa CV, skriv en tydlig ansökan, följ upp, förbered intervjun och håll koll på sista ansökningsdag."
   },
   "title": "Tips för jobbsökande",
-  "intro": "Några konkreta råd för jobbsökandet. Inget av detta är obligatoriskt, men det brukar hjälpa.",
+  "lede": "CV, ansökan, uppföljning, intervju och sista ansökningsdag.",
   "sections": {
     "cv": {
       "title": "Anpassa ditt CV",

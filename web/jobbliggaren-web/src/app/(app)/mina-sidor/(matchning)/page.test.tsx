@@ -92,7 +92,7 @@ describe("MinaSidorMatchningPage (/mina-sidor)", () => {
     getServerSession.mockResolvedValue({ email: "klas@example.se", roles: [] });
   });
 
-  it("renders the pagehero band with the title and no lede (Klas 2026-09-27)", async () => {
+  it("renders the pagehero band with its title and one static line (#1917)", async () => {
     getMyProfile.mockResolvedValue({ kind: "ok", data: profile });
     await renderPage();
 
@@ -100,7 +100,8 @@ describe("MinaSidorMatchningPage (/mina-sidor)", () => {
     expect(title).toHaveClass("jp-pagehero__title");
     const band = title.closest("section");
     expect(band).toHaveClass("jp-pagehero");
-    expect(band?.querySelector(".jp-pagehero__lede")).toBeNull();
+    expect(band?.querySelectorAll(".jp-pagehero__lede")).toHaveLength(1);
+    expect(band?.querySelector(".jp-pagehero__lede")).toHaveTextContent(svPages.minaSidor.lede);
   });
 
   it("is the Matchning section: the menu marks it current, and the card renders", async () => {

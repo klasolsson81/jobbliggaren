@@ -38,6 +38,7 @@
   "oversikt": {
     "kicker": "Demoöversikt",
     "title": "Översikt",
+    "lede": "Matchningar, ansökningar och bevakningar.",
     "noticeOfferLabel": "Erbjudande",
     "noticeOfferText": "<b>{company}</b>: {role}. Erbjudande väntar svar.",
     "noticeInterviewLabel": "Intervju",
@@ -89,6 +90,7 @@
   },
   "jobb": {
     "heroTitle": "Sök jobb",
+    "lede": "Exempel på hur annonser från Platsbanken visas.",
     "searchLabel": "Sök på ett eller flera ord",
     "searchButton": "Sök",
     "searchHint": "Logga in eller skapa ett konto för att söka.",

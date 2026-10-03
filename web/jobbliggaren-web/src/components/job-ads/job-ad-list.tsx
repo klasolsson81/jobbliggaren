@@ -5,6 +5,7 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 interface JobAdListProps {
   jobAds: ReadonlyArray<JobAdDto>;
+  headingLevel?: 2 | 3;
   /**
    * #293/#306 — NY = oläst (per-användar watermark). Set av annons-id:n med
    * `createdAt > lastSeenJobsAt`, beräknat i `JobbResults` mot den hämtade
@@ -51,6 +52,7 @@ interface JobAdListProps {
 
 export function JobAdList({
   jobAds,
+  headingLevel = 3,
   newIdSet,
   savedIdSet,
   appliedIdSet,
@@ -81,6 +83,7 @@ export function JobAdList({
         <li key={jobAd.id}>
           <JobAdCard
             jobAd={jobAd}
+            headingLevel={headingLevel}
             isNew={newIdSet?.has(jobAd.id) ?? false}
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}

@@ -47,6 +47,7 @@ export default async function ForUtvecklarePage() {
             <h1 id="for-utvecklare-heading" className="jp-pagehero__title">
               {t("developers.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("developers.lede")}</p>
           </div>
         </div>
       </section>

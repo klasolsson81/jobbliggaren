@@ -36,13 +36,13 @@ export default async function IntegritetPage() {
             <h1 id="integritet-heading" className="jp-pagehero__title">
               {t("privacy.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("privacy.updated")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body-sm text-text-secondary">{t("privacy.updated")}</p>
-        <p className="mt-4 text-body text-text-primary">{t("privacy.intro")}</p>
+        <p className="text-body text-text-primary">{t("privacy.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
           {sections.map((section) => (

@@ -29,6 +29,7 @@ export default async function KontaktPage() {
             <h1 id="kontakt-heading" className="jp-pagehero__title">
               {t("contact.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("contact.lede")}</p>
           </div>
         </div>
       </section>

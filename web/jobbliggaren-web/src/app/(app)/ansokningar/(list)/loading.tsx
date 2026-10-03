@@ -47,7 +47,7 @@ export default function Loading() {
 
       <PageHeroSkeleton
         title={t("ansokningar.title")}
-        lede={null}
+        lede={t("ansokningar.lede")}
         stacked
         aside={
           <>

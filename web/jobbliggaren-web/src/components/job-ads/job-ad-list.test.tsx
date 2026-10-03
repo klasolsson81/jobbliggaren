@@ -6,7 +6,7 @@ import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
 // Rubrikens accessible name är titeln och inget annat, vilket `getByRole("heading", { name })`
 // nedan hänger på: utan overlay-props returnerar `JobTags` null och ingen `MatchChip` renderas.
-// `publishedAt` är inert här — den renderas i `.jp-job__meta`, utanför h3:n. (Färskhets-taggen
+// `publishedAt` är inert här — den renderas i `.jp-job__meta`, utanför rubriken. (Färskhets-taggen
 // som gjorde datumet bärande TOGS BORT 2026-07-21, #1000-review.)
 const sampleAd = (id: string, title: string): JobAdDto => ({
   id,
@@ -42,11 +42,49 @@ describe("JobAdList", () => {
     ];
     render(<JobAdList jobAds={ads} />);
     expect(
-      screen.getByRole("heading", { name: "Backend-utvecklare" })
+      screen.getByRole("heading", { level: 3, name: "Backend-utvecklare" })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Frontend-utvecklare" })
+      screen.getByRole("heading", { level: 3, name: "Frontend-utvecklare" })
     ).toBeInTheDocument();
+  });
+
+  it("renders direct page card headings at level 2 without skipping a level", () => {
+    render(
+      <>
+        <h1>Nya annonser från bevakade företag</h1>
+        <JobAdList jobAds={[sampleAd("a1", "Backend-utvecklare")]} headingLevel={2} />
+      </>,
+    );
+
+    expect(screen.getAllByRole("heading").map((heading) => heading.tagName)).toEqual([
+      "H1",
+      "H2",
+    ]);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Backend-utvecklare" }),
+    ).toHaveClass("jp-job__title");
+  });
+
+  it("preserves level 3 card headings under a level 2 results section", () => {
+    render(
+      <>
+        <h1>Jobb</h1>
+        <section aria-labelledby="results-title">
+          <h2 id="results-title">Sökresultat</h2>
+          <JobAdList jobAds={[sampleAd("a1", "Backend-utvecklare")]} />
+        </section>
+      </>,
+    );
+
+    expect(screen.getAllByRole("heading").map((heading) => heading.tagName)).toEqual([
+      "H1",
+      "H2",
+      "H3",
+    ]);
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Backend-utvecklare" }),
+    ).toHaveClass("jp-job__title");
   });
 
   it("uses a labelled list element for screen reader navigation", () => {

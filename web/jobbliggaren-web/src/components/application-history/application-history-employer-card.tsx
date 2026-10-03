@@ -48,7 +48,7 @@ export function ApplicationHistoryEmployerCard({
         style={{ gridTemplateColumns: "1fr" }}
       >
         <div className="jp-job__body">
-          <h3 className="jp-job__title">{displayName}</h3>
+          <h2 className="jp-job__title">{displayName}</h2>
           {/* Per-employer historik-räknare (#444). High-contrast primary ink + tabular-nums, parity the
               sibling counters on this page (CompanyWatchRow). A count, never a score/percentage. */}
           <p className="jp-matchline tabular-nums">

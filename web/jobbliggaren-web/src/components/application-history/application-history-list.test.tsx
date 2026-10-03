@@ -126,7 +126,9 @@ describe("ApplicationHistoryList (#311 #448, ADR 0087 D2/D8(c); ADR 0090 R-A4)",
 
   it("ordning bevaras (renderar i mottagen ordning, nyast-ansökt först från backend)", () => {
     render(<ApplicationHistoryList items={[legalEntity, soleProp]} />);
-    const headings = screen.getAllByRole("heading", { level: 3 });
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings).toHaveLength(2);
+    expect(headings[0]).toHaveClass("jp-job__title");
     expect(headings[0]).toHaveTextContent("Skatteverket");
     expect(headings[1]).toHaveTextContent("Anna Andersson Konsult");
   });

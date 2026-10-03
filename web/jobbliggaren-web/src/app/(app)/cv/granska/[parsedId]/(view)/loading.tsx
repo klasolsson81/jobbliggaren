@@ -34,7 +34,7 @@ export default function Loading() {
           them for real lets the browser wrap them exactly as the loaded page does, at every
           viewport (#1385, replacing the #1062 approximation). */}
       <PageHeroSkeleton
-        kicker
+        kicker={t("cv.review.beta")}
         aside={null}
         title={t("cv.review.title")}
         lede={t("cv.review.lede")}

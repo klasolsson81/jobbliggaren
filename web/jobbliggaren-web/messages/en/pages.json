@@ -12,7 +12,10 @@
     "generic": "The page is loading…",
     "oversikt": "The overview is loading…",
     "ansokningar": "The applications are loading…",
+    "aktivitetsrapport": "The activity report is loading…",
+    "statistik": "The statistics are loading…",
     "cv": "Your CVs are loading…",
+    "cvImport": "The CV import is loading…",
     "cvGranska": "The CV review is loading…",
     "matchningar": "Your matches are loading…",
     "sparade": "Saved jobs are loading…",
@@ -22,6 +25,7 @@
   },
   "ansokningar": {
     "title": "My applications",
+    "lede": "From draft to close.",
     "newApplication": "New application",
     "activityReport": "Activity report helper",
     "statistics": "Statistics",
@@ -61,7 +65,7 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Import an existing CV for review.",
+    "lede": "Your CVs and their reviews.",
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",
@@ -88,6 +92,7 @@
     },
     "import": {
       "title": "Import CV",
+      "lede": "The review is based on the text in your CV.",
       "meta": {
         "title": "Import CV"
       }
@@ -105,7 +110,7 @@
     "review": {
       "beta": "Beta",
       "title": "Review imported CV",
-      "lede": "The review is new and still being built. Criteria may be added and change.",
+      "lede": "Criteria may be added or changed.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page.",
       "nextStepTitle": "Next step",
@@ -150,7 +155,7 @@
     "granska": {
       "beta": "Beta",
       "title": "Review of your CV",
-      "lede": "The review is new and still being built. Criteria may be added and change.",
+      "lede": "Criteria may be added or changed.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page.",
       "loading": "Loading the review…",
@@ -327,7 +332,7 @@
       }
     },
     "watchesHeading": "Followed companies",
-    "watchesLede": "New ads from these companies appear on Overview and under New ads.",
+    "watchesLede": "New ads from these companies appear on Overview and in New ads.",
     "historyHeading": "Application history",
     "historyLede": "Your applications grouped by employer.",
     "loadErrorTitle": "Could not load followed companies",
@@ -359,7 +364,7 @@
     },
     "criteria": {
       "heading": "Industry watches",
-      "lede": "A saved search by industry and municipality. It sends no notifications of its own.",
+      "lede": "Saved industry and municipality searches, with no alerts of their own.",
       "newButton": "New industry watch",
       "listLabel": "Your industry watches",
       "emptyTitle": "You have no industry watches.",
@@ -540,6 +545,7 @@
   },
   "minaSidor": {
     "title": "My pages",
+    "lede": "Your settings and your account.",
     "rateLimited": "Your settings could not be loaded, because too many requests came in a short time. Try reloading the page in {seconds, plural, one {# second} other {# seconds}}.",
     "profileLoadError": "Your settings could not be loaded right now. Try reloading the page in a moment.",
     "nav": {

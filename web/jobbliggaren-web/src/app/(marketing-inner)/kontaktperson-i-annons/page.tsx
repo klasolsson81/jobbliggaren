@@ -38,15 +38,13 @@ export default async function KontaktpersonIAnnonsPage() {
             <h1 id="kontaktperson-heading" className="jp-pagehero__title">
               {t("recruiterNotice.title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("recruiterNotice.updated")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body-sm text-text-secondary">
-          {t("recruiterNotice.updated")}
-        </p>
-        <p className="mt-4 text-body text-text-primary">
+        <p className="text-body text-text-primary">
           {t("recruiterNotice.intro")}
         </p>
 

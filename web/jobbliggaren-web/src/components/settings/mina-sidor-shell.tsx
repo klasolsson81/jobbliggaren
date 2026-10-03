@@ -4,7 +4,7 @@ import { MinaSidorNav, type MinaSidorSection } from "./mina-sidor-nav";
 
 /**
  * The frame every /mina-sidor section renders (#1891): the pagehero band with the page title and
- * no lede (Klas 2026-09-27), then the section menu beside the one section on show. Each page and
+ * its static line (#1917), then the section menu beside the one section on show. Each page and
  * each `loading.tsx` renders it themselves, the /foretag pattern: there is no `mina-sidor/layout.tsx`,
  * because `v3-native-routes.test.ts` reads pages rather than layouts, and a layout would owe an
  * error boundary of its own (`route-boundaries.test.ts`).
@@ -23,6 +23,7 @@ export function MinaSidorShell({
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <h1 className="jp-pagehero__title">{t("minaSidor.title")}</h1>
+            <p className="jp-pagehero__lede">{t("minaSidor.lede")}</p>
           </div>
         </div>
       </section>

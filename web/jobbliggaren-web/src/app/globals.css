@@ -1267,7 +1267,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body);
   line-height: 1.5;
   max-width: 42ch;
-  color: var(--jp-hero-ink-soft);
+  color: var(--jp-gold);
 }
 
 /* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
@@ -1597,7 +1597,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
-  color: var(--jp-hero-ink-soft); max-width: 60ch;
+  color: var(--jp-gold); max-width: min(60ch, 75%);
   text-wrap: pretty;
 }
 .jp-pagehero__aside {
@@ -2244,7 +2244,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
    Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
-   .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 som en
+   .jp-app i Prompt 2+). Placeras inom .jp-job__title som en
    VÄNSTERANSATT del av titelradens flex/flex-wrap-kontrakt (ADR 0118,
    2026-07-22 — ersätter den tidigare margin-left:auto-högerjusteringen,
    kod-kommentar-"Variant D" 2026-05-20). Den högerjusteringen kopplade
@@ -4098,7 +4098,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ── CV cards ────────────────────────────────────── */
 .jp-cvgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 16px;
 }
 .jp-cv {

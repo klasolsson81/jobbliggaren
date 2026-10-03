@@ -157,8 +157,8 @@ describe("/foretag/bevakade/nya", () => {
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Lagerarbetare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Systemutvecklare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Lagerarbetare" })).toBeInTheDocument();
   });
 
 
@@ -194,7 +194,7 @@ describe("/foretag/bevakade/nya", () => {
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Systemutvecklare" })).toBeInTheDocument();
     expect(markFollowedAdsSeen).not.toHaveBeenCalled();
   });
   it("filters the matching arm in the browser, without a second read", async () => {
@@ -212,7 +212,7 @@ describe("/foretag/bevakade/nya", () => {
     // `CreatedAt > lastSeen`. A navigation-driven arm would issue a SECOND read against the moved
     // watermark and land on the empty state, so the arm must never cost a read.
     expect(getNewFollowedCompanyAds).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Systemutvecklare" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Lagerarbetare" })).not.toBeInTheDocument();
     // The filtered state is declared, never left to be inferred from a shorter list.
     expect(screen.getByText("Filtrerat: endast matchande annonser")).toBeInTheDocument();
@@ -252,7 +252,7 @@ describe("/foretag/bevakade/nya", () => {
 
     // And the way back out of the arm is an affordance, not a hint.
     await userEvent.click(screen.getByRole("button", { name: "Visa alla nya annonser" }));
-    expect(screen.getByRole("heading", { name: "Lagerarbetare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Lagerarbetare" })).toBeInTheDocument();
   });
 
   it("claims no total when the read was truncated", async () => {
@@ -304,6 +304,7 @@ describe("/foretag/bevakade/nya", () => {
       screen.getByText("1 ny annons.")
     ).toBeInTheDocument();
     expect(screen.getByText(/inte angett vilka yrken/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Systemutvecklare" })).toBeInTheDocument();
     // No matching arm to offer when the predicate is inert.
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
   });

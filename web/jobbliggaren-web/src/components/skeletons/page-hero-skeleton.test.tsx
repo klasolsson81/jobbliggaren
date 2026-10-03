@@ -31,10 +31,11 @@ describe("PageHeroSkeleton", () => {
     expect(container.querySelector("[id]")).toBeNull();
   });
 
-  it("adds a kicker overline bar above title + lede when kicker is set", () => {
-    const { container } = render(<PageHeroSkeleton kicker lede="En granskning." aside={null} />);
+  it("renders the page's real kicker with the shared overline class", () => {
+    const { container } = render(<PageHeroSkeleton kicker="Beta" lede="En granskning." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
+    expect(main?.querySelector(".jp-pagehero__kicker")?.textContent).toBe("Beta");
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
   });
 
   it("renders a custom aside when provided (e.g. Översikt's card block)", () => {
@@ -96,7 +97,7 @@ describe("PageHeroSkeleton", () => {
    * *as well* would put the band back where it started, and nothing else in the suite looks.
    */
   it("renders the real title element instead of the title bar when `title` is given", () => {
-    const { container } = render(<PageHeroSkeleton title="Importera CV" lede={null} aside={null} />);
+    const { container } = render(<PageHeroSkeleton title="Importera CV" lede="Granskningen bygger på texten i ditt CV." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     const title = main?.querySelector("h1.jp-pagehero__title");
     expect(title?.textContent).toBe("Importera CV");
@@ -114,23 +115,29 @@ describe("PageHeroSkeleton", () => {
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
   });
 
-  it("renders neither a lede bar nor a lede element when `lede` is null", () => {
-    const { container } = render(<PageHeroSkeleton title="Mina ansökningar" lede={null} aside={null} />);
-    const main = container.querySelector(".jp-pagehero__main");
-    // Positive first: the title is there, so this is not measuring an empty band.
-    expect(main?.querySelector("h1.jp-pagehero__title")?.textContent).toBe("Mina ansökningar");
-    expect(main?.querySelector("p.jp-pagehero__lede")).toBeNull();
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
+  it("reserves one decorative line when the title and line are unknown", () => {
+    const { container } = render(<PageHeroSkeleton lede={null} aside={null} />);
+    const lines = container.querySelectorAll(".jp-pagehero__lede");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.querySelector(".jp-skeleton")).not.toBeNull();
   });
 
-  it("leaves no bar in __main once both title and lede are real", () => {
-    const { container } = render(
-      <PageHeroSkeleton title="Granskning av ditt CV" lede="En granskning." aside={null} />,
-    );
+  it("leaves no bar once both title and line are real", () => {
+    const { container } = render(<PageHeroSkeleton title="CV" lede="Dina CV och deras granskningar." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
     expect(main?.querySelectorAll("h1.jp-pagehero__title")).toHaveLength(1);
     expect(main?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
+  });
+
+  it("requires a real line with a real title at compile time", () => {
+    const reject = () => [
+      // @ts-expect-error a real title requires the page's real line
+      <PageHeroSkeleton key="null-line" title="CV" lede={null} aside={null} />,
+      // @ts-expect-error a real title cannot omit its line
+      <PageHeroSkeleton key="missing-line" title="CV" aside={null} />,
+    ];
+    expect(typeof reject).toBe("function");
   });
 
   /**

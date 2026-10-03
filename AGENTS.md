@@ -178,11 +178,11 @@ signal available is a discipline miss.
 - Data: Server Components by default; `"use client"` only where interactivity
   requires it. **Client mutations go through Server Actions** — `useTransition`
   for pending state, `useOptimistic` where optimistic rendering is wanted — with
-  two delivered exceptions: a **binary upload** goes through a BFF route
-  (`app/api/cv/import/route.ts`), because Server Actions cannot stream
-  `multipart/form-data` (`duplex: "half"`), and the **OAuth** start and callback
-  are GETs a navigation reaches (ADR 0018). Those are the only **mutation** paths
-  outside Server Actions — several other client `fetch`es are POST-shaped *reads*.
+  three delivered exceptions, each a route handler and each reasoned in BUILD.md
+  §10.2: a **binary upload** (`app/api/cv/import/route.ts`), the **OAuth** start
+  and callback, GETs a navigation reaches (ADR 0018), and **logout**, a native
+  POST. Those are the only **mutation** paths outside Server Actions — several
+  other client `fetch`es are POST-shaped *reads*.
 - **Short-lived client reads** — keystroke-driven suggest, popover counts,
   draft-preview counts, on-demand document/blob fetches — use `AbortController`
   in a `useEffect`, and never a mutation path (ADR 0042 Beslut C is the

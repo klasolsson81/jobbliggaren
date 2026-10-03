@@ -230,3 +230,21 @@ ride. Its CSRF protection is the protocol's own, the state bound to the Lax `__H
    record's provider (mix-up, RFC 9700; reachable from 6b).
 
 Additive amendment.
+
+## Amendment 2026-10-03 (ADR 0148, #1956) — logout is a route handler
+
+The Logout section above names a Server Action. Since #1956 every "Logga ut" form is a native
+`<form method="post">` to `POST /api/auth/logout` (`app/api/auth/logout/route.ts`), rendered by
+`LogoutForm`. A Server Action's id belongs to the build that rendered the page, so after a deploy a
+stale page's logout never ran and the session lived on (ADR 0148, Context). A route handler runs on
+the build that answers.
+
+The handler keeps rule 2 with its helper, `isSameOriginRequest`: a request whose `Origin` does not
+match its host gets 403 before the cookie is read. It answers POST alone (rule 3), revokes the backend
+session best-effort, deletes the cookie through `deleteSessionCookie` as before, and answers 303 to
+`/logga-in`, so the browser follows with a GET.
+
+A page rendered before this change still posts the old action id once; ADR 0148 reloads it, and the
+reloaded page carries the form.
+
+Additive amendment.

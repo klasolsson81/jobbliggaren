@@ -34,7 +34,7 @@ import type { ReactElement } from "react";
  * all**, which an empty node cannot do — `.jp-pagehero__inner` is a wrapping flex row, so
  * an empty aside costs nothing beside `__main` but takes a whole line plus the row `gap`
  * once it wraps, and the band then over-reserves at exactly the narrow widths a hero with
- * no aside is most sensitive at (#1385). `kicker` adds the mono overline row that
+ * no aside is most sensitive at (#1385). `kicker` carries the page's static mono overline text that
  * the two CV review pages render above their title (`.jp-pagehero__kicker`), so the band height
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
@@ -49,8 +49,7 @@ import type { ReactElement } from "react";
  * It is a boolean rather than a class-name string because the modifier space is ONE:
  * `--stacked` is the only `__aside` modifier in `globals.css`, scoped there to this one
  * hero. A string would model a binary structural choice as free text and hand a caller
- * one of the envelope class names the component otherwise spells itself — `kicker` is the
- * same shape for the same reason.
+ * one of the envelope class names the component otherwise spells itself.
  *
  * `aside` is REQUIRED, and `null` is how a page says it renders none. There is no default
  * aside: the component cannot know what a page it has never seen puts there, and the one
@@ -59,7 +58,7 @@ import type { ReactElement } from "react";
 type PageHeroSkeletonProps = {
   aside: ReactElement | null;
   stacked?: boolean;
-  kicker?: boolean;
+  kicker?: string;
 } & (
   | { title: string; lede: string }
   | { title?: undefined; lede: string | null }
@@ -68,7 +67,7 @@ type PageHeroSkeletonProps = {
 export function PageHeroSkeleton({
   aside,
   stacked = false,
-  kicker = false,
+  kicker,
   title,
   lede,
 }: PageHeroSkeletonProps) {
@@ -76,7 +75,7 @@ export function PageHeroSkeleton({
     <section className="jp-pagehero" aria-hidden="true">
       <div className="jp-pagehero__inner">
         <div className="jp-pagehero__main">
-          {kicker && <span className="jp-skeleton mb-2 block h-3 w-24" />}
+          {kicker !== undefined && <div className="jp-pagehero__kicker">{kicker}</div>}
           {title === undefined ? (
             <span className="jp-skeleton block h-11 w-64 max-w-full" />
           ) : (

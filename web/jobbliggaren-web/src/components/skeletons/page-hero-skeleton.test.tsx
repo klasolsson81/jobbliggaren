@@ -31,10 +31,11 @@ describe("PageHeroSkeleton", () => {
     expect(container.querySelector("[id]")).toBeNull();
   });
 
-  it("adds a kicker overline bar above title + lede when kicker is set", () => {
-    const { container } = render(<PageHeroSkeleton kicker lede="En granskning." aside={null} />);
+  it("renders the page's real kicker with the shared overline class", () => {
+    const { container } = render(<PageHeroSkeleton kicker="Beta" lede="En granskning." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
+    expect(main?.querySelector(".jp-pagehero__kicker")?.textContent).toBe("Beta");
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
   });
 
   it("renders a custom aside when provided (e.g. Översikt's card block)", () => {

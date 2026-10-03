@@ -31,7 +31,7 @@ export default function Loading() {
       </span>
 
       <PageHeroSkeleton
-        kicker
+        kicker={t("cv.granska.beta")}
         title={t("cv.granska.title")}
         lede={t("cv.granska.lede")}
         aside={null}

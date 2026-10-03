@@ -4,14 +4,17 @@ import type { ErrorInfo } from "next/error";
 import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
+import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
+import { documentFontClassName } from "./fonts";
 import svFallback from "../../messages/sv/fallback.json";
 import svMetadata from "../../messages/sv/metadata.json";
 // global-error REPLACES the root layout (it renders its own <html>/<body>), so
 // the root layout's globals.css import no longer applies — re-import it here or
 // the civic tokens/utilities (jp-container, jp-btn, surface colours) render
-// unstyled. Fonts fall back to the system stack baked into --jp-font-sans /
-// --font-sans (globals.css) since next/font's variable is only set on the root
-// layout's <html>; acceptable for the catastrophic last-resort surface.
+// unstyled. The same goes for next/font's variables, which the root layout sets
+// on ITS <html>: this document sets them on its own (`./fonts`), or `--font-sans`
+// resolves through an unset variable and the whole surface falls to the
+// browser's default serif (design-reviewer on PR #1953, measured 2026-10-03).
 import "./globals.css";
 
 /**
@@ -20,6 +23,13 @@ import "./globals.css";
  * (app)/layout), so it must render its own document shell. The user sees a calm
  * civic surface (§10) with a retry and a way to the start page — no stack
  * trace, no danger-alarm styling for a generic failure.
+ *
+ * It is also the surface a Server Action from the header reaches — "Logga ut"
+ * sits in AppShell, inside (app)/layout — so a page from a previous build meets
+ * this boundary first when the web image has been replaced (#1948, ADR 0148).
+ * For that one error class the document is reloaded once instead: the shell
+ * below renders with no surface, keeping the language, the body's surface
+ * colour and the site's own title, so nothing flashes before the reload.
  *
  * i18n: because this replaces the root layout it renders OUTSIDE
  * NextIntlClientProvider, so it seeds its own provider from the Swedish catalog
@@ -69,9 +79,24 @@ function GlobalErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   );
 }
 
-export default function GlobalError({ retry }: ErrorInfo) {
+const bodyClassName = "min-h-full bg-surface-primary text-text-primary antialiased";
+
+export default function GlobalError({ error, retry }: ErrorInfo) {
+  const reloading = useReloadOnStaleBuild(error);
+
+  if (reloading) {
+    return (
+      <html lang="sv" className={documentFontClassName}>
+        <head>
+          <title>{svMetadata.titleDefault}</title>
+        </head>
+        <body className={bodyClassName} />
+      </html>
+    );
+  }
+
   return (
-    <html lang="sv" className="h-full font-sans">
+    <html lang="sv" className={documentFontClassName}>
       {/* global-error replaces the root layout, so Next's metadata /
           generateMetadata does not apply — including the root layout's
           `title.template`. Compose it here from the same sv-pinned catalog so
@@ -80,7 +105,7 @@ export default function GlobalError({ retry }: ErrorInfo) {
       <head>
         <title>{svMetadata.titleTemplate.replace("%s", svFallback.errorTitle)}</title>
       </head>
-      <body className="min-h-full bg-surface-primary text-text-primary antialiased">
+      <body className={bodyClassName}>
         <NextIntlClientProvider locale="sv" messages={{ fallback: svFallback }}>
           <GlobalErrorSurface retry={retry} />
         </NextIntlClientProvider>

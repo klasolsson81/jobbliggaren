@@ -41,15 +41,15 @@ function exists(file: string): boolean {
   }
 }
 
-/** Walk a parsed source for a real, zero-argument `notFound()` call. */
-function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
+/** Walk a parsed source for a real call of the named identifier with the given arity. */
+function hasCall(sourceFile: ts.SourceFile, name: string, argumentCount: number): boolean {
   let found = false;
   const visit = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === "notFound" &&
-      node.arguments.length === 0
+      node.expression.text === name &&
+      node.arguments.length === argumentCount
     ) {
       found = true;
     }
@@ -57,6 +57,11 @@ function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
   };
   visit(sourceFile);
   return found;
+}
+
+/** Walk a parsed source for a real, zero-argument `notFound()` call. */
+function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
+  return hasCall(sourceFile, "notFound", 0);
 }
 
 function parse(file: string, text: string): ts.SourceFile {
@@ -131,6 +136,41 @@ describe("route-level failure boundaries (#1477)", () => {
   it("the app root keeps its own last-resort boundaries", () => {
     expect(exists(resolve(APP_ROOT, "global-error.tsx"))).toBe(true);
     expect(exists(resolve(APP_ROOT, "not-found.tsx"))).toBe(true);
+  });
+
+  it("the scanner counts useReloadOnStaleBuild(error) CALLS, not mentions of them", () => {
+    const calls = (source: string) => hasCall(parse("probe.tsx", source), "useReloadOnStaleBuild", 1);
+    expect(calls("const reloading = useReloadOnStaleBuild(error);")).toBe(true);
+    expect(calls("// every boundary calls useReloadOnStaleBuild(error) first\nexport {};")).toBe(false);
+    expect(calls('import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";\nexport {};')).toBe(false);
+    expect(calls("useReloadOnStaleBuild();")).toBe(false);
+  });
+
+  it("every error boundary reloads once on a stale-build action error (ADR 0148)", () => {
+    // A page from a previous build meets the current one at its next Server
+    // Action, and the error it gets can land in ANY boundary — the header's
+    // "Logga ut" reaches global-error, a form inside a segment reaches that
+    // segment's error.tsx. So every boundary, the root's last resort included,
+    // calls the hook with the error it caught; one that does not shows the
+    // error surface for something that is not an error (#1948).
+    const boundaries = sourceFiles(APP_ROOT).filter(
+      (f) => /[\\/]error\.tsx$/.test(f) || /[\\/]global-error\.tsx$/.test(f)
+    );
+
+    expect(
+      boundaries.length,
+      "no error boundary found — the walk is broken, so the rule below is vacuous"
+    ).toBeGreaterThanOrEqual(7);
+
+    const missing = boundaries
+      .filter((f) => !hasCall(parse(f, readFileSync(f, "utf8")), "useReloadOnStaleBuild", 1))
+      .map((f) => toPosix(relative(APP_ROOT, f)));
+
+    expect(
+      missing,
+      "these boundaries do not call useReloadOnStaleBuild(error), so a stale page " +
+        "shows their error surface instead of reloading into the current build"
+    ).toEqual([]);
   });
 
   it("the scanner counts notFound() CALLS, not mentions of them", () => {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
+import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
 
 /**
  * (app)/error — the signed-in app's runtime error boundary (#995 / B3). A
@@ -18,17 +19,23 @@ import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
  * payload), and there is always a way back to the overview.
  *
  * Client Component by Next convention (error boundaries run on the client). The
- * `error` prop is accepted to match Next's boundary contract but deliberately
- * neither surfaced to the user (acceptance: no stack trace) nor logged here —
- * Next reports uncaught errors on its own, and console output is a §5
- * anti-pattern. Errors thrown in (app)/layout.tsx itself bubble PAST this
+ * `error` prop is read by `useReloadOnStaleBuild` (ADR 0148: a page from a
+ * previous build reloads once instead of this surface) and nowhere else —
+ * never shown to the user (no stack trace), never logged here: Next reports
+ * uncaught errors on its own, and console output is a §5 anti-pattern.
+ * Errors thrown in (app)/layout.tsx itself bubble PAST this
  * boundary to global-error.tsx (a segment's error.tsx cannot catch its own
  * layout).
  */
-export default function AppError({ retry }: ErrorInfo) {
+export default function AppError({ error, retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   useFocusMainOnUnmount();
+  const reloading = useReloadOnStaleBuild(error);
+
+  // After every hook (rules of hooks); the document is being replaced, so
+  // nothing renders — no flash of the error surface before the reload.
+  if (reloading) return null;
 
   return (
     // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored

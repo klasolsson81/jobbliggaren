@@ -4,6 +4,7 @@ import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
+import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
 
 /**
  * (admin)/error — the runtime error boundary for the admin surfaces.
@@ -14,14 +15,21 @@ import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
  * renders as its children and the chrome survives a throw — where before it
  * bubbled to global-error.tsx, which REPLACES the root layout.
  *
- * Client Component by Next convention. The `error` prop matches the boundary
- * contract but is deliberately neither shown nor logged — no stack trace to the
- * user, and Next reports uncaught errors itself (§5: no console output).
+ * Client Component by Next convention. The `error` prop is read by
+ * `useReloadOnStaleBuild` (ADR 0148: a page from a previous build reloads once
+ * instead of this surface) and nowhere else — never shown to the user (no
+ * stack trace), never logged here: Next reports uncaught errors on its own,
+ * and console output is a §5 anti-pattern.
  */
-export default function AdminError({ retry }: ErrorInfo) {
+export default function AdminError({ error, retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   useFocusMainOnUnmount();
+  const reloading = useReloadOnStaleBuild(error);
+
+  // After every hook (rules of hooks); the document is being replaced, so
+  // nothing renders — no flash of the error surface before the reload.
+  if (reloading) return null;
 
   return (
     <div className="flex flex-col gap-4">

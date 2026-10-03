@@ -20,7 +20,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { logoutAction } from "@/lib/auth/actions";
+import { LogoutForm } from "@/components/auth/logout-form";
 import { isV3Native } from "@/lib/layout/v3-native-routes";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
@@ -208,14 +208,14 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             </>
           )}
           <div className="jp-usermenu__sep" role="separator" />
-          <form action={logoutAction}>
+          <LogoutForm>
             <button
               type="submit"
               className="jp-usermenu__item"
             >
               <LogOut size={16} aria-hidden="true" /> {t("userMenu.loggaUt")}
             </button>
-          </form>
+          </LogoutForm>
         </div>
       )}
     </div>

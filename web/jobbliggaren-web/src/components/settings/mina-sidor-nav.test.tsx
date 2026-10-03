@@ -1,9 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { Bell, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
-
-vi.mock("@/lib/auth/actions", () => ({ logoutAction: vi.fn() }));
-
+import { LOGOUT_PATH } from "@/lib/auth/login-paths";
 import { MinaSidorNav, type MinaSidorSection } from "./mina-sidor-nav";
 
 const SECTIONS: ReadonlyArray<[MinaSidorSection, string, string]> = [
@@ -55,7 +53,8 @@ describe("MinaSidorNav", () => {
     render(<MinaSidorNav active="konto" />);
     const button = screen.getByRole("button", { name: "Logga ut" });
     expect(button).toHaveAttribute("type", "submit");
-    expect(button.closest("form")).not.toBeNull();
+    expect(button.closest("form")).toHaveAttribute("action", LOGOUT_PATH);
+    expect(button.closest("form")).toHaveAttribute("method", "post");
     expect(button.closest("nav")).toBeNull();
   });
 });

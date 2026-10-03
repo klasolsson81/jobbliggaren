@@ -24,9 +24,9 @@ import "./globals.css";
  * civic surface (§10) with a retry and a way to the start page — no stack
  * trace, no danger-alarm styling for a generic failure.
  *
- * It is also the surface a Server Action from the header reaches — "Logga ut"
- * sits in AppShell, inside (app)/layout — so a page from a previous build meets
- * this boundary first when the web image has been replaced (#1948, ADR 0148).
+ * It is also the surface a Server Action outside every segment's boundary
+ * reaches, so a page from a previous build can meet this boundary first when
+ * the web image has been replaced (#1948, ADR 0148).
  * For that one error class the document is reloaded once instead: the shell
  * below renders with no surface, keeping the language, the body's surface
  * colour and the site's own title, so nothing flashes before the reload.

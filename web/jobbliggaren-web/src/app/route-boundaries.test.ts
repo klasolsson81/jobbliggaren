@@ -201,11 +201,10 @@ describe("route-level failure boundaries (#1477)", () => {
 
   it("every error boundary reloads once on a stale-build action error (ADR 0148)", () => {
     // A page from a previous build meets the current one at its next Server
-    // Action, and the error it gets can land in ANY boundary — the header's
-    // "Logga ut" reaches global-error, a form inside a segment reaches that
-    // segment's error.tsx. So every boundary, the root's last resort included,
-    // calls the hook with the error it caught; one that does not shows the
-    // error surface for something that is not an error (#1948).
+    // Action, and the error it gets can land in ANY boundary — a form inside a
+    // segment reaches that segment's error.tsx. So every boundary, the root's
+    // last resort included, calls the hook with the error it caught; one that
+    // does not shows the error surface for something that is not an error (#1948).
     const boundaries = sourceFiles(APP_ROOT).filter(
       (f) => /[\\/]error\.tsx$/.test(f) || /[\\/]global-error\.tsx$/.test(f)
     );

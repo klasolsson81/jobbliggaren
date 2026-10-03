@@ -94,7 +94,7 @@ export function HarAnsoktButton({ jobAdId, initialApplied }: HarAnsoktButtonProp
         {tUi("harAnsokt.markAsApplied")}
       </button>
       {error && (
-        <span role="alert" className="text-micro text-danger-700">
+        <span role="alert" className="text-body-sm text-danger-700">
           {error}
         </span>
       )}

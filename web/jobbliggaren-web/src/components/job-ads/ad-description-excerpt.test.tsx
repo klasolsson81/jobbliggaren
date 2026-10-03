@@ -5,18 +5,18 @@ import { renderToString } from "react-dom/server";
 import { AdDescriptionExcerpt } from "./ad-description-excerpt";
 
 // jsdom has no layout and no ResizeObserver, so the two heights the island compares are stubbed:
-// the text's own height and the clamped container's visible height.
+// the text's own height and the probe that holds the excerpt's height.
 let textHeight = 0;
-const CLAMP = 300;
+const EXCERPT = 300;
 
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-    const height = this.classList.contains("jp-modal__description") ? textHeight : 0;
+    const height = this.classList.contains("jp-modal__description")
+      ? textHeight
+      : this.getAttribute("aria-hidden") === "true"
+        ? EXCERPT
+        : 0;
     return { height, width: 0, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
-  });
-  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
-    if (!this.hasAttribute("data-collapsed")) return textHeight;
-    return Math.min(textHeight, CLAMP);
   });
 });
 
@@ -32,11 +32,11 @@ const excerpt = () => (
 );
 
 describe("AdDescriptionExcerpt (#1963)", () => {
-  it("clamps a text taller than the excerpt behind a toggle that names and controls it", async () => {
+  it("clamps a text that runs past the excerpt by more than the fade, behind a toggle that names and controls it", async () => {
     textHeight = 900;
     const { container } = render(excerpt());
     const clip = container.querySelector("[data-collapsed]");
-    expect(clip).toHaveAttribute("data-overflowing");
+    expect(clip).not.toBeNull();
 
     const toggle = screen.getByRole("button", { name: "Visa hela annonsen" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -47,18 +47,24 @@ describe("AdDescriptionExcerpt (#1963)", () => {
     expect(container.querySelector("[data-collapsed]")).toBeNull();
   });
 
-  it("drops the fade and the toggle when the text fits", () => {
+  it("shows a text that runs past the excerpt by less than the fade in full, with no toggle", () => {
+    textHeight = EXCERPT + 50;
+    const { container } = render(excerpt());
+    expect(container.querySelector("[data-collapsed]")).toBeNull();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("drops the clamp and the toggle when the text fits", () => {
     textHeight = 120;
     const { container } = render(excerpt());
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(container.querySelector("[data-overflowing]")).toBeNull();
+    expect(container.querySelector("[data-collapsed]")).toBeNull();
     expect(screen.getByText("Vi söker en mjukvaruutvecklare.")).toBeInTheDocument();
   });
 
-  it("serves the collapsed, overflowing form from the server, so a long ad does not shift on load", () => {
+  it("serves the collapsed form from the server, so a long ad does not shift on load", () => {
     const html = renderToString(excerpt());
     expect(html).toContain("data-collapsed");
-    expect(html).toContain("data-overflowing");
     expect(html).toContain("Visa hela annonsen");
   });
 
@@ -81,5 +87,24 @@ describe("AdDescriptionExcerpt (#1963)", () => {
     textHeight = 900;
     act(() => observers.forEach((callback) => callback()));
     expect(screen.getByRole("button", { name: "Visa hela annonsen" })).toBeInTheDocument();
+  });
+
+  it("brings the toggle back into view when the text closes again", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+      textHeight = 900;
+      render(excerpt());
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Visa hela annonsen" }));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "Visa mindre" }));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("button", { name: "Visa hela annonsen" }));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 });

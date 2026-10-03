@@ -85,11 +85,11 @@
   "transparency": {
     "heading": "You always see why",
     "paragraphs": [
-      "In the ad detail view you see matched and unmatched skills in separate lists. Unmatched means they do not match the skills you have chosen. You decide whether you have the qualification, want to change your choices or apply."
+      "In the ad detail view you see which skills match your profile and which are not in your profile. When the matching data holds the ad's mandatory requirements or nice-to-have skills, they come first, in groups of their own. You decide whether you have the qualification, want to change your choices or apply."
     ],
-    "youHaveLabel": "Matches your skills",
+    "youHaveLabel": "Matches your profile",
     "youHave": ["Java", "SQL"],
-    "missingLabel": "Not matched",
+    "missingLabel": "Not in your profile",
     "missing": ["Docker"]
   },
   "cta": {

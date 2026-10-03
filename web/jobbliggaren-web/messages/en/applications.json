@@ -287,7 +287,7 @@
       "invalidJobAdId": "Invalid ad ID.",
       "invalidInput": "Invalid details.",
       "serverUnreachable": "Could not reach the server. Try again.",
-      "createFromJobAdFailed": "Could not register the application.",
+      "createFromJobAdFailed": "Could not register the application. Try again.",
       "createApplicationFailed": "Could not save the application.",
       "transitionFailed": "The status change failed. Try again.",
       "addFollowUpFailed": "Could not save the follow-up. Try again.",

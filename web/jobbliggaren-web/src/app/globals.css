@@ -2088,6 +2088,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--info-soft:hover {
   background: var(--jp-info-border);
 }
+[data-theme="dark"] .jp-btn--info-soft:hover {
+  background: var(--jp-surface-3);
+}
 .jp-btn--info-outline {
   background: var(--jp-surface);
   color: var(--jp-info);
@@ -2902,6 +2905,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-modal__date-value--deadline {
   font-weight: var(--jp-fw-semibold);
 }
+.jp-modal__body:focus-visible {
+  outline-offset: -2px;
+}
 .jp-modal__body {
   padding: 20px 24px 24px;
   overflow: auto;
@@ -2910,7 +2916,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 20px;
 }
 /* The job modal follows the viewport (#1963, ADR 0053 Amendment 2026-10-03); a phone or a short
-   landscape screen gets a full-screen sheet whose head and foot stay while the body scrolls. */
+   landscape screen gets a full-screen sheet. */
 .jp-modal.jp-modal--sheet {
   max-height: calc(100vh - 64px);
   max-height: calc(100dvh - 64px);
@@ -2935,6 +2941,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-modal--sheet .jp-modal__foot {
     border-radius: 0;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* Too low for a fixed head and foot (400 % zoom, WCAG 1.4.10): the whole sheet scrolls. */
+@media (max-height: 360px) {
+  .jp-modal.jp-modal--sheet {
+    overflow-y: auto;
+  }
+  .jp-modal--sheet .jp-modal__body {
+    flex: none;
+    overflow: visible;
   }
 }
 /* Modal loading chrome (logo Fas 2, ADR 0070) — Suspense fallback while the
@@ -3717,6 +3733,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-modal__foot--split .jp-btn {
   white-space: nowrap;
 }
+.jp-modal__foot--split:has([role="alert"]),
+.jp-modal__footgroup:has([role="alert"]) {
+  align-items: flex-start;
+}
 @media (max-width: 560px) {
   .jp-modal__foot.jp-modal__foot--split {
     flex-direction: column;
@@ -3725,9 +3745,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-modal__footgroup--end {
     margin-inline-start: 0;
   }
+  .jp-modal__footgroup {
+    align-items: stretch;
+  }
   .jp-modal__footgroup > * {
     flex: 1 1 0;
     min-width: 0;
+  }
+  .jp-modal__footgroup > * > .jp-btn {
+    flex-grow: 1;
   }
   .jp-modal__foot--split .jp-btn {
     --jp-btn-px: 12px;
@@ -3735,12 +3761,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
     height: auto;
     min-height: 44px;
     white-space: normal;
+    text-align: center;
   }
-  /* A phone keeps the sheet's head and foot fixed (ADR 0053 Amendment 2026-10-03); the narrower
-     gutter gives the title, the rows and the labels the width the fixed edges cost them. */
+  .jp-modal__foot--split .jp-btn > svg {
+    flex-shrink: 0;
+  }
   .jp-modal--sheet .jp-modal__head,
   .jp-modal--sheet .jp-modal__body,
-  .jp-modal--sheet .jp-modal__foot {
+  .jp-modal--sheet .jp-modal__foot,
+  .jp-page > .jp-modal .jp-modal__head,
+  .jp-page > .jp-modal .jp-modal__body,
+  .jp-page > .jp-modal .jp-modal__foot {
     padding-inline: 16px;
   }
 }

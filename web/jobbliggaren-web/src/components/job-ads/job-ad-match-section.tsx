@@ -76,7 +76,7 @@ function rowValue(row: DimensionRow, t: MatchTranslator): string | null {
 function DimensionRows({ rows, t }: { rows: DimensionRow[]; t: MatchTranslator }) {
   if (rows.length === 0) return null;
   return (
-    <ul className={styles.rows}>
+    <ul className={styles.rows} role="list">
       {rows.map((row) => {
         const note = row.unnamedCount > 0 ? unnamedText(row.key, row.unnamedCount, t) : null;
         return (
@@ -138,7 +138,7 @@ function SkillGroupBlock({
   const start = group.kind === "profileMissing" ? overflowStart(group.chips.length) : null;
 
   const list = (
-    <ul id={listId} className={styles.chips} aria-label={t("skills.listLabel", { group: heading })}>
+    <ul id={listId} className={styles.chips} role="list" aria-label={t("skills.listLabel", { group: heading })}>
       {group.chips.map((chip, index) => (
         <li
           key={chip.key}

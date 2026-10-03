@@ -99,7 +99,7 @@ export function SaveJobAdToggle({
         {label}
       </button>
       {error && (
-        <span role="alert" className="text-micro text-danger-700">
+        <span role="alert" className="text-body-sm text-danger-700">
           {error}
         </span>
       )}

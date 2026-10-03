@@ -30,13 +30,13 @@ const MUNICIPALITY = { conceptId: "PVZL_BQT_XtL", label: "Göteborg" };
 const PERMANENT = "PFZr_Syz_cUq";
 
 const notAssessed = { verdict: "NotAssessed", matched: [], missing: [] };
-const skillsNotAssessed = { ...notAssessed, conceptEvidence: null };
+const skillsNotAssessed = { ...notAssessed, conceptEvidence: { matched: [], missing: [] } };
 const unstatedRegister = { ...notAssessed, cause: "PreferenceUnstated" };
 
 export function matchDetail(occupationStated: boolean) {
   return occupationStated
     ? {
-        grade: "Strong",
+        grade: "Good",
         ssykOverlap: { verdict: "Match", matched: [OCCUPATION], missing: [], cause: null },
         titleSimilarity: notAssessed,
         regionFit: { verdict: "Match", matched: [MUNICIPALITY], missing: [], cause: null },

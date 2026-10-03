@@ -42,7 +42,11 @@ function coded(
   return { verdict, matchedConceptIds, missingConceptIds, cause };
 }
 
+// ScoreTitle splits the ad title's lexemes by the CV role: all matched, some, or none.
 function title(verdict: MatchVerdict): MatchDimensionDetail {
+  if (verdict === "Match") return { verdict, matched: ["utvecklar"], missing: [] };
+  if (verdict === "Partial") return { verdict, matched: ["utvecklar"], missing: ["system"] };
+  if (verdict === "NoMatch") return { verdict, matched: [], missing: ["utvecklar"] };
   return { verdict, matched: [], missing: [] };
 }
 
@@ -149,6 +153,7 @@ describe("buildDimensionRows", () => {
   it("hides every dimension without an assessment (unstated preferences, no CV role)", () => {
     const rows = buildDimensionRows(
       detail({
+        grade: "Basic",
         titleSimilarity: title("NotAssessed"),
         regionFit: register("NotAssessed", [], [], "PreferenceUnstated"),
         employmentFit: coded("NotAssessed", [], [], "PreferenceUnstated"),
@@ -200,45 +205,53 @@ describe("buildDimensionRows", () => {
     });
   });
 
-  it("names the ad's own place on a mismatch, municipalities before counties before unclassified", () => {
+  // ScoreOrtUnion cites the ad's county and municipality, sorted by concept id, so the county can come first.
+  const skane: Entry[] = [["CaRE_1nn_cSU", "Skåne län"], ["oYPt_yRA_Smm", "Malmö"]];
+  const skaneGranularity = { CaRE_1nn_cSU: "region" as const, oYPt_yRA_Smm: "municipality" as const };
+
+  it("names the ad's own place on a mismatch, the municipality before its county", () => {
     const [, ort] = buildDimensionRows(
-      detail({
-        grade: "Basic",
-        regionFit: register("NoMatch", [], [
-          ["zdoY_6u5_Krt", "Västra Götalands län"],
-          ["UNCLASSIFIED", "Okänd ort"],
-          ["PVZL_BQT_XtL", "Göteborg"],
-        ]),
-      }),
-      options,
+      detail({ grade: "Basic", regionFit: register("NoMatch", [], skane) }),
+      { ...options, ortGranularityByConceptId: skaneGranularity },
     );
     expect(ort).toMatchObject({
       tone: "warn",
       word: "NoMatch",
-      value: { kind: "names", names: ["Göteborg", "Västra Götalands län", "Okänd ort"] },
+      value: { kind: "names", names: ["Malmö", "Skåne län"] },
     });
   });
 
-  it("counts register entries the snapshot cannot name beside the named ones (#1598)", () => {
-    const [yrke] = buildDimensionRows(
-      detail({
-        grade: null,
-        ssykOverlap: register("NoMatch", [], [["kTH4_ZnA_xxx", "Lagerarbetare"], ["LOST_1", null]]),
-      }),
-      options,
+  it("keeps the cited order when the taxonomy was unavailable to classify the places", () => {
+    const [, ort] = buildDimensionRows(
+      detail({ grade: "Basic", regionFit: register("NoMatch", [], skane) }),
+      { codedName: options.codedName },
     );
-    expect(yrke).toMatchObject({ value: { kind: "names", names: ["Lagerarbetare"] }, unnamedCount: 1 });
+    expect(ort).toMatchObject({ value: { kind: "names", names: ["Skåne län", "Malmö"] } });
+  });
+
+  it("counts register entries the snapshot cannot name beside the named ones (#1598)", () => {
+    const [, ort] = buildDimensionRows(
+      detail({ grade: "Basic", regionFit: register("NoMatch", [], [["CaRE_1nn_cSU", null], ["oYPt_yRA_Smm", "Malmö"]]) }),
+      { ...options, ortGranularityByConceptId: skaneGranularity },
+    );
+    expect(ort).toMatchObject({ value: { kind: "names", names: ["Malmö"] }, unnamedCount: 1 });
   });
 
   it("makes the unnamed count the value when no entry can be named, never a word over an empty value", () => {
-    const [yrke] = buildDimensionRows(
-      detail({ grade: null, ssykOverlap: register("NoMatch", [], [["LOST_1", null], ["LOST_2", null]]) }),
+    const [, ort] = buildDimensionRows(
+      detail({ grade: "Basic", regionFit: register("NoMatch", [], [["CaRE_1nn_cSU", null], ["oYPt_yRA_Smm", null]]) }),
       options,
     );
-    expect(yrke).toMatchObject({ value: { kind: "unnamed", count: 2 }, unnamedCount: 0 });
+    expect(ort).toMatchObject({ value: { kind: "unnamed", count: 2 }, unnamedCount: 0 });
+    // ScoreSsykMembership cites exactly one group, the ad's.
+    const [yrke] = buildDimensionRows(
+      detail({ grade: null, ssykOverlap: register("NoMatch", [], [["kTH4_ZnA_xxx", null]]) }),
+      options,
+    );
+    expect(yrke).toMatchObject({ value: { kind: "unnamed", count: 1 }, unnamedCount: 0 });
   });
 
-  it("words the Yrke row Liknande yrke in the warning tone under a Related grade (verdict Match)", () => {
+  it("words the Yrke row Related in the warning tone under a Related grade (verdict Match)", () => {
     const [yrke] = buildDimensionRows(detail({ grade: "Related" }), options);
     expect(yrke).toMatchObject({ key: "ssykOverlap", tone: "warn", word: "Related" });
   });
@@ -305,6 +318,7 @@ describe("buildSkillChecklist", () => {
     const checklist = assessed(
       buildSkillChecklist(
         detail({
+          grade: "Top",
           mustHaveCoverage: skill("Match", [group("C#, programmeringsspråk", ["jBKc_5Yx_Y6T", "C#, programmeringsspråk"])]),
           niceToHaveCoverage: skill("Vacuous"),
           skillOverlap: skill("Match", [
@@ -322,6 +336,7 @@ describe("buildSkillChecklist", () => {
     const checklist = assessed(
       buildSkillChecklist(
         detail({
+          grade: "Top",
           skillOverlap: skill(
             "Partial",
             [group("C#", ["rPUY_2rX_2yN", "C#"], ["jBKc_5Yx_Y6T", "C#, programmeringsspråk"])],
@@ -341,12 +356,14 @@ describe("buildSkillChecklist", () => {
   });
 
   it("keeps every legacy display and drops the counter when the API predates concept identity", () => {
-    // An API older than #1864/#1872 sends no conceptEvidence; the strict schema still admits it.
+    // An API older than #1864/#1872 sent no conceptEvidence, and the strict schema still admits it. The current
+    // handler always sends it, pinned in tests/Jobbliggaren.Api.IntegrationTests/Matching/JobAdMatchDetailEndpointTests.cs.
     const legacy = (verdict: MatchVerdict, matched: string[], missing: string[]): MatchSkillDimensionDetail =>
       ({ verdict, matched, missing });
     const checklist = assessed(
       buildSkillChecklist(
         detail({
+          grade: "Top",
           mustHaveCoverage: legacy("Match", ["boka"], []),
           niceToHaveCoverage: legacy("Vacuous", [], []),
           skillOverlap: legacy("Partial", ["boka", "boka"], ["datateknik"]),
@@ -371,13 +388,14 @@ describe("buildSkillChecklist", () => {
   });
 
   it.each([
-    [skill("Vacuous"), skill("Vacuous"), "both"],
-    [skill("Vacuous"), skill("NoMatch", [], [group("WMS-system", ["wms_1", "WMS-system"])]), "mustHave"],
-    [skill("NoMatch", [], [group("Truckkort A och B", ["truck_1", "Truckkort A och B"])]), skill("Vacuous"), "niceToHave"],
-  ] as const)("names which extracted requirement partitions are empty", (mustHaveCoverage, niceToHaveCoverage, note) => {
+    [skill("Vacuous"), skill("Vacuous"), "both", "Top"],
+    [skill("Vacuous"), skill("NoMatch", [], [group("WMS-system", ["wms_1", "WMS-system"])]), "mustHave", "Top"],
+    [skill("NoMatch", [], [group("Truckkort A och B", ["truck_1", "Truckkort A och B"])]), skill("Vacuous"), "niceToHave", "Good"],
+  ] as const)("names which extracted requirement partitions are empty", (mustHaveCoverage, niceToHaveCoverage, note, grade) => {
     const checklist = assessed(
       buildSkillChecklist(
         detail({
+          grade,
           mustHaveCoverage,
           niceToHaveCoverage,
           skillOverlap: skill("Partial", [group("Java", ["java_1", "Java"])], [group("AWS", ["aws_1", "AWS"])]),
@@ -396,7 +414,7 @@ describe("buildSkillChecklist", () => {
 describe("overflowStart", () => {
   it.each([
     [6, null],
-    [7, null],
+    [7, 6],
     [8, 6],
     [20, 6],
   ])("for %i missing profile chips starts the collapse at %s", (count, start) => {

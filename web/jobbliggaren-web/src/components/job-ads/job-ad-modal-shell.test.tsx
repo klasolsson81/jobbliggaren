@@ -21,8 +21,6 @@ describe("JobAdModalShell", () => {
     );
   });
 
-  // #1828 (design-reviewer B2): the dialog carries no description — it pointed at the whole
-  // ad text, which a screen reader then read as one flat string before anything else.
   it("renders the header's date line under the company and follows the viewport (#1963)", () => {
     render(
       <JobAdModalShell
@@ -41,6 +39,8 @@ describe("JobAdModalShell", () => {
     expect(dialog.parentElement).toHaveClass("jp-modal-scrim--sheet");
   });
 
+  // #1828 (design-reviewer B2): the dialog carries no description — it pointed at the whole
+  // ad text, which a screen reader then read as one flat string before anything else.
   it("sets NO aria-describedby", () => {
     render(
       <JobAdModalShell title="Systemutvecklare" company="Acme AB" meta={null}>

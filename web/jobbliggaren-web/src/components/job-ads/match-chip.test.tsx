@@ -77,7 +77,7 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
 
   // #1828 (senior-cto-advisor re-ruled #379): no chip carries a hover tooltip — a mouse-only
   // title reached no keyboard, touch or screen-reader user. The relatedness is shown as
-  // evidence in the modal's Yrke row instead ("Liknande yrke: {grupp}").
+  // evidence in the modal's Yrke row instead.
   it("ingen grad bär en title-tooltip; den synliga labeln är namnet (#1828)", () => {
     for (const grade of ["Top", "Strong", "Good", "Basic", "Related"] as const) {
       const { container } = render(<MatchChip grade={grade} />);

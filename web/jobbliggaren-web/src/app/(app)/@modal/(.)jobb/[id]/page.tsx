@@ -70,6 +70,7 @@ export default async function InterceptedJobbModal({
           <JobAdDetail
             jobAd={result.jobAd}
             headless
+            inModal
             initialSaved={result.initialSaved}
             initialApplied={result.initialApplied}
             followState={result.followState}

@@ -84,12 +84,9 @@ export type MatchChecklist =
 /** Missing profile skills shown before "Visa {n} till". */
 export const PROFILE_MISSING_VISIBLE = 6;
 
-/** The toggle only exists when it would hide at least this many chips. */
-const MIN_HIDDEN = 2;
-
 /** Index from which the "Finns inte i din profil" chips start collapsed, or `null` when all show. */
 export function overflowStart(chipCount: number): number | null {
-  return chipCount - PROFILE_MISSING_VISIBLE >= MIN_HIDDEN ? PROFILE_MISSING_VISIBLE : null;
+  return chipCount > PROFILE_MISSING_VISIBLE ? PROFILE_MISSING_VISIBLE : null;
 }
 
 interface BuildOptions {
@@ -262,7 +259,11 @@ function distinctSkills(idSets: ReadonlyArray<ReadonlyArray<string>>): number {
   const parent = idSets.map((_, index) => index);
   const find = (index: number): number => {
     let root = index;
-    while (parent[root] !== root) root = parent[root]!;
+    let next = parent[root];
+    while (next !== undefined && next !== root) {
+      root = next;
+      next = parent[root];
+    }
     return root;
   };
   const owner = new Map<string, number>();

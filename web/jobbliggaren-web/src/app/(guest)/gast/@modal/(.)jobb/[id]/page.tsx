@@ -33,7 +33,7 @@ export default async function InterceptedGuestJobbModal({
       company={jobAd.companyName}
       meta={<JobAdDetailMeta jobAd={jobAd} />}
     >
-      <JobAdDetail jobAd={jobAd} headless />
+      <JobAdDetail jobAd={jobAd} headless inModal />
     </JobAdModalShell>
   );
 }

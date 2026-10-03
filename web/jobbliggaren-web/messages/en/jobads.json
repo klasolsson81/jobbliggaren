@@ -190,6 +190,7 @@
       "description": "Ad description",
       "showFullAd": "Show the whole ad",
       "showLess": "Show less",
+      "bodyLabel": "The ad's content",
       "openAd": "Open the ad",
       "previousApplications": "At least {count, plural, one {# previous application} other {# previous applications}} to this employer.",
       "previousApplicationsLink": "View application history",
@@ -207,7 +208,7 @@
       "settingsCtaNav": "Go to Set up matching",
       "noStatedOccupation": "You have not stated which occupations you are looking for.",
       "ssyk": {
-        "relatedWord": "Similar occupation"
+        "relatedWord": "Related"
       },
       "grade": {
         "Top": "Top match",

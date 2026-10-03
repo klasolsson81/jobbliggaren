@@ -80,16 +80,23 @@ function ContactCard({
   titleId: string;
   t: ContactTranslator;
 }) {
+  const emblem = contacts.some((contact) => contact.email)
+    ? "email"
+    : contacts.some((contact) => contact.phone)
+      ? "phone"
+      : null;
   return (
     <section aria-labelledby={titleId} className={cardStyles.card}>
-      <span className={cardStyles.icon} aria-hidden="true">
-        <Mail size={18} />
-      </span>
+      {emblem && (
+        <span className={cardStyles.icon} aria-hidden="true">
+          {emblem === "email" ? <Mail size={18} /> : <Phone size={18} />}
+        </span>
+      )}
       <div className={cardStyles.body}>
         <div className="jp-eyebrow" id={titleId}>
           {t("title")}
         </div>
-        <ul className={cardStyles.contacts}>
+        <ul className={cardStyles.contacts} role="list">
           {contacts.map((contact, i) => {
             const contactMethods = methods(contact);
             return (

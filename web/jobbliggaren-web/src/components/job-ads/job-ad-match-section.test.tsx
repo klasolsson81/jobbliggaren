@@ -44,7 +44,11 @@ function coded(
   return { verdict, matchedConceptIds, missingConceptIds, cause };
 }
 
+// ScoreTitle splits the ad title's lexemes by the CV role: all matched, some, or none.
 function title(verdict: MatchVerdict): MatchDimensionDetail {
+  if (verdict === "Match") return { verdict, matched: ["utvecklar"], missing: [] };
+  if (verdict === "Partial") return { verdict, matched: ["utvecklar"], missing: ["system"] };
+  if (verdict === "NoMatch") return { verdict, matched: [], missing: ["utvecklar"] };
   return { verdict, matched: [], missing: [] };
 }
 
@@ -141,10 +145,10 @@ describe("JobAdMatchSection — the dimension rows (#1963)", () => {
     expect(screen.queryByText("Toppmatch")).not.toBeInTheDocument();
   });
 
-  it("words the Yrke row Liknande yrke under a Related grade, beside the Relaterat yrke chip", () => {
+  it("words the Yrke row Relaterat under a Related grade, beside the Relaterat yrke chip", () => {
     render(<JobAdMatchSection match={detail({ grade: "Related" })} />);
     expect(screen.getByText("Relaterat yrke")).toBeInTheDocument();
-    expect(rowFor("Yrke")).toHaveTextContent("Liknande yrke");
+    expect(rowFor("Yrke")).toHaveTextContent("Relaterat");
     expect(rowFor("Yrke")).toHaveAttribute("data-tone", "warn");
   });
 
@@ -161,27 +165,29 @@ describe("JobAdMatchSection — the dimension rows (#1963)", () => {
     render(
       <JobAdMatchSection
         match={detail({
-          grade: null,
-          ssykOverlap: register("NoMatch", [], [["kTH4_ZnA_xxx", "Lagerarbetare"], ["LOST_1", null]]),
+          grade: "Basic",
+          regionFit: register("NoMatch", [], [["CaRE_1nn_cSU", null], ["oYPt_yRA_Smm", "Malmö"]]),
         })}
+        ortGranularityByConceptId={{ CaRE_1nn_cSU: "region", oYPt_yRA_Smm: "municipality" }}
       />,
     );
-    const yrke = rowFor("Yrke");
-    expect(yrke).toHaveTextContent("Lagerarbetare");
-    expect(within(yrke).getByText("Annonsen anger ett yrke som saknas i vårt register.")).toBeInTheDocument();
-    expect(yrke).not.toHaveTextContent("LOST_1");
+    const ort = rowFor("Ort");
+    expect(ort).toHaveTextContent("Malmö");
+    expect(within(ort).getByText("Annonsen anger en ort som saknas i vårt register.")).toBeInTheDocument();
+    expect(ort).not.toHaveTextContent("CaRE_1nn_cSU");
   });
 
   it("orders Ort names municipality first, then county", () => {
+    // ScoreOrtUnion cites a county and a municipality the user both prefers, sorted by concept id.
     render(
       <JobAdMatchSection
         match={detail({
-          regionFit: register("Match", [["zdoY_6u5_Krt", "Västra Götalands län"], ["PVZL_BQT_XtL", "Göteborg"]]),
+          regionFit: register("Match", [["CaRE_1nn_cSU", "Skåne län"], ["oYPt_yRA_Smm", "Malmö"]]),
         })}
-        ortGranularityByConceptId={{ PVZL_BQT_XtL: "municipality", zdoY_6u5_Krt: "region" }}
+        ortGranularityByConceptId={{ CaRE_1nn_cSU: "region", oYPt_yRA_Smm: "municipality" }}
       />,
     );
-    expect(rowFor("Ort")).toHaveTextContent("Göteborg, Västra Götalands län");
+    expect(rowFor("Ort")).toHaveTextContent("Malmö, Skåne län");
   });
 });
 
@@ -208,7 +214,7 @@ describe("JobAdMatchSection — the no-occupation notice", () => {
 
 describe("JobAdMatchSection — the skills box", () => {
   const requirements = (): Partial<JobAdMatchDetail> => ({
-    grade: "Basic",
+    grade: "Good",
     mustHaveCoverage: skill(
       "Partial",
       [group("C, programmeringsspråk", ["o8wR_57f_jv9", "C, programmeringsspråk"])],
@@ -267,6 +273,7 @@ describe("JobAdMatchSection — the skills box", () => {
     render(
       <JobAdMatchSection
         match={detail({
+          grade: "Good",
           skillOverlap: skill("NoMatch", [], [group("Swift (datorprogrammering)", ["swift_esco", "Swift (datorprogrammering)"])]),
         })}
       />,
@@ -276,7 +283,7 @@ describe("JobAdMatchSection — the skills box", () => {
 
   it("collapses the missing profile skills past six behind a toggle named by its visible text", async () => {
     const missing = Array.from({ length: 20 }, (_, i) => group(`Kompetens ${i}`, [`k_${i}`, `Kompetens ${i}`]));
-    render(<JobAdMatchSection match={detail({ skillOverlap: skill("NoMatch", [], missing) })} />);
+    render(<JobAdMatchSection match={detail({ grade: "Good", skillOverlap: skill("NoMatch", [], missing) })} />);
     const list = screen.getByRole("list", { name: "Kompetenser: Finns inte i din profil" });
     const items = within(list).getAllByRole("listitem");
     expect(items.filter((item) => item.hasAttribute("data-overflow"))).toHaveLength(14);
@@ -291,9 +298,15 @@ describe("JobAdMatchSection — the skills box", () => {
     expect(screen.getByText("0 matchar · 20 finns inte i din profil")).toBeInTheDocument();
   });
 
-  it("does not collapse when the toggle would hide only one chip", () => {
-    const missing = Array.from({ length: 7 }, (_, i) => group(`Kompetens ${i}`, [`k_${i}`, `Kompetens ${i}`]));
-    render(<JobAdMatchSection match={detail({ skillOverlap: skill("NoMatch", [], missing) })} />);
+  it("collapses from the seventh chip, and shows six without a toggle", () => {
+    const chips = (count: number) =>
+      Array.from({ length: count }, (_, i) => group(`Kompetens ${i}`, [`k_${i}`, `Kompetens ${i}`]));
+    const { unmount } = render(
+      <JobAdMatchSection match={detail({ grade: "Good", skillOverlap: skill("NoMatch", [], chips(7)) })} />,
+    );
+    expect(screen.getByRole("button", { name: "Visa 1 till" })).toBeInTheDocument();
+    unmount();
+    render(<JobAdMatchSection match={detail({ grade: "Good", skillOverlap: skill("NoMatch", [], chips(6)) })} />);
     expect(screen.queryByRole("button", { name: /Visa \d+ till/ })).not.toBeInTheDocument();
   });
 

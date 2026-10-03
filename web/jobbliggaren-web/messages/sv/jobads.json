@@ -190,6 +190,7 @@
       "description": "Annonsbeskrivning",
       "showFullAd": "Visa hela annonsen",
       "showLess": "Visa mindre",
+      "bodyLabel": "Annonsens innehåll",
       "openAd": "Öppna annonsen",
       "previousApplications": "Minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till företaget.",
       "previousApplicationsLink": "Visa ansökningshistorik",
@@ -207,7 +208,7 @@
       "settingsCtaNav": "Gå till Ställ in matchning",
       "noStatedOccupation": "Du har inte angett vilka yrken du söker inom.",
       "ssyk": {
-        "relatedWord": "Liknande yrke"
+        "relatedWord": "Relaterat"
       },
       "grade": {
         "Top": "Toppmatch",

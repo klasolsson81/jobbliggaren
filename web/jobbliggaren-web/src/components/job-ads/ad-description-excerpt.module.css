@@ -3,16 +3,27 @@
    collapses. */
 
 /* `hidden`, never `clip`: find-in-page can scroll a hidden box to its match, and axe-core counts
-   only `hidden` as clipping, so text below the excerpt is not graded against what is painted there. */
-.clip[data-collapsed] {
-  max-height: 32vh;
-  max-height: clamp(220px, 32svh, 420px);
+   only `hidden` as clipping, so text below the excerpt is not graded against what is painted there.
+   It also keeps the probe from adding scroll height under a short text. */
+.clip {
+  --excerpt-height: clamp(220px, 32svh, 420px);
+  position: relative;
   overflow: hidden;
 }
 
-.clip[data-collapsed][data-overflowing] {
+.clip[data-collapsed] {
+  max-height: var(--excerpt-height);
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 96px), transparent);
   mask-image: linear-gradient(to bottom, black calc(100% - 96px), transparent);
+}
+
+.probe {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 0;
+  block-size: var(--excerpt-height);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .toggle {

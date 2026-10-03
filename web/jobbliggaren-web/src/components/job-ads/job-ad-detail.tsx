@@ -40,6 +40,12 @@ interface JobAdDetailProps {
    */
   headless?: boolean;
   /**
+   * The intercepted modal, whose title is the dialog's h2: the body is a named region a keyboard can
+   * reach and scroll, and the ad text's headings sit at h3. On a page the title is the h1 and the
+   * headings sit at h2 (#1965, #1966).
+   */
+  inModal?: boolean;
+  /**
    * F6 P5 Punkt 2 — initial-state för Spara/Har-ansökt-knappar i modal-footer.
    * `undefined` (default) = anonym/system-vy → knappar döljs helt
    * (civic-utility — ingen disabled-knapp-teater).
@@ -96,6 +102,7 @@ interface JobAdDetailProps {
 export function JobAdDetail({
   jobAd,
   headless = false,
+  inModal = false,
   initialSaved,
   initialApplied,
   followState,
@@ -135,7 +142,12 @@ export function JobAdDetail({
         </header>
       )}
 
-      <div className="jp-modal__body">
+      <div
+        className="jp-modal__body"
+        tabIndex={inModal ? 0 : undefined}
+        role={inModal ? "region" : undefined}
+        aria-label={inModal ? tUi("detail.bodyLabel") : undefined}
+      >
         {/* #593 (#446-uppföljning) — räknaren + länk till ansökningshistoriken. POSITIVE-ONLY
             (bara > 0). Rent heltal, inget org.nr. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
@@ -171,7 +183,7 @@ export function JobAdDetail({
             showFullLabel={tUi("detail.showFullAd")}
             showLessLabel={tUi("detail.showLess")}
           >
-            {formatAdDescription(jobAd.description)}
+            {formatAdDescription(jobAd.description, inModal ? 3 : 2)}
           </AdDescriptionExcerpt>
         </section>
 

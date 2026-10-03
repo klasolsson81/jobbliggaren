@@ -217,4 +217,19 @@ describe("RecruiterContactBlock — the job-ad detail's contact card (#1963)", (
     const { container } = render(<RecruiterContactBlock contacts={[]} variant="card" />);
     expect(container.firstChild).toBeNull();
   });
+
+  it.each([
+    ["an email", declared, "lucide-mail"],
+    ["only a phone", { name: "Anna Svensson", role: null, email: null, phone: "070-123 45 67", isDerived: false }, "lucide-phone"],
+  ] as const)("shows the emblem of the channel a contact has, for %s", (_label, contact, icon) => {
+    render(<RecruiterContactBlock contacts={[contact]} variant="card" />);
+    const emblem = screen.getByRole("region", { name: "Kontakt" }).querySelector(":scope > [aria-hidden='true'] svg");
+    expect(emblem).toHaveClass(icon);
+  });
+
+  it("shows no emblem for a contact with only a name", () => {
+    const nameOnly: AdContactDto = { name: "Anna Svensson", role: null, email: null, phone: null, isDerived: false };
+    render(<RecruiterContactBlock contacts={[nameOnly]} variant="card" />);
+    expect(screen.getByRole("region", { name: "Kontakt" }).querySelector(":scope > [aria-hidden='true']")).toBeNull();
+  });
 });

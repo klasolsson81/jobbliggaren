@@ -1,16 +1,20 @@
 # AGENTS.md — Jobbliggaren shared core
 
-> One §-namespace across this file and `CLAUDE.md`, which holds the §-index,
-> §§1.5/6.5/9/11/13 and the `@AGENTS.md` import. Main spec: `BUILD.md` · design:
-> `DESIGN.md`. Budget: CI-guarded (ADR 0135). An agent touching dev tooling,
-> pre-commit gates, the compose stack or a fail-fast config option reads
-> `CLAUDE.md` §11 first — it sits there for budget reasons, not because it is
-> CC-specific.
+> Shared §-index: `CLAUDE.md`. Main spec: `BUILD.md`; design: `DESIGN.md`.
+> Budget: ADR 0135. Read `CLAUDE.md` §11 before tooling, pre-commit, compose
+> or fail-fast configuration work.
 
 **Session start (CC and Codex):** before changing files, read `CLAUDE.md`
 §§1.5, 6.5 and 9, then `docs/runbooks/session-protocol.md`. They govern startup,
 worktree isolation and reviews. Codex follows that runbook's tool mapping;
 Claude hooks are not evidence that Codex ran a check.
+
+## Code Review Rules
+
+Check ownership, sensitive-data flows and reachable failures; report evidenced
+defects, not style. Use `docs/threat-model.md`.
+Codex-driven work MUST follow `docs/runbooks/codex-pr-review.md`: fresh `codex/`
+branch + `codex-review` label, same-PR Medium+ fixes, current-head review. CC exempt.
 
 ## 1. Identity
 
@@ -410,4 +414,3 @@ libraries, design tokens) remain fully STOPP-blocking, and every applicable
 class must clear independently. Migration-bearing PRs are likewise untouched —
 whether they ride automerge stays a per-case call (EF migrations remain the
 most dangerous hotspot, §6.5).
-

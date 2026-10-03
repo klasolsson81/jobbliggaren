@@ -1,0 +1,79 @@
+name: Codex review gate
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      head_sha:
+        description: Full SHA read in both completed Codex reports
+        required: true
+        type: string
+      base_ref:
+        description: Reviewed target branch name
+        required: true
+        type: string
+      base_sha:
+        description: Full reviewed target branch SHA
+        required: true
+        type: string
+      verdict:
+        description: Record clean reports or revoke approval
+        required: true
+        type: choice
+        options: [blocked, approved, refresh]
+        default: blocked
+      code_report:
+        description: Codex code review report URL
+        type: string
+      security_report:
+        description: Codex security review report URL
+        type: string
+      attestation:
+        description: Type both-complete-zero-medium-plus only after reading both reports
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: codex-review-publisher
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    if: >-
+      github.event.repository.default_branch == 'main' &&
+      ((github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main') ||
+       ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    environment: codex-review-publisher
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted default branch, never PR code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Create repository-scoped check publisher token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: publisher
+        with:
+          client-id: ${{ vars.CODEX_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEX_REVIEW_APP_PRIVATE_KEY }}
+          permission-checks: write
+      - name: Validate scope or publish owner attestation
+        run: python3 .github/scripts/codex_review_gate.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECKS_TOKEN: ${{ steps.publisher.outputs.token }}
+          CODEX_REVIEW_APP_ID: ${{ vars.CODEX_REVIEW_APP_ID }}

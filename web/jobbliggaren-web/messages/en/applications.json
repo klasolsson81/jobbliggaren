@@ -226,7 +226,8 @@
     },
     "harAnsokt": {
       "applied": "Applied",
-      "markAsApplied": "Mark as applied"
+      "markAsApplied": "Mark as applied",
+      "viewApplication": "View application"
     },
     "jobInfo": {
       "title": "About the ad",

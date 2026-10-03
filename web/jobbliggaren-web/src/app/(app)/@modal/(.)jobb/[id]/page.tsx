@@ -6,6 +6,7 @@ import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
 import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
+import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -64,6 +65,7 @@ export default async function InterceptedJobbModal({
         <JobAdModalShell
           title={result.jobAd.title}
           company={result.jobAd.companyName}
+          meta={<JobAdDetailMeta jobAd={result.jobAd} />}
         >
           <JobAdDetail
             jobAd={result.jobAd}
@@ -85,7 +87,7 @@ export default async function InterceptedJobbModal({
       notFound();
     case "rateLimited":
       return (
-        <JobAdModalShell title={t("common.rateLimitedTitle")} company="">
+        <JobAdModalShell title={t("common.rateLimitedTitle")} company="" meta={null}>
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-primary">
               {t("common.rateLimitedBody", {
@@ -101,7 +103,7 @@ export default async function InterceptedJobbModal({
     case "forbidden":
     case "error":
       return (
-        <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="">
+        <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="" meta={null}>
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-primary">
               {tf("errorBodyRetry")}

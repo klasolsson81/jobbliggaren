@@ -1,87 +1,97 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { CheckCircle2, Circle } from "lucide-react";
+import { ArrowRight, Circle, CircleCheck } from "lucide-react";
 import { createApplicationFromJobAdAction } from "@/lib/actions/applications";
+import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
+import styles from "./har-ansokt-button.module.css";
 
 interface HarAnsoktButtonProps {
   jobAdId: string;
   /**
-   * Server-fetched initialApplied (`hasAppliedJobAd(id)`). När true visas
-   * knappen som "Ansökt" från start (modal-öppning post-toggle visar
-   * korrekt state utan extra round-trip — PR5 Klas-feedback fix).
+   * Server-fetched initialApplied (`hasAppliedJobAd(id)`). When true the applied state shows from
+   * the start, so reopening the modal after a mark needs no extra round-trip.
    */
   initialApplied: boolean;
 }
 
 /**
- * F6 P5 Punkt 2 Del B + PR5 — "Markera som ansökt"-knapp i ADR 0053
- * jobbmodal-footer.
+ * "Markera som ansökt" in the job-ad footer (ADR 0053 Amendment 2026-10-03, #1963).
  *
- * PR5-ändringar (Klas-feedback 2026-05-23 + CTO Val 3 Variant A modifierad):
- * - Copy: "Markera som ansökt" (idle) / "Ansökt" (post-success) — ärlig om
- *   att handlingen skapar en Application i Status=Draft, inte ett
- *   marknadsutskick.
- * - Stil: `jp-btn--secondary` från start (paritet med Spara + Öppna annonsen).
- *   Ingen primär-CTA-hierarki som sticker ut.
- * - Layout: state-byte i samma knapp-position (ingen footer-bredd-skiftning).
- *   "Öppna ansökan"-länken renderas inte här — den läggs i en muted-rad UNDER
- *   footern av `JobAdDetail` när `initialApplied` blir true.
- * - State-persistence: `initialApplied` server-fetchas vid varje modal-mount
- *   via `hasAppliedJobAd(id)` (ADR 0063 single-endpoint). Modal-stäng/öppna
- *   återgår alltså inte till "Markera som ansökt"-state om Application redan
- *   skapats — Klas-feedback om modal-reset löst.
+ * At rest it is a button in the info tone of the applied axis. Once applied, the button gives way to
+ * a status that is not a control (#1863): an "Ansökt" badge and a "Visa ansökan" link. The link goes
+ * to the application this button just created, whose id the action returns; an ad applied before
+ * this mount links to the list, since one ad can carry several applications and the server only
+ * says whether one exists. Leaving through the link soft-navigates out of the job modal.
+ *
+ * The mark is optimistic and rolls back on failure. The button removes itself when used, so focus
+ * moves to the link after the commit and back to the button on a rollback (WCAG 2.4.3).
  */
-export function HarAnsoktButton({
-  jobAdId,
-  initialApplied,
-}: HarAnsoktButtonProps) {
+export function HarAnsoktButton({ jobAdId, initialApplied }: HarAnsoktButtonProps) {
   const tUi = useTranslations("applications.ui");
   const [applied, setApplied] = useState(initialApplied);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const focusAfterCommit = useFocusAfterCommit();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  const badgeId = useId();
 
   function handleClick() {
-    if (applied) return; // Idempotent — backend tillåter dubbel-create, men FE-kontrakt = en gång
     setError(null);
     setApplied(true); // Optimistic
+    focusAfterCommit(() => linkRef.current);
 
     startTransition(async () => {
       const result = await createApplicationFromJobAdAction(jobAdId);
-      if (!result.success) {
-        setApplied(false); // Rollback
-        setError(result.error);
+      if (result.success) {
+        setApplicationId(result.applicationId);
+        return;
       }
+      // Rollback. Focus returns to the button only if it was still on the link, or had fallen out.
+      const active = document.activeElement;
+      if (active === linkRef.current || active === document.body || active === null) {
+        focusAfterCommit(() => buttonRef.current);
+      }
+      setApplied(false);
+      setError(result.error);
     });
   }
 
-  const label = applied
-    ? tUi("harAnsokt.applied")
-    : tUi("harAnsokt.markAsApplied");
-  const Icon = applied ? CheckCircle2 : Circle;
-  const opacity = isPending ? 0.7 : 1;
+  if (applied) {
+    return (
+      <div className={styles.applied}>
+        <span id={badgeId} className={styles.badge}>
+          <CircleCheck size={14} aria-hidden="true" />
+          {tUi("harAnsokt.applied")}
+        </span>
+        <Link
+          ref={linkRef}
+          href={applicationId === null ? "/ansokningar" : `/ansokningar/${applicationId}`}
+          className={styles.link}
+          aria-describedby={badgeId}
+        >
+          {tUi("harAnsokt.viewApplication")}
+          <ArrowRight size={14} aria-hidden="true" />
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
+    <div className={styles.control}>
       <button
+        ref={buttonRef}
         type="button"
-        // #1000 (V1) — blue state-tint when applied (live client state, matches the ANSÖKT tag),
-        // replacing the earlier grey dimming: Klas wants the state clearly coloured, not muted. The
-        // button stays clickable (future "ångra"-flöde). Non-green icon (green reserved, ADR 0068).
-        className={
-          applied
-            ? "jp-btn jp-btn--secondary jp-btn--on-applied"
-            : "jp-btn jp-btn--secondary"
-        }
-        // No aria-label: the accessible name is the visible text ("Markera som ansökt" / "Ansökt")
-        // so it always contains the visible label (WCAG 2.5.3); state rides aria-pressed.
-        aria-pressed={applied}
+        className="jp-btn jp-btn--info-soft"
         onClick={handleClick}
-        style={{ opacity }}
+        style={{ opacity: isPending ? 0.7 : 1 }}
       >
-        <Icon size={14} aria-hidden="true" />{" "}
-        {label}
+        <Circle size={14} aria-hidden="true" />
+        {tUi("harAnsokt.markAsApplied")}
       </button>
       {error && (
         <span role="alert" className="text-micro text-danger-700">

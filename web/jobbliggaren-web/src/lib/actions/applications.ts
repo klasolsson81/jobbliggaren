@@ -26,8 +26,8 @@ export type CreateApplicationFromJobAdResult =
 
 /**
  * F6 P5 Punkt 2 Del B — "Har ansökt"-quick-create från ADR 0053-modal-footer.
- * Returnerar applicationId vid framgång så client-island kan visa toast med
- * länk till `/ansokningar/{id}`. Skiljs från `createApplicationAction` (som
+ * Returnerar applicationId vid framgång så client-island kan länka till
+ * `/ansokningar/{id}`. Skiljs från `createApplicationAction` (som
  * redirectar — denna lever inom modal-flödet, ingen redirect).
  *
  * Backend: `POST /api/v1/applications/from-job-ad/{jobAdId}` (CTO Val 3

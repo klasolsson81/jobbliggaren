@@ -82,6 +82,8 @@ Följande är **blockerade** i all JobbPilot UI-kod. En `design-reviewer`-flagg 
 | Skuggor | `shadow-lg`, `shadow-xl`, `shadow-2xl` (max tillåtet: `shadow-md`) |
 | Copy | Emoji i UI-copy eller kod; utropstecken i användarriktad text |
 
+> **Pekare 2026-10-03 (#1963):** gradientförbudets scopade undantag (hero-plattan, leverantörsmärket, annonsutdragets tona) listas i DESIGN.md §3, som är listans enda hem.
+
 ## Implementation
 
 **Review-krav i praktiken:**

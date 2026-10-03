@@ -1,0 +1,290 @@
+/* The job card's match section (#1963, DESIGN.md §3, §4 and §8). Tokens only. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 26px;
+  margin-bottom: 4px;
+}
+
+.silent {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+
+/* Dimension rows: icon, label, value (+ note), status word. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 28px 128px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 12px;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-accent-50);
+  color: var(--jp-ink-1);
+}
+
+.row[data-tone="warn"] {
+  background: var(--jp-warning-bg);
+}
+
+.rowIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  color: var(--jp-success);
+}
+
+.row[data-tone="warn"] .rowIcon {
+  color: var(--jp-warning);
+}
+
+.rowLabel {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+}
+
+.rowValue {
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rowNote {
+  display: block;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+.rowWord {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface);
+  color: var(--jp-success);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.row[data-tone="warn"] .rowWord {
+  color: var(--jp-warning);
+}
+
+/* The skills box. */
+.skills {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+}
+
+.skillsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.skillsTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+
+.counter {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+
+/* Chips flow inline so the overflow toggle can sit after the last visible chip; the bottom margin
+   that spaces wrapped lines is taken back by the wrapper. */
+.flow {
+  margin-bottom: -6px;
+}
+
+.chips {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 6px 6px 0;
+  padding: 4px 10px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-success-bg);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-medium);
+  line-height: 1.4;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.chip[data-tone="missing"] {
+  background: var(--jp-warning-bg);
+}
+
+.chip[data-tone="missingRequired"] {
+  background: var(--jp-danger-bg);
+}
+
+.chipIcon {
+  flex-shrink: 0;
+  color: var(--jp-success);
+}
+
+.chip[data-tone="missing"] .chipIcon {
+  color: var(--jp-warning);
+}
+
+.chip[data-tone="missingRequired"] .chipIcon {
+  color: var(--jp-danger);
+}
+
+/* Collapsed: the chips past the visible six stay out of the layout and the accessibility tree. */
+.overflow:not([data-expanded]) [data-overflow] {
+  display: none;
+}
+
+.more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 6px 6px 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--jp-r-sm);
+  background: transparent;
+  color: var(--jp-accent-700);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.more:hover {
+  background: var(--jp-accent-50);
+}
+
+/* Notices inside the section. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-info-bg);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+
+.noticeIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--jp-info);
+}
+
+.noticeText {
+  margin: 0;
+}
+
+.setup {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-info-bg);
+}
+
+.setupBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.setupText {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+
+@media (max-width: 768px) {
+  /* The house touch floor without moving the chip line: the hit area grows, the box does not. */
+  .more::after {
+    content: "";
+    position: absolute;
+    inset: -8px -4px;
+  }
+}
+
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+  .rowValue {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}

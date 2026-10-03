@@ -14,81 +14,48 @@ beforeEach(() => {
   createActionMock.mockReset();
 });
 
-describe("HarAnsoktButton (PR5)", () => {
-  it("renderar 'Markera som ansökt' när initialApplied=false", () => {
+describe("HarAnsoktButton (#1863, #1855, #1963)", () => {
+  it("rests as a button in the info tone, not a pressed toggle", () => {
     render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
-    expect(
-      screen.getByRole("button", { name: "Markera som ansökt" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Markera som ansökt" });
+    expect(button).toHaveClass("jp-btn", "jp-btn--info-soft");
+    expect(button).not.toHaveAttribute("aria-pressed");
   });
 
-  it("renderar 'Ansökt' när initialApplied=true (paritet server-state)", () => {
+  it("shows an ad applied before this mount as a status with a link to the applications list", () => {
     render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
-    expect(
-      screen.getByRole("button", { name: "Ansökt" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("Ansökt")).toBeInTheDocument();
-    // #1000 (V1) — blue state-tint when applied (matches the ANSÖKT tag).
-    expect(screen.getByRole("button", { name: "Ansökt" })).toHaveClass(
-      "jp-btn--on-applied"
-    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Visa ansökan" });
+    // The server only says that an application exists, and one ad can carry several.
+    expect(link).toHaveAttribute("href", "/ansokningar");
+    expect(link).toHaveAccessibleDescription("Ansökt");
   });
 
-  it("kallar action vid klick + uppdaterar UI optimistic", async () => {
-    createActionMock.mockResolvedValue({
-      success: true,
-      applicationId: "a-123",
-    });
+  it("marks the ad, then links to the application the action created and moves focus to the link", async () => {
+    createActionMock.mockResolvedValue({ success: true, applicationId: "a-123" });
     render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
 
-    const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: "Markera som ansökt" })
-    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Markera som ansökt" }));
 
     expect(createActionMock).toHaveBeenCalledWith("j1");
-    expect(await screen.findByText("Ansökt")).toBeInTheDocument();
-  });
-
-  it("idempotent — klick när redan applied gör inget", async () => {
-    render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
-
-    const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: "Ansökt" })
+    const link = await screen.findByRole("link", { name: "Visa ansökan" });
+    expect(link).toHaveFocus();
+    expect(await screen.findByRole("link", { name: "Visa ansökan" })).toHaveAttribute(
+      "href",
+      "/ansokningar/a-123",
     );
-
-    expect(createActionMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("rullbar vid fel — knappen återställs + felmeddelande", async () => {
-    createActionMock.mockResolvedValue({
-      success: false,
-      error: "Kunde inte registrera ansökan.",
-    });
+  it("rolls back on failure: the button returns, takes focus and the error is announced", async () => {
+    createActionMock.mockResolvedValue({ success: false, error: "Kunde inte registrera ansökan." });
     render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
 
-    const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: "Markera som ansökt" })
-    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Markera som ansökt" }));
 
-    expect(
-      await screen.findByText(/Kunde inte registrera ansökan/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
-  });
-
-  it("accessible name is the visible label in both states (WCAG 2.5.3, no aria override)", () => {
-    // Fresh mounts, not rerender: `applied` seeds mount-only from the prop via useState.
-    const { unmount } = render(
-      <HarAnsoktButton jobAdId="j1" initialApplied={false} />
-    );
-    expect(screen.getByRole("button")).toHaveAccessibleName("Markera som ansökt");
-    unmount();
-    render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
-    // Applied: visible "Ansökt" is the name (previously "Du har markerat…" — a 2.5.3 break).
-    expect(screen.getByRole("button")).toHaveAccessibleName("Ansökt");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Kunde inte registrera ansökan.");
+    const button = screen.getByRole("button", { name: "Markera som ansökt" });
+    expect(button).toHaveFocus();
+    expect(screen.queryByRole("link", { name: "Visa ansökan" })).not.toBeInTheDocument();
   });
 });

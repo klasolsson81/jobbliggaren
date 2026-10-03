@@ -1,0 +1,20 @@
+/* The ad text's excerpt (#1963, ADR 0053 Amendment 2026-10-03; the fade is DESIGN.md §3's scoped
+   gradient exception). The small viewport height keeps the clamp still while a mobile address bar
+   collapses. */
+
+/* `hidden`, never `clip`: find-in-page can scroll a hidden box to its match, and axe-core counts
+   only `hidden` as clipping, so text below the excerpt is not graded against what is painted there. */
+.clip[data-collapsed] {
+  max-height: 32vh;
+  max-height: clamp(220px, 32svh, 420px);
+  overflow: hidden;
+}
+
+.clip[data-collapsed][data-overflowing] {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 96px), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 96px), transparent);
+}
+
+.toggle {
+  margin-top: 12px;
+}

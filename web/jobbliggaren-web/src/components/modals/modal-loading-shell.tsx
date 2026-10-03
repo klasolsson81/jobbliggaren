@@ -26,11 +26,19 @@ import { BrandSpinner } from "@/components/brand/brand-spinner";
  * announcement, kept specific to convey what is loading). The visible status
  * line is aria-hidden (sighted-only) so the text is not announced twice.
  */
-export function ModalLoadingShell({ statusText }: { statusText: string }) {
+export function ModalLoadingShell({
+  statusText,
+  variant,
+}: {
+  statusText: string;
+  /** "sheet": the job modal's viewport-following form (#1963), so the swap to content does not jump. */
+  variant?: "sheet";
+}) {
+  const sheet = variant === "sheet";
   return (
-    <div className="jp-modal-scrim" role="presentation">
+    <div className={sheet ? "jp-modal-scrim jp-modal-scrim--sheet" : "jp-modal-scrim"} role="presentation">
       <div
-        className="jp-modal jp-modal--loading"
+        className={sheet ? "jp-modal jp-modal--loading jp-modal--sheet" : "jp-modal jp-modal--loading"}
         role="dialog"
         aria-busy="true"
         aria-label={statusText}

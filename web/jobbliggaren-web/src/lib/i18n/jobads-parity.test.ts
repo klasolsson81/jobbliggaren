@@ -49,21 +49,18 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
       "ui.gradeFilter.relatedToggleLabel",
       "ui.gradeFilter.relatedToggleHelp",
       "ui.gradeFilter.grade.Related",
-      // Badge för Related; modalens Yrke-rad visar beviset i egen ram (#1828).
+      // Badge för Related; the Yrke row words it as its own status (#1963).
       "ui.match.grade.Related",
-      // Orsaks-katalogen: de sju (orsak × dimension)-par backend faktiskt producerar OCH
-      // modalen kan rendera. Enumet är bundet (MatchDimensionCause_is_the_locked_four_member_set)
-      // men katalogen är det inte — utan de här raderna kan en fras försvinna ur BÅDA
-      // lokalerna med grön svit, eftersom pariteten bara jämför sv mot en.
-      "ui.match.matchCause.PreferenceUnstated.regionFit",
-      "ui.match.matchCause.PreferenceUnstated.employmentFit",
+      "ui.match.ssyk.relatedWord",
+      // The cause catalogue: the (cause × dimension) pairs the backend produces AND the job card
+      // renders (#1963 hides the not-assessed rows that carried the other pairs). The enum is
+      // locked (MatchDimensionCause_is_the_locked_four_member_set) but the catalogue is not —
+      // without these rows a phrase could vanish from BOTH locales with a green suite, since
+      // parity only compares sv with en.
       "ui.match.matchCause.AdSilent.ssykOverlap",
       "ui.match.matchCause.AdSilent.regionFit",
       "ui.match.matchCause.AdSilent.employmentFit",
       "ui.match.matchCause.RemoteOverride.regionFit",
-      "ui.match.matchCause.RegionContainsPreferredMunicipality.regionFit",
-      "ui.match.ssyk.matched",
-      "ui.match.ssyk.related",
     ];
     const sv = new Set(leafPaths(svJobads));
     const en = new Set(leafPaths(enJobads));

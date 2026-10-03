@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { ArrowLeft } from "lucide-react";
 import { GuestDemoBanner } from "@/components/guest/guest-demo-banner";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
+import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
 import { findGuestJobAd } from "@/lib/guest/mock-data";
 import { toJobAdDetail } from "@/lib/guest/mock-adapters";
 import type { Metadata } from "next";
@@ -50,6 +51,7 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
         {/* `headless` så `<JobAdDetail>` inte renderar egen h1/header
             (security-auditor m-1 2026-05-24: undvik dubbel h1 — pagehero
             äger titeln). */}
+        <JobAdDetailMeta jobAd={jobAd} />
         <JobAdDetail jobAd={jobAd} headless />
       </div>
     </>

@@ -111,6 +111,19 @@ Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 
 > **Amendment provenance:** design-reviewer's #1828 form round, Major 4 (`docs/reviews/2026-09-25-1828-form-design.md`, local-only); senior-cto-advisor's route, Q4 (`docs/reviews/2026-09-25-1828-form-cto.md`, local-only). ADR 0053 remains **Accepted**: an additive layer, the original text and the three earlier amendments preserved unchanged.
 
+## Amendment 2026-10-03 — #1963: the job-ad detail as Checklistan
+
+> **Amendment 2026-10-03 (#1963; Klas approved the Claude Design handoff "Checklistan": Omgång 2, Radfärg "Mjuk grön", Knappstil "Tonad grå"):** The decisions and the earlier amendments stand; this one changes the job-ad detail's presentation in both contexts, the intercepted modal and `/jobb/[id]`.
+>
+> - **Header.** The dates move into the header under the company: "Sista ansökningsdag" first, then "Publicerad", with "Arkiverad" leading when the ad is archived. Amendment 2026-09-26's meta line in the body goes.
+> - **Body order.** Matching, then the ad text, then the contact card, then the contact-person notice. The notice keeps ADR 0144 row 10's placement: directly after the contacts, never behind an expander, never in or after the foot.
+> - **Ad text.** When its measured height overflows `clamp(220px, 32svh, 420px)`, the text is clamped with a fade (DESIGN.md §3) and a "Visa hela annonsen" toggle. The small viewport height keeps the clamp still while a mobile address bar collapses. The contact card and the notice sit outside the excerpt.
+> - **Footer.** Spara and Bevaka företaget come first in the tonal style, then "Markera som ansökt" in the info tone and "Öppna annonsen" as the only primary (DESIGN.md §6). Once applied, the control gives way to a non-interactive "Ansökt" status and a "Visa ansökan" link: to `/ansokningar/{id}` when this session created the application, otherwise to `/ansokningar`, since one ad can carry several applications. This replaces Amendment 2026-05-23's toast and the later applied footnote, and resolves #1863 and #1855. At ≤560px the footer wraps into two rows in DOM order.
+> - **Beslut 3's height.** The job modal's `max-height` follows the viewport (`calc(100dvh - 64px)`, the scrim's padding) instead of 86vh. At ≤768px, and on screens at most 500px tall, the modal is a full-screen sheet whose head and foot stay put while the body scrolls. The other modals keep Beslut 3.
+> - **Leaving the modal.** "Gå till Ställ in matchning" and "Visa ansökan" to the list soft-navigate, and the `@modal` slot's per-segment null pages (#1488) close the job modal on the way out. "Visa ansökan" to `/ansokningar/{id}` is caught by the application interceptor, so the application modal replaces the job modal and Back brings the job modal back.
+>
+> **Amendment provenance:** Klas's prompt of 2026-10-03 (GO for implementation, no separate approval round) and the handoff package `docs/design_handoff_jobbmodal/` (local, untracked). ADR 0053 remains **Accepted**: an additive layer, the original text and the four earlier amendments preserved unchanged.
+
 ## Konsekvenser
 
 ### Positiva

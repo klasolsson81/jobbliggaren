@@ -1,0 +1,46 @@
+/* The job-ad footer's applied state (#1863, #1855, #1963): a status, not a control, plus the way to
+   the application. The link keeps the house link colour; only its shape is set here. */
+
+.control {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.applied {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+  font-size: var(--text-ui);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+  font-weight: var(--jp-fw-bold);
+  white-space: nowrap;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .link {
+    min-height: 44px;
+  }
+}

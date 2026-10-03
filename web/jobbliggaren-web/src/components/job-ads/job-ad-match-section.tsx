@@ -1,255 +1,51 @@
 import Link from "next/link";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
-import { MatchConceptEvidence } from "./match-concept-evidence";
-import styles from "./match-concept-evidence.module.css";
+import { ArrowRight, Check, CircleAlert, Info, Minus, X } from "lucide-react";
 import { MatchChip } from "./match-chip";
-import type {
-  JobAdMatchDetail,
-  MatchCause,
-  MatchSkillDimensionDetail,
-  MatchRegisterConcept,
-  MatchRegisterDimensionDetail,
-  MatchVerdict,
-} from "@/lib/dto/job-ad-match";
+import { MatchSkillOverflow } from "./match-skill-overflow";
+import styles from "./job-ad-match-section.module.css";
+import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
+import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
 import {
-  classifyOrtConcept,
-  type OrtGranularity,
-} from "@/lib/job-ads/ort-granularity";
+  buildMatchChecklist,
+  overflowStart,
+  type ChipTone,
+  type DimensionRow,
+  type MatchDimensionKey,
+  type SkillChecklist,
+  type SkillGroup,
+} from "@/lib/job-ads/match-checklist";
 
 // Scoped to the `match` subtree (next-intl typed-messages instantiate too
 // deeply when ICU-arg calls resolve against the whole `jobads.ui` namespace).
 type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
 
 /**
- * JobAdMatchSection — F4-16 (ADR 0076 Amendment (b) §3/§5, design-reviewer
- * 2026-06-20). Ren presentational Server Component (ingen "use client", noll
- * interaktivitet). Renderar matchnings-nedbrytningen mot användarens profil i
- * JobAdDetail (modal + fullsida), ovanför Annonsbeskrivning.
+ * JobAdMatchSection — the job card's match section as a checklist (#1963, ADR 0076 Amendment
+ * 2026-10-03 (b), DESIGN.md §3 and §8). A Server Component shared by the modal and `/jobb/[id]`;
+ * `match-checklist.ts` decides what is shown, this component only words and draws it.
  *
- * Goodhart-vakt (hård, ADR 0053 Beslut 5 + ADR 0076 §5): INGEN
- * procent/mätare/ring. Varje verdict är en diskret prick + namngivet ord.
- *
- * NotAssessed/Saknas använder NEUTRAL ink — ALDRIG röd (ett saknat meritvärde
- * är inget fel). NotAssessed = hålig prick + "Ej bedömt" + skäl; aldrig
- * förväxlad med NoMatch (CLAUDE.md §5).
- *
- * Saknas hela `match`-propen (anonym / ingen träffdata) renderar anroparen
- * INGEN sektion alls (frånvaro, ej teater — ADR 0053).
+ * No percentage, gauge or ring (ADR 0053 Beslut 5, ADR 0076 Decision 4): a dimension shows a named
+ * outcome and its evidence, and the skills counter counts the named chips beside it.
  */
 
-// Dimension order: occupation, title, location, employment, then confirmed skills
-// and skill requirements. Labels come from the matching catalogue.
-// resolveras via next-intl (`ui.match.dimension.*`). Titel hålls "Ej bedömd" v1
-// (Klas-bind: title-dimensionen är OUT of scope i F4-16 — CTO D7=A).
-const DIMENSION_KEYS: ReadonlyArray<keyof Omit<JobAdMatchDetail, "grade">> = [
-  "ssykOverlap",
-  "titleSimilarity",
-  "regionFit",
-  "employmentFit",
-  "skillOverlap",
-  "mustHaveCoverage",
-  "niceToHaveCoverage",
-];
+function NoticeIcon() {
+  return <Info size={16} className={styles.noticeIcon} aria-hidden="true" />;
+}
 
-function MatchSectionHeading({
-  t,
-  children,
-}: {
-  t: MatchTranslator;
-  children?: React.ReactNode;
-}) {
+function Notice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="jp-modal__matchsection-head">
-      <div className="jp-eyebrow">
-        {/* Normal-case source; the heading element applies
-            `text-transform: uppercase` (parity "Annonsbeskrivning"). */}
-        {t("heading")}
-      </div>
-      {children}
+    <div className={styles.notice}>
+      <NoticeIcon />
+      <p className={styles.noticeText}>{children}</p>
     </div>
   );
 }
 
-/**
- * "Ej bedömt"-skäl för de dimensioner vars skäl går att läsa ur dimensionen ensam.
- * De tre membership-dimensionerna
- * har inte det längre och står därför inte här: deras skäl kommer från servern
- * (`causeReason`), som är den enda som vet vilken arm som körde.
- *
- * Kompetenser, obligatoriska krav och meriterande är obedömda på ETT predikat (inga valda
- * kompetenser, `MatchScorer.ScoreConceptCoverage`), så skälet står en
- * gång, på Kompetenser; foten under raderna bär åtgärden (ADR 0076 §6). Ett skäl
- * som bara upprepar verdiktet "Ej bedömt" renderas inte (DESIGN.md §8 regel 1).
- */
-function notAssessedReason(
-  key: keyof Omit<JobAdMatchDetail, "grade">,
-  t: MatchTranslator,
-): string | null {
-  switch (key) {
-    case "titleSimilarity":
-      return t("notAssessedReason.titleSimilarity");
-    case "skillOverlap":
-      return t("notAssessedReason.skills");
-    default:
-      return null;
-  }
-}
-
-function causeReason(
-  key: keyof Omit<JobAdMatchDetail, "grade">,
-  cause: MatchCause,
-  t: MatchTranslator,
-): string | null {
-  switch (key) {
-    case "ssykOverlap":
-      // Bara AdSilent: `PreferenceUnstated` på yrkesraden tvingar grade till null, och
-      // skylten nedan läser exakt det paret och ersätter hela sektionen — så den här
-      // raden hinner aldrig rendera med den orsaken.
-      return cause === "AdSilent" ? t("matchCause.AdSilent.ssykOverlap") : null;
-    case "employmentFit":
-      return cause === "PreferenceUnstated" || cause === "AdSilent"
-        ? t(`matchCause.${cause}.employmentFit`)
-        : null;
-    case "regionFit":
-      return t(`matchCause.${cause}.regionFit`);
-    default:
-      return null;
-  }
-}
-
-/**
- * Titel-sammanfattning (#5a / STEG 2-grannfeature, ADR 0079) — en kort civic rad
- * som konstaterar hur CV:ts roll förhåller sig till annonsens titel. Titel-
- * dimensionen scoras på stammade lexem (Snowball), vars råa stammar ("systemutveckl")
- * vore obegripliga i UI — därför en per-verdict-fras i stället för rå bevis-lista.
- * Titel är EVIDENCE-ONLY (styr aldrig graden), och yrket (SSYK) är den primära
- * signalen — copy:n överklagar därför aldrig en titel-skillnad. `NotAssessed`
- * (ingen roll i CV:t) faller till `notAssessedReason`; `Vacuous` förekommer ej för
- * titel. Ingen siffra (Goodhart).
- */
-function titleSummary(verdict: MatchVerdict, t: MatchTranslator): string | null {
-  switch (verdict) {
-    case "Match":
-      return t("titleSummary.Match");
-    case "Partial":
-      return t("titleSummary.Partial");
-    case "NoMatch":
-      return t("titleSummary.NoMatch");
-    case "Vacuous":
-    case "NotAssessed":
-      return null;
-  }
-}
-
-/**
- * Spår 3 PR-D — grupperar ort-bevisets register-poster per granularitet
- * (kommun/län) och formaterar två civic-fraser så bevisraden ärligt visar VILKEN
- * granularitet som matchade (architect NOTE-2; klassningen sker FE-side mot
- * taxonomin).
- *
- * Klassningen sker på postens `conceptId`; det som hamnar i hinken är dess
- * `label`. Namnet avgör alltså inte längre hinken — bara vad hinken visar.
- *
- * TRE hinkar, inte två (#1598). Ett okänt id (saknas i kartan — äkta träd-
- * divergens) föll förut i `regions`-hinken, som renderas "Län som matchar: X":
- * ett explicit län-PÅSTÅENDE om något vi inte kunde klassa.
- *
- * Namnlösa poster hoppas över: de kan inte visas, och raden räknar dem redan
- * genom `unnamedCount`.
- */
-function splitOrtByGranularity(
-  entries: ReadonlyArray<MatchRegisterConcept>,
-  granularityByConceptId: Record<string, OrtGranularity>,
-): { municipalities: string[]; regions: string[]; plain: string[] } {
-  const municipalities: string[] = [];
-  const regions: string[] = [];
-  const plain: string[] = [];
-  for (const entry of entries) {
-    if (entry.label === null) continue;
-    const granularity = classifyOrtConcept(
-      entry.conceptId,
-      granularityByConceptId,
-    );
-    if (granularity === "municipality") {
-      municipalities.push(entry.label);
-    } else if (granularity === "region") {
-      regions.push(entry.label);
-    } else {
-      // Saknas i kartan → ingen kategori vi inte kan belägga.
-      plain.push(entry.label);
-    }
-  }
-  return { municipalities, regions, plain };
-}
-
-/**
- * Delar en register-rad (#1598) i det som går att visa och det som bara går att
- * RÄKNA: posterna vars `label` är `null` är concept-id snapshoten tappat.
- *
- * Id:t renderas aldrig — det är postens identitet, inte dess ord (AGENTS.md §5,
- * ADR 0043), och klienten kan inte slå upp det heller: namnet saknas exakt när
- * konceptet saknar rad, och picker-trädet byggs ur samma lista. Men posten måste
- * RÄKNAS, för raden citerade något, och en rad som citerade något får aldrig
- * renderas som en rad som citerade ingenting.
- */
-function splitRegisterRow(detail: MatchRegisterDimensionDetail): MatchRowModel {
-  const matched = detail.matched.flatMap((e) => (e.label === null ? [] : [e.label]));
-  const missing = detail.missing.flatMap((e) => (e.label === null ? [] : [e.label]));
-  return {
-    verdict: detail.verdict,
-    matched,
-    missing,
-    unnamedCount:
-      detail.matched.length - matched.length + (detail.missing.length - missing.length),
-    cause: detail.cause,
-  };
-}
-
-/**
- * Vad EN rad renderar: bevis som kan visas, plus hur många koncept raden citerar
- * som inte kan visas.
- *
- * `unnamedCount` bor PÅ raden och inte i en sidoordnad karta (#1598,
- * `dotnet-architect` 2026-08-31): en karta bredvid `rows` hade varit två
- * parallella strukturer vars korrespondens inte är typad — exakt den defektform
- * `MatchRegisterDimensionDetailDto` finns för att omöjliggöra på wire:t, återskapad
- * ett lager ned. En framtida åttonde dimension blir nu ett kompileringsfel i
- * stället för en tyst nolla.
- */
-type MatchRowModel = MatchSkillDimensionDetail & {
-  unnamedCount: number;
-  cause: MatchCause | null;
-};
-
-/**
- * En rad utan onämnbara poster: fem av sju dimensioner kan aldrig ha några.
- * `cause` defaultar till null — fyra av dem kan inte ha någon orsak heller
- * (titel jämför stammar, de tre CV-dimensionerna citerar alltid Display-labels
- * eller är Vacuous); `employmentFit` är den femte och skickar sin egen.
- */
-function shown(
-  detail: MatchSkillDimensionDetail,
-  cause: MatchCause | null = null,
-): MatchRowModel {
-  return { ...detail, unnamedCount: 0, cause };
-}
-
-/**
- * Meningen som räknar de koncept raden citerar men inte kan namnge. Nyckeln är
- * dimensions-specifik, som `notAssessedReason` — "yrke"/"ort" är användarens egna
- * ord för de två axlarna, och är sanna per dimension oavsett vilket id som föll
- * bort (`ssykOverlap` bär bara yrkesgrupper, `regionFit` bara ort-koncept).
- *
- * `null` för de fem övriga: deras namngivning kan inte falera, så att de saknar
- * nyckel är riktigt och inte ett hål.
- */
-function unnamedEvidence(
-  key: keyof Omit<JobAdMatchDetail, "grade">,
-  count: number,
-  t: MatchTranslator,
-): string | null {
+function unnamedText(key: MatchDimensionKey, count: number, t: MatchTranslator): string | null {
   switch (key) {
     case "ssykOverlap":
       return t("unnamedEvidence.ssykOverlap", { count });
@@ -260,345 +56,225 @@ function unnamedEvidence(
   }
 }
 
-/**
- * Vad `regionFit`-raden behöver utöver sin radmodell: register-posterna med sina
- * concept-id kvar, plus kartan som klassar dem.
- *
- * ETT värde och inte två props — kartan utan posterna, eller posterna utan
- * kartan, klassar ingenting, och det beroendet vore otypat om de kom var för
- * sig. `splitRegisterRow` plockar ut labels åt radrenderaren; den här raden
- * behöver id:t som labeln kom från och läser därför posterna direkt.
- */
-type OrtEvidence = {
-  concepts: MatchRegisterDimensionDetail;
-  granularityByConceptId: Record<string, OrtGranularity>;
-};
+function rowValue(row: DimensionRow, t: MatchTranslator): string | null {
+  const value = row.value;
+  switch (value.kind) {
+    case "names":
+      return value.names.join(", ");
+    case "titleSummary":
+      return t(`titleSummary.${value.verdict}`);
+    case "unnamed":
+      return unnamedText(row.key, value.count, t);
+    case "cause":
+      if (value.cause.dimension === "employmentFit") return t("matchCause.AdSilent.employmentFit");
+      return value.cause.cause === "AdSilent"
+        ? t("matchCause.AdSilent.regionFit")
+        : t("matchCause.RemoteOverride.regionFit");
+  }
+}
 
-/**
- * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan `ort`
- * faller raden tillbaka på den generiska bevisformen (bakåtkompat).
- */
-function RegionFitEvidence({
-  ort,
-  t,
-}: {
-  ort: OrtEvidence;
-  t: MatchTranslator;
-}) {
-  const matched = splitOrtByGranularity(
-    ort.concepts.matched,
-    ort.granularityByConceptId,
-  );
-  const missing = splitOrtByGranularity(
-    ort.concepts.missing,
-    ort.granularityByConceptId,
-  );
-
+function DimensionRows({ rows, t }: { rows: DimensionRow[]; t: MatchTranslator }) {
+  if (rows.length === 0) return null;
   return (
-    <>
-      {matched.municipalities.length > 0 && (
-        <span>
-          {t("ort.matchedMunicipalities", {
-            items: matched.municipalities.join(", "),
-          })}
-        </span>
-      )}
-      {matched.regions.length > 0 && (
-        <span>
-          {t("ort.matchedRegions", { items: matched.regions.join(", ") })}
-        </span>
-      )}
-      {matched.plain.length > 0 && (
-        // Oklassificerbart koncept: samma meningsram som syskonen, men med den
-        // o-granulära termen "ort" — vi kan belägga att det ÄR en ort (raden är
-        // ort-dimensionen), bara inte om det är en kommun eller ett län.
-        <span>
-          {t("ort.matchedPlain", {
-            count: matched.plain.length,
-            items: matched.plain.join(", "),
-          })}
-        </span>
-      )}
-      {missing.municipalities.length > 0 && (
-        <span className="jp-modal__matchrow-missing">
-          {t("ort.missingMunicipalities", {
-            items: missing.municipalities.join(", "),
-          })}
-        </span>
-      )}
-      {missing.regions.length > 0 && (
-        <span className="jp-modal__matchrow-missing">
-          {t("ort.missingRegions", { items: missing.regions.join(", ") })}
-        </span>
-      )}
-      {missing.plain.length > 0 && (
-        <span className="jp-modal__matchrow-missing">
-          {t("ort.missingPlain", {
-            count: missing.plain.length,
-            items: missing.plain.join(", "),
-          })}
-        </span>
-      )}
-    </>
+    <ul className={styles.rows}>
+      {rows.map((row) => {
+        const note = row.unnamedCount > 0 ? unnamedText(row.key, row.unnamedCount, t) : null;
+        return (
+          <li key={row.key} className={styles.row} data-tone={row.tone}>
+            <span className={styles.rowIcon} aria-hidden="true">
+              {row.tone === "match" ? <Check size={16} /> : <CircleAlert size={16} />}
+            </span>
+            <span className={styles.rowLabel}>{t(`dimension.${row.key}`)}</span>
+            <span className={styles.rowValue}>
+              {rowValue(row, t)}
+              {note !== null && <span className={styles.rowNote}>{note}</span>}
+            </span>
+            <span className={styles.rowWord}>
+              {row.word === "Related" ? t("ssyk.relatedWord") : t(`verdict.${row.word}`)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-function MatchRow({
-  label,
-  dimensionKey,
-  detail,
+function ChipIcon({ tone }: { tone: ChipTone }) {
+  const Icon = tone === "met" ? Check : tone === "missingRequired" ? X : Minus;
+  return <Icon size={14} className={styles.chipIcon} aria-hidden="true" />;
+}
+
+function groupHeading(
+  kind: SkillGroup["kind"],
+  hasRequirements: boolean,
+  t: MatchTranslator,
+): string {
+  switch (kind) {
+    case "must":
+      return t("dimension.mustHaveCoverage");
+    case "nice":
+      return t("dimension.niceToHaveCoverage");
+    case "profileMatched":
+      return hasRequirements ? t("skills.profileMatchedAlso") : t("skills.profileMatched");
+    case "profileMissing":
+      return t("skills.profileMissing");
+  }
+}
+
+function SkillGroupBlock({
+  group,
+  heading,
+  baseId,
   t,
-  ort,
-  isRelatedYrke,
 }: {
-  label: string;
-  dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
-  detail: MatchRowModel;
+  group: SkillGroup;
+  heading: string;
+  baseId: string;
   t: MatchTranslator;
-  /** Spår 3 PR-D — endast satt för RegionFit-raden (conceptId → kommun/län). */
-  ort?: OrtEvidence;
-  /**
-   * #300 PR-5 (ADR 0084) — true PÅ Yrke-raden (ssykOverlap) NÄR hela matchen är
-   * `Related`. Då ramas beviset (annonsens yrkesgrupp) som "Liknande yrke" i stället
-   * för "Yrke som matchar" (#1828: beviset förklarar, en mening om rankningen gjorde
-   * det inte).
-   */
-  isRelatedYrke?: boolean;
 }) {
-  const word = t(`verdict.${detail.verdict}`);
-  const isNotAssessed = detail.verdict === "NotAssessed";
-  // Serverns skäl, när det finns ett. Det ersätter den gren som förut GISSADE
-  // skälet ur (verdict, tomhet, dimension): den avbildningen är inte injektiv,
-  // så gissningen blev fel i tre mätta fall. En rad med orsak citerar per
-  // konstruktion inget bevis, så grenen står först utan att skugga något.
-  const reason = detail.cause !== null
-    ? causeReason(dimensionKey, detail.cause, t)
-    : null;
-  const unnamed =
-    detail.unnamedCount > 0
-      ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
-      : null;
-  // Granularitets-uppdelad bevisrad bara för `regionFit` OCH bara när beviset finns.
-  const useOrtGranularity = dimensionKey === "regionFit" && ort !== undefined;
-  const isRequirementDim =
-    dimensionKey === "mustHaveCoverage" ||
-    dimensionKey === "niceToHaveCoverage";
-  const isConceptDim = isRequirementDim || dimensionKey === "skillOverlap";
-  const hasRequirementItems =
-    detail.matched.length > 0 || detail.missing.length > 0;
-  // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
-  // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
-  const isTitleDim = dimensionKey === "titleSimilarity";
-  // #1635 — en anställningsform är ett attribut hos tjänsten som arbetsgivaren
-  // sätter, inte en kvalifikation den sökande bär: annonsen ERBJUDER den. Egen
-  // ramfamilj i paritet med `ort.*`, aldrig den generiska ramens kompetens-verb.
-  const isEmploymentDim = dimensionKey === "employmentFit";
-  // The matched side's frame: occupation and employment type name their own axis, like
-  // `ort.*`; skills keep the generic "Du har".
-  const matchedFrame =
-    dimensionKey === "ssykOverlap"
-      ? isRelatedYrke
-        ? "ssyk.related"
-        : "ssyk.matched"
-      : isEmploymentDim
-        ? "employment.matched"
-        : "youHave";
-  const notAssessedText = isNotAssessed ? notAssessedReason(dimensionKey, t) : null;
-  // #1627 — `alsoRequested` syftar tillbaka på matched-spannet, som gatas på
-  // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
-  // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
-  // scorer-metoderna, och att grunda renderingen på det sammanfallet vore just
-  // härledningen ur (verdict, tomhet, dimension) som #1598/#1611 avvecklade.
-  const missingFrame = detail.matched.length > 0 ? "alsoRequested" : "requested";
+  const headingId = `${baseId}-${group.kind}`;
+  const listId = `${headingId}-list`;
+  const requirement = group.kind === "must" || group.kind === "nice";
+  const start = group.kind === "profileMissing" ? overflowStart(group.chips.length) : null;
+
+  const list = (
+    <ul id={listId} className={styles.chips} aria-label={t("skills.listLabel", { group: heading })}>
+      {group.chips.map((chip, index) => (
+        <li
+          key={chip.key}
+          className={styles.chip}
+          data-tone={chip.tone}
+          data-overflow={start !== null && index >= start ? "" : undefined}
+        >
+          <ChipIcon tone={chip.tone} />
+          {requirement ? (
+            // A requirement list mixes met and missing chips; the icon is decorative, so the
+            // status is spoken in words (WCAG 1.3.1).
+            <>
+              <span aria-hidden="true">{chip.label}</span>
+              <span className="sr-only">
+                {chip.tone === "met"
+                  ? t("skills.metItem", { label: chip.label })
+                  : t("skills.unmetItem", { label: chip.label })}
+              </span>
+            </>
+          ) : (
+            chip.label
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
-    <div className={`jp-modal__matchrow ${styles.row}`}>
-      <span className="jp-modal__matchrow-label">{label}</span>
-      <span
-        className="jp-modal__matchrow-verdict"
-        data-verdict={detail.verdict}
-      >
-        <span
-          className={
-            isNotAssessed
-              ? "jp-modal__matchrow-dot jp-modal__matchrow-dot--hollow"
-              : "jp-modal__matchrow-dot"
-          }
-          aria-hidden="true"
-        />
-        {word}
-      </span>
-      <div className="jp-modal__matchrow-evidence">
-        {reason !== null ? (
-          // Serverns skäl, i katalogens ord. Neutral ink: varken annonsens
-          // tystnad, ett distansjobb eller ett län som rymmer din kommun är
-          // användarens fel.
-          <span className="jp-modal__matchrow-missing">{reason}</span>
-        ) : isNotAssessed ? (
-          notAssessedText !== null && (
-            <span className="jp-modal__matchrow-missing">{notAssessedText}</span>
-          )
-        ) : useOrtGranularity ? (
-          <RegionFitEvidence ort={ort} t={t} />
-        ) : isConceptDim && hasRequirementItems ? (
-          <MatchConceptEvidence detail={detail} dimension={label} />
-        ) : isTitleDim ? (
-          <span>{titleSummary(detail.verdict, t)}</span>
-        ) : (
-          <>
-            {detail.matched.length > 0 && (
-              <span>
-                {t(matchedFrame, { items: detail.matched.join(", ") })}
-              </span>
-            )}
-            {detail.missing.length > 0 && (
-              <span className="jp-modal__matchrow-missing">
-                {t(isEmploymentDim ? "employment.missing" : missingFrame, {
-                  items: detail.missing.join(", "),
-                })}
-              </span>
-            )}
-          </>
-        )}
-        {unnamed !== null && (
-          // #1598 — annonsen citerar koncept som taxonomi-snapshoten tappat. De
-          // RÄKNAS, de namnges inte: id:t är det externa systemets vokabulär och
-          // klienten kan inte slå upp det heller. Additiv, inte en gren: en rad
-          // kan bära både namngivna och onämnbara poster samtidigt. Neutral ink
-          // — ett tappat registerord är inte användarens fel.
-          <span className="jp-modal__matchrow-missing">{unnamed}</span>
+    <div className={styles.group}>
+      <p id={headingId} className={styles.groupTitle}>
+        {heading}
+      </p>
+      {start !== null ? (
+        <MatchSkillOverflow
+          listId={listId}
+          describedById={headingId}
+          moreLabel={t("skills.showMore", { count: group.chips.length - start })}
+          lessLabel={t("skills.showLess")}
+        >
+          {list}
+        </MatchSkillOverflow>
+      ) : (
+        <div className={styles.flow}>{list}</div>
+      )}
+    </div>
+  );
+}
+
+function SkillsBox({ skills, t }: { skills: SkillChecklist; t: MatchTranslator }) {
+  const baseId = useId();
+  return (
+    <div className={styles.skills}>
+      <div className={styles.skillsHead}>
+        <p className={styles.skillsTitle}>{t("dimension.skillOverlap")}</p>
+        {skills.state === "assessed" && skills.counts !== null && (
+          <p className={styles.counter}>
+            {t("skills.count", {
+              matched: skills.counts.matched,
+              missing: skills.counts.missing,
+            })}
+          </p>
         )}
       </div>
+      {skills.state === "notAssessed" ? (
+        <Notice>{t("skillsFoot")}</Notice>
+      ) : (
+        <>
+          {skills.groups.map((group) => (
+            <SkillGroupBlock
+              key={group.kind}
+              group={group}
+              heading={groupHeading(
+                group.kind,
+                skills.groups.some((g) => g.kind === "must" || g.kind === "nice"),
+                t,
+              )}
+              baseId={baseId}
+              t={t}
+            />
+          ))}
+          {skills.requirementsNote !== null && (
+            <Notice>{t(`requirementsEmpty.${skills.requirementsNote}`)}</Notice>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 export interface JobAdMatchSectionProps {
   match: JobAdMatchDetail;
-  /**
-   * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län), härledd FE-side ur
-   * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
-   * generiska bevisformen (bakåtkompat).
-   */
+  /** conceptId → kommun/län from the taxonomy; omitted → Ort names keep the wire order. */
   ortGranularityByConceptId?: Record<string, OrtGranularity>;
 }
 
-export function JobAdMatchSection({
-  match,
-  ortGranularityByConceptId,
-}: JobAdMatchSectionProps) {
-  // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC
-  // (shared by the modal + full page as a serialized slot, with sync tests).
+export function JobAdMatchSection({ match, ortGranularityByConceptId }: JobAdMatchSectionProps) {
+  // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC (shared by the
+  // modal + full page as a serialized slot, with sync tests).
   const t = useTranslations("jobads.ui.match");
   const codedName = useCodedTaxonomyName();
+  const checklist = buildMatchChecklist(match, { codedName, ortGranularityByConceptId });
 
-  // Inloggad användare UTAN angivet yrke (yrket kan inte bedömas): visa EN
-  // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
-  // (design §2.E #2 — ingen string-drift mellan ytor).
-  // Skylten ersätter HELA sektionen och talar om ANVÄNDARENS inställningar, så
-  // den får bara tändas när det verkligen är de som saknas. Villkoras den någonsin
-  // hårdare får yrkesraden en nåbar `PreferenceUnstated`-gren igen, och `causeReason`
-  // behöver sin katalogfras tillbaka. Verdiktet räcker
-  // inte: `NotAssessed` betyder också "annonsen saknar yrkesgrupp", och då sa
-  // skylten åt en användare som angett sitt yrke att hon inte hade gjort det,
-  // med en länk till en inställning hon redan fyllt i.
-  const noStatedOccupation =
-    match.grade === null &&
-    match.ssykOverlap.cause === "PreferenceUnstated";
-
-  if (noStatedOccupation) {
+  if (checklist.kind === "noStatedOccupation") {
+    // The card's only link to the matching settings: stating an occupation is the one thing the
+    // reader can do here (#1963). The link soft-navigates and the `@modal` slot's null page closes
+    // the modal on the way.
     return (
-      <section className="jp-modal__matchsection" aria-label={t("heading")}>
-        <MatchSectionHeading t={t} />
-        <p className="m-0 text-body-sm text-text-primary">
-          {t("noStatedOccupation")}{" "}
-          <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
-            {t("settingsCta")}
-          </Link>
-        </p>
+      <section className={styles.section} aria-label={t("heading")}>
+        <div className={styles.head}>
+          <div className="jp-eyebrow">{t("heading")}</div>
+        </div>
+        <div className={styles.setup}>
+          <Info size={18} className={styles.noticeIcon} aria-hidden="true" />
+          <div className={styles.setupBody}>
+            <p className={styles.setupText}>{t("noStatedOccupation")}</p>
+            <Link href={MATCH_SETTINGS_HREF} className="jp-btn jp-btn--sm jp-btn--info-outline">
+              {t("settingsCtaNav")}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
       </section>
     );
   }
 
-  // `employmentFit` skickar koder, inte namn (#1537) — dess ord ägs av katalogen. Att namnge
-  // dem här behåller EN radrenderare för alla sju dimensioner i stället för en andra som
-  // skiljer sig bara i var dess strängar kom ifrån.
-  //
-  // `ssykOverlap`/`regionFit` bär register-poster (#1598) — namn plus det id namnet
-  // kom från. De delas i det som kan visas och det som bara kan räknas, av samma
-  // skäl: EN radrenderare för alla sju, i stället för en andra som skiljer sig bara
-  // i var dess strängar kom ifrån.
-  // Sju explicita nycklar, ingen spread: en åttonde dimension ska bli ett
-  // kompileringsfel här, inte tyst ärva fel radform.
-  const rows: Record<keyof Omit<JobAdMatchDetail, "grade">, MatchRowModel> = {
-    ssykOverlap: splitRegisterRow(match.ssykOverlap),
-    titleSimilarity: shown(match.titleSimilarity),
-    regionFit: splitRegisterRow(match.regionFit),
-    employmentFit: shown(
-      {
-        verdict: match.employmentFit.verdict,
-        matched: match.employmentFit.matchedConceptIds.map(codedName),
-        missing: match.employmentFit.missingConceptIds.map(codedName),
-      },
-      match.employmentFit.cause,
-    ),
-    skillOverlap: shown(match.skillOverlap),
-    mustHaveCoverage: shown(match.mustHaveCoverage),
-    niceToHaveCoverage: shown(match.niceToHaveCoverage),
-  };
-
-  const provenEmpty = (row: MatchSkillDimensionDetail) =>
-    row.verdict === "Vacuous" && row.matched.length === 0 && row.missing.length === 0 &&
-    (row.conceptEvidence == null ||
-      (row.conceptEvidence.matched.length === 0 && row.conceptEvidence.missing.length === 0));
-  const mustHaveEmpty = provenEmpty(match.mustHaveCoverage);
-  const niceToHaveEmpty = provenEmpty(match.niceToHaveCoverage);
-  const needsSkills = match.skillOverlap.verdict === "NotAssessed";
-
   return (
-    <section className="jp-modal__matchsection" aria-label={t("heading")}>
-      <MatchSectionHeading t={t}>
+    <section className={styles.section} aria-label={t("heading")}>
+      <div className={styles.head}>
+        <div className="jp-eyebrow">{t("heading")}</div>
         {match.grade !== null && <MatchChip grade={match.grade} />}
-      </MatchSectionHeading>
-      <div className="jp-modal__matchrows">
-        {DIMENSION_KEYS.filter((key) =>
-          !(key === "mustHaveCoverage" && mustHaveEmpty) &&
-          !(key === "niceToHaveCoverage" && niceToHaveEmpty),
-        ).map((key) => (
-          <MatchRow
-            key={key}
-            label={t(`dimension.${key}`)}
-            dimensionKey={key}
-            detail={rows[key]}
-            t={t}
-            // Granularitets-uppdelning bara för `regionFit`-raden (kommun vs län).
-            // Posterna kommer från `match.regionFit` och inte från radmodellen:
-            // klassningen sker på concept-id, som `splitRegisterRow` inte bär.
-            ort={
-              key === "regionFit" && ortGranularityByConceptId !== undefined
-                ? {
-                    concepts: match.regionFit,
-                    granularityByConceptId: ortGranularityByConceptId,
-                  }
-                : undefined
-            }
-            isRelatedYrke={key === "ssykOverlap" && match.grade === "Related"}
-          />
-        ))}
       </div>
-
-      {needsSkills && (
-        <p className="jp-modal__matchfoot">
-          {t("skillsFoot")}{" "}
-          <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">{t("settingsCta")}</Link>
-        </p>
+      {checklist.occupationSilent && (
+        <p className={styles.silent}>{t("matchCause.AdSilent.ssykOverlap")}</p>
       )}
-      {(mustHaveEmpty || niceToHaveEmpty) && (
-        <p className="jp-modal__matchfoot">
-          {t(mustHaveEmpty && niceToHaveEmpty ? "requirementsEmpty.both"
-            : mustHaveEmpty ? "requirementsEmpty.mustHave" : "requirementsEmpty.niceToHave")}
-        </p>
-      )}
+      <DimensionRows rows={checklist.rows} t={t} />
+      <SkillsBox skills={checklist.skills} t={t} />
     </section>
   );
 }

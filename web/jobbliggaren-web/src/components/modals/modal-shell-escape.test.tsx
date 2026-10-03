@@ -60,7 +60,7 @@ const shells: ShellCase[] = [
     name: "JobAdModalShell",
     render: (body) =>
       void render(
-        <JobAdModalShell title="Titel" company="Företag">
+        <JobAdModalShell title="Titel" company="Företag" meta={null}>
           {body}
         </JobAdModalShell>,
       ),

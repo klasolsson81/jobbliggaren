@@ -1,6 +1,9 @@
+import { useId } from "react";
 import { useTranslations } from "next-intl";
+import { Mail, Phone } from "lucide-react";
 import type { AdContactDto } from "@/lib/dto/job-ads";
 import styles from "./recruiter-contact-link.module.css";
+import cardStyles from "./recruiter-contact-card.module.css";
 
 /**
  * RecruiterContactBlock — #842 PR4. Pure presentational Server Component (no
@@ -59,15 +62,93 @@ function methods(contact: AdContactDto): ContactMethod[] {
 
 export interface RecruiterContactBlockProps {
   contacts: readonly AdContactDto[];
+  /**
+   * "list" (default): the application detail's form (#1957). "card": the job-ad detail's own
+   * contact card (#1963), with the same truth rule and method labels.
+   */
+  variant?: "list" | "card";
 }
 
-export function RecruiterContactBlock({ contacts }: RecruiterContactBlockProps) {
+type ContactTranslator = ReturnType<typeof useTranslations<"jobads.ui.contact">>;
+
+function ContactCard({
+  contacts,
+  titleId,
+  t,
+}: {
+  contacts: readonly AdContactDto[];
+  titleId: string;
+  t: ContactTranslator;
+}) {
+  return (
+    <section aria-labelledby={titleId} className={cardStyles.card}>
+      <span className={cardStyles.icon} aria-hidden="true">
+        <Mail size={18} />
+      </span>
+      <div className={cardStyles.body}>
+        <div className="jp-eyebrow" id={titleId}>
+          {t("title")}
+        </div>
+        <ul className={cardStyles.contacts}>
+          {contacts.map((contact, i) => {
+            const contactMethods = methods(contact);
+            return (
+              <li
+                key={`contact-${i}-${contact.email ?? contact.phone ?? contact.name ?? "derived"}`}
+                className={cardStyles.contact}
+              >
+                {contact.name && <span className={cardStyles.name}>{contact.name}</span>}
+                {contact.role && <span className={cardStyles.role}>{contact.role}</span>}
+                {(contactMethods.length > 0 || contact.isDerived) && (
+                  <div className={cardStyles.methods}>
+                    {contactMethods.map((method) => (
+                      <a
+                        key={method.kind}
+                        href={method.href}
+                        className={`${styles.link} ${cardStyles.method}`}
+                      >
+                        {method.kind === "email" ? (
+                          <Mail size={14} className={cardStyles.methodIcon} aria-hidden="true" />
+                        ) : (
+                          <Phone size={14} className={cardStyles.methodIcon} aria-hidden="true" />
+                        )}
+                        <span className="sr-only">
+                          {method.kind === "email" ? t("email") : t("phone")}
+                          {":"}
+                        </span>{" "}
+                        {method.value}
+                      </a>
+                    ))}
+                    {contact.isDerived && (
+                      <span className="jp-tag jp-tag--neutral" data-tag="derived">
+                        {t("derived")}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+export function RecruiterContactBlock({ contacts, variant = "list" }: RecruiterContactBlockProps) {
   // Synchronous next-intl translator — keeps this a non-async RSC (shared by the
   // full page, the @modal serialized slot and the application detail, with sync
   // tests), parity with JobAdMatchSection / JobTags.
   const t = useTranslations("jobads.ui.contact");
+  // The card's label needs its own id: the job-ad page and the application modal over it can
+  // both be in the document, each with a contact region.
+  const titleId = useId();
 
   if (contacts.length === 0) return null;
+
+  if (variant === "card") {
+    return <ContactCard contacts={contacts} titleId={titleId} t={t} />;
+  }
 
   return (
     <section aria-labelledby="jp-recruiter-contacts-title">

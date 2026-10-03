@@ -60,6 +60,9 @@ with a legitimate seam whose SQL was identical.
 
 **Why the Comments block exists:** comment mass is what turned review into rounds.
 
+**Why the gradient exceptions are a pointer:** a third scoped exception (the job-ad excerpt fade, #1963,
+2026-10-03) arrived while AGENTS.md sat at its ADR 0135 byte bound, so DESIGN.md §3 became the one list.
+
 ## §6
 
 **How `is-pure-base-merge.sh` decides:** it compares the pushed tree against the tree an

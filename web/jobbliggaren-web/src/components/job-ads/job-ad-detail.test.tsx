@@ -41,21 +41,49 @@ describe("JobAdDetail", () => {
     expect(screen.queryByText(baseAd.id)).not.toBeInTheDocument();
   });
 
-  it("an archived ad leads its meta line with the pill 'Arkiverad'", () => {
-    const { container } = render(
-      <JobAdDetail jobAd={{ ...baseAd, status: "Archived" }} headless />
-    );
-    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
+  it("an archived ad leads the header's date line with the pill 'Arkiverad' (#1963)", () => {
+    const { container } = render(<JobAdDetail jobAd={{ ...baseAd, status: "Archived" }} />);
+    const meta = container.querySelector(".jp-modal__head .jp-modal__meta");
     expect(meta?.firstElementChild).toHaveTextContent("Arkiverad");
     expect(meta?.firstElementChild).toHaveClass("jp-pill", "jp-pill--neutral");
   });
 
-  it("renders the dates in the card's meta form", () => {
+  it("puts the dates in the header, the deadline before the publishing date (#1963)", () => {
     const { container } = render(<JobAdDetail jobAd={baseAd} />);
-    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
-    expect(meta).toHaveTextContent(/Publicerad/);
-    expect(meta).toHaveTextContent(/Sista ansökningsdag/);
+    const meta = container.querySelector(".jp-modal__head .jp-modal__meta");
+    expect(meta).toHaveTextContent(/Sista ansökningsdag \d+ .+ 2026\s*Publicerad \d+ .+ 2026/);
+    expect(container.querySelector(".jp-modal__body .jp-modal__meta")).toBeNull();
     expect(container.querySelector(".jp-modal__metarow")).toBeNull();
+  });
+
+  it("leaves the dates to the modal shell when headless", () => {
+    const { container } = render(<JobAdDetail jobAd={baseAd} headless />);
+    expect(container.querySelector(".jp-modal__meta")).toBeNull();
+  });
+
+  it("orders the footer Spara, Bevaka, then Markera som ansökt and the one primary, with no applied footnote", () => {
+    render(
+      <JobAdDetail
+        jobAd={baseAd}
+        initialSaved={false}
+        initialApplied={false}
+        followState={{ companyWatchId: null, followable: true }}
+      />,
+    );
+    const names = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent?.trim())
+      .concat(screen.getByRole("link", { name: /Öppna annonsen/ }).textContent?.trim());
+    expect(names).toEqual(["Spara", "Bevaka företaget", "Markera som ansökt", "Öppna annonsen"]);
+    expect(screen.getByRole("link", { name: /Öppna annonsen/ })).toHaveClass("jp-btn--primary");
+    expect(screen.queryByText(/Se ansökan i/)).not.toBeInTheDocument();
+  });
+
+  it("shows an applied ad as a status with a way to the application, not as a control (#1863, #1855)", () => {
+    render(<JobAdDetail jobAd={baseAd} initialSaved={false} initialApplied={true} />);
+    expect(screen.queryByRole("button", { name: /ansökt/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Ansökt")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Visa ansökan" })).toHaveAttribute("href", "/ansokningar");
   });
 
   it("the ad text is a region named by its heading (#1828 B3)", () => {

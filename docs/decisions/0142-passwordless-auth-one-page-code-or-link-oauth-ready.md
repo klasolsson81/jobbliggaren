@@ -691,7 +691,7 @@ constructor, in Amendment 2026-09-25 (14))* — "provider asserts verified" is c
 the **type**, so no caller can read the string and forget the bool. Every adapter parses the
 verified claim **fail-closed** (LinkedIn returns `email_verified` as a string in some responses;
 missing or unparsable = not verified) *(corrected in Amendment 2026-09-28 (20): LinkedIn's flag counts only as the
-JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)*. Linking to an existing account by email
+JSON `true`, and a string is refused under a cause of its own, `FlagIsString`)* *(answered in Amendment 2026-10-03 (22): at each of the four LinkedIn logins read back at 2026-10-02T22:11:57Z userinfo carried `email_verified` as the JSON `true`, with 0 × EventId 1023, so no string form has been seen and (20)'s follow-up does not arise)*. Linking to an existing account by email
 happens ONLY on a `VerifiedEmail`, else refuse. PKCE `S256` only *(corrected in Amendment 2026-09-28 (20): PKCE S256
 where the provider supports it; LinkedIn binds the code by an OIDC nonce)* *(corrected in Amendment 2026-09-29 (21): LinkedIn echoes no nonce, measured on the box 2026-09-29, so neither PKCE nor a nonce binds its code, and code injection is a declared residual)*. `redirect_uri` is **not** a parameter — the adapter
 builds it from `EmailOptions.BaseUrl`, the one home of the public base URL (CTO bind 3; no
@@ -1042,7 +1042,7 @@ presupposes an id already stolen, which the overwrite does not create.
   their tests (#1295) for a gain near zero. **Lapse:** if the master key leaves the worker or migrate-rewrap, or the
   api gets a mount of its own for another reason, the Google secret moves with it.
 - **m-8.** A separate Google client for localhost, so the box's secret never sits on a developer machine. It is a
-  console action outside the repo; the activation runbook recommends it.
+  console action outside the repo; the activation runbook recommends it. *(corrected in Amendment 2026-10-03 (22): measured 2026-10-02 not to hold, since the box's Google client is the developer machine's; Klas decided on 2026-10-03 that the box shares it)*
 - **`+` aliases.** Both accounts on the box are `+` aliases, and Google returns the primary address without a tag. A
   Google login therefore answers `registrationClosed` until an account's address is changed to the Google account's.
   That fires no trigger.
@@ -1217,7 +1217,7 @@ table change for a live provider.
   - The box ran images of `40b73f81` with its git at `066a7fbf`. The deploy trees are identical.
   - Chapter V was read that day. The volatile ACL was re-published from Klas's escrow, with the same seven values and a
     matching hash for each. `ACL DRYRUN` passes both selectors, and the control `GET` is refused.
-  - The Google client is a separate one for the box.
+  - The Google client is a separate one for the box. *(corrected in Amendment 2026-10-03 (22): this was Klas's answer of 2026-09-26, not a hash reading. Measured 2026-10-02, the box's Google client id and secret equal the developer machine's, and the client accepts the localhost callback; whether the sentence held that day is not known)*
   - `Auth__RegistrationsOpen` `false`; 2 accounts, 0 created after 2026-09-21, both the controller's;
     `AspNetUserLogins` 0; providers `200 ["google"]`.
   - The web start answers 302 to Google's authorize endpoint with the box's callback, `openid email`, S256 and no
@@ -1306,7 +1306,7 @@ gets a mount of its own for another reason, both secrets move with it.
 Amendment 2026-09-28 (20), `security-auditor` Minor 3: the box shares the local development client, by Klas's
 acceptance of 2026-09-27, "varför kan jag inte använda samma nyckel som i appsettings ? Jag accepterar risken";
 Amendment (19) records the hash reading)*; its callback
-URL is exactly the box's `/api/auth/oauth/github/callback`, and any wildcard or subdirectory matching is off. Klas
+URL is exactly the box's `/api/auth/oauth/github/callback`, and any wildcard or subdirectory matching is off. *(corrected in Amendment 2026-10-03 (22): the app lists three redirect URIs, localhost's, dev's and the apex's, not the box's alone, and GitHub sends every refusal to the first by order of entry; (22) holds the order and the wildcard readings)* Klas
 sets these in GitHub's console at activation, and §3d's reading records them.
 
 **The start path's flood, with GitHub's grants** (`dotnet-architect` N4c).
@@ -2112,6 +2112,269 @@ running containers). Counts only.
 
 **Lapse triggers, read for this PR.** Trigger 4 fires at this merge, as `security-auditor`'s text above reads it. 1–3
 and 5–7 are untouched.
+
+#### Amendment 2026-10-03 (22) (#1926, epic #1732) — Google and GitHub ask for the account and the permission at every login; LinkedIn cannot be asked; GitHub's Cancel goes to its first redirect URI
+
+*#1926, by Klas's directive of 2026-09-29. Decided before code in one form round: `security-auditor` and
+`dotnet-architect`, routed by `senior-cto-advisor` (`docs/reviews/2026-10-03-1926-form-{security-auditor,dotnet-architect,cto}.md`).
+D8's string-form sentence, Amendment (15)'s m-8, Amendment (16)'s Google-client sentence and Amendment (17)'s "The
+box's OAuth App" are marked in place; this block records why. `security-auditor`'s text below joins her form report
+and her follow-up batch after Klas's answers (`docs/reviews/2026-10-03-1926-form-security-auditor-batch2.md`, which
+supersedes the first hand-back in `…-batch.md`).*
+
+**Klas's words, verbatim.**
+- #1926, 2026-09-29, after logging in with Google and GitHub on dev.jobbliggaren.se:
+  - *"Google loggar in, utryckligen på ett klick. Med ett klick menar jag såklart inte ett klick, den måste ju fråga
+    vilket google konto osv, som vanligt. Så det blir mer 2-3 klick. GitHub frågar..."*
+  - *"Dock, om jag trycker på cancel, så kommer jag till en localhost callback. Alla 3 nycklarna har 3 st call back
+    känkar, en för localhost, en för dev.jobbliggaren.se och en för jobbliggaren.se"*
+  - *"stopp. den skall fråga om tillåtelse, det är google som gör fel"*
+  - *"t ex, 2 st använder samma dator, med olika google eposter, då går det inte välja vem som loggar in"*
+
+  So "one click" in Amendments (18) and (20) means no code step, never no questions. Their headings stand.
+- 2026-10-03, after he had moved the apex first in the GitHub app: *"jag har lagt jobbliggaren.se överst och hamnade
+  här:"* followed by the landing's URL (its keys are in `security-auditor`'s text below; no value of `state` is
+  recorded), and then *"avbryt landade på jobbliggaren.se eftersom den är överst, inte dev"*.
+- His answers to `security-auditor`'s three questions, each relayed to him verbatim (AskUserQuestion, 2026-10-03), are
+  recorded in her text below with the question and the text of the option he chose. He chose those texts; they are
+  not words he wrote.
+
+**6c's re-activation reading, transcribed** (#1732 comment 5962295677, 2026-10-02, in substance; Amendment (21)'s "(e)
+… at the first login after the rollout"). Counts only.
+- PR #1929 merged as `9171326f` at 2026-09-29T17:44:04Z on Klas's GO, after the merge-day (e) reading (PR comment
+  5894059638). The keys had stayed on the box by his decision of 2026-09-29, so the merge was the re-activation.
+- At 2026-10-02T22:08:12Z the api ran `sha-5307e37` (#1930): its RepoDigest `727a8bc7…` equals that tag's, and the
+  reconcile had recreated it at 16:48:29Z. `5307e37` descends from `9171326f`, and the LinkedIn adapter is unchanged
+  between them.
+- Before the login (22:08:12–22:08:55Z):
+  - registration `false`; 2 `Auth__OAuth__LinkedIn__` variables; providers `200 ["google","linkedin","github"]`;
+  - 2 accounts, both the controller's by the two hashes of 2026-09-29, none created after 2026-09-29T16:10:11Z;
+  - `AspNetUserLogins` `github:1,google:1`, and no `User.*` or `Account.*` event since then;
+  - 0 rows on privacy version `2026-09-29`, and 0 accounts in their restore window;
+  - the web start: a 302 to LinkedIn's authorization endpoint with exactly `client_id`, `redirect_uri`,
+    `response_type`, `scope` and `state`; `scope=openid email`, the box's callback and a 43-character state; no
+    `nonce` and no `code_challenge`; the client id equal to the api's configuration (sha256); the flow cookie
+    `__Host-jobbliggaren_oauth` with `Path=/; Max-Age=600; Secure; HttpOnly; SameSite=lax`.
+- The login: Klas signed in with LinkedIn into his existing account at about 22:09Z, then logged out and in with
+  LinkedIn again.
+- Read back at 22:11:57Z:
+  - `AspNetUserLogins` `github:1,google:1,linkedin:1`; the `linkedin` row's `provider_display_name` NULL and its
+    account the controller's;
+  - exactly one `User.ExternalLoginLinked`, at 22:09:57Z, with payload `{"provider": "linkedin"}`;
+  - since the api's recreate, 4 × `login_succeeded … Method=LinkedIn`, 0 × EventId 1022 and 0 × 1023;
+  - 2 accounts, 0 created, both the controller's.
+- By the adapter's fixed order, the login measured that LinkedIn's token response carried an id_token for our client
+  alone with a usable `sub`, and that userinfo answered for the same `sub` with `email` under `openid email` and
+  `email_verified` as the JSON `true`. So the scope needs no `profile`, and `senior-cto-advisor`'s second branch
+  (`openid profile email`) does not apply.
+- Klas did not state the browser, so Amendment (15)'s Apple-WebKit residual stays open. The repeat login asked for
+  neither the account nor permission (#1926, comment 5962296021).
+
+**What else the providers document, read 2026-10-02 and 2026-10-03** (CLAUDE.md §9.5), beyond the quotes in
+`security-auditor`'s text below:
+- OIDC Core 1.0 §3.1.2.1 defines `prompt` (`none`, `login`, `consent`, `select_account`), and §15.1 lists it among
+  the features every OpenID Provider must implement. LinkedIn already fails the same standard's nonce rule (Amendment
+  (21)), so §15.1 predicts nothing about LinkedIn.
+- LinkedIn's discovery document (www.linkedin.com/oauth/.well-known/openid-configuration) carries no
+  `prompt_values_supported` and no key naming `prompt` or `max_age`. "Sign In with LinkedIn using OpenID Connect"
+  (updated 2024-08-08) says nothing of a prompt, a permission page or account choice. No app-side revocation endpoint
+  is documented on learn.microsoft.com.
+- GitHub, "Creating an OAuth app": *"You can enter up to 10 callback URLs."* It says nothing of their order.
+
+**Measured, beyond `security-auditor`'s text below.** Read-only. Client ids and secrets were compared by sha256
+prefix and never printed.
+- **The box, 2026-10-02T22:54:48Z:**
+  - git `ffeeec9`; api, web and worker `sha-aedfb7e`;
+  - registration `false`; providers `200 ["google","linkedin","github"]`;
+  - 2 accounts, both the controller's; `AspNetUserLogins` `github:1,google:1,linkedin:1`;
+  - 0 × EventId 1022, 1023 and 1028 since the api's recreate at 22:48:17Z;
+  - the web start's keys: Google's seven and GitHub's six, neither with `prompt`, and LinkedIn's five; each client id
+    equal to the api's configuration.
+- **GitHub, anonymously:** an authorization request with the shared client answers a 302 to `github.com/login` for
+  every redirect tried (the box's callback, a subdirectory of it, localhost, the apex, a foreign host, and none).
+  GitHub reads `redirect_uri` only after sign-in, so its registered set and its first URI are read from the app page
+  and by a Cancel, never anonymously.
+- **LinkedIn's sign-in Cancel**, for an anonymous flow started on the box's callback (2026-10-02T22:58:11Z):
+  `/oauth/v2/login-cancel` answers a page that names the box's callback and `user_cancelled`, that is, the request's
+  `redirect_uri`.
+
+**The form** (`dotnet-architect`, binding; `docs/reviews/2026-10-03-1926-form-dotnet-architect.md` R1–R4).
+- Each adapter carries its own `internal const string Prompt` beside `Scope`, sent directly after `scope`: Google
+  `select_account consent`, GitHub `select_account`.
+  - Nothing is shared, since each value carries only its own provider's documented meaning.
+  - It is neither a port parameter nor an `IOptions` value: like the scope and the endpoints, it is a protocol
+    constant. A setting would let one environment stop asking.
+  - The space travels as `%20`, as the scope's already does.
+- The exact-key pins carry `prompt` and assert its literal value, never the constant; GitHub's pin drops its "no
+  prompt" clause. LinkedIn's five-key pins stay as the guard. The web start test's GitHub mirror and one e2e line
+  follow.
+- Nothing else changes: the port, the handlers, the api, the web start, and the callback, whose `error` branch answers
+  every provider's refusal the same way.
+
+**`security-auditor`, 2026-10-03: the account and the permission at the provider, and where a Cancel lands.**
+Nothing below re-grades a finding, and none of it is a §9.6 (3) acceptance
+(`docs/reviews/2026-10-03-1926-form-security-auditor.md`).
+
+**`prompt` governs our own requests, and only them.**
+- Google's authorization request carries `prompt=select_account consent` and GitHub's `prompt=select_account`, each
+  a constant in its adapter. Google documents `prompt` as "A space-delimited, case-sensitive list of prompts to
+  present the user", of which `none` "Must not be specified with other values", and its absence as prompting "only
+  the first time your project requests access" ("Using OAuth 2.0 for Web Server Applications", read 2026-10-03).
+  GitHub documents `select_account` as forcing "the account picker to appear" ("Authorizing OAuth apps", read
+  2026-10-03; the page carries no date).
+- Neither value is personal data. Neither changes the scope, an endpoint or what the callback reads. `access_type`
+  stays absent, so Google's documented default, `online`, holds and no refresh token is issued.
+- `prompt` is a parameter of a request, not a setting of the client. A request that someone else builds for our
+  client carries whatever parameters its builder chose, or none. So `prompt` closes no residual and moves no bound:
+  - LinkedIn: (21)'s sentence stands as written. A member who has granted the app before is sent on without a
+    consent screen, so a crafted request mints a code for a signed-in member without prompting.
+  - Google: the same shape. For a request without `prompt`, an account that has consented to our client is not
+    prompted again, as Google documents it. Declared, not measured.
+  - GitHub: a crafted request still needs a click on GitHub's authorization page. The revocation gives that, by
+    leaving no authorization for GitHub to skip; `prompt` does not. A failed revocation (EventId 1028) leaves one,
+    so 1028 stays in every reading.
+  - What keeps such a code out of other hands is unchanged: the provider's redirect matching, the callback's
+    `no-referrer` and zero subresources, and no log line that carries a code.
+- What it buys is for the requests our start builds. At Google and GitHub, a person at a shared computer sees which
+  account is about to be used before any session exists, instead of being signed silently into the account whose
+  provider session is still open in that browser (Art. 25(1), 32(1)(b)). A measure, not a closed finding.
+- A provider's permission page is the provider's authorization of our client, not consent to our processing. The
+  login's legal basis stays Art. 6(1)(b), as the privacy policy states it.
+
+**LinkedIn has no documented lever and honoured no undocumented one, so its behaviour is recorded as LinkedIn's
+limitation.**
+- Klas's answer, put through AskUserQuestion on 2026-10-03 ("Hur ska LinkedIn-inloggningen fungera för den som har
+  loggat in förut?"): **"(b) Prova först (rekommenderas)"**, whose text was "Du öppnar sessionens fyra länkar, en
+  utan inställning och en för varje kandidat. Visar LinkedIn en sida för någon av dem byggs just den, och den tas
+  bort igen om LinkedIn senare slutar visa sidan. Visar LinkedIn ingen sida gäller (a), utan att du behöver svara
+  igen." Option (a), which therefore applies, was "(a) Som i dag", whose text was "LinkedIn frågar bara första
+  gången. Sitter två personer vid samma dator loggas den som klickar på LinkedIn in direkt i kontot för den som
+  fortfarande är inloggad på LinkedIn i den webbläsaren, utan någon sida emellan, och ser det kontots cv och
+  ansökningar. Den som vill använda ett annat LinkedIn-konto loggar först ut från LinkedIn. Det skrivs in som en
+  begränsning hos LinkedIn."
+- LinkedIn's authorization request takes five parameters and no `prompt`, and a member with an existing grant is
+  sent on without a screen ("3-Legged OAuth Flow", updated 2026-05-15, read 2026-10-03). Measured 2026-10-02: a
+  repeat login on the box asked for neither the account nor permission (#1926, comment 5962296021).
+- **The probe, 2026-10-03** (#1926, comment 5965185247). Klas, in Brave and signed in to LinkedIn, where the app was
+  granted on 2026-10-02, opened four authorization URLs the session built by hand: our client, the box's callback,
+  `response_type=code`, `scope=openid email` and a fresh random 43-character state that no flow held. The control,
+  without `prompt`, came first, then `prompt=login`, `prompt=consent` and `prompt=select_account`. None of the four
+  showed a LinkedIn page, and each landed on dev's `/logga-in` with "Inloggningen med LinkedIn slutfördes inte". So
+  the control is valid and no value was honoured. RFC 6749 §3.1 has an unrecognised parameter ignored, so the probe
+  could only show a page or not.
+- **Read back on the box** at 2026-10-03T03:33:15Z, over the api's log from its recreate at 2026-10-02T23:48:42Z
+  (onto `sha-0d1b94a`), which the earlier container's lines do not reach. The sitting followed his renewed request
+  for the links at 03:28Z; the web keeps no request log, so its own time is not on the server.
+  - 0 × EventId 1021: no probe reached the api, where a state that names no flow can only be answered with 1021.
+  - 0 × 1022 and 0 × 1023; no `User.*` or `Account.*` event; `AspNetUserLogins` unchanged at
+    `github:1,google:1,linkedin:1`.
+  - One `login_succeeded … Method=LinkedIn`, at 03:30:41Z, was Klas's own login with the button (his
+    confirmation, 2026-10-03). A probe cannot produce one, since its state names no flow.
+- Declared, not measured: at a shared computer, a person who chooses LinkedIn is signed into the account of whoever
+  is still signed in to LinkedIn in that browser, with no page in between, and sees that account's CVs and
+  applications. Choosing another LinkedIn account means signing out of LinkedIn first. It reaches someone other than
+  the controller at trigger 1 or 2.
+- The question returns if LinkedIn documents a parameter that asks again. **Home:** this amendment. **Reader:** Klas
+  Olsson. Nothing detects it automatically.
+
+**GitHub sends a refusal to its app's first redirect URI by order of entry, not to the request's.**
+- GitHub documents a refused authorization as redirecting "to the registered callback URL" with `error`,
+  `error_description`, `error_uri` and `state` ("Troubleshooting authorization request errors", read 2026-10-03),
+  and a request without `redirect_uri` as going to "the first callback URL configured in the OAuth app settings"
+  ("Authorizing OAuth apps"). RFC 6749 §4.1.2.1 and OIDC Core §3.1.2.6 return a refusal to the request's own
+  redirect URI, and Google and LinkedIn document that form.
+- The app the box shares with localhost (m-4) listed three redirect URIs, each ending in
+  `/api/auth/oauth/github/callback`: `http://localhost:3000`, `https://dev.jobbliggaren.se` and
+  `https://jobbliggaren.se`, in that order. "Allow wildcard matching" was unchecked on all three, and "Enable Device
+  Flow" was unchecked (Klas's screenshot of the app page, 2026-10-03, kept local). #1732 holds no earlier reading of
+  the wildcard setting. The one measured Cancel, on dev on 2026-09-29, landed on the first of them. That order was
+  also the alphabetical one, so the page could not show whether GitHub's first follows the order of entry; a Cancel
+  measures it.
+- The first redirect URI is where every refusal lands, from every host, and where GitHub sends a code for a request
+  that names no redirect. `security-auditor` asked for a host this box serves.
+- Klas's answer, put through AskUserQuestion on 2026-10-03 ("Hur ska GitHub-appen se ut fram till lanseringen?"):
+  **"(d) jobbliggaren.se först nu"**, whose text was "Avbryt på dev hamnar på en adress som inte svarar förrän
+  jobbliggaren.se pekar på servern, och fram till dess skickar GitHub en kod utan adress till en server vi inte
+  kör." He removed the localhost and dev redirect URIs and added them again, so the apex has been on the app
+  longest. A Cancel on GitHub's authorization page, in a login started on dev on 2026-10-03, then landed on
+  `https://jobbliggaren.se/api/auth/oauth/github/callback` with the query keys `error` (`access_denied`),
+  `error_description`, `error_uri`, `iss` and `state`, no other value recorded. GitHub's first is therefore the
+  first by order of entry. Read from the app page after the change, 2026-10-03: "Allow wildcard matching" unchecked on
+  all three.
+- **What (d) leaves until the apex is the box,** declared, not measured. The apex is not the box. It completed no
+  TLS handshake over IPv4 on 2026-10-02T23:04:44Z, and none over IPv6 on 2026-10-03.
+  - A GitHub Cancel on dev or on localhost lands on a host that does not answer. #1926's Cancel criterion is
+    therefore read for GitHub on the production host (#734 row 12), not on dev.
+  - Every GitHub refusal carries its flow's `state` to that host, and the flow cookie stays set in that browser for
+    up to ten minutes, since our callback never ran. A request that names no redirect sends a code there, after a
+    click.
+  - Both are inert while no TLS handshake completes there: a browser sends no request line, and so no query, over a
+    handshake that fails.
+  - **Lapse:** the apex completes a TLS handshake while it is not this box. The apex then stops being the app's
+    first redirect URI that day (Klas, in the app's settings), and `security-auditor` reads Minor 1 (2026-09-29,
+    extended below) again. **Home:** this amendment. **Reader:** Klas Olsson. Nothing detects it automatically.
+- GitHub's page says wildcard matching "allows tokens to be sent to all subdomains and additional paths of the
+  redirect URI", and its documentation that "Apps that had a single callback URL enabled prior to August 3, 2026
+  have wildcard matching enabled for that callback URL". §3d point 4 keeps it off on every redirect URI, read on
+  the day, and reads a redirect URI added again as a new one.
+- At the flip: #734 row 12 reads it on the production host.
+
+**The Google client the box uses is the developer machine's: m-8 (2026-09-25, Minor) does not hold.**
+- Measured 2026-10-02 by the session, compared by sha256 prefix and never printed: the box's Google client id and
+  secret equal those under `Auth:OAuth:Google` in the main copy's `appsettings.Local.json`. Probed from the box, the
+  client accepts the localhost and the apex callbacks besides the box's, and refuses an unregistered control.
+- Amendment (16)'s "The Google client is a separate one for the box" rested on Klas's answer of 2026-09-26 (#1732,
+  comment 5849039714), not on a hash reading. Whether it held that day is not known.
+- Klas's answer, put through AskUserQuestion on 2026-10-03 ("Ska servern dela Google-nyckel med din dator?"):
+  **"(a) Ja, som GitHub och LinkedIn"**, whose text was "Jag accepterar risken. Kommer någon åt din
+  appsettings.Local.json får hen också serverns Google-hemlighet, och byter du den lokala hemligheten byts serverns
+  också. Det gäller också riktiga användares inloggningar efter lanseringen, om du inte ändrar det då. Dokumenten
+  skrivs om med dina ord." The box shares the Google client with the developer machine, as it shares GitHub's and
+  LinkedIn's (m-4); that covers real users' logins after the flip unless it is changed then. If the local secret is
+  rotated, the box's secret file is replaced too. m-8 stands as graded, and the decision is Klas's.
+
+**The apex redirect.** All three clients the box uses register the apex's callback (Google and LinkedIn by probe on
+2026-10-02, GitHub from the app page on 2026-10-03), and the box does not serve the apex. At Google and LinkedIn a
+crafted request can send a code there with no click, at GitHub after one, and under Klas's (d) above every GitHub
+refusal goes there too. It is inert while the apex completes no TLS handshake (above). `security-auditor`'s Minor 1
+(2026-09-29, LinkedIn) extends by name to Google and GitHub and stands as graded: remove the apex redirect from each
+client until the apex is the box. For GitHub, Klas's (d) keeps the apex as the first redirect URI instead. For Google
+and LinkedIn the recommendation was put to him on 2026-10-03 as information, with no decision asked. Klas's portal
+settings.
+
+**Lapse triggers, read for this PR: none fires.**
+- 4: no provider joins or leaves, and neither the `VerifiedEmail` rule, the address invariant nor the outcome table
+  changes. `prompt` changes which provider pages a flow passes, not who can obtain a session.
+- F10's re-measure triggers: the callback's response form, the three cookies' SameSite and prefixes and the
+  continuation hop are unchanged, and no commit has touched the callback route, the continuation document or the
+  cookie and flow helpers since PR P (`cb9f00bb`). The Safari reading stays owed; a successful login in Safari after
+  this PR deploys takes it.
+- 1–3 and 5–7: untouched. Registration is closed and both accounts are the controller's (read
+  2026-10-02T22:54–22:58Z).
+- Chapter V: no scope, endpoint or stored token changes, so Google's (4), GitHub's (4)–(5) and LinkedIn's (3)–(4)
+  do not fire. (21)'s binding trigger has not fired either.
+
+**The findings stand as graded.** M-1 (GitHub), M-1 (LinkedIn), Major 2 (GitHub), Major 2 (LinkedIn) and Major 4
+stand unsigned, and no acceptance exists. This PR touches none of them: no line they cite moves, no provider or path
+joins, and no outcome changes. It therefore rides `agents-done` on `security-auditor`'s verdict against the final
+diff, not #1888's §12 STOPP shape.
+
+**(21)'s reading at the first login after the rollout is discharged** by #1732's comment of 2026-10-02, transcribed
+above. The api ran `sha-5307e37`, not the merge's tag, and the reading is still one of the merged code: `git diff
+9171326f 5307e37` over the three adapters, the Application port and the web start and callback routes is empty, as
+it is from there to `0d1b94ae3` (`security-auditor`, 2026-10-03). The start carried exactly the five keys, and the
+login measured `email_verified` as the JSON `true`, and `sub` and `email` under `openid email`. The Apple-WebKit
+residual stays open, since no browser was stated.
+
+**DoD 8.** No new personal data. `prompt` carries none, and the scopes, the endpoints, what is received and what is
+stored are unchanged. Google may echo `prompt` and `authuser` on the callback; both are judged "kept" in the
+edge-log inventory, and the callback reads neither. No new log line, recipient, source or transfer, and Chapter V
+is unchanged. The privacy and cookie policies describe no provider page, so neither changes. The register does not
+change.
+
+*(End of `security-auditor`'s text.)*
+
+**Lapse triggers, read for this PR.** None fires, as `security-auditor`'s text above reads it.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -3301,7 +3564,7 @@ readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in t
 2026-09-27 (19)) and a follow-up: PR P #1904 the login page per his notes and a quiet continuation hop · PR L #1919
 LinkedIn in one click, by Klas's decision, with a deleted account's links erased at the request for every provider
 (Amendment 2026-09-28 (20)) · the follow-up #1929: LinkedIn echoes no nonce, so the check and its parameter are deleted
-(Amendment 2026-09-29 (21)) →
+(Amendment 2026-09-29 (21)) · #1926: Google and GitHub ask for the account and permission at every login, LinkedIn cannot be asked, and GitHub's Cancel goes to its first redirect URI (Amendment 2026-10-03 (22)) →
 **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

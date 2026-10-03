@@ -66,12 +66,14 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         url.GetLeftPart(UriPartial.Path).ShouldBe("https://accounts.google.com/o/oauth2/v2/auth");
         query.AllKeys.Order(StringComparer.Ordinal).ShouldBe(
         [
-            "client_id", "code_challenge", "code_challenge_method", "redirect_uri", "response_type", "scope", "state",
+            "client_id", "code_challenge", "code_challenge_method", "prompt", "redirect_uri", "response_type", "scope",
+            "state",
         ]);
         query["client_id"].ShouldBe(ClientId);
         query["redirect_uri"].ShouldBe(RedirectUri);
         query["response_type"].ShouldBe("code");
         query["scope"].ShouldBe("openid email");
+        query["prompt"].ShouldBe("select_account consent");
         query["state"].ShouldBe(state.Reveal());
         query["code_challenge"].ShouldBe(challenge.Value);
         query["code_challenge_method"].ShouldBe("S256");

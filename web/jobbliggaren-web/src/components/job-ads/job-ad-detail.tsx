@@ -13,6 +13,7 @@ import { FollowCompanyToggle } from "@/components/company-follows/follow-company
 import { JobAdMatchSection } from "./job-ad-match-section";
 import { RecruiterContactBlock } from "./recruiter-contact-block";
 import { formatAdDescription } from "./format-ad-description";
+import contactLinkStyles from "./recruiter-contact-link.module.css";
 
 /**
  * JobAdDetail — ren presentational Server Component (ingen "use client",
@@ -203,7 +204,7 @@ export function JobAdDetail({
             reachable from the ad detail, with or without contacts (ADR 0144 D4 row 10).
             A sibling after the block, never inside it: the block renders nothing for []. */}
         <p className="jp-recruiter-notice">
-          <Link href="/kontaktperson-i-annons">
+          <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
             {tUi("detail.recruiterNoticeLink")}
           </Link>
         </p>

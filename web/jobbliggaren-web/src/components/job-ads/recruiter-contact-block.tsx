@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { AdContactDto } from "@/lib/dto/job-ads";
+import styles from "./recruiter-contact-link.module.css";
 
 /**
  * RecruiterContactBlock — #842 PR4. Pure presentational Server Component (no
@@ -100,7 +101,7 @@ export function RecruiterContactBlock({ contacts }: RecruiterContactBlockProps) 
                   ) : leadMethod ? (
                     <a
                       href={leadMethod.href}
-                      className="text-body font-semibold underline underline-offset-2"
+                      className={`${styles.link} text-body font-semibold underline underline-offset-2`}
                     >
                       {/* The lead is the only method without a visible kind
                           label (the value IS the headline, R1(b)); the sr-only
@@ -139,7 +140,7 @@ export function RecruiterContactBlock({ contacts }: RecruiterContactBlockProps) 
                       <dd className="text-body-sm">
                         <a
                           href={method.href}
-                          className="underline underline-offset-2"
+                          className={`${styles.link} underline underline-offset-2`}
                         >
                           {method.value}
                         </a>

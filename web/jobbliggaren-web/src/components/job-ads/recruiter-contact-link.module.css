@@ -1,0 +1,13 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  min-inline-size: 32px;
+}
+
+@media (max-width: 768px) {
+  .link {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}

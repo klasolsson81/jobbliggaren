@@ -56,6 +56,8 @@ automation; it does not run an unattended coding worker after the session stops.
    and watch CI/merge as usual. A new head or base needs a new external attestation.
    To revoke a result, first disable auto-merge and remove `agents-done`, then
    dispatch the same workflow for the current SHA with `verdict=blocked`.
+   Confirm both App checks are red; a queued, canceled or failed dispatch is not
+   evidence that revocation completed.
 
 Native Code Review documents P0/P1 reporting; it is not a promise of complete
 P2 coverage. The local review panel remains necessary. Exhaustive review seeks
@@ -65,6 +67,8 @@ additional findings; the driving session still owns fixes and re-review.
 
 Branch protection requires `ci` from GitHub Actions plus our own
 `codex-review-gate` check from a dedicated GitHub App, pinned by numeric App ID.
+The publisher verifies GitHub's test-merge commit parents against the current
+base/head and publishes the same decision on both head and test-merge SHA.
 This is not the name of a native Codex service check. A PR-controlled Actions job
 can copy a check name, so `github-actions` must never be its accepted publisher.
 The trusted default-branch workflow exempts same-repository PRs with neither
@@ -81,6 +85,20 @@ the publisher environment is denied access. Do not claim enforcement is active u
 the branch-protection API reads both required checks back. Existing CC PRs need
 an exemption run before enabling the requirement. Keep unavailable native
 review evidence as an explicit open commissioning dependency.
+
+### Check renewal
+
+The main-branch workflow reconciles open main PRs daily. It republishes only
+an exact-match latest successful App attestation, preserving the original writer,
+report links and attestation time; it records republication separately. It never
+searches past a newer failure or treats renewal as a new code/security review.
+CC exemptions are recalculated from scope history. An unavailable test-merge is
+retried briefly and fails closed; a later event or daily run retries reconciliation.
+For immediate recovery, dispatch the workflow on main with the current PR/head/base
+inputs and `verdict=refresh`; this cannot attest new reports. Publisher runs are
+serialized with `queue: max` so ordinary bursts preserve pending revocations and
+other PR events. GitHub caps this queue at 100 pending runs; the driving session
+must confirm completion and retry canceled runs, never infer success from dispatch.
 
 ### Dedicated publisher setup
 

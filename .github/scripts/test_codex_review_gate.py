@@ -16,7 +16,7 @@ class ReviewAttestationTests(unittest.TestCase):
                        "attestation": "both-complete-zero-medium-plus",
                        "code_report": "https://chatgpt.com/codex/tasks/code",
                        "security_report": "https://chatgpt.com/codex/tasks/security"}
-        self.pr = {"number": 123, "state": "open", "head": {"sha": "a" * 40,
+        self.pr = {"number": 123, "state": "open", "merge_commit_sha": "e" * 40, "head": {"sha": "a" * 40,
                    "ref": "codex/fix/example", "repo": {"full_name": self.repo}},
                    "base": {"ref": "main", "sha": "c" * 40, "repo": {"full_name": self.repo}}}
 
@@ -78,6 +78,19 @@ class ReviewAttestationTests(unittest.TestCase):
     def test_revocation_needs_no_clean_report_claim(self):
         self.check(inputs={"head_sha": "a" * 40, "base_sha": "c" * 40, "base_ref": "main", "verdict": "blocked"})
 
+    def publication(self, pr=None):
+        pr = pr or self.pr
+        return [{"parents": [{"sha": pr["base"]["sha"]}, {"sha": pr["head"]["sha"]}]}, {"id": 2}, {"id": 1}]
+
+    def refusal(self):
+        return [{"id": 1}, {"id": 2}]
+
+    def approval(self):
+        return {"id": 5, "external_id": review_identity(self.repo, self.pr),
+                "conclusion": "success", "app": {"id": 98765},
+                "details_url": "https://github.com/owner/repo/actions/runs/42",
+                "output": {"summary": "Original writer, reports and attestation time"}}
+
     def run_event(self, responses, event_name="workflow_dispatch", env_overrides=None):
         event = {"inputs": self.inputs | {"pr_number": "123"},
                  "repository": {"default_branch": "main"}, "pull_request": {"number": 123}}
@@ -110,34 +123,36 @@ class ReviewAttestationTests(unittest.TestCase):
         return requests
 
     def test_full_attestation_writes_check_to_reviewed_head(self):
-        calls = self.run_event([self.pr, {"permission": "write"}, {"id": 1}, self.pr, {}])
-        self.assertEqual(self.inputs["head_sha"], calls[2][2]["head_sha"])
-        self.assertTrue(calls[2][2]["external_id"].startswith("codex:123:" + self.inputs["head_sha"] + ":"))
-        self.assertEqual("success", calls[4][2]["conclusion"])
-        self.assertEqual(["Bearer test-token", "Bearer test-token", "Bearer test-checks-token",
-                          "Bearer test-token", "Bearer test-checks-token"], self.tokens)
+        calls = self.run_event([self.pr, {"permission": "write"}, *self.publication(), self.pr, {}, {}])
+        self.assertEqual(self.inputs["head_sha"], calls[4][2]["head_sha"])
+        self.assertTrue(calls[4][2]["external_id"].startswith("codex:123:" + self.inputs["head_sha"] + ":"))
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+        self.assertEqual({self.pr["head"]["sha"], self.pr["merge_commit_sha"]},
+                         {body["head_sha"] for method, _, body in calls if method == "POST"})
+        self.assertTrue(all(token == "Bearer test-checks-token" for token, (_, url, _) in
+                            zip(self.tokens, calls) if "check-runs" in url))
 
     def test_move_between_check_creation_and_completion_fails_check(self):
         moved = copy.deepcopy(self.pr)
         moved["head"]["sha"] = "b" * 40
         with self.assertRaises(ValueError):
-            self.run_event([self.pr, {"permission": "write"}, {"id": 1}, moved, {}])
+            self.run_event([self.pr, {"permission": "write"}, *self.publication(), moved, {}, {}])
         self.assertEqual("failure", self.requests[-1][2]["conclusion"])
 
     def test_report_api_failure_never_becomes_success(self):
         with self.assertRaises(OSError):
-            self.run_event([self.pr, {"permission": "write"}, {"id": 1}, OSError("offline"), {}])
+            self.run_event([self.pr, {"permission": "write"}, *self.publication(), OSError("offline"), {}, {}])
         self.assertEqual("failure", self.requests[-1][2]["conclusion"])
 
     def test_cc_branch_exemption_needs_no_native_reports(self):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
-        calls = self.run_event([cc, [], [cc], {}], "pull_request_target")
+        calls = self.run_event([cc, [], [cc], cc, *self.publication()], "pull_request_target")
         self.assertEqual("success", calls[-1][2]["conclusion"])
         self.assertTrue(calls[-1][2]["external_id"].startswith("non-codex:"))
 
     def test_codex_push_does_not_issue_an_exemption(self):
-        calls = self.run_event([self.pr, {"check_runs": []}, {}], "pull_request_target")
+        calls = self.run_event([self.pr, {"check_runs": []},*self.refusal()], "pull_request_target")
         self.assertEqual("failure", calls[-1][2]["conclusion"])
 
     def test_codex_label_covers_nonstandard_branch_name(self):
@@ -145,25 +160,26 @@ class ReviewAttestationTests(unittest.TestCase):
         labeled["head"]["ref"] = "refactor/other-convention"
         labeled["labels"] = [{"name": "codex-review"}]
         self.assertTrue(codex_scope(self.repo, labeled))
-        calls = self.run_event([labeled, {"check_runs": []}, {}], "pull_request_target")
+        calls = self.run_event([labeled, {"check_runs": []},*self.refusal()], "pull_request_target")
         self.assertEqual("failure", calls[-1][2]["conclusion"])
 
     def test_full_revocation_publishes_failure(self):
         self.inputs = {"head_sha": "a" * 40, "base_sha": "c" * 40, "base_ref": "main", "verdict": "blocked"}
-        calls = self.run_event([self.pr, {"permission": "write"}, {"id": 1}, self.pr, {}])
+        calls = self.run_event([self.pr, {"permission": "write"}, *self.publication(), self.pr, {}, {}])
         self.assertEqual("failure", calls[-1][2]["conclusion"])
 
     def test_unrelated_label_event_preserves_current_attestation(self):
-        result = {"id": 5, "external_id": review_identity(self.repo, self.pr),
-                  "conclusion": "success", "app": {"id": 98765}}
-        calls = self.run_event([self.pr, {"check_runs": [result]}], "pull_request_target")
-        self.assertTrue(all(method == "GET" for method, _, _ in calls))
+        result = self.approval()
+        calls = self.run_event([self.pr, {"check_runs": [result]}, self.pr,
+                               {"check_runs": [result]}, *self.publication()], "pull_request_target")
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+        self.assertEqual(result["output"]["summary"], calls[-1][2]["output"]["summary"])
 
     def test_prior_exemption_or_another_pr_attestation_is_not_codex_approval(self):
         for external_id in ("non-codex:123:", "codex:456:"):
             result = {"id": 5, "external_id": external_id + "a" * 40,
                       "conclusion": "success", "app": {"id": 98765}}
-            calls = self.run_event([self.pr, {"check_runs": [result]}, {}], "pull_request_target")
+            calls = self.run_event([self.pr, {"check_runs": [result]},*self.refusal()], "pull_request_target")
             self.assertEqual("failure", calls[-1][2]["conclusion"])
 
     def test_fork_cannot_issue_an_exemption(self):
@@ -177,8 +193,8 @@ class ReviewAttestationTests(unittest.TestCase):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc] * 100, [self.pr], {}], "pull_request_target")
-        self.assertTrue(self.requests[-2][1].endswith("page=2"))
+            self.run_event([cc, [], [cc] * 100, [self.pr],*self.refusal()], "pull_request_target")
+        self.assertTrue(self.requests[-3][1].endswith("page=2"))
         self.assert_failure_replaces_prior_approval()
 
     def test_retarget_or_base_advance_refuses_old_attestation(self):
@@ -189,14 +205,19 @@ class ReviewAttestationTests(unittest.TestCase):
                 self.check(pr=moved)
             result = {"id": 5, "external_id": review_identity(self.repo, self.pr),
                       "conclusion": "success", "app": {"id": 98765}}
-            calls = self.run_event([moved, {"check_runs": [result]}, {}], "pull_request_target")
-            self.assertEqual("failure", calls[-1][2]["conclusion"])
+            if key == "ref":
+                with self.assertRaises(ValueError):
+                    self.run_event([moved, *self.refusal()], "pull_request_target")
+                self.assert_failure_replaces_prior_approval()
+            else:
+                calls = self.run_event([moved, {"check_runs": [result]}, *self.refusal()], "pull_request_target")
+                self.assertEqual("failure", calls[-1][2]["conclusion"])
 
     def test_base_moves_during_attestation_never_publishes_success(self):
         moved = copy.deepcopy(self.pr)
         moved["base"]["sha"] = "d" * 40
         with self.assertRaises(ValueError):
-            self.run_event([self.pr, {"permission": "write"}, {"id": 1}, moved, {}])
+            self.run_event([self.pr, {"permission": "write"}, *self.publication(), moved, {}, {}])
         self.assertEqual("failure", self.requests[-1][2]["conclusion"])
 
     def test_nondefault_target_cannot_receive_an_attestation(self):
@@ -225,11 +246,12 @@ class ReviewAttestationTests(unittest.TestCase):
     def test_actions_check_cannot_impersonate_the_publisher(self):
         spoof = {"id": 99, "external_id": review_identity(self.repo, self.pr),
                  "conclusion": "success", "app": {"id": 15368}}
-        calls = self.run_event([self.pr, {"check_runs": [spoof]}, {}], "pull_request_target")
+        calls = self.run_event([self.pr, {"check_runs": [spoof]}, *self.refusal()], "pull_request_target")
         self.assertEqual("failure", calls[-1][2]["conclusion"])
-        trusted = spoof | {"id": 5, "app": {"id": 98765}}
-        calls = self.run_event([self.pr, {"check_runs": [trusted, spoof]}], "pull_request_target")
-        self.assertTrue(all(method == "GET" for method, _, _ in calls))
+        trusted = self.approval()
+        calls = self.run_event([self.pr, {"check_runs": [trusted, spoof]}, self.pr,
+                               {"check_runs": [trusted, spoof]}, *self.publication()], "pull_request_target")
+        self.assertEqual("success", calls[-1][2]["conclusion"])
 
     def test_missing_publisher_or_actions_identity_fails_before_api_calls(self):
         for settings in ({"CHECKS_TOKEN": ""}, {"CODEX_REVIEW_APP_ID": "15368"},
@@ -243,7 +265,7 @@ class ReviewAttestationTests(unittest.TestCase):
         removed["head"]["ref"] = "refactor/nonstandard"
         events = [{"event": "labeled", "label": {"name": "codex-review"}}]
         calls = self.run_event([removed, [{"event": "commented"}] * 100, events,
-                                {"check_runs": []}, {}], "pull_request_target")
+                                {"check_runs": []}, *self.refusal()], "pull_request_target")
         self.assertIn("page=2", calls[2][1])
         self.assertEqual("failure", calls[-1][2]["conclusion"])
 
@@ -254,14 +276,14 @@ class ReviewAttestationTests(unittest.TestCase):
         sibling["number"] = 456
         events = [{"event": "labeled", "label": {"name": "codex-review"}}]
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc, sibling], events, {}], "pull_request_target")
+            self.run_event([cc, [], [cc, sibling], events,*self.refusal()], "pull_request_target")
         self.assert_failure_replaces_prior_approval()
 
     def test_unavailable_scope_history_cannot_mint_an_exemption(self):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(OSError):
-            self.run_event([cc, OSError("offline"), {}], "pull_request_target")
+            self.run_event([cc, OSError("offline"),*self.refusal()], "pull_request_target")
         self.assert_failure_replaces_prior_approval()
 
     def assert_failure_replaces_prior_approval(self):
@@ -269,7 +291,8 @@ class ReviewAttestationTests(unittest.TestCase):
         self.assertEqual("POST", method)
         self.assertTrue(url.endswith("/check-runs"))
         self.assertEqual("codex-review-gate", body["name"])
-        self.assertEqual(self.pr["head"]["sha"], body["head_sha"])
+        self.assertEqual({self.pr["head"]["sha"], self.pr["merge_commit_sha"]},
+                         {request[2]["head_sha"] for request in self.requests[-2:]})
         self.assertEqual("failure", body["conclusion"])
         self.assertEqual("Bearer test-checks-token", self.tokens[-1])
 
@@ -277,12 +300,12 @@ class ReviewAttestationTests(unittest.TestCase):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(OSError):
-            self.run_event([cc, [], OSError("offline"), {}], "pull_request_target")
+            self.run_event([cc, [], OSError("offline"),*self.refusal()], "pull_request_target")
         self.assert_failure_replaces_prior_approval()
 
     def test_unavailable_prior_checks_replaces_prior_app_approval(self):
         with self.assertRaises(OSError):
-            self.run_event([self.pr, OSError("offline"), {}], "pull_request_target")
+            self.run_event([self.pr, OSError("offline"),*self.refusal()], "pull_request_target")
         self.assert_failure_replaces_prior_approval()
 
     def test_closed_codex_pr_still_blocks_same_sha_exemption(self):
@@ -291,9 +314,92 @@ class ReviewAttestationTests(unittest.TestCase):
         previous = copy.deepcopy(self.pr)
         previous.update(number=122, state="closed")
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc, previous], {}], "pull_request_target")
-        self.assertIn("pulls?state=all&", self.requests[-2][1])
+            self.run_event([cc, [], [cc, previous],*self.refusal()], "pull_request_target")
+        self.assertIn("pulls?state=all&", self.requests[-3][1])
         self.assert_failure_replaces_prior_approval()
+
+    def test_merge_commit_with_wrong_parents_never_receives_approval(self):
+        with self.assertRaises(ValueError):
+            self.run_event([self.pr, {"permission": "write"}, {"parents": [{"sha": "f" * 40}]}])
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
+    def test_uncomputed_merge_is_retried_before_attestation(self):
+        pending = self.pr | {"merge_commit_sha": None, "mergeable": None}
+        with patch("codex_review_gate.time.sleep") as sleep:
+            calls = self.run_event([pending, self.pr, {"permission": "write"},
+                                   *self.publication(), self.pr, {}, {}])
+        sleep.assert_called_once_with(2)
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+
+    def test_missing_merge_after_bounded_retry_never_receives_approval(self):
+        pending = self.pr | {"merge_commit_sha": None, "mergeable": None}
+        with patch("codex_review_gate.time.sleep") as sleep, self.assertRaises(ValueError):
+            self.run_event([pending, pending, pending, {"permission": "write"}])
+        self.assertEqual(2, sleep.call_count)
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
+    def test_merge_changes_during_attestation_fails_both_publications(self):
+        moved = self.pr | {"merge_commit_sha": "f" * 40}
+        with self.assertRaises(ValueError):
+            self.run_event([self.pr, {"permission": "write"}, *self.publication(), moved, {}, {}])
+        self.assertEqual(2, len([body for method, _, body in self.requests
+                               if method == "PATCH" and body["conclusion"] == "failure"]))
+
+    def test_daily_renewal_preserves_old_evidence_on_head_and_merge(self):
+        old = self.approval() | {"completed_at": "2020-01-01T00:00:00Z"}
+        calls = self.run_event([[self.pr], self.pr, {"check_runs": [old]}, self.pr,
+                               {"check_runs": [old]}, *self.publication()], "schedule")
+        posts = [body for method, _, body in calls if method == "POST"]
+        self.assertEqual({self.pr["head"]["sha"], self.pr["merge_commit_sha"]}, {p["head_sha"] for p in posts})
+        self.assertTrue(all(p["output"]["summary"] == old["output"]["summary"] for p in posts))
+        self.assertTrue(all(p["conclusion"] == "success" for p in posts))
+
+    def test_daily_renewal_never_resurrects_an_older_success(self):
+        old = self.approval()
+        blocked = old | {"id": 6, "conclusion": "failure"}
+        calls = self.run_event([[self.pr], self.pr, {"check_runs": [old, blocked]},
+                               *self.refusal()], "schedule")
+        self.assertEqual("failure", calls[-1][2]["conclusion"])
+
+    def test_revocation_during_renewal_publishes_failure_on_both_targets(self):
+        old = self.approval()
+        blocked = old | {"id": 6, "conclusion": "failure"}
+        with self.assertRaises(ValueError):
+            self.run_event([self.pr, {"check_runs": [old]}, self.pr,
+                            {"check_runs": [blocked]}, *self.refusal()], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
+
+    def test_daily_refresh_recalculates_cc_exemption(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        calls = self.run_event([[cc], cc, [], [cc], cc, *self.publication()], "schedule")
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+        self.assertTrue(calls[-1][2]["external_id"].startswith("non-codex:"))
+
+    def test_partial_attestation_completion_failure_revokes_both_checks(self):
+        with self.assertRaises(OSError):
+            self.run_event([self.pr, {"permission": "write"}, *self.publication(), self.pr,
+                            {}, OSError("head update failed"), {}, {}])
+        self.assertEqual(["failure", "failure"], [body["conclusion"] for _, _, body in self.requests[-2:]])
+
+    def test_metadata_failure_revokes_existing_approval_without_another_commit_read(self):
+        old = self.approval()
+        with self.assertRaises(OSError):
+            self.run_event([self.pr, {"check_runs": [old]}, self.pr, {"check_runs": [old]},
+                            OSError("commit metadata unavailable"), *self.refusal()], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
+
+    def test_failure_on_one_negative_target_still_attempts_the_other(self):
+        with self.assertRaises(OSError):
+            self.run_event([self.pr, OSError("check read failed"), OSError("head write failed"), {}],
+                           "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
+
+    def test_global_queue_preserves_pending_revocations_and_other_prs(self):
+        workflow = (Path(__file__).parent.parent / "workflows" / "codex-review-gate.yml").read_text(encoding="utf-8")
+        concurrency = workflow.split("concurrency:\n", 1)[1].split("\njobs:", 1)[0]
+        self.assertIn("queue: max", concurrency)
+        self.assertIn("cancel-in-progress: false", concurrency)
 
 
 if __name__ == "__main__":

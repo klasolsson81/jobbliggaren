@@ -1,6 +1,8 @@
 name: Codex review gate
 
 on:
+  schedule:
+    - cron: "17 4 * * *"
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
   workflow_dispatch:
@@ -25,7 +27,7 @@ on:
         description: Record clean reports or revoke approval
         required: true
         type: choice
-        options: [blocked, approved]
+        options: [blocked, approved, refresh]
         default: blocked
       code_report:
         description: Codex code review report URL
@@ -43,7 +45,8 @@ permissions:
   issues: read
 
 concurrency:
-  group: codex-review-${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+  group: codex-review-publisher
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +54,7 @@ jobs:
     if: >-
       github.event.repository.default_branch == 'main' &&
       ((github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main') ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+       ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     environment: codex-review-publisher
     timeout-minutes: 5

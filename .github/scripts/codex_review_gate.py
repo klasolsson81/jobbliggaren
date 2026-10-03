@@ -1,9 +1,11 @@
 """Publish a SHA-bound owner attestation; never infer approval from silence."""
 
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
 import re
+import time
 import urllib.request
 from urllib.parse import urlparse
 
@@ -64,7 +66,8 @@ def main():
     repository = os.environ["GITHUB_REPOSITORY"]
     inputs = event.get("inputs", {})
     number = inputs.get("pr_number", str(event.get("pull_request", {}).get("number", "")))
-    if not re.fullmatch(r"[1-9][0-9]*", number):
+    scheduled = os.environ["GITHUB_EVENT_NAME"] == "schedule"
+    if not scheduled and not re.fullmatch(r"[1-9][0-9]*", number):
         raise ValueError("Invalid PR number")
     token = os.environ["GH_TOKEN"]
     checks_token = os.environ["CHECKS_TOKEN"]
@@ -103,26 +106,78 @@ def main():
         pr["codex_review_seen"] = history_scopes[pr_number]
         return pr
 
+    def read_current(pr_number):
+        for attempt in range(3):
+            pr = api(f"pulls/{pr_number}")
+            if (pr["state"] != "open" or pr.get("merge_commit_sha") or pr.get("mergeable") is False or
+                    attempt == 2):
+                return pr
+            time.sleep(2)
+
     def read_pr():
-        return include_scope_history(api(f"pulls/{number}"))
+        return include_scope_history(read_current(number))
+
+    def targets(pr):
+        merge_sha = pr.get("merge_commit_sha")
+        if pr.get("mergeable") is False or not isinstance(merge_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", merge_sha):
+            raise ValueError("Test merge is unavailable; retry after GitHub computes it")
+        commit = api(f"commits/{merge_sha}")
+        if [parent["sha"] for parent in commit["parents"]] != [pr["base"]["sha"], pr["head"]["sha"]]:
+            raise ValueError("Test merge does not match current base and head")
+        return [merge_sha, pr["head"]["sha"]]
+
+    def publish(pr, body):
+        if body.get("conclusion") != "failure":
+            return [api("check-runs", body | {"name": CHECK_NAME, "head_sha": sha}) for sha in targets(pr)]
+        # Negative results revoke known PR targets even when commit metadata is unavailable.
+        shas = [pr["head"]["sha"]]
+        merge_sha = pr.get("merge_commit_sha")
+        if isinstance(merge_sha, str) and re.fullmatch(r"[0-9a-f]{40}", merge_sha) and merge_sha not in shas:
+            shas.append(merge_sha)
+        checks, errors = [], []
+        for sha in shas:
+            try:
+                checks.append(api("check-runs", body | {"name": CHECK_NAME, "head_sha": sha}))
+            except Exception as error:
+                errors.append(error)
+        if errors:
+            raise errors[0]
+        return checks
+
+    def require_same_snapshot(pr):
+        current = include_scope_history(read_current(pr["number"]))
+        if (codex_scope(repository, current) != codex_scope(repository, pr) or current["state"] != "open" or review_identity(repository, current) != review_identity(repository, pr) or
+                current.get("merge_commit_sha") != pr.get("merge_commit_sha")):
+            raise ValueError("PR changed while reconciling checks")
+
+    def latest_attestation(pr):
+        results = api(f"commits/{pr['head']['sha']}/check-runs?check_name={CHECK_NAME}&per_page=100")
+        trusted = [result for result in results["check_runs"] if result.get("app", {}).get("id") == app_id]
+        return max(trusted, key=lambda result: result["id"], default=None)
 
     def handle_pr_event(pr):
         pr = include_scope_history(pr)
         if pr["state"] != "open":
             return
+        if pr["base"]["ref"] != "main":
+            raise ValueError("Only main-target PRs are supported")
         if codex_scope(repository, pr):
-            results = api(f"commits/{pr['head']['sha']}/check-runs?check_name={CHECK_NAME}&per_page=100")
-            trusted = [result for result in results["check_runs"] if result.get("app", {}).get("id") == app_id]
-            latest = max(trusted, key=lambda result: result["id"], default=None)
+            latest = latest_attestation(pr)
             expected = review_identity(repository, pr)
-            if (latest and latest.get("external_id") == expected and
-                    latest.get("conclusion") == "success"):
+            if (latest and latest.get("external_id") == expected and latest.get("conclusion") == "success" and
+                    latest.get("output", {}).get("summary") and latest.get("details_url")):
+                require_same_snapshot(pr)
+                if latest_attestation(pr) != latest:
+                    raise ValueError("Attestation changed during renewal")
+                publish(pr, {"status": "completed", "conclusion": "success", "external_id": expected,
+                             "details_url": latest["details_url"],
+                             "output": {"title": "Existing review attestation renewed",
+                                        "summary": latest["output"]["summary"],
+                                        "text": f"Republished at {datetime.now(timezone.utc).isoformat()}; no new review was inferred."}})
                 return
-            api("check-runs", {"name": CHECK_NAME, "head_sha": pr["head"]["sha"],
-                              "status": "completed", "conclusion": "failure",
-                              "external_id": expected,
-                              "output": {"title": "Waiting for Codex reports",
-                                         "summary": "Owner must attest completed reports for the current head and base."}})
+            publish(pr, {"status": "completed", "conclusion": "failure", "external_id": expected,
+                         "output": {"title": "Waiting for Codex reports",
+                                    "summary": "Owner must attest completed reports for the current head and base."}})
             return
         page = 1
         while True:
@@ -133,14 +188,13 @@ def main():
             if len(siblings) < 100:
                 break
             page += 1
-        api("check-runs", {"name": CHECK_NAME, "head_sha": pr["head"]["sha"],
-                          "status": "completed", "conclusion": "success",
-                          "external_id": f"non-codex:{number}:{pr['head']['sha']}",
-                          "output": {"title": "Not applicable: non-Codex branch",
-                                     "summary": "Existing CI and agents-done policy applies."}})
-        return
-    pr = api(f"pulls/{number}")
-    if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target":
+        require_same_snapshot(pr)
+        publish(pr, {"status": "completed", "conclusion": "success",
+                     "external_id": f"non-codex:{pr['number']}:{pr['head']['sha']}",
+                     "output": {"title": "Not applicable: non-Codex branch",
+                                "summary": "Existing CI and agents-done policy applies."}})
+
+    def reconcile(pr):
         # Untrusted forks must not overwrite a same-repository commit's App status.
         if not pr["head"]["repo"] or pr["head"]["repo"]["full_name"] != repository:
             raise ValueError("Fork PRs need explicit review policy; no automatic exemption")
@@ -148,40 +202,64 @@ def main():
             handle_pr_event(pr)
         except Exception:
             # An Actions failure cannot replace this App's prior success on a reused SHA.
-            api("check-runs", {"name": CHECK_NAME, "head_sha": pr["head"]["sha"],
-                              "status": "completed", "conclusion": "failure",
-                              "external_id": review_identity(repository, pr),
-                              "output": {"title": "Review policy could not be satisfied",
-                                         "summary": "Resolve the workflow error before attesting current reports."}})
+            publish(pr, {"status": "completed", "conclusion": "failure",
+                         "external_id": review_identity(repository, pr),
+                         "output": {"title": "Review policy could not be satisfied",
+                                    "summary": "Resolve the workflow error before attesting current reports."}})
             raise
+
+    if scheduled:
+        page, failed = 1, []
+        while True:
+            prs = api(f"pulls?state=open&base=main&per_page=100&page={page}")
+            for item in prs:
+                if not item["head"]["repo"] or item["head"]["repo"]["full_name"] != repository:
+                    continue
+                try:
+                    reconcile(read_current(item["number"]))
+                except Exception:
+                    failed.append(item["number"])
+            if len(prs) < 100:
+                break
+            page += 1
+        if failed:
+            raise ValueError(f"Reconciliation failed for PRs: {failed}")
+        return
+    pr = read_current(number)
+    if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target" or inputs.get("verdict") == "refresh":
+        reconcile(pr)
         return
     pr = include_scope_history(pr)
     permission = api(f"collaborators/{os.environ['GITHUB_ACTOR']}/permission")["permission"]
     validate(inputs, repository, pr, permission, os.environ["GITHUB_REF"],
              event["repository"]["default_branch"])
     run_url = f"https://github.com/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-    check = api("check-runs", {"name": CHECK_NAME, "head_sha": inputs["head_sha"],
-                              "status": "in_progress", "details_url": run_url,
-                              "external_id": review_identity(repository, pr)})
+    checks = publish(pr, {"status": "in_progress", "details_url": run_url,
+                          "external_id": review_identity(repository, pr)})
     try:
-        # Re-read after creating the check: a moved head never receives approval.
-        validate(inputs, repository, read_pr(), permission,
+        # Re-read after creating both checks: moved head/base/test-merge never receives approval.
+        current = read_pr()
+        validate(inputs, repository, current, permission,
                  os.environ["GITHUB_REF"], event["repository"]["default_branch"])
+        if current.get("merge_commit_sha") != pr.get("merge_commit_sha"):
+            raise ValueError("Test merge changed during attestation")
         approved = inputs["verdict"] == "approved"
         summary = (f"PR #{number}, head {inputs['head_sha']}. "
                    f"Base {inputs['base_ref']} at {inputs['base_sha']}. "
-                   f"Attested by {os.environ['GITHUB_ACTOR']}. "
+                   f"Attested by {os.environ['GITHUB_ACTOR']} at {datetime.now(timezone.utc).isoformat()}. "
                    "This validates an authorized attestation, not report contents.\n\n"
                    f"Code report: {inputs.get('code_report', '')}\n\n"
                    f"Security report: {inputs.get('security_report', '')}")
-        api(f"check-runs/{check['id']}", {
-            "status": "completed", "conclusion": "success" if approved else "failure",
-            "output": {"title": "Reports attested clean" if approved else "Review blocked",
-                       "summary": summary}}, "PATCH")
+        for check in checks:
+            api(f"check-runs/{check['id']}", {
+                "status": "completed", "conclusion": "success" if approved else "failure",
+                "output": {"title": "Reports attested clean" if approved else "Review blocked",
+                           "summary": summary}}, "PATCH")
     except Exception:
-        api(f"check-runs/{check['id']}", {
-            "status": "completed", "conclusion": "failure",
-            "output": {"title": "Attestation failed", "summary": "Recheck current PR and reports."}}, "PATCH")
+        for check in checks:
+            api(f"check-runs/{check['id']}", {
+                "status": "completed", "conclusion": "failure",
+                "output": {"title": "Attestation failed", "summary": "Recheck current PR and reports."}}, "PATCH")
         raise
 
 

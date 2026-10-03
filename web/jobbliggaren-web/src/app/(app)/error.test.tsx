@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import AppError from "./error";
 
 // The harness aliases `@testing-library/react` to a render shim that wraps every
@@ -33,15 +32,6 @@ describe("(app)/error boundary (#995)", () => {
     expect(toOverview).toHaveAttribute("href", "/oversikt");
   });
 
-  it("retry invokes Next's retry() (re-fetch + re-render the segment)", async () => {
-    const retryFn = vi.fn();
-    const user = userEvent.setup();
-    render(<AppError error={boundaryError} retry={retryFn} reset={() => {}} />);
-
-    await user.click(screen.getByRole("button", { name: "Försök igen" }));
-
-    expect(retryFn).toHaveBeenCalledTimes(1);
-  });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref

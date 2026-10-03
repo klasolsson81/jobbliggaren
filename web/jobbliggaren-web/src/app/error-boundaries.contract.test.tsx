@@ -32,14 +32,13 @@ import GlobalError from "./global-error";
  * production no longer produced (AGENTS.md §5 `Tests:`).
  *
  * So the premise here is production's own: each boundary is mounted as the
- * `errorComponent` of Next's real `ErrorBoundary`, under a child that throws
- * once, and the click goes through whatever props Next passed. The actor that
+ * `errorComponent` of Next's real `ErrorBoundary`, under a child that throws,
+ * and the click goes through whatever props Next passed. The actor that
  * passes them is `ErrorBoundaryHandler`; the router it reaches on retry is the
  * `AppRouterContext` value, stubbed here so the call can be counted.
  *
- * The table is static (a module cannot be imported from a path computed at
- * run time without the glob typings this project does not carry), so the
- * count row below compares it with a filesystem walk, the
+ * The table is static, so the count row below compares it with a filesystem
+ * walk, the
  * `route-boundaries.test.ts` idea: a boundary added on disk fails that row
  * until it is in the table, and a table row with no file behind it fails it
  * too.

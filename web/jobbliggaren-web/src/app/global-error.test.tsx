@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import GlobalError from "./global-error";
 
 // global-error renders its own <html>/<body> and seeds its OWN
@@ -45,15 +44,6 @@ describe("global-error boundary (#995)", () => {
     expect(toStart).toHaveAttribute("href", "/");
   });
 
-  it("retry invokes retry() (re-fetch + re-render)", async () => {
-    const retryFn = vi.fn();
-    const user = userEvent.setup();
-    render(<GlobalError error={rootError} retry={retryFn} reset={() => {}} />);
-
-    await user.click(screen.getByRole("button", { name: "Försök igen" }));
-
-    expect(retryFn).toHaveBeenCalledTimes(1);
-  });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref

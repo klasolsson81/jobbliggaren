@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import AuthError from "./error";
 
 // The harness aliases `@testing-library/react` to a render shim that wraps every
@@ -24,15 +23,6 @@ describe("(auth)/error boundary (#1477)", () => {
     expect(screen.queryByText(/digest-auth/)).not.toBeInTheDocument();
   });
 
-  it("retry invokes Next's retry() (re-fetch + re-render the segment)", async () => {
-    const retryFn = vi.fn();
-    const user = userEvent.setup();
-    render(<AuthError error={boundaryError} retry={retryFn} reset={() => {}} />);
-
-    await user.click(screen.getByRole("button", { name: "Försök igen" }));
-
-    expect(retryFn).toHaveBeenCalledTimes(1);
-  });
 
   it("offers no way back of its own — (auth)/layout owns the back link", () => {
     // Two controls labelled "Till startsidan" stacked on top of each other is

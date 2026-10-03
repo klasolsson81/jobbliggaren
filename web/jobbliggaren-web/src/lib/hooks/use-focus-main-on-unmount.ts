@@ -1,5 +1,7 @@
 "use client";
 
+// "use client": an effect hook that moves DOM focus — browser-only.
+
 import { useEffect } from "react";
 
 /**
@@ -20,9 +22,7 @@ import { useEffect } from "react";
  * animation frame, once the new subtree has committed, to
  * `<main id="main" tabIndex={-1}>` — every group's shell or page owns one.
  * It moves focus ONLY when focus is on `<body>`: a failed retry remounts the
- * surface and its `<h1>` takes focus through `useFocusOnMount`, and a
- * navigation away leaves focus wherever the navigation put it. Neither is
- * touched.
+ * surface and its `<h1>` takes focus through `useFocusOnMount`.
  */
 export function useFocusMainOnUnmount() {
   useEffect(() => {

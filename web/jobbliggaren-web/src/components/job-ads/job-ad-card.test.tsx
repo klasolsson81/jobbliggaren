@@ -29,7 +29,7 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
   it("renders title and company", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(
-      screen.getByRole("heading", { name: "Senior Backend Developer" })
+      screen.getByRole("heading", { level: 3, name: "Senior Backend Developer" })
     ).toBeInTheDocument();
     expect(screen.getByText("Acme AB")).toBeInTheDocument();
   });
@@ -46,10 +46,11 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
-  it("the link's description names every rendered row in visual order, and no IDREF dangles", () => {
+  it.each([2, 3] as const)("level %i keeps the link description and every rendered row in visual order", (headingLevel) => {
     const { container } = render(
       <JobAdCard
         jobAd={baseAd}
+        headingLevel={headingLevel}
         isNew={true}
         isFollowed={true}
         isSaved={true}
@@ -59,6 +60,7 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
       />
     );
     const link = screen.getByRole("link", { name: "Senior Backend Developer" });
+    expect(screen.getByRole("heading", { level: headingLevel })).toHaveClass("jp-job__title");
     const rows = describedRows(link);
     expect(rows).not.toContain(null);
     expect(rows).toEqual([

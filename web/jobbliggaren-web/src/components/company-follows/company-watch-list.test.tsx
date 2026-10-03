@@ -152,7 +152,9 @@ describe("CompanyWatchList (#311 #448, ADR 0087 D2/D8(c))", () => {
 
   it("ordning bevaras (renderar i mottagen ordning, nyast först från backend)", () => {
     renderList([legalEntity, soleProp]);
-    const headings = screen.getAllByRole("heading", { level: 3 });
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings).toHaveLength(2);
+    expect(headings[0]).toHaveClass("jp-job__title");
     expect(headings[0]).toHaveTextContent("Skatteverket");
     expect(headings[1]).toHaveTextContent("Anna Andersson Konsult");
   });

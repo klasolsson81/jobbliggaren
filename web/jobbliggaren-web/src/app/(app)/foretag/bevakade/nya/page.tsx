@@ -186,14 +186,14 @@ export default async function NyaFollowedAdsPage() {
                   emptyTitle={t("foretag.newAds.matchingEmptyTitle")}
                   emptyAction={t("foretag.newAds.matchingEmptyAction")}
                   matchingCount={matchingRows.length}
-                  all={<JobAdList jobAds={data.rows.map((row) => row.ad)} />}
+                  all={<JobAdList jobAds={data.rows.map((row) => row.ad)} headingLevel={2} />}
                   matching={
-                    <JobAdList jobAds={matchingRows.map((row) => row.ad)} />
+                    <JobAdList jobAds={matchingRows.map((row) => row.ad)} headingLevel={2} />
                   }
                 />
               ) : (
                 <div className="mt-4">
-                  <JobAdList jobAds={data.rows.map((row) => row.ad)} />
+                  <JobAdList jobAds={data.rows.map((row) => row.ad)} headingLevel={2} />
                 </div>
               )}
 

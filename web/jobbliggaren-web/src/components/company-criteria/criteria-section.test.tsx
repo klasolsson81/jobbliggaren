@@ -103,6 +103,9 @@ describe("CriteriaSection", () => {
       />,
     );
 
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Utveckling i Göteborg" }),
+    ).toHaveClass("jp-job__title");
     const adsLink = screen.getByRole("link", { name: "18 aktiva annonser" });
     expect(adsLink.getAttribute("href")).toBe(
       "/foretag/branschbevakningar/11111111-1111-1111-1111-111111111111/annonser",

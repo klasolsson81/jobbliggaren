@@ -90,7 +90,7 @@ export function CriterionRow({ item, reference, adviceStatedByCaller }: Criterio
         className="jp-job jp-job--static"
       >
         <div className="jp-job__body">
-          <h3 className="jp-job__title">{heading}</h3>
+          <h2 className="jp-job__title">{heading}</h2>
           <div className="jp-job__meta">
             {/* The line this row already carried, now READ from the shared component rather than
                 built here: three more surfaces need the same sentence, and four inline copies is

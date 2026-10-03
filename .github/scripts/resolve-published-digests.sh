@@ -4,13 +4,12 @@
 # digest reference, so something can scan THE PUBLISHED ARTEFACT rather than a rebuild of it.
 #
 # NOT necessarily the artefact the box is running, and an earlier version of this line claimed it
-# was. `deploy/docker-compose.yml` reads `${IMAGE_TAG:-latest}` and the deploy runbook prescribes
-# `IMAGE_TAG=sha-<short>` as the rollback procedure, so under a pinned rollback the box runs an
-# OLDER image than the one resolved here — and a green scan of `latest` would then be
-# indistinguishable from having measured the running one.
+# was. `latest` follows the `dev` channel, and the deploy runbook's rollback pins an older release
+# (#1238), so under a pinned rollback the box runs an OLDER image than the one resolved here — and a
+# green scan of `latest` would then be indistinguishable from having measured the running one.
 #
 # WHY THIS EXISTS (#1519). `release-images.yml` skips Build, Trivy AND Push whenever the current
-# `main` SHA is already published under both tags with a readable attestation. That skip is
+# `main` SHA already has a release record that proves itself (#1238). That skip is
 # deliberate and well argued for trigger robustness, and it is not changed by this file. Its
 # unnamed consequence is that A PUBLISHED IMAGE IS NEVER RESCANNED: no GitHub Actions event fires
 # on a published advisory (measured 2026-08-28 — neither `security_advisory`,
@@ -24,9 +23,9 @@
 # THE DECISION THIS ENCODES (senior-cto-advisor, 2026-08-28): DETECT, DO NOT REPAIR. The repair
 # lever already exists and always did — a merge yields a new SHA, the release predicate goes
 # false, and the box pulls within the hour. What was missing was never the repair, it was the
-# knowledge. An age-term that rebuilt on a timer was refused because it re-points `sha-<short>`,
-# which `release-images.yml` defines as the rollback handle the box pins in its `.env`; a handle
-# that means two digests at two times is a rollback that does not roll back.
+# knowledge. An age-term that rebuilt on a timer was refused because it re-points what the box's
+# rollback names — then `sha-<short>` in its `.env`, since #1238 a release record that must never be
+# rewritten; a handle that means two digests at two times is a rollback that does not roll back.
 #
 # WHY THE LIST IS DERIVED AND NOT DECLARED. The five image names already exist in `build.yml`,
 # `release-images.yml`, `deploy/docker-compose.yml` and the reconcile allowlist. A sixth copy in

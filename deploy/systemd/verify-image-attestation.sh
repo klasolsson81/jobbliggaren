@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # verify-image-attestation — did OUR workflow, on main, build this exact image?
 #
-# The reconcile unit pulls five images from GHCR every hour and applies them as root. Without
-# this predicate the whole trust chain is "nobody has taken over the GitHub account yet":
-# `latest` is mutable, so the Trivy gate in `release-images.yml` scans the image the workflow
-# BUILT and says nothing about the image the box pulls an hour later under the same tag.
+# The reconcile unit pulls a release record and the five images it names from GHCR every hour and
+# applies them as root. Without this predicate the whole trust chain is "nobody has taken over the
+# GitHub account yet": every tag is mutable, so the Trivy gate in `release-images.yml` scans the
+# image the workflow BUILT and says nothing about what the box pulls an hour later.
 #
 # THIS TAKES A DIGEST, NEVER A TAG, AND THAT IS THE POINT. Verifying `…:latest` and then
 # letting `docker compose up` resolve `latest` again is two lookups with two possible answers —

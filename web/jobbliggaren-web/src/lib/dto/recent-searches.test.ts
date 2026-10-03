@@ -190,9 +190,9 @@ describe("recentJobSearchDtoSchema", () => {
 
   it("rejects a payload with no remote field rather than defaulting it to false", () => {
     // The actor that produces this payload is not a path in src/ — it is the deploy
-    // skew window #1238 names: the publish job is a five-cell matrix with no fan-in,
-    // so IMAGE_TAG's `latest` default can resolve to a new web against an older api
-    // that predates the field. This asserts only that the read side degrades safely
+    // skew window #1238 names: until the box applies release records, the five `latest`
+    // tags move one at a time (ADR 0149 R10), so a pull can land a new web against an
+    // older api that predates the field. This asserts only that the read side degrades safely
     // (throw -> responseToResult -> {kind:"error"}), never what production emits.
     // Defaulting instead would make "the API stopped sending the axis" indistinguishable
     // from "the user did not pick distans" — #1407's own failure mode, one layer out.

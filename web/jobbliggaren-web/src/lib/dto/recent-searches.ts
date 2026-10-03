@@ -138,11 +138,11 @@ export const recentJobSearchDtoSchema = z.object({
   // rad 41; CTO 2026-06-13 "hellre ingen siffra än falsk (0)"). En default hade gjort
   // ett saknat wire-fält oskiljbart från ett falskt — det här felet, ett lager ut.
   //
-  // Det ger ett verkligt skew-fönster, och det är #1238: publiceringen är en
-  // fem-cells-matris utan fan-in, så `IMAGE_TAG`-defaulten `latest` kan resolva till
-  // nytt `web` mot gammalt `api` (`deploy/systemd/jobbliggaren-reconcile.timer` bär
-  // härledningen). Kostnaden är mätt och avgränsad: `responseToResult` fångar
-  // parse-felet, ytan degraderar till `{kind:"error"}`, och nästa reconcile läker det.
+  // Det ger ett verkligt skew-fönster, och det är #1238:s: tills lådan applicerar
+  // release-records flyttas de fem `latest`-taggarna en i taget, så en dragning kan få
+  // nytt `web` mot gammalt `api` (ADR 0149 R10). Kostnaden är mätt och avgränsad:
+  // `responseToResult` fångar parse-felet, ytan degraderar till `{kind:"error"}`, och
+  // nästa reconcile läker det.
   remote: z.boolean(),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),

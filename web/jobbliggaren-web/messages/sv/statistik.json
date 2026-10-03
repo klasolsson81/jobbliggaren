@@ -1,5 +1,6 @@
 {
   "title": "Statistik",
+  "lede": "Svar, intervjuer och avslag på dina ansökningar.",
   "back": "Tillbaka till ansökningar",
   "summary": "Du har {total, number} ansökningar totalt, varav {sent, number} skickade.",
   "error": {

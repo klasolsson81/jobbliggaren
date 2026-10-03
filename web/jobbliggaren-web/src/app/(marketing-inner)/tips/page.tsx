@@ -43,13 +43,13 @@ export default async function TipsPage() {
             <h1 id="tips-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("lede")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body text-text-primary">{t("intro")}</p>
-        <div className="mt-8 flex flex-col gap-8">
+        <div className="flex flex-col gap-8">
           {sections.map((section, index) => (
             <section key={TIP_KEYS[index]}>
               <h2 className="text-body font-semibold text-text-primary">

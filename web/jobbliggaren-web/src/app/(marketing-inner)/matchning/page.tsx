@@ -46,13 +46,13 @@ export default async function MatchningPage() {
             <h1 id="matchning-heading" className="jp-pagehero__title">
               {t("title")}
             </h1>
+            <p className="jp-pagehero__lede">{t("updated")}</p>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body-sm text-text-secondary">{t("updated")}</p>
-        <p className="mt-4 text-body text-text-primary">{t("intro")}</p>
+        <p className="text-body text-text-primary">{t("intro")}</p>
 
         {/* 1. Deterministic + compare diagram */}
         <h2 className="mt-12 text-body-lg font-semibold text-text-primary">

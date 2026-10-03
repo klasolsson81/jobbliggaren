@@ -1,6 +1,7 @@
 {
   "hero": {
-    "title": "Översikt"
+    "title": "Översikt",
+    "lede": "Matchningar, ansökningar och bevakningar."
   },
   "today": {
     "kicker": "Idag",

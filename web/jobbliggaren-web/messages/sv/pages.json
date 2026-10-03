@@ -12,7 +12,10 @@
     "generic": "Sidan läses in…",
     "oversikt": "Översikten läses in…",
     "ansokningar": "Ansökningarna läses in…",
+    "aktivitetsrapport": "Aktivitetsrapporten läses in…",
+    "statistik": "Statistiken läses in…",
     "cv": "Dina CV läses in…",
+    "cvImport": "CV-importen läses in…",
     "cvGranska": "Granskningen läses in…",
     "matchningar": "Matchningarna läses in…",
     "sparade": "Sparade jobb läses in…",
@@ -22,6 +25,7 @@
   },
   "ansokningar": {
     "title": "Mina ansökningar",
+    "lede": "Från utkast till avslut.",
     "newApplication": "Ny ansökan",
     "activityReport": "Aktivitetsrapport-hjälp",
     "statistics": "Statistik",
@@ -61,7 +65,7 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Importera ett befintligt CV för en granskning.",
+    "lede": "Dina CV och deras granskningar.",
     "importCv": "Importera CV",
     "newCv": "Nytt CV",
     "loadErrorTitle": "Kunde inte ladda CV",
@@ -88,6 +92,7 @@
     },
     "import": {
       "title": "Importera CV",
+      "lede": "Granskningen bygger på texten i ditt CV.",
       "meta": {
         "title": "Importera CV"
       }
@@ -105,7 +110,7 @@
     "review": {
       "beta": "Beta",
       "title": "Granska importerat CV",
-      "lede": "Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
+      "lede": "Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan.",
       "nextStepTitle": "Nästa steg",
@@ -150,7 +155,7 @@
     "granska": {
       "beta": "Beta",
       "title": "Granskning av ditt CV",
-      "lede": "Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
+      "lede": "Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan.",
       "loading": "Läser in granskningen…",
@@ -359,7 +364,7 @@
     },
     "criteria": {
       "heading": "Branschbevakningar",
-      "lede": "En sparad sökning på bransch och kommun. Den skickar inga egna notiser.",
+      "lede": "Sparade sökningar på bransch och kommun, utan egna notiser.",
       "newButton": "Ny branschbevakning",
       "listLabel": "Dina branschbevakningar",
       "emptyTitle": "Du har inga branschbevakningar.",
@@ -540,6 +545,7 @@
   },
   "minaSidor": {
     "title": "Mina sidor",
+    "lede": "Dina inställningar och ditt konto.",
     "rateLimited": "Inställningarna kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "profileLoadError": "Inställningarna kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "nav": {

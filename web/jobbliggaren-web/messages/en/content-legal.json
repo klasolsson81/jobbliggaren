@@ -191,7 +191,8 @@
       "description": "Jobbliggaren is a free Swedish service for finding jobs and keeping track of your applications, built on Arbetsförmedlingen's open data. Created by Klas Olsson."
     },
     "title": "About Jobbliggaren",
-    "intro": "Jobbliggaren is a free Swedish service that helps you find jobs and keep track of your applications in one place. The service is built on open job data from Arbetsförmedlingen JobTech (Platsbanken), so that you can search for, save and follow up on your applications at no cost.",
+    "lede": "A free service to search for jobs and track applications.",
+    "intro": "The service uses open job data from Arbetsförmedlingen’s JobTech (Platsbanken).",
     "whyHeading": "Why Jobbliggaren exists",
     "whyParagraphs": [
       "Jobbliggaren is built by Klas Olsson, a software developer focused on .NET and AI, based in Göteborg. It is an independent hobby project, not a company.",
@@ -219,7 +220,8 @@
       "description": "Contact Jobbliggaren by email with questions, ideas or bug reports."
     },
     "title": "Contact us",
-    "intro": "Jobbliggaren is a small hobby project, and we are glad to receive questions, ideas and bug reports. Get in touch and we will reply as soon as we can.",
+    "lede": "Questions, ideas and bug reports.",
+    "intro": "Jobbliggaren is a small hobby project. Get in touch and we will reply as soon as we can.",
     "emailLabel": "You can reach us by email:",
     "email": "kontakt@jobbliggaren.se",
     "aboutListIntro": "Feel free to get in touch about:",
@@ -463,7 +465,7 @@
       "description": "Help centre for Jobbliggaren. Here we gather guides and answers about how the service works, how matching and CV review work and how to reach us."
     },
     "title": "Help centre",
-    "intro": "Here we gather the help for Jobbliggaren in one place. Below you will find guides and answers about how the service works, how matching and CV review work and how to contact us if you need more help.",
+    "lede": "Guides and answers about how Jobbliggaren works.",
     "guidesHeading": "Guides and answers",
     "guidesIntro": "Start here if you are wondering how something works or want to get going.",
     "moreHeading": "More help",
@@ -501,7 +503,8 @@
       "description": "Jobbliggaren is a source-available civic project. Here is the code on GitHub, how the service is built, the open job data it rests on and why matching is rule-based with no AI."
     },
     "title": "For developers",
-    "intro": "This page is for you who are curious about how Jobbliggaren works under the hood. Jobbliggaren is an independent hobby project built in the open, and we are happy to explain how it is made, what data it rests on and why matching looks the way it does.",
+    "lede": "How Jobbliggaren is built and the data it uses.",
+    "intro": "Jobbliggaren is an independent hobby project built in the open.",
     "sections": [
       {
         "heading": "Source-available code",

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svLegal from "../../../../messages/sv/content-legal.json";
 import enLegal from "../../../../messages/en/content-legal.json";
-import VillkorPage from "./page";
+import IntegritetPage from "./page";
 
 let locale: "sv" | "en" = "sv";
 
@@ -16,47 +16,20 @@ vi.mock("next-intl/server", () => ({
     }),
 }));
 
-async function renderPage() {
-  const element = await VillkorPage();
-  return render(element);
-}
-
-describe("/villkor page (#262)", () => {
+describe("/integritet published policy date (#1917)", () => {
   beforeEach(() => { locale = "sv"; });
 
   it.each(["sv", "en"] as const)("renders its published date visibly after h1 in the band (%s)", async (language) => {
     locale = language;
-    const { container } = await renderPage();
+    const { container } = render(await IntegritetPage());
     const catalogue = language === "sv" ? svLegal : enLegal;
     const band = container.querySelector(".jp-pagehero__main");
-    const date = screen.getByText(catalogue.terms.updated);
+    const date = screen.getByText(catalogue.privacy.updated);
     expect(band?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
     expect(date.parentElement).toBe(band);
     expect(date.previousElementSibling?.tagName).toBe("H1");
     expect(date).toBeVisible();
     expect(date.closest('[aria-hidden="true"], .sr-only, details, [role="tooltip"]')).toBeNull();
-    expect(screen.getAllByText(catalogue.terms.updated)).toHaveLength(1);
-  });
-
-  it("renderar h1 och sektioner ur content-legal", async () => {
-    await renderPage();
-
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Användarvillkor" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Vad Jobbliggaren är" })
-    ).toBeInTheDocument();
-  });
-
-  it("relaterade länkar pekar på /integritet och /cookies", async () => {
-    await renderPage();
-
-    expect(
-      screen.getByRole("link", { name: "Integritetspolicy" })
-    ).toHaveAttribute("href", "/integritet");
-    expect(
-      screen.getByRole("link", { name: "Cookiepolicy" })
-    ).toHaveAttribute("href", "/cookies");
+    expect(screen.getAllByText(catalogue.privacy.updated)).toHaveLength(1);
   });
 });

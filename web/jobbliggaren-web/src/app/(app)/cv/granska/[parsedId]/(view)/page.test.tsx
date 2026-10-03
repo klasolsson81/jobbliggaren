@@ -151,7 +151,7 @@ describe("/cv/granska/[parsedId] — the Beta marker", () => {
     expect(kicker!.textContent).toBe("Beta");
     // The reservation itself is the sentence, and it lives in the lede so the skeleton
     // reserves the right band height without a second paragraph.
-    expect(screen.getByText(/Granskningen är ny och byggs vidare/)).toBeInTheDocument();
+    expect(screen.getByText(/Kriterier kan tillkomma och ändras\./)).toBeInTheDocument();
   });
 });
 

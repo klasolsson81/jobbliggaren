@@ -1267,7 +1267,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body);
   line-height: 1.5;
   max-width: 42ch;
-  color: var(--jp-hero-ink-soft);
+  color: var(--jp-gold);
 }
 
 /* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
@@ -1597,7 +1597,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
-  color: var(--jp-hero-ink-soft); max-width: 60ch;
+  color: var(--jp-gold); max-width: min(60ch, 75%);
   text-wrap: pretty;
 }
 .jp-pagehero__aside {

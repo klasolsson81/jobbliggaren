@@ -4,7 +4,8 @@
     "description": "Answers to common questions about Jobbliggaren: pricing, where the ads come from, matching, CV and how your data is handled."
   },
   "title": "Frequently asked questions",
-  "intro": "Here are answers to what we are asked most often. If you cannot find your answer, you can contact us.",
+  "lede": "About pricing, ads, matching, CVs and your details.",
+  "intro": "If you cannot find the answer, you can contact us.",
   "items": {
     "pris": {
       "q": "Does Jobbliggaren cost anything?",

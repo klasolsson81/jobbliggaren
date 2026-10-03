@@ -1,6 +1,7 @@
 {
   "hero": {
-    "title": "Overview"
+    "title": "Overview",
+    "lede": "Matches, applications and watches."
   },
   "today": {
     "kicker": "Today",

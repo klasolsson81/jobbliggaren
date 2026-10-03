@@ -38,6 +38,7 @@
   "oversikt": {
     "kicker": "Demo overview",
     "title": "Overview",
+    "lede": "Matches, applications and watches.",
     "noticeOfferLabel": "Offer",
     "noticeOfferText": "<b>{company}</b>: {role}. Offer awaiting response.",
     "noticeInterviewLabel": "Interview",
@@ -75,7 +76,7 @@
   "cv": {
     "kicker": "Demo CV",
     "title": "CV",
-    "lede": "Once you have an account you can upload your own CV and have it reviewed.",
+    "lede": "With an account you can upload your own CV and have it reviewed.",
     "primaryTag": "Primary",
     "languageLabel": "Language",
     "languageSwedish": "Swedish",
@@ -89,6 +90,7 @@
   },
   "jobb": {
     "heroTitle": "Search jobs",
+    "lede": "Examples of how Platsbanken listings look.",
     "searchLabel": "Search by one or more words",
     "searchButton": "Search",
     "searchHint": "Log in or create an account to search.",

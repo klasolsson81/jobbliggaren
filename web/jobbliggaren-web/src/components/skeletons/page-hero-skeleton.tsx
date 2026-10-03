@@ -21,8 +21,8 @@ import type { ReactElement } from "react";
  *
  * **`title`/`lede` close it.** A pagehero title and lede are static translations, so a
  * fallback can render the REAL text and let the browser do the wrapping — then the band
- * cannot disagree with the page at any viewport. `lede={null}` is a
- * page that renders no lede, and reserves no line.
+ * uses the same wrapping as the page. A real title requires its real line.
+ * The titleless fallback reserves a decorative line when its text is unknown.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
  * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton).
@@ -56,26 +56,22 @@ import type { ReactElement } from "react";
  * aside: the component cannot know what a page it has never seen puts there, and the one
  * consumer that used to take the default renders no aside at all (#1490).
  */
+type PageHeroSkeletonProps = {
+  aside: ReactElement | null;
+  stacked?: boolean;
+  kicker?: boolean;
+} & (
+  | { title: string; lede: string }
+  | { title?: undefined; lede: string | null }
+);
+
 export function PageHeroSkeleton({
   aside,
   stacked = false,
   kicker = false,
   title,
   lede,
-}: {
-  /** The page's aside content, or `null` where the page renders no aside element. */
-  aside: ReactElement | null;
-  /** Set where the page composes `.jp-pagehero__aside--stacked` on its aside. */
-  stacked?: boolean;
-  kicker?: boolean;
-  /** The page's real title. Given, it is rendered instead of the title bar. */
-  title?: string;
-  /**
-   * The page's real lede; `null` where the page
-   * renders none.
-   */
-  lede: string | null;
-}) {
+}: PageHeroSkeletonProps) {
   return (
     <section className="jp-pagehero" aria-hidden="true">
       <div className="jp-pagehero__inner">
@@ -86,7 +82,9 @@ export function PageHeroSkeleton({
           ) : (
             <h1 className="jp-pagehero__title">{title}</h1>
           )}
-          {lede !== null && <p className="jp-pagehero__lede">{lede}</p>}
+          <p className="jp-pagehero__lede">
+            {lede === null ? <span className="jp-skeleton block h-6 w-48 max-w-full" /> : lede}
+          </p>
         </div>
         {aside !== null && (
           <div

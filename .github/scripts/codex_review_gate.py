@@ -106,8 +106,8 @@ def main():
     def read_pr():
         return include_scope_history(api(f"pulls/{number}"))
 
-    pr = read_pr()
-    if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target":
+    def handle_pr_event(pr):
+        pr = include_scope_history(pr)
         if pr["state"] != "open":
             return
         if codex_scope(repository, pr):
@@ -124,9 +124,6 @@ def main():
                               "output": {"title": "Waiting for Codex reports",
                                          "summary": "Owner must attest completed reports for the current head and base."}})
             return
-        # A fork cannot mint an exemption for a commit also used by this repo.
-        if not pr["head"]["repo"] or pr["head"]["repo"]["full_name"] != repository:
-            raise ValueError("Fork PRs need explicit review policy; no automatic exemption")
         page = 1
         while True:
             siblings = api(f"pulls?state=all&per_page=100&page={page}")
@@ -142,6 +139,23 @@ def main():
                           "output": {"title": "Not applicable: non-Codex branch",
                                      "summary": "Existing CI and agents-done policy applies."}})
         return
+    pr = api(f"pulls/{number}")
+    if os.environ["GITHUB_EVENT_NAME"] == "pull_request_target":
+        # Untrusted forks must not overwrite a same-repository commit's App status.
+        if not pr["head"]["repo"] or pr["head"]["repo"]["full_name"] != repository:
+            raise ValueError("Fork PRs need explicit review policy; no automatic exemption")
+        try:
+            handle_pr_event(pr)
+        except Exception:
+            # An Actions failure cannot replace this App's prior success on a reused SHA.
+            api("check-runs", {"name": CHECK_NAME, "head_sha": pr["head"]["sha"],
+                              "status": "completed", "conclusion": "failure",
+                              "external_id": review_identity(repository, pr),
+                              "output": {"title": "Review policy could not be satisfied",
+                                         "summary": "Resolve the workflow error before attesting current reports."}})
+            raise
+        return
+    pr = include_scope_history(pr)
     permission = api(f"collaborators/{os.environ['GITHUB_ACTOR']}/permission")["permission"]
     validate(inputs, repository, pr, permission, os.environ["GITHUB_REF"],
              event["repository"]["default_branch"])

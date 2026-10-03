@@ -177,9 +177,9 @@ class ReviewAttestationTests(unittest.TestCase):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc] * 100, [self.pr]], "pull_request_target")
-        self.assertTrue(self.requests[-1][1].endswith("page=2"))
-        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+            self.run_event([cc, [], [cc] * 100, [self.pr], {}], "pull_request_target")
+        self.assertTrue(self.requests[-2][1].endswith("page=2"))
+        self.assert_failure_replaces_prior_approval()
 
     def test_retarget_or_base_advance_refuses_old_attestation(self):
         for key, value in (("ref", "release"), ("sha", "d" * 40)):
@@ -254,15 +254,36 @@ class ReviewAttestationTests(unittest.TestCase):
         sibling["number"] = 456
         events = [{"event": "labeled", "label": {"name": "codex-review"}}]
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc, sibling], events], "pull_request_target")
-        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+            self.run_event([cc, [], [cc, sibling], events, {}], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
 
     def test_unavailable_scope_history_cannot_mint_an_exemption(self):
         cc = copy.deepcopy(self.pr)
         cc["head"]["ref"] = "fix/cc-example"
         with self.assertRaises(OSError):
-            self.run_event([cc, OSError("offline")], "pull_request_target")
-        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+            self.run_event([cc, OSError("offline"), {}], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
+
+    def assert_failure_replaces_prior_approval(self):
+        method, url, body = self.requests[-1]
+        self.assertEqual("POST", method)
+        self.assertTrue(url.endswith("/check-runs"))
+        self.assertEqual("codex-review-gate", body["name"])
+        self.assertEqual(self.pr["head"]["sha"], body["head_sha"])
+        self.assertEqual("failure", body["conclusion"])
+        self.assertEqual("Bearer test-checks-token", self.tokens[-1])
+
+    def test_unavailable_sibling_scan_replaces_prior_app_approval(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        with self.assertRaises(OSError):
+            self.run_event([cc, [], OSError("offline"), {}], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
+
+    def test_unavailable_prior_checks_replaces_prior_app_approval(self):
+        with self.assertRaises(OSError):
+            self.run_event([self.pr, OSError("offline"), {}], "pull_request_target")
+        self.assert_failure_replaces_prior_approval()
 
     def test_closed_codex_pr_still_blocks_same_sha_exemption(self):
         cc = copy.deepcopy(self.pr)
@@ -270,9 +291,9 @@ class ReviewAttestationTests(unittest.TestCase):
         previous = copy.deepcopy(self.pr)
         previous.update(number=122, state="closed")
         with self.assertRaises(ValueError):
-            self.run_event([cc, [], [cc, previous]], "pull_request_target")
-        self.assertIn("pulls?state=all&", self.requests[-1][1])
-        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+            self.run_event([cc, [], [cc, previous], {}], "pull_request_target")
+        self.assertIn("pulls?state=all&", self.requests[-2][1])
+        self.assert_failure_replaces_prior_approval()
 
 
 if __name__ == "__main__":

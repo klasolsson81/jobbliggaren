@@ -63,9 +63,9 @@ limited to the web–API network, coordinated with #1767.
 
 | Application identity | Store | Permitted data responsibility |
 |---|---|---|
-| API/persistent | Persistent | Sessions, session indexes, revocation and deletion markers, existing cooldowns and company caches; read-only landing statistics |
+| API/persistent | Persistent | Sessions, session indexes, revocation and deletion markers and company caches; read-only landing statistics |
 | Worker/persistent | Persistent | Write-only access to exactly `jobbliggaren:landing:stats:v1` |
-| API/volatile | Volatile | Challenge records, address indexes and explicitly enumerated budget namespaces |
+| API/volatile | Volatile | Challenge records, address/user indexes, grants, registration claims, OAuth state and explicitly enumerated budget namespaces |
 
 Disable the default user and start every application policy from denied access.
 Use separate ACL selectors for each command-and-key combination; do not combine

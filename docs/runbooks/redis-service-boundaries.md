@@ -1,9 +1,13 @@
 # Redis service boundaries
 
-Status: PR2 integration for #1759, following [ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md)
-and the explicit #1735 handoff. Production and development Compose mount the
-policies. Both application hosts require authenticated, role-specific connections
-and successful startup probes. Live cutover and environment acceptance remain open.
+Status: #1759's contract and integration merged in PRs #1772 and #1775, following
+[ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md) and
+the explicit #1735 handoff. The separately authorized development cutover was
+verified on 2026-09-24 ([dated verification](https://github.com/klasolsson81/jobbliggaren/issues/1759#issuecomment-5811459500)).
+Production and development Compose mount the policies. Both application hosts
+require authenticated, role-specific connections and successful startup probes.
+Issue acceptance also requires current-policy verification and final application
+retesting through #1769.
 
 Development runs API and Worker on the host. Its two Redis instances use separate
 ordinary bridges with ports published only on `127.0.0.1`, retaining development
@@ -29,7 +33,7 @@ Change the contract and its tests together when adding a consumer.
 | migrate-rewrap | PostgreSQL | Key maintenance |
 | API | persistent Redis | Sessions, company cache and statistics reads |
 | Worker | persistent Redis | Statistics publication |
-| API | volatile Redis | Login challenges and budgets |
+| API | volatile Redis | Login challenges, grants, registration claims, OAuth state and budgets |
 | API | Seq | Application logs |
 | Worker | Seq | Job logs |
 
@@ -57,8 +61,8 @@ firewall snapshots and operator evidence in the private deployment record.
 The baseline uses the repository-pinned StackExchange.Redis 3.1.13 and
 Microsoft.Extensions.Caching.StackExchangeRedis 10.0.10. The contract fixtures
 run Redis 8.6, matching the production manifest's minor line; a different image
-or client version requires another contract run. PR2 must additionally verify
-the development manifest's image. Versions here identify this contract baseline,
+or client version requires another contract run. Verify each production and
+development manifest image. Versions here identify this contract baseline,
 not a promise that dependencies never change.
 
 Every full key below starts with `jobbliggaren:`. Cache adapters apply that
@@ -125,12 +129,12 @@ commands against the authenticated user's selectors.
 
 ## Connections, credentials and health
 
-PR2 must move the fixture-verified connection restrictions into shared
-Infrastructure configuration: RESP2, explicit server-version baseline, empty
-configuration channel and tie-breaker; disable unused CONFIG, INFO, CLUSTER,
-SENTINEL, pub/sub, PUBLISH and SELECT discovery commands. Application roles allow
+Shared Infrastructure configuration enforces the fixture-verified connection
+restrictions: RESP2, explicit server-version baseline, empty configuration channel
+and tie-breaker; disabled CONFIG, INFO, CLUSTER, SENTINEL, pub/sub, PUBLISH and
+SELECT discovery commands. Application roles allow
 PING, ECHO, CLIENT SETNAME, CLIENT SETINFO and QUIT. Reuse #1735's typed volatile
-holder and Application ports; do not introduce a competing DI contract.
+holder and Application ports for new consumers; do not introduce a competing DI contract.
 
 Use separate read-only mounts for API persistent, API volatile and Worker
 persistent connection secrets. The existing directory shared by API and Worker

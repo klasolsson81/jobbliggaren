@@ -3,17 +3,12 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./app-shell";
 import type { LandingStatsDto } from "@/lib/dto/landing";
+import { LOGOUT_PATH } from "@/lib/auth/login-paths";
 
 // usePathname styr aria-current på nav-länkarna — mockas per route.
 const pathnameMock = vi.fn<() => string>();
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
-}));
-
-// Server-action mockas per repo-mönster: logoutAction anropas inte i dessa
-// tester men måste vara importbar.
-vi.mock("@/lib/auth/actions", () => ({
-  logoutAction: vi.fn(),
 }));
 
 // HeaderStats kör polling-setInterval i useEffect — mockas till en trivial
@@ -111,9 +106,9 @@ describe("AppShell (v3 header-shell)", () => {
     expect(
       within(menu).getByRole("link", { name: "Mina sidor" }),
     ).toHaveAttribute("href", "/mina-sidor");
-    expect(
-      within(menu).getByRole("button", { name: /Logga ut/ }),
-    ).toBeInTheDocument();
+    const logout = within(menu).getByRole("button", { name: /Logga ut/ }).closest("form");
+    expect(logout).toHaveAttribute("action", LOGOUT_PATH);
+    expect(logout).toHaveAttribute("method", "post");
   });
 
   it("döljer Granskning för icke-admin men visar den för admin", async () => {

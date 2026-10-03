@@ -2,3 +2,6 @@
 export const LOGIN_ENTRY_PATH = "/logga-in";
 export const LOGIN_CODE_PATH = "/logga-in/kod";
 export const LOGIN_CONSENT_PATH = "/logga-in/villkor";
+
+/** The logout route handler (#1956). Every "Logga ut" form posts here natively, through `LogoutForm`. */
+export const LOGOUT_PATH = "/api/auth/logout";

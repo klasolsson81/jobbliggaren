@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
 import { getServerSession, ROLES } from "@/lib/auth/session";
-import { logoutAction } from "@/lib/auth/actions";
+import { LogoutForm } from "@/components/auth/logout-form";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { HeaderStrip } from "@/components/site/header-strip";
@@ -50,11 +50,11 @@ export default async function AdminLayout({
           <span className="jp-header__spacer" />
           <div className="flex items-center gap-4">
             <span className="text-body-sm text-text-secondary">{user.email}</span>
-            <form action={logoutAction}>
+            <LogoutForm>
               <Button type="submit" variant="ghost" size="sm">
                 {t("nav.logout")}
               </Button>
-            </form>
+            </LogoutForm>
           </div>
         </HeaderStrip>
         <main

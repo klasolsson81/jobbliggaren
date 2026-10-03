@@ -24,7 +24,6 @@ vi.mock("next-intl/server", () => ({
 vi.mock("@/lib/auth/session", () => ({
   getServerSession: () => getServerSession(),
 }));
-vi.mock("@/lib/auth/actions", () => ({ logoutAction: vi.fn() }));
 vi.mock("@/lib/api/me", () => ({ getMyProfile: () => getMyProfile() }));
 vi.mock("@/lib/api/taxonomy", () => ({
   getTaxonomyTree: async () => ({ kind: "error" }),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bell, LogOut, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { logoutAction } from "@/lib/auth/actions";
+import { LogoutForm } from "@/components/auth/logout-form";
 import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 export type MinaSidorSection = keyof typeof MINA_SIDOR_HREF;
@@ -20,7 +20,7 @@ const SECTION_ICON: Record<MinaSidorSection, LucideIcon> = {
  * The /mina-sidor section menu (#1891, #1916). The current section is a prop the page passes, as
  * `ForetagSubnav` does, so this stays a server component with no client JS; every section is a
  * real URL. Logga ut sits under the menu, outside the navigation landmark, because it is an action:
- * the same `logoutAction` form as the header's user menu.
+ * the same `LogoutForm` as the header's user menu.
  */
 export function MinaSidorNav({ active }: { active: MinaSidorSection }) {
   const t = useTranslations("pages.minaSidor");
@@ -46,12 +46,12 @@ export function MinaSidorNav({ active }: { active: MinaSidorSection }) {
           })}
         </ul>
       </nav>
-      <form action={logoutAction} className="jp-settingsnav__foot">
+      <LogoutForm className="jp-settingsnav__foot">
         <button type="submit" className="jp-settingsnav__logout">
           <LogOut size={16} aria-hidden="true" />
           {ts("logout.action")}
         </button>
-      </form>
+      </LogoutForm>
     </div>
   );
 }

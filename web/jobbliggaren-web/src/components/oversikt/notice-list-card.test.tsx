@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RequiresYouCard } from "./requires-you-card";
@@ -7,6 +7,8 @@ import messages from "../../../messages/sv";
 import type { SectionNoticeData } from "./notice-section";
 
 const COPY = messages.oversikt;
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const followUp: SectionNoticeData = {
   id: "n-followup",
@@ -42,15 +44,53 @@ const match: SectionNoticeData = {
   time: "idag",
 };
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => { window.localStorage.clear(); refresh.mockClear(); });
 
 function requiresYou() {
   return screen.getByRole("region", { name: COPY.cards.requiresYou });
 }
 
 describe("RequiresYouCard", () => {
+  it("offers one keyboard link outside the notice list without fabricating an unread count", async () => {
+    const user = userEvent.setup();
+    render(<RequiresYouCard needsSetup notices={[]} />);
+    const link = within(requiresYou()).getByRole("link", { name: `${COPY.setup.title} ${COPY.setup.body}` });
+    expect(link).toHaveAttribute("href", "/oversikt?matchsetup=1");
+    expect(link.closest("ol")).toBeNull();
+    expect(requiresYou()).toHaveAttribute("data-empty", "true");
+    expect(within(requiresYou()).getByText("inga olästa")).toBeInTheDocument();
+    expect(within(requiresYou()).queryByText(COPY.cards.requiresYouEmpty)).toBeNull();
+    expect(within(requiresYou()).queryByRole("button")).toBeNull();
+    await user.tab();
+    expect(link).toHaveFocus();
+  });
+
+  it("keeps setup above genuine actions and preserves their count, read foot and restoration", async () => {
+    const user = userEvent.setup();
+    render(<RequiresYouCard needsSetup notices={[followUp, interview]} />);
+    const link = within(requiresYou()).getByRole("link", { name: /Fortsätt komma igång/ });
+    expect(link.compareDocumentPosition(requiresYou().querySelector("ol")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(requiresYou()).getByText("2 olästa")).toBeInTheDocument();
+    expect(requiresYou()).not.toHaveAttribute("data-empty");
+    await user.click(within(requiresYou()).getAllByRole("button", { name: COPY.notices.dismiss })[0]!);
+    expect(within(requiresYou()).getByText("1 oläst")).toBeInTheDocument();
+    expect(within(requiresYou()).getByText("1 läst notis")).toBeInTheDocument();
+    await user.click(within(requiresYou()).getByRole("button", { name: COPY.notices.showRead }));
+    await user.click(within(requiresYou()).getByRole("button", { name: COPY.notices.restore }));
+    expect(within(requiresYou()).getByText("2 olästa")).toBeInTheDocument();
+    expect(link).toBeInTheDocument();
+  });
+
+  it("retries a failed taxonomy launch by refreshing the page", async () => {
+    const user = userEvent.setup();
+    render(<RequiresYouCard needsSetup setupUnavailable notices={[]} />);
+    expect(within(requiresYou()).getByRole("alert")).toHaveTextContent(COPY.setup.unavailable);
+    await user.click(within(requiresYou()).getByRole("button", { name: COPY.setup.retry }));
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
   it("renders one row per notice with an icon box in its kind, label, time, text and an emphasised row CTA", () => {
-    render(<RequiresYouCard notices={[followUp, interview]} />);
+    render(<RequiresYouCard needsSetup={false} notices={[followUp, interview]} />);
     const rows = [...requiresYou().querySelectorAll<HTMLElement>(".jp-ov-action")];
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveAttribute("data-kind", "warning");
@@ -66,7 +106,7 @@ describe("RequiresYouCard", () => {
   });
 
   it("empty: the card stays, carries the empty row and data-empty for the neutral bar", () => {
-    render(<RequiresYouCard notices={[]} />);
+    render(<RequiresYouCard needsSetup={false} notices={[]} />);
     expect(requiresYou()).toHaveAttribute("data-empty", "true");
     expect(within(requiresYou()).getByText(COPY.cards.requiresYouEmpty)).toBeInTheDocument();
     expect(within(requiresYou()).getByText("inga olästa")).toBeInTheDocument();
@@ -74,7 +114,7 @@ describe("RequiresYouCard", () => {
 
   it("dismiss moves the row behind the read foot and focus to the foot's toggle", async () => {
     const user = userEvent.setup();
-    render(<RequiresYouCard notices={[followUp]} />);
+    render(<RequiresYouCard needsSetup={false} notices={[followUp]} />);
     await user.click(within(requiresYou()).getByRole("button", { name: COPY.notices.dismiss }));
 
     expect(requiresYou().querySelectorAll<HTMLElement>(".jp-ov-action")).toHaveLength(0);
@@ -88,7 +128,7 @@ describe("RequiresYouCard", () => {
 
   it("Visa shows the read row muted with a restore control; restoring the last one moves focus to the card", async () => {
     const user = userEvent.setup();
-    render(<RequiresYouCard notices={[followUp]} />);
+    render(<RequiresYouCard needsSetup={false} notices={[followUp]} />);
     await user.click(within(requiresYou()).getByRole("button", { name: COPY.notices.dismiss }));
     await user.click(within(requiresYou()).getByRole("button", { name: COPY.notices.showRead }));
 
@@ -106,7 +146,7 @@ describe("RequiresYouCard", () => {
       "jp-oversikt-notice-prefs",
       JSON.stringify({ "applications:followup": false }),
     );
-    render(<RequiresYouCard notices={[followUp, interview]} />);
+    render(<RequiresYouCard needsSetup={false} notices={[followUp, interview]} />);
     expect(within(requiresYou()).queryByText("Uppföljning")).toBeNull();
     expect(within(requiresYou()).getByText("1 oläst")).toBeInTheDocument();
   });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Target } from "lucide-react";
 import { OversiktCard, OversiktCardFoot, OversiktNumber } from "./oversikt-card";
+import type { SetupState } from "@/lib/onboarding/setup-state";
 
 interface MatchingCardProps {
   /**
@@ -18,9 +19,9 @@ interface MatchingCardProps {
   readonly matchHref: string | null;
   /**
    * ADR 0076 — the setup state and the count are mutually exclusive. No stated occupation ⇒ this
-   * card carries the setup callout and the ONLY settings link on the page.
+   * card carries the setup callout. A failed profile read is unavailable.
    */
-  readonly hasStatedOccupation: boolean;
+  readonly setupState: SetupState;
   /** 4 beside three siblings, 6 when the Branschbevakning card has reflowed to a full row. */
   readonly span: 4 | 6;
 }
@@ -35,20 +36,20 @@ const ID = "oversikt-card-matching";
 export function MatchingCard({
   matchCount,
   matchHref,
-  hasStatedOccupation,
+  setupState,
   span,
 }: MatchingCardProps) {
   const t = useTranslations("oversikt");
   const title = t("cards.matching");
 
-  if (!hasStatedOccupation) {
+  if (setupState === "incomplete") {
     return (
-      <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target}>
+      <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target} focusableTitle>
         <p className="jp-ov-card__text">{t("notices.calloutText")}</p>
         <OversiktCardFoot>
           {/* `/oversikt?matchsetup=1` opens the match-setup modal via MatchSetupLauncher
               (epic #526) — the same destination the callout has always had. */}
-          <Link className="jp-btn jp-btn--primary jp-ov-cta" href="/oversikt?matchsetup=1">
+          <Link className="jp-btn jp-btn--primary jp-ov-cta" href="/oversikt?matchsetup=1" scroll={false}>
             {t("notices.calloutCta")} <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </OversiktCardFoot>
@@ -56,9 +57,9 @@ export function MatchingCard({
     );
   }
 
-  if (matchCount === null || matchHref === null) {
+  if (setupState === "unavailable" || matchCount === null || matchHref === null) {
     return (
-      <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target}>
+      <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target} focusableTitle>
         <OversiktNumber value={null} />
         <p className="jp-ov-card__unavailable">{t("cards.matchingUnavailable")}</p>
       </OversiktCard>
@@ -66,7 +67,7 @@ export function MatchingCard({
   }
 
   return (
-    <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target}>
+    <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target} focusableTitle>
       <OversiktNumber
         value={matchCount}
         unit={t("cards.matchingUnit", { count: matchCount })}

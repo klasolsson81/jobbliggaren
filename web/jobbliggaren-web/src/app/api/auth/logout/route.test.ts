@@ -1,3 +1,5 @@
+// @vitest-environment node
+// The route runs on Node; jsdom's AbortSignal and DOMException are not the ones it meets.
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,6 +113,34 @@ describe("POST /api/auth/logout (#1956)", () => {
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain(SESSION_ID);
     expect(mocks.deleteSessionCookie).toHaveBeenCalledTimes(1);
     expectLoggedOutTo(response);
+  });
+
+  it("bounds the backend call, so a stalled backend still lets the cookie go and the browser leave", async () => {
+    const controller = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
+    try {
+      mocks.fetch.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal?.reason)))
+      );
+
+      const pending = route.POST(makeRequest());
+      await vi.waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+      expect(mocks.deleteSessionCookie).not.toHaveBeenCalled();
+      // What undici rejects with when AbortSignal.timeout fires.
+      controller.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+      const response = await pending;
+
+      expect(timeout).toHaveBeenCalledWith(2500);
+      expect(consoleError.mock.lastCall).toEqual([
+        "logout.backend_call_failed",
+        { event: "logout", cause: "The operation was aborted due to timeout" },
+      ]);
+      expect(mocks.deleteSessionCookie).toHaveBeenCalledTimes(1);
+      expectLoggedOutTo(response);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it.each([null, "null", "http://foreign.test", "https://localhost", "http://localhost:3000"])(

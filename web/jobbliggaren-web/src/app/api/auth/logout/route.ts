@@ -5,6 +5,9 @@ import { env } from "@/lib/env";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 
+/** The cookie is deleted in the response, so a stalled backend must not hold that response back. */
+const BACKEND_TIMEOUT_MS = 2500;
+
 /**
  * POST /api/auth/logout — where every "Logga ut" form posts (#1956, ADR 0018 Amendment 2026-10-03).
  *
@@ -26,6 +29,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         method: "POST",
         headers: { ...pickForwardedHeaders(request.headers), Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
       });
       // Best-effort: the backend session lapses by its own TTL if this call fails.
       if (!res.ok) {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
@@ -10,8 +11,8 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * here and rendered as the layout's children, so the shell, navigation and
  * theme stay intact and the user sees a calm civic surface (§10) instead of the
  * raw near-black Next overlay (dev) or an ungraceful blank (prod). No stack
- * trace is shown; `unstable_retry()` re-fetches and re-renders the segment
- * (the documented recovery for a transient throw in Next 16.2+ — `reset()`
+ * trace is shown; `retry()` re-fetches and re-renders the segment
+ * (the documented recovery for a transient throw in Next 16.3+ — `reset()`
  * only re-renders without re-fetching, so it would replay the same failed RSC
  * payload), and there is always a way back to the overview.
  *
@@ -23,12 +24,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * boundary to global-error.tsx (a segment's error.tsx cannot catch its own
  * layout).
  */
-export default function AppError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function AppError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
@@ -45,7 +41,7 @@ export default function AppError({
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}

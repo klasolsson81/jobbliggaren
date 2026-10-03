@@ -13,7 +13,7 @@ const boundaryError = Object.assign(new Error("inner-boom-internal"), {
 describe("(marketing-inner)/error boundary (#1477)", () => {
   it("renders the civic error surface without leaking the error to the user", () => {
     render(
-      <MarketingInnerError error={boundaryError} unstable_retry={() => {}} />,
+      <MarketingInnerError error={boundaryError} retry={() => {}} reset={() => {}} />,
     );
 
     expect(
@@ -31,7 +31,7 @@ describe("(marketing-inner)/error boundary (#1477)", () => {
     // `#main` — but the `<main>` itself lives on each page (#284). When the page
     // is what threw, this boundary is the only thing left to carry the target.
     const { container } = render(
-      <MarketingInnerError error={boundaryError} unstable_retry={() => {}} />,
+      <MarketingInnerError error={boundaryError} retry={() => {}} reset={() => {}} />,
     );
 
     const main = screen.getByRole("main");
@@ -40,10 +40,10 @@ describe("(marketing-inner)/error boundary (#1477)", () => {
   });
 
   it("offers both a retry and a way back to the start page", async () => {
-    const unstableRetry = vi.fn();
+    const retryFn = vi.fn();
     const user = userEvent.setup();
     render(
-      <MarketingInnerError error={boundaryError} unstable_retry={unstableRetry} />,
+      <MarketingInnerError error={boundaryError} retry={retryFn} reset={() => {}} />,
     );
 
     expect(
@@ -51,14 +51,14 @@ describe("(marketing-inner)/error boundary (#1477)", () => {
     ).toHaveAttribute("href", "/");
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
-    expect(unstableRetry).toHaveBeenCalledTimes(1);
+    expect(retryFn).toHaveBeenCalledTimes(1);
   });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
     // and focus stays on <body>, remove the tabIndex and .focus() is a silent
     // no-op on a heading.
-    render(<MarketingInnerError error={boundaryError} unstable_retry={() => {}} />);
+    render(<MarketingInnerError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { level: 1 }),

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
@@ -23,12 +24,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * trace) nor logged here — Next reports uncaught errors on its own, and console
  * output is a §5 anti-pattern.
  */
-export default function MarketingError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function MarketingError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
@@ -48,7 +44,7 @@ export default function MarketingError({
         <div>
           <button
             type="button"
-            onClick={() => unstable_retry()}
+            onClick={() => retry()}
             className="jp-btn jp-btn--primary"
           >
             {t("retry")}

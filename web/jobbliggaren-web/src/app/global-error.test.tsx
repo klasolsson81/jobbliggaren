@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import GlobalError from "./global-error";
 
 // global-error renders its own <html>/<body> and seeds its OWN
-// NextIntlClientProvider (locale sv, pages namespace). The render shim's outer
+// NextIntlClientProvider (locale sv, the fallback namespace). The render shim's outer
 // provider is harmless — the boundary's inner provider governs its subtree, the
 // same isolation production sees when no root provider exists. jsdom emits a
 // nesting warning for <html> inside the render container; it does not affect the
@@ -16,7 +16,7 @@ const rootError = Object.assign(new Error("root-layout-crash"), {
 
 describe("global-error boundary (#995)", () => {
   it("renders the civic last-resort surface, no internal detail leaked", () => {
-    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+    render(<GlobalError error={rootError} retry={() => {}} reset={() => {}} />);
 
     expect(
       screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
@@ -31,7 +31,7 @@ describe("global-error boundary (#995)", () => {
   });
 
   it("names the site in the tab title, which Next's title.template cannot reach here", () => {
-    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+    render(<GlobalError error={rootError} retry={() => {}} reset={() => {}} />);
 
     // React hoists <title> into document.head. Bites on revert: dropping the
     // template composition leaves the tab without the site name.
@@ -39,27 +39,27 @@ describe("global-error boundary (#995)", () => {
   });
 
   it("offers a way back to the start page", () => {
-    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+    render(<GlobalError error={rootError} retry={() => {}} reset={() => {}} />);
 
     const toStart = screen.getByRole("link", { name: "Till startsidan" });
     expect(toStart).toHaveAttribute("href", "/");
   });
 
-  it("retry invokes unstable_retry() (re-fetch + re-render)", async () => {
-    const unstableRetry = vi.fn();
+  it("retry invokes retry() (re-fetch + re-render)", async () => {
+    const retryFn = vi.fn();
     const user = userEvent.setup();
-    render(<GlobalError error={rootError} unstable_retry={unstableRetry} />);
+    render(<GlobalError error={rootError} retry={retryFn} reset={() => {}} />);
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
 
-    expect(unstableRetry).toHaveBeenCalledTimes(1);
+    expect(retryFn).toHaveBeenCalledTimes(1);
   });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
     // and focus stays on <body>, remove the tabIndex and .focus() is a silent
     // no-op on a heading.
-    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+    render(<GlobalError error={rootError} retry={() => {}} reset={() => {}} />);
 
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { level: 1 }),

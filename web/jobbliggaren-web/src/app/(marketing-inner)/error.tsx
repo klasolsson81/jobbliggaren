@@ -1,5 +1,6 @@
 "use client";
 
+import type { ErrorInfo } from "next/error";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
@@ -22,12 +23,7 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
  * contract but is deliberately neither shown nor logged — no stack trace to the
  * user, and Next reports uncaught errors itself (§5: no console output).
  */
-export default function MarketingInnerError({
-  unstable_retry,
-}: {
-  error: Error & { digest?: string };
-  unstable_retry: () => void;
-}) {
+export default function MarketingInnerError({ retry }: ErrorInfo) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
@@ -45,7 +41,7 @@ export default function MarketingInnerError({
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="jp-btn jp-btn--primary"
         >
           {t("retry")}

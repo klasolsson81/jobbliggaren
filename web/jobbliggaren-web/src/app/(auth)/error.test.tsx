@@ -12,7 +12,7 @@ const boundaryError = Object.assign(new Error("auth-boom-internal"), {
 
 describe("(auth)/error boundary (#1477)", () => {
   it("renders the civic error surface without leaking the error to the user", () => {
-    render(<AuthError error={boundaryError} unstable_retry={() => {}} />);
+    render(<AuthError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(
       screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
@@ -24,14 +24,14 @@ describe("(auth)/error boundary (#1477)", () => {
     expect(screen.queryByText(/digest-auth/)).not.toBeInTheDocument();
   });
 
-  it("retry invokes Next's unstable_retry() (re-fetch + re-render the segment)", async () => {
-    const unstableRetry = vi.fn();
+  it("retry invokes Next's retry() (re-fetch + re-render the segment)", async () => {
+    const retryFn = vi.fn();
     const user = userEvent.setup();
-    render(<AuthError error={boundaryError} unstable_retry={unstableRetry} />);
+    render(<AuthError error={boundaryError} retry={retryFn} reset={() => {}} />);
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
 
-    expect(unstableRetry).toHaveBeenCalledTimes(1);
+    expect(retryFn).toHaveBeenCalledTimes(1);
   });
 
   it("offers no way back of its own — (auth)/layout owns the back link", () => {
@@ -39,7 +39,7 @@ describe("(auth)/error boundary (#1477)", () => {
     // the defect this boundary must not introduce: the layout renders that link
     // above `children`, and error.tsx IS the children. Bites if a later edit
     // adds a duplicate here.
-    render(<AuthError error={boundaryError} unstable_retry={() => {}} />);
+    render(<AuthError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
@@ -48,7 +48,7 @@ describe("(auth)/error boundary (#1477)", () => {
     // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
     // and focus stays on <body>, remove the tabIndex and .focus() is a silent
     // no-op on a heading.
-    render(<AuthError error={boundaryError} unstable_retry={() => {}} />);
+    render(<AuthError error={boundaryError} retry={() => {}} reset={() => {}} />);
 
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { level: 1 }),

@@ -3137,10 +3137,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* Shared section label — previously duplicated as SECTION_LABEL_STYLE in the
    detail, follow-ups-section and notes-section (DRY). */
 .jp-section-label {
-  font-size: var(--text-caption);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--jp-ink-2);
   margin-bottom: 10px;
 }
@@ -3167,12 +3168,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 12px;
 }
 .jp-section-label--row .jp-btn {
+  font-family: var(--jp-font-sans);
+  text-transform: none;
   white-space: nowrap;
 }
 .jp-section-label__hint {
   margin-left: 8px;
+  font-family: var(--jp-font-sans);
+  font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-regular);
-  letter-spacing: 0.02em;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--jp-ink-2);
 }
 /* #805 punkt 5: inline "?"-hjälp tätt bunden till en sektionsetikett
@@ -6875,14 +6881,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
    tier-/doktrin-omdömen sker i WS1). Nya call-sites använder klasserna.
    ════════════════════════════════════════════════════════════════ */
 
-/* Eyebrow-sektionsrubrik (13px caps) — var 3 inline-kopior: job-ad-detail,
+/* Eyebrow-sektionsrubrik (mono caps) — var 3 inline-kopior: job-ad-detail,
    job-ad-match-section, guest-application-detail. Margins skiljer per plats
    och bärs av utilities på call-siten. */
 .jp-eyebrow {
-  font-size: var(--text-caption);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--jp-ink-2);
 }
 

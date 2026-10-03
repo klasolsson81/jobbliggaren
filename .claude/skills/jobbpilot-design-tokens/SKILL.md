@@ -230,6 +230,8 @@ Mono caps-labels (kickers, kolumnhuvuden, uppercase + letter-spacing
 `--jp-ink-2` eller `--jp-ink-1` —
 aldrig `--jp-ink-3` (informationsbärande text, ADR 0038-golvet består).
 
+The shared `.jp-section-label` and `.jp-eyebrow` follow the section-label rung in DESIGN.md §4. Their nested hints and controls retain their respective sans roles.
+
 **Vikt-stege + nya roller (#549 WS2/WS1):** font-weight ALLTID via
 `--jp-fw-regular/-medium/-semibold/-bold/-heavy` (400–800), aldrig numeriska
 litteraler; rubrikvikt = bold (700), heavy (800) ENDAST display-klassen.

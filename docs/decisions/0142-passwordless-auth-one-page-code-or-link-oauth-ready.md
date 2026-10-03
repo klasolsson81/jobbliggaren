@@ -2027,7 +2027,7 @@ form (a).**
   - the callback's `Referrer-Policy: no-referrer` and its zero subresources;
   - no log line that carries a code: the edge deletes `code` and `state` from the one line it writes, on a 5xx, and
     the callback never answers 5xx;
-  - exact redirect matching at the authorization endpoint (measured 2026-09-27 and 2026-09-29).
+  - exact redirect matching at the authorization endpoint (measured 2026-09-27 and 2026-09-29). *(Amendment 2026-10-03 (23): measured at `www.linkedin.com`; our client also answers at `api.linkedin.com`, measured to match exactly on 2026-10-03)*
 - **What confines a code that lands elsewhere:**
   - LinkedIn's token endpoint refuses a code whose redirect does not match (its documented `invalid_redirect_uri`;
     not measured);
@@ -2242,7 +2242,7 @@ Nothing below re-grades a finding, and none of it is a §9.6 (3) acceptance
   login's legal basis stays Art. 6(1)(b), as the privacy policy states it.
 
 **LinkedIn has no documented lever and honoured no undocumented one, so its behaviour is recorded as LinkedIn's
-limitation.**
+limitation.** *(corrected in Amendment 2026-10-03 (23): the probe tried parameters only. An undocumented host, `api.linkedin.com`, was measured on 2026-10-03 to show LinkedIn's sign-in page to a member signed in at www, and our authorization request goes there since (23))*
 - Klas's answer, put through AskUserQuestion on 2026-10-03 ("Hur ska LinkedIn-inloggningen fungera för den som har
   loggat in förut?"): **"(b) Prova först (rekommenderas)"**, whose text was "Du öppnar sessionens fyra länkar, en
   utan inställning och en för varje kandidat. Visar LinkedIn en sida för någon av dem byggs just den, och den tas
@@ -2272,9 +2272,9 @@ limitation.**
     confirmation, 2026-10-03). A probe cannot produce one, since its state names no flow.
 - Declared, not measured: at a shared computer, a person who chooses LinkedIn is signed into the account of whoever
   is still signed in to LinkedIn in that browser, with no page in between, and sees that account's CVs and
-  applications. Choosing another LinkedIn account means signing out of LinkedIn first. It reaches someone other than
+  applications. Choosing another LinkedIn account means signing out of LinkedIn first. *(corrected in Amendment 2026-10-03 (23): no longer for a login through our button, which shows LinkedIn's sign-in page; still for a request edited back to the www host)* It reaches someone other than
   the controller at trigger 1 or 2.
-- The question returns if LinkedIn documents a parameter that asks again. **Home:** this amendment. **Reader:** Klas
+- The question returns if LinkedIn documents a parameter that asks again. *(answered in Amendment 2026-10-03 (23) by an undocumented host; (23)'s lapse set replaces this trigger)* **Home:** this amendment. **Reader:** Klas
   Olsson. Nothing detects it automatically.
 
 **GitHub sends a refusal to its app's first redirect URI by order of entry, not to the request's.**
@@ -2375,6 +2375,181 @@ change.
 *(End of `security-auditor`'s text.)*
 
 **Lapse triggers, read for this PR.** None fires, as `security-auditor`'s text above reads it.
+
+#### Amendment 2026-10-03 (23) (#1945, follow-up to #1926, epic #1732) — LinkedIn's authorization request goes to its api host, so LinkedIn asks for the account at every login
+
+*#1945, by Klas's word of 2026-10-03 after #1926's PR had merged. Decided before code in one form round:
+`security-auditor` and `dotnet-architect`, routed by `senior-cto-advisor`
+(`docs/reviews/2026-10-03-1926b-linkedin-api-host-form-{security-auditor,security-auditor-batch,dotnet-architect,cto}.md`).
+Amendment (22)'s LinkedIn heading, its shared-computer sentence and its "The question returns" trigger, and Amendment
+(21)'s redirect-matching bound, are marked in place; this block records why. `security-auditor`'s text below is her
+form report's (i) with its Variant A and Close A in place and her batch's answers applied.*
+
+**Klas's words, verbatim.**
+- 2026-10-03, on Yobber's LinkedIn login asking for the password at every login although he was signed in to LinkedIn:
+  *"vi kanske ska undersöka detta i ny session, nu när PR är mergad ?"* That behaviour is Supabase issue #50831's: its
+  `linkedin_oidc` sends the authorization to `api.linkedin.com`.
+- 2026-10-03, in the session that measured it: *"varför testar vi inte live i din browser istället"*. The readings
+  below were taken in the session's browser pane where it could reach, and in his own browser where it could not, with
+  him signing in himself at every sign-in page; the session entered no credential.
+- His answer to `security-auditor`'s question, relayed verbatim (AskUserQuestion, 2026-10-03), is recorded in her text
+  below with the question and the text of the option he chose. He chose that text; it is not words he wrote.
+  `dotnet-architect`'s third option, deactivating LinkedIn, was not put: he had received and declined it the same day as
+  (c) in #1926's form-round question 1 (`senior-cto-advisor`, decision 1).
+
+**What else the providers and Supabase document, read 2026-10-03** (CLAUDE.md §9.5), beyond the quotes in
+`security-auditor`'s text below:
+- LinkedIn's "3-Legged OAuth Flow" (updated 2026-05-15) documents a query parameter `enable_extended_login=true` for
+  social and passkey sign-in on further platforms. It is not a way to ask again, and the request does not carry it.
+- LinkedIn's discovery document is served from `www.linkedin.com` and from `api.linkedin.com` alike, and both copies name
+  `www` for `authorization_endpoint` and `token_endpoint` and `api` for `userinfo_endpoint`.
+- `supabase/auth` (master, `internal/api/provider/linkedin_oidc.go`): `defaultLinkedinOIDCAPIBase = "api.linkedin.com"`
+  feeds both `AuthURL` and `TokenURL`, with no `prompt`. Supabase issue #50831 (opened 2026-09-24) carries no comment and
+  no answer.
+
+**Measured, beyond `security-auditor`'s text below.** Counts, keys and page types only; no value of `state`, `code` or
+`error_description` and no address is recorded.
+- **The morning's pane probes** (four hand-built requests, signed out and in, www and api, with the box's window clean)
+  are #1926's comment 5967746641, which her text cites.
+- **The api host's redirect matching** (her Minor 6; anonymous, 2026-10-03T09:44:36Z, controls on dev only): the box's
+  callback answered a 303 to LinkedIn's sign-in page; `…/api/auth/oauth/linkedin/callback/x` and `…/callbackx` answered
+  LinkedIn's mismatch page (title "Authorize | LinkedIn") with no redirect. The www host answered each arm identically.
+- **The local reading before merge, form (a)** (her (i), 2026-10-03, through the button on the stack-owner's stack at
+  `bd1bb249c`, Klas's own browser signed in to LinkedIn at www; the local client is the box's, sha256-equal): her sentence
+  below carries the counts. Beyond it: the first sign-in page showed the e-mail field prefilled and the second showed it
+  empty; each login landed signed in on `/oversikt`; the first login linked LinkedIn to the controller's local account
+  (`AspNetUserLogins` `linkedin:1`, one `User.ExternalLoginLinked`) and the second wrote no link; 0 × EventId 1021, 1024
+  and 1025; no account was created (139 before and after). A first www control in the session's pane had shown the
+  sign-in page because the pane's LinkedIn session had expired, so that sitting was void and the reading was taken again
+  in his own browser, as her text requires.
+- **The no-grant path** (`dotnet-architect`'s N2, the path a first-time user meets): Klas removed Jobbliggaren under
+  LinkedIn's "Godkända tjänster" and logged in once through the button. The api host showed the sign-in page and then
+  LinkedIn's permission page for Jobbliggaren (the primary e-mail address; Avbryt / Tillåt), and Tillåt returned a code:
+  the third `login_succeeded … Method=LinkedIn`, 0 × EventId 1021, 1022 and 1023, the link unchanged (`linkedin:1`, the
+  same pairwise `sub`), no account created.
+- **The merge-day reading on the box** is in her Close A below.
+
+**The form** (`dotnet-architect`, binding; `docs/reviews/2026-10-03-1926b-linkedin-api-host-form-dotnet-architect.md`
+R1–R4; the pair measured by (i)).
+- `LinkedInIdentityProvider.AuthorizationEndpoint` keeps its name and home and moves to
+  `https://api.linkedin.com/oauth/v2/authorization` under its own pointer comment; the discovery-document comment now
+  covers `TokenEndpoint` and `UserInfoEndpoint`, which stay on their documented hosts. Form (a): the documented token
+  endpoint redeemed every code minted on the api host in (i), so Supabase's pair, form (b), was not built.
+- The web start's one LinkedIn entry moves with it, and a start answers no other LinkedIn host. Neither side is a setting,
+  and neither carries a www fallback.
+- The four pins assert the api host by literal: the unit pin, the integration pin, the architecture literal (renamed; the
+  mirror theory alone would pass a consistent revert of both sides) and the web start test's fixture, which also gains
+  the rollout-skew row: an api image from before this change answering the www endpoint fails closed with LinkedIn's
+  notice and no state cookie. The five-key pins stay as #1926's guard.
+- Mutations against the committed change: every mutant red on exactly the rows R4 names (the adapter alone, the web alone,
+  both, a path typo on either side, the token endpoint moved to the api host, `prompt` added), with the controls green
+  before and after.
+- Nothing else changes: the port, the handlers, the exchange, userinfo, the callback and every scope.
+
+**`security-auditor`, 2026-10-03: LinkedIn's api host, the one lever that asks.**
+Nothing below re-grades a finding, and none of it is a §9.6 (3) acceptance
+(`docs/reviews/2026-10-03-1926b-linkedin-api-host-form-security-auditor.md`).
+
+**Measured, 2026-10-03** (#1926, comment 5967746641). Authorization URLs built by hand: our client, the box's
+callback, `response_type=code`, `scope=openid email` and a fresh state that no flow held, opened in the session's
+browser pane. Klas signed in himself wherever a sign-in page appeared; the session entered no credential.
+- Signed in to LinkedIn, `https://www.linkedin.com/oauth/v2/authorization` showed no LinkedIn page and returned a
+  code at once. `https://api.linkedin.com/oauth/v2/authorization`, with the same five parameters, showed LinkedIn's
+  sign-in page on `www.linkedin.com/uas/login` with the e-mail field prefilled. After Klas signed in there, the
+  callback carried `code` and `state`, and no permission page came between.
+- No code was redeemed. Each callback was refused by the box's basic_auth before Next, and from 09:00:59Z to
+  09:21:53Z the box logged 0 × EventId 1021, 1022, 1023 and 1028, 0 `login_succeeded` and no `User.*` or
+  `Account.*` event, with the links unchanged.
+- So the api host does not see the member's www session. It asks for the account's credentials and, for a member
+  who has granted the app, not for permission.
+- LinkedIn documents only `www.linkedin.com` for authorization ("3-Legged OAuth Flow", updated 2026-05-15). Its
+  discovery document, served from both hosts, names `www` for authorization and the token and `api` for userinfo
+  (read 2026-10-03). Supabase's `linkedin_oidc` sends both its authorization and its token request to the api host
+  (`supabase/auth`, `internal/api/provider/linkedin_oidc.go`, read 2026-10-03), and Supabase issue #50831 (open, no
+  answer, read 2026-10-03) reports the sign-in page at every login.
+- LinkedIn's API Terms of Use (last revised 2022-12-13, read 2026-10-03) make the Developer Documentation part of
+  the Terms (§1.3) and let LinkedIn suspend an app it believes violates them (§11.3). Whether an undocumented
+  authorization host conforms is a question of the LinkedIn contract, not a GDPR finding. Login by code is
+  unaffected by it.
+
+**LinkedIn's authorization request goes to the api host, which LinkedIn does not document for it.**
+- Klas's answer, put through AskUserQuestion on 2026-10-03 ("Ska LinkedIn-inloggningen gå via api.linkedin.com, så att LinkedIn frågar efter kontot vid varje inloggning?"): **"(a) Ja, mät lokalt först (rekommenderas)"**, whose text was "Varje inloggning via vår LinkedIn-knapp visar LinkedIns inloggningssida, även för den som redan är inloggad på LinkedIn, och man loggar in på LinkedIn på nytt varje gång. Sidan visar e-postadressen för den som senast var inloggad, men ingen kommer vidare utan lösenordet. Sitter två personer vid samma dator hamnar den andra inte längre av misstag i den förstas konto. Det skyddar mot misstag, inte mot någon som medvetet ändrar adressen i webbläsaren tillbaka till www medan den första fortfarande är inloggad på LinkedIn. Adressen är odokumenterad, så LinkedIn kan när som helst sluta stödja den. Då slutar LinkedIn-inloggningen att fungera eller släpper igenom utan att fråga, och servern märker det inte själv, så det syns först när någon loggar in. LinkedIns API-villkor säger att appen ska följa deras dokumentation, och LinkedIn får stänga av en app som inte gör det. Inloggning med kod till e-posten fungerar som vanligt även då. Innan något mergas loggar du in två gånger i rad lokalt och trycker Avbryt en gång, och samma sak görs på servern efter mergen. Går det inte lokalt provas Supabases sätt, där även appens hemlighet skickas till api-adressen, och går inte heller det blir det som i dag, utan att du behöver svara igen. Slutar LinkedIn senare att fråga, eller slutar inloggningen att fungera, går inloggningen tillbaka till www.".
+- Only the authorization host changes, to `https://api.linkedin.com/oauth/v2/authorization`. The request keeps its
+  five parameters and their values; the scope and the callback are unchanged. The code is redeemed at the
+  documented token endpoint and userinfo is read as before, so the adapter's calls to LinkedIn are unchanged.
+- The host is a constant in the adapter and the web start's one LinkedIn entry: never a setting, never fetched, and
+  the start answers no other LinkedIn host. The documented host, `https://www.linkedin.com/oauth/v2/authorization`
+  (read 2026-10-03), is where a lapse returns it.
+- **Read before merge, 2026-10-03,** through the button on the local stack at `bd1bb249c`, with the LinkedIn client
+  the box shares (m-4), Klas signed in to LinkedIn at www in Brave (a first sitting in the session's browser pane was
+  void: its LinkedIn session had expired, and the control showed the sign-in page): the web start a 302 to
+  `https://api.linkedin.com/oauth/v2/authorization` with exactly the five keys and `scope=openid email`; a www
+  control showed no page; two logins in a row through the button each showed LinkedIn's sign-in page on
+  `www.linkedin.com/uas/login` and then signed him in, with no permission page; a Cancel there landed on
+  `http://localhost:3000/logga-in` with "Inloggningen med LinkedIn slutfördes inte", the callback carrying `error`,
+  `error_description` and `state`; for the two logins the local api logged 2 × `login_succeeded … Method=LinkedIn`
+  and 0 × EventId 1021, 1022 and 1023, so the documented token endpoint redeemed codes minted on the api host.
+- **What it buys, for the requests our start builds.** A member signed in to LinkedIn at www is shown LinkedIn's
+  sign-in page at every login, on LinkedIn's own www origin, and enters the credentials of the account to be used. At
+  a shared computer, the next person who chooses LinkedIn is no longer signed silently into the account whose
+  LinkedIn session is still open in that browser (Art. 25(1), 32(1)(b)). For a member who has granted the app it asks for the account, not for permission; a member who has not is shown
+LinkedIn's permission page after the sign-in, as at www (measured 2026-10-03, after Klas removed the app's grant).
+Either page is LinkedIn's, never consent to our processing; the login's basis stays Art. 6(1)(b). A measure, not a closed finding.
+- **What it does not change.** The host is a property of a request, not of the client, and LinkedIn still answers
+  the www host for our client. A request someone else builds, or ours edited back to www in the address bar, mints a
+  code for a signed-in member without prompting: (21)'s sentence stands as written, and so does (21)'s
+  code-injection residual. At a shared computer it guards against a mistake, not against someone who means to use
+  another member's LinkedIn session while it is open in that browser. LinkedIn's sign-in page may prefill an address: on 2026-10-03 it showed the signed-in member's own address at the
+first of two logins and an empty field at the second. Whether it shows another member's address at a shared
+computer is not measured. Whatever it shows is LinkedIn's page and LinkedIn's processing, and nothing of it reaches
+us.
+- **What a failure looks like.** Each form fails closed or falls back to (22):
+  - the api host stops answering the request: the member stays on a LinkedIn page, and nothing reaches the box;
+  - it answers our callback with an `error`: `/logga-in` with "Inloggningen med LinkedIn slutfördes inte", and
+    nothing is logged;
+  - the token endpoint refuses its code: the same notice, and EventId 1022 with a token cause;
+  - the web image and the api image name different hosts: every LinkedIn start answers that notice, and nothing is
+    logged;
+  - the api host starts to see the www session: logins go through with no page, as in (22).
+- **Lapse, any of:** (1) a login through the button, by a member signed in at www, shows no LinkedIn page; (2) a
+  login through the button fails at LinkedIn or at the exchange: a LinkedIn error page, a callback `error` that is
+  not a Cancel, or EventId 1022 with a token cause; (3) LinkedIn documents an authorization host or a parameter that
+  asks again; (4) LinkedIn tells the app's holder that the app does not follow its Developer Documentation. At (1) or
+  (3) the next PR returns the host to www or to the documented lever (nothing dormant, Amendment (18)). At (2) or (4)
+  a PR does so at once, and under (2) §3d's "an active row that never works is not left standing" applies until it
+  merges. **Home:** this amendment. **Reader:** Klas Olsson, at every LinkedIn login he takes on the box. Nothing
+  detects it automatically: a dead api host writes no line on the box.
+
+**Our client answers at two authorization endpoints.** The api host minted a code for our client on 2026-10-03, so
+(21)'s "exact redirect matching at the authorization endpoint" covers it only as measured there: 2026-10-03, the box's
+callback accepted and `…/api/auth/oauth/linkedin/callback/x` and `…/api/auth/oauth/linkedin/callbackx` on
+dev.jobbliggaren.se, on a host this box serves, refused with LinkedIn's mismatch page. A crafted
+request can use either host, whichever ours uses.
+
+**The findings stand as graded.** M-1 (LinkedIn), Major 2 (LinkedIn) and Major 4 stand unsigned, and no
+acceptance exists. This PR moves no line they cite: no provider or path joins, and the flag, the address invariant,
+the outcome table and every outcome are unchanged. It therefore rides `agents-done` on `security-auditor`'s verdict
+against the final diff, not #1888's §12 STOPP shape.
+
+**Lapse triggers, read for this PR: none fires**.
+- 4: no provider joins or leaves, and the `VerifiedEmail` rule, the address invariant and the outcome table do not
+  change. The host changes which LinkedIn page a flow passes, not who can obtain a session.
+- F10: the callback's response form, the three cookies and the continuation hop are unchanged.
+- 1–3 and 5–7: untouched. Registration is closed and both accounts are the controller's (read on the box 2026-10-03T10:39:12Z).
+- Chapter V: the authorization request is the member's browser's and carries nothing personal, and the
+  adapter's calls are unchanged, so none of the register's LinkedIn conditions fires. (21)'s binding trigger has
+  not fired.
+
+**DoD 8.** No new personal data. The host carries none, and the five parameters, the scope, the callback's keys, what
+is received and what is stored are unchanged. The member's browser sends LinkedIn's own cookies to whichever
+LinkedIn host it is sent to; that is LinkedIn's processing, and we set and read none. No new log line, recipient,
+source or transfer. The privacy policy says LinkedIn handles the login and names no host, and the cookie policy
+names no LinkedIn cookie, so neither changes. The register does not change.
+
+*(End of `security-auditor`'s text.)*
+
+**Lapse triggers, read for this PR:** in `security-auditor`'s text above, which from this amendment on is the one home
+of LinkedIn's lapse set; §3d points here and restates nothing.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -3564,7 +3739,7 @@ readings on #1732, transcribed in Amendment (19)) · **6c** #1746 LinkedIn, in t
 2026-09-27 (19)) and a follow-up: PR P #1904 the login page per his notes and a quiet continuation hop · PR L #1919
 LinkedIn in one click, by Klas's decision, with a deleted account's links erased at the request for every provider
 (Amendment 2026-09-28 (20)) · the follow-up #1929: LinkedIn echoes no nonce, so the check and its parameter are deleted
-(Amendment 2026-09-29 (21)) · #1926: Google and GitHub ask for the account and permission at every login, LinkedIn cannot be asked, and GitHub's Cancel goes to its first redirect URI (Amendment 2026-10-03 (22)) →
+(Amendment 2026-09-29 (21)) · #1926: Google and GitHub ask for the account and permission at every login, LinkedIn cannot be asked, and GitHub's Cancel goes to its first redirect URI (Amendment 2026-10-03 (22)) · #1945: LinkedIn's authorization request goes to its api host, so LinkedIn asks for the account at every login (Amendment 2026-10-03 (23)) →
 **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

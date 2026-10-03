@@ -9,11 +9,9 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// the named <see cref="MatchGrade"/> (nullable — <c>null</c> when the ad earns no positive
 /// tag, e.g. the user's stated occupation does not match this ad) plus a per-dimension row
 /// for each of the seven match dimensions, each carrying its verdict + matched/missing
-/// evidence (the "what you have / what the ad wants" the modal renders). Three row types,
-/// one per evidence PROVENANCE: display text this layer already has
-/// (<see cref="MatchDimensionDetailDto"/>), a coded common noun the client's catalogue names
-/// (<see cref="MatchCodedDimensionDetailDto"/>), and register data this layer names but may
-/// fail to (<see cref="MatchRegisterDimensionDetailDto"/>).
+/// evidence. Title carries lexemes, employment carries catalogue codes, register rows pair
+/// ids with nullable labels, and skill/requirement rows retain display arrays beside grouped
+/// concept evidence. No raw CV prose or numeric score reaches the detail wire.
 /// <para>
 /// <b>NO opaque total (Goodhart guard — ADR 0076 Decision 4 / ADR 0071 / CLAUDE.md §5;
 /// ADR 0053 Beslut 5 forbids the percentage ring):</b> there is intentionally NO
@@ -26,11 +24,11 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// or <c>null</c> when the ad earns no positive tag (occupation/SSYK not a Match — the gate).
 /// The modal renders the breakdown either way.</param>
 /// <param name="SsykOverlap">The occupation-group dimension row.</param>
-/// <param name="TitleSimilarity">The title dimension row (NotAssessed on the preference path
-/// — no CV title is read in F4-16; LatestRole→title is a forward-note, not this STEG).</param>
+/// <param name="TitleSimilarity">The evidence-only comparison against the primary CV's latest role;
+/// NotAssessed when that role is unavailable. It never affects the grade.</param>
 /// <param name="RegionFit">The region dimension row.</param>
 /// <param name="EmploymentFit">The employment-type dimension row.</param>
-/// <param name="SkillOverlap">The CV-skill ∩ ad-skill coverage row (drives the golden grade).</param>
+/// <param name="SkillOverlap">The confirmed-skill ∩ ad-skill coverage row (drives the golden grade).</param>
 /// <param name="MustHaveCoverage">The ad's <c>must_have</c> requirement coverage row.</param>
 /// <param name="NiceToHaveCoverage">The ad's <c>nice_to_have</c> requirement coverage row.</param>
 public sealed record JobAdMatchDetailDto(
@@ -39,16 +37,14 @@ public sealed record JobAdMatchDetailDto(
     MatchDimensionDetailDto TitleSimilarity,
     MatchRegisterDimensionDetailDto RegionFit,
     MatchCodedDimensionDetailDto EmploymentFit,
-    MatchDimensionDetailDto SkillOverlap,
-    MatchDimensionDetailDto MustHaveCoverage,
-    MatchDimensionDetailDto NiceToHaveCoverage);
+    MatchSkillDimensionDetailDto SkillOverlap,
+    MatchSkillDimensionDetailDto MustHaveCoverage,
+    MatchSkillDimensionDetailDto NiceToHaveCoverage);
 
 /// <summary>
 /// One dimension's modal row: its <see cref="MatchDimensionVerdict"/> plus the
 /// matched/missing evidence strings (Display labels / shared title lexemes — never raw CV
-/// text, never an opaque number). <see cref="Matched"/> = the overlap (what you have for
-/// this ad); <see cref="Missing"/> = what the ad wants that the CV lacks (the civic-useful
-/// direction). A 1:1 wire mirror of the Application-side <see cref="MatchDimension"/>, minus
+/// text, never an opaque number). A 1:1 wire mirror of the Application-side <see cref="MatchDimension"/>, minus
 /// nothing and plus nothing — there is deliberately no numeric score on a row (Goodhart).
 /// </summary>
 public sealed record MatchDimensionDetailDto(
@@ -63,8 +59,8 @@ public sealed record MatchDimensionDetailDto(
 /// <remarks>
 /// <para>
 /// A separate type rather than concept ids inside <see cref="MatchDimensionDetailDto"/>,
-/// whose <see cref="MatchDimensionDetailDto.Matched"/> is documented as display labels. Four
-/// of the seven dimensions really do carry display text; letting one of them mean something
+/// whose <see cref="MatchDimensionDetailDto.Matched"/> is documented as display labels.
+/// The title and skill dimensions carry display text; letting one of them mean something
 /// else would make that type lie, and would push per-property knowledge onto the client that
 /// this layer owns (CTO 2026-08-28).
 /// </para>
@@ -92,10 +88,9 @@ public sealed record MatchCodedDimensionDetailDto(
 /// </summary>
 /// <remarks>
 /// <para>
-/// A third row type rather than a widened <see cref="MatchDimensionDetailDto"/> (#1598): four
-/// of the seven dimensions carry no concept id at all — <c>TitleSimilarity</c> carries Snowball
-/// stems, and the three CV dimensions carry Display labels — so widening that type would force
-/// them to hold a null or synthetic id. It is the same argument that made
+/// A dedicated register row rather than a widened <see cref="MatchDimensionDetailDto"/> (#1598):
+/// <c>TitleSimilarity</c> carries Snowball stems without concept identity. The skill dimensions
+/// now have their own paired evidence type (#1864). It is the same argument that made
 /// <see cref="MatchCodedDimensionDetailDto"/> its own type (CTO 2026-08-28), applied to a third
 /// evidence provenance.
 /// </para>
@@ -145,3 +140,19 @@ public sealed record MatchRegisterDimensionDetailDto(
 /// municipality/employment-type pair, <c>TaxonomyTreeDto</c>).
 /// </remarks>
 public sealed record MatchRegisterConceptDto(string ConceptId, string? Label);
+
+/// <summary>Legacy display evidence plus an additive, identity-preserving read projection.</summary>
+public sealed record class MatchSkillDimensionDetailDto(
+    MatchDimensionVerdict Verdict,
+    IReadOnlyList<string> Matched,
+    IReadOnlyList<string> Missing,
+    MatchGroupedConceptEvidenceDto? ConceptEvidence);
+
+public sealed record class MatchGroupedConceptEvidenceDto(
+    IReadOnlyList<MatchConceptGroupDto> Matched,
+    IReadOnlyList<MatchConceptGroupDto> Missing);
+
+/// <summary>One surface within one dimension and side; all original evidence survives.</summary>
+public sealed record class MatchConceptGroupDto(
+    string Display,
+    IReadOnlyList<MatchConceptEvidence> Members);

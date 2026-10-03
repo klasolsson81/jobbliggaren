@@ -4,7 +4,7 @@
     "description": "How Jobbliggaren's matching works: fully rule-based, no AI. What is compared, what the match grades mean and what we deliberately do not assess."
   },
   "title": "How matching works",
-  "updated": "Last updated: 2026-06-29",
+  "updated": "Last updated: 2026-10-03",
   "intro": "Jobbliggaren compares every job ad against what you have entered yourself and always shows what matches and what is missing. No AI, no hidden score. Here we explain how it is done.",
   "deterministic": {
     "heading": "Fully rule-based, no AI",
@@ -19,7 +19,7 @@
       "Occupations you want",
       "Locations",
       "Forms of employment",
-      "Your CV"
+      "Skills you have chosen"
     ],
     "adItems": [
       "Occupation group",
@@ -30,18 +30,18 @@
   },
   "compare": {
     "heading": "What we compare",
-    "intro": "The matching looks at the following parts. The last three require that you have uploaded a CV.",
+    "intro": "Matching compares your choices with the ad data. Skills and skill requirements are compared with the skills you have chosen in matching settings. Empty requirement fields do not mean the ad text has no requirements.",
     "needsCv": "Requires CV",
     "colPart": "Part",
     "colWhat": "What it compares",
     "rows": [
       { "part": "Occupation", "what": "The ad's occupation group against the occupations you have chosen. This is the gate: if the occupation does not match, the ad gets no label.", "cv": false },
-      { "part": "Title", "what": "The ad's title against the role in your CV. Background only, it never affects the grade.", "cv": false },
+      { "part": "Title", "what": "The ad's title against the role in your CV. Background only, it never affects the grade.", "cv": true },
       { "part": "Place", "what": "The ad's county or municipality against the locations you have chosen.", "cv": false },
       { "part": "Form of employment", "what": "The ad's form of employment against the forms you have chosen.", "cv": false },
-      { "part": "Skills", "what": "The ad's skill terms against the skills in your CV.", "cv": true },
-      { "part": "Must-have requirements", "what": "The ad's mandatory requirements against your CV.", "cv": true },
-      { "part": "Desirable", "what": "The ad's desirable merits against your CV.", "cv": true }
+      { "part": "Skills", "what": "The ad's extracted skills against the skills you have chosen.", "cv": false },
+      { "part": "Mandatory requirements", "what": "Extracted mandatory skill requirements against the skills you have chosen.", "cv": false },
+      { "part": "Desirable", "what": "Extracted desirable skills against the skills you have chosen.", "cv": false }
     ]
   },
   "grades": {
@@ -49,15 +49,15 @@
     "intro": "An ad that matches gets one of four green grades, from Basic match up to Top match. The more that fits, the higher the grade.",
     "reqLabel": "Required:",
     "items": [
-      { "grade": "Top", "req": "The right occupation, everything you have chosen (both location and form of employment) fits, and your CV covers the ad's requirements." },
-      { "grade": "Strong", "req": "The right occupation, something you have chosen (location or form of employment) fits, and your CV covers the ad's requirements." },
-      { "grade": "Good", "req": "The right occupation and something you have chosen fits, but your CV is not uploaded or does not cover the requirements." },
+      { "grade": "Top", "req": "The occupation, location and form of employment match your choices, and at least one requested skill matches. Any mandatory skill requirements present in the matching data also match." },
+      { "grade": "Strong", "req": "The occupation and at least one of your location and employment choices match. The extracted mandatory skill requirements match; if none are present, a matching skill is needed." },
+      { "grade": "Good", "req": "The occupation and at least one of your location and employment choices match. The skill requirements do not provide evidence for Strong match or Top match." },
       { "grade": "Basic", "req": "The right occupation, but neither the location nor the form of employment you have chosen fits." }
     ],
     "relatedLabel": "And there is also:",
     "relatedReq": "A similar occupation that you have not chosen. It ranks below your exact hits and is shown only when you turn on seeing related occupations yourself. That is why it is neutral grey, not a green step.",
-    "topNote": "Top match is based on your CV and is shown only as a label on the ads, not as a separate filter.",
-    "cvNote": "Upload a CV to match on skills and requirements. It is required for Strong match and Top match."
+    "topNote": "Top match uses your chosen skills and appears as an ad label, not as a separate filter.",
+    "cvNote": "Choose your skills in matching settings. An imported CV can provide suggestions for you to confirm."
   },
   "order": {
     "heading": "The order that decides the grade",
@@ -66,7 +66,7 @@
       { "rule": "Does the ad not match any of your occupations?", "outcome": "No label at all." },
       { "rule": "Is it a similar occupation you have not chosen?", "outcome": "Related occupation, and it stops there." },
       { "rule": "Does the ad contradict the location or form you have chosen?", "outcome": "At most a Basic match, even if the requirements are met." },
-      { "rule": "Otherwise: how much fits, and does your CV cover the requirements?", "outcome": "Basic match, Good match, Strong match or Top match." }
+      { "rule": "Otherwise: which choices and skill requirements match?", "outcome": "Basic match, Good match, Strong match or Top match." }
     ],
     "worstNote": "The worst case is the wrong location. An ad in a place you have ruled out can never become more than a basic match."
   },
@@ -80,21 +80,21 @@
       "cover letter",
       "how many jobs you have applied for"
     ],
-    "why": "A hidden score tempts you to optimise the number instead of the actual job fit. A requirement such as “at least 5 years of experience” we read as a term you have or lack in your CV, not as a numeric comparison. You judge for yourself whether you fit."
+    "why": "Matching compares skills present in the data. It does not assess your years of experience or whether you meet every requirement in the ad text. Read the ad text and decide whether to apply."
   },
   "transparency": {
     "heading": "You always see why",
     "paragraphs": [
-      "For each ad we show what you have and what the ad also asks for, as concrete terms. No percentage, no gauge. You see the gap and decide for yourself whether you apply, add to your CV or move on."
+      "In the ad detail view you see matched and unmatched skills in separate lists. Unmatched means they do not match the skills you have chosen. You decide whether you have the qualification, want to change your choices or apply."
     ],
-    "youHaveLabel": "You have",
+    "youHaveLabel": "Matches your skills",
     "youHave": ["Java", "SQL"],
-    "missingLabel": "The ad also asks for",
+    "missingLabel": "Not matched",
     "missing": ["Docker"]
   },
   "cta": {
     "heading": "Get started",
-    "text": "Create an account, enter your occupations and locations, and upload your CV to see your matches.",
+    "text": "Create an account and choose occupations, locations and skills to see your matches.",
     "button": "Create account"
   }
 }

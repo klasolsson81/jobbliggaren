@@ -182,7 +182,7 @@ public class BackgroundMatchingJobConsentRecheckTests(WorkerTestFixture fixture)
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adId] = new(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
+                [adId] = new(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))),
             });
         return scorer;
     }

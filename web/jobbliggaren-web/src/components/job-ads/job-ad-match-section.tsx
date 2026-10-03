@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Check, Minus } from "lucide-react";
+import { MatchConceptEvidence } from "./match-concept-evidence";
+import styles from "./match-concept-evidence.module.css";
 import { MatchChip } from "./match-chip";
 import type {
   JobAdMatchDetail,
   MatchCause,
-  MatchDimensionDetail,
+  MatchSkillDimensionDetail,
   MatchRegisterConcept,
   MatchRegisterDimensionDetail,
   MatchVerdict,
@@ -38,12 +39,8 @@ type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
  * INGEN sektion alls (frånvaro, ej teater — ADR 0053).
  */
 
-// CV-import-länk för signposten "ladda upp CV" (PR-B2). Samma route som
-// matchnings-kortets CV-förslag (importCvHref).
-const CV_IMPORT_HREF = "/cv/importera";
-
-// Dimensions-ordning (design §2.B). Fast-dimensionerna först (yrke/region/
-// anställning), sedan CV-härledda (kompetenser/krav/meriterande). Etiketterna
+// Dimension order: occupation, title, location, employment, then confirmed skills
+// and skill requirements. Labels come from the matching catalogue.
 // resolveras via next-intl (`ui.match.dimension.*`). Titel hålls "Ej bedömd" v1
 // (Klas-bind: title-dimensionen är OUT of scope i F4-16 — CTO D7=A).
 const DIMENSION_KEYS: ReadonlyArray<keyof Omit<JobAdMatchDetail, "grade">> = [
@@ -81,7 +78,7 @@ function MatchSectionHeading({
  * har inte det längre och står därför inte här: deras skäl kommer från servern
  * (`causeReason`), som är den enda som vet vilken arm som körde.
  *
- * Kompetenser, Ska-krav och Meriterande är obedömda på ETT predikat (inga valda
+ * Kompetenser, obligatoriska krav och meriterande är obedömda på ETT predikat (inga valda
  * kompetenser, `MatchScorer.ScoreConceptCoverage`), så skälet står en
  * gång, på Kompetenser; foten under raderna bär åtgärden (ADR 0076 §6). Ett skäl
  * som bara upprepar verdiktet "Ej bedömt" renderas inte (DESIGN.md §8 regel 1).
@@ -118,32 +115,6 @@ function causeReason(
     case "regionFit":
       return t(`matchCause.${cause}.regionFit`);
     default:
-      return null;
-  }
-}
-
-/**
- * Must-have-sammanfattning (PR-B2, CTO G3.6) — en kort rad som kopplar graden
- * till om annonsens ska-krav uppfylls (graden är nu requirement-aware: Stark/
- * Topp kräver att ska-kraven är mötta). Returnerar `null` för `NotAssessed`
- * (inget CV) → då visas "ladda upp CV"-signposten i stället. `Vacuous` =
- * annonsen anger inga ska-krav (gate-öppen — därför kan den ändå nå Stark/Topp).
- * Ingen siffra (Goodhart-vakt) — ren konstaterande civic-copy.
- */
-function mustHaveSummary(
-  verdict: MatchVerdict,
-  t: MatchTranslator,
-): string | null {
-  switch (verdict) {
-    case "Match":
-      return t("mustHaveSummary.Match");
-    case "Partial":
-      return t("mustHaveSummary.Partial");
-    case "NoMatch":
-      return t("mustHaveSummary.NoMatch");
-    case "Vacuous":
-      return t("mustHaveSummary.Vacuous");
-    case "NotAssessed":
       return null;
   }
 }
@@ -247,7 +218,7 @@ function splitRegisterRow(detail: MatchRegisterDimensionDetail): MatchRowModel {
  * ett lager ned. En framtida åttonde dimension blir nu ett kompileringsfel i
  * stället för en tyst nolla.
  */
-type MatchRowModel = MatchDimensionDetail & {
+type MatchRowModel = MatchSkillDimensionDetail & {
   unnamedCount: number;
   cause: MatchCause | null;
 };
@@ -259,7 +230,7 @@ type MatchRowModel = MatchDimensionDetail & {
  * eller är Vacuous); `employmentFit` är den femte och skickar sin egen.
  */
 function shown(
-  detail: MatchDimensionDetail,
+  detail: MatchSkillDimensionDetail,
   cause: MatchCause | null = null,
 ): MatchRowModel {
   return { ...detail, unnamedCount: 0, cause };
@@ -372,58 +343,6 @@ function RegionFitEvidence({
   );
 }
 
-/**
- * Per-ska-krav-checklista (#5b, ADR 0079 / STEG 2) — visar VARJE krav annonsen
- * ställer med en uppfyllt/saknas-indikator per rad, i stället för den generiska
- * bevisformen. Komponerad FE-side ur de
- * redan-på-tråden `matched`/`missing`-arrayerna (CTO-dom FE-only — ingen
- * backend-ändring; varje matchad Display = uppfyllt krav, varje saknad = ej
- * uppfyllt). `matched` (✓, success-ink) först, sedan `missing` (NEUTRAL ink,
- * ALDRIG röd — ett saknat krav är inget fel, CLAUDE.md §5 / ADR 0053). Ikonen är
- * `aria-hidden`; status bärs av en sr-only-text per rad (skärmläsare hör
- * "uppfyllt/saknas", seende ser ikon + ink).
- */
-function RequirementChecklist({
-  detail,
-  label,
-  t,
-}: {
-  detail: MatchDimensionDetail;
-  /** Dimensionens etikett (Ska-krav / Meriterande) — listans aria-label. */
-  label: string;
-  t: MatchTranslator;
-}) {
-  return (
-    <ul className="flex flex-col gap-1" aria-label={label}>
-      {detail.matched.map((item, i) => (
-        // Nyckel inkluderar index: Display-labels är dedupade per concept-id
-        // uppströms, men två skilda koncept kan dela identisk label → index
-        // garanterar unik nyckel (ingen omordning sker, listan byggs en gång).
-        <li key={`met-${i}-${item}`} className="flex items-center gap-2">
-          <Check
-            size={16}
-            aria-hidden="true"
-            className="shrink-0 text-success-600"
-          />
-          <span>{item}</span>
-          <span className="sr-only">{t("requirements.met")}</span>
-        </li>
-      ))}
-      {detail.missing.map((item, i) => (
-        <li key={`unmet-${i}-${item}`} className="flex items-center gap-2">
-          <Minus
-            size={16}
-            aria-hidden="true"
-            className="shrink-0 text-text-secondary"
-          />
-          <span className="jp-modal__matchrow-missing">{item}</span>
-          <span className="sr-only">{t("requirements.unmet")}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function MatchRow({
   label,
   dimensionKey,
@@ -461,13 +380,10 @@ function MatchRow({
       : null;
   // Granularitets-uppdelad bevisrad bara för `regionFit` OCH bara när beviset finns.
   const useOrtGranularity = dimensionKey === "regionFit" && ort !== undefined;
-  // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
-  // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
-  // (inget CV) har tomma matched/missing → faller till den generiska/NotAssessed-
-  // grenen (ärligt: ingen tom eller vilseledande checklista; footern bär summan).
   const isRequirementDim =
     dimensionKey === "mustHaveCoverage" ||
     dimensionKey === "niceToHaveCoverage";
+  const isConceptDim = isRequirementDim || dimensionKey === "skillOverlap";
   const hasRequirementItems =
     detail.matched.length > 0 || detail.missing.length > 0;
   // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
@@ -496,7 +412,7 @@ function MatchRow({
   const missingFrame = detail.matched.length > 0 ? "alsoRequested" : "requested";
 
   return (
-    <div className="jp-modal__matchrow">
+    <div className={`jp-modal__matchrow ${styles.row}`}>
       <span className="jp-modal__matchrow-label">{label}</span>
       <span
         className="jp-modal__matchrow-verdict"
@@ -512,7 +428,7 @@ function MatchRow({
         />
         {word}
       </span>
-      <span className="jp-modal__matchrow-evidence">
+      <div className="jp-modal__matchrow-evidence">
         {reason !== null ? (
           // Serverns skäl, i katalogens ord. Neutral ink: varken annonsens
           // tystnad, ett distansjobb eller ett län som rymmer din kommun är
@@ -524,8 +440,8 @@ function MatchRow({
           )
         ) : useOrtGranularity ? (
           <RegionFitEvidence ort={ort} t={t} />
-        ) : isRequirementDim && hasRequirementItems ? (
-          <RequirementChecklist detail={detail} label={label} t={t} />
+        ) : isConceptDim && hasRequirementItems ? (
+          <MatchConceptEvidence detail={detail} dimension={label} />
         ) : isTitleDim ? (
           <span>{titleSummary(detail.verdict, t)}</span>
         ) : (
@@ -552,7 +468,7 @@ function MatchRow({
           // — ett tappat registerord är inte användarens fel.
           <span className="jp-modal__matchrow-missing">{unnamed}</span>
         )}
-      </span>
+      </div>
     </div>
   );
 }
@@ -631,13 +547,24 @@ export function JobAdMatchSection({
     niceToHaveCoverage: shown(match.niceToHaveCoverage),
   };
 
+  const provenEmpty = (row: MatchSkillDimensionDetail) =>
+    row.verdict === "Vacuous" && row.matched.length === 0 && row.missing.length === 0 &&
+    (row.conceptEvidence == null ||
+      (row.conceptEvidence.matched.length === 0 && row.conceptEvidence.missing.length === 0));
+  const mustHaveEmpty = provenEmpty(match.mustHaveCoverage);
+  const niceToHaveEmpty = provenEmpty(match.niceToHaveCoverage);
+  const needsSkills = match.skillOverlap.verdict === "NotAssessed";
+
   return (
     <section className="jp-modal__matchsection" aria-label={t("heading")}>
       <MatchSectionHeading t={t}>
         {match.grade !== null && <MatchChip grade={match.grade} />}
       </MatchSectionHeading>
       <div className="jp-modal__matchrows">
-        {DIMENSION_KEYS.map((key) => (
+        {DIMENSION_KEYS.filter((key) =>
+          !(key === "mustHaveCoverage" && mustHaveEmpty) &&
+          !(key === "niceToHaveCoverage" && niceToHaveEmpty),
+        ).map((key) => (
           <MatchRow
             key={key}
             label={t(`dimension.${key}`)}
@@ -660,24 +587,16 @@ export function JobAdMatchSection({
         ))}
       </div>
 
-      {/* Foot (PR-B2): kopplar graden till ska-kraven. Utan CV kan man inte nå
-          Stark/Topp (kräver kompetens-/krav-bedömning) → en lugn signpost driver
-          CV-uppladdning; annars en kort must-have-sammanfattning. Text-only,
-          ingen siffra (Goodhart-vakt). */}
-      {match.mustHaveCoverage.verdict === "NotAssessed" ? (
-        <p
-          className="jp-modal__matchfoot"
-        >
-          {t("uploadCvFoot")}{" "}
-          <Link href={CV_IMPORT_HREF} className="jp-nudgelink">
-            {t("uploadCvCta")}
-          </Link>
+      {needsSkills && (
+        <p className="jp-modal__matchfoot">
+          {t("skillsFoot")}{" "}
+          <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">{t("settingsCta")}</Link>
         </p>
-      ) : (
-        <p
-          className="jp-modal__matchfoot"
-        >
-          {mustHaveSummary(match.mustHaveCoverage.verdict, t)}
+      )}
+      {(mustHaveEmpty || niceToHaveEmpty) && (
+        <p className="jp-modal__matchfoot">
+          {t(mustHaveEmpty && niceToHaveEmpty ? "requirementsEmpty.both"
+            : mustHaveEmpty ? "requirementsEmpty.mustHave" : "requirementsEmpty.niceToHave")}
         </p>
       )}
     </section>

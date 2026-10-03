@@ -23,6 +23,47 @@ anonymousTest.describe("/jobb — auth-gating", () => {
   });
 });
 
+anonymousTest.describe("/gast/jobb — modal dismissal", () => {
+  for (const dismiss of ["escape", "close", "scrim", "back"] as const) {
+    anonymousTest("returns focus to the title link after modal dismissal by " + dismiss, async ({ page }) => {
+      await page.goto("/gast/jobb");
+      const welcome = page.getByRole("dialog", { name: "Välkommen till demoläget", exact: true });
+      await expect(welcome).toBeVisible();
+      const refreshed = page.waitForResponse((response) =>
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname === "/gast/jobb" &&
+        response.status() === 200
+      );
+      await welcome.getByRole("button", { name: "Börja utforska", exact: true }).click();
+      await refreshed;
+      await expect(welcome).toBeHidden();
+
+      // GUEST_MOCK produces the list; the exact detail title pins findGuestJobAd admission.
+      const opener = page.locator("a.jp-job__rowlink").first();
+      await expect(opener).toBeVisible();
+      const destination = await opener.getAttribute("href");
+      if (!destination) throw new Error("The guest title link must have a destination.");
+      const title = (await opener.innerText()).trim();
+      expect(title).not.toBe("");
+      const listUrl = page.url();
+      await opener.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: title, exact: true });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(page).toHaveURL(new URL(destination, listUrl).href);
+      await expect(dialog.getByRole("button", { name: "Stäng", exact: true })).toBeFocused();
+      if (dismiss === "escape") await page.keyboard.press("Escape");
+      else if (dismiss === "close") await dialog.getByRole("button", { name: "Stäng", exact: true }).click();
+      else if (dismiss === "scrim") await page.locator(".jp-modal-scrim").click({ position: { x: 1, y: 1 } });
+      else await page.goBack();
+      await expect(dialog).toBeHidden();
+      await expect(page).toHaveURL(listUrl);
+      await expect(opener).toBeFocused();
+    });
+  }
+});
+
 test.describe("/jobb — auth-gated rendering", () => {
   test("visar Jobb-rubriken", async ({ page }) => {
     await page.goto("/jobb");

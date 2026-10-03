@@ -4,7 +4,7 @@
     "description": "Hur Jobbliggarens matchning fungerar: helt regelstyrd, ingen AI. Vad som jämförs, vad matchningsgraderna betyder och vad vi medvetet inte bedömer."
   },
   "title": "Så fungerar matchningen",
-  "updated": "Senast uppdaterad: 2026-06-29",
+  "updated": "Senast uppdaterad: 2026-10-03",
   "intro": "Jobbliggaren jämför varje annons mot det du själv har angett och visar alltid vad som matchar och vad som saknas. Ingen AI, inget dolt poängtal. Här förklarar vi hur det går till.",
   "deterministic": {
     "heading": "Helt regelstyrd, ingen AI",
@@ -19,7 +19,7 @@
       "Yrken du vill ha",
       "Orter",
       "Anställningsformer",
-      "Ditt CV"
+      "Kompetenser du valt"
     ],
     "adItems": [
       "Yrkesgrupp",
@@ -30,18 +30,18 @@
   },
   "compare": {
     "heading": "Vad vi jämför",
-    "intro": "Matchningen tittar på följande delar. De tre sista kräver att du har laddat upp ett CV.",
+    "intro": "Matchningen jämför dina val med annonsens uppgifter. Kompetenser och kompetenskrav jämförs med de kompetenser du har valt i Ställ in matchning. Tomma kravfält i underlaget betyder inte att annonstexten saknar krav.",
     "needsCv": "Kräver CV",
     "colPart": "Del",
     "colWhat": "Vad den jämför",
     "rows": [
       { "part": "Yrke", "what": "Annonsens yrkesgrupp mot de yrken du valt. Det här är grinden: matchar inte yrket får annonsen ingen märkning.", "cv": false },
-      { "part": "Titel", "what": "Annonsens titel mot rollen i ditt CV. Endast underlag, påverkar aldrig graden.", "cv": false },
+      { "part": "Titel", "what": "Annonsens titel mot rollen i ditt CV. Endast underlag, påverkar aldrig graden.", "cv": true },
       { "part": "Ort", "what": "Annonsens län eller kommun mot de orter du valt.", "cv": false },
       { "part": "Anställningsform", "what": "Annonsens anställningsform mot de former du valt.", "cv": false },
-      { "part": "Kompetenser", "what": "Annonsens kompetens-termer mot kompetenserna i ditt CV.", "cv": true },
-      { "part": "Ska-krav", "what": "Annonsens obligatoriska krav mot ditt CV.", "cv": true },
-      { "part": "Meriterande", "what": "Annonsens önskvärda meriter mot ditt CV.", "cv": true }
+      { "part": "Kompetenser", "what": "Annonsens extraherade kompetenser mot de kompetenser du valt.", "cv": false },
+      { "part": "Obligatoriska krav", "what": "Obligatoriska kompetenskrav i matchningsunderlaget mot de kompetenser du valt.", "cv": false },
+      { "part": "Meriterande", "what": "Meriterande kompetenser i matchningsunderlaget mot de kompetenser du valt.", "cv": false }
     ]
   },
   "grades": {
@@ -49,15 +49,15 @@
     "intro": "En annons som matchar får en av fyra gröna grader, från Grundmatch upp till Toppmatch. Ju mer som stämmer, desto högre grad.",
     "reqLabel": "Krävs:",
     "items": [
-      { "grade": "Top", "req": "Rätt yrke, allt du valt (både ort och anställningsform) stämmer, och ditt CV täcker annonsens krav." },
-      { "grade": "Strong", "req": "Rätt yrke, något du valt (ort eller anställningsform) stämmer, och ditt CV täcker annonsens krav." },
-      { "grade": "Good", "req": "Rätt yrke och något du valt stämmer, men ditt CV är inte uppladdat eller täcker inte kraven." },
+      { "grade": "Top", "req": "Yrket matchar, både ort och anställningsform matchar dina val och minst en efterfrågad kompetens matchar. De obligatoriska kompetenskrav som finns i matchningsunderlaget matchar också." },
+      { "grade": "Strong", "req": "Yrket matchar och minst ett av dina val av ort och anställningsform matchar. De obligatoriska kompetenskraven i matchningsunderlaget matchar; om sådana krav saknas behövs en matchande kompetens." },
+      { "grade": "Good", "req": "Yrket och minst ett av dina val av ort och anställningsform matchar. Kompetenskraven ger inte underlag för Stark match eller Toppmatch." },
       { "grade": "Basic", "req": "Rätt yrke, men varken den ort eller anställningsform du valt stämmer." }
     ],
     "relatedLabel": "Och så finns:",
     "relatedReq": "Ett liknande yrke som du inte valt. Det rankas under dina exakta träffar och visas bara när du själv slår på att se relaterade yrken. Därför är det neutralt grått, inte ett grönt steg.",
-    "topNote": "Toppmatch bygger på ditt CV och visas bara som märkning på annonserna, inte som ett eget filter.",
-    "cvNote": "Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för Stark match och Toppmatch."
+    "topNote": "Toppmatch använder dina valda kompetenser och visas som märkning på annonserna, inte som ett eget filter.",
+    "cvNote": "Välj dina kompetenser i Ställ in matchning. Ett importerat CV kan ge förslag som du sedan bekräftar."
   },
   "order": {
     "heading": "Ordningen som avgör graden",
@@ -66,7 +66,7 @@
       { "rule": "Matchar annonsen inte något av dina yrken?", "outcome": "Ingen märkning alls." },
       { "rule": "Är det ett liknande yrke du inte valt?", "outcome": "Relaterat yrke, och stannar där." },
       { "rule": "Motsäger annonsen den ort eller form du valt?", "outcome": "Som mest Grundmatch, även om kraven uppfylls." },
-      { "rule": "Annars: hur mycket stämmer, och täcker ditt CV kraven?", "outcome": "Grundmatch, Bra match, Stark match eller Toppmatch." }
+      { "rule": "Annars: vilka val och kompetenskrav matchar?", "outcome": "Grundmatch, Bra match, Stark match eller Toppmatch." }
     ],
     "worstNote": "Det sämsta är fel ort. En annons på en ort du valt bort kan aldrig bli mer än en grundmatch."
   },
@@ -80,21 +80,21 @@
       "personligt brev",
       "hur många jobb du har sökt"
     ],
-    "why": "Ett dolt poängtal frestar till att optimera siffran i stället för själva jobbpassningen. Ett krav som ”minst 5 års erfarenhet” läser vi som en term du har eller saknar i ditt CV, inte som en sifferjämförelse. Du bedömer själv om du passar."
+    "why": "Matchningen jämför kompetenser som finns i underlaget. Den bedömer inte hur många års erfarenhet du har eller om du uppfyller alla krav i annonstexten. Läs annonstexten och bedöm om du vill söka."
   },
   "transparency": {
     "heading": "Du ser alltid varför",
     "paragraphs": [
-      "För varje annons visar vi vad du har och vad annonsen även efterfrågar, som konkreta termer. Inget procenttal, ingen mätare. Du ser gapet och bestämmer själv om du söker, fyller på ditt CV eller går vidare."
+      "I annonsens detaljvy ser du matchade och ej matchade kompetenser i separata listor. Ej matchade betyder att de inte matchar de kompetenser du har valt. Du bedömer själv om du har kvalifikationen, vill ändra dina val eller söka jobbet."
     ],
-    "youHaveLabel": "Du har",
+    "youHaveLabel": "Matchar dina kompetenser",
     "youHave": ["Java", "SQL"],
-    "missingLabel": "Annonsen efterfrågar även",
+    "missingLabel": "Ej matchade",
     "missing": ["Docker"]
   },
   "cta": {
     "heading": "Kom igång",
-    "text": "Skapa ett konto, ange dina yrken och orter, och ladda upp ditt CV för att se dina matchningar.",
+    "text": "Skapa ett konto och välj yrken, orter och kompetenser för att se dina matchningar.",
     "button": "Skapa konto"
   }
 }

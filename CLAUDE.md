@@ -176,9 +176,11 @@ the verdict table, every escalation verbatim and §9.6's named skips (§9.2).
 **Codex external review (Klas, 2026-10-03):** additionally follow
 `docs/runbooks/codex-pr-review.md`. The Codex driving session requests native
 code and security reviews after every changed PR head and fixes Medium+ findings
-in that PR until clean. This external loop has no §9.6 round cap; unavailable
-reports block approval. CC keeps its existing flow and does not await these
-reports. `agents-done` still attests the local mandatory panel only.
+in that PR until clean. Completed native bot evidence in GitHub for the reviewed
+head/base is sufficient; do not require a separate full web report or Codex task
+URL (Klas, 2026-10-03). This external loop has no §9.6 round cap; missing completion
+or unresolved blocking findings block approval. CC keeps its existing flow.
+`agents-done` still attests the local mandatory panel only.
 
 **9.2 Boundaries.** The driving session (CC or Codex) writes code, tests,
 migrations, CI config, docs; proposes refactorings; creates ADRs for its

@@ -35,19 +35,29 @@ export function JobAdModalShell({
   const t = useTranslations("jobads.ui");
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const labelId = useId();
 
   const close = () => router.back();
 
-  // Fokus in i modalen vid öppning + body-scroll-lock. Fokus-retur till
-  // det element som öppnade modalen sköts av Next: router.back() återställer
-  // föregående route och DOM-fokus-position i listan (soft-nav-historik).
   useEffect(() => {
+    const active = document.activeElement;
+    if (
+      openerRef.current === null &&
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !panelRef.current?.contains(active)
+    ) {
+      openerRef.current = active;
+    }
     closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevOverflow;
+      if (openerRef.current?.isConnected) {
+        openerRef.current.focus({ preventScroll: true });
+      }
     };
   }, []);
 

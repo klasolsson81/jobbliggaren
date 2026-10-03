@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
+import { RecruiterContactBlock } from "@/components/job-ads/recruiter-contact-block";
+import contactLinkStyles from "@/components/job-ads/recruiter-contact-link.module.css";
 import { adIdentityOf } from "@/components/applications/ad-identity";
 import { ApplicationStatusActions } from "@/components/applications/application-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
@@ -33,7 +36,7 @@ interface ApplicationDetailBodyProps {
  * NotesSection).
  *
  * §8 order: status block → primary CTA + step picker + AVSLUTA ELLER PARKERA (§8.3–8.5) →
- * UPPFÖLJNINGAR (logged and planned follow-ups, each Pending one with its outcome form) →
+ * available frozen contacts → UPPFÖLJNINGAR (logged and planned follow-ups) →
  * ANNONSEN · SPARAD KOPIA → TIDSLINJE (newest first, always open) → ANTECKNINGAR → cover letter.
  *
  * The status block's day count and the timeline derive from REAL recorded StatusChanges
@@ -55,6 +58,7 @@ export function ApplicationDetailBody({
   // #805-3: NÄR den bevarade kopian visas avgörs av SourceAdSection (SPOT) —
   // på källannonsens Status, inte på jobAd == null (den guarden var vakuös, #821).
   const preservedAd = application.preservedAd ?? null;
+  const contacts = preservedAd?.contacts ?? [];
   // #892: strukturell identitet — en raderad annons utan snapshot bär TOM
   // identitet på wiren; adIdentityOf normaliserar tomt → null så coalescingen
   // nedan aldrig väljer en tom sträng framför den sparade kopian/id-fallbacken.
@@ -158,6 +162,17 @@ export function ApplicationDetailBody({
         // The copy is projected even while the ad is active, so the detail always knows.
         copyHasText={preservedAd?.description != null}
       />
+
+      {contacts.length > 0 && (
+        <div>
+          <RecruiterContactBlock contacts={contacts} />
+          <p className="jp-recruiter-notice mt-2">
+            <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
+              {tUi("preservedAd.recruiterNoticeLink")}
+            </Link>
+          </p>
+        </div>
+      )}
 
       {/* Uppföljningar (§8.6): "Logga uppföljning" i rubrikraden öppnar dialogen
           (Klas-låst, prototyp-trogen); planeringen med kanal och datum ligger under

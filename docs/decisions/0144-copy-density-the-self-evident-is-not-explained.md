@@ -474,3 +474,19 @@ Under her DESIGN.md §11 veto, design-reviewer approved gold on conditions V1–
 - **V2:** Om bandraden på rad 17–20 blir något annat än sidans `*.updated`, och raden påstår eller sammanfattar behandling av personuppgifter, går den till mig före merge. Den står på Art. 13/14-informationen.
 
 Bryts V1 eller V2 gäller DESIGN.md §8 regel 7 och ADR 0142 D6, och ärendet går tillbaka till mig.
+
+## Amendment — 2026-10-03, #1944 D4 row10 presence and carrier
+
+Klas's current binding supersedes row10's presence/carrier clauses in the 2026-09-26 #1828
+amendment (with/without contacts) and 2026-09-27 #1827 amendment (panel text-or-contacts gate).
+With zero permitted/displayable contacts, the detail renders no contact area or local notice.
+With any permitted declared or derived contact, it always renders the whole notice beside
+the contact block. Name-only contacts count. Both job-ad and application detail follow this gate.
+
+Application contacts come only from the frozen snapshot and stand after status actions,
+before follow-ups, in the shared full-page/modal body. The preserved-ad panel carries neither
+another block nor another notice. Source liveness and status never refill cleared data.
+
+The whole sv/en strings, /kontaktperson-i-annons route, permanent underline, font/contrast
+constraints and row18's visible derived provenance remain unchanged. The public notice and
+information duties remain available independently of this local presentation gate.

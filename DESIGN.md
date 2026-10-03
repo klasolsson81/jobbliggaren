@@ -175,6 +175,8 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 
 ## 8. Copy-riktlinjer (sammanfattning)
 
+**Application contacts (#1944, 2026-10-03):** available frozen contacts appear after status actions and before follow-ups in the shared full-page/modal body, with one contact region and one whole contact-person notice. No contact produces no contact area or local notice. The same contacts-only notice rule applies to job-ad detail. Source liveness never refills an erased/minimized snapshot. Declared/derived provenance, contact methods and the notice route/copy stay intact.
+
 - **Du-tilltal** alltid — "du" inte "Du" eller "ni"
 - **Direkt:** 10 ord där möjligt, inte 25
 - **Konkret:** siffror, datum, namn — "Intervjun är 14 apr kl 10:00" slår "Du har en kommande intervju"
@@ -220,7 +222,20 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
   2026-09-02, #1613). I sektionen vilar tystnaden på att Yrke-raden står kvar
   och bär sitt verdikt och sitt skäl eller sitt bevis; utan den raden är
   sektionen inte tyst utan tom. Skyltar som är **åtgärdbara** — angivet yrke,
-  uppladdat CV — står kvar; den om angivet yrke ersätter dessutom hela sektionen
+  bekräftade kompetenser — står kvar; den om angivet yrke ersätter dessutom hela sektionen
+- **Skill and requirement evidence** (#1864/#1872): separate visibly named matched
+  and unmatched lists; noninteractive wrapping items in body/ink-1. A success Check
+  marks matched evidence; a neutral Minus and dashed strong border mark unmatched
+  evidence. Group only within one dimension and side using concept identity and the
+  shared taxonomy surface grouping; retain every member and show distinct original
+  words directly. Display-only legacy evidence is never deduplicated by label.
+  Requirement rows use "Obligatoriska krav" and "Meriterande" and assess skill
+  requirements only. Omit a requirement row only for proven-empty Vacuous evidence;
+  preserve NotAssessed. Empty extracted data does not prove the ad text has no
+  requirements. State the missing matching data once and direct the reader to the
+  ad text; do not claim all employer requirements are met. Confirmed skills are the
+  capability source; CV import can propose skills for confirmation, and only the
+  title dimension uses the CV role. Skill setup links to the matching settings.
 - **Ort-axeln heter "Ort"** — dess granulariteter heter "Län" och "Kommun". En
   resultat-etikett namnger AXELN (senior-cto-advisor 2026-09-01, #1623). Regeln
   binder varje yta som rapporterar utfallet, resultatrad såväl som förklaringstabell

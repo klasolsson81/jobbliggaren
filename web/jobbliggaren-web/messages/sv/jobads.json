@@ -204,9 +204,7 @@
     "match": {
       "heading": "Matchning",
       "settingsCta": "Ställ in matchning",
-      "uploadCvCta": "Ladda upp CV",
       "noStatedOccupation": "Du har inte angett vilka yrken du söker inom.",
-      "uploadCvFoot": "Ett CV krävs för Stark match och Toppmatch.",
       "youHave": "Du har: {items}",
       "alsoRequested": "Annonsen efterfrågar även: {items}",
       "requested": "Annonsen efterfrågar: {items}",
@@ -238,7 +236,7 @@
         "Partial": "Delvis",
         "NoMatch": "Saknas",
         "NotAssessed": "Ej bedömt",
-        "Vacuous": "Inga angivna"
+        "Vacuous": "Underlag saknas"
       },
       "dimension": {
         "ssykOverlap": "Yrke",
@@ -246,7 +244,7 @@
         "regionFit": "Ort",
         "employmentFit": "Anställningsform",
         "skillOverlap": "Kompetenser",
-        "mustHaveCoverage": "Ska-krav",
+        "mustHaveCoverage": "Obligatoriska krav",
         "niceToHaveCoverage": "Meriterande"
       },
       "notAssessedReason": {
@@ -274,27 +272,27 @@
         "ssykOverlap": "{count, plural, one {Annonsen anger ett yrke som saknas i vårt register.} other {Annonsen anger # yrken som saknas i vårt register.}}",
         "regionFit": "{count, plural, one {Annonsen anger en ort som saknas i vårt register.} other {Annonsen anger # orter som saknas i vårt register.}}"
       },
-      "mustHaveSummary": {
-        "Match": "Du uppfyller alla ska-krav i annonsen.",
-        "Partial": "Du uppfyller några av annonsens ska-krav.",
-        "NoMatch": "Du uppfyller inte annonsens ska-krav.",
-        "Vacuous": "Annonsen anger inga särskilda ska-krav."
-      },
-      "requirements": {
-        "met": "Uppfyllt",
-        "unmet": "Ej uppfyllt"
-      },
       "titleSummary": {
         "Match": "Din roll stämmer med annonsens titel.",
         "Partial": "Din roll stämmer delvis med annonsens titel.",
         "NoMatch": "Din roll skiljer sig från annonsens titel."
+      },
+      "skillsFoot": "Välj kompetenser för att se vilka krav som matchar.",
+      "evidence": {
+        "matched": "Matchar dina kompetenser",
+        "missing": "Ej matchade"
+      },
+      "requirementsEmpty": {
+        "both": "Uppgifter om kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.",
+        "mustHave": "Uppgifter om obligatoriska kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.",
+        "niceToHave": "Uppgifter om meriterande kompetenser saknas i matchningsunderlaget. Läs kraven i annonstexten."
       }
     },
     "gradeFilter": {
       "toggleLabel": "Matchning",
       "groupLabel": "Visa matchningsgrader",
       "helpTitle": "Om matchningsfiltret",
-      "help": "Filtrerar listan efter hur väl annonserna passar dina val (yrke, ort, anställningsform). Märkningen på ett kort kan visa en annan nivå, eftersom den även väger in om ditt CV möter annonsens krav: samma annons kan märkas Toppmatch eller en nivå lägre än filtret. Toppmatch bygger på ditt CV och visas bara på korten, inte som eget filter. Stäng av matchningen för att dölja nivåerna helt.",
+      "help": "Filtrerar listan efter hur väl annonserna passar dina val av yrke, ort och anställningsform. Märkningen på ett kort använder även dina valda kompetenser och annonsens extraherade kompetenskrav, så samma annons kan visa en annan nivå än filtret. Toppmatch visas bara på korten, inte som eget filter. Stäng av matchningen för att dölja nivåerna helt.",
       "relatedToggleLabel": "Visa relaterade yrken",
       "relatedToggleHelp": "Tar med yrken som liknar dina valda. De märks Relaterat yrke och rankas under dina exakta träffar.",
       "onlyMatchedLabel": "Visa bara matchade",

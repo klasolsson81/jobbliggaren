@@ -13,6 +13,7 @@ import { FollowCompanyToggle } from "@/components/company-follows/follow-company
 import { JobAdMatchSection } from "./job-ad-match-section";
 import { RecruiterContactBlock } from "./recruiter-contact-block";
 import { formatAdDescription } from "./format-ad-description";
+import contactLinkStyles from "./recruiter-contact-link.module.css";
 
 /**
  * JobAdDetail — ren presentational Server Component (ingen "use client",
@@ -199,14 +200,13 @@ export function JobAdDetail({
         {/* #842 PR4 — recruiter contact block. Self-hides when the ad carries no
             contacts; the guest demo omits the prop entirely. */}
         <RecruiterContactBlock contacts={contacts} />
-        {/* #842 Tier A (ADR 0106) — Art. 14(5)(b): the public recruiter notice must be
-            reachable from the ad detail, with or without contacts (ADR 0144 D4 row 10).
-            A sibling after the block, never inside it: the block renders nothing for []. */}
-        <p className="jp-recruiter-notice">
-          <Link href="/kontaktperson-i-annons">
-            {tUi("detail.recruiterNoticeLink")}
-          </Link>
-        </p>
+        {contacts.length > 0 && (
+          <p className="jp-recruiter-notice">
+            <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
+              {tUi("detail.recruiterNoticeLink")}
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="jp-modal__foot">

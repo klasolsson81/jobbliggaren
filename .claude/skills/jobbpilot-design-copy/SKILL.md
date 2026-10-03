@@ -214,8 +214,8 @@ anti-pattern, arkitekturtestad).
 | Situation | ✅ Ja | ❌ Nej |
 |---|---|---|
 | Matchningsgrad | "Stark match" | "89 % matchning mot din profil." |
-| Varför graden | "Du uppfyller alla ska-krav i annonsen." | "Vår analys ger dig 4 av 5 stjärnor." |
-| Annons utan ska-krav | "Annonsen anger inga särskilda ska-krav." | "Du uppfyller alla ska-krav" (falskt: inget krävdes) |
+| Skill requirement evidence | "Obligatoriska krav: Matchar dina kompetenser" | "Vår analys ger dig 4 av 5 stjärnor." |
+| Empty extracted requirements | "Uppgifter om kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten." | "Annonsen anger inga särskilda ska-krav." |
 | Dimension utan underlag | "Ej bedömt" | En gissad grad, eller en dold nolla |
 | CV-omdöme, citerbart | "Delvis" + citat ur CV:t + åtgärd: *"Driven och engagerad person som gillar utmaningar."* / "Profiltexten är vag. Lägg till vad du faktiskt gör och vad du har åstadkommit." | "Ditt CV känns lite tunt." |
 | CV-omdöme, frånvaro | "Underkänt" + observation: "Ingen e-postadress hittades i CV:t." | Ett omdöme som påstår ett citat men citerar inget |
@@ -225,14 +225,17 @@ anti-pattern, arkitekturtestad).
 - **Matchningsgrad** (`jobads.ui.match.grade`): **Toppmatch · Stark match · Bra
   match · Grundmatch**, plus **Relaterat yrke** (en märkning, inte en av de fyra
   gröna graderna).
-- **Per dimension** (`jobads.ui.match.verdict`): **Matchar · Delvis · Saknas ·
-  Ej bedömt · Inga angivna**. Femmedlemsmängden är arkitekturpinnad
-  (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
-  "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
-  enskilt krav, inte dimensionens omdöme.
-- **Ska-krav-raden** (`jobads.ui.match.mustHaveSummary`): fyra grenar, en per
-  utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
-  uttryckligen den affirmativa raden när annonsen inte angav några krav.
+- **Per dimension** (jobads.ui.match.verdict): **Matchar · Delvis · Saknas ·
+  Ej bedömt · Underlag saknas**. The five wire verdicts remain architecture-pinned.
+- **Skill requirements** (#1864/#1872, ADR 0076 amendment 2026-10-03):
+  "Obligatoriska krav" / "Meriterande"; visibly separate "Matchar dina kompetenser"
+  and "Ej matchade" lists. Unmatched evidence describes the confirmed-skill set,
+  not proof that the person lacks the qualification. Omit only proven-empty Vacuous
+  requirement rows; NotAssessed stays. Empty extracted fields never imply a
+  requirement-free ad. One precise missing-data note refers to the ad text.
+- **Skill setup**: "Välj kompetenser för att se vilka krav som matchar." followed by
+  "Ställ in matchning". An uploaded CV is not a prerequisite for Strong/Top;
+  CV import offers suggestions which the user confirms. The title's CV role is separate.
 - **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
   bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
   Toppskikt**.

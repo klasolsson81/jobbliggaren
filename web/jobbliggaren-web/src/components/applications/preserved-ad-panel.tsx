@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
-import { RecruiterContactBlock } from "@/components/job-ads/recruiter-contact-block";
 import type { AdSnapshotDto } from "@/lib/types/applications";
 
 interface PreservedAdPanelProps {
@@ -140,21 +138,6 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         )}
       </section>
 
-      {preservedAd.contacts.length > 0 && (
-        <div className="mt-4">
-          <RecruiterContactBlock contacts={preservedAd.contacts} />
-        </div>
-      )}
-      {/* ADR 0144 D4 row 10: the link stands wherever the copy's text or its
-          contact block renders. A contact person's name can sit in the text,
-          where no regex reaches it, so the contacts alone do not decide. */}
-      {(preservedAd.description != null || preservedAd.contacts.length > 0) && (
-        <p className="jp-recruiter-notice mt-2">
-          <Link href="/kontaktperson-i-annons">
-            {tUi("preservedAd.recruiterNoticeLink")}
-          </Link>
-        </p>
-      )}
     </section>
   );
 }

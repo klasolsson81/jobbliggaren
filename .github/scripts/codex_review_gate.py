@@ -107,19 +107,19 @@ def main():
         return pr
 
     def read_current(pr_number):
-        for attempt in range(3):
+        for attempt in range(5):
             pr = api(f"pulls/{pr_number}")
-            if (pr["state"] != "open" or pr.get("merge_commit_sha") or pr.get("mergeable") is False or
-                    attempt == 2):
+            if (pr["state"] != "open" or pr.get("mergeable") is False or
+                    (pr.get("mergeable") is True and pr.get("merge_commit_sha")) or attempt == 4):
                 return pr
-            time.sleep(2)
+            time.sleep(3)
 
     def read_pr():
         return include_scope_history(read_current(number))
 
     def targets(pr):
         merge_sha = pr.get("merge_commit_sha")
-        if pr.get("mergeable") is False or not isinstance(merge_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", merge_sha):
+        if pr.get("mergeable") is not True or not isinstance(merge_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", merge_sha):
             raise ValueError("Test merge is unavailable; retry after GitHub computes it")
         commit = api(f"commits/{merge_sha}")
         if [parent["sha"] for parent in commit["parents"]] != [pr["base"]["sha"], pr["head"]["sha"]]:
@@ -130,16 +130,23 @@ def main():
         if body.get("conclusion") != "failure":
             return [api("check-runs", body | {"name": CHECK_NAME, "head_sha": sha}) for sha in targets(pr)]
         # Negative results revoke known PR targets even when commit metadata is unavailable.
-        shas = [pr["head"]["sha"]]
+        shas = []
         merge_sha = pr.get("merge_commit_sha")
         if isinstance(merge_sha, str) and re.fullmatch(r"[0-9a-f]{40}", merge_sha) and merge_sha not in shas:
             shas.append(merge_sha)
+        if pr["head"]["sha"] not in shas:
+            shas.append(pr["head"]["sha"])
         checks, errors = [], []
         for sha in shas:
-            try:
-                checks.append(api("check-runs", body | {"name": CHECK_NAME, "head_sha": sha}))
-            except Exception as error:
-                errors.append(error)
+            for attempt in range(3):
+                try:
+                    checks.append(api("check-runs", body | {"name": CHECK_NAME, "head_sha": sha}))
+                    break
+                except Exception as error:
+                    if not isinstance(error, OSError) or attempt == 2:
+                        errors.append(error)
+                        break
+                    time.sleep(1)
         if errors:
             raise errors[0]
         return checks

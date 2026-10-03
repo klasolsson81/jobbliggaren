@@ -16,7 +16,7 @@ class ReviewAttestationTests(unittest.TestCase):
                        "attestation": "both-complete-zero-medium-plus",
                        "code_report": "https://chatgpt.com/codex/tasks/code",
                        "security_report": "https://chatgpt.com/codex/tasks/security"}
-        self.pr = {"number": 123, "state": "open", "merge_commit_sha": "e" * 40, "head": {"sha": "a" * 40,
+        self.pr = {"number": 123, "state": "open", "merge_commit_sha": "e" * 40, "mergeable": True, "head": {"sha": "a" * 40,
                    "ref": "codex/fix/example", "repo": {"full_name": self.repo}},
                    "base": {"ref": "main", "sha": "c" * 40, "repo": {"full_name": self.repo}}}
 
@@ -83,7 +83,7 @@ class ReviewAttestationTests(unittest.TestCase):
         return [{"parents": [{"sha": pr["base"]["sha"]}, {"sha": pr["head"]["sha"]}]}, {"id": 2}, {"id": 1}]
 
     def refusal(self):
-        return [{"id": 1}, {"id": 2}]
+        return [{"id": 2}, {"id": 1}]
 
     def approval(self):
         return {"id": 5, "external_id": review_identity(self.repo, self.pr),
@@ -113,7 +113,7 @@ class ReviewAttestationTests(unittest.TestCase):
                "GITHUB_EVENT_NAME": event_name}
         env.update(env_overrides or {})
         with patch.dict("os.environ", env), patch("builtins.open", return_value=io.StringIO(json.dumps(event))), \
-                patch("urllib.request.urlopen", side_effect=request_api):
+                patch("urllib.request.urlopen", side_effect=request_api), patch("codex_review_gate.time.sleep"):
             try:
                 main()
             finally:
@@ -325,17 +325,16 @@ class ReviewAttestationTests(unittest.TestCase):
 
     def test_uncomputed_merge_is_retried_before_attestation(self):
         pending = self.pr | {"merge_commit_sha": None, "mergeable": None}
-        with patch("codex_review_gate.time.sleep") as sleep:
-            calls = self.run_event([pending, self.pr, {"permission": "write"},
-                                   *self.publication(), self.pr, {}, {}])
-        sleep.assert_called_once_with(2)
+        calls = self.run_event([pending, self.pr, {"permission": "write"},
+                               *self.publication(), self.pr, {}, {}])
+        self.assertEqual(2, len([url for method, url, _ in calls[:2] if method == "GET" and "/pulls/" in url]))
         self.assertEqual("success", calls[-1][2]["conclusion"])
 
     def test_missing_merge_after_bounded_retry_never_receives_approval(self):
         pending = self.pr | {"merge_commit_sha": None, "mergeable": None}
-        with patch("codex_review_gate.time.sleep") as sleep, self.assertRaises(ValueError):
-            self.run_event([pending, pending, pending, {"permission": "write"}])
-        self.assertEqual(2, sleep.call_count)
+        with self.assertRaises(ValueError):
+            self.run_event([pending, pending, pending, pending, pending, {"permission": "write"}])
+        self.assertEqual(5, len([url for _, url, _ in self.requests if "/pulls/" in url]))
         self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
     def test_merge_changes_during_attestation_fails_both_publications(self):
@@ -391,9 +390,13 @@ class ReviewAttestationTests(unittest.TestCase):
 
     def test_failure_on_one_negative_target_still_attempts_the_other(self):
         with self.assertRaises(OSError):
-            self.run_event([self.pr, OSError("check read failed"), OSError("head write failed"), {}],
+            self.run_event([self.pr, OSError("check read failed"), OSError("merge write failed"),
+                            OSError("merge write failed"), OSError("merge write failed"), {}],
                            "pull_request_target")
-        self.assert_failure_replaces_prior_approval()
+        posts = [body for method, _, body in self.requests if method == "POST"]
+        self.assertEqual([self.pr["merge_commit_sha"]] * 3 + [self.pr["head"]["sha"]],
+                         [body["head_sha"] for body in posts])
+        self.assertTrue(all(body["conclusion"] == "failure" for body in posts))
 
     def test_global_queue_preserves_pending_revocations_and_other_prs(self):
         workflow = (Path(__file__).parent.parent / "workflows" / "codex-review-gate.yml").read_text(encoding="utf-8")
@@ -447,6 +450,21 @@ class ReviewAttestationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_event([[self.pr], OSError("PR read unavailable"), *self.refusal()], "schedule")
         self.assert_failure_replaces_prior_approval()
+
+    def test_stale_merge_sha_does_not_end_mergeability_retry(self):
+        pending = self.pr | {"mergeable": None, "merge_commit_sha": "f" * 40}
+        calls = self.run_event([pending, self.pr, {"permission": "write"},
+                               *self.publication(), self.pr, {}, {}])
+        self.assertTrue(calls[1][1].endswith("pulls/123"))
+        self.assertEqual("success", calls[-1][2]["conclusion"])
+
+    def test_transient_merge_revocation_failure_is_retried_before_head(self):
+        calls = self.run_event([self.pr, {"check_runs": []}, {"check_runs": []},
+                               OSError("transient merge failure"), {"id": 2}, {"id": 1}], "pull_request_target")
+        posts = [body for method, _, body in calls if method == "POST"]
+        self.assertEqual([self.pr["merge_commit_sha"], self.pr["merge_commit_sha"], self.pr["head"]["sha"]],
+                         [body["head_sha"] for body in posts])
+        self.assertTrue(all(body["conclusion"] == "failure" for body in posts))
 
 
 if __name__ == "__main__":

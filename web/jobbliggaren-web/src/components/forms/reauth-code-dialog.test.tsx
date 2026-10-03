@@ -441,16 +441,22 @@ describe("ReAuthCodeDialog", () => {
     });
 
     it("re-opens on the code step with what is left of the count, inside the code's lifetime", async () => {
-      const user = clockedUser();
-      render(<Harness operation={operation} />);
+      const issuedAt = Date.UTC(2026, 0, 1);
+      const clock = vi.spyOn(Date, "now").mockReturnValue(issuedAt);
+      try {
+        const user = clockedUser();
+        render(<Harness operation={operation} />);
 
-      await toCodeStep(user);
-      await user.click(screen.getByRole("button", { name: "Avbryt" }));
-      vi.setSystemTime(Date.now() + 20_000);
-      await open(user);
+        await toCodeStep(user);
+        await user.click(screen.getByRole("button", { name: "Avbryt" }));
+        clock.mockReturnValue(issuedAt + 20_000);
+        await open(user);
 
-      expect(screen.getByLabelText("Sexsiffrig kod")).toBeInTheDocument();
-      expect(screen.getByText("Du kan skicka en ny kod om 40 sekunder.")).toBeInTheDocument();
+        expect(screen.getByLabelText("Sexsiffrig kod")).toBeInTheDocument();
+        expect(screen.getByText("Du kan skicka en ny kod om 40 sekunder.")).toBeInTheDocument();
+      } finally {
+        clock.mockRestore();
+      }
     });
 
     it("re-opens on the request step once the code's lifetime has passed", async () => {

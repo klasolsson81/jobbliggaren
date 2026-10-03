@@ -4907,20 +4907,28 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-wrap: pretty;
 }
 
-/* .jp-banner — info-banner med 3px brand-vänsterkant, används sparsamt (DESIGN.md
-   §4-listan, ratificerad men oimplementerad fram till ADR 0148). Första konsument:
-   raden efter en omladdning (ReloadedAfterUpdateNotice, överst i innehållet).
-   Komponerar befintliga tokens — ingen ny token. */
+/* .jp-banner — the info banner with the 3px accent left edge, used sparingly (the
+   DESIGN.md §4 list, ratified but unimplemented until ADR 0148). First consumer: the
+   line after a reload (ReloadedAfterUpdateNotice, at the top of the content).
+   Composes existing tokens; no new token. The edge is --jp-accent-700, the TEXT/BORDER
+   contract, so it survives dark mode (--jp-brand-600 is a FILL token and does not
+   shift). The gap sits on the banner, never on its live region, so an empty region
+   is 0 px high: by default the content follows directly and the banner brings the
+   24 px below; --before-band is the mounting above a page that starts with its own
+   band (.jp-pagehero brings the 24 px below), so the banner brings the 24 px above. */
 .jp-banner {
   margin: 0 0 24px;
   padding: 12px 16px;
-  border-left: 3px solid var(--jp-brand-600);
+  border-left: 3px solid var(--jp-accent-700);
   background: var(--jp-brand-50);
   color: var(--jp-ink-1);
   font-size: var(--text-body);
   line-height: 1.5;
   border-radius: var(--jp-r-sm);
   text-wrap: pretty;
+}
+.jp-banner--before-band {
+  margin: 24px 0 0;
 }
 
 /* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.

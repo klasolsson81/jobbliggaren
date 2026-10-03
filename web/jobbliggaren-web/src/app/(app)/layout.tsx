@@ -73,7 +73,7 @@ export default async function AppLayout({
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
-        <ReloadedAfterUpdateNotice />
+        <ReloadedAfterUpdateNotice placement="app" />
         {children}
         {modal}
       </AppShell>

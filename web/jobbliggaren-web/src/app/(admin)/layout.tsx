@@ -62,7 +62,7 @@ export default async function AdminLayout({
           tabIndex={-1}
           className="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
         >
-          <ReloadedAfterUpdateNotice />
+          <ReloadedAfterUpdateNotice placement="inline" />
           {children}
         </main>
         {/* LP-3 (#256): shared deep-green footer at the bottom of the admin

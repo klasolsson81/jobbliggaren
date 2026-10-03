@@ -54,7 +54,7 @@ export default async function AuthLayout({
               <ChevronLeft size={16} aria-hidden="true" />
               <span>{t("auth.backToStart")}</span>
             </Link>
-            <ReloadedAfterUpdateNotice />
+            <ReloadedAfterUpdateNotice placement="inline" />
             {children}
           </div>
         </main>

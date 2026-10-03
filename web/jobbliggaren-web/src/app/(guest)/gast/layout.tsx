@@ -51,7 +51,7 @@ export default async function GuestLayout({
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <GuestShell>
-        <ReloadedAfterUpdateNotice />
+        <ReloadedAfterUpdateNotice placement="rail" />
         {children}
         {modal}
       </GuestShell>

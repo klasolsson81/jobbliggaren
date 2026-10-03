@@ -40,7 +40,7 @@ export default async function MarketingInnerLayout({
       <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
         <SiteHeader />
         <div className="flex-1">
-          <ReloadedAfterUpdateNotice />
+          <ReloadedAfterUpdateNotice placement="rail" />
           {children}
         </div>
         <SiteFooter />

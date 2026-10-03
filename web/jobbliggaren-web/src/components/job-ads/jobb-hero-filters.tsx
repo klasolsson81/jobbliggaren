@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
@@ -583,23 +584,14 @@ export function JobbHeroFilters({
         </button>
       )}
 
-      {/* [Dölj ansökta] — en enda toggle-pill (#383 → förenklat, Klas: droppat
-          "Visa sparade"/"Visa bara ansökta"). Samma pill-form men INGEN chevron
-          (öppnar ingen meny) och `aria-pressed` (toggle, inte dialog-trigger).
-          Renderas på hasSeeker. data-active + prick visar att den är på. */}
       {hasSeeker && (
-        <button
-          type="button"
-          className="jp-hero-pill"
-          data-active={selection.hideApplied}
-          aria-pressed={selection.hideApplied}
-          onClick={toggleHideApplied}
-        >
-          {selection.hideApplied && (
-            <span className="jp-hero-pill__dot" aria-hidden="true" />
-          )}
-          {tStatus("hideApplied")}
-        </button>
+        <div className="jp-hero-hide-applied">
+          <ToggleRow
+            label={tStatus("hideApplied")}
+            checked={selection.hideApplied}
+            onChange={toggleHideApplied}
+          />
+        </div>
       )}
 
       {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f

@@ -30,7 +30,8 @@
   "companyWatches": {
     "listLabel": "Followed companies",
     "emptyTitle": "You are not following any companies yet",
-    "emptyBody": "Open an ad under Jobs and select <i>Follow the company</i>.",
+    "emptyBody": "Select Follow beside the company.",
+    "emptyCta": "Find companies",
     "unknownCompany": "The company name is not available",
     "orgNr": "Org. no. {orgNr}",
     "protectedIdentity": "Protected identity",
@@ -92,8 +93,8 @@
     "emptyTitle": "No recent searches",
     "emptyBody": "Run a search under Jobs. It is saved here automatically.",
     "listLabel": "Recent searches",
-    "hitsWithNew": "<b>{currentCount, number}</b> hits, of which <b>{newCount, number}</b> new",
-    "hits": "<b>{currentCount, number}</b> hits",
+    "hitsWithNew": "{currentCount, plural, one {<b>#</b> hit} other {<b>#</b> hits}}, of which <b>{newCount, number}</b> new",
+    "hits": "{currentCount, plural, one {<b>#</b> hit} other {<b>#</b> hits}}",
     "runAgain": "Run again",
     "removeSearch": "Remove the search: {label}",
     "label": {

@@ -39,8 +39,8 @@
     "matchingTooBroadAdvice": "En bevakning med fler annonser än vi kan matcha visar inte hur många av dem som matchar dig."
   },
   "cards": {
-    "requiresYou": "Kräver dig",
-    "requiresYouEmpty": "Inget kräver dig just nu.",
+    "requiresYou": "Kräver åtgärd",
+    "requiresYouEmpty": "Inget kräver åtgärd just nu.",
     "applications": "Mina ansökningar",
     "activeOf": "aktiva av {total, plural, one {# ansökan} other {# ansökningar}}",
     "interviewStep": "Intervju",
@@ -129,8 +129,7 @@
     "companiesText": "Dina bevakade företag har publicerat <b><lnk>{count, plural, one {# ny annons} other {# nya annonser}}</lnk></b> sedan ditt senaste besök.",
     "companiesCta": "Visa nya annonser",
     "calloutText": "Du har inte angett vilka yrken du söker inom.",
-    "calloutCta": "Ställ in matchning",
-    "calloutHint": "Tar någon minut"
+    "calloutCta": "Ställ in matchning"
   },
   "relativeTime": {
     "today": "idag",

@@ -542,42 +542,40 @@ describe("JobbHeroFilters — Matchning (flyttad från toolbaren)", () => {
   });
 });
 
-// 2026-06-30 (Klas) — "Dölj ansökta" = en enda toggle-pill (#383 förenklat;
-// "Visa sparade"/"Visa bara ansökta" borttagna). Gatad på hasSeeker; aria-pressed
-// (toggle, inte dialog-trigger); navigerar utan commit-flaggan.
+// HideApplied remains profile-gated and URL-driven.
 describe("JobbHeroFilters — Dölj ansökta (hero-toggle)", () => {
   it("DÖLJER toggle:n när hasSeeker=false", () => {
     setup({ hasSeeker: false });
     expect(
-      screen.queryByRole("button", { name: "Dölj ansökta" }),
+      screen.queryByRole("switch", { name: "Dölj ansökta" }),
     ).toBeNull();
   });
 
   it("VISAR toggle:n när hasSeeker=true", () => {
     setup({ hasSeeker: true });
     expect(
-      screen.getByRole("button", { name: "Dölj ansökta" }),
+      screen.getByRole("switch", { name: "Dölj ansökta" }),
     ).toBeInTheDocument();
   });
 
-  it("aria-pressed speglar på-läget", () => {
+  it("aria-checked reflects the enabled state", () => {
     setup({ hasSeeker: true, initialHideApplied: true });
     expect(
-      screen.getByRole("button", { name: "Dölj ansökta", pressed: true }),
+      screen.getByRole("switch", { name: "Dölj ansökta", checked: true }),
     ).toBeInTheDocument();
   });
 
   it("klick (av → på) navigerar med ?doljAnsokta=on (utan commit-flaggan)", async () => {
     const user = userEvent.setup();
     setup({ hasSeeker: true });
-    await user.click(screen.getByRole("button", { name: "Dölj ansökta" }));
+    await user.click(screen.getByRole("switch", { name: "Dölj ansökta" }));
     expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on");
   });
 
   it("klick (på → av) navigerar till ren /jobb", async () => {
     const user = userEvent.setup();
     setup({ hasSeeker: true, initialHideApplied: true });
-    await user.click(screen.getByRole("button", { name: "Dölj ansökta" }));
+    await user.click(screen.getByRole("switch", { name: "Dölj ansökta" }));
     expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 });
@@ -631,5 +629,44 @@ describe("Distans i ort-popovern (#551 punkt 4)", () => {
     expect(
       screen.getByRole("button", { name: /^Ort/ }),
     ).toHaveAttribute("data-active", "true");
+  });
+});
+
+
+describe("HideApplied keyboard navigation", () => {
+  it.each([" ", "{Enter}"])("preserves the search axes when activated with %s", async (key) => {
+    const user = userEvent.setup();
+    setup({
+      hasSeeker: true,
+      hasStatedDesiredOccupation: true,
+      q: "backend",
+      initialRegion: ["CifL_Rzy_Mku"],
+      initialOccupationGroup: ["MVqp_eS8_kDZ"],
+      initialRemote: true,
+      initialEmploymentType: ["gro4_cWF_6D7"],
+      initialWorktimeExtent: ["6YE1_gAC_R2G"],
+      initialMatchGrades: ["Good", "Strong"],
+      initialIncludeRelated: true,
+      employer: ["5566524301"],
+      sortBy: "MatchDesc",
+      pageSize: "50",
+    });
+    const control = screen.getByRole("switch", { name: "Dölj ansökta", checked: false });
+    control.focus();
+    await user.keyboard(key);
+    const url = new URL(pushMock.mock.calls.at(-1)?.[0], "http://localhost");
+    expect(url.searchParams.get("doljAnsokta")).toBe("on");
+    expect(url.searchParams.get("q")).toBe("backend");
+    expect(url.searchParams.get("region")).toBe("CifL_Rzy_Mku");
+    expect(url.searchParams.get("occupationGroup")).toBe("MVqp_eS8_kDZ");
+    expect(url.searchParams.get("distans")).toBe("on");
+    expect(url.searchParams.get("employmentType")).toBe("gro4_cWF_6D7");
+    expect(url.searchParams.get("worktimeExtent")).toBe("6YE1_gAC_R2G");
+    expect(url.searchParams.get("matchGrades")).toBe("Good.Strong");
+    expect(url.searchParams.get("employer")).toBe("5566524301");
+    expect(url.searchParams.get("sortBy")).toBe("MatchDesc");
+    expect(url.searchParams.get("pageSize")).toBe("50");
+    expect(url.searchParams.has("page")).toBe(false);
+    expect(screen.getByRole("button", { name: /^Matchning/ })).toBeInTheDocument();
   });
 });

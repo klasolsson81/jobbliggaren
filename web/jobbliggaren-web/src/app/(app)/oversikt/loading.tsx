@@ -45,7 +45,7 @@ export default function Loading() {
         </div>
 
         <div className="jp-ov-grid">
-          {/* Kräver dig — three action rows. */}
+          {/* Kräver åtgärd — three action rows. */}
           <div className="jp-ov-card jp-ov-card--list" data-span="8">
             <div className="jp-ov-card__head">
               <span className="jp-skeleton block h-6 w-32" />

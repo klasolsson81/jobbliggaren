@@ -191,7 +191,13 @@ export function HeaderStats({
         aria-hidden="true"
       />
       <div className="jp-header-stats__item">
-        <span className="jp-header-stats__num">
+        <span
+          className={
+            stats.newToday === null
+              ? "jp-header-stats__num"
+              : "jp-header-stats__num jp-header-stats__num--new"
+          }
+        >
           {stats.newToday === null
             ? unmeasured
             : formatNumber(format, stats.newToday)}

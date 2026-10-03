@@ -51,7 +51,6 @@ export function MatchingCard({
           <Link className="jp-btn jp-btn--primary jp-ov-cta" href="/oversikt?matchsetup=1">
             {t("notices.calloutCta")} <ArrowRight size={14} aria-hidden="true" />
           </Link>
-          <p className="jp-ov-card__hint">{t("notices.calloutHint")}</p>
         </OversiktCardFoot>
       </OversiktCard>
     );

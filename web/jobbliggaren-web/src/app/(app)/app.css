@@ -2215,7 +2215,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   padding: 24px 28px;
   gap: 14px;
 }
-/* Kräver dig bär en 6px varningskant så länge något kräver läsaren; tomt byter kanten till
+/* Kräver åtgärd bär en 6px varningskant så länge något kräver läsaren; tomt byter kanten till
    neutral — kortet står kvar, larmet går (handoffens tillståndstabell). */
 /* Skelettet på de tintade korten: --jp-surface-3 mäter 1,01–1,04:1 mot tinterna (osynligt), så
    follow/info lånar sin kants token; accent-100 kollapsar på accent-50 i dark och border-soft
@@ -2342,12 +2342,6 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   line-height: 1.5;
   color: var(--jp-ink-1);
 }
-.jp-ov-card__hint {
-  margin: 8px 0 0;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-  text-align: center;
-}
 /* Foten sätter CTA:n på kortets golv så tre kort i rad delar knappbaslinje, med handoffens
    18px-minimum ovanför. */
 .jp-ov-card__foot {
@@ -2435,7 +2429,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   border-top: 1px solid var(--jp-border-soft);
 }
 
-/* Kräver dig-raderna: ikonruta · etikett+tid över text · rad-CTA · avfärda. Radens CTA är
+/* Kräver åtgärd-raderna: ikonruta · etikett+tid över text · rad-CTA · avfärda. Radens CTA är
    .jp-btn--sm .jp-btn--emphasis (36px) — betonad, aldrig solid (N rader = N knappar). */
 .jp-ov-actions {
   list-style: none;

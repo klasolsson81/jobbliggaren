@@ -39,8 +39,8 @@
     "matchingTooBroadAdvice": "A watch with more ads than we can match does not show how many of them match you."
   },
   "cards": {
-    "requiresYou": "Needs you",
-    "requiresYouEmpty": "Nothing needs you right now.",
+    "requiresYou": "Needs action",
+    "requiresYouEmpty": "Nothing needs action right now.",
     "applications": "My applications",
     "activeOf": "active of {total, plural, one {# application} other {# applications}}",
     "interviewStep": "Interview",
@@ -129,8 +129,7 @@
     "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View new ads",
     "calloutText": "You have not stated which occupations you are looking for.",
-    "calloutCta": "Set up matching",
-    "calloutHint": "Takes about a minute"
+    "calloutCta": "Set up matching"
   },
   "relativeTime": {
     "today": "today",

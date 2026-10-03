@@ -55,7 +55,10 @@ export function ReloadedAfterUpdateNotice() {
   const visible = shownOn !== null && shownOn === pathname;
 
   return (
-    <div role="status" aria-live="polite">
+    // The content rail: inside (app)'s shell the children sit full-width and
+    // each page draws its own rail, so without it the line ran edge to edge
+    // (rendered 2026-10-03, E1). Empty, the rail has no height.
+    <div role="status" aria-live="polite" className="jp-container">
       {visible ? <p className="jp-banner">{t("reloadedAfterUpdate")}</p> : null}
     </div>
   );

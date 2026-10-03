@@ -129,7 +129,7 @@ def main():
             raise ValueError("Fork PRs need explicit review policy; no automatic exemption")
         page = 1
         while True:
-            siblings = api(f"pulls?state=open&per_page=100&page={page}")
+            siblings = api(f"pulls?state=all&per_page=100&page={page}")
             if any(sibling["head"]["sha"] == pr["head"]["sha"] and
                    codex_scope(repository, include_scope_history(sibling)) for sibling in siblings):
                 raise ValueError("SHA is shared with a Codex PR; no exemption")

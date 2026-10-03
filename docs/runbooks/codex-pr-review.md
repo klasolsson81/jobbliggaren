@@ -69,7 +69,7 @@ This is not the name of a native Codex service check. A PR-controlled Actions jo
 can copy a check name, so `github-actions` must never be its accepted publisher.
 The trusted default-branch workflow exempts same-repository PRs with neither
 the `codex/` prefix nor a current or historical `codex-review` label.
-It refuses exemptions for forks and for SHAs currently shared with a Codex PR.
+It refuses exemptions for forks and for SHAs shared with an open or closed Codex PR.
 Writers must preserve the fresh-branch/unique-head convention above; GitHub
 checks are SHA-bound, not cryptographic proof of which tool wrote a PR.
 

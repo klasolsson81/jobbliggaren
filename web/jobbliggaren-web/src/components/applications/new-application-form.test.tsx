@@ -121,7 +121,7 @@ describe("NewApplicationForm", () => {
     // The retry has to carry the same payload rather than the empty strings a reset would leave.
     // The action returns a failure again — the shape it genuinely produces; a SUCCESS is a redirect
     // rejection, measured in its own test below.
-    await user.click(screen.getByRole("button", { name: SUBMIT }));
+    await user.click(await screen.findByRole("button", { name: SUBMIT }));
     await waitFor(() =>
       expect(createApplicationActionMock).toHaveBeenCalledTimes(2)
     );

@@ -448,7 +448,7 @@ Rejected: label-only enforcement (not SHA-bound), guessed native check names
 (unverified semantics), and treating no comments as clean (ambiguous completion).
 GitHub checks bind to commits, so label/prefix policy depends on trusted writers using
 fresh branches and not sharing a reviewed/exempt head across PRs. Forks receive
-no automatic exemption. The same-SHA open-Codex guard prevents an ordinary CC
+no automatic exemption. The same-SHA guard includes open and closed Codex PRs and prevents an ordinary CC
 exemption from overwriting a waiting Codex result.
 
 The check publisher must be a dedicated GitHub App, pinned by numeric App ID in

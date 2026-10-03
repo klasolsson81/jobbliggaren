@@ -264,6 +264,16 @@ class ReviewAttestationTests(unittest.TestCase):
             self.run_event([cc, OSError("offline")], "pull_request_target")
         self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
+    def test_closed_codex_pr_still_blocks_same_sha_exemption(self):
+        cc = copy.deepcopy(self.pr)
+        cc["head"]["ref"] = "fix/cc-example"
+        previous = copy.deepcopy(self.pr)
+        previous.update(number=122, state="closed")
+        with self.assertRaises(ValueError):
+            self.run_event([cc, [], [cc, previous]], "pull_request_target")
+        self.assertIn("pulls?state=all&", self.requests[-1][1])
+        self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
+
 
 if __name__ == "__main__":
     unittest.main()

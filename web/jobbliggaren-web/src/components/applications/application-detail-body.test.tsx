@@ -626,11 +626,12 @@ describe("frozen contacts near follow-up (#1944)", () => {
     it("retains Ghosted contacts and derived provenance at title level " + titleLevel, () => {
       render(<ApplicationDetailBody application={makeDetail({ status: "Ghosted", preservedAd: { ...saved, contacts: [
         contact,
-        { name: null, role: null, email: "derived@example.test", phone: "+46 70 000 00 00", isDerived: true },
+        { name: null, role: null, email: "derived@example.test", phone: null, isDerived: true },
+        { name: null, role: null, email: null, phone: "+46 70 000 00 00", isDerived: true },
       ] } })} now={NOW} titleLevel={titleLevel} />);
-      expect(screen.getByText("Från annonstexten")).toBeInTheDocument();
+      expect(screen.getAllByText("Från annonstexten")).toHaveLength(2);
       expect(screen.getByRole("link", { name: "E-post: derived@example.test" })).toHaveAttribute("href", "mailto:derived@example.test");
-      expect(screen.getByRole("link", { name: "+46 70 000 00 00" })).toHaveAttribute("href", "tel:+46 70 000 00 00");
+      expect(screen.getByRole("link", { name: "Telefon: +46 70 000 00 00" })).toHaveAttribute("href", "tel:+46 70 000 00 00");
       expect(screen.getAllByRole("link", { name: noticeName })).toHaveLength(1);
     });
   }

@@ -80,9 +80,7 @@ If the export disappears, `tsc` fails the import — the failure is loud, where 
 (`jp-stale-build-reload-at`), a 60 s window: within it a second stale error shows the error surface,
 whose "Försök igen" reloads into the new build by itself (#1949). Unreadable storage → no reload; a stamp
 that cannot be written → no reload (the seam is never called). A loop breaker that cannot keep its state
-does not act. A corrupt stamp counts as absent, because the guard can still write. No Server Action runs
-at mount in the codebase today (measured, 0), and fail-closed keeps that an invariant rather than an
-assumption.
+does not act. A corrupt stamp counts as absent, because the guard can still write.
 
 **D4 — Two stamps, both constants, both values a timestamp and nothing else.** The reload stamp (D3) and a
 notice stamp (`jp-stale-build-reloaded-at`) the line removes once shown. One key cannot serve both: either
@@ -109,8 +107,9 @@ removes it, and shows `common.reloadedAfterUpdate` — *"Jobbliggaren har uppdat
 om. Gör om det du senast gjorde."* — as a `.jp-banner` inside a `role="status"` container that is in the
 DOM from the first paint, at the top of the content in every group layout that owns an `error.tsx`
 (`(admin)`, `(app)`, `(auth)`, `(guest)/gast`, `(marketing)`, `(marketing-inner)`; the root layout owns
-none). The next client navigation clears it, because the line is about THIS page's reload (ADR 0047); a
-manual reload shows nothing. The key lives in `common`, not `fallback`: the boundary is gone by then,
+none). The first navigation to another path retires it for good — a return to that page shows no
+line, because the line is about THIS page's reload (ADR 0047); a manual reload shows nothing. The key
+lives in `common`, not `fallback`: the boundary is gone by then,
 and `fallback` changes for another reason. The retry path (#1949) stamps no notice key, so no line follows
 a retry: the surface already said something failed.
 
@@ -197,8 +196,6 @@ From `security-auditor` (Major 1, m-1, m-2, m-5) and `dotnet-architect` (A1–A6
 - **Chunk skew** — a page that needs a client chunk the new image no longer serves — stays with Next's
   navigation failure handling; this decision does not touch it.
 - **The per-build key is a published salt**, not a secret; nothing here changes that.
-- **global-error's reload branch is pinned in jsdom only for what it renders**, not for the reload
-  itself (M13: the branch returning `null` is caught by the local reading and the box, never by vitest).
 - **A C1/B-table row with the right label but the wrong import** passes both the count row and `tsc`.
 - **Form 1/3's entry conditions above are this ADR's; the reports they come from are local.**
 

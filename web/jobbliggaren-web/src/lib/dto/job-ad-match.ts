@@ -51,8 +51,8 @@ export type MatchGrade = z.infer<typeof matchGradeSchema>;
  * Varför filtret bara har Grund/Bra/Stark (Top UTESLUTET, honest by design):
  * listans grad-filter + sort kör FAST-BANDET (preferens-byggt: yrke + region +
  * anställning, DEK-fritt och cachebart, ADR 0045 300 ms-budget). Det bandet kan
- * INTE beräkna Toppmatch — Top kräver CV-kompetenser mot annonsens krav på den
- * FULLA, DEK-värmda per-kort-vägen. Backend-validatorn 400:ar därför `Top` som
+ * INTE beräkna Toppmatch — Top requires confirmed skills against extracted ad requirements på den
+ * full path using confirmed skills. Backend-validatorn 400:ar därför `Top` som
  * filtervärde. Toppmatch syns som badge på kort + i modalen, aldrig som
  * filter-kryssruta.
  *
@@ -117,18 +117,6 @@ export const WATCH_MATCHING_GRADES = [
   "Strong",
 ] as const satisfies ReadonlyArray<ListMatchGrade>;
 
-/**
- * Ordinalt delverdikt per matchnings-dimension. `NotAssessed` = CV-sidan saknas
- * (inget CV) → kunde inte bedömas. `Vacuous` (ADR 0076 amendment 2026-06-20) =
- * ad-sidan saknar termer av den här sorten MEN CV finns ("annonsen anger inga") —
- * skilt från `NotAssessed`, och bärande för den requirement-aware graden (en
- * annons utan skallkrav är gate-öppen). Mis-rapporteras aldrig (CLAUDE.md §5).
- *
- * KRITISKT: modal-detalj-DTO:n (`matchDimensionDetailSchema`) parsar `verdict`
- * STRIKT — `Vacuous` MÅSTE finnas här atomiskt med backend som emitterar det,
- * annars kastar `jobAdMatchDetailSchema.parse` och modal-hämtningen failar.
- * (Batch-entryt strippar tyst de tre Full-verdikten, så batch-taggen påverkas ej.)
- */
 export const matchVerdictSchema = z.enum([
   "Match",
   "Partial",
@@ -202,6 +190,41 @@ export const matchDimensionDetailSchema = z.object({
 });
 export type MatchDimensionDetail = z.infer<typeof matchDimensionDetailSchema>;
 
+/** Additive skill evidence. Absence/null is an older API; present evidence is strict. */
+export const matchConceptGroupSchema = z.object({
+  display: z.string().refine((value) => value.trim().length > 0),
+  members: z.array(z.object({
+    conceptId: z.string().refine((value) => value.trim().length > 0),
+    display: z.string().refine((value) => value.trim().length > 0),
+  }).strict()).min(1),
+}).strict();
+export type MatchConceptGroup = z.infer<typeof matchConceptGroupSchema>;
+
+export const matchSkillDimensionDetailSchema = matchDimensionDetailSchema.extend({
+  conceptEvidence: z.object({
+    matched: z.array(matchConceptGroupSchema),
+    missing: z.array(matchConceptGroupSchema),
+  }).strict().nullable().optional(),
+}).superRefine((row, context) => {
+  if (row.conceptEvidence == null) return;
+  const identities = new Set<string>();
+  for (const side of ["matched", "missing"] as const) {
+    const members = row.conceptEvidence[side].flatMap((group) => group.members);
+    const actual = members.map((member) => member.display).sort();
+    const legacy = [...row[side]].sort();
+    if (actual.length !== legacy.length || actual.some((display, index) => display !== legacy[index])) {
+      context.addIssue({ code: "custom", path: ["conceptEvidence", side], message: "Concept evidence must preserve every legacy display entry." });
+    }
+    for (const member of members) {
+      if (identities.has(member.conceptId)) {
+        context.addIssue({ code: "custom", path: ["conceptEvidence", side], message: "Concept identities must partition the dimension." });
+      }
+      identities.add(member.conceptId);
+    }
+  }
+});
+export type MatchSkillDimensionDetail = z.infer<typeof matchSkillDimensionDetailSchema>;
+
 /**
  * Samma rad för en dimension vars bevis är KODAT i stället för namngivet: anställningsform
  * (klass 2). Den bär conceptId, och klienten resolvar varje till locale-copy (#1537).
@@ -272,8 +295,8 @@ export const jobAdMatchDetailSchema = z.object({
   titleSimilarity: matchDimensionDetailSchema,
   regionFit: matchRegisterDimensionDetailSchema,
   employmentFit: matchCodedDimensionDetailSchema,
-  skillOverlap: matchDimensionDetailSchema,
-  mustHaveCoverage: matchDimensionDetailSchema,
-  niceToHaveCoverage: matchDimensionDetailSchema,
+  skillOverlap: matchSkillDimensionDetailSchema,
+  mustHaveCoverage: matchSkillDimensionDetailSchema,
+  niceToHaveCoverage: matchSkillDimensionDetailSchema,
 });
 export type JobAdMatchDetail = z.infer<typeof jobAdMatchDetailSchema>;

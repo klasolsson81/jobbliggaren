@@ -24,6 +24,27 @@ anonymousTest.describe("/jobb — auth-gating", () => {
 });
 
 test.describe("/jobb — auth-gated rendering", () => {
+  for (const dismiss of ["escape", "close", "scrim", "back"] as const) {
+    test("returns focus to the title link after modal dismissal by " + dismiss, async ({ page }) => {
+      await page.goto("/jobb");
+      const opener = page.locator("a.jp-job__rowlink").first();
+      await expect(opener).toBeVisible();
+      const listUrl = page.url();
+      await opener.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog").last();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Stäng", exact: true })).toBeFocused();
+      if (dismiss === "escape") await page.keyboard.press("Escape");
+      else if (dismiss === "close") await dialog.getByRole("button", { name: "Stäng", exact: true }).click();
+      else if (dismiss === "scrim") await page.locator(".jp-modal-scrim").click({ position: { x: 1, y: 1 } });
+      else await page.goBack();
+      await expect(dialog).toBeHidden();
+      await expect(page).toHaveURL(listUrl);
+      await expect(opener).toBeFocused();
+    });
+  }
+
   test("visar Jobb-rubriken", async ({ page }) => {
     await page.goto("/jobb");
     await expect(

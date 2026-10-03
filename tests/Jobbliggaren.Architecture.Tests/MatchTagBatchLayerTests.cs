@@ -229,6 +229,10 @@ public class MatchTagBatchLayerTests
         typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchCodedDimensionDetailDto),
         typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchRegisterDimensionDetailDto),
         typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchRegisterConceptDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchSkillDimensionDetailDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchGroupedConceptEvidenceDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchConceptGroupDto),
+        typeof(Application.Matching.Abstractions.MatchConceptEvidence),
     ];
 
     // The theory's data and the completeness fact's expectation are ONE list, so the fact
@@ -257,17 +261,23 @@ public class MatchTagBatchLayerTests
         var root = typeof(Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
         var applicationAssembly = typeof(Application.AssemblyMarker).Assembly;
 
-        static IEnumerable<Type> Carried(Type type) =>
-            type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Select(p => p.PropertyType)
-                .Select(t => t.IsGenericType ? t.GetGenericArguments()[0] : t);
-
-        var reachable = Carried(root)
-            .Where(t => t.Assembly == applicationAssembly && !t.IsEnum)
-            .SelectMany(t => Carried(t).Append(t))
-            .Where(t => t.Assembly == applicationAssembly && !t.IsEnum)
-            .Distinct()
-            .ToList();
+        var visited = new HashSet<Type>();
+        void Visit(Type type)
+        {
+            if (type.IsGenericType)
+            {
+                foreach (var argument in type.GetGenericArguments())
+                    Visit(argument);
+                return;
+            }
+            if (type.Assembly != applicationAssembly || type.IsEnum || !visited.Add(type))
+                return;
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                Visit(property.PropertyType);
+        }
+        Visit(root);
+        visited.Remove(root);
+        var reachable = visited.ToList();
 
         // The walk must find something, or set equality below would hold vacuously against an
         // empty theory list and this fact would measure nothing.
@@ -279,7 +289,7 @@ public class MatchTagBatchLayerTests
 
         unguarded.ShouldBeEmpty(
             "Varje radtyp modal-DTO:n bär måste stå i ModalWireRowTypes, annars gäller " +
-            "Goodhart-vakten inte för den (helpern läser ETT plan och rekurserar inte). " +
+            "Goodhart-vakten inte för den (alla nästlade evidensposter traverseras). " +
             $"Ovaktade: [{string.Join(", ", unguarded)}].");
     }
 

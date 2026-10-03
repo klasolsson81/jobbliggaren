@@ -41,7 +41,8 @@ public sealed class GetJobAdMatchDetailQueryHandler(
     IMatchProfileBuilder profileBuilder,
     IMatchScorer scorer,
     ITaxonomyReadModel taxonomy,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    ISkillResolver skillResolver)
     : IQueryHandler<GetJobAdMatchDetailQuery, Result<JobAdMatchDetailDto?>>
 {
     public async ValueTask<Result<JobAdMatchDetailDto?>> Handle(
@@ -120,9 +121,9 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
             RegionFit: ToRegisterRow(score.Fast.RegionFit, labels, scored.Causes.RegionFit),
             EmploymentFit: ToCodedRow(score.Fast.EmploymentFit, scored.Causes.EmploymentFit),
-            SkillOverlap: ToRow(score.SkillOverlap),
-            MustHaveCoverage: ToRow(score.MustHaveCoverage),
-            NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage)));
+            SkillOverlap: ToSkillRow(score.SkillOverlap, scored.ConceptEvidence.SkillOverlap, cancellationToken),
+            MustHaveCoverage: ToSkillRow(score.MustHaveCoverage, scored.ConceptEvidence.MustHaveCoverage, cancellationToken),
+            NiceToHaveCoverage: ToSkillRow(score.NiceToHaveCoverage, scored.ConceptEvidence.NiceToHaveCoverage, cancellationToken)));
     }
 
     private async ValueTask<IReadOnlyDictionary<string, string>> ResolveRegisterLabelsAsync(
@@ -147,6 +148,30 @@ public sealed class GetJobAdMatchDetailQueryHandler(
 
     private static MatchDimensionDetailDto ToRow(MatchDimension dimension) =>
         new(dimension.Verdict, dimension.Matched, dimension.Missing);
+
+    private MatchSkillDimensionDetailDto ToSkillRow(
+        MatchDimension dimension, MatchConceptPartition evidence, CancellationToken cancellationToken) =>
+        new(dimension.Verdict, dimension.Matched, dimension.Missing,
+            new MatchGroupedConceptEvidenceDto(
+                GroupEvidence(evidence.Matched, cancellationToken),
+                GroupEvidence(evidence.Missing, cancellationToken)));
+
+    private IReadOnlyList<MatchConceptGroupDto> GroupEvidence(
+        IReadOnlyList<MatchConceptEvidence> evidence, CancellationToken cancellationToken)
+    {
+        if (evidence.Count == 0)
+            return [];
+
+        var byId = evidence.ToDictionary(e => e.ConceptId, StringComparer.Ordinal);
+        return [.. skillResolver.GroupConceptIds(byId.Keys, cancellationToken).Select(group =>
+        {
+            var members = group.MemberConceptIds.Select(id => byId[id]).ToList();
+            // A singleton (including an id removed from the taxonomy) retains its original
+            // display; the resolver's unknown-id fallback must never become a visible label.
+            var display = members.Count == 1 ? members[0].Display : group.Label;
+            return new MatchConceptGroupDto(display, members);
+        }).OrderBy(group => group.Display, StringComparer.Ordinal)];
+    }
 
     // Employment type stays CODED on the wire: its concepts are common nouns whose words
     // the catalogue owns, so resolving them here would put Swedish in front of an English

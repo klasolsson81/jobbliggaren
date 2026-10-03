@@ -301,16 +301,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
         var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
 
+        var skills = ScoreConceptCoverage(
+            terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills);
+        var mustHave = ScoreConceptCoverage(
+            terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                && t.Source == ExtractedTermSource.MustHave), cvSkills);
+        var niceToHave = ScoreConceptCoverage(
+            terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                && t.Source == ExtractedTermSource.NiceToHave), cvSkills);
         var fullScore = new FullMatchScore(
             Fast: fastScore,
-            SkillOverlap: ScoreConceptCoverage(
-                terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
-            MustHaveCoverage: ScoreConceptCoverage(
-                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
-                    && t.Source == ExtractedTermSource.MustHave), cvSkills),
-            NiceToHaveCoverage: ScoreConceptCoverage(
-                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
-                    && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+            SkillOverlap: skills.Dimension,
+            MustHaveCoverage: mustHave.Dimension,
+            NiceToHaveCoverage: niceToHave.Dimension);
 
         return new FullScoredMatch(
             fullScore,
@@ -320,7 +323,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             // SkillOverlap dimension consumed above.
             CoveredSkillConceptIds(terms, cvSkills),
             new MatchDimensionCauses(
-                SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause));
+                SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause),
+            new FullMatchConceptEvidence(skills.Evidence, mustHave.Evidence, niceToHave.Evidence));
     }
 
     // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
@@ -404,16 +408,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EmploymentFit: employment.Dimension);
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
+            var skills = ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills);
+            var mustHave = ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                    && t.Source == ExtractedTermSource.MustHave), cvSkills);
+            var niceToHave = ScoreConceptCoverage(
+                terms.Where(t => t.Kind == ExtractedTermKind.Requirement
+                    && t.Source == ExtractedTermSource.NiceToHave), cvSkills);
             var fullScore = new FullMatchScore(
                 Fast: fastScore,
-                SkillOverlap: ScoreConceptCoverage(
-                    terms.Where(t => t.Kind == ExtractedTermKind.Skill), cvSkills),
-                MustHaveCoverage: ScoreConceptCoverage(
-                    terms.Where(t => t.Kind == ExtractedTermKind.Requirement
-                        && t.Source == ExtractedTermSource.MustHave), cvSkills),
-                NiceToHaveCoverage: ScoreConceptCoverage(
-                    terms.Where(t => t.Kind == ExtractedTermKind.Requirement
-                        && t.Source == ExtractedTermSource.NiceToHave), cvSkills));
+                SkillOverlap: skills.Dimension,
+                MustHaveCoverage: mustHave.Dimension,
+                NiceToHaveCoverage: niceToHave.Dimension);
 
             result[ad.Id] = new FullScoredMatch(
                 fullScore,
@@ -423,7 +430,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 // SkillOverlap dimension consumed above (parity ScoreFullAsync).
                 CoveredSkillConceptIds(terms, cvSkills),
                 new MatchDimensionCauses(
-                    SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause));
+                    SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause),
+            new FullMatchConceptEvidence(skills.Evidence, mustHave.Evidence, niceToHave.Evidence));
         }
 
         return result;
@@ -434,14 +442,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // concept-id (Lexeme == ConceptId for Skill/Requirement terms); the surfaced
     // evidence is the human Display label (DE-display-1). The two "absent" cases are
     // now DISTINCT (ADR 0076 amendment 2026-06-20, requirement-aware grade):
-    //   - CV side empty (no CV / no resolved skills) → NotAssessed ("can't assess").
-    //   - CV present but THIS partition has no ad terms → Vacuous ("we looked; the ad
-    //     specifies none of this kind"). This per-partition distinction lets a
-    //     no-must-have ad be gate-OPEN for the grade while a no-CV user is gate-CLOSED.
+    //   - Confirmed skill set empty → NotAssessed ("can't assess").
+    //   - Confirmed skills present but this extracted partition is empty → Vacuous ("we looked; the ad
+    //     has no extracted terms of this kind"). This per-partition distinction lets a
+    //     no-must-have ad be gate-OPEN for the grade while a user without confirmed skills is gate-CLOSED.
     // NoMatch stays reserved for "data present on both sides, disjoint" (rule 1, CTO
     // Decision 3 — parity ScoreSsykMembership; the #552 gate carves out ort/employment
     // only). Verdict from set emptiness only (no threshold).
-    private static MatchDimension ScoreConceptCoverage(
+    private static ConceptCoverage ScoreConceptCoverage(
         IEnumerable<ExtractedTerm> adTerms, HashSet<string> cvSkillConceptIds)
     {
         // Distinct concept-id → Display. Terms arrive pre-sorted by ExtractedTerms.From
@@ -452,30 +460,30 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             byConcept.TryAdd(term.ConceptId!, term.Display);
         }
 
-        // CV side empty → cannot assess (no CV). Checked FIRST so "no CV" always reads
+        // No confirmed skills → cannot assess. Checked first so an empty profile reads
         // NotAssessed regardless of the ad partition.
         if (cvSkillConceptIds.Count == 0)
         {
-            return NotAssessed();
+            return new ConceptCoverage(NotAssessed(), new MatchConceptPartition([], []));
         }
 
-        // CV present but the ad has no terms of this partition → Vacuous, NOT NotAssessed.
+        // Confirmed skills present but the extracted partition is empty → Vacuous.
         if (byConcept.Count == 0)
         {
-            return Vacuous();
+            return new ConceptCoverage(Vacuous(), new MatchConceptPartition([], []));
         }
 
         // Partition the ad's concept-ids by CV coverage; surface Display labels
         // (Ordinal-sorted). Missing = "what the ad wants that the CV lacks".
         var matched = byConcept
             .Where(kv => cvSkillConceptIds.Contains(kv.Key))
-            .Select(kv => kv.Value)
-            .OrderBy(d => d, StringComparer.Ordinal)
+            .Select(kv => new MatchConceptEvidence(kv.Key, kv.Value))
+            .OrderBy(e => e.Display, StringComparer.Ordinal)
             .ToList();
         var missing = byConcept
             .Where(kv => !cvSkillConceptIds.Contains(kv.Key))
-            .Select(kv => kv.Value)
-            .OrderBy(d => d, StringComparer.Ordinal)
+            .Select(kv => new MatchConceptEvidence(kv.Key, kv.Value))
+            .OrderBy(e => e.Display, StringComparer.Ordinal)
             .ToList();
 
         var verdict = matched.Count == 0
@@ -484,8 +492,12 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 ? MatchDimensionVerdict.Match
                 : MatchDimensionVerdict.Partial;
 
-        return new MatchDimension(verdict, matched, missing);
+        return new ConceptCoverage(
+            new MatchDimension(verdict, [.. matched.Select(e => e.Display)], [.. missing.Select(e => e.Display)]),
+            new MatchConceptPartition(matched, missing));
     }
+
+    private sealed record ConceptCoverage(MatchDimension Dimension, MatchConceptPartition Evidence);
 
     // #477 Low 2 — the concept-ids of the ad's SKILL extracted-terms the CV's confirmed skills
     // COVER (the SkillOverlap intersection surfaced as IDS, for the persisted explainability

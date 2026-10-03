@@ -81,7 +81,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       "Ort",
       "Anställningsform",
       "Kompetenser",
-      "Ska-krav",
+      "Obligatoriska krav",
       "Meriterande",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -97,30 +97,21 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(screen.getByText("Ej bedömt")).toBeInTheDocument(); // titel NotAssessed
   });
 
-  it("Vacuous = 'Inga angivna' (annonsen anger inga krav) — fylld prick, ej hålig, ej Match", () => {
-    // PR-B1 (ADR 0076 amendment 2026-06-20): den nya 5:e verdikten. Modalen MÅSTE
-    // rendera den (annars undefined-ord + bruten Record); den är neutral/definitiv,
-    // aldrig hålig (= NotAssessed) och aldrig success-grön (= Match).
-    const { container } = render(
-      <JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />
-    );
-    expect(screen.getByText("Inga angivna")).toBeInTheDocument();
-    const vacuous = container.querySelector(
-      '.jp-modal__matchrow-verdict[data-verdict="Vacuous"]'
-    );
-    expect(vacuous).not.toBeNull();
-    // Fylld prick (definitivt "inget krävs"), aldrig hålig (NotAssessed-markören).
-    expect(
-      vacuous?.querySelector(".jp-modal__matchrow-dot--hollow")
-    ).toBeNull();
+  it("omits proven-empty mandatory requirements and explains the extraction limit", () => {
+    render(<JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />);
+    expect(screen.queryByText("Obligatoriska krav")).not.toBeInTheDocument();
+    expect(screen.getByText("Meriterande")).toBeInTheDocument();
+    expect(screen.getByText("Uppgifter om obligatoriska kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.")).toBeInTheDocument();
   });
 
-  it("renderar matched ('Du har:') och missing ('Annonsen efterfrågar även:')", () => {
+  it("names separate matched and unmatched skill lists", () => {
     render(<JobAdMatchSection match={detail()} />);
-    expect(screen.getByText("Du har: Java, SQL")).toBeInTheDocument();
-    expect(
-      screen.getByText("Annonsen efterfrågar även: Kubernetes, AWS")
-    ).toBeInTheDocument();
+    const matched = screen.getByRole("list", { name: "Kompetenser: Matchar dina kompetenser" });
+    const missing = screen.getByRole("list", { name: "Kompetenser: Ej matchade" });
+    expect(within(matched).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(missing).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(matched).getByText("Java")).toBeInTheDocument();
+    expect(within(missing).getByText("Kubernetes")).toBeInTheDocument();
   });
 
   it("NotAssessed = hålig prick + skäl, ALDRIG röd och ALDRIG förväxlad med NoMatch", () => {
@@ -153,58 +144,22 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(section?.textContent ?? "").not.toMatch(/\d+\s*%/);
   });
 
-  it("must-have-sammanfattning (PR-B2): Match → 'Du uppfyller alla ska-krav'", () => {
-    render(
-      <JobAdMatchSection
-        match={detail({ mustHaveCoverage: row("Match", ["B-körkort"]) })}
-      />
-    );
-    expect(
-      screen.getByText("Du uppfyller alla ska-krav i annonsen.")
-    ).toBeInTheDocument();
+  it.each(["Match", "Partial", "NoMatch"] as const)("assessed %s never claims all ad requirements are met", (verdict) => {
+    const matched = verdict === "NoMatch" ? [] : ["Java"];
+    const missing = verdict === "Match" ? [] : ["SQL"];
+    render(<JobAdMatchSection match={detail({ mustHaveCoverage: row(verdict, matched, missing) })} />);
+    expect(screen.queryByText(/Du uppfyller/)).not.toBeInTheDocument();
+    expect(screen.getByText("Obligatoriska krav")).toBeInTheDocument();
   });
 
-  it("must-have-sammanfattning (PR-B2): NoMatch → 'Du uppfyller inte annonsens ska-krav'", () => {
-    render(
-      <JobAdMatchSection
-        match={detail({ mustHaveCoverage: row("NoMatch", [], ["Java"]) })}
-      />
-    );
-    expect(
-      screen.getByText("Du uppfyller inte annonsens ska-krav.")
-    ).toBeInTheDocument();
-  });
-
-  it("must-have-sammanfattning (PR-B2): Vacuous → 'Annonsen anger inga särskilda ska-krav'", () => {
-    render(
-      <JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />
-    );
-    expect(
-      screen.getByText("Annonsen anger inga särskilda ska-krav.")
-    ).toBeInTheDocument();
-  });
-
-  it("utan CV (must-have NotAssessed) → 'ladda upp CV'-signpost → /cv/importera, ingen summering", () => {
-    // PR-B2: utan CV kan man inte nå Stark/Topp → signposten driver CV-upload.
-    render(
-      <JobAdMatchSection
-        match={detail({
-          grade: "Good",
-          mustHaveCoverage: row("NotAssessed"),
-          skillOverlap: row("NotAssessed"),
-          niceToHaveCoverage: row("NotAssessed"),
-        })}
-      />
-    );
-    expect(
-      screen.getByText(/Ett CV krävs för Stark match och Toppmatch/)
-    ).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Ladda upp CV" });
-    expect(link).toHaveAttribute("href", "/cv/importera");
-    // Must-have-summeringen visas INTE när CV saknas (signposten ersätter den).
-    expect(
-      screen.queryByText(/Du uppfyller/)
-    ).not.toBeInTheDocument();
+  it("unassessed confirmed skills lead to matching settings without requiring a CV", () => {
+    render(<JobAdMatchSection match={detail({ grade: "Good", mustHaveCoverage: row("NotAssessed"), skillOverlap: row("NotAssessed"), niceToHaveCoverage: row("NotAssessed") })} />);
+    expect(screen.getByText("Välj kompetenser för att se vilka krav som matchar.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ställ in matchning" })).toHaveAttribute("href", "/mina-sidor");
+    expect(screen.queryByRole("link", { name: "Ladda upp CV" })).not.toBeInTheDocument();
+    expect(screen.getByText("Obligatoriska krav")).toBeInTheDocument();
+    expect(screen.getByText("Meriterande")).toBeInTheDocument();
+    expect(screen.queryByText(/matchningsunderlaget/)).not.toBeInTheDocument();
   });
 
   it("signpost-state: grade=null + yrket obesvarat AV ANVÄNDAREN → Översikt-nudge-copy + kanonisk länk", () => {
@@ -292,7 +247,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(
       within(rowFor("Kompetenser")).getByText("Inga kompetenser valda.")
     ).toBeInTheDocument();
-    for (const label of ["Ska-krav", "Meriterande"]) {
+    for (const label of ["Obligatoriska krav", "Meriterande"]) {
       const evidence = rowFor(label).querySelector(".jp-modal__matchrow-evidence");
       expect(within(rowFor(label)).getByText("Ej bedömt")).toBeInTheDocument();
       expect(evidence?.textContent).toBe("");
@@ -339,8 +294,8 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
     expect(screen.getByText("Truckkort")).toBeInTheDocument();
     expect(screen.getByText("Svetslicens")).toBeInTheDocument();
     // Status (sr-only): två uppfyllda, ett ej uppfyllt.
-    expect(screen.getAllByText("Uppfyllt").length).toBe(2);
-    expect(screen.getByText("Ej uppfyllt")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Obligatoriska krav: Matchar dina kompetenser" })).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(screen.getByRole("list", { name: "Obligatoriska krav: Ej matchade" })).getAllByRole("listitem")).toHaveLength(1);
     // INTE den generiska bevisformen för ska-krav.
     expect(screen.queryByText(/Du har: B-körkort/)).not.toBeInTheDocument();
     expect(
@@ -358,9 +313,7 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
       />
     );
     // Ett saknat krav är inget fel: neutral ink, aldrig danger-färg (CTO/§5).
-    expect(screen.getByText("Svetslicens")).toHaveClass(
-      "jp-modal__matchrow-missing"
-    );
+    expect(within(screen.getByRole("list", { name: "Obligatoriska krav: Ej matchade" })).getByText("Svetslicens")).toBeInTheDocument();
     expect(
       container.querySelector(".text-danger-600, .text-danger-700")
     ).toBeNull();
@@ -380,7 +333,7 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
     expect(screen.queryByText("Ej uppfyllt")).not.toBeInTheDocument();
     // Footern bär den ärliga summan i stället.
     expect(
-      screen.getByText("Annonsen anger inga särskilda ska-krav.")
+      screen.getByText("Uppgifter om kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.")
     ).toBeInTheDocument();
   });
 
@@ -395,8 +348,8 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
     );
     expect(screen.getByText("Franska")).toBeInTheDocument();
     expect(screen.getByText("Tyska")).toBeInTheDocument();
-    expect(screen.getByText("Uppfyllt")).toBeInTheDocument();
-    expect(screen.getByText("Ej uppfyllt")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Meriterande: Matchar dina kompetenser" })).getByText("Franska")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Meriterande: Ej matchade" })).getByText("Tyska")).toBeInTheDocument();
   });
 });
 
@@ -501,9 +454,9 @@ describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () =
       )
     ).toBeInTheDocument();
     const kompetenser = rowFor(container as HTMLElement, "Kompetenser");
-    expect(within(kompetenser).getByText("Du har: Java, SQL")).toBeInTheDocument();
+    expect(within(kompetenser).getByRole("list", { name: "Kompetenser: Matchar dina kompetenser" })).toBeInTheDocument();
     expect(
-      within(kompetenser).getByText("Annonsen efterfrågar även: Kubernetes, AWS")
+      within(kompetenser).getByRole("list", { name: "Kompetenser: Ej matchade" })
     ).toBeInTheDocument();
   });
 
@@ -523,7 +476,7 @@ describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () =
     );
     const kompetenser = rowFor(container as HTMLElement, "Kompetenser");
     expect(
-      within(kompetenser).getByText("Annonsen efterfrågar: Kubernetes, AWS")
+      within(kompetenser).getByRole("list", { name: "Kompetenser: Ej matchade" })
     ).toBeInTheDocument();
   });
 
@@ -1147,5 +1100,45 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         )
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe("identity-preserving skill evidence", () => {
+  // These twin ids and their grouping are pinned against the production taxonomy in
+  // SkillSurfaceGroupingTests; the endpoint tests pin the additive wire producer.
+  const twins = ["BXay_uH7_Yz7", "gLYa_mFP_NVA"] as const;
+  it("renders one surface for a verified group without exposing its identities", () => {
+    const { container } = render(<JobAdMatchSection match={detail({ skillOverlap: {
+      verdict: "Match", matched: ["boka", "boka"], missing: [],
+      conceptEvidence: { matched: [{ display: "boka", members: twins.map((conceptId) => ({ conceptId, display: "boka" })) }], missing: [] },
+    } })} />);
+    const list = screen.getByRole("list", { name: "Kompetenser: Matchar dina kompetenser" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByText("boka")).toBeInTheDocument();
+    for (const id of twins) expect(container.textContent).not.toContain(id);
+  });
+  it.each([undefined, null])("keeps display duplicates when the API has no identity evidence (%s)", (conceptEvidence) => {
+    render(<JobAdMatchSection match={detail({ skillOverlap: { verdict: "Match", matched: ["boka", "boka"], missing: [], conceptEvidence } })} />);
+    expect(within(screen.getByRole("list", { name: "Kompetenser: Matchar dina kompetenser" })).getAllByText("boka")).toHaveLength(2);
+  });
+  it("keeps same-label concepts on their own sides and in their own dimensions", () => {
+    const skill = { verdict: "Partial" as const, matched: ["boka"], missing: ["boka"], conceptEvidence: {
+      matched: [{ display: "boka", members: [{ conceptId: twins[0], display: "boka" }] }],
+      missing: [{ display: "boka", members: [{ conceptId: twins[1], display: "boka" }] }],
+    } };
+    render(<JobAdMatchSection match={detail({ skillOverlap: skill, mustHaveCoverage: skill })} />);
+    for (const dimension of ["Kompetenser", "Obligatoriska krav"])
+      for (const side of ["Matchar dina kompetenser", "Ej matchade"])
+        expect(within(screen.getByRole("list", { name: dimension + ": " + side })).getByText("boka")).toBeInTheDocument();
+  });
+  it("keeps distinct original words visible if a group's display invariant breaks", () => {
+    // Declared unreachable with the current preferred-label writer; safe read-side
+    // degradation must retain every provided word rather than hiding it in a tooltip.
+    render(<JobAdMatchSection match={detail({ skillOverlap: {
+      verdict: "Match", matched: ["boka", "older wording"], missing: [], conceptEvidence: {
+        matched: [{ display: "boka", members: [{ conceptId: twins[0], display: "boka" }, { conceptId: twins[1], display: "older wording" }] }], missing: [],
+      },
+    } })} />);
+    expect(screen.getByText("(older wording)")).toBeInTheDocument();
   });
 });

@@ -60,8 +60,11 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// scorer-computed knowledge that <see cref="MatchDimension"/> cannot express, and
 /// <see cref="FullMatchScore"/> is shape-frozen by the Goodhart pin. Every member is nullable —
 /// absence means the evidence explains itself.</param>
+/// <param name="ConceptEvidence">The same skill/requirement partitions as the score, with
+/// concept identities retained for lossless read-side grouping (#1864).</param>
 public sealed record FullScoredMatch(
     FullMatchScore Score,
     bool SsykIsRelated,
     IReadOnlyList<string> MatchedSkillConceptIds,
-    MatchDimensionCauses Causes);
+    MatchDimensionCauses Causes,
+    FullMatchConceptEvidence ConceptEvidence);

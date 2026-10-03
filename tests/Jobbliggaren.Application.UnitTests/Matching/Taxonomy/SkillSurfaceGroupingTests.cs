@@ -89,6 +89,37 @@ public sealed class SkillSurfaceGroupingTests
         AssertPartition(groups, qualified);
     }
 
+    [Theory]
+    [InlineData("boka")]
+    [InlineData("hantera stress")]
+    [InlineData("fylla formar")]
+    [InlineData("datateknik")]
+    [InlineData("datavetenskap")]
+    [InlineData("sammanfatta information")]
+    [InlineData("3D-modellering")]
+    [InlineData("medicinsk radiologi")]
+    public void GroupConceptIds_ActiveAdDuplicatePreferredLabels_PreservesEveryMember(string label)
+    {
+        // Labels observed in the 2026-10-03 aggregate of active ads; identities come from
+        // the same embedded taxonomy the production resolver loads, rather than a stub.
+        var ids = ReadConcepts()
+            .Where(c => string.Equals(c.PreferredLabel, label, StringComparison.Ordinal))
+            .Select(c => c.ConceptId)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+        ids.Count.ShouldBeGreaterThanOrEqualTo(2);
+
+        var index = NewIndex();
+        var groups = index.GroupConceptIds(ids);
+
+        groups.Count.ShouldBe(1);
+        groups[0].CanonicalLabel.ShouldBe(label);
+        AssertPartition(groups, ids);
+        var reversed = index.GroupConceptIds(ids.AsEnumerable().Reverse().ToList());
+        reversed.Select(g => g.CanonicalConceptId).ShouldBe(groups.Select(g => g.CanonicalConceptId));
+        AssertPartition(reversed, ids);
+    }
+
     [Fact]
     public void GroupConceptIds_Empty_ReturnsEmpty_NoCrash()
     {

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
@@ -119,7 +120,9 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         string? regionConceptId,
         string? employmentTypeConceptId,
         ExtractedTerms? terms,
-        CancellationToken ct)
+        CancellationToken ct,
+        string description = "beskrivning",
+        JobAdTermExtraction? extractTerms = null)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -133,21 +136,21 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         var jobAd = JobAd.Import(
             title: title,
             company: Company.Create("Test Company AB").Value,
-            description: "beskrivning",
+            description: description,
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], extractTerms: extractTerms ?? TestKeywordExtraction.None).Value;
 
         if (terms is not null)
             jobAd.SetExtractedTerms(terms);
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
-        if (terms is null)
+        if (terms is null && extractTerms is null)
         {
             // #874 - Import folds extraction in, so a persisted imported ad always carries terms
             // (Empty at worst); the never-extracted NULL state is legacy-only: produced by ingest before #874, and unreachable through
@@ -456,6 +459,146 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
             entries[0].GetProperty("label").ValueKind.ShouldBe(JsonValueKind.Null);
         }
     }
+
+    [Fact]
+    public async Task GET_match_detail_ConfirmedSkillsWithoutAnyResume_ReturnsTopAndIdentityEvidence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        var extractor = _factory.Services.GetRequiredService<IJobAdKeywordExtractor>();
+        ExtractedTerms Extract(string title, string description) =>
+            extractor.Extract(new JobAdExtractionInput(title, description));
+        var produced = Extract("boka", "datateknik");
+        var skillIds = produced.Terms.Where(t => t.Kind == ExtractedTermKind.Skill)
+            .Select(t => t.ConceptId!).Distinct(StringComparer.Ordinal).ToArray();
+        skillIds.ShouldNotBeEmpty();
+        await SetPreferencesAsync([grp], [reg], [emp], ct, skills: skillIds);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seekerId = await FindSeekerByStatedOccupationAsync(db, grp, ct);
+            var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(s => s.Id == seekerId, ct);
+            seeker.PrimaryResumeId.ShouldBeNull();
+            seeker.MatchPreferences.PreferredSkills.ShouldBe(skillIds, ignoreOrder: true);
+            (await db.Resumes.AnyAsync(r => r.JobSeekerId == seekerId, ct)).ShouldBeFalse();
+        }
+
+        var adId = await SeedJobAdAsync("boka", grp, reg, emp, null, ct,
+            description: "datateknik", extractTerms: Extract);
+        var response = await GetDetailAsync(adId, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        dto.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Top));
+        DimVerdict(dto, "titleSimilarity").ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+        DimVerdict(dto, "skillOverlap").ShouldBe(Wire(MatchDimensionVerdict.Match));
+        WireMemberIds(dto, "skillOverlap", "matched").ShouldBe(skillIds, ignoreOrder: true);
+        foreach (var dimension in new[] { "mustHaveCoverage", "niceToHaveCoverage" })
+        {
+            DimVerdict(dto, dimension).ShouldBe(Wire(MatchDimensionVerdict.Vacuous));
+            WireMemberIds(dto, dimension, "matched").ShouldBeEmpty();
+            WireMemberIds(dto, dimension, "missing").ShouldBeEmpty();
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GET_match_detail_RealDuplicateConcepts_PreserveEachSideAndDimension(bool coverAll)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var concepts = ReadSkillConcepts();
+        var boka = concepts.Where(c => c.PreferredLabel == "boka").Select(c => c.ConceptId).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+        var data = concepts.Where(c => c.PreferredLabel == "datateknik").Select(c => c.ConceptId).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+        boka.Length.ShouldBe(2);
+        data.Length.ShouldBe(2);
+        // Platsbanken AddSkillRequirements admits nonblank ids/labels and finite nonnegative
+        // weights. These are actual committed-taxonomy entries, not guessed concept tokens.
+        JobAdRequirement[] requirements = [
+            .. boka.Select(id => new JobAdRequirement(ExtractedTermSource.MustHave, id, "boka", 1)),
+            .. data.Select(id => new JobAdRequirement(ExtractedTermSource.NiceToHave, id, "datateknik", 1)),
+        ];
+        var extractor = _factory.Services.GetRequiredService<IJobAdKeywordExtractor>();
+        ExtractedTerms Extract(string title, string description) =>
+            extractor.Extract(new JobAdExtractionInput(title, description, requirements));
+        var produced = Extract("boka", "datateknik");
+        var skillTerms = produced.Terms.Where(t => t.Kind == ExtractedTermKind.Skill).ToList();
+        foreach (var id in boka.Concat(data))
+            skillTerms.Select(t => t.ConceptId).ShouldContain(id);
+        produced.Terms.Where(t => t.Source == ExtractedTermSource.MustHave).Select(t => t.ConceptId).ShouldBe(boka, ignoreOrder: true);
+        produced.Terms.Where(t => t.Source == ExtractedTermSource.NiceToHave).Select(t => t.ConceptId).ShouldBe(data, ignoreOrder: true);
+        var confirmed = coverAll
+            ? produced.Terms.Where(t => t.ConceptId is not null).Select(t => t.ConceptId!).Distinct(StringComparer.Ordinal).ToArray()
+            : new[] { boka[0], data[0] };
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        await SetPreferencesAsync([grp], [reg], [emp], ct, skills: confirmed);
+        var adId = await SeedJobAdAsync("boka", grp, reg, emp, null, ct,
+            description: "datateknik", extractTerms: Extract);
+        var response = await GetDetailAsync(adId, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        using var scope = _factory.Services.CreateScope();
+        var scorer = scope.ServiceProvider.GetRequiredService<IMatchScorer>();
+        var profile = new FullCandidateMatchProfile(new CandidateMatchProfile(string.Empty, [grp], [reg], [emp], []), confirmed);
+        var idValue = new JobAdId(adId);
+        var single = await scorer.ScoreFullAsync(idValue, profile, ct);
+        var batch = (await scorer.ScoreFullBatchAsync([idValue], profile, ct))[idValue];
+        var confirmedSet = confirmed.ToHashSet(StringComparer.Ordinal);
+        var partitions = new[] {
+            ("skillOverlap", single.Score.SkillOverlap, single.ConceptEvidence.SkillOverlap, batch.Score.SkillOverlap, batch.ConceptEvidence.SkillOverlap, skillTerms),
+            ("mustHaveCoverage", single.Score.MustHaveCoverage, single.ConceptEvidence.MustHaveCoverage, batch.Score.MustHaveCoverage, batch.ConceptEvidence.MustHaveCoverage, produced.Terms.Where(t => t.Kind == ExtractedTermKind.Requirement && t.Source == ExtractedTermSource.MustHave).ToList()),
+            ("niceToHaveCoverage", single.Score.NiceToHaveCoverage, single.ConceptEvidence.NiceToHaveCoverage, batch.Score.NiceToHaveCoverage, batch.ConceptEvidence.NiceToHaveCoverage, produced.Terms.Where(t => t.Kind == ExtractedTermKind.Requirement && t.Source == ExtractedTermSource.NiceToHave).ToList()),
+        };
+        foreach (var (dimension, score, evidence, batchScore, batchEvidence, terms) in partitions)
+        {
+            score.Verdict.ShouldBe(coverAll ? MatchDimensionVerdict.Match : MatchDimensionVerdict.Partial);
+            batchScore.Verdict.ShouldBe(score.Verdict);
+            batchScore.Matched.ShouldBe(score.Matched);
+            batchScore.Missing.ShouldBe(score.Missing);
+            foreach (var matched in new[] { true, false })
+            {
+                var side = matched ? "matched" : "missing";
+                var expectedIds = terms.Where(t => confirmedSet.Contains(t.ConceptId!) == matched)
+                    .Select(t => t.ConceptId!).Distinct(StringComparer.Ordinal).ToList();
+                var paired = matched ? evidence.Matched : evidence.Missing;
+                paired.Select(e => e.ConceptId).ShouldBe(expectedIds, ignoreOrder: true);
+                paired.Select(e => e.Display).ShouldBe(matched ? score.Matched : score.Missing);
+                (matched ? batchEvidence.Matched : batchEvidence.Missing).ShouldBe(paired);
+                WireMemberIds(dto, dimension, side).ShouldBe(expectedIds, ignoreOrder: true);
+                var row = dto.GetProperty(dimension);
+                var legacy = row.GetProperty(side).EnumerateArray().Select(e => e.GetString()!).ToArray();
+                legacy.ShouldBe(matched ? score.Matched : score.Missing);
+                row.GetProperty("conceptEvidence").GetProperty(side).EnumerateArray()
+                    .SelectMany(g => g.GetProperty("members").EnumerateArray())
+                    .Select(m => m.GetProperty("display").GetString()!).OrderBy(d => d, StringComparer.Ordinal)
+                    .ShouldBe(legacy.OrderBy(d => d, StringComparer.Ordinal));
+            }
+        }
+        var mandatory = dto.GetProperty("mustHaveCoverage").GetProperty("conceptEvidence");
+        if (coverAll)
+        {
+            mandatory.GetProperty("matched").GetArrayLength().ShouldBe(1);
+            mandatory.GetProperty("matched")[0].GetProperty("members").GetArrayLength().ShouldBe(2);
+        }
+        else
+        {
+            // Equal words on different sides carry different identities and must stay separate.
+            mandatory.GetProperty("matched")[0].GetProperty("display").GetString().ShouldBe("boka");
+            mandatory.GetProperty("missing")[0].GetProperty("display").GetString().ShouldBe("boka");
+        }
+    }
+
+    private static List<string> WireMemberIds(JsonElement dto, string dimension, string side) =>
+        dto.GetProperty(dimension).GetProperty("conceptEvidence").GetProperty(side)
+            .EnumerateArray().SelectMany(g => g.GetProperty("members").EnumerateArray())
+            .Select(m => m.GetProperty("conceptId").GetString()!).ToList();
 
     // =================================================================
     // 2. Vacuous must-have WITHOUT a skill signal → grade GOOD (ADR 0076 amendment

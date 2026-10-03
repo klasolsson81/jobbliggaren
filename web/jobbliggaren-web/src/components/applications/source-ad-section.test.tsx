@@ -262,48 +262,13 @@ describe("SourceAdSection (#805-3, Beslut B)", () => {
   });
 });
 
-// ADR 0144 D4 row 10 on the preserved-ad panel (security-auditor, #1827 form round S1-S2): the recruiter-notice link
-// renders where the panel shows the copy's text or its contact block, with or without contacts. A contact person's
-// name can sit in the text, where no regex reaches it, so a gate on `contacts.length` misses the text carrier.
-describe("the recruiter-notice link on the preserved-ad panel (ADR 0144 D4 row 10)", () => {
-  const notice = {
-    name: "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.",
-  };
-
-  it("renders beside the copy's text when the copy has no contacts", () => {
-    render(
-      <SourceAdSection
-        jobAd={makeJobAd({ status: "Archived" })}
-        preservedAd={snapshot}
-      />
-    );
-    expect(screen.getByRole("link", notice)).toHaveAttribute(
-      "href",
-      "/kontaktperson-i-annons"
-    );
-  });
-
-  it("renders with the contact block when the copy has a contact", () => {
-    render(
-      <SourceAdSection
-        jobAd={makeJobAd({ status: "Archived" })}
-        preservedAd={{
-          ...snapshot,
-          contacts: [
-            {
-              name: "Erik Holm",
-              role: "Enhetschef",
-              email: "erik.holm@example.com",
-              phone: null,
-              isDerived: false,
-            },
-          ],
-        }}
-      />
-    );
-    expect(screen.getByRole("link", notice)).toHaveAttribute(
-      "href",
-      "/kontaktperson-i-annons"
-    );
-  });
+describe("the saved panel delegates contacts to the shared detail body (#1944)", () => {
+  it.each([[[]], [[{ name: "Kontakt Test", role: null, email: "contact@example.test", phone: null, isDerived: false }]]])(
+    "renders neither a duplicate contact region nor notice", (contacts) => {
+      render(<SourceAdSection jobAd={makeJobAd({ status: "Archived" })} preservedAd={{ ...snapshot, contacts }} />);
+      expect(screen.getByText("Om annonsen (sparad kopia)")).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Kontakt" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter." })).toBeNull();
+    }
+  );
 });

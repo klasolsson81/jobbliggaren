@@ -1,5 +1,8 @@
 using Jobbliggaren.Application.JobAds.Queries;
+using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -114,5 +117,63 @@ public class JobAdContactDtoTests
         dtos[1].IsDerived.ShouldBeTrue("the promoted body hit is derived.");
         dtos[1].Name.ShouldBeNull("no NER — a promoted hit never carries a guessed name.");
         dtos[1].Email.ShouldBe("jobb@acme.se");
+    }
+
+    private static DomainApplication CapturedApplication()
+    {
+        var clock = FakeDateTimeProvider.Default;
+        var contacts = AdContacts.From(
+            [Declared(name: "Kontakt Test", email: "contact@example.test")], []);
+        var snapshot = AdSnapshot.Capture(
+            "Systemutvecklare", "Exempelbolaget", null, null, "Platsbanken",
+            clock.UtcNow, null, "Preserved text.", contacts, clock.UtcNow);
+        return DomainApplication.CreateFromJobAd(
+            new JobSeekerId(Guid.NewGuid()), new JobAdId(Guid.NewGuid()), snapshot, null, clock).Value;
+    }
+
+    [Fact]
+    public void ListFrom_EraseAdSnapshotContacts_LeavesTextAndRemovesContactProjection()
+    {
+        var application = CapturedApplication();
+        JobAdContactDto.ListFrom(application.AdSnapshot!.Contacts).Count.ShouldBe(1);
+
+        application.EraseAdSnapshotContacts().ShouldBeTrue();
+
+        application.AdSnapshot.Description.ShouldBe("Preserved text.");
+        JobAdContactDto.ListFrom(application.AdSnapshot.Contacts).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Accepted")]
+    [InlineData("Rejected")]
+    [InlineData("Withdrawn")]
+    public void ListFrom_TerminalTransitionAndReopen_NeverRestoreSnapshotContacts(string target)
+    {
+        var application = CapturedApplication();
+        var clock = FakeDateTimeProvider.Default;
+        JobAdContactDto.ListFrom(application.AdSnapshot!.Contacts).Count.ShouldBe(1);
+        application.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+        application.TransitionTo(ApplicationStatus.FromName(target), clock).IsSuccess.ShouldBeTrue();
+        application.AdSnapshot.Description.ShouldBeNull();
+        application.AdSnapshot.Contacts.ShouldBeNull();
+        JobAdContactDto.ListFrom(application.AdSnapshot.Contacts).ShouldBeEmpty();
+
+        application.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+        application.AdSnapshot.Description.ShouldBeNull();
+        application.AdSnapshot.Contacts.ShouldBeNull();
+        JobAdContactDto.ListFrom(application.AdSnapshot.Contacts).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ListFrom_GhostedTransition_RetainsFrozenContacts()
+    {
+        var application = CapturedApplication();
+        var before = JobAdContactDto.ListFrom(application.AdSnapshot!.Contacts);
+        before.Count.ShouldBe(1);
+
+        application.TransitionTo(ApplicationStatus.Ghosted, FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
+
+        application.AdSnapshot.Description.ShouldBe("Preserved text.");
+        JobAdContactDto.ListFrom(application.AdSnapshot.Contacts).ShouldBe(before);
     }
 }

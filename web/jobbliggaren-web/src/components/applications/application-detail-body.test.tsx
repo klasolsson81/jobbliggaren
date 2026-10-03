@@ -580,3 +580,58 @@ describe("ApplicationDetailBody — follow-ups on a closed application", () => {
     },
   );
 });
+
+describe("frozen contacts near follow-up (#1944)", () => {
+  const contact = { name: "Kontakt Test", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false };
+  const noticeName = "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.";
+  const saved = { ...snapshot, contacts: [contact] };
+
+  for (const titleLevel of [1, 2] as const) {
+    it.each(["Active", "Archived", "Erased"])("shows one frozen contact for %s source at title level " + titleLevel, (status) => {
+      // Erased + retained snapshot contact is pinned by RecruiterContactIngestTests.
+      // A_frozen_snapshot_contact_is_matched_on_snapshot_contacts_ALONE_and_erased_surgically
+      // erases an orthogonal title identifier before separately erasing the frozen contact.
+      const ad = makeDetail().jobAd!;
+      const { container } = render(<ApplicationDetailBody application={makeDetail({
+        jobAd: { ...ad, status, ...(status === "Erased" ? { title: "", company: "", url: null } : {}) },
+        preservedAd: saved,
+      })} now={NOW} titleLevel={titleLevel} />);
+      const region = screen.getByRole("region", { name: "Kontakt" });
+      expect(screen.getAllByRole("region", { name: "Kontakt" })).toHaveLength(1);
+      expect(screen.getAllByRole("link", { name: noticeName })).toHaveLength(1);
+      expect(screen.getByRole("link", { name: "contact@example.test" })).toHaveAttribute("href", "mailto:contact@example.test");
+      const followUps = screen.getByRole("region", { name: "Uppföljningar" });
+      expect(region.compareDocumentPosition(followUps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelectorAll("#jp-recruiter-contacts-title")).toHaveLength(1);
+      expect(region.nextElementSibling).toContainElement(screen.getByRole("link", { name: noticeName }));
+    });
+
+    it.each([
+      ["legacy before snapshot capture (#315)", makeDetail({ preservedAd: null })],
+      ["snapshot with no contacts", makeDetail({ preservedAd: snapshot })],
+      ["EraseAdSnapshotContacts retained text", makeDetail({ preservedAd: { ...saved, contacts: [] } })],
+      ["Accepted minimized", makeDetail({ status: "Accepted", preservedAd: { ...snapshot, description: null } })],
+      ["Rejected minimized", makeDetail({ status: "Rejected", preservedAd: { ...snapshot, description: null } })],
+      ["Withdrawn minimized", makeDetail({ status: "Withdrawn", preservedAd: { ...snapshot, description: null } })],
+      ["reopened terminal snapshot", makeDetail({ status: "Submitted", preservedAd: { ...snapshot, description: null } })],
+      ["manual", makeDetail({ jobAdId: null, jobAd: { ...makeDetail().jobAd!, jobAdId: null, status: null, source: "Manual" }, preservedAd: null })],
+      ["cover letter only", makeDetail({ jobAdId: null, jobAd: null, preservedAd: null, coverLetter: "Mitt brev." })],
+    ] as const)("has no contact area or notice for %s at title level " + titleLevel, (_name, application) => {
+      // Actor transforms are pinned by JobAdContactDtoTests in the backend.
+      render(<ApplicationDetailBody application={application} now={NOW} titleLevel={titleLevel} />);
+      expect(screen.queryByRole("region", { name: "Kontakt" })).toBeNull();
+      expect(screen.queryByRole("link", { name: noticeName })).toBeNull();
+    });
+
+    it("retains Ghosted contacts and derived provenance at title level " + titleLevel, () => {
+      render(<ApplicationDetailBody application={makeDetail({ status: "Ghosted", preservedAd: { ...saved, contacts: [
+        contact,
+        { name: null, role: null, email: "derived@example.test", phone: "+46 70 000 00 00", isDerived: true },
+      ] } })} now={NOW} titleLevel={titleLevel} />);
+      expect(screen.getByText("Från annonstexten")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "E-post: derived@example.test" })).toHaveAttribute("href", "mailto:derived@example.test");
+      expect(screen.getByRole("link", { name: "+46 70 000 00 00" })).toHaveAttribute("href", "tel:+46 70 000 00 00");
+      expect(screen.getAllByRole("link", { name: noticeName })).toHaveLength(1);
+    });
+  }
+});

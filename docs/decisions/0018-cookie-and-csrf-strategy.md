@@ -244,7 +244,4 @@ match its host gets 403 before the cookie is read. It answers POST alone (rule 3
 session best-effort, deletes the cookie through `deleteSessionCookie` as before, and answers 303 to
 `/logga-in`, so the browser follows with a GET.
 
-A page rendered before this change still posts the old action id once; ADR 0148 reloads it, and the
-reloaded page carries the form.
-
 Additive amendment.

@@ -44,8 +44,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   await deleteSessionCookie();
-  // 303, so the browser follows with a GET; Next's redirect() answers a route handler with 307, which
-  // re-sends the POST. Relative, so the browser resolves it against the origin it is on.
   return new NextResponse(null, {
     status: 303,
     headers: { Location: LOGIN_ENTRY_PATH, "Cache-Control": "no-store" },

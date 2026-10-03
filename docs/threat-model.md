@@ -94,3 +94,39 @@ failed or stale evidence is not approval. An authorized session's attestation is
 not independent machine validation of a native report. Preserve CI and the
 local panel; apply the external same-PR Medium+ loop to Codex work as specified
 in [the review runbook](runbooks/codex-pr-review.md).
+
+## Release chain and the deploy box
+
+`.github/workflows/release-images.yml` publishes and
+`deploy/systemd/jobbliggaren-reconcile.sh` applies (ADR 0149). The chain the box
+trusts is `jobbliggaren-release:dev` (or the pinned release) → a record digest →
+the record's attestation → the five image digests the record names → their five
+attestations. Every attestation must name `release-images.yml` on
+`refs/heads/main` of `klasolsson81/jobbliggaren`, and every one except the
+record's pre-parse identity check must also name the record's source commit
+(`deploy/systemd/verify-image-attestation.sh`). Only a run of that workflow on
+`main` obtains that identity, so control of `main` is control of what a valid
+record says.
+
+Tags vouch for nothing. `packages: write` on the repository, which anyone with
+push access can obtain, moves `dev`, `latest` and the `sha-`/`pending-` tags and
+pushes record-shaped images. The consumer therefore verifies a record's digest
+before it reads a byte of it, requires a record under `sha-<X>` to name X, and
+pulls each image by the digest the record names and verifies it as built from
+the record's commit. Following the channel, it refuses a record older than its
+receipt or one missing an App migration the receipt holds: a `dev` moved
+backwards stalls the box instead of rolling it back. The publisher reuses an
+existing record only when it proves itself, never overwrites one, and turns red
+on a `dev` that does not prove itself. Deleting a package version is Klas's
+decision; `.github/scripts/package-retention-guard.sh` refuses an automated
+deleter.
+
+Root on the box is the remaining boundary. `/etc/jobbliggaren/release-pin`
+overrides the channel and is an operator act; the receipt, the lock and the
+local `:applied` tags are root state, and compose never fetches `:applied`. A
+record binds `deploy/docker-compose.yml` and `deploy/redis/healthcheck.sh`, and
+the box refuses one whose files differ from its checkout. Outside the record:
+`deploy/.env` and the secrets, the systemd scripts, and the upstream images,
+which are bound by tag. No record value passes through `source`, `eval` or a
+workflow expression. A box still running the pre-#1238 consumer reads the five
+`latest` tags, which the fan-in moves one after another, not atomically.

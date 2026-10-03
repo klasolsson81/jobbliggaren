@@ -204,10 +204,10 @@ fault inside the window changes only a body nobody reads. It stays latched becau
 available to you: mechanically it runs fine with the timer disabled, but it would ship the very
 journal you disarmed for.
 
-⚠ **The floor cost of a disarm is repo-side until the box pulls.** `FLOOR_TIMERS` names both timers
-in the repo since 2026-08-18, but `/opt/jobbliggaren`'s copy — which is what
-`jobbliggaren-heartbeat.service` actually runs — carries them only after the next `git pull --ff-only`.
-Before that pull a disarm lights no `floor-timer-down=` at all.
+⚠ **The floor cost of a disarm is repo-side until the box's clone advances.** `FLOOR_TIMERS` names
+both timers in the repo since 2026-08-18, but `/opt/jobbliggaren`'s copy — which is what
+`jobbliggaren-heartbeat.service` actually runs — carries them only after the next advance of the
+clone. Before that advance a disarm lights no `floor-timer-down=` at all.
 
 ```bash
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
@@ -358,14 +358,15 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 on.** `jobbliggaren-logship.service`'s `ExecStart` points straight into `/opt/jobbliggaren`, and
 nothing advances that clone on its own: `jobbliggaren-reconcile.sh` invokes `git` zero times
 (measured 2026-08-29), so it moves images and never the working tree. A logship repair merged to
-main therefore reaches this box only at a pull, and nothing schedules one — which is why the step
-belongs at this visit rather than being left to be remembered. Take it in `log-sink.md` §2's
-deliberate form, which carries the reason it is never blind and is not repeated here:
+main therefore reaches this box only when the clone is advanced to a release that contains it, and
+nothing schedules that — which is why the step belongs at this visit rather than being left to be
+remembered. Take it in `log-sink.md` §2's deliberate form, which carries the reason it is never
+blind and is not repeated here:
 
 ```bash
-git -C /opt/jobbliggaren fetch origin
-git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/
-sudo git -C /opt/jobbliggaren pull --ff-only
+sudo git -C /opt/jobbliggaren fetch origin main
+sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
+sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
 ```
 
 **Then start the archive by hand, once — MANDATORY, not tidiness, whenever

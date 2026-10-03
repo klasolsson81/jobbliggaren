@@ -1799,10 +1799,18 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.
 
+**Leverans till dev (ADR 0149):** `release-images.yml` (timschema + `workflow_dispatch`) bygger,
+Trivy-grindar och attesterar de fem imagesen från en `main`-commit — FE-imagen byggs i CI
+(`next build`) och skeppas som container, ingen Vercel-build. Först när hela uppsättningen är klar
+publicerar den **en verifierad release-record** och flyttar `dev` (och övergångsvis `latest`) till
+den. Lådans reconcile-unit applicerar varje timme den record som `dev` eller en pin namnger — på
+lådan från och med aktiveringen ([`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/vps-deploy-stack.md)
+§3b; dessförinnan drar den gamla konsumenten `latest`).
+**Produktionspromotion är inte levererad** ([#1961](https://github.com/klasolsson81/jobbliggaren/issues/1961)).
+
 **Historiskt (deploy — refererar avvecklad AWS-infra):**
 Tag-baserad AWS-deploy (`deploy-dev.yml` m.fl.) refererar den **rivna** AWS-dev-stacken
 (ADR 0066, 2026-05-26) — avvecklad, inte pausad; auto-triggern är borttagen 2026-06-28.
-Ny deploy-pipeline mot **Hetzner** byggs vid cutover (ADR 0050: Compose-push till CAX31 — **FE-image byggs i CI (`next build`) och shippas som container**, ingen Vercel-build).
 
 ### 15.4 Deployment-strategi (ADR 0050)
 
@@ -1818,8 +1826,10 @@ cutover-bevisen — står i [`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/
 den återupprepas inte här. Images byggs i CI och **aldrig på lådan** (kapacitetsvillkor
 1); lådan hämtar dem ur GHCR.
 
-**Rollback-modell:** image-tagg. Pinna föregående `sha-<short>` i boxens `.env` och kör
-reconcile — sekunder. En Netcup-snapshot är **inte** deploy-rollback (copy-on-write,
+**Rollback-modell:** en release-pin. Skriv föregående release (`sha-<40-hex-commit>`) i
+`/etc/jobbliggaren/release-pin` och kör reconcile-uniten — sekunder. Över en konfigurationsändring
+checkas releasens bundna filer ut först, och över en migrationsgräns vägrar `migrate` (runbookens
+§3a/§3b). En Netcup-snapshot är **inte** deploy-rollback (copy-on-write,
 kräver 50 % ledigt disk, endast offline-snapshots är konsistenta); dess roll är **före en
 migration**, när riktig användardata väl finns. Health-check-kravet `/api/ready` → 200
 inom 30 s består oavsett plattform.

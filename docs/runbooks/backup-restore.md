@@ -322,18 +322,21 @@ grep -qx age17xdg97ppkkpv5cl0qlsfctmkrdy7dt6ps0klt79evwcwsnz0j35sn3skut /opt/job
 #     is exactly why the rotation of 2026-08-12 would otherwise have left the box holding the
 #     REVOKED recipient with nothing saying so. Run these three, in order, after the rotation
 #     commit has merged:
-#     sudo on ALL THREE, matching :218 and vps-deploy-stack.md's own pull. Mixing privilege
+#     sudo on ALL THREE, matching :218 and vps-deploy-stack.md's own advance. Mixing privilege
 #     mid-sequence makes which line fails depend on how the clone was created — root-owned and
-#     line 1 dies on dubious ownership, user-owned and the sudo pull writes root objects into a
+#     line 1 dies on dubious ownership, user-owned and the sudo fetch writes root objects into a
 #     user .git/ — and an operator improvising mid-rotation is how the box stays on the revoked
 #     recipient, which is the thing 3b exists to prevent.
-sudo git -C /opt/jobbliggaren fetch origin            # read what the pull brings FIRST — on this
-sudo git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/   # box a pull is a DEPLOY
-sudo git -C /opt/jobbliggaren pull --ff-only
-#     The pull RECREATES age.recipient, and git carries only the exec bit — so step 3's
+#     The advance goes to the commit of a release that carries the rotation — `--status` prints
+#     the applied one as the receipt's `source` — never to main's tip (vps-deploy-stack.md §3b,
+#     "Advancing the checkout").
+sudo git -C /opt/jobbliggaren fetch origin main       # read what the advance brings FIRST — on
+sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/   # this box it is a DEPLOY
+sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+#     The advance RECREATES age.recipient, and git carries only the exec bit — so step 3's
 #     0444 root:root does not survive it. Re-apply the chown/chmod above, then re-run the
-#     RECIPIENT-OK line. A rotation that stops at the merge leaves the box one manual pull away
-#     from encrypting to a key nobody holds.
+#     RECIPIENT-OK line. A rotation that stops at the merge leaves the box one manual advance
+#     away from encrypting to a key nobody holds.
 #
 #     THE OTHER HOMES A ROTATION TOUCHES, because there is no separate rotation procedure and
 #     the first rotation missed one: deploy/backup/age.recipient (the value), this runbook's

@@ -109,16 +109,20 @@ registers** — precondition 3's pair — and assign the operator Admin. A visit
 register themselves therefore runs 0–4 and 10, and nothing between them. Each step that differs
 between the two says so where it stands.
 
-**0. Bring the box's clone up to date.**
+**0. Confirm the box runs one release, whole.**
 
 ```bash
-cd /opt/jobbliggaren && sudo git pull --ff-only
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # must end: verdict: consistent
 ```
 
-Nothing does this for you. The hourly reconcile unit reconciles **images** from GHCR and
-applies the compose file it finds on disk; it runs no `git` at all. Until this pull, the
-compose file on the box has no `Auth__*` passthrough and the knobs below reach nothing —
-they would sit in `.env` looking set, and the gate would stay closed with no error.
+`consistent` means the compose file on disk is the one the running release was released with,
+so the knobs below reach what that release reads. Nothing advances the clone for you, and the
+reconcile unit runs no `git` at all: anything else is repaired through
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b first, where advancing the clone goes to a
+release's commit and never to main's tip. A compose file without the `Auth__*` passthrough would
+leave the knobs below sitting in `.env` looking set, and the gate closed with no error.
+⚠ **Only on a box activated for #1238** (`vps-deploy-stack.md` §3b, *Activation*): the wrapper
+before it ignores `--status` and runs a full reconcile.
 
 **1. The mail credentials and the provider value are already in place — precondition 1, and
 nothing this procedure runs.** The injection order, the flip and its gate belong to
@@ -143,7 +147,8 @@ line, so `worker` — which shares those through the `x-app-email` anchor and co
 `Auth__*` at all — has no cause to restart here.
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
+  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
@@ -203,12 +208,14 @@ sudo docker restart jobbliggaren-api
 If it is not, re-create instead — same command as step 10:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
+  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 This is the sanctioned exception to *"manual applies go through the unit"* —
-[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
-requires and why the reconcile unit is the wrong instrument here. Check the precondition first.
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including why the reconcile unit is
+the wrong instrument here. Its precondition is the `--status` in front of it: the re-create runs
+only on `verdict: consistent`.
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
 whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
@@ -218,7 +225,8 @@ never the address.
 **Then blank the knob — and RE-CREATE, not restart.**
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
+  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 ⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
@@ -253,7 +261,8 @@ that way: this repo is public, and the file carries the K2 credential. It is del
 `AUTH_REGISTRATIONS_OPEN`, then:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
+  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
@@ -323,9 +332,9 @@ present as "the gate is still open", and this is the only check in the procedure
 depend on which command applied the change.
 
 This command is the sanctioned exception to *"manual applies go through the unit"* —
-[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
-requires and why the reconcile unit is the wrong instrument here. **Check that precondition before
-running it.**
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including why the reconcile unit is
+the wrong instrument here. **Its precondition is the `--status` in front of it:** the re-create
+runs only on `verdict: consistent`.
 
 Accounts and logins survive a closed gate; closing it refuses new registrations only.
 

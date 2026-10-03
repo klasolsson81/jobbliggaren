@@ -323,14 +323,14 @@
       "description": "Which cookies Jobbliggaren uses and why. Only necessary and functional cookies, no tracking and no consent banner."
     },
     "title": "Cookie policy",
-    "updated": "Last updated: 2026-09-27",
+    "updated": "Last updated: 2026-10-03",
     "intro": "This cookie policy describes which cookies and similar storage techniques Jobbliggaren uses, why they are used and how you control them. The policy is informational. Jobbliggaren uses no tracking, analytics or marketing cookies, and therefore no consent banner is shown.",
     "sections": [
       {
         "heading": "What a cookie is",
         "paragraphs": [
           "A cookie is a small text file that a website saves in your browser. The file can be read back on a later visit and helps the website, for example, keep you logged in or remember your language choice. Some cookies remain only for as long as your visit lasts (session cookies), others are saved for a set period (persistent cookies).",
-          "In addition to cookies, Jobbliggaren also uses storage directly in your browser (so-called localStorage) for a couple of features. That storage is never sent to our servers and is described separately further down."
+          "In addition to cookies, Jobbliggaren also uses storage directly in your browser (so-called localStorage and sessionStorage) for a couple of features. That storage is never sent to our servers and is described separately further down."
         ]
       },
       {
@@ -358,13 +358,15 @@
         ]
       },
       {
-        "heading": "Storage in the browser (localStorage)",
+        "heading": "Storage in the browser (localStorage and sessionStorage)",
         "paragraphs": [
-          "In addition to cookies, Jobbliggaren saves a couple of simple settings directly in your browser using localStorage. This information never leaves your device and is not sent to our servers. You can clear localStorage at any time via your browser's settings, which does not affect your account or your saved data."
+          "In addition to cookies, Jobbliggaren saves a couple of simple settings directly in your browser using localStorage, and one technical marker using sessionStorage, which only lasts while the tab is open. This information never leaves your device and is not sent to our servers. You can clear the storage at any time via your browser's settings, which does not affect your account or your saved data."
         ],
         "list": [
-          "Which information boxes you have closed on the overview page.",
-          "Your choice of theme (light or dark)."
+          "Which information boxes you have closed on the overview page (localStorage).",
+          "Which notices you have chosen to show on the overview page (localStorage).",
+          "Your choice of theme (light or dark) (localStorage).",
+          "A time set when the page reloads itself after Jobbliggaren has been updated, so that it happens only once and the page can say so afterwards (sessionStorage). Contains only the time."
         ]
       },
       {

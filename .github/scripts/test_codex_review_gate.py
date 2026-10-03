@@ -228,14 +228,40 @@ class ReviewAttestationTests(unittest.TestCase):
             self.run_event([other_base, {"permission": "write"}])
         self.assertTrue(all(method == "GET" for method, _, _ in self.requests))
 
-    def test_native_github_code_report_is_scoped_to_this_pr(self):
-        self.check(inputs=self.inputs | {"code_report": "https://github.com/owner/repo/pull/123#pullrequestreview-1"})
-        self.check(inputs=self.inputs | {"code_report": "https://github.com/owner/repo/pull/123#issuecomment-1"})
-        for url in ("https://github.com/owner/repo/pull/456#pullrequestreview-1",
-                    "https://github.com/other/repo/pull/123#pullrequestreview-1",
-                    "https://github.com/owner/repo/pull/123#discussion-1"):
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                self.check(inputs=self.inputs | {"code_report": url})
+    def test_native_github_reports_are_scoped_to_this_pr(self):
+        for key in ("code_report", "security_report"):
+            for fragment in ("pullrequestreview-1", "issuecomment-1"):
+                with self.subTest(key=key, fragment=fragment):
+                    self.check(inputs=self.inputs | {key: f"https://github.com/owner/repo/pull/123#{fragment}"})
+            for url in ("https://github.com/owner/repo/pull/456#pullrequestreview-1",
+                        "https://github.com/other/repo/pull/123#pullrequestreview-1",
+                        "https://github.com/owner/repo/pull/123#discussion_r1",
+                        "https://github.com/owner/repo/pull/123",
+                        "http://github.com/owner/repo/pull/123#issuecomment-1",
+                        "https://user:pass@github.com/owner/repo/pull/123#issuecomment-1",
+                        "https://github.com:443/owner/repo/pull/123#issuecomment-1",
+                        "https://github.com@evil.test/owner/repo/pull/123#issuecomment-1"):
+                with self.subTest(key=key, url=url), self.assertRaises(ValueError):
+                    self.check(inputs=self.inputs | {key: url})
+
+    def test_github_security_evidence_still_requires_explicit_completion_attestation(self):
+        github = self.inputs | {"security_report": "https://github.com/owner/repo/pull/123#issuecomment-1"}
+        for attestation in (None, "", "running", "code-complete"):
+            with self.subTest(attestation=attestation), self.assertRaises(ValueError):
+                self.check(inputs=github | {"attestation": attestation})
+
+    def test_github_review_pair_publishes_evidence_on_head_and_test_merge(self):
+        self.inputs.update(code_report="https://github.com/owner/repo/pull/123#pullrequestreview-1",
+                           security_report="https://github.com/owner/repo/pull/123#issuecomment-2")
+        calls = self.run_event([self.pr, {"permission": "write"}, *self.publication(), self.pr, {}, {}])
+        self.assertEqual({self.pr["head"]["sha"], self.pr["merge_commit_sha"]},
+                         {body["head_sha"] for method, _, body in calls if method == "POST"})
+        completions = [body for method, _, body in calls if method == "PATCH"]
+        self.assertEqual(2, len(completions))
+        for completion in completions:
+            self.assertEqual("success", completion["conclusion"])
+            self.assertIn(self.inputs["code_report"], completion["output"]["summary"])
+            self.assertIn(self.inputs["security_report"], completion["output"]["summary"])
 
     def test_workflow_receives_retarget_events(self):
         workflow = (Path(__file__).parent.parent / "workflows" / "codex-review-gate.yml").read_text(encoding="utf-8")

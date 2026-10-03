@@ -168,6 +168,12 @@ PR rather than a TD; **no owner is assigned**, and it is not closed.
 **The fork exception, as the docs put it:** a fork "skips both filters and receives the
 main conversation's exact tool pool" (same page, same reading).
 
+**Native review evidence (2026-10-03):** Klas reported repeated stalls when a
+completed GitHub bot result was followed by a demand to read a private Security
+Report behind authentication/Cloudflare. He directed sessions to use completed
+native GitHub evidence. CLAUDE.md §9.1 and the native-review runbook own that
+rule; the publisher accepts same-PR GitHub evidence for both review types.
+
 ## §9.6
 
 **The 2026-08-10 backlog measurement behind the filing cap:** the backlog grew +62 net

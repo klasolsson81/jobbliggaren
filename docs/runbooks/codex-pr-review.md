@@ -34,9 +34,15 @@ automation; it does not run an unattended coding worker after the session stops.
    Codex driving session posts `@codex review` and `@codex security review` as
    separate comments. Never interpret an old review as covering a new commit.
 3. Record the head SHA, base branch and base SHA before requesting review; verify
-   they are unchanged when reading both completed reports. Follow the report links
-   in Codex, including the full Security Report. A reaction, empty comment list,
-   timeout, rate limit, failed task or missing access is not a clean result.
+   they are unchanged when reading both completed native bot results in GitHub.
+   A completed bot review/summary or its green/no-findings completion for the
+   reviewed commit is sufficient evidence (Klas, 2026-10-03). Identify completion
+   of both Code Review and Security Review and read their GitHub findings, even
+   when completion is green. A bot reaction counts only with evidence identifying
+   the completed review type and commit; generic green CI, silence, an unqualified
+   reaction, pending/failed tasks, timeouts and stale results cannot approve.
+   Do not require a separate full Codex web report or its task URL. Missing access
+   to that optional report does not block completed GitHub evidence.
 4. Fix every valid Medium/High/Critical security finding and every reported
    P0/P1/P2 code defect in this PR. Deduplicate overlapping reports. If a finding
    is false, record the evidence and obtain reviewer confirmation; do not simply
@@ -49,9 +55,10 @@ automation; it does not run an unattended coding worker after the session stops.
    number, full head SHA, `base_ref`, `base_sha`, both report URLs, `verdict=approved` and
    `attestation=both-complete-zero-medium-plus`. This explicitly attests that both
    reports completed against that head/base and no blocking findings remain. A
-   code report can use its GitHub review or no-findings comment URL; the Security Report
-   uses its Codex task URL. The workflow
-   verifies the writer's authority and commit, not the reports' contents.
+   report URL for either review can be the native bot's same-PR GitHub review or
+   completion/summary comment; a Codex task URL remains optional. The workflow
+   verifies the writer's authority and commit, not the linked evidence's author,
+   completion or findings. The driving session verifies those before attesting.
 6. Read back the green `codex-review-gate` for that head, then set `agents-done`
    and watch CI/merge as usual. A new head or base needs a new external attestation.
    To revoke a result, first disable auto-merge and remove `agents-done`, then

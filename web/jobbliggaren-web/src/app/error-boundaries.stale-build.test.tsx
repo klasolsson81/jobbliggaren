@@ -81,12 +81,17 @@ describe("every error boundary reloads once on a stale-build action error (ADR 0
     expect(table.length).toBe(onDisk.length);
   });
 
-  it.each(table)("$path: a plain error renders the surface and touches neither the seam nor storage", ({ Boundary }) => {
+  it.each(table)("$path: a plain error renders the surface and touches neither the seam nor storage", ({ path, Boundary }) => {
     render(<Boundary error={plainError()} {...inert} />);
 
     expect(screen.getByRole("heading", { name: "Sidan kunde inte visas" })).toBeInTheDocument();
     expect(reloadDocument).not.toHaveBeenCalled();
     expect(sessionStorage.length).toBe(0);
+    if (path === "global-error.tsx") {
+      // The document it owns carries the font variables (`src/app/fonts.ts`; the shim's
+      // inert classes) — without them the surface fell to the browser's serif (#1953).
+      expect(document.documentElement).toHaveClass("source-sans-3-variable", "jetbrains-mono-variable");
+    }
   });
 
   it.each(table)("$path: a stale-build action error renders nothing, stamps both keys and reloads once", ({ path, Boundary }) => {
@@ -101,6 +106,7 @@ describe("every error boundary reloads once on a stale-build action error (ADR 0
       // The document shell stays: the site's own title, not the error title
       // (design-reviewer Major 2(b)). React hoists <title> into document.head.
       expect(document.title).toBe("Jobbliggaren");
+      expect(document.documentElement).toHaveClass("source-sans-3-variable", "jetbrains-mono-variable");
     }
   });
 
@@ -110,6 +116,18 @@ describe("every error boundary reloads once on a stale-build action error (ADR 0
 
     expect(screen.getByRole("heading", { name: "Sidan kunde inte visas" })).toBeInTheDocument();
     expect(reloadDocument).not.toHaveBeenCalled();
+  });
+
+  it.each(table)("$path: H5b — a stamp the browser refuses to write flips to the surface, which takes focus on its heading", async ({ Boundary }) => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    render(<Boundary error={staleError()} {...inert} />);
+
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Sidan kunde inte visas" });
+    expect(reloadDocument).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(heading);
   });
 
   it("C2: through Next's own ErrorBoundary, a child that throws the router's error reaches the boundary under the name `error`", () => {

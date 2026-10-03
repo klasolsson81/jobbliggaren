@@ -27,15 +27,10 @@ import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
  * stack trace), never logged here: Next reports uncaught errors on its own,
  * and console output is a §5 anti-pattern.
  */
-export default function MarketingError({ error, retry }: ErrorInfo) {
+function MarketingErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   useFocusMainOnUnmount();
-  const reloading = useReloadOnStaleBuild(error);
-
-  // After every hook (rules of hooks); the document is being replaced, so
-  // nothing renders — no flash of the error surface before the reload.
-  if (reloading) return null;
 
   return (
     // `w-full` below is load-bearing. <main> is a flex item, and a flex item with
@@ -62,4 +57,16 @@ export default function MarketingError({ error, retry }: ErrorInfo) {
       </main>
     </div>
   );
+}
+
+export default function MarketingError({ error, retry }: ErrorInfo) {
+  // The surface is its own component so its hooks mount WITH it: when the stamp
+  // write fails, the hook flips from reloading to the surface a tick later, and
+  // `useFocusOnMount` then runs on the <h1> that now exists (code-reviewer M1 on
+  // #1955; the global-error form). Nothing renders while the document is being
+  // replaced — no flash of the error surface before the reload.
+  const reloading = useReloadOnStaleBuild(error);
+  if (reloading) return null;
+
+  return <MarketingErrorSurface retry={retry} />;
 }

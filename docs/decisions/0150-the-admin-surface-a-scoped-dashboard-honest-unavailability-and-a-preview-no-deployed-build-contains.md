@@ -199,6 +199,8 @@ The handoff is a design reference, not production code. What ships departs from 
 | TanStack Query and a 60 s status poll | Neither | AGENTS.md §4; no observation exists to refresh, and "checked every 60 seconds" would be a claim without one (D2) |
 | A clickable `<tr>` | A button inside the row | A native button carries the keyboard and screen-reader semantics a `<tr>` lacks |
 | A role select in the edit form | The role read-only | Role change is #1983 (D4) |
+| Live search, filters, period buttons and "Skicka svar" as a solid primary button | Natively disabled while their region is unbuilt, each pointing to its "Kommer snart" line, never with a solid primary fill | D2; DESIGN.md §6 |
+| Bakgrundsjobb and Granskning restyled: grey identifier and time cells, a red error category, smaller status pills | Both pages as delivered, apart from the new header and a labelled scroll region around each table | The prompt keeps both working; the house table paints its cells in ink-1 (`.jp-table tbody td`), and the pill is the delivered `JobStateBadge` |
 
 ## Alternatives considered
 
@@ -239,7 +241,7 @@ The handoff is a design reference, not production code. What ships departs from 
   safety is the locks of D5, not a login, so a lock that quietly stops working is the failure to watch.
 - Below 1200px the header spends a row on the brand alone, so it is taller than the one-row header (D7).
 - An account can be found by its address only (D3); the account holds no other handle.
-- The build departs from the handoff in fifteen places (D8); a reader comparing the two will meet each, with its
+- The build departs from the handoff in seventeen places (D8); a reader comparing the two will meet each, with its
   ground.
 
 ## Implementation

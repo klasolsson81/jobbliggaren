@@ -41,15 +41,13 @@
 # NEVER RE-RUN A RUN FROM BEFORE #1238 — dispatch a new one. A re-run executes the workflow file of
 # the original commit: per-cell `latest` moves and a checkout of the moving `main`.
 #
-# The owning session dispatches manually after a merge; CLAUDE.md §6.5 already requires it to watch
-# its PR to merge, so it is standing at the right moment.
+# The owning session dispatches manually; CLAUDE.md §6.5
+# already requires it to watch its PR to merge, so it is standing at the right moment.
 name: release-images
 
 on:
   schedule:
-    # Hourly. A no-op run is a checkout, a record lookup and its verification per cell — cheap
-    # rather than free, and free in billing terms because Actions on standard runners costs
-    # nothing for public repositories.
+    # Hourly. Actions on standard runners costs nothing for public repositories.
     - cron: "17 * * * *"
   workflow_dispatch:
     inputs:

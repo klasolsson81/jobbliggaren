@@ -341,8 +341,8 @@ jobs:
         run: bash deploy/systemd/verify-image-attestation.test.sh
 
       # The release record (#1238, ADR 0149): one format, read by the box and the publisher alike, and
-      # the only order in which a record's bytes may be trusted. Two of its cases read the real tree, and
-      # one proves the canonical compose form against `docker compose config` (the CLI, no daemon). Both
+      # the only order in which a record's bytes may be trusted. It reads the real tree too, and
+      # proves the canonical compose form against `docker compose config` (the CLI, no daemon). Both
       # flags turn a platform skip into a failure here, where neither may be skipped.
       - name: jobbliggaren-release-record (fixturer + det riktiga trädet)
         run: bash deploy/systemd/jobbliggaren-release-record.test.sh

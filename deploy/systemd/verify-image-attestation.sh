@@ -114,9 +114,6 @@ fi
 # explicitly keeps one command correct on both, which matters because the box is on Debian's
 # 2.5.0 while CI and a future upgrade may be on 3.x.
 #
-# Captured, not piped. A pipeline's exit status is the LAST command's, so `cosign … | grep …`
-# would report grep's verdict on an empty stream — the shape that has produced a green gate
-# over an unmeasured run in this repo before.
 # The ref and repository claims are pinned beside the SAN, and not because they are redundant with
 # it today. The SAN names the WORKFLOW FILE's ref (`job_workflow_ref`); were this workflow ever made
 # reusable (`on: workflow_call`), a branch's workflow could call `…@refs/heads/main` and carry a
@@ -135,6 +132,9 @@ args=(
 if [ -n "$EXPECTED_SHA" ]; then
   args+=(--certificate-github-workflow-sha "$EXPECTED_SHA")
 fi
+# Captured, not piped. A pipeline's exit status is the LAST command's, so `cosign … | grep …`
+# would report grep's verdict on an empty stream — the shape that has produced a green gate
+# over an unmeasured run in this repo before.
 output=$(cosign "${args[@]}" "$REF" 2>&1) && status=0 || status=$?
 
 if [ "$status" -eq 0 ]; then

@@ -23,8 +23,7 @@
 # surface is the journal and `systemctl --failed`.
 #
 # WHAT MANUAL COMMANDS SEE. compose names our images `ghcr.io/klasolsson81/jobbliggaren-<x>:applied`,
-# a LOCAL tag this script moves only after everything is proven, and `pull_policy: never` keeps compose
-# from ever fetching it. A hand-typed `docker compose up -d --pull never api` therefore recreates from
+# a LOCAL tag this script moves only after everything is proven. A hand-typed `docker compose up -d --pull never api` therefore recreates from
 # the last verified release, never from something a refused run pulled. It still takes no lock and runs
 # no verification, which is why the runbook's exceptions first read `--status`.
 set -euo pipefail

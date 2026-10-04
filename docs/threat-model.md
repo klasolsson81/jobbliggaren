@@ -111,7 +111,7 @@ record says.
 Tags vouch for nothing. `packages: write` on the repository, which anyone with
 push access can obtain, moves `dev`, `latest` and the `sha-`/`pending-` tags and
 pushes record-shaped images. The consumer therefore verifies a record's digest
-before it reads a byte of it, requires a record under `sha-<X>` to name X, and
+before it copies a byte of it out, requires a record under `sha-<X>` to name X, and
 pulls each image by the digest the record names and verifies it as built from
 the record's commit. Following the channel, it refuses a record older than its
 receipt or one missing an App migration the receipt holds: a `dev` moved
@@ -123,7 +123,7 @@ decision; `.github/scripts/package-retention-guard.sh` refuses one in
 
 Root on the box is the remaining boundary. `/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the
-local `:applied` tags are root state, and compose never fetches `:applied`. A
+local `:applied` tags are root state. A
 record binds `deploy/docker-compose.yml` and `deploy/redis/healthcheck.sh`, and
 the box refuses one whose files differ from its checkout. Outside the record:
 `deploy/.env` and the secrets, the systemd scripts, and the upstream images,

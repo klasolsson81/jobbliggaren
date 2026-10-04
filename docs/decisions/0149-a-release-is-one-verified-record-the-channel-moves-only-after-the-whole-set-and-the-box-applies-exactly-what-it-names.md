@@ -80,14 +80,14 @@ alike.
 `deploy/systemd/jobbliggaren-reconcile.sh` reads one record — the `dev` channel, or the release named in
 `/etc/jobbliggaren/release-pin` (one line, `sha-<commit>` or `sha256:<record digest>`) — and applies exactly
 what it names. Compose names our six services `jobbliggaren-<x>:applied` with `pull_policy: never`: a local
-tag the reconcile moves only after everything is proven, which a manual compose command recreates from and
-never fetches. `--stage` verifies and tags a release on a box that has applied nothing (first boot);
+tag the reconcile moves only after everything is proven, which a manual compose command recreates from.
+`--stage` verifies and tags a release on a box that has applied nothing (first boot);
 `--status` reports the selection and compares the receipt with `:applied`, the running containers and the
-checkout's deployment files — everything a manual compose command re-creates from.
+checkout's deployment files.
 
-### 4. Binding text (senior-cto-advisor, 2026-10-03)
+### 4. Binding text (senior-cto-advisor, 2026-10-03; R1 and R7 amended by its author 2026-10-04)
 
-- **R1, verify before parse.** No byte of a record reaches a parser, on the box or in the publisher, before
+- **R1, verify before parse.** No byte of a record is copied out of its image, on the box or in the publisher, before
   the record digest has verified against the release identity: the workflow SAN, ref `refs/heads/main`, and
   repository `klasolsson81/jobbliggaren`. The order is: identity verification → `docker create --pull never`,
   never started → copy, with a size cap and exactly one regular member named `release.env` → `validate` →
@@ -115,7 +115,10 @@ checkout's deployment files — everything a manual compose command re-creates f
 - **R7, channel acceptance.** Following the channel, the box refuses a record whose SEQUENCE is below the
   receipt's, or equal to it with a different SHA, and a record that lacks an AppDbContext id the receipt
   holds. A pin is an explicit operator act: neither check applies, and the #1236 gate decides. With no
-  receipt, the first apply is a bootstrap and may move backwards once.
+  receipt, the first apply is a bootstrap and may move backwards once. The receipt's App ids are a subset
+  of the database's history: a receipt is written only after `up` exited 0 and the postcondition held,
+  and `migrate`'s `schema` mode exits 0 only on Proceed or OverriddenNoOp — subject to the residual that
+  the ids are read from source.
 - **R8, format evolution.** A format change ships consumer first: the box must accept FORMAT N+1, activated,
   before the publisher emits it.
 - **R9.** A record is not environment-neutral: its web digest inlines the build-time `NEXT_PUBLIC_SITE_URL`.

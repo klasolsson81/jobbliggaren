@@ -38,8 +38,7 @@ set -euo pipefail
 readonly FORMAT_VERSION=1
 readonly REPOSITORY="klasolsson81/jobbliggaren"
 readonly SOURCE_REF="refs/heads/main"
-# A record is about 5 KiB today (ninety migration ids). The cap bounds what a root reader will copy
-# out of an image before it has refused it.
+# The cap bounds what a root reader will copy out of an image before it has refused it.
 readonly MAX_BYTES=65536
 readonly VERIFIER="${BASH_SOURCE[0]%/*}/verify-image-attestation.sh"
 
@@ -152,7 +151,7 @@ verify_record() {
 # Reads a record image and prints its record, in the only order in which its bytes may be trusted:
 #
 #   1. the record digest verifies as built by our workflow on main — BEFORE a single byte of it is
-#      copied out, so nothing a registry writer placed there reaches dockerd's archive path, tar or the
+#      copied out, so nothing a registry writer placed there reaches `docker cp`, tar or the
 #      validator unproven (security-auditor, form round 2026-10-03, Major 1);
 #   2. the one file is copied out of a container that is created and never started, capped, and
 #      accepted only as a tar holding exactly one regular member named release.env;
@@ -173,7 +172,7 @@ cmd_read() {
   local status=0
   verify_record "$ref" || status=$?
   [ "$status" -eq 0 ] || {
-    log "REFUSING: $ref is not a record our workflow attested (verifier exit $status); not one byte of it was read"
+    log "REFUSING: $ref is not a record our workflow attested (verifier exit $status); not one byte of it was copied out"
     exit "$status"
   }
 

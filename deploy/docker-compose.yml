@@ -8,8 +8,7 @@
 # OUR SIX SERVICES RUN `jobbliggaren-<x>:applied`, A LOCAL TAG, AND NOTHING HERE PULLS THEM (#1238,
 # ADR 0149). `jobbliggaren-reconcile.sh` reads one release record, verifies every image it names as built
 # from the record's commit, and only then points `:applied` at them; `pull_policy: never` makes compose
-# skip those services on a `pull` and refuse to fetch them on an `up` or `run`, so a manual command
-# recreates from the last verified release and never from the registry. The record also binds this file:
+# skip those services on a `pull`. The record also binds this file:
 # a release is applied only with the compose file it was released with (canonical form, comments aside).
 #
 # COMPOSE_FILE overrides a project's own file resolution, and the compose guard is

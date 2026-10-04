@@ -134,7 +134,7 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 > lines are.
 
 > **Stage before you inject, and before any `up`.** Compose runs our images only as the local
-> `:applied` tag and never fetches it (`pull_policy: never`), and the injection measures the
+> `:applied` tag, and the injection measures the
 > secrets' owner from that api image — so on a box that has applied nothing, neither can run until a
 > verified release is tagged. Run §3b's install block **up to, not including, enabling the timer**
 > (a timer firing now would start the stack before the secrets exist), then:
@@ -332,7 +332,7 @@ released with and the migration ids — attest it, verify it, and then move `dev
 reads ONE record, `dev` or the release `/etc/jobbliggaren/release-pin` names, and applies exactly
 that, under one lock, in this order:
 
-1. **The record proves itself before a byte of it is parsed.** Its attestation must name our
+1. **The record proves itself before a byte of it is copied out.** Its attestation must name our
    workflow on `main` of this repository; only then is it copied out, validated, and verified as
    built from the commit it names.
 2. **It must have been released with this checkout's configuration.** `deploy/docker-compose.yml`
@@ -453,8 +453,8 @@ sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
 
 **Manual applies go through the unit.** `sudo systemctl start jobbliggaren-reconcile.service`,
 never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it: a
-manual apply takes no lock and runs no verification. What a manual command can no longer do is
-fetch: compose names our images as the local `:applied` tag with `pull_policy: never`, and only a
+manual apply takes no lock and runs no verification. Compose names our images as the local
+`:applied` tag with `pull_policy: never`, and only a
 proven run moves that tag, so a hand-typed `up` re-creates from the last verified release — never
 from something a refused run pulled.
 

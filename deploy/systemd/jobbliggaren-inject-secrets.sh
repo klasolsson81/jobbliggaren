@@ -790,8 +790,8 @@ a missing required variable fails here)"
   # THE RESOLUTION STAYS HERE, THE MEASUREMENT DOES NOT. What the two callers resolve genuinely
   # differs — this one resolves a TAG out of the compose file with a human driving (`:applied`,
   # which only a verified reconcile or `--stage` moves, #1238), while reconcile passes the digest
-  # it has just verified — so sharing the resolution would be sharing the wrong thing. The helper's own diagnostics reach stderr from
-  # here, so this call adds no message of its own.
+  # it has just verified — so sharing the resolution would be sharing the wrong thing. The helper's
+  # own diagnostics reach stderr from here, so this call adds no message of its own.
   "$RUNTIME_IDS" "$image"
 }
 

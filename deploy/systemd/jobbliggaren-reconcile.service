@@ -1,8 +1,8 @@
 [Unit]
 # Reads one release record (the `dev` channel, or the pinned release), verifies it and the five
 # images it names as built by our workflow on main from the record's commit, and applies exactly
-# that set (#1238, ADR 0149). The deploy model is reconcile-pull, not push: `release-images` publishes on an
-# hourly schedule because automerge merges as a GitHub App and app-triggered events start no
+# that set (#1238, ADR 0149). The deploy model is reconcile-pull, not push: `release-images`
+# publishes on an hourly schedule because automerge merges as a GitHub App and app-triggered events start no
 # workflow runs (measured counterfactual: #1107 app-merged, zero runs; #1108 human-merged, a
 # run after 5 s). Nothing tells the box a new image exists, so the box asks.
 Description=Jobbliggaren: reconcile the deploy stack against the published images

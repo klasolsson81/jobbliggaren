@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# package-retention-guard.sh — nothing in this repository deletes container package versions (#1238).
+# package-retention-guard.sh — nothing in .github/workflows or .github/scripts deletes a container
+# package or any of its versions (#1238).
 #
 # usage:  package-retention-guard.sh [<root>]
 #
@@ -14,8 +15,8 @@
 # WHAT IT REFUSES, on every non-comment line of `.github/workflows/*.y*ml` and `.github/scripts/*.sh`
 # (this guard and its suite excepted — they must name what they refuse):
 #   - the `delete-package-versions` action, in any owner or version;
-#   - a REST call that names a package version path and a DELETE on the same line
-#     (`gh api -X DELETE …/packages/…/versions/…`, `curl -X DELETE …`, `--method DELETE`).
+#   - a REST call that names a `/packages/` path — one version or the whole package — and a DELETE on
+#     the same line (`gh api -X DELETE …/packages/…`, `curl -X DELETE …`, `--method DELETE`).
 #
 # THE EXIT CONTRACT IS THE HOUSE'S: 0 nothing deletes · 1 something does · 2 could not answer.
 set -euo pipefail
@@ -46,9 +47,9 @@ for f in "${files[@]}"; do
     case "$trimmed" in "#"*) continue ;; esac
     hit=0
     case "$line" in *delete-package-versions*) hit=1 ;; esac
-    if [[ $line == *"/packages/"*"/versions"* && $line =~ (^|[^A-Za-z])DELETE([^A-Za-z]|$) ]]; then hit=1; fi
+    if [[ $line == *"/packages/"* && $line =~ (^|[^A-Za-z])DELETE([^A-Za-z]|$) ]]; then hit=1; fi
     if [ "$hit" -eq 1 ]; then
-      echo "::error file=$f,line=$lineno::package-retention-guard: this deletes container package versions: ${trimmed}" >&2
+      echo "::error file=$f,line=$lineno::package-retention-guard: this deletes a container package or its versions: ${trimmed}" >&2
       found=$((found + 1))
     fi
   done <"$f"
@@ -59,4 +60,4 @@ if [ "$found" -gt 0 ]; then
   echo "  Deleting a package version is Klas's decision, made by hand — never automation." >&2
   exit 1
 fi
-echo "package-retention-guard: nothing under $ROOT/.github deletes package versions (${#files[@]} files read)"
+echo "package-retention-guard: nothing under $ROOT/.github deletes a package or its versions (${#files[@]} files read)"

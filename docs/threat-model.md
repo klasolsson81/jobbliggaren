@@ -118,8 +118,8 @@ receipt or one missing an App migration the receipt holds: a `dev` moved
 backwards stalls the box instead of rolling it back. The publisher reuses an
 existing record only when it proves itself, never overwrites one, and turns red
 on a `dev` that does not prove itself. Deleting a package version is Klas's
-decision; `.github/scripts/package-retention-guard.sh` refuses an automated
-deleter.
+decision; `.github/scripts/package-retention-guard.sh` refuses one in
+`.github/workflows` and `.github/scripts`.
 
 Root on the box is the remaining boundary. `/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the

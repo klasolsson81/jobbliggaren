@@ -56,6 +56,8 @@ expect 1 "curl --request DELETE on a package version" \
   "$(tree curl .github/scripts/prune.sh 'curl -sS --request DELETE https://api.github.com/user/packages/container/x/versions/9')"
 expect 1 "--method DELETE in a workflow step" \
   "$(tree method .github/workflows/clean.yml '        run: gh api --method DELETE "/orgs/o/packages/container/x/versions/$ID"')"
+expect 1 "gh api -X DELETE on a whole package, which takes every version with it" \
+  "$(tree whole .github/scripts/prune.sh 'gh api -X DELETE /user/packages/container/jobbliggaren-release')"
 expect 0 "a comment that names the action is not a deletion" \
   "$(tree comment .github/workflows/clean.yml '# never use delete-package-versions here')"
 expect 0 "a DELETE of something that is not a package version" \

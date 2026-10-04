@@ -33,7 +33,7 @@ Change the contract and its tests together when adding a consumer.
 | migrate-rewrap | PostgreSQL | Key maintenance |
 | API | persistent Redis | Sessions, company cache and statistics reads |
 | Worker | persistent Redis | Statistics publication |
-| API | volatile Redis | Login challenges, grants, registration claims, OAuth state and budgets |
+| API | volatile Redis | Login challenges, grants, registration claims, OAuth state, account email changes and budgets |
 | API | Seq | Application logs |
 | Worker | Seq | Job logs |
 
@@ -83,6 +83,8 @@ boundary.
 | Challenge address index / API volatile | `auth/challenge-by-address/v1/*` | SET with GET and expiry |
 | RedisLoginChallengeStore, bound challenges / API volatile | `auth/challenge-bound/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Bound challenge index / API volatile | `auth/challenge-by-user/v1/*` | SET with GET and expiry |
+| Admin-initiated account email change (#1975) / API volatile | `auth/account-email-change/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
+| Account email change index (#1975) / API volatile | `auth/account-email-change-by-user/v1/*` | SET with expiry, GET |
 | RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
 | RedisOAuthStateStore / API volatile | `auth/oauth-state/v1/*` | SET with NX and expiry, GETDEL |
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
@@ -272,6 +274,10 @@ Example dry-run cases (all keys are synthetic names, and no writes execute):
 | api-volatile / volatile | `INCR jobbliggaren:budget/unregistered/v1/probe` | Refused |
 | api-volatile / volatile | `GETDEL jobbliggaren:auth/grant/v1/probe` | OK |
 | api-volatile / volatile | `GET jobbliggaren:auth/grant/v1/probe` | Refused |
+| api-volatile / volatile | `HINCRBY jobbliggaren:auth/account-email-change/v1/probe a 1` | OK |
+| api-volatile / volatile | `HGETALL jobbliggaren:auth/account-email-change/v1/probe` | Refused |
+| api-volatile / volatile | `GET jobbliggaren:auth/account-email-change-by-user/v1/probe` | OK |
+| api-volatile / volatile | `DEL jobbliggaren:auth/account-email-change-by-user/v1/probe` | Refused |
 | Each application user / its store | `ACL LIST`, `FLUSHALL`, `KEYS *` | Refused |
 | Each health user / its store | `PING` | OK |
 | Each health user / its store | `HMGET jobbliggaren:landing:stats:v1 data` | Refused |

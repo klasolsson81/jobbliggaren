@@ -85,20 +85,21 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
     {
         var token = NewToken();
         var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
-        await OpenActiveAsync(factory, Address(token, "active-a"), Ct);
-        await OpenActiveAsync(factory, Address(token, "active-b"), Ct);
-        await CreateWithoutProfileAsync(factory, Address(token, "missing"), Ct);
+        foreach (var label in new[] { "active-a", "active-b", "active-c" })
+            await OpenActiveAsync(factory, Address(token, label), Ct);
+        foreach (var label in new[] { "missing-a", "missing-b" })
+            await CreateWithoutProfileAsync(factory, Address(token, label), Ct);
         await CreatePendingDeletionAsync(factory, Address(token, "pending"), Ct);
 
         var filtered = await SearchOkAsync(client, new { address = token, status = "Active" }, Ct);
 
         Items(filtered).ShouldAllBe(item => item.GetProperty("status").GetString() == "Active");
-        filtered.GetProperty("accounts").GetProperty("totalCount").GetInt32().ShouldBe(2);
+        filtered.GetProperty("accounts").GetProperty("totalCount").GetInt32().ShouldBe(3);
         var counts = filtered.GetProperty("counts");
-        counts.GetProperty("total").GetInt32().ShouldBe(4);
-        counts.GetProperty("active").GetInt32().ShouldBe(2);
+        counts.GetProperty("total").GetInt32().ShouldBe(6);
+        counts.GetProperty("active").GetInt32().ShouldBe(3);
         counts.GetProperty("pendingDeletion").GetInt32().ShouldBe(1);
-        counts.GetProperty("profileMissing").GetInt32().ShouldBe(1);
+        counts.GetProperty("profileMissing").GetInt32().ShouldBe(2);
     }
 
     [Fact]
@@ -131,6 +132,8 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         {
             var search = await SearchOkAsync(client, new { address = token, page, pageSize = 2 }, Ct);
             search.GetProperty("accounts").GetProperty("totalCount").GetInt32().ShouldBe(5);
+            search.GetProperty("accounts").GetProperty("page").GetInt32().ShouldBe(page);
+            search.GetProperty("accounts").GetProperty("totalPages").GetInt32().ShouldBe(3);
             paged.AddRange(Emails(search));
         }
         paged.ShouldBe(whole);
@@ -160,6 +163,32 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_unknown_registration_sorts_last_both_ways_and_a_tie_breaks_on_the_id()
+    {
+        var token = NewToken();
+        var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var first = await OpenActiveAsync(factory, Address(token, "tie-a"), Ct);
+        var second = await OpenActiveAsync(factory, Address(token, "tie-b"), Ct);
+        var missing = await CreateWithoutProfileAsync(factory, Address(token, "missing"), Ct);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            // The clock is the actor: two registrations in one tick give two profiles one created_at.
+            var tick = DateTimeOffset.UtcNow.AddMinutes(-5);
+            await scope.ServiceProvider.GetRequiredService<IAppDbContext>().JobSeekers
+                .Where(seeker => seeker.UserId == first || seeker.UserId == second)
+                .ExecuteUpdateAsync(set => set.SetProperty(seeker => seeker.CreatedAt, tick), Ct);
+        }
+
+        // Postgres orders a uuid by its bytes, which is the canonical string's order.
+        var tied = new[] { first, second }.OrderBy(id => id.ToString(), StringComparer.Ordinal).ToList();
+        foreach (var sort in new[] { "RegisteredNewest", "RegisteredOldest" })
+        {
+            Items(await SearchOkAsync(client, new { address = token, sort }, Ct)).Select(Id)
+                .ShouldBe([.. tied, missing], sort);
+        }
+    }
+
+    [Fact]
     public async Task The_role_reads_the_admin_role_and_every_other_account_is_a_user()
     {
         var adminToken = NewToken();
@@ -182,19 +211,34 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: Ct);
         var owner = factory.CreateClient();
         owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-        (await owner.PostAsJsonAsync("/api/v1/applications", new { jobAdId = (Guid?)null, coverLetter = (string?)null }, Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.Created);
+        var applications = new List<Guid>();
+        for (var index = 0; index < 3; index++)
+        {
+            var created = await owner.PostAsJsonAsync(
+                "/api/v1/applications", new { jobAdId = (Guid?)null, coverLetter = (string?)null }, Ct);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created);
+            applications.Add((await created.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid());
+        }
+        // The owner removes one: a removed application is no longer live and is not counted.
+        (await owner.DeleteAsync($"/api/v1/applications/{applications[0]}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await owner.PostAsJsonAsync("/api/v1/resumes", new { name = "CV", fullName = "Test" }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.Created);
+        foreach (var name in new[] { "Sökning A", "Sökning B", "Sökning C" })
+        {
+            (await owner.PostAsJsonAsync("/api/v1/saved-searches", SavedSearch(name), Ct))
+                .StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
         var busy = await UserIdAsync(factory, email, Ct);
+        var idle = await OpenActiveAsync(factory, Address(token, "idle"), Ct);
         var missing = await CreateWithoutProfileAsync(factory, Address(token, "missing"), Ct);
 
         var detail = await DetailAsync(admin, busy);
-        detail.GetProperty("applicationCount").GetInt32().ShouldBe(1);
+        detail.GetProperty("applicationCount").GetInt32().ShouldBe(2);
         detail.GetProperty("resumeCount").GetInt32().ShouldBe(1);
-        detail.GetProperty("savedSearchCount").GetInt32().ShouldBe(0);
-        Items(await SearchOkAsync(admin, new { address = email }, Ct)).Single()
-            .GetProperty("applicationCount").GetInt32().ShouldBe(1);
+        detail.GetProperty("savedSearchCount").GetInt32().ShouldBe(3);
+        var rows = Items(await SearchOkAsync(admin, new { address = token }, Ct)).ToDictionary(Id);
+        rows[busy].GetProperty("applicationCount").GetInt32().ShouldBe(2);
+        rows[idle].GetProperty("applicationCount").GetInt32().ShouldBe(0);
 
         var none = await DetailAsync(admin, missing);
         none.GetProperty("status").GetString().ShouldBe("ProfileMissing");
@@ -311,11 +355,22 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
 
     private static Guid Id(JsonElement item) => item.GetProperty("id").GetGuid();
 
+    private static object SavedSearch(string name) => new
+    {
+        name,
+        occupationGroup = new[] { "grp_12345" },
+        municipality = (string[]?)null,
+        region = (string[]?)null,
+        q = "backend",
+        sortBy = 0,
+        notificationEnabled = false,
+    };
+
     /// <summary>The items' ids in the order the sort promises: registration time, then id.</summary>
     private static List<Guid> Ordered(IReadOnlyList<JsonElement> items, bool descending)
     {
         var keyed = items.Select(item => (Registered: item.GetProperty("registeredAt").GetDateTimeOffset(), Id: Id(item)));
         var byTime = descending ? keyed.OrderByDescending(entry => entry.Registered) : keyed.OrderBy(entry => entry.Registered);
-        return byTime.ThenBy(entry => entry.Id).Select(entry => entry.Id).ToList();
+        return byTime.ThenBy(entry => entry.Id.ToString(), StringComparer.Ordinal).Select(entry => entry.Id).ToList();
     }
 }

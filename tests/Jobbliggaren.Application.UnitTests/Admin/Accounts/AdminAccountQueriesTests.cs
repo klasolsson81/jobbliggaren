@@ -156,6 +156,31 @@ public sealed class AdminAccountQueriesTests
             .IsValid.ShouldBeTrue();
     }
 
+    [Fact]
+    public void The_largest_page_s_offset_fits_an_int_at_the_largest_page_size()
+    {
+        (((long)SearchAccountsQuery.MaxPage - 1) * SearchAccountsQuery.MaxPageSize).ShouldBeLessThanOrEqualTo(int.MaxValue);
+    }
+
+    [Fact]
+    public void A_term_as_long_as_an_address_may_be_is_accepted_and_one_more_character_is_not()
+    {
+        var longest = new string('q', AccountAddressTermRules.MaxLength);
+        var validator = new SearchAccountsQueryValidator();
+
+        validator.Validate(new SearchAccountsQuery(longest, null, AccountSort.RegisteredNewest, 1, 25))
+            .IsValid.ShouldBeTrue();
+        validator.Validate(new SearchAccountsQuery(longest + "q", null, AccountSort.RegisteredNewest, 1, 25))
+            .IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void The_details_refuse_an_empty_id()
+    {
+        new GetAccountDetailsQueryValidator().Validate(new GetAccountDetailsQuery(Guid.Empty)).IsValid.ShouldBeFalse();
+        new GetAccountDetailsQueryValidator().Validate(new GetAccountDetailsQuery(Guid.NewGuid())).IsValid.ShouldBeTrue();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

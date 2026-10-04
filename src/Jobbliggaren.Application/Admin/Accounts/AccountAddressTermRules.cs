@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Application.Common.Validation;
 
 namespace Jobbliggaren.Application.Admin.Accounts;
 
@@ -8,12 +9,11 @@ namespace Jobbliggaren.Application.Admin.Accounts;
 /// </summary>
 internal static class AccountAddressTermRules
 {
-    /// <summary>The longest address Identity stores.</summary>
-    public const int MaxLength = 254;
+    public const int MaxLength = EmailAddressRules.MaximumLength;
 
     public static IRuleBuilderOptions<T, string?> AccountAddressTerm<T>(this IRuleBuilder<T, string?> rule) =>
         rule.MaximumLength(MaxLength)
-            .WithMessage("Sökningen får vara högst 254 tecken.")
+            .WithMessage($"Sökningen får vara högst {MaxLength} tecken.")
             .Must(term => term is null || !term.Any(char.IsControl))
             .WithMessage("Sökningen innehåller tecken som inte kan användas.");
 }

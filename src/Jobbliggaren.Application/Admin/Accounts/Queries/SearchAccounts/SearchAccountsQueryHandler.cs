@@ -22,8 +22,9 @@ public sealed class SearchAccountsQueryHandler(IAccountDirectory directory, IApp
             cancellationToken);
 
         var active = page.Entries
-            .Where(entry => entry.Status == AccountStatus.Active && entry.JobSeekerId is not null)
-            .Select(entry => entry.JobSeekerId!.Value)
+            .Where(entry => entry.Status == AccountStatus.Active)
+            .Select(entry => entry.JobSeekerId)
+            .OfType<JobSeekerId>()
             .ToList();
 
         var applications = active.Count == 0

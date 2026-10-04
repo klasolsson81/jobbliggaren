@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
+using Jobbliggaren.Application.Auth.Registration;
+using Jobbliggaren.Application.Common.Validation;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 
@@ -88,10 +92,19 @@ public sealed class AdminAccountsAccessTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_term_over_254_characters_or_with_a_control_character_is_400_and_never_echoed()
+    public async Task A_term_as_long_as_an_address_may_be_is_read()
     {
         var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
-        var tooLong = new string('q', 240) + "-sentinel-term-15";
+
+        (await SearchAsync(client, new { address = new string('q', EmailAddressRules.MaximumLength) }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task A_term_longer_than_an_address_or_with_a_control_character_is_400_and_never_echoed()
+    {
+        var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var tooLong = new string('q', EmailAddressRules.MaximumLength - 16) + "-sentinel-term-15";
         var withControl = "sentinel\u0001term";
 
         foreach (var address in new[] { tooLong, withControl })
@@ -116,6 +129,43 @@ public sealed class AdminAccountsAccessTests(ApiFactory factory)
         response.Headers.CacheControl.ShouldNotBeNull();
         response.Headers.CacheControl.Private.ShouldBeTrue();
         response.Headers.CacheControl.NoStore.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void The_search_request_prints_its_term_redacted()
+    {
+        var request = new AdminAccountsEndpoints.AccountSearchRequest(Address: "sentinel-request-1974");
+
+        request.ToString().ShouldNotContain("sentinel-request-1974");
+        request.ToString().ShouldContain("redacted");
+    }
+
+    [Fact]
+    public async Task An_account_that_was_removed_answers_the_same_404_as_one_that_never_existed()
+    {
+        var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var removed = await CreateWithoutProfileAsync(factory, Address(NewToken(), "removed"), Ct);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            // Removed by the registrar's own compensating delete (AccountRegistrar), a path production runs.
+            await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>().DeleteAsync(removed, Ct);
+        }
+
+        var gone = await client.GetAsync(DetailPath(removed), Ct);
+        var never = await client.GetAsync(DetailPath(Guid.NewGuid()), Ct);
+
+        gone.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        never.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        gone.Headers.CacheControl?.ToString().ShouldBe(never.Headers.CacheControl?.ToString());
+        (await gone.Content.ReadAsByteArrayAsync(Ct)).ShouldBe(await never.Content.ReadAsByteArrayAsync(Ct));
+    }
+
+    [Fact]
+    public async Task An_empty_id_is_400()
+    {
+        var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
+
+        (await client.GetAsync(DetailPath(Guid.Empty), Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]

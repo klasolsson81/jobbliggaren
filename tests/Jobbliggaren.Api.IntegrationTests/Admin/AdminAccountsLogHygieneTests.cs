@@ -39,6 +39,7 @@ public sealed class AdminAccountsLogHygieneTests(ApiFactory factory)
 
         var logs = factory.ClosedHostLogs.ToList();
         logs.ShouldContain(log => log.Scopes.Any(scope => scope.Contains(SearchPath, StringComparison.Ordinal)));
+        logs.ShouldContain(log => log.Exception != null);
         logs.Where(log => log.AllText.Contains(Sentinel, StringComparison.OrdinalIgnoreCase))
             .Select(log => $"{log.Category}: {log.Message}")
             .ShouldBeEmpty();

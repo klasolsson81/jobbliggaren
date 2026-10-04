@@ -18,8 +18,8 @@ public sealed record SearchAccountsQuery(
 {
     public const int MaxPageSize = 100;
 
-    /// <summary>Keeps the offset, <c>(Page - 1) * PageSize</c>, far inside an int.</summary>
-    public const int MaxPage = 1_000;
+    /// <summary>The largest page whose offset, <c>(Page - 1) * PageSize</c>, an int holds at any page size.</summary>
+    public const int MaxPage = int.MaxValue / MaxPageSize;
 
     public override string ToString() =>
         $"SearchAccountsQuery(address {(string.IsNullOrWhiteSpace(Address) ? "none" : "redacted")}, "

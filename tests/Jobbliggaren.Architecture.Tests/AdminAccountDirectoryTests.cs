@@ -18,13 +18,18 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class AdminAccountDirectoryTests
 {
-    /// <summary>Every assembly that can resolve a port: Application declares, Infrastructure, Api and Worker compose.</summary>
+    private const BindingFlags Declared =
+        BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
+        | BindingFlags.DeclaredOnly;
+
+    /// <summary>Every assembly that can resolve a port: Application declares, Infrastructure, Api, Worker and Migrate compose.</summary>
     private static readonly Assembly[] OwnedAssemblies =
     [
         typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
     ];
 
     private static IEnumerable<Type> AdminMessages() =>
@@ -57,8 +62,8 @@ public class AdminAccountDirectoryTests
     {
         var consumers = OwnedAssemblies
             .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Any(constructor => constructor.GetParameters()
+            .Where(type => type.GetConstructors(Declared).Cast<MethodBase>().Concat(type.GetMethods(Declared))
+                .Any(member => member.GetParameters()
                     .Any(parameter => parameter.ParameterType == typeof(IAccountDirectory))))
             .Select(type => type.FullName!)
             .OrderBy(name => name, StringComparer.Ordinal)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import Link from "next/link";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApplicationModalShell } from "./application-modal-shell";
@@ -101,5 +102,36 @@ describe("ApplicationModalShell", () => {
     expect(
       screen.getByRole("button", { name: "Foot-handling" })
     ).toBeInTheDocument();
+  });
+});
+
+describe("ApplicationModalShell focus lifecycle", () => {
+  it("returns focus to an opener that is still in the document", () => {
+    render(<Link href="/ansokningar/test-application">Open application</Link>);
+    const opener = screen.getByRole("link", { name: "Open application" });
+    opener.focus();
+    const modal = render(
+      <ApplicationModalShell title="T" subtitle="S">
+        <div className="jp-modal__body">x</div>
+      </ApplicationModalShell>
+    );
+    expect(screen.getByRole("button", { name: "Stäng dialogrutan" })).toHaveFocus();
+    modal.unmount();
+    expect(opener).toHaveFocus();
+  });
+
+  it("does not focus an opener removed by navigation", () => {
+    const list = render(<Link href="/ansokningar/test-application">Open application</Link>);
+    const opener = screen.getByRole("link", { name: "Open application" });
+    opener.focus();
+    const modal = render(
+      <ApplicationModalShell title="T" subtitle="S">
+        <div className="jp-modal__body">x</div>
+      </ApplicationModalShell>
+    );
+    list.unmount();
+    modal.unmount();
+    expect(opener.isConnected).toBe(false);
+    expect(opener).not.toHaveFocus();
   });
 });

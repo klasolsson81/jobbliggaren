@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
+import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
 
 /**
  * RouteModalShell — generic modal-chrome (scrim / ESC / scrim-klick /
@@ -50,11 +51,9 @@ export function RouteModalShell({
 
   const close = () => router.back();
 
-  // Fokus in i modalen vid öppning + body-scroll-lock. Fokus-retur till
-  // utlösande element sköts av Next: router.back() återställer föregående
-  // route och DOM-fokus-position (soft-nav-historik). Identiskt med F3/F5.
+  useRouteModalFocus(panelRef, closeRef);
+
   useEffect(() => {
-    closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {

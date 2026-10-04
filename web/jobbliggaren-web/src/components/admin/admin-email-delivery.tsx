@@ -30,6 +30,7 @@ export function AdminEmailDelivery({
   readonly onPeriodChange?: (period: AdminEmailPeriod) => void;
 }) {
   const t = useTranslations("admin.email");
+  const shared = useTranslations("admin.regions");
   const dash = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
   const data = region.kind === "loaded" ? region.data : null;
@@ -57,6 +58,16 @@ export function AdminEmailDelivery({
           />
         }
       />
+      {region.kind === "failed" ? (
+        <p className="sr-only" role="alert">
+          {shared("failed")}
+        </p>
+      ) : null}
+      {region.kind === "loading" ? (
+        <p className="sr-only" role="status">
+          {shared("loading")}
+        </p>
+      ) : null}
 
       <dl className="jp-adminmailsum">
         <div>
@@ -105,7 +116,7 @@ export function AdminEmailDelivery({
             ) : (
               <tr>
                 <td colSpan={4} className="jp-admintable__soon">
-                  <AdminRegionLine kind={lineKind} empty={t("table.empty")} soonId={SOON_ID} />
+                  <AdminRegionLine kind={lineKind} empty={t("table.empty")} soonId={SOON_ID} quiet />
                 </td>
               </tr>
             )}
@@ -132,7 +143,7 @@ export function AdminEmailDelivery({
             ))}
           </ol>
         ) : (
-          <AdminRegionLine kind={lineKind} empty={t("failures.empty")} />
+          <AdminRegionLine kind={lineKind} empty={t("failures.empty")} quiet />
         )}
       </section>
     </div>

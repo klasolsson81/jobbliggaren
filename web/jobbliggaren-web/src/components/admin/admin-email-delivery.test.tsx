@@ -70,10 +70,11 @@ describe("AdminEmailDelivery with outcomes", () => {
     );
   });
 
-  it("reports a failed load as an alert in both lists and keeps the totals unknown", () => {
+  it("shows a failed load in both lists, announces it once and keeps the totals unknown", () => {
     render(<AdminEmailDelivery region={{ kind: "failed" }} />);
 
-    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.")).toHaveLength(3);
     expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual(["–", "–", "–"]);
   });
 });

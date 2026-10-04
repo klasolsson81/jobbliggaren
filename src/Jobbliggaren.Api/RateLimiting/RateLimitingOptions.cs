@@ -624,8 +624,7 @@ public sealed class RateLimitingOptions
     /// settle is one call, since the counts ride in the search response. A burst of 30 absorbs a fast typist,
     /// and the refill of 5 tokens per 1.67 s holds about 3 requests a second.</item>
     /// <item>Backend cost per request: the directory scans the account table sequentially, because a substring
-    /// match cannot use the address index. Re-derive the numbers when that table grows enough for the scan to
-    /// matter (ADR 0151's trigger).</item>
+    /// match cannot use the address index. Re-derive the numbers at ADR 0151 D8's trigger.</item>
     /// </list>
     /// security-auditor verifies the numbers as a blocking check, the file's convention.
     /// </summary>

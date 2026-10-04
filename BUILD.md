@@ -606,9 +606,9 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 **Admin (role = Admin eller SuperAdmin)**
 - `POST /api/v1/admin/accounts/search` — kontolistan: en sida och statusräkningarna; söktermen går i kroppen, aldrig i URL:en (#1974, ADR 0151)
 - `GET /api/v1/admin/accounts/{id}` — ett kontos uppgifter (#1974, ADR 0151)
-- `POST /api/v1/admin/users/{id}/suspend`
-- `POST /api/v1/admin/users/{id}/unsuspend`
-- `POST /api/v1/admin/users/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
+- `POST /api/v1/admin/accounts/{id}/suspend` — **OBYGGD** (#1976)
+- `POST /api/v1/admin/accounts/{id}/unsuspend` — **OBYGGD** (#1976)
+- `POST /api/v1/admin/accounts/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
 - `POST /api/v1/admin/job-sources/{source}/resync`

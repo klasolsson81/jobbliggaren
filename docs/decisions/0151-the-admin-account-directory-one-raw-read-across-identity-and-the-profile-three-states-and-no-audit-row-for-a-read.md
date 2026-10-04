@@ -204,8 +204,9 @@ Art. 15(1) information (CJEU C-579/21).
   over a field from two sources, for a state the orphan sweep removes.
 - **Account ids from detail reads reach server logs** (D5), which house doctrine accepts.
 - **The substring search is a sequential scan**, because `EmailIndex` cannot serve a substring match. That is accepted at
-  this table size. When the account table grows enough for the scan to matter, the `admin-read` numbers are re-derived
-  and a pg_trgm index is added; that is the recomputation trigger `RateLimitingOptions.AdminRead`'s comment points to.
+  the two accounts D7 measured. **Trigger, whichever comes first:** D7's second query counts 10 000 accounts, or
+  `LoggingBehavior` records a `SearchAccountsQuery` above ADR 0045's 300 ms p95 for class (a). Then the `admin-read`
+  numbers are re-derived and a pg_trgm index is added. **Reader: Klas.**
 
 ## Alternatives considered
 
@@ -259,7 +260,6 @@ Art. 15(1) information (CJEU C-579/21).
 
 - The status rule has two homes, the login classifier's C# and the directory's `CASE`. The parity test is the only thing
   that holds them together: a change to one fails it until the other follows, as #1976 and #1977 will meet.
-- An admin's reads leave no trace until D7's trigger fires. D7 holds by its three pointers and its named reader.
 - D8's four trade-offs stand, each with what reopens it.
 
 ## Implementation

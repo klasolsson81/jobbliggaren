@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
+using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -12,6 +13,7 @@ using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
@@ -1820,6 +1822,10 @@ public static class DependencyInjection
         // ReauthenticationBehavior injects IEnumerable<IReauthenticationService> so it still
         // constructs in the Worker (empty sequence → the re-auth guard never fires there).
         services.AddScoped<IReauthenticationService, Jobbliggaren.Application.Auth.ReauthenticationService>();
+
+        // #1974 (ADR 0151) — the admin account directory reads Identity's tables and normalises with Identity's
+        // own normaliser, so it is registered with Identity, in the Api composition only.
+        services.AddScoped<IAccountDirectory, SqlAccountDirectory>();
 
         return services;
     }

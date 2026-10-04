@@ -257,7 +257,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     replies: [
       marked({
         id: id(601),
-        sentAt: daysAgo(0, 8, 5),
+        sentAt: daysAgo(0, 7, 55),
         text: "Tack för förslaget. Vi har lagt det på listan och hör av oss när det finns.",
       }),
     ],

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
-import { PREVIEW_FEEDBACK } from "@/lib/admin-preview/fixtures";
+import { FIXTURE_NOW, PREVIEW_FEEDBACK } from "@/lib/admin-preview/fixtures";
 import { PreviewFeedback } from "../_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function AdminPreviewFeedbackPage() {
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader title={t("heading")} />
-      <PreviewFeedback items={PREVIEW_FEEDBACK} />
+      <PreviewFeedback items={PREVIEW_FEEDBACK} now={FIXTURE_NOW} />
     </div>
   );
 }

@@ -18,7 +18,7 @@ import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
-import { FIXTURE_NOW, type PreviewOverviewData } from "@/lib/admin-preview/fixtures";
+import type { PreviewOverviewData } from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
 
 /** Long enough for the pending state to show. */
@@ -72,7 +72,13 @@ export function PreviewOverview({
 }
 
 /** The reports in memory: a reply is added to its report and moves a new report to Pågår. */
-export function PreviewFeedback({ items }: { readonly items: ReadonlyArray<AdminFeedbackItem> }) {
+export function PreviewFeedback({
+  items,
+  now,
+}: {
+  readonly items: ReadonlyArray<AdminFeedbackItem>;
+  readonly now: string;
+}) {
   const { kind } = usePreviewState();
   const [reports, setReports] = useState(items);
 
@@ -84,7 +90,7 @@ export function PreviewFeedback({ items }: { readonly items: ReadonlyArray<Admin
           ? {
               ...report,
               status: report.status === "new" ? "inProgress" : report.status,
-              replies: [...report.replies, { id: `${report.id}-${report.replies.length + 1}`, sentAt: FIXTURE_NOW, text }],
+              replies: [...report.replies, { id: `${report.id}-${report.replies.length + 1}`, sentAt: now, text }],
             }
           : report,
       ),

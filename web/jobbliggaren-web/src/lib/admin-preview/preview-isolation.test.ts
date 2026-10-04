@@ -92,6 +92,16 @@ function reach(entries: ReadonlyArray<string>): { readonly files: Set<string>; r
 
 const inPreview = (file: string) => file.startsWith(PREVIEW_ROUTES) || file.startsWith(FIXTURES);
 
+function isClientModule(file: string): boolean {
+  const first = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true).statements[0];
+  return (
+    first !== undefined &&
+    ts.isExpressionStatement(first) &&
+    ts.isStringLiteral(first.expression) &&
+    first.expression.text === "use client"
+  );
+}
+
 const previewFiles = walk(PREVIEW_ROUTES);
 const routeFiles = previewFiles.filter((file) => /^(page|layout)\.preview\.tsx$/.test(basename(file)));
 
@@ -127,6 +137,13 @@ describe("the admin preview stays apart from the product (ADR 0150 D5)", () => {
       return /^\s*["']use server["']/m.test(source) || /\bfetch\(/.test(source);
     });
     expect(readers.map(rel)).toEqual([]);
+  });
+
+  it("ships no fixture in a browser chunk: no client module reaches the fixtures at run time", { timeout: GRAPH_TIMEOUT_MS }, () => {
+    const clients = [...reach(routeFiles).files].filter(isClientModule);
+    expect(clients.length).toBeGreaterThan(0);
+    const leaks = clients.filter((file) => [...reach([file]).files].some((reached) => reached.startsWith(FIXTURES)));
+    expect(leaks.map(rel)).toEqual([]);
   });
 
   it("is reached by nothing outside the preview", { timeout: GRAPH_TIMEOUT_MS }, () => {

@@ -2,6 +2,7 @@
 
 // "use client": the view holds the filter, the open report and the reply being written.
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { flushSync } from "react-dom";
 import { useFormatter, useTranslations } from "next-intl";
 import { Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -217,6 +218,7 @@ function FeedbackDetail({
   const [pending, startTransition] = useTransition();
   const sectionRef = useRef<HTMLElement>(null);
   const repliesRef = useRef<HTMLOListElement>(null);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
   const statusId = useId();
   const hintId = useId();
   const chosenStatus = status ?? item.status;
@@ -236,7 +238,11 @@ function FeedbackDetail({
   // A send that throws ends at the nearest error boundary rather than leaving the form disabled.
   function send() {
     const text = reply.trim();
-    if (text === "") return;
+    if (text === "") {
+      flushSync(() => setReply(""));
+      replyRef.current?.reportValidity();
+      return;
+    }
     // Outside the transition: an update inside it would commit only when the send completes, after the
     // report had already left the filter and been replaced.
     onKeepOpen();
@@ -327,6 +333,7 @@ function FeedbackDetail({
       >
         <Label htmlFor="admin-feedback-reply">{t("detail.reply")}</Label>
         <Textarea
+          ref={replyRef}
           id="admin-feedback-reply"
           value={reply}
           onChange={(event) => setReply(event.target.value)}

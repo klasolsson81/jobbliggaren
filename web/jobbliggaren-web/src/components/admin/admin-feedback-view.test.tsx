@@ -139,6 +139,14 @@ describe("AdminFeedbackView with reports (ADR 0150)", () => {
     await userEvent.click(send);
     expect(onReply).not.toHaveBeenCalled();
 
+    const refused = vi.fn();
+    field.addEventListener("invalid", refused);
+    await userEvent.type(field, "   ");
+    await userEvent.click(send);
+    expect(onReply).not.toHaveBeenCalled();
+    expect(field).toHaveValue("");
+    expect(refused).toHaveBeenCalledTimes(1);
+
     await userEvent.type(field, "Tack, vi tittar på det.");
     await userEvent.click(send);
     expect(onReply).toHaveBeenCalledWith("f1", "Tack, vi tittar på det.");

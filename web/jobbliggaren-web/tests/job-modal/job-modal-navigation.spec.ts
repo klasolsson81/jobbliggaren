@@ -88,11 +88,31 @@ test("back closes the modal and forward opens it again", async ({ page }) => {
   await expect(jobModal(page, ADS.open)).toContainText("Öppna annonsen");
 });
 
-test("a row in /sparade opens the ad in the modal, and Esc returns to /sparade", async ({ page }) => {
-  await openFromList(page, "/sparade", ADS.saved);
+// The page behind the modal stays put (#1852): its heading does not move, and the link that opened the modal is the
+// same node, so Esc returns focus to it.
+async function expectPageKeptBehindModal(page: Page, list: string, ad: HarnessAd) {
+  await page.goto(list);
+  const heading = page.locator("main h1");
+  const left = (await heading.boundingBox())?.x;
+  await rowLink(page, ad).evaluate((link) => link.setAttribute("data-opener", ""));
+  const opener = page.locator("[data-opener]");
+  await opener.click();
+  await expect(page).toHaveURL(`/jobb/${ad.id}`);
+  await expect(jobModal(page, ad)).toContainText("Öppna annonsen");
+  expect((await heading.boundingBox())?.x).toBe(left);
+  await expect(opener).toHaveCount(1);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page).toHaveURL("/sparade");
+  await expect(page).toHaveURL(list);
+  await expect(opener).toBeFocused();
+}
+
+test("a row in /sparade opens the ad in the modal over an unmoved page, and Esc returns focus to the row", async ({ page }) => {
+  await expectPageKeptBehindModal(page, "/sparade", ADS.saved);
+});
+
+test("a row in /matchningar opens the ad in the modal over an unmoved page, and Esc returns focus to the row", async ({ page }) => {
+  await expectPageKeptBehindModal(page, "/matchningar", ADS.open);
 });
 
 test("Gå till Ställ in matchning leaves the modal for /mina-sidor", async ({ page }) => {

@@ -288,4 +288,26 @@ describe("AppShell (v3 header-shell)", () => {
       "Modalinnehåll",
     );
   });
+
+  it("#1852 — en URL-ändring monterar inte om sidan i <main>", () => {
+    // An ad opened from /sparade moves the URL to /jobb/<id> while the page behind the modal stays.
+    pathnameMock.mockReturnValue("/sparade");
+    const { rerender } = render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <button type="button" data-testid="row">Annons</button>
+      </AppShell>,
+    );
+    const row = screen.getByTestId("row");
+    row.focus();
+
+    pathnameMock.mockReturnValue("/jobb/1");
+    rerender(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <button type="button" data-testid="row">Annons</button>
+      </AppShell>,
+    );
+
+    expect(screen.getByTestId("row")).toBe(row);
+    expect(row).toHaveFocus();
+  });
 });

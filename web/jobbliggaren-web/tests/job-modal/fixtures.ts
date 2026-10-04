@@ -92,3 +92,8 @@ export const TAXONOMY = {
 export const DESCRIPTION = "Du utvecklar och förvaltar en tjänst som många använder varje dag.";
 export const PUBLISHED_AT = "2026-10-01T08:00:00Z";
 export const EXPIRES_AT = "2026-11-01T22:59:59Z";
+
+/** `/matchningar`'s list: one background match, for the open ad. */
+export const MATCHES = [
+  { jobAdId: ADS.open.id, title: ADS.open.title, company: ADS.open.company, url: null, grade: "Good", createdAt: PUBLISHED_AT, isNew: false },
+];

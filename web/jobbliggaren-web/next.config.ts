@@ -8,6 +8,7 @@ import {
   OAUTH_CALLBACK_ROUTE,
   OAUTH_CALLBACK_ROUTE_HEADERS,
 } from "./src/lib/security/security-headers";
+import { pageExtensionsFor } from "./src/lib/admin-preview/gate.cjs";
 
 // next-intl without i18n routing: the plugin wires the request config at
 // `src/i18n/request.ts` (locale resolved from the `NEXT_LOCALE` cookie). See ADR 0078.
@@ -16,6 +17,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   // Remove the `X-Powered-By: Next.js` fingerprint (information disclosure).
   poweredByHeader: false,
+
+  // The admin preview's compile lock (ADR 0150 D5): `page.preview.tsx` and `layout.preview.tsx`
+  // are route files only when ADMIN_PREVIEW_ENABLED is exactly "true" at build time.
+  pageExtensions: pageExtensionsFor(process.env),
 
   // `next dev` prints every Server Action call with its arguments unless this is off, and the
   // arguments carry sign-in and re-authentication codes (security-auditor, #1740 S6).

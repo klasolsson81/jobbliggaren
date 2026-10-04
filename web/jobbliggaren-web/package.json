@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/assert-admin-preview-build.mjs",
     "start": "next start",
     "lint": "eslint",
     "guard:css": "node scripts/guard-css.mjs src/app/globals.css \"src/app/(app)/app.css\" \"src/app/(admin)/admin.css\" src/components/job-ads/job-ad-match-section.module.css src/components/job-ads/ad-description-excerpt.module.css src/components/job-ads/recruiter-contact-card.module.css src/components/applications/har-ansokt-button.module.css",

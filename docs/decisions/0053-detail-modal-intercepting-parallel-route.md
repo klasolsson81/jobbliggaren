@@ -123,6 +123,18 @@ Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 >
 > **Amendment provenance:** Klas's prompt of 2026-10-03 (GO for implementation, no separate approval round) and the handoff package `docs/design_handoff_jobbmodal/` (local, untracked). ADR 0053 remains **Accepted**: an additive layer, the original text and the four earlier amendments preserved unchanged.
 
+## Amendment 2026-10-04 — #1987: a missing record renders in the intercept's own shell
+
+> **Amendment 2026-10-04 (#1987; senior-cto-advisor's ruling; Klas's answers of 2026-10-04):** The decisions and the earlier amendments stand. This one adds the rule for a record that is gone, which Beslut 2 never addressed.
+>
+> - **The rule.** An intercepted modal renders a missing record, 404 and 410 alike, in its own shell with the `fallback.notFound` copy, the way it renders a rate limit or a load error. It never calls `notFound()`.
+> - **The reason.** Next 16.3.6 gives a segment's not-found boundary to its `children` slot only, so a `notFound()` thrown in `@modal` was caught by the root boundary, which replaced the signed-in shell with the public frame. Measured 2026-10-04 on a production build of `4cedf5e60`.
+> - **Full pages keep `notFound()`.** They are documents, and their group's `not-found.tsx` catches the throw inside the shell.
+> - **A retired route keeps no intercept,** so a soft navigation reaches its gated full page. `/cv/ny` works this way since #1987.
+> - **The check.** `src/app/route-boundaries.test.ts` fails on a `notFound()` call in any file under a parallel-route slot.
+>
+> **Amendment provenance:** senior-cto-advisor's ruling on #1987 (`docs/reviews/2026-10-04-1987-choice-cto.md`, local-only) and Klas's answers of 2026-10-04: the guest intercepts take the same form, and the copy is the full page's. ADR 0053 remains **Accepted**: an additive layer, the original text and the five earlier amendments preserved unchanged.
+
 ## Konsekvenser
 
 ### Positiva

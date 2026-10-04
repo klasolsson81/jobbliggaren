@@ -10,5 +10,5 @@ import { ModalLoadingShell } from "@/components/modals/modal-loading-shell";
 export default function Loading() {
   // Synchronous next-intl translator — keeps this a non-async RSC.
   const t = useTranslations("guest");
-  return <ModalLoadingShell statusText={t("modal.jobAdLoading")} />;
+  return <ModalLoadingShell statusText={t("modal.jobAdLoading")} variant="sheet" />;
 }

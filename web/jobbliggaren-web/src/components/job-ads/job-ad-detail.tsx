@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
-import { jobAdStatusLabel } from "@/lib/job-ads/status";
-import { formatDate } from "@/lib/i18n/format";
 import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import type { CompanyFollowState } from "@/lib/dto/company-follows";
@@ -12,17 +10,18 @@ import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
 import { FollowCompanyToggle } from "@/components/company-follows/follow-company-toggle";
 import { JobAdMatchSection } from "./job-ad-match-section";
 import { RecruiterContactBlock } from "./recruiter-contact-block";
+import { AdDescriptionExcerpt } from "./ad-description-excerpt";
+import { JobAdDetailMeta } from "./job-ad-detail-meta";
 import { formatAdDescription } from "./format-ad-description";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
 
 /**
- * JobAdDetail — ren presentational Server Component (ingen "use client",
- * noll interaktivitet). Delas av både fullsida (`/jobb/[id]`) och
- * jobbmodalen (`@modal/(.)jobb/[id]`) per ADR 0053 (en presentations-
- * komponent, två kontexter — DRY-positiv konsekvens).
+ * JobAdDetail — ren presentational Server Component (ingen "use client"). Delas av både fullsida
+ * (`/jobb/[id]`) och jobbmodalen (`@modal/(.)jobb/[id]`) per ADR 0053 (en presentations-komponent,
+ * två kontexter — DRY-positiv konsekvens). Dess klientöar är utdraget och sidfotens knappar.
  *
- * Fältsetet är komponentens eget under DESIGN.md §8 (ADR 0053 Amendment
- * 2026-09-26, #1828).
+ * Fältsetet är komponentens eget under DESIGN.md §8 (ADR 0053 Amendment 2026-09-26, #1828; formen
+ * Amendment 2026-10-03, #1963).
  */
 
 interface JobAdDetailProps {
@@ -35,11 +34,17 @@ interface JobAdDetailProps {
    */
   jobAd: Omit<JobAdDetailDto, "contacts">;
   /**
-   * När true renderas titel/företag i modal-headern av anroparen
+   * När true renderas titel/företag/datum i modal-headern av anroparen
    * (JobAdModalShell), så detaljen utelämnar sin egen rubrik-header.
    * Fullsidan sätter false och äger rubriken själv.
    */
   headless?: boolean;
+  /**
+   * The intercepted modal, whose title is the dialog's h2: the body is a named region a keyboard can
+   * reach and scroll, and the ad text's headings sit at h3. On a page the title is the h1 and the
+   * headings sit at h2 (#1965, #1966).
+   */
+  inModal?: boolean;
   /**
    * F6 P5 Punkt 2 — initial-state för Spara/Har-ansökt-knappar i modal-footer.
    * `undefined` (default) = anonym/system-vy → knappar döljs helt
@@ -66,9 +71,8 @@ interface JobAdDetailProps {
   match?: JobAdMatchDetail | null;
   /**
    * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län) för match-sektionens
-   * RegionFit-bevis. Härleds FE-side ur taxonomin i page-handlern (architect
-   * NOTE-2) och vidarebefordras till JobAdMatchSection. Utelämnad → generisk
-   * bevisform.
+   * Ort-rad. Härleds FE-side ur taxonomin i page-handlern (architect NOTE-2) och
+   * vidarebefordras till JobAdMatchSection.
    */
   ortGranularityByConceptId?: Record<string, OrtGranularity>;
   /**
@@ -89,7 +93,7 @@ interface JobAdDetailProps {
    * additive prop, same pattern as `initialSaved`/`match`/`previousApplicationCount`
    * above: the real detail pages pass `jobAd.contacts` (from the JobAdDetailDto
    * getJobAd now returns), the guest demo omits it (a sample ad never fabricates a
-   * recruiter). Defaults to [] → RecruiterContactBlock self-hides. A derived
+   * recruiter). Defaults to [] → no contact area and no notice (#1944). A derived
    * entry is labelled as coming from the ad text; declared entries are not (R1(b)).
    */
   contacts?: readonly AdContactDto[];
@@ -98,6 +102,7 @@ interface JobAdDetailProps {
 export function JobAdDetail({
   jobAd,
   headless = false,
+  inModal = false,
   initialSaved,
   initialApplied,
   followState,
@@ -106,11 +111,9 @@ export function JobAdDetail({
   previousApplicationCount,
   contacts = [],
 }: JobAdDetailProps) {
-  // Synchronous next-intl translators — keep JobAdDetail a non-async RSC (it is
+  // Synchronous next-intl translator — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
-  const t = useTranslations("jobads.enums");
   const tUi = useTranslations("jobads.ui");
-  const format = useFormatter();
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
   // (code-reviewer Minor 6).
@@ -118,8 +121,6 @@ export function JobAdDetail({
     initialSaved !== undefined && initialApplied !== undefined
       ? { saved: initialSaved, applied: initialApplied }
       : null;
-  const publishedAt = formatDate(format, jobAd.publishedAt) ?? "";
-  const expiresAt = formatDate(format, jobAd.expiresAt);
 
   return (
     <>
@@ -128,6 +129,7 @@ export function JobAdDetail({
           <div style={{ flex: 1 }}>
             <h1 className="jp-modal__title">{jobAd.title}</h1>
             <p className="jp-modal__company">{jobAd.companyName}</p>
+            <JobAdDetailMeta jobAd={jobAd} />
             {/* #1000 (V1) — INGEN separat BEVAKAR-tagg i modal-headern. Den vore en
                 load-time-snapshot (Server Component-prop) medan follow-knappen är ett
                 live client-island som medvetet INTE revaliderar medan modalen är öppen
@@ -140,27 +142,12 @@ export function JobAdDetail({
         </header>
       )}
 
-      <div className="jp-modal__body">
-        {/* The card's own meta form (`.jp-job__meta`, one rule for both surfaces). An
-            active ad carries no pill: every ad /jobb lists is active; "Arkiverad" is
-            information and leads the line. */}
-        <div className="jp-job__meta">
-          {jobAd.status === "Archived" && (
-            <span className="jp-pill jp-pill--neutral">
-              <span className="jp-pill__dot" aria-hidden="true" />
-              {jobAdStatusLabel(t, jobAd.status)}
-            </span>
-          )}
-          <span>
-            {tUi("detail.published")} <b>{publishedAt}</b>
-          </span>
-          {expiresAt && (
-            <span>
-              {tUi("detail.lastApplicationDay")} <b>{expiresAt}</b>
-            </span>
-          )}
-        </div>
-
+      <div
+        className="jp-modal__body"
+        tabIndex={inModal ? 0 : undefined}
+        role={inModal ? "region" : undefined}
+        aria-label={inModal ? tUi("detail.bodyLabel") : undefined}
+      >
         {/* #593 (#446-uppföljning) — räknaren + länk till ansökningshistoriken. POSITIVE-ONLY
             (bara > 0). Rent heltal, inget org.nr. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
@@ -192,29 +179,32 @@ export function JobAdDetail({
           <div id="jp-ad-description-title" className="jp-eyebrow mb-2">
             {tUi("detail.description")}
           </div>
-          <div className="jp-modal__description">
-            {formatAdDescription(jobAd.description)}
-          </div>
+          <AdDescriptionExcerpt
+            showFullLabel={tUi("detail.showFullAd")}
+            showLessLabel={tUi("detail.showLess")}
+          >
+            {formatAdDescription(jobAd.description, inModal ? 3 : 2)}
+          </AdDescriptionExcerpt>
         </section>
 
-        {/* #842 PR4 — recruiter contact block. Self-hides when the ad carries no
-            contacts; the guest demo omits the prop entirely. */}
-        <RecruiterContactBlock contacts={contacts} />
+        {/* #842 PR4 + #1944 — the contact card and its notice exist only with a contact, and the
+            notice sits directly after the card, never behind the excerpt (ADR 0144 row 10). */}
         {contacts.length > 0 && (
-          <p className="jp-recruiter-notice">
-            <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
-              {tUi("detail.recruiterNoticeLink")}
-            </Link>
-          </p>
+          <div className="flex flex-col gap-2">
+            <RecruiterContactBlock contacts={contacts} variant="card" />
+            <p className="jp-recruiter-notice">
+              <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
+                {tUi("detail.recruiterNoticeLink")}
+              </Link>
+            </p>
+          </div>
         )}
       </div>
 
-      <div className="jp-modal__foot">
-        <span className="jp-modal__foot__spacer" />
+      <div className="jp-modal__foot jp-modal__foot--split">
         {userActions && (
-          <>
+          <div className="jp-modal__footgroup">
             <SaveJobAdToggle jobAdId={jobAd.id} initialSaved={userActions.saved} />
-            <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
             {/* #455 — follow the employer. Rendered only when the ad carries an org.nr (followable);
                 a B2-null ad has no dead affordance (CTO deldom 5, civic-utility). */}
             {followState?.followable && (
@@ -223,27 +213,23 @@ export function JobAdDetail({
                 initialCompanyWatchId={followState.companyWatchId}
               />
             )}
-          </>
+          </div>
         )}
-        {jobAd.url && (
-          <a
-            href={jobAd.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="jp-btn jp-btn--secondary"
-          >
-            <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
-          </a>
-        )}
-        {userActions?.applied && (
-          <p className="jp-modal__footnote">
-            {tUi("detail.appliedNotice")}{" "}
-            <Link href="/ansokningar">
-              {tUi("detail.appliedNoticeLink")}
-            </Link>
-            .
-          </p>
-        )}
+        <div className="jp-modal__footgroup jp-modal__footgroup--end">
+          {userActions && (
+            <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
+          )}
+          {jobAd.url && (
+            <a
+              href={jobAd.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="jp-btn jp-btn--primary"
+            >
+              <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
+            </a>
+          )}
+        </div>
       </div>
     </>
   );

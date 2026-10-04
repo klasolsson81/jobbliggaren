@@ -386,10 +386,10 @@ not is a fifth *green* step: a fill between leaf-50 and leaf-100 would have
 required a new leaf hue (ADR 0084 F2, design-reviewer bind #300 PR-5).
 
 The visible label IS the accessible name — colour never carries meaning alone.
-The matched/missing **per-dimension** half is a separate form
-(`.jp-modal__matchrow`, with a hollow dot reserved for "Ej bedömt" so it can
-never be mistaken for "Saknas"). Both halves are required: ADR 0076 Decision 4
-is "the user always sees WHY".
+The matched/missing **per-dimension** half is a separate form: the job card's
+coloured row with icon, value and status word (DESIGN.md §6, §8; a dimension
+without an assessment is not rendered). Both halves are required: ADR 0076
+Decision 4 is "the user always sees WHY".
 
 ### `.jp-filterBar` (flat, no chrome box)
 

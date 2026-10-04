@@ -1,0 +1,87 @@
+/* The job-ad detail's contact card (#1963, DESIGN.md §6). Neutral: no notice colour. */
+
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  background: var(--jp-surface-2);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1.3;
+  color: var(--jp-ink-1);
+}
+
+.role {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 4px;
+}
+
+.method {
+  gap: 6px;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.methodIcon {
+  flex-shrink: 0;
+  color: var(--jp-ink-2);
+}
+
+/* The provenance tag reads on the card's grey; the shared tag stays transparent elsewhere. */
+.card :global(.jp-tag--neutral) {
+  background: var(--jp-surface);
+}

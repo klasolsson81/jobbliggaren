@@ -21,6 +21,12 @@ describe("DetailPageSkeleton", () => {
     expect(modal?.querySelector(".jp-modal__foot")).not.toBeNull();
   });
 
+  it("draws the date line in the header, where the page renders it (#1963)", () => {
+    const { container } = render(<DetailPageSkeleton label="…" />);
+    expect(container.querySelector(".jp-modal__head .jp-modal__meta")).not.toBeNull();
+    expect(container.querySelector(".jp-modal__body .jp-modal__meta")).toBeNull();
+  });
+
   it("hides only the decorative modal envelope from assistive tech", () => {
     const { container } = render(<DetailPageSkeleton label="…" />);
     // The visual shape is decorative; the sr-only status carries the message.

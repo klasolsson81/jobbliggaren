@@ -34,7 +34,7 @@ describe("FollowCompanyToggle", () => {
     // #1000 (V1) — teal state-tint when following (matches the BEVAKAR tag).
     expect(
       screen.getByRole("button", { name: "Bevakar företaget" })
-    ).toHaveClass("jp-btn--on-follow");
+    ).toHaveClass("jp-btn--tonal", "jp-btn--on-follow");
   });
 
   it("uses the visible label as the accessible name in both states (WCAG 2.5.3, no divergent aria verb)", () => {

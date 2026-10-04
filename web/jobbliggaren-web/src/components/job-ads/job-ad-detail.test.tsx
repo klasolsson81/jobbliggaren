@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdDetail } from "./job-ad-detail";
 import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
@@ -41,21 +41,49 @@ describe("JobAdDetail", () => {
     expect(screen.queryByText(baseAd.id)).not.toBeInTheDocument();
   });
 
-  it("an archived ad leads its meta line with the pill 'Arkiverad'", () => {
-    const { container } = render(
-      <JobAdDetail jobAd={{ ...baseAd, status: "Archived" }} headless />
-    );
-    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
+  it("an archived ad leads the header's date line with the pill 'Arkiverad' (#1963)", () => {
+    const { container } = render(<JobAdDetail jobAd={{ ...baseAd, status: "Archived" }} />);
+    const meta = container.querySelector(".jp-modal__head .jp-modal__meta");
     expect(meta?.firstElementChild).toHaveTextContent("Arkiverad");
     expect(meta?.firstElementChild).toHaveClass("jp-pill", "jp-pill--neutral");
   });
 
-  it("renders the dates in the card's meta form", () => {
+  it("puts the dates in the header, the deadline before the publishing date (#1963)", () => {
     const { container } = render(<JobAdDetail jobAd={baseAd} />);
-    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
-    expect(meta).toHaveTextContent(/Publicerad/);
-    expect(meta).toHaveTextContent(/Sista ansökningsdag/);
+    const meta = container.querySelector(".jp-modal__head .jp-modal__meta");
+    expect(meta).toHaveTextContent(/Sista ansökningsdag \d+ .+ 2026\s*Publicerad \d+ .+ 2026/);
+    expect(container.querySelector(".jp-modal__body .jp-modal__meta")).toBeNull();
     expect(container.querySelector(".jp-modal__metarow")).toBeNull();
+  });
+
+  it("leaves the dates to the modal shell when headless", () => {
+    const { container } = render(<JobAdDetail jobAd={baseAd} headless />);
+    expect(container.querySelector(".jp-modal__meta")).toBeNull();
+  });
+
+  it("orders the footer Spara, Bevaka, then Markera som ansökt and the one primary, with no applied footnote", () => {
+    render(
+      <JobAdDetail
+        jobAd={baseAd}
+        initialSaved={false}
+        initialApplied={false}
+        followState={{ companyWatchId: null, followable: true }}
+      />,
+    );
+    const names = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent?.trim())
+      .concat(screen.getByRole("link", { name: /Öppna annonsen/ }).textContent?.trim());
+    expect(names).toEqual(["Spara", "Bevaka företaget", "Markera som ansökt", "Öppna annonsen"]);
+    expect(screen.getByRole("link", { name: /Öppna annonsen/ })).toHaveClass("jp-btn--primary");
+    expect(screen.queryByText(/Se ansökan i/)).not.toBeInTheDocument();
+  });
+
+  it("shows an applied ad as a status with a way to the application, not as a control (#1863, #1855)", () => {
+    render(<JobAdDetail jobAd={baseAd} initialSaved={false} initialApplied={true} />);
+    expect(screen.queryByRole("button", { name: /ansökt/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Ansökt")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Visa ansökan" })).toHaveAttribute("href", "/ansokningar");
   });
 
   it("the ad text is a region named by its heading (#1828 B3)", () => {
@@ -181,5 +209,56 @@ describe("JobAdDetail", () => {
     const block = screen.getByRole("region", { name: "Kontakt" });
     const notice = screen.getByRole("link", { name: RECRUITER_NOTICE }).closest("p");
     expect(block.nextElementSibling).toBe(notice);
+  });
+});
+
+describe("JobAdDetail — the excerpt, the modal body and the ad text's headings (#1963, #1965, #1966)", () => {
+  const sectioned = {
+    ...baseAd,
+    description: "Om rollen\n\nDu bygger tjänster.\n\nVi erbjuder\n\nEtt lugnt team.",
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the contact card and its notice outside the collapsed excerpt (ADR 0144 row 10)", () => {
+    // jsdom has no layout: a text taller than the excerpt makes the excerpt collapse.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const height = this.classList.contains("jp-modal__description")
+        ? 900
+        : this.getAttribute("aria-hidden") === "true"
+          ? 300
+          : 0;
+      return { height, width: 0, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    const { container } = render(<JobAdDetail jobAd={sectioned} contacts={[declaredContact]} headless />);
+    const excerpt = container.querySelector("[data-collapsed]");
+    expect(excerpt).not.toBeNull();
+    expect(excerpt).not.toContainElement(screen.getByRole("region", { name: "Kontakt" }));
+    expect(excerpt).not.toContainElement(screen.getByRole("link", { name: RECRUITER_NOTICE }));
+  });
+
+  it("makes the modal's scrolling body a named region a keyboard reaches, and leaves the page's body alone", () => {
+    const { unmount } = render(<JobAdDetail jobAd={baseAd} headless inModal />);
+    const body = screen.getByRole("region", { name: "Annonsens innehåll" });
+    expect(body).toHaveClass("jp-modal__body");
+    expect(body).toHaveAttribute("tabindex", "0");
+    unmount();
+
+    const { container } = render(<JobAdDetail jobAd={baseAd} />);
+    const pageBody = container.querySelector(".jp-modal__body");
+    expect(pageBody).not.toHaveAttribute("tabindex");
+    expect(pageBody).not.toHaveAttribute("role");
+  });
+
+  it("puts the ad text's headings one level under the title: h3 in the modal, h2 on the page", () => {
+    const { unmount } = render(<JobAdDetail jobAd={sectioned} headless inModal />);
+    expect(screen.getByRole("heading", { name: "Om rollen" }).tagName).toBe("H3");
+    unmount();
+
+    render(<JobAdDetail jobAd={sectioned} />);
+    expect(screen.getByRole("heading", { level: 1, name: baseAd.title })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Om rollen" }).tagName).toBe("H2");
   });
 });

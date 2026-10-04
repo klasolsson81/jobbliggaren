@@ -99,7 +99,7 @@ test("Bakgrundsjobb and Granskning render their tables over the fixtures", async
 });
 
 test("the band's state choice drives the account list, and is offered only where it does", async ({ page }) => {
-  await page.goto(ROOT);
+  await page.goto(`${ROOT}/jobb`);
   await expect(page.getByRole("radiogroup", { name: "Visa läge" })).toHaveCount(0);
 
   await page.goto(`${ROOT}/anvandare`);
@@ -342,4 +342,84 @@ test("a refused deletion of the own account takes focus, and Avbryt returns to i
   await expect(confirmation(page).getByRole("alert")).toBeFocused();
   await confirmation(page).getByRole("button", { name: "Avbryt" }).click();
   await expect(panel(page).getByRole("button", { name: "Radera konto" })).toBeFocused();
+});
+
+const state = (page: Page, label: string) =>
+  page.getByRole("radiogroup", { name: "Visa läge" }).getByRole("radio", { name: label, exact: true }).click();
+
+test("the overview shows its regions with fixtures, and fails, loads and goes unbuilt with the band", async ({ page }) => {
+  await page.goto(ROOT);
+  const card = (name: string) => page.getByRole("region", { name, exact: true });
+
+  await expect(card("Användare totalt")).toContainText("15konton2 suspenderade · 1 under radering");
+  await expect(card("Nya användare och inloggningar")).toContainText("de senaste 30 dygnen.");
+  await expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "raised");
+  await expect(card("Kräver uppmärksamhet").getByRole("link", { name: "1 bakgrundsjobb har misslyckats" })).toHaveAttribute(
+    "href",
+    `${ROOT}/jobb`,
+  );
+
+  await card("Nya användare och inloggningar").getByRole("radio", { name: "7 dygn" }).click();
+  await expect(card("Nya användare och inloggningar")).toContainText("de senaste 7 dygnen.");
+
+  await state(page, "Fel");
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(11);
+  await state(page, "Laddar");
+  await expect(page.locator("main").getByRole("status")).toHaveCount(11);
+  await state(page, "Tom");
+  await expect(card("Användare totalt")).toContainText("0konton");
+  await expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "clear");
+  await state(page, "Kommer snart");
+  await expect(card("Användare totalt")).toContainText("–Kommer snart");
+});
+
+test("feedback opens a report, sends a reply as a receipt and moves a new report to Pågår", async ({ page }) => {
+  await page.goto(`${ROOT}/feedback`);
+  const list = page.getByRole("region", { name: "Rapporter" });
+  const detail = page.getByRole("region", { name: "Vald rapport" });
+
+  await expect(page.getByRole("radio", { name: "Nya (2)" })).toBeVisible();
+  await expect(list.getByRole("button").first()).toHaveAttribute("aria-current", "true");
+  await list.getByRole("button", { name: /Hur länge sparas/ }).click();
+  await expect(detail).toContainText(mail("konto.g"));
+
+  const send = detail.getByRole("button", { name: "Skicka svar" });
+  await expect(send).toBeDisabled();
+  await detail.getByRole("textbox", { name: "Svar" }).fill("I tolv månader efter senaste inloggningen.");
+  await send.click();
+  await expect(toast(page)).toContainText(`Svaret skickades till ${mail("konto.g")}.`);
+  await expect(detail.getByRole("listitem")).toContainText("I tolv månader efter senaste inloggningen.");
+  await expect(page.getByRole("radio", { name: "Pågår (2)" })).toBeVisible();
+
+  await state(page, "Tom");
+  await expect(list).toContainText("Inga rapporter.");
+});
+
+test("the three log views show their rows and every view's count", async ({ page }) => {
+  await page.goto(`${ROOT}/loggar`);
+  const subnav = page.getByRole("navigation", { name: "Loggvyer" });
+  await expect(subnav.getByRole("link")).toHaveText(["Säkerhet (5)", "Applikationsfel (3)", "Platsbanken-import (4)"]);
+  await expect(page.getByRole("table", { name: "Säkerhetshändelser" }).getByRole("row")).toHaveCount(6);
+
+  await subnav.getByRole("link", { name: "Applikationsfel (3)" }).click();
+  await expect(page.getByRole("table", { name: "Applikationsfel" })).toContainText("SyncPlatsbankenSnapshotWorker");
+  await subnav.getByRole("link", { name: "Platsbanken-import (4)" }).click();
+  await expect(page.getByRole("table", { name: "Platsbanken-importer" })).toContainText("Misslyckades");
+
+  await state(page, "Fel");
+  await expect(page.getByRole("table", { name: "Platsbanken-importer" }).getByRole("alert")).toBeVisible();
+  await expect(subnav.getByRole("link")).toHaveText(["Säkerhet", "Applikationsfel", "Platsbanken-import"]);
+});
+
+test("email delivery switches its figures with the period", async ({ page }) => {
+  await page.goto(`${ROOT}/e-post`);
+  const totals = page.getByRole("definition");
+  await expect(totals.first()).toHaveText("384");
+
+  await page.getByRole("radio", { name: "24 tim" }).click();
+  await expect(totals.first()).toHaveText("57");
+  await expect(page.getByRole("region", { name: "Senaste misslyckade utskick" }).getByRole("listitem")).toHaveCount(2);
+
+  await state(page, "Tom");
+  await expect(page.getByRole("table", { name: "Utskick per mejltyp" })).toContainText("Inga utskick under perioden.");
 });

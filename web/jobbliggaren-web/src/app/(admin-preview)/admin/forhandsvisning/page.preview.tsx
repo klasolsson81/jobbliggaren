@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { AdminOverview } from "@/components/admin/admin-overview";
 import { ADMIN_PREVIEW_ROUTE } from "@/lib/admin-preview/gate.cjs";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
+import { PREVIEW_OVERVIEW, PREVIEW_OVERVIEW_ZERO } from "@/lib/admin-preview/fixtures";
+import { PreviewOverview } from "./_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +14,5 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function AdminPreviewOverviewPage() {
   requireAdminPreview();
-  return <AdminOverview basePath={ADMIN_PREVIEW_ROUTE} />;
+  return <PreviewOverview data={PREVIEW_OVERVIEW} zero={PREVIEW_OVERVIEW_ZERO} basePath={ADMIN_PREVIEW_ROUTE} />;
 }

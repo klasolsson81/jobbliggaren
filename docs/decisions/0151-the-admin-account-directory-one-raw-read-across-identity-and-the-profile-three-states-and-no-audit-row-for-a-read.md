@@ -184,7 +184,7 @@ SELECT count(*) FROM identity."AspNetUsers";
 The one holder is the controller (Klas), so a read audit would record the controller reading on his own authority.
 
 **Lapse trigger, whichever comes first:** a second Admin role holder, or #1984 (support impersonation). A second holder
-can arise through `IdempotentAdminRoleSeeder` (by `AdminBootstrap:InitialAdminEmail`) and through #1983's role actions;
+can arise through #1983's role actions;
 the seeder's doc comment, #1983 and #1984 each carry a pointer to this trigger. **Reader: Klas.** The reading is re-taken
 at the trigger and never inherited from this ADR; CLAUDE.md §9.6 holds a bearer-absence reading to the same rule.
 

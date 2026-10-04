@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { basename, dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -111,6 +111,23 @@ function callsNotFound(file: string): boolean {
 /** Same walk over a source string — used by the scanner's own controls. */
 function callsNotFoundIn(source: string): boolean {
   return hasNotFoundCall(parse("probe.tsx", source));
+}
+
+/**
+ * True iff a notFound() thrown from `file` lands in a not-found.tsx inside its own shell.
+ *
+ * Next hands a segment's not-found boundary to its `children` slot only
+ * (`create-component-tree.js`: `isChildrenRouteKey ? notFoundElement : undefined`). A
+ * boundary beside a parallel-route slot (`@x`) therefore never reaches inside it; the one
+ * above catches the throw by replacing the slot owner's whole segment, shell included
+ * (#1987). So the walk ends at a slot directory once that directory's own file is checked.
+ */
+function coveredByNotFound(file: string, isFile: (path: string) => boolean): boolean {
+  for (let dir = dirname(file); dir !== APP_ROOT && dirname(dir) !== dir; dir = dirname(dir)) {
+    if (isFile(resolve(dir, "not-found.tsx"))) return true;
+    if (basename(dir).startsWith("@")) return false;
+  }
+  return false;
 }
 
 function sourceFiles(dir: string, acc: string[] = []): string[] {
@@ -236,11 +253,35 @@ describe("route-level failure boundaries (#1477)", () => {
     ).toBe(true);
   });
 
+  it("the coverage walk counts a boundary inside a slot, never the one beside it (#1987)", () => {
+    const tree =
+      (...files: string[]) =>
+      (path: string) =>
+        files.some((f) => resolve(APP_ROOT, f) === path);
+    const covered = (caller: string, ...files: string[]) =>
+      coveredByNotFound(resolve(APP_ROOT, caller), tree(...files));
+
+    const page = "(app)/jobb/[id]/page.tsx";
+    const modal = "(app)/@modal/(.)jobb/[id]/page.tsx";
+    const guestModal = "(guest)/gast/@modal/(.)jobb/[id]/page.tsx";
+
+    expect(covered(page, "(app)/not-found.tsx")).toBe(true);
+    expect(covered(page, "not-found.tsx")).toBe(false);
+    expect(covered(modal, "(app)/not-found.tsx", "not-found.tsx")).toBe(false);
+    expect(covered(guestModal, "(guest)/gast/not-found.tsx", "not-found.tsx")).toBe(false);
+    expect(covered(modal, "(app)/@modal/not-found.tsx")).toBe(true);
+    expect(covered(guestModal, "(guest)/gast/@modal/not-found.tsx")).toBe(true);
+    expect(covered(modal, "(app)/@modal/(.)jobb/not-found.tsx")).toBe(true);
+    expect(covered(modal, "(app)/@modal/(.)jobb/[id]/not-found.tsx")).toBe(true);
+    expect(covered(modal, "(app)/@modal/(.)ansokningar/[id]/not-found.tsx")).toBe(false);
+  });
+
   it("every notFound() caller is covered by a not-found boundary inside its own shell", () => {
     // Falling through to the ROOT not-found is not coverage: it renders the
     // PUBLIC marketing frame, which is the wrong shell for a signed-in page or
     // for a visitor inside guest mode. So an ancestor other than the app root
-    // must carry the file.
+    // must carry the file, and for a caller inside a parallel-route slot, an
+    // ancestor inside that slot.
     const callers = sourceFiles(APP_ROOT).filter(callsNotFound);
 
     expect(
@@ -250,18 +291,32 @@ describe("route-level failure boundaries (#1477)", () => {
     ).toBeGreaterThanOrEqual(10);
 
     const uncovered = callers
-      .filter((file) => {
-        for (let dir = dirname(file); dir !== APP_ROOT; dir = dirname(dir)) {
-          if (exists(resolve(dir, "not-found.tsx"))) return false;
-        }
-        return true;
-      })
+      .filter((file) => !coveredByNotFound(file, exists))
       .map((f) => toPosix(relative(APP_ROOT, f)));
 
     expect(
       uncovered,
-      "these call notFound() with no not-found.tsx above them inside their own " +
-        "route group, so they fall through to the root 404 and its public frame"
+      "these call notFound() with no not-found.tsx above them inside their own route group, " +
+        "or none inside the parallel-route slot they sit in, so the throw escapes their shell"
+    ).toEqual([]);
+  });
+
+  it("no file inside a parallel-route slot calls notFound() (ADR 0053 Amendment 2026-10-04)", () => {
+    const inSlot = sourceFiles(APP_ROOT)
+      .map((f) => toPosix(relative(APP_ROOT, f)))
+      .filter((f) => f.split("/").some((segment) => segment.startsWith("@")));
+
+    expect(
+      inSlot.length,
+      "no file inside a parallel-route slot found — the walk is broken, so the rule below is vacuous"
+    ).toBeGreaterThanOrEqual(10);
+
+    const callers = inSlot.filter((f) => callsNotFound(resolve(APP_ROOT, f)));
+
+    expect(
+      callers,
+      "these call notFound() inside a parallel-route slot; an intercepted modal renders a missing " +
+        "record in its own modal shell instead (ADR 0053 Amendment 2026-10-04)"
     ).toEqual([]);
   });
 });

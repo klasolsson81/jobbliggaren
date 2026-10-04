@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stripComments } from "./strip-comments";
 
 /**
- * `stripComments` is the container guard's ORACLE: `v3-native-routes.test.ts` decides whether a
+ * `stripComments` is the container guard's ORACLE: `page-width.test.ts` decides whether a
  * page owns a width container by looking for the class names in this function's output. An
  * untested oracle is not one — and this function has already shipped two fail-open holes.
  *
@@ -39,8 +39,6 @@ describe("stripComments — the container guard's oracle", () => {
   });
 
   it("keeps a class rendered through a variable, which the attribute form cannot see", () => {
-    // PlainHeaderSkeleton does exactly this, and reading className="…" instead of stripping
-    // comments produced a false failure on /ny-ansokan/loading.tsx because of it.
     const source = `const wrapperClass = contained ? "jp-container jp-page" : "";`;
     expect(stripComments(source)).toContain("jp-container");
   });

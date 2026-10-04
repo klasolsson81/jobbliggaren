@@ -692,26 +692,6 @@ a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-
   flex: 1;
   width: 100%;
 }
-/* Transitionell bredd-container (CTO 2026-05-19, B1-reparation). v3-shellen
-   (.jp-content) har medvetet ingen bredd-constraint — v3-sidor wrappar i
-   .jp-container/.jp-page själva (F3/F5/F6). Tills dess wrappar app-shell
-   un-refaktorerade (app)-sidor i denna container så de inte renderar
-   edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
-   F1b v2-shim). v3-native routes (CTO D1, Variant B 2026-05-19) opt-out:ar
-   redan via V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts) så heron
-   går edge-to-edge.
-   BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor egna
-   .jp-container/.jp-page tas denna .jp-shell-transitional-container OCH
-   V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts, flyttad dit ur
-   app-shell i #1062) bort tillsammans (ADR 0052-trail). */
-.jp-shell-transitional-container {
-  max-width: 1200px;
-  margin-inline: auto;
-  padding: 40px 32px 96px;
-}
-@media (max-width: 720px) {
-  .jp-shell-transitional-container { padding: 32px 20px 64px; }
-}
 .jp-container {
   max-width: 1200px;
   margin-inline: auto;

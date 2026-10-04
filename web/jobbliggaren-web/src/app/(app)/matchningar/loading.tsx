@@ -6,8 +6,7 @@ import { PlainHeaderSkeleton } from "@/components/skeletons/plain-header-skeleto
  * `p1-no-loading-tsx-any-primary-route`, P0). This page uses a plain
  * `jp-h1` header (no jp-pagehero band), so it gets the plain-header
  * skeleton rather than inheriting the group `(app)/loading.tsx` pagehero band
- * (which would flash a band that then vanishes on swap). Not V3-native → the
- * app-shell transitional container supplies the width.
+ * (which would flash a band that then vanishes on swap).
  */
 export default function Loading() {
   const t = useTranslations("pages");

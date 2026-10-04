@@ -2,13 +2,13 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { V3_NATIVE_ROUTES, isV3Native } from "./v3-native-routes";
-import { stripComments } from "./strip-comments";
+import { stripComments } from "@/lib/layout/strip-comments";
 
 /**
- * Freezes the obligation `V3_NATIVE_ROUTES` creates (#1062). What that obligation is, and the
- * two pages that had drifted before anyone measured, is in the module's own docblock — one
- * home for the incident, not two.
+ * Every file that paints into AppShell's `<main>` owns its width (#1062, #1852). The shell gives
+ * the content area none: `.jp-content` sets only `flex: 1` and `width: 100%`, so a page without
+ * a container renders flush to the viewport edge with no max-width and no page padding —
+ * measured on `/cv/granska/[parsedId]` before #1062, 3440px wide at a 3440px viewport.
  *
  * ⚠ **What this test can and cannot see.** It reads source text; it does not render. It
  * therefore proves that a container class is WRITTEN, never that the rendered box is correct —
@@ -16,8 +16,8 @@ import { stripComments } from "./strip-comments";
  * which is the failure that actually happened, and it is deliberately fail-closed: a file it
  * cannot classify fails rather than passes.
  */
-const APP = resolve(dirname(fileURLToPath(import.meta.url)), "../../app/(app)");
-const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const APP = dirname(fileURLToPath(import.meta.url));
+const SRC = resolve(APP, "../..");
 
 /** A page owns its width when it renders either shell. Both are defined in globals.css. */
 const CONTAINER_CLASSES = ["jp-pagehero", "jp-container"];
@@ -67,17 +67,16 @@ function collectRouteFiles(dir: string, segments: string[] = []): RouteFile[] {
   return out;
 }
 
-/** Every `.ts`/`.tsx` file under `src/`, for the single-declaration sweep below. */
-function collectSourceFiles(dir: string, acc: string[] = []): string[] {
+/** Every `layout.tsx` below `dir`, outside parallel-route slots and private folders. */
+function nestedLayouts(dir: string): string[] {
+  const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      collectSourceFiles(full, acc);
-    } else if (/\.tsx?$/.test(entry.name)) {
-      acc.push(full);
-    }
+    if (!entry.isDirectory() || entry.name.startsWith("@") || entry.name.startsWith("_")) continue;
+    const child = join(dir, entry.name);
+    if (existsSync(join(child, "layout.tsx"))) out.push(join(child, "layout.tsx"));
+    out.push(...nestedLayouts(child));
   }
-  return acc;
+  return out;
 }
 
 /** Resolve a `@/…` import to a file on disk, or null when it is not a local module. */
@@ -95,24 +94,30 @@ const ownsContainer = (source: string) => {
   return CONTAINER_CLASSES.some((c) => code.includes(c));
 };
 
-const routeFiles = collectRouteFiles(APP).filter((f) => isV3Native(f.url));
+const routeFiles = collectRouteFiles(APP);
 
-describe("V3_NATIVE_ROUTES — every page under a v3-native prefix owns its width", () => {
+describe("(app) — every page owns its width", () => {
   it("finds route files to check (the guard is not vacuously green)", () => {
-    // Without this, a broken derivation — a wrong path, a filter that matches nothing —
+    // Without this, a broken derivation — a wrong path, a file-name set that matches nothing —
     // would make every assertion below iterate an empty list and report success. A floor,
-    // not a pin: new routes must not have to edit this number, and the module's own REMOVAL
-    // TRIGGER shrinks the list deliberately, so the failure message has to say which of the
-    // two happened rather than leaving a reader with "expected 19 to be >= 20".
+    // not a pin: new routes must not have to edit this number, and removing routes shrinks
+    // the set deliberately, so the failure message has to say which of the two happened
+    // rather than leaving a reader with "expected 19 to be >= 20".
     expect(
       routeFiles.length,
-      `derived ${routeFiles.length} shell-painting files under a v3-native prefix. If this ` +
-        `fell because routes were legitimately removed (see V3_NATIVE_ROUTES' REMOVAL ` +
-        `TRIGGER), lower the floor. If it fell to 0 or a handful, the derivation is broken ` +
-        `— APP path, the file-name set, or the prefix filter — and every assertion below is ` +
-        `passing vacuously.`,
+      `derived ${routeFiles.length} shell-painting files under (app). If this fell because ` +
+        `routes were legitimately removed, lower the floor. If it fell to 0 or a handful, the ` +
+        `derivation is broken — the APP path or the file-name set — and every assertion below ` +
+        `is passing vacuously.`,
     ).toBeGreaterThanOrEqual(20);
-    expect(V3_NATIVE_ROUTES.length).toBeGreaterThan(0);
+  });
+
+  it("finds no layout below the group's own", () => {
+    expect(
+      nestedLayouts(APP),
+      "this guard reads only the files in SHELL_PAINTING_FILES, never a layout; extend it " +
+        "before adding a nested layout.tsx",
+    ).toEqual([]);
   });
 
   it.each(routeFiles.map((f) => [f.url, f] as const))(
@@ -125,10 +130,10 @@ describe("V3_NATIVE_ROUTES — every page under a v3-native prefix owns its widt
       if (rendersOwnMarkup) {
         expect(
           ownsContainer(source),
-          `${file} renders its own markup under a v3-native prefix but contains neither ` +
-            `"jp-pagehero" nor "jp-container". AppShell gives these routes no width ` +
-            `container, so this page renders edge-to-edge at every viewport. Wrap it the ` +
-            `way the (app) standard does: a .jp-pagehero band, then .jp-container.jp-page.`,
+          `${file} renders its own markup but contains neither "jp-pagehero" nor ` +
+            `"jp-container". AppShell gives no page a width container, so this page renders ` +
+            `edge-to-edge at every viewport. Wrap it the way the (app) standard does: a ` +
+            `.jp-pagehero band, then .jp-container.jp-page.`,
         ).toBe(true);
         return;
       }
@@ -142,7 +147,7 @@ describe("V3_NATIVE_ROUTES — every page under a v3-native prefix owns its widt
       // delegating purely for importing `@/lib/auth/session`. That narrowing is an allowlist
       // on import prefix; the assertion below the delegation branch is what stops it becoming
       // a hole. Delegation is checked BEFORE the gate on purpose: a page that both redirects
-      // on auth AND renders a component (`/oversikt` is the only one today) must be judged on
+      // on auth AND renders a component must be judged on
       // the component, or the gate branch would let it through unchecked.
       //
       // `delegates.some(...)` accepts ANY imported component, not necessarily the one
@@ -156,6 +161,11 @@ describe("V3_NATIVE_ROUTES — every page under a v3-native prefix owns its widt
         .map(resolveLocalImport)
         .filter((p): p is string => p !== null)
         .map((p) => readFileSync(p, "utf-8"));
+      const unresolved = imports.filter((spec) => resolveLocalImport(spec) === null);
+      expect(
+        unresolved,
+        `${file}: resolveLocalImport cannot follow ${unresolved.join(", ")}. Teach it the form.`,
+      ).toEqual([]);
 
       if (delegates.length > 0) {
         expect(
@@ -199,45 +209,4 @@ describe("V3_NATIVE_ROUTES — every page under a v3-native prefix owns its widt
       ).toBe(true);
     },
   );
-});
-
-describe("V3_NATIVE_ROUTES — the list itself", () => {
-  it("has one home, and app-shell USES it rather than merely importing it", () => {
-    // The list was inlined in app-shell.tsx until #1062. A second copy would let the shell
-    // and this guard disagree about which routes carry the obligation — the guard would then
-    // pass while the shell opted a page out.
-    const shell = readFileSync(resolve(SRC, "components/shell/app-shell.tsx"), "utf-8");
-    expect(shell).toContain('from "@/lib/layout/v3-native-routes"');
-    // An import is not a use. Asserting only the import would stay green if the call site
-    // were replaced by an inline condition and the import left behind as a dead line.
-    expect(shell).toMatch(/isV3Native\s*\(/);
-  });
-
-  it("is declared in exactly one file across src/", () => {
-    // Name-based and deliberately broad. The earlier form read app-shell.tsx alone and
-    // matched only `const`, so it could not see `let`/`var`, a copy in any other file, or —
-    // the case that actually occurred in this PR — a stale POINTER in globals.css still
-    // naming app-shell as the list's home. Sweeping every source file for the identifier
-    // catches a second declaration wherever it lands.
-    const declarations = collectSourceFiles(SRC).filter(
-      (f) =>
-        !f.endsWith("v3-native-routes.ts") &&
-        !f.endsWith("v3-native-routes.test.ts") &&
-        /(const|let|var)\s+V3_NATIVE_ROUTES\s*=/.test(readFileSync(f, "utf-8")),
-    );
-    expect(
-      declarations,
-      `V3_NATIVE_ROUTES is declared outside its module. One home, or the shell and this ` +
-        `guard can disagree about which routes carry the container obligation.`,
-    ).toEqual([]);
-  });
-
-  it("prefix-matches descendants, which is why the obligation spreads", () => {
-    expect(isV3Native("/cv")).toBe(true);
-    expect(isV3Native("/cv/granska/abc")).toBe(true);
-    expect(isV3Native("/cv/importera")).toBe(true);
-    // Not a prefix match on a bare string overlap — /cvsomething is a different route.
-    expect(isV3Native("/cv-granskning")).toBe(false);
-    expect(isV3Native("/mina-sidor")).toBe(true);
-  });
 });

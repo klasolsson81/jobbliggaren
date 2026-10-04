@@ -5,7 +5,6 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { isV3Native } from "@/lib/layout/v3-native-routes";
 import { STALE_BUILD_RELOADED_NOTICE_KEY } from "@/lib/stale-build/stale-build-reload";
 
 /**
@@ -14,18 +13,15 @@ import { STALE_BUILD_RELOADED_NOTICE_KEY } from "@/lib/stale-build/stale-build-r
  * of its own):
  * - `rail`: on the 1136 px content rail, on the canvas band, above a page that starts with
  *   its own band — `.jp-pagehero` paints the same canvas and its 24 px inset is the gap
- *   below; the line brings the 24 px above. `(guest)/gast`, `(marketing-inner)`.
+ *   below; the line brings the 24 px above. `(guest)/gast`, `(marketing-inner)`, and
+ *   `(app)`, whose pages bring their own top inset (`.jp-pagehero` or `.jp-page`).
  * - `plate`: the same band and rail above a page that starts with an edge-to-edge plate
  *   with no inset of its own (the landing hero), so the line brings 24 px on both sides.
  *   `(marketing)`.
  * - `inline`: inside a column or `<main>` that already carries the rail and whose content
  *   follows directly, so the line brings the 24 px below. `(admin)`, `(auth)`.
- * - `app`: AppShell's children — `rail` on a v3-native route (full-width children on the
- *   shell's canvas; the page brings its own top inset, `.jp-pagehero` or `.jp-page`) and
- *   `inline` inside the transitional container, the same test AppShell makes (ADR 0052
- *   trail: collapses to `rail` when that container is retired).
  */
-export type ReloadedAfterUpdateNoticePlacement = "rail" | "plate" | "inline" | "app";
+export type ReloadedAfterUpdateNoticePlacement = "rail" | "plate" | "inline";
 
 type Line = { kind: "unread" } | { kind: "shown"; on: string } | { kind: "spent" };
 
@@ -81,20 +77,19 @@ export function ReloadedAfterUpdateNotice({ placement }: { placement: ReloadedAf
     return () => clearTimeout(id);
   }, [line.kind, pathname]);
 
-  const form = placement === "app" ? (isV3Native(pathname) ? "rail" : "inline") : placement;
   const visible = line.kind === "shown";
 
   return (
     // The live region is in the DOM from the first paint and empty until the read;
     // everything it paints — the canvas band, the rail, the gap — arrives with the
     // line, so the empty region has no height and no colour.
-    <div role="status" aria-live="polite" className={visible && form !== "inline" ? "jp-banner-band" : undefined}>
+    <div role="status" aria-live="polite" className={visible && placement !== "inline" ? "jp-banner-band" : undefined}>
       {visible ? (
-        form === "inline" ? (
+        placement === "inline" ? (
           <p className="jp-banner">{t("reloadedAfterUpdate")}</p>
         ) : (
           <div className="jp-container">
-            <p className={form === "plate" ? "jp-banner jp-banner--before-plate" : "jp-banner jp-banner--before-band"}>
+            <p className={placement === "plate" ? "jp-banner jp-banner--before-plate" : "jp-banner jp-banner--before-band"}>
               {t("reloadedAfterUpdate")}
             </p>
           </div>

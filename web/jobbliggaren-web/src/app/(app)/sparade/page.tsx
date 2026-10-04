@@ -35,7 +35,7 @@ export default async function SparadePage() {
   const result = await getSavedJobAds();
 
   return (
-    <div className="flex flex-col">
+    <div className="jp-container jp-page flex flex-col">
       <div>
         <h1 className="jp-h1">{t("sparade.title")}</h1>
       </div>

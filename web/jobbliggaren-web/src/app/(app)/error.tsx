@@ -33,12 +33,6 @@ function AppErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   useFocusMainOnUnmount();
 
   return (
-    // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored
-    // route is v3-native (/jobb, /foretag, … own their own width). A
-    // non-v3-native route (/matchningar, /sparade, …) that throws
-    // double-wraps (AppShell's transitional container + this one) — the same
-    // accepted Minor not-found already carries; re-evaluate when the
-    // transitional container is retired (ADR 0052).
     <div className="jp-container jp-page flex flex-col gap-4">
       <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>

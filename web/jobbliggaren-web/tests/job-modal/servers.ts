@@ -9,6 +9,7 @@ import {
   ALL_ADS,
   DESCRIPTION,
   EXPIRES_AT,
+  MATCHES,
   PUBLISHED_AT,
   TAXONOMY,
   USER,
@@ -187,6 +188,10 @@ export async function startHarness(): Promise<Harness> {
       }
       case "POST /api/v1/me/application-history/counts":
         return json(200, { countsByJobAdId: {} });
+      case "GET /api/v1/me/matches":
+        return json(200, MATCHES);
+      case "POST /api/v1/me/matches/seen":
+        return json(204);
       case "GET /api/v1/me/saved-job-ads":
         return json(200, [...saved].flatMap((adId) => {
           const savedAd = adById(adId);

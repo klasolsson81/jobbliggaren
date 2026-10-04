@@ -6,7 +6,7 @@ import { MinaSidorNav, type MinaSidorSection } from "./mina-sidor-nav";
  * The frame every /mina-sidor section renders (#1891): the pagehero band with the page title and
  * its static line (#1917), then the section menu beside the one section on show. Each page and
  * each `loading.tsx` renders it themselves, the /foretag pattern: there is no `mina-sidor/layout.tsx`,
- * because `v3-native-routes.test.ts` reads pages rather than layouts, and a layout would owe an
+ * because `page-width.test.ts` reads pages rather than layouts, and a layout would owe an
  * error boundary of its own (`route-boundaries.test.ts`).
  */
 export function MinaSidorShell({
@@ -49,7 +49,7 @@ const SKELETON_ROWS: Record<MinaSidorSection, number> = {
  * The loading state of one section: the real band and menu, so the frame does not move when the
  * section arrives, and the card with its real title over flat grey rows (#739). The sr-only
  * `role="status"` announces; the shapes are decorative. It lives in this file because the route's
- * `loading.tsx` delegates here, and `v3-native-routes.test.ts` follows a delegation one hop only.
+ * `loading.tsx` delegates here, and `page-width.test.ts` follows a delegation one hop only.
  */
 export function MinaSidorLoading({ active }: { active: MinaSidorSection }) {
   const t = useTranslations("pages");

@@ -183,6 +183,12 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
   `.jp-container`/`.jp-page` (+ `/jobb`-hero edge-to-edge-opt-out) blir
   containern dubbel-padding och ska bort — verifieras analogt
   v2-alias-städningen (grep `jp-shell-transitional-container`).
+- **The removal trigger fired 2026-10-04 (#1852):** `/sparade`, `/matchningar` and
+  `/sokningar`, the last `(app)` pages without a container of their own, got
+  `.jp-container`/`.jp-page`; `.jp-shell-transitional-container`, the
+  `V3_NATIVE_ROUTES` list and AppShell's switch were deleted, and the grep returns
+  nothing under `web/jobbliggaren-web/src`. "Every `(app)` page owns its width" is held by
+  `web/jobbliggaren-web/src/app/(app)/page-width.test.ts`.
 - **Rubrik-token-realignment — `--text-h1` 28→32 (#549 WS1, 2026-07-03, CTO
   D1):** on-disk `--text-h1` had drifted to 28px against this ADR's own
   Beslut 5 (32/700) — a pure drift, not a re-decision. Epic #549 WS1

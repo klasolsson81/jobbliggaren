@@ -194,7 +194,7 @@ accessible, and built to be trusted — not admired.
 - ✗ Avrundade hörn över 6px (utom pill-prickar)
 - ✗ Floating Action Buttons (FAB)
 - ✗ Floating cards
-- ✗ Cards runt enstaka värden
+- ✗ Cards runt enstaka värden (scopade undantag: `/oversikt`, ADR 0140, och adminöversikten `/admin`, ADR 0150)
 - ✗ Stats-kort när siffran redan visas i tabell
 - ✗ Färgade chip-bakgrunder i kalenderceller
 - ✗ Zebra-stripes i tabeller

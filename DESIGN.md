@@ -33,7 +33,7 @@ Referenser som **inte** ska kännas:
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
 | Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
-| Tabeller och listor (**scoped undantag:** `/oversikt` är ett kort-rutnät, ADR 0140) | Kort-layouter överallt |
+| Tabeller och listor (**scoped undantag:** `/oversikt` är ett kort-rutnät, ADR 0140; adminöversikten `/admin`, ADR 0150) | Kort-layouter överallt |
 | `border-radius` via `--jp-r-*` | Radier över `--jp-r-lg` |
 | Muted statusfärger | Glow, drop shadow, glasmorfism |
 | Breadcrumbs + hierarki | Flata sidor utan kontext |
@@ -162,7 +162,8 @@ Regler:
 - Destructive actions kräver alltid bekräftelse-dialog
 - Icon-only buttons kräver `aria-label`
 - Loading state: ersätt label med "Sparar…", behåll bredd, sätt `disabled`
-- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan. **Scoped undantag (ADR 0140): `/oversikt` är ett rutnät av sex kort med ett stort tal var (`--jp-fs-oversikt-num` 40px), en solid CTA per kort i kortets egen axelfärg, aldrig fler.** Undantaget når ingen annan sida.
+- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan. **Scoped undantag (ADR 0140): `/oversikt` är ett rutnät av sex kort med ett stort tal var (`--jp-fs-oversikt-num` 40px), en solid CTA per kort i kortets egen axelfärg, aldrig fler.** Undantaget når ingen annan sida. Adminöversikten `/admin` har ett eget scopat undantag (ADR 0150 D1): kort med stora tal, utan axeltoner och solida knappar, och det når ingen annan adminsida.
+- Ej byggd handling (ADR 0150 D2): en ej byggd region behåller sin form, dess kontroller är `disabled` och pekar med `aria-describedby` på en synlig rad "Kommer snart"; en enskild ej byggd knapp i en levande region är `aria-disabled` med "Kommer snart" i det tillgängliga namnet (ADR 0142 D8). Ingen effekt, ingen kvittens och aldrig solid primär- eller danger-fyllning.
 
 Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-components**.
 

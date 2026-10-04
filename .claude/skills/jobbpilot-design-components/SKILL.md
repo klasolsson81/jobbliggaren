@@ -101,7 +101,8 @@ Two flavors:
 
 ### Table
 
-Default pattern for data lists (preferred over card grids for app data).
+Default pattern for data lists (preferred over card grids for app data; the only card grids are the
+scoped exceptions `/oversikt`, ADR 0140, and the admin overview `/admin`, ADR 0150).
 Use `.jp-table--flat` (the base `.jp-table` already is the ledger style):
 **no zebra-stripes, no celled/inramade borders**, hairlines between rows,
 2px `border-strong` top and bottom rule, mono uppercase header in

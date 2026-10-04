@@ -4,8 +4,9 @@ import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } fr
 /**
  * The seven admin routes in a real browser (#1973, ADR 0150): the nav reaches every page and marks
  * the current one, each page that is not built yet keeps its structure and says "Kommer snart" with
- * no number on it, Bakgrundsjobb and Granskning still render their data and their refused and failed
- * states, an ordinary account never sees the surface, and no page scrolls sideways at phone width.
+ * no number on it, Användare lists, searches and opens the accounts (#1974), Bakgrundsjobb and
+ * Granskning still render their data and their refused and failed states, an ordinary account never
+ * sees the surface, and no page scrolls sideways at phone width.
  */
 
 let harness: Harness;
@@ -41,7 +42,6 @@ const PAGES = [
 
 const UNBUILT = [
   "/admin",
-  "/admin/anvandare",
   "/admin/feedback",
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
@@ -89,6 +89,52 @@ test("Bakgrundsjobb and Granskning still render their data", async ({ page }) =>
   await expect(page.getByRole("cell", { name: "Application.StatusTransitioned" })).toBeVisible();
 });
 
+const accountRows = (page: Page) => page.getByRole("table", { name: "Konton" }).locator("tbody tr");
+
+test("Användare lists the accounts with their counts, and searches by a body the URL never carries", async ({ page }) => {
+  await page.goto("/admin/anvandare");
+  await expect(accountRows(page)).toHaveCount(5);
+  await expect(page.getByRole("radio", { name: "Ofullständiga (1)" })).toBeVisible();
+  await expect(page.locator("main").getByRole("status").filter({ hasText: "konton" })).toHaveText("5 av 5 konton");
+
+  await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.d");
+  await expect(accountRows(page)).toHaveCount(1);
+  await expect(accountRows(page).first()).toContainText("Slutgiltigt tidigast 2026-10-30");
+
+  expect(new URL(page.url()).search).toBe("");
+  const searched = harness.searches.map((body) => JSON.parse(body) as { address?: string });
+  expect(searched.at(-1)?.address).toBe("konto.d");
+  expect(harness.requests.filter((route) => route.includes("konto.d"))).toEqual([]);
+});
+
+test("Användare opens an account in the panel, shows its details, and returns focus on Escape", async ({ page }) => {
+  await page.goto("/admin/anvandare");
+  const open = page.getByRole("button", { name: "konto.e@example.test" });
+  await open.click();
+
+  const panel = page.getByRole("dialog", { name: "konto.e@example.test" });
+  await expect(panel.getByText("CV:n")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Stäng" })).toBeFocused();
+  await expect(panel.getByRole("button", { name: /Kommer snart$/ }).first()).toBeVisible();
+  expect(harness.requests).toContain("GET /api/v1/admin/accounts/00000000-0000-4000-8000-000000000005");
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(open).toBeFocused();
+});
+
+for (const mode of ["forbidden", "error"] as const) {
+  test(`a ${mode} account read says so in place of the rows and keeps the chrome`, async ({ page }) => {
+    harness.mode = mode;
+    await page.goto("/admin/anvandare");
+    await expect(page.locator("main").getByRole("alert")).toHaveText(
+      mode === "forbidden" ? "Din session saknar Admin-rollen." : "Kontona kunde inte hämtas. Försök igen om en stund.",
+    );
+    await expect(accountRows(page)).toHaveCount(1);
+    await expect(adminNav(page)).toBeVisible();
+  });
+}
+
 const ERROR_TITLE = { forbidden: "Saknar behörighet", error: "Kunde inte ladda jobbstatusen" } as const;
 
 for (const mode of ["forbidden", "error"] as const) {
@@ -103,7 +149,6 @@ for (const mode of ["forbidden", "error"] as const) {
 }
 
 const TABLE_ROUTES = [
-  "/admin/anvandare",
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",

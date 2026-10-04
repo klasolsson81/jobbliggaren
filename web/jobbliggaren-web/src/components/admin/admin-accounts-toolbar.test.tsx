@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { AdminAccountsToolbar } from "./admin-accounts-toolbar";
 import { AdminAccountsPager, AdminAccountsSummary } from "./admin-accounts-pager";
 
-const COUNTS = { all: 12, active: 8, suspended: 1, unverified: 2, pendingDeletion: 1 } as const;
+const COUNTS = { all: 12, active: 8, pendingDeletion: 1, profileMissing: 3 } as const;
 
 describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
   it("while unbuilt, disables the search and the filter and points both to the Kommer snart line", () => {
@@ -18,9 +18,8 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(within(filter).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
       "Alla",
       "Aktiva",
-      "Suspenderade",
-      "Ej verifierade",
       "Under radering",
+      "Ofullständiga",
     ]);
     for (const radio of within(filter).getAllByRole("radio")) expect(radio).toBeDisabled();
     // Nothing in a disabled group takes focus: no option, and no box around it.
@@ -47,8 +46,34 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(onQueryChange.mock.calls).toEqual([["k"], ["o"]]);
 
     expect(screen.getByRole("radio", { name: "Alla" })).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(screen.getByRole("radio", { name: "Suspenderade" }));
-    expect(onFilterChange).toHaveBeenCalledWith("suspended");
+    await userEvent.click(screen.getByRole("radio", { name: "Ofullständiga" }));
+    expect(onFilterChange).toHaveBeenCalledWith("profileMissing");
+  });
+
+  it("keeps a typed address out of the browser's form history and its spelling service", () => {
+    render(<AdminAccountsToolbar filter="all" query="" onQueryChange={() => {}} onFilterChange={() => {}} />);
+
+    const search = screen.getByRole("searchbox", { name: "Sök på e-postadress" });
+    expect(search).toHaveAttribute("autocomplete", "off");
+    expect(search).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("shows the options its caller names, in their order", () => {
+    render(
+      <AdminAccountsToolbar
+        filter="all"
+        filters={["all", "active", "suspended", "pendingDeletion", "profileMissing"]}
+        onQueryChange={() => {}}
+        onFilterChange={() => {}}
+      />,
+    );
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
+      "Alla",
+      "Aktiva",
+      "Suspenderade",
+      "Under radering",
+      "Ofullständiga",
+    ]);
   });
 
   it("shows a count in each filter label only when the counts are known", () => {
@@ -57,6 +82,7 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     );
     expect(screen.getByRole("radio", { name: "Aktiva (8)" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Ofullständiga (3)" })).toBeInTheDocument();
     unmount();
 
     render(<AdminAccountsToolbar filter="active" onQueryChange={() => {}} onFilterChange={() => {}} />);

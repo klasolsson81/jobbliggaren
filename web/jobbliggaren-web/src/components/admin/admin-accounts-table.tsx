@@ -3,18 +3,17 @@
 // "use client": its sort and open buttons carry click handlers.
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, UserRound } from "lucide-react";
-import type { AdminAccountRow, AdminRegion } from "@/lib/admin/view-models";
+import type {
+  AdminAccountRow,
+  AdminAccountSort,
+  AdminAccountSortKey,
+  AdminRegion,
+} from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
-import { AdminAccountStatus, AdminRolePill } from "./admin-account-status";
+import { AdminAccountStatusCell, AdminRolePill } from "./admin-account-status";
 import { AdminTableScroll } from "./admin-table-scroll";
 import { AdminRegionLine } from "./admin-region-line";
-
-export type AdminAccountSortKey = "email" | "registeredAt";
-
-export interface AdminAccountSort {
-  readonly key: AdminAccountSortKey;
-  readonly direction: "ascending" | "descending";
-}
+import { AdminUnknown } from "./admin-unknown";
 
 const CAPTION_ID = "admin-users-caption";
 const COLUMN_COUNT = 7;
@@ -29,6 +28,10 @@ interface AdminAccountsTableProps {
   readonly onOpen?: (id: string) => void;
   /** The id of the unavailable row's line, for the toolbar's disabled controls to point to. */
   readonly soonId?: string;
+  /** True while newer rows are on their way: the rows shown stay until they arrive. */
+  readonly busy?: boolean;
+  /** The failed region's sentence, when the caller knows more than that the read failed. */
+  readonly failedMessage?: string;
 }
 
 /**
@@ -43,10 +46,11 @@ export function AdminAccountsTable({
   selectedId = null,
   onOpen,
   soonId,
+  busy = false,
+  failedMessage,
 }: AdminAccountsTableProps) {
   const region = given.kind === "loaded" && given.data.length === 0 ? ({ kind: "empty" } as const) : given;
   const t = useTranslations("admin.users");
-  const unknown = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
 
   function sortHeader(key: AdminAccountSortKey, label: string) {
@@ -72,7 +76,7 @@ export function AdminAccountsTable({
     <AdminTableScroll labelledBy={CAPTION_ID}>
       <table
         className="jp-table jp-admintable jp-adminusers"
-        aria-busy={region.kind === "loading" || undefined}
+        aria-busy={region.kind === "loading" || busy || undefined}
       >
         <caption id={CAPTION_ID} className="sr-only">
           {t("table.caption")}
@@ -98,7 +102,7 @@ export function AdminAccountsTable({
                   {onOpen === undefined ? (
                     <span className="jp-adminusers__account">
                       <UserRound size={18} aria-hidden="true" />
-                      <span className="jp-adminusers__email">{row.email}</span>
+                      <span className="jp-adminusers__email">{row.email ?? <AdminUnknown />}</span>
                     </span>
                   ) : (
                     <button
@@ -108,7 +112,7 @@ export function AdminAccountsTable({
                       onClick={() => onOpen(row.id)}
                     >
                       <UserRound size={18} aria-hidden="true" />
-                      <span className="jp-adminusers__email">{row.email}</span>
+                      <span className="jp-adminusers__email">{row.email ?? <AdminUnknown />}</span>
                     </button>
                   )}
                 </td>
@@ -116,15 +120,23 @@ export function AdminAccountsTable({
                   <AdminRolePill role={row.role} />
                 </td>
                 <td>
-                  <AdminAccountStatus status={row.status} deletionEarliest={row.deletionEarliest} />
+                  <AdminAccountStatusCell
+                    status={row.status}
+                    deletionEarliest={row.deletionEarliest}
+                    emailConfirmed={row.emailConfirmed}
+                  />
                 </td>
                 <td className="jp-adminusers__when">
-                  {formatDateTime(format, row.registeredAt) ?? unknown}
+                  {formatDateTime(format, row.registeredAt) ?? <AdminUnknown />}
                 </td>
-                <td className="jp-adminusers__when">{unknown}</td>
-                <td className="jp-adminusers__when">{unknown}</td>
+                <td className="jp-adminusers__when">
+                  <AdminUnknown />
+                </td>
+                <td className="jp-adminusers__when">
+                  <AdminUnknown />
+                </td>
                 <td className="jp-adminusers__num">
-                  {row.applicationCount === null ? unknown : format.number(row.applicationCount)}
+                  {row.applicationCount === null ? <AdminUnknown /> : format.number(row.applicationCount)}
                 </td>
               </tr>
             ))
@@ -134,7 +146,7 @@ export function AdminAccountsTable({
                 <AdminRegionLine
                   kind={region.kind}
                   empty={t("regions.empty")}
-                  failed={t("regions.failed")}
+                  failed={failedMessage ?? t("regions.failed")}
                   loading={t("regions.loading")}
                   soonId={soonId}
                 />

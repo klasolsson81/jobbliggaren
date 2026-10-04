@@ -5,9 +5,13 @@ import type { AdminAccountRow } from "@/lib/admin/view-models";
 import { AdminAccountsTable } from "./admin-accounts-table";
 
 const ROWS: ReadonlyArray<AdminAccountRow> = [
-  { id: "a", email: "konto.a@example.test", role: "user", status: "active", registeredAt: "2026-09-28T12:02:00Z", applicationCount: 4, deletionEarliest: null },
-  { id: "b", email: "konto.b@example.test", role: "admin", status: "pendingDeletion", registeredAt: null, applicationCount: null, deletionEarliest: "2026-11-03T08:00:00Z" },
+  { id: "a", email: "konto.a@example.test", role: "user", status: "active", emailConfirmed: true, registeredAt: "2026-09-28T12:02:00Z", applicationCount: 4, deletionEarliest: null },
+  { id: "b", email: "konto.b@example.test", role: "admin", status: "pendingDeletion", emailConfirmed: false, registeredAt: "2026-08-14T07:30:00Z", applicationCount: null, deletionEarliest: "2026-11-03" },
+  { id: "c", email: "konto.c@example.test", role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null },
 ];
+
+/** What a screen reader reads in a cell: the dash is hidden from it, and its words are not. */
+const UNKNOWN = "–Uppgift saknas";
 
 function bodyRows() {
   return within(screen.getByRole("table", { name: "Konton" })).getAllByRole("row").slice(1);
@@ -24,13 +28,25 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
       "Användare",
       "Aktiv",
       "2026-09-28 14:02",
-      "–",
-      "–",
+      UNKNOWN,
+      UNKNOWN,
       "4",
     ]);
     expect(second).toHaveTextContent("Admin");
-    expect(second).toHaveTextContent("Raderas tidigast 2026-11-03");
-    expect(within(second!).getAllByRole("cell")[3]).toHaveTextContent("–");
+    expect(within(second!).getAllByRole("cell")[6]).toHaveTextContent(UNKNOWN);
+  });
+
+  it("shows the state as a dot and the facts that go with it as lines below", () => {
+    render(<AdminAccountsTable region={{ kind: "loaded", data: ROWS }} />);
+
+    const [first, second, third] = bodyRows();
+    const status = (row: HTMLElement | undefined) => within(row!).getAllByRole("cell")[2];
+    expect(status(first)).toHaveTextContent(/^Aktiv$/);
+    expect(status(second)).toHaveTextContent("Under radering");
+    expect(status(second)).toHaveTextContent("Slutgiltigt tidigast 2026-11-03");
+    expect(status(second)).toHaveTextContent("E-post ej bekräftad");
+    expect(status(third)).toHaveTextContent(/^Ofullständig$/);
+    expect(within(third!).getAllByRole("cell")[3]).toHaveTextContent(UNKNOWN);
   });
 
   it("opens an account through a button in its row, never through the row", async () => {
@@ -80,6 +96,17 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
     expect(sort).toBeDisabled();
     expect(sort).toHaveAttribute("aria-describedby", "soon");
     expect(document.getElementById("soon")).toHaveTextContent("Kommer snart");
+  });
+
+  it("keeps its rows while newer ones load, and says so", () => {
+    render(<AdminAccountsTable region={{ kind: "loaded", data: ROWS }} busy />);
+    expect(screen.getByRole("table", { name: "Konton" })).toHaveAttribute("aria-busy", "true");
+    expect(bodyRows()).toHaveLength(3);
+  });
+
+  it("words a failure the way its caller knows it", () => {
+    render(<AdminAccountsTable region={{ kind: "failed" }} failedMessage="Försök igen om 6 sekunder." />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Försök igen om 6 sekunder.");
   });
 
   it("reports a failed load as an alert and a loading one as a status", () => {

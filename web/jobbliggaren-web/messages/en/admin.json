@@ -19,7 +19,8 @@
   },
   "unavailable": {
     "comingSoon": "Coming soon",
-    "unknownValue": "–"
+    "unknownValue": "–",
+    "unknownSpoken": "Not available"
   },
   "overview": {
     "meta": {
@@ -124,9 +125,9 @@
       "label": "Show accounts",
       "all": "All",
       "active": "Active",
-      "suspended": "Suspended",
-      "unverified": "Unverified",
-      "pendingDeletion": "Pending deletion"
+      "pendingDeletion": "Pending deletion",
+      "profileMissing": "Incomplete",
+      "suspended": "Suspended"
     },
     "filterCount": "{label} ({count})",
     "table": {
@@ -146,14 +147,25 @@
     },
     "status": {
       "active": "Active",
-      "suspended": "Suspended",
-      "unverified": "Unverified",
-      "pendingDeletion": "Deleted no earlier than {date}"
+      "pendingDeletion": "Pending deletion",
+      "profileMissing": "Incomplete",
+      "suspended": "Suspended"
+    },
+    "statusLine": {
+      "deletionEarliest": "Permanently no earlier than {date}",
+      "emailUnconfirmed": "Email not confirmed"
     },
     "regions": {
       "empty": "No accounts match the search or the filter.",
       "failed": "The accounts could not be loaded. Try again in a moment.",
       "loading": "Loading accounts"
+    },
+    "errors": {
+      "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "unauthorized": "You are no longer signed in. Sign in and try again.",
+      "forbidden": "Your session does not have the Admin role.",
+      "detailFailed": "The account's details could not be loaded. Try again in a moment.",
+      "gone": "The account no longer exists."
     },
     "pager": {
       "label": "Page navigation",
@@ -165,13 +177,21 @@
       "close": "Close",
       "savedSearches": "Saved searches",
       "resumes": "CVs",
-      "actions": "Actions"
+      "actions": "Actions",
+      "loading": "Fetching the account's details…",
+      "deletion": "Permanently deleted",
+      "deletionEarliest": "No earlier than {date}",
+      "email": "Email",
+      "emailConfirmed": "Confirmed",
+      "emailUnconfirmed": "Not confirmed",
+      "profileMissing": "The account has no profile and cannot be signed in to. An account that still has no profile an hour after it was created is removed automatically.",
+      "noAddress": "The account has no email address."
     },
     "actions": {
       "impersonate": "Act as the user",
       "changeEmail": "Change email address",
       "sendLoginLink": "Send login link",
-      "markVerified": "Mark email as verified",
+      "markVerified": "Mark email as confirmed",
       "reinstate": "Lift suspension",
       "restore": "Undo deletion",
       "suspend": "Suspend account",

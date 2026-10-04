@@ -72,3 +72,45 @@ export const FAILED_JOBS = {
     },
   ],
 };
+
+const account = (n: number, local: string, status: string, extra: Record<string, unknown> = {}) => ({
+  id: id(n),
+  email: `${local}@example.test`,
+  role: "User",
+  status,
+  emailConfirmed: true,
+  registeredAt: `2026-09-${String(10 + n).padStart(2, "0")}T09:00:00Z`,
+  deletionEarliest: null,
+  applicationCount: status === "Active" ? n : null,
+  ...extra,
+});
+
+/** The account directory's answers (#1974): one search page with its counts, and one account's details. */
+export const ACCOUNTS = [
+  account(5, "konto.e", "Active"),
+  account(4, "konto.d", "PendingDeletion", { deletionEarliest: "2026-10-30" }),
+  account(3, "konto.c", "ProfileMissing", { registeredAt: null }),
+  account(2, "konto.b", "Active", { emailConfirmed: false }),
+  { ...account(1, "admin", "Active"), role: "Admin" },
+];
+
+export function accountsPage(term: string | undefined) {
+  const items = term === undefined ? ACCOUNTS : ACCOUNTS.filter((row) => row.email.includes(term.toLowerCase()));
+  const count = (status: string) => items.filter((row) => row.status === status).length;
+  return {
+    accounts: { items, totalCount: items.length, page: 1, pageSize: 25, totalPages: items.length === 0 ? 0 : 1 },
+    counts: {
+      total: items.length,
+      active: count("Active"),
+      pendingDeletion: count("PendingDeletion"),
+      profileMissing: count("ProfileMissing"),
+    },
+  };
+}
+
+export function accountDetails(accountId: string) {
+  const row = ACCOUNTS.find((candidate) => candidate.id === accountId);
+  if (row === undefined) return undefined;
+  const active = row.status === "Active";
+  return { ...row, resumeCount: active ? 2 : null, savedSearchCount: active ? 1 : null };
+}

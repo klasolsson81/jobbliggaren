@@ -2,18 +2,17 @@
 
 // "use client": the list's search, filter, sort, pages and commands run in memory.
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
-import { listRegion, type AdminAccountDetail, type AdminAccountRow, type AdminRegion } from "@/lib/admin/view-models";
 import {
-  ADMIN_ACCOUNT_FILTERS,
-  AdminAccountsToolbar,
-  type AdminAccountFilter,
-} from "@/components/admin/admin-accounts-toolbar";
-import {
-  AdminAccountsTable,
+  listRegion,
+  type AdminAccountDetail,
+  type AdminAccountRow,
   type AdminAccountSort,
   type AdminAccountSortKey,
-} from "@/components/admin/admin-accounts-table";
+  type AdminAddressedAccount,
+  type AdminRegion,
+} from "@/lib/admin/view-models";
+import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
+import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
 import {
   AdminAccountPanel,
@@ -21,21 +20,31 @@ import {
   type AdminCommandRefusal,
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
+import { useTranslations } from "next-intl";
 import { usePreviewState } from "./preview-shell.preview";
 
 const PAGE_SIZE = 10;
 const SOON_ID = "admin-preview-users-soon";
 /** The MVP's account actions (#1975–#1977), shown working here with fictional data. */
 const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "suspend", "reinstate", "scheduleDeletion"]);
+/** The production filters, and Suspenderade, which the suspend flow here can fill. */
+const FILTERS: ReadonlyArray<AdminAccountFilter> = ["all", "active", "suspended", "pendingDeletion", "profileMissing"];
 /** Long enough for the pending state to show. */
 const SIMULATED_LATENCY_MS = 400;
 
+/** The directory's order: by the key, an unknown value last in both directions, then by id. */
 function compare(sort: AdminAccountSort) {
   const sign = sort.direction === "ascending" ? 1 : -1;
-  return (a: AdminAccountRow, b: AdminAccountRow) =>
-    sort.key === "email"
-      ? sign * a.email.localeCompare(b.email, "sv")
-      : sign * (a.registeredAt ?? "").localeCompare(b.registeredAt ?? "");
+  return (a: AdminAccountRow, b: AdminAccountRow) => {
+    const left = sort.key === "email" ? a.email : a.registeredAt;
+    const right = sort.key === "email" ? b.email : b.registeredAt;
+    if (left === null || right === null) {
+      if (left !== right) return left === null ? 1 : -1;
+      return a.id.localeCompare(b.id);
+    }
+    const order = sort.key === "email" ? left.localeCompare(right, "sv") : left.localeCompare(right);
+    return order === 0 ? a.id.localeCompare(b.id) : sign * order;
+  };
 }
 
 function applyCommand(
@@ -49,7 +58,15 @@ function applyCommand(
     case "reinstate":
       return { ...account, status: "active" };
     case "scheduleDeletion":
-      return { ...account, status: "pendingDeletion", deletionEarliest };
+      // A pending deletion's counts are unknown, as the directory reports them.
+      return {
+        ...account,
+        status: "pendingDeletion",
+        deletionEarliest,
+        applicationCount: null,
+        savedSearchCount: null,
+        resumeCount: null,
+      };
     case "changeEmail":
       // A request, not a change: the address changes when the owner confirms.
       return account;
@@ -77,13 +94,13 @@ export function PreviewAccounts({
 
   const matching = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return needle === "" ? rows : rows.filter((row) => row.email.toLowerCase().includes(needle));
+    return needle === "" ? rows : rows.filter((row) => row.email?.toLowerCase().includes(needle) ?? false);
   }, [rows, query]);
 
   const counts = useMemo(
     () =>
       Object.fromEntries(
-        ADMIN_ACCOUNT_FILTERS.map((value) => [
+        FILTERS.map((value) => [
           value,
           value === "all" ? matching.length : matching.filter((row) => row.status === value).length,
         ]),
@@ -98,6 +115,7 @@ export function PreviewAccounts({
   const pageRows = sorted.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   const loaded = kind === "loaded";
   const live = kind !== "unavailable";
+  const open = loaded ? (rows.find((row) => row.id === openId) ?? null) : null;
 
   const region: AdminRegion<ReadonlyArray<AdminAccountRow>> = loaded ? listRegion(pageRows) : { kind };
 
@@ -110,7 +128,7 @@ export function PreviewAccounts({
   }
 
   async function command(
-    account: AdminAccountDetail,
+    account: AdminAddressedAccount,
     next: AdminAccountCommand,
   ): Promise<AdminCommandRefusal> {
     await new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
@@ -125,6 +143,7 @@ export function PreviewAccounts({
     <>
       <AdminAccountsToolbar
         filter={filter}
+        filters={FILTERS}
         query={query}
         onQueryChange={
           live
@@ -145,7 +164,7 @@ export function PreviewAccounts({
         counts={loaded ? counts : undefined}
         soonId={SOON_ID}
       />
-      {loaded ? <AdminAccountsSummary shown={filtered.length} total={rows.length} /> : null}
+      {loaded ? <AdminAccountsSummary shown={filtered.length} total={matching.length} /> : null}
       <AdminAccountsTable
         region={region}
         sort={loaded ? sort : undefined}
@@ -156,11 +175,10 @@ export function PreviewAccounts({
       />
       {loaded ? <AdminAccountsPager page={current} pages={pages} onPage={setPage} /> : null}
       <AdminAccountPanel
-        account={loaded ? (rows.find((row) => row.id === openId) ?? null) : null}
+        account={open}
+        details={open === null ? { kind: "loading" } : { kind: "loaded", data: open }}
         onClose={() => setOpenId(null)}
-        live={LIVE}
-        onCommand={command}
-        deletionEarliestIfScheduledNow={deletionEarliest}
+        commands={{ live: LIVE, run: command, deletionEarliestIfScheduledNow: deletionEarliest }}
       />
     </>
   );

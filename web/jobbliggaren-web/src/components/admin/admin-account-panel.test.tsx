@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AdminAccountDetail } from "@/lib/admin/view-models";
+import type { AdminAccountDetail, AdminAddressedAccount } from "@/lib/admin/view-models";
 import {
   dismissAdminToast,
   getAdminToastHeld,
@@ -12,15 +12,18 @@ import { AdminToastHost } from "./admin-toast-host";
 import {
   AdminAccountPanel,
   type AdminAccountCommand,
+  type AdminAccountCommands,
+  type AdminAccountDetails,
   type AdminCommandRefusal,
   type AdminLiveAction,
 } from "./admin-account-panel";
 
-const ACTIVE: AdminAccountDetail = {
+const ACTIVE: AdminAddressedAccount = {
   id: "a",
   email: "konto.a@example.test",
   role: "user",
   status: "active",
+  emailConfirmed: true,
   registeredAt: "2026-09-28T12:02:00Z",
   applicationCount: 4,
   deletionEarliest: null,
@@ -28,22 +31,37 @@ const ACTIVE: AdminAccountDetail = {
   resumeCount: 1,
 };
 
+/** A pending deletion as the directory reports it: a date, and no counts. */
+const PENDING: AdminAccountDetail = {
+  ...ACTIVE,
+  status: "pendingDeletion",
+  deletionEarliest: "2026-10-28",
+  applicationCount: null,
+  savedSearchCount: null,
+  resumeCount: null,
+};
+
 const ALL_LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "suspend", "reinstate", "scheduleDeletion"]);
+
+function commands(
+  run: AdminAccountCommands["run"] = async () => null,
+  live: ReadonlySet<AdminLiveAction> = ALL_LIVE,
+): AdminAccountCommands {
+  return { live, run, deletionEarliestIfScheduledNow: "2026-11-03" };
+}
+
+function loaded(account: AdminAccountDetail | null): AdminAccountDetails {
+  return account === null ? { kind: "loading" } : { kind: "loaded", data: account };
+}
 
 function renderPanel(
   account: AdminAccountDetail | null,
-  onCommand: (account: AdminAccountDetail, command: AdminAccountCommand) => Promise<AdminCommandRefusal> = async () => null,
+  onCommand: (account: AdminAddressedAccount, command: AdminAccountCommand) => Promise<AdminCommandRefusal> = async () => null,
   live: ReadonlySet<AdminLiveAction> = ALL_LIVE,
 ) {
   const onClose = vi.fn();
   render(
-    <AdminAccountPanel
-      account={account}
-      onClose={onClose}
-      live={live}
-      onCommand={onCommand}
-      deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
-    />,
+    <AdminAccountPanel account={account} details={loaded(account)} onClose={onClose} commands={commands(onCommand, live)} />,
   );
   return { onClose };
 }
@@ -106,12 +124,103 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   });
 
   it("offers no edit and no second deletion to an account already pending deletion", () => {
-    renderPanel({ ...ACTIVE, status: "pendingDeletion", deletionEarliest: "2026-10-28T08:00:00Z" });
+    renderPanel(PENDING);
     expect(actionNames()).toEqual([
       "Agera som användaren Kommer snart",
       "Ångra radering Kommer snart",
       "Radera permanent Kommer snart",
     ]);
+  });
+
+  it("states a pending deletion's date first, and leaves out the counts it does not know", () => {
+    renderPanel(PENDING);
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByText("Under radering")).toBeInTheDocument();
+    expect(within(dialog).getByText("Raderas slutgiltigt").nextElementSibling).toHaveTextContent("Tidigast 2026-10-28");
+    for (const label of ["Ansökningar", "Sparade sökningar", "CV:n"]) {
+      expect(within(dialog).queryByText(label)).toBeNull();
+    }
+  });
+
+  it("says whether the address is confirmed, and offers an unconfirmed one's marking as Kommer snart", () => {
+    renderPanel({ ...ACTIVE, emailConfirmed: false });
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByText("E-post").nextElementSibling).toHaveTextContent("Ej bekräftad");
+    expect(actionNames()).toContain("Markera e-post som bekräftad Kommer snart");
+  });
+
+  it("has no actions for an account without a profile, and says what becomes of it", () => {
+    renderPanel({
+      ...ACTIVE,
+      status: "profileMissing",
+      registeredAt: null,
+      applicationCount: null,
+      savedSearchCount: null,
+      resumeCount: null,
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByText("Ofullständig")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: "Åtgärder" })).toBeNull();
+    expect(within(dialog).getByText(/tas bort automatiskt/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Registrerad").nextElementSibling).toHaveTextContent("Uppgift saknas");
+    expect(within(dialog).queryByText("Ansökningar")).toBeNull();
+  });
+
+  it("names an unknown value for a screen reader, which skips a lone dash", () => {
+    renderPanel(ACTIVE);
+
+    const lastLogin = screen.getByText("Senast inloggad").nextElementSibling;
+    expect(lastLogin?.querySelector('[aria-hidden="true"]')).toHaveTextContent("–");
+    expect(lastLogin?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
+  });
+
+  it("shows the row at once and a loading line until the details arrive, then the details", () => {
+    const { rerender } = render(
+      <AdminAccountPanel account={ACTIVE} details={{ kind: "loading" }} onClose={() => {}} commands={commands()} />,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Hämtar kontots uppgifter…");
+    expect(within(dialog).queryByRole("region", { name: "Åtgärder" })).toBeNull();
+
+    rerender(<AdminAccountPanel account={ACTIVE} details={loaded(ACTIVE)} onClose={() => {}} commands={commands()} />);
+    expect(within(dialog).queryByRole("status")).toBeNull();
+    expect(within(dialog).getByRole("region", { name: "Åtgärder" })).toBeInTheDocument();
+  });
+
+  it("shows the failure its caller words in place of the details", () => {
+    render(
+      <AdminAccountPanel
+        account={ACTIVE}
+        details={{ kind: "failed", message: "Kontot finns inte längre." }}
+        onClose={() => {}}
+        commands={commands()}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
+    expect(screen.queryByRole("region", { name: "Åtgärder" })).toBeNull();
+  });
+
+  it("offers every action as Kommer snart where no command is built", () => {
+    render(<AdminAccountPanel account={ACTIVE} details={loaded(ACTIVE)} onClose={() => {}} />);
+
+    expect(actionNames().every((name) => name.endsWith("Kommer snart"))).toBe(true);
+  });
+
+  it("names an account without an address as unknown and offers it no action, should one ever exist", () => {
+    // Declared unreachable: every writer of an account in src stores an address (account creation and the
+    // address swap). Identity's column is nullable all the same, so this pins only that the read side
+    // degrades safely.
+    const unnamed: AdminAccountDetail = { ...ACTIVE, email: null };
+    render(<AdminAccountPanel account={unnamed} details={loaded(unnamed)} onClose={() => {}} commands={commands()} />);
+
+    expect(screen.getByRole("dialog", { name: "Uppgift saknas" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Åtgärder" })).toBeNull();
+    expect(screen.getByText("Kontot har ingen e-postadress.")).toBeInTheDocument();
   });
 
   it("renders an action as Kommer snart when it is not live, and pressing it does nothing", async () => {
@@ -196,13 +305,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     const onClose = vi.fn();
     render(
       <>
-        <AdminAccountPanel
-          account={ACTIVE}
-          onClose={onClose}
-          live={ALL_LIVE}
-          onCommand={async () => null}
-          deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
-        />
+        <AdminAccountPanel account={ACTIVE} details={loaded(ACTIVE)} onClose={onClose} commands={commands()} />
         <AdminToastHost />
       </>,
     );
@@ -248,25 +351,11 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
 
   it("holds the receipt's clock while it is open, and lets it go when it closes", () => {
     const { rerender } = render(
-      <AdminAccountPanel
-        account={ACTIVE}
-        onClose={() => {}}
-        live={ALL_LIVE}
-        onCommand={async () => null}
-        deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
-      />,
+      <AdminAccountPanel account={ACTIVE} details={loaded(ACTIVE)} onClose={() => {}} commands={commands()} />,
     );
     expect(getAdminToastHeld()).toBe(true);
 
-    rerender(
-      <AdminAccountPanel
-        account={null}
-        onClose={() => {}}
-        live={ALL_LIVE}
-        onCommand={async () => null}
-        deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
-      />,
-    );
+    rerender(<AdminAccountPanel account={null} details={loaded(null)} onClose={() => {}} commands={commands()} />);
     expect(getAdminToastHeld()).toBe(false);
   });
 });

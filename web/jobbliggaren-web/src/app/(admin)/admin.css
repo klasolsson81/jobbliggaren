@@ -334,7 +334,8 @@
 /* ── Tables ──────────────────────────────────────────────────────────────────────────────
    A labelled scroll region carries a wide table at narrow widths, so the page itself never
    scrolls sideways (WCAG 1.4.10). */
-.jp-admintable-scroll { overflow-x: auto; }
+/* Positioned, so a visually hidden span inside a cell is clipped here instead of widening the page. */
+.jp-admintable-scroll { position: relative; overflow-x: auto; }
 /* The new admin ledgers keep their columns readable and scroll inside the region instead. */
 .jp-table.jp-admintable { min-width: 720px; }
 /* A sortable header row is control text, not a receipt label (DESIGN.md §4 deviation (1)):
@@ -426,6 +427,17 @@
 }
 .jp-table .jp-adminusers__num {
   text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.jp-adminusers__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.jp-adminusers__statusline {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
 }
 .jp-table tbody tr[data-selected] td { background: var(--jp-accent-50); }
@@ -522,6 +534,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.jp-adminpanel__note {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 .jp-adminpanel__list {
   display: flex;

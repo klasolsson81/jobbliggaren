@@ -4,7 +4,15 @@ import { createServer, request as forward, type Server } from "node:http";
 import { createServer as createTlsServer, type Server as TlsServer } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ADMIN, AUDIT_PAGE, FAILED_JOBS, MEMBER, RECURRING_JOBS } from "./fixtures";
+import {
+  ADMIN,
+  AUDIT_PAGE,
+  FAILED_JOBS,
+  MEMBER,
+  RECURRING_JOBS,
+  accountDetails,
+  accountsPage,
+} from "./fixtures";
 
 /**
  * The servers around the app for the admin harness (#1973): a fixture backend the admin pages read,
@@ -33,6 +41,8 @@ export type Harness = {
   readonly misses: string[];
   /** Every backend path the app asked for, answered or not. */
   readonly requests: string[];
+  /** Every account search's request body, as the backend received it. */
+  readonly searches: string[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -63,15 +73,18 @@ function localhostCertificate(): { key: Buffer; cert: Buffer } {
 export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
+  const searches: string[] = [];
 
   const harness: Harness = {
     who: "admin",
     mode: "ok",
     misses,
     requests,
+    searches,
     reset() {
       misses.length = 0;
       requests.length = 0;
+      searches.length = 0;
       harness.who = "admin";
       harness.mode = "ok";
     },
@@ -100,6 +113,30 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => FAILED_JOBS,
     };
+    const refusal = () =>
+      harness.mode === "forbidden"
+        ? json(403, { title: "Forbidden", status: 403 })
+        : json(500, { title: "Internal Server Error", status: 500 });
+
+    if (route === "POST /api/v1/admin/accounts/search") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        searches.push(body);
+        if (harness.mode !== "ok") return refusal();
+        const { address } = JSON.parse(body) as { address?: string };
+        return json(200, accountsPage(address));
+      });
+      return;
+    }
+    const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
+    if (detail !== null) {
+      if (harness.mode !== "ok") return refusal();
+      const found = accountDetails(detail[1] ?? "");
+      return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+    }
+
     const answer = adminRoutes[route];
     if (answer !== undefined) {
       switch (harness.mode) {

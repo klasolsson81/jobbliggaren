@@ -134,7 +134,7 @@ test("search, filter, sort and pages work on the fixtures, and the search never 
   await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 1 av 2");
 
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.a");
-  await expect(summary).toHaveText("1 av 15 konton");
+  await expect(summary).toHaveText("1 av 1 konton");
   expect(new URL(page.url()).search).toBe("");
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("");
 
@@ -208,7 +208,8 @@ test("scheduling deletion states the earliest date and leaves nothing but unbuil
   await confirmation(page).getByRole("button", { name: "Radera konto" }).click();
 
   await expect(toast(page)).toContainText(`Kontot ${mail("konto.b")} raderas slutgiltigt tidigast 3 nov. 2026.`);
-  await expect(panel(page)).toContainText("Raderas tidigast 2026-11-03");
+  await expect(panel(page).getByText("Raderas slutgiltigt")).toBeVisible();
+  await expect(panel(page)).toContainText("Tidigast 2026-11-03");
   for (const button of await panel(page).getByRole("region", { name: "Åtgärder" }).getByRole("button").all()) {
     await expect(button).toHaveAttribute("aria-disabled", "true");
   }

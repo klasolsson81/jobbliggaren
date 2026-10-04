@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { formatDateTime, type JpFormatter } from "@/lib/i18n/format";
 import type { FailedJobsResponse } from "@/lib/dto/admin";
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll";
 
 interface FailedJobsTableProps {
   data: FailedJobsResponse;
@@ -43,12 +44,12 @@ export function FailedJobsTable({ data, format }: FailedJobsTableProps) {
             })
           : t("failed.note.all", { totalCount: data.totalCount })}
       </p>
-      <div className="overflow-x-auto">
+      <AdminTableScroll labelledBy="admin-jobs-failed-caption">
         <table
           className="jp-table w-full"
           aria-label={t("failed.table.ariaLabel")}
         >
-          <caption className="sr-only">{t("failed.table.caption")}</caption>
+          <caption id="admin-jobs-failed-caption" className="sr-only">{t("failed.table.caption")}</caption>
           <thead>
             <tr>
               <th scope="col">{t("failed.table.jobId")}</th>
@@ -77,7 +78,7 @@ export function FailedJobsTable({ data, format }: FailedJobsTableProps) {
             })}
           </tbody>
         </table>
-      </div>
+      </AdminTableScroll>
     </div>
   );
 }

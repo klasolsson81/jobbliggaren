@@ -40,7 +40,7 @@ import { fileURLToPath } from "node:url";
  * without flushing), so the two scanners genuinely differ and neither is a copy of the other.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SHEETS = ["globals.css", "(app)/app.css"] as const;
+const SHEETS = ["globals.css", "(app)/app.css", "(admin)/admin.css"] as const;
 
 interface Decl {
   sheet: string;

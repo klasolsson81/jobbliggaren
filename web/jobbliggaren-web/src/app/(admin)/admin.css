@@ -1,0 +1,385 @@
+/* admin.css — the (admin) route group's stylesheet (ADR 0150 D6, #1973).
+   The admin surface's own classes, `.jp-admin*`, on existing tokens only. The /oversikt card
+   classes (`.jp-ov-*`) stay in (app)/app.css: the two surfaces share tokens, not classes.
+   Imported by src/app/(admin)/layout.tsx; guarded by scripts/guard-css.mjs. Unlayered like the
+   rest of the house, so a Tailwind utility for a property a rule here sets has no effect. */
+
+/* ── Header (ADR 0150 D7) ───────────────────────────────────────────────────────────────
+   Seven nav items fit one row from 1200 px. Below that the brand takes the first row and the nav
+   and the account share the second; at ≤768 px the account takes a third. Reading order stays the
+   DOM order (brand, nav, account), so focus never jumps back up the header. At ≤768 px the nav
+   wraps with 44 px targets and the header stops being sticky, so it never eats the viewport at
+   400 % zoom (WCAG 1.4.10). */
+.jp-adminnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* In the one-row header the tagline wraps at its longest word, as in the handoff, and the room
+   left over is split evenly before the nav and before the account, with no spacer's fixed gap,
+   so a long email address keeps every pixel before it is cut. */
+.jp-header__inner:has(> .jp-adminnav) > .jp-brand { flex: 0 0 auto; }
+.jp-header__inner:has(> .jp-adminnav) .jp-brand__lockup { width: min-content; }
+.jp-header__inner:has(> .jp-adminnav) > .jp-adminnav { margin-inline-start: auto; }
+.jp-adminaccount {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  margin-inline-start: auto;
+}
+.jp-adminaccount__email {
+  min-width: 0;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+@media (max-width: 1199px) {
+  .jp-header__inner:has(> .jp-adminnav) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand brand"
+      "nav   account";
+    align-items: center;
+    height: auto;
+    padding-block: 14px 10px;
+    row-gap: 10px;
+  }
+  .jp-header__inner:has(> .jp-adminnav) > .jp-brand { grid-area: brand; justify-self: start; }
+  .jp-header__inner:has(> .jp-adminnav) .jp-brand__lockup { width: auto; }
+  .jp-header__inner:has(> .jp-adminnav) > .jp-adminnav {
+    grid-area: nav;
+    flex-wrap: wrap;
+    margin-inline-start: -12px;
+  }
+  .jp-header__inner:has(> .jp-adminnav) > .jp-adminaccount { grid-area: account; }
+}
+@media (max-width: 768px) {
+  .jp-header:has(.jp-adminnav) { position: static; }
+  .jp-header__inner:has(> .jp-adminnav) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "brand"
+      "nav"
+      "account";
+  }
+  .jp-header__inner:has(> .jp-adminnav) > .jp-adminaccount { margin-inline-start: 0; }
+  .jp-adminaccount__email { max-width: none; }
+  .jp-adminnav a.jp-adminnav__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+/* ── Page header ─────────────────────────────────────────────────────────────────────── */
+.jp-adminhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+.jp-adminhead__aside { flex: 0 0 auto; }
+
+/* ── Unavailable (ADR 0150 D2) ───────────────────────────────────────────────────────────
+   One visible line per unbuilt region, in ink-1 like the inactive provider row (ADR 0142 D8):
+   it is the region's content, not metadata. */
+.jp-adminsoon {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-adminsoon--region {
+  padding: 28px 0;
+  text-align: center;
+}
+
+/* ── Overview grid and cards (ADR 0150 D1: the /admin overview only) ────────────────────
+   Same card form as the house: surface, 1px border, --jp-r-lg, no shadow, no tint. */
+.jp-admingrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px;
+}
+.jp-admincard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  padding: 22px 24px;
+}
+.jp-admincard[data-span="3"]  { grid-column: span 3; }
+.jp-admincard[data-span="4"]  { grid-column: span 4; }
+.jp-admincard[data-span="5"]  { grid-column: span 5; }
+.jp-admincard[data-span="7"]  { grid-column: span 7; }
+.jp-admincard[data-span="8"]  { grid-column: span 8; }
+.jp-admincard--list {
+  padding: 24px 28px;
+  gap: 14px;
+}
+/* The attention card carries a 6px warning edge while something needs attention; while the
+   state is unknown or clear the edge is neutral, so an unbuilt source never raises an alarm. */
+.jp-admincard--attention { border-left: 6px solid var(--jp-warning); }
+.jp-admincard--attention[data-state="unknown"] { border-left-color: var(--jp-border-strong); }
+.jp-admincard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.jp-admincard__icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--jp-r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+}
+.jp-admincard__title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-admincard__title--lg {
+  font-size: var(--text-h2);
+  letter-spacing: -0.01em;
+}
+.jp-admincard__link {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+}
+.jp-admincard__head > .jp-adminseg { margin-left: auto; }
+.jp-admincard__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* KPI value: the big number, or an en-dash with its unit hidden while unknown. Information-
+   bearing digits are sans tabular-nums (DESIGN.md §4). */
+.jp-adminkpi {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 0;
+}
+.jp-adminkpi__value {
+  font-size: var(--jp-fs-oversikt-num);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
+}
+.jp-adminkpi__sub {
+  margin: 12px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+
+/* The trend region's frame: three dashed guides and a baseline around the plot area. */
+.jp-admintrend__plot {
+  position: relative;
+  height: 200px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--jp-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-admintrend__guide {
+  position: absolute;
+  inset-inline: 0;
+  border-top: 1px dashed var(--jp-border-soft);
+}
+.jp-admintrend__guide:nth-child(1) { top: 0; }
+.jp-admintrend__guide:nth-child(2) { top: 33.333%; }
+.jp-admintrend__guide:nth-child(3) { top: 66.667%; }
+.jp-admintrend__plot .jp-adminsoon {
+  position: relative;
+  padding: 4px 12px;
+  background: var(--jp-surface);
+}
+
+/* Label/value rows: the server meters and the backup facts. */
+.jp-admindl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+  font-size: var(--text-body-sm);
+}
+.jp-admindl dt { color: var(--jp-ink-2); }
+.jp-admindl dd {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Segmented filter and period groups ─────────────────────────────────────────────────
+   Separate buttons, the selected one tinted: accent-50 fill, accent-700 text and border, with
+   aria-pressed carrying the state. 36 px (the house --sm rung), 44 px at ≤768 px. */
+.jp-adminseg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jp-adminseg__opt {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 80ms linear;
+}
+.jp-adminseg__opt:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--jp-surface-3); }
+.jp-adminseg__opt[aria-pressed="true"] {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  border-color: var(--jp-accent-700);
+}
+.jp-adminseg__opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (max-width: 768px) {
+  .jp-adminseg__opt { height: auto; min-height: 44px; }
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────────────────────
+   A labelled scroll region carries a wide table at narrow widths, so the page itself never
+   scrolls sideways (WCAG 1.4.10). */
+.jp-admintable-scroll { overflow-x: auto; }
+/* The new admin ledgers keep their columns readable and scroll inside the region instead. */
+.jp-table.jp-admintable { min-width: 720px; }
+/* A sortable header row is control text, not a receipt label (DESIGN.md §4 deviation (1)):
+   (0,2,2) beats the house `.jp-table thead th` mono caps at (0,1,2). */
+.jp-table.jp-adminusers thead th {
+  font-family: var(--jp-font-sans);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--jp-ink-1);
+}
+.jp-adminusers__sortbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.jp-adminusers__sortbtn:disabled { cursor: not-allowed; }
+.jp-table tbody td.jp-admintable__soon { text-align: center; padding-block: 28px; }
+/* The "Kommer snart" row is not a record: it takes no row hover. */
+.jp-table tbody tr:hover td.jp-admintable__soon { background: none; }
+
+/* ── Användare: toolbar ──────────────────────────────────────────────────────────────── */
+.jp-admintoolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.jp-adminsearch {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 480px;
+}
+.jp-adminsearch__icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--jp-ink-2);
+  pointer-events: none;
+}
+.jp-adminsearch input { padding-left: 42px; }
+
+/* ── Feedback: master/detail ─────────────────────────────────────────────────────────── */
+.jp-adminfeedback {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.jp-adminfeedback__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 28px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+}
+.jp-adminfeedback__reply {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── E-postleverans: summary ─────────────────────────────────────────────────────────── */
+.jp-adminmailsum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+  font-size: var(--text-body-lg);
+}
+.jp-adminmailsum div { display: flex; align-items: baseline; gap: 8px; }
+.jp-adminmailsum dt { color: var(--jp-ink-1); }
+.jp-adminmailsum dd {
+  margin: 0;
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1099px) {
+  .jp-admincard[data-span="3"] { grid-column: span 6; }
+  .jp-admincard[data-span="4"],
+  .jp-admincard[data-span="5"],
+  .jp-admincard[data-span="7"],
+  .jp-admincard[data-span="8"] { grid-column: span 12; }
+  .jp-adminfeedback { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+  /* Touch floor (DESIGN.md §5): the card links and the sort controls reach 44 px. */
+  .jp-admincard__link,
+  .jp-adminusers__sortbtn { min-height: 44px; }
+  .jp-admincard { padding: 18px 16px; }
+  .jp-admincard--list { padding: 20px 16px; }
+  .jp-adminfeedback__detail { padding: 20px 16px; }
+}
+@media (max-width: 640px) {
+  .jp-admincard[data-span] { grid-column: span 12; }
+}

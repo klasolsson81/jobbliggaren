@@ -8,49 +8,64 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
 }));
 
+const ITEMS = [
+  ["Översikt", "/admin"],
+  ["Användare", "/admin/anvandare"],
+  ["Feedback", "/admin/feedback"],
+  ["Loggar", "/admin/loggar"],
+  ["E-postleverans", "/admin/e-post"],
+  ["Bakgrundsjobb", "/admin/jobb"],
+  ["Granskning", "/admin/granskning"],
+] as const;
+
+function navLinks() {
+  const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
+  return within(nav).getAllByRole("link");
+}
+
 describe("AdminNav", () => {
   beforeEach(() => {
     pathnameMock.mockReset();
     pathnameMock.mockReturnValue("/admin/granskning");
   });
 
-  it("renders both admin nav links inside a labelled navigation landmark", () => {
+  it("renders the seven admin pages in the designed order inside a labelled navigation landmark", () => {
     render(<AdminNav />);
 
-    const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
-    expect(
-      within(nav).getByRole("link", { name: "Granskning" }),
-    ).toHaveAttribute("href", "/admin/granskning");
-    expect(within(nav).getByRole("link", { name: "Jobb" })).toHaveAttribute(
-      "href",
-      "/admin/jobb",
+    expect(navLinks().map((link) => [link.textContent, link.getAttribute("href")])).toEqual(
+      ITEMS.map(([label, href]) => [label, href]),
     );
   });
 
-  it("marks the active link via aria-current=page and leaves the inactive one unset", () => {
+  it("marks only the current page with aria-current=page", () => {
     pathnameMock.mockReturnValue("/admin/jobb");
     render(<AdminNav />);
 
-    const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
-    expect(within(nav).getByRole("link", { name: "Jobb" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(
-      within(nav).getByRole("link", { name: "Granskning" }),
-    ).not.toHaveAttribute("aria-current");
+    const current = navLinks().filter((link) => link.getAttribute("aria-current") === "page");
+    expect(current.map((link) => link.textContent)).toEqual(["Bakgrundsjobb"]);
+  });
+
+  it("marks the overview only on the bare /admin, never on the pages it prefixes", () => {
+    pathnameMock.mockReturnValue("/admin/anvandare");
+    render(<AdminNav />);
+
+    expect(screen.getByRole("link", { name: "Översikt" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Användare" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("marks the overview on /admin", () => {
+    pathnameMock.mockReturnValue("/admin");
+    render(<AdminNav />);
+
+    const current = navLinks().filter((link) => link.getAttribute("aria-current") === "page");
+    expect(current.map((link) => link.textContent)).toEqual(["Översikt"]);
   });
 
   it("treats a nested route as active via the path-prefix match", () => {
-    pathnameMock.mockReturnValue("/admin/granskning/123");
+    pathnameMock.mockReturnValue("/admin/loggar/applikationsfel");
     render(<AdminNav />);
 
-    const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
-    expect(
-      within(nav).getByRole("link", { name: "Granskning" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(within(nav).getByRole("link", { name: "Jobb" })).not.toHaveAttribute(
-      "aria-current",
-    );
+    const current = navLinks().filter((link) => link.getAttribute("aria-current") === "page");
+    expect(current.map((link) => link.textContent)).toEqual(["Loggar"]);
   });
 });

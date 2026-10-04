@@ -103,7 +103,7 @@ Admin-rollen och initial admin-användare seedas via `IHostedService` som kör v
 - Tilldelar rollen till user-konto specificerat via `AdminBootstrap:InitialAdminEmail`-config (typiskt `klas@jobbpilot.se` i dev/staging, prod via AWS Secrets Manager)
 - Idempotent: andra uppstart är no-op
 
-**Update 2026-10-04 (#2001):** the seeder grants the role only while the role has no holder. Before, it granted it at every start to whichever account held the configured address, so an admin who changed address left the role to the address's next holder (security-auditor, measured 2026-10-04). Residual: deleting the only admin empties the role, and the next start grants it to whoever proves the configured inbox, which is the bootstrap's own premise.
+**Update 2026-10-04 (#2001):** the seeder grants the role only while the role has no holder. Before, it granted it at every start to whichever account held the configured address, so after an admin changed address, the next start granted the role to the address's next holder as well (security-auditor, measured 2026-10-04). Residual: deleting the only admin empties the role, and the next start grants it to whoever proves the configured inbox, which is the bootstrap's own premise.
 
 Motivering: **Twelve-Factor App §III "Config" och §V "Build, release, run":** infrastructure-as-code-konsistens med STEG 13/14 (Hangfire-bootstrapping, partition-init). Manuellt psql-script (Alt B2) avvisades eftersom det skapar en hand-edited produktion-tillstånd som inte är reproducerbart i nya miljöer (preview-env, CI integration-test-DB).
 

@@ -219,8 +219,8 @@ the wrong instrument here. Its precondition is the `--status` in front of it: th
 only on `verdict: consistent`.
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
-whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
-did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
+whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` while the role has no holder, and
+at step 3 that account did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
 never the address.
 
 **Then blank the knob — and RE-CREATE, not restart.**
@@ -233,15 +233,13 @@ sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
 
 ⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
 fixed at creation, so `restart` re-runs the process against the value it already had: the address
-stays in container env, the seeder keeps re-asserting the role on every start, and the operator
+stays in container env, and the operator
 believes the knob is blanked because `.env` says so. Only a re-create re-reads `.env`. Measured
 2026-08-16, where the same asymmetry bit in the other direction first — the value had been
 *changed* after step 3's `up`, so the running container still carried the old address and a
 `restart` would have granted Admin to the wrong account.
 
-The seeder re-asserts on **every** start, so a
-standing value is not a bootstrap but a permanent grant: it silently re-grants the role after
-any in-app revocation, and it would hand Admin to a future holder of that address. The role
+The role
 is persisted in the database, so the knob has no further work once the log confirms the
 assignment. Blanking it also takes a real address back out of container environment, where
 `docker inspect` and the container's on-disk config both carry it. Verify with

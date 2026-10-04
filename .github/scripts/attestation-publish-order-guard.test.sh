@@ -150,6 +150,9 @@ wf_case 1 "a quoted # in an earlier command on the line does not stop the contin
 wf_case 1 "nor one before a semicolon" \
   's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          echo "release \#$SHORT"; docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
   "builds and pushes in one command"
+wf_case 1 "nor one in a middle command: only the last command decides" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          cd web \&\& echo "build \#$SHORT" \&\& docker buildx build . \\\n            --push -t "$IMAGE:latest"#' \
+  "builds and pushes in one command"
 wf_case 1 "the cells' build-push-action told to push" \
   's#^          push: false$#          push: true#' \
   "publishes from docker/build-push-action"

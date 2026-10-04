@@ -63,11 +63,23 @@ export function AdminOverview({
   readonly regions?: AdminOverviewRegions;
 }) {
   const t = useTranslations("admin.overview");
+  const shared = useTranslations("admin.regions");
   const format = useFormatter();
+  const kinds = new Set(Object.values(regions).map((region) => region.kind));
 
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader title={t("heading")} />
+      {kinds.has("failed") ? (
+        <p className="sr-only" role="alert">
+          {shared("failed")}
+        </p>
+      ) : null}
+      {kinds.has("loading") ? (
+        <p className="sr-only" role="status">
+          {shared("loading")}
+        </p>
+      ) : null}
 
       <div className="jp-admingrid">
         <ValueCard
@@ -244,7 +256,7 @@ function ValueCard<T>({
         <p className="jp-adminkpi">
           <span className="jp-adminkpi__value">{dash}</span>
         </p>
-        <AdminRegionLine kind={region.kind} className="jp-adminkpi__sub" />
+        <AdminRegionLine quiet kind={region.kind} className="jp-adminkpi__sub" />
       </AdminCard>
     );
   }
@@ -264,7 +276,8 @@ function ValueCard<T>({
 
 function ServicesBody({ region }: { readonly region: AdminRegion<ReadonlyArray<AdminServiceStatus>> }) {
   const t = useTranslations("admin.overview.services");
-  if (region.kind !== "loaded") return <AdminRegionLine kind={region.kind} empty={t("empty")} region />;
+  if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
+  if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
   return (
     <ul className="jp-adminservices">
       {region.data.map((service) => (
@@ -305,7 +318,7 @@ function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerR
           </Row>
         ))}
       </dl>
-      {region.kind === "loaded" ? null : <AdminRegionLine kind={region.kind} />}
+      {region.kind === "loaded" ? null : <AdminRegionLine quiet kind={region.kind} />}
     </div>
   );
 }
@@ -324,7 +337,7 @@ function BackupBody({ region }: { readonly region: AdminValueRegion<AdminBackupS
         <Row label={t("next")}>{data === null ? dash : (formatDateTime(format, data.nextAt) ?? dash)}</Row>
         <Row label={t("retention")}>{data === null ? dash : t("retentionDays", { days: data.retentionDays })}</Row>
       </dl>
-      {region.kind === "loaded" ? null : <AdminRegionLine kind={region.kind} />}
+      {region.kind === "loaded" ? null : <AdminRegionLine quiet kind={region.kind} />}
     </div>
   );
 }
@@ -346,8 +359,8 @@ function AttentionBody({
   readonly basePath: string;
 }) {
   const t = useTranslations("admin.overview.attention");
-  if (region.kind !== "loaded") return <AdminRegionLine kind={region.kind} empty={t("empty")} region />;
-  if (region.data.length === 0) return <AdminRegionLine kind="empty" empty={t("empty")} region />;
+  if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
+  if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
   return (
     <ul className="jp-adminattention">
       {region.data.map((item) => (
@@ -363,13 +376,14 @@ function AttentionBody({
 function EventsBody({ region }: { readonly region: AdminRegion<ReadonlyArray<AdminRecentEvent>> }) {
   const t = useTranslations("admin.overview.events");
   const format = useFormatter();
-  if (region.kind !== "loaded") return <AdminRegionLine kind={region.kind} empty={t("empty")} region />;
-  if (region.data.length === 0) return <AdminRegionLine kind="empty" empty={t("empty")} region />;
+  const dash = useTranslations("admin.unavailable")("unknownValue");
+  if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
+  if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
   return (
     <ol className="jp-adminevents">
       {region.data.map((event) => (
         <li key={event.id}>
-          <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt)}</time>
+          <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? dash}</time>
           <span className={`jp-pill jp-pill--${EVENT_TONE[event.kind]}`}>{t(`kind.${event.kind}`)}</span>
           <span className="jp-adminevents__subject">{event.subject}</span>
         </li>

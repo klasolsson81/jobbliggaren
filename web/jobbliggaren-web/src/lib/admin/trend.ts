@@ -16,7 +16,7 @@ export function trendWindow(
 
 export interface AdminTrendPeak {
   readonly count: number;
-  /** The first day that reached the count; null while the count is zero. */
+  /** The one day that reached the count; null while the count is zero or several days share it. */
   readonly date: string | null;
 }
 
@@ -28,17 +28,30 @@ export interface AdminTrendSummary {
   readonly loginsPeak: AdminTrendPeak;
 }
 
+function peakOf(days: ReadonlyArray<AdminTrendDay>, value: (day: AdminTrendDay) => number): AdminTrendPeak {
+  let count = 0;
+  let date: string | null = null;
+  let shared = false;
+  for (const day of days) {
+    const current = value(day);
+    if (current > count) {
+      count = current;
+      date = day.date;
+      shared = false;
+    } else if (current === count && count > 0) {
+      shared = true;
+    }
+  }
+  return { count, date: shared ? null : date };
+}
+
 /** The totals and the busiest day of each series, for the sentence that carries the chart. */
 export function summarizeTrend(days: ReadonlyArray<AdminTrendDay>): AdminTrendSummary {
-  let newAccounts = 0;
-  let logins = 0;
-  let newAccountsPeak: AdminTrendPeak = { count: 0, date: null };
-  let loginsPeak: AdminTrendPeak = { count: 0, date: null };
-  for (const day of days) {
-    newAccounts += day.newAccounts;
-    logins += day.logins;
-    if (day.newAccounts > newAccountsPeak.count) newAccountsPeak = { count: day.newAccounts, date: day.date };
-    if (day.logins > loginsPeak.count) loginsPeak = { count: day.logins, date: day.date };
-  }
-  return { days: days.length, newAccounts, logins, newAccountsPeak, loginsPeak };
+  return {
+    days: days.length,
+    newAccounts: days.reduce((sum, day) => sum + day.newAccounts, 0),
+    logins: days.reduce((sum, day) => sum + day.logins, 0),
+    newAccountsPeak: peakOf(days, (day) => day.newAccounts),
+    loginsPeak: peakOf(days, (day) => day.logins),
+  };
 }

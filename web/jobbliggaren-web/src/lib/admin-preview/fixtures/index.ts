@@ -113,6 +113,9 @@ export const PREVIEW_AUDIT_ENTRIES: ReadonlyArray<AuditLogEntryDto> = [
 
 const mask = (local: string) => `${local.slice(0, 1)}•••@${SENTINEL}`;
 
+/** A provider's reason as long as real ones run, so the failure list is seen to wrap rather than cut it. */
+const LONG_PROVIDER_MESSAGE = "Mottagarens server avvisade meddelandet: postlådan är full och tar inte emot nya meddelanden just nu. Servern föreslog ett nytt försök senare, och tre försök under en timme gav samma svar innan utskicket gavs upp.";
+
 /** Calendar day `days` days before the fixed clock, `YYYY-MM-DD` (UTC; the clock sits mid-morning in Sweden). */
 function dayKey(days: number): string {
   return daysAgo(days).slice(0, 10);
@@ -142,7 +145,7 @@ const registeredWithin = (days: number) =>
     (row) => row.registeredAt !== null && Date.parse(FIXTURE_NOW) - Date.parse(row.registeredAt) < days * DAY_MS,
   ).length;
 
-/** Every overview region with data, in the shapes #1978 and the later issues return. */
+/** Every overview region with data, in the view models' shapes. */
 export interface PreviewOverviewData {
   readonly newAccounts: AdminNewAccounts;
   readonly totals: AdminAccountTotals;
@@ -208,6 +211,7 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
     marked({ id: id(405), occurredAt: daysAgo(6, 15, 30), kind: "deletionScheduled" as const, subject: address("konto.e") }),
     marked({ id: id(406), occurredAt: daysAgo(9, 8, 20), kind: "accountReinstated" as const, subject: address("konto.g") }),
     marked({ id: id(407), occurredAt: daysAgo(12, 16, 5), kind: "accountSuspended" as const, subject: address("konto.l") }),
+    marked({ id: id(408), occurredAt: daysAgo(33, 10, 44), kind: "accountCreated" as const, subject: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar") }),
   ],
 });
 
@@ -352,11 +356,11 @@ export const PREVIEW_EMAIL_DELIVERY: Readonly<Record<AdminEmailPeriod, AdminEmai
     ],
   }),
   d7: marked({
-    totals: marked({ sent: 384, failed: 4, noRecipient: 1 }),
+    totals: marked({ sent: 384, failed: 5, noRecipient: 1 }),
     types: [
       marked({ type: "login-challenge", sent: 215, failed: 3, lastError: "Mottagarens server svarade inte." }),
       marked({ type: "match-notification", sent: 126, failed: 1, lastError: "Adressen finns inte." }),
-      marked({ type: "email-changed-notification", sent: 23, failed: 0, lastError: null }),
+      marked({ type: "email-changed-notification", sent: 23, failed: 1, lastError: LONG_PROVIDER_MESSAGE }),
       marked({ type: "followed-company-notification", sent: 20, failed: 0, lastError: null }),
     ],
     failures: [
@@ -364,6 +368,7 @@ export const PREVIEW_EMAIL_DELIVERY: Readonly<Record<AdminEmailPeriod, AdminEmai
       marked({ id: id(1002), occurredAt: daysAgo(0, 5, 3), recipient: mask("konto.k"), outcome: "bounced" as const, message: "Adressen finns inte.", type: "match-notification" }),
       marked({ id: id(1003), occurredAt: daysAgo(2, 19, 12), recipient: mask("konto.a"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
       marked({ id: id(1004), occurredAt: daysAgo(5, 8, 30), recipient: mask("konto.h"), outcome: "failed" as const, message: "Anslutningen bröts.", type: "login-challenge" }),
+      marked({ id: id(1005), occurredAt: daysAgo(6, 11, 20), recipient: mask("konto.j"), outcome: "bounced" as const, message: LONG_PROVIDER_MESSAGE, type: "email-changed-notification" }),
     ],
   }),
 });

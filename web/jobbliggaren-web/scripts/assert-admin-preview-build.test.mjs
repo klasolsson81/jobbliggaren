@@ -47,6 +47,12 @@ describe("previewRoutesIn", () => {
       "/(admin)/admin/forhandsvisning/(.)x/page",
     ]);
   });
+
+  it("reads a group whose name starts with a dot as a group", () => {
+    expect(previewRoutesIn({ "/(.probe)/admin/forhandsvisning/page": "a.js" })).toEqual([
+      "/(.probe)/admin/forhandsvisning/page",
+    ]);
+  });
 });
 
 describe("filesHolding", () => {

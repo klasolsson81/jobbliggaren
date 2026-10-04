@@ -37,13 +37,14 @@ interface AdminAccountsTableProps {
  * panel through a button in its first cell, never through a clickable `<tr>`.
  */
 export function AdminAccountsTable({
-  region,
+  region: given,
   sort,
   onSort,
   selectedId = null,
   onOpen,
   soonId,
 }: AdminAccountsTableProps) {
+  const region = given.kind === "loaded" && given.data.length === 0 ? ({ kind: "empty" } as const) : given;
   const t = useTranslations("admin.users");
   const unknown = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();

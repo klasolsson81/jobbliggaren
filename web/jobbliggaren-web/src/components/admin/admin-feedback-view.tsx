@@ -1,7 +1,7 @@
 "use client";
 
 // "use client": the view holds the filter, the open report and the reply being written.
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -36,29 +36,33 @@ function excerpt(text: string): string {
   return text.length <= EXCERPT_LENGTH ? text : `${text.slice(0, EXCERPT_LENGTH).trimEnd()}…`;
 }
 
+type FeedbackRegion = AdminRegion<ReadonlyArray<AdminFeedbackItem>>;
+
+/** An unavailable region takes no handlers; every other state needs both. */
+export type AdminFeedbackViewProps =
+  | { readonly region: Extract<FeedbackRegion, { readonly kind: "unavailable" }> }
+  | {
+      readonly region: Exclude<FeedbackRegion, { readonly kind: "unavailable" }>;
+      readonly onReply: (id: string, text: string) => Promise<void>;
+      readonly onStatus: (id: string, status: AdminFeedbackStatus) => void;
+    };
+
 /**
  * Reports from the app's feedback button as a master/detail layout (ADR 0150). Until #1979 the
  * region is unavailable: the filter, the list and the reply form keep their structure, disabled
  * and described by their "Kommer snart" lines, and no count, report or reply is shown (D2).
- * Replying and changing a report's status work only where the caller provides them.
  */
-export function AdminFeedbackView({
-  region,
-  onReply,
-  onStatus,
-}: {
-  readonly region: AdminRegion<ReadonlyArray<AdminFeedbackItem>>;
-  /** Resolves to a refusal to show under the form, or null when the reply went out. */
-  readonly onReply?: (item: AdminFeedbackItem, text: string) => Promise<string | null>;
-  readonly onStatus?: (item: AdminFeedbackItem, status: AdminFeedbackStatus) => void;
-}) {
+export function AdminFeedbackView(props: AdminFeedbackViewProps) {
+  const { region } = props;
   const t = useTranslations("admin.feedback");
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selections, setSelections] = useState(0);
   const loaded = region.kind === "loaded";
   const items = loaded ? region.data : [];
   const shown = filter === "all" ? items : items.filter((item) => item.status === filter);
-  const selected = shown.find((item) => item.id === selectedId) ?? shown[0] ?? null;
+  // A report stays open when a change moves it out of the filter.
+  const selected = items.find((item) => item.id === selectedId) ?? shown[0] ?? null;
 
   const filters = (
     <AdminSegment
@@ -78,7 +82,7 @@ export function AdminFeedbackView({
     />
   );
 
-  if (region.kind === "unavailable") {
+  if (!("onReply" in props)) {
     return (
       <>
         {filters}
@@ -134,7 +138,10 @@ export function AdminFeedbackView({
                   <FeedbackListItem
                     item={item}
                     selected={item.id === selected?.id}
-                    onSelect={() => setSelectedId(item.id)}
+                    onSelect={() => {
+                      setSelectedId(item.id);
+                      setSelections((count) => count + 1);
+                    }}
                   />
                 </li>
               ))}
@@ -142,7 +149,19 @@ export function AdminFeedbackView({
           )}
         </section>
         {selected === null ? null : (
-          <FeedbackDetail key={selected.id} item={selected} onReply={onReply} onStatus={onStatus} />
+          <FeedbackDetail
+            key={selected.id}
+            item={selected}
+            selections={selections}
+            onReply={(id, text) => {
+              setSelectedId(id);
+              return props.onReply(id, text);
+            }}
+            onStatus={(id, status) => {
+              setSelectedId(id);
+              props.onStatus(id, status);
+            }}
+          />
         )}
       </div>
     </>
@@ -160,6 +179,7 @@ function FeedbackListItem({
 }) {
   const t = useTranslations("admin.feedback");
   const format = useFormatter();
+  const dash = useTranslations("admin.unavailable")("unknownValue");
   return (
     <button
       type="button"
@@ -170,7 +190,7 @@ function FeedbackListItem({
       <span className="jp-adminfeedback__itemhead">
         <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
         <span className="jp-adminfeedback__category">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt)}</span>
+        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? dash}</span>
       </span>
       <span className="jp-adminfeedback__excerpt">{excerpt(item.text)}</span>
       <span className="jp-adminfeedback__sender">{item.senderEmail}</span>
@@ -180,61 +200,90 @@ function FeedbackListItem({
 
 function FeedbackDetail({
   item,
+  selections,
   onReply,
   onStatus,
 }: {
   readonly item: AdminFeedbackItem;
-  readonly onReply?: (item: AdminFeedbackItem, text: string) => Promise<string | null>;
-  readonly onStatus?: (item: AdminFeedbackItem, status: AdminFeedbackStatus) => void;
+  /** How many times a report has been chosen in the list; each choice brings the open report into view. */
+  readonly selections: number;
+  readonly onReply: (id: string, text: string) => Promise<void>;
+  readonly onStatus: (id: string, status: AdminFeedbackStatus) => void;
 }) {
   const t = useTranslations("admin.feedback");
   const format = useFormatter();
+  const dash = useTranslations("admin.unavailable")("unknownValue");
   const [reply, setReply] = useState("");
-  const [pending, setPending] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [status, setStatus] = useState<AdminFeedbackStatus | null>(null);
+  const [sent, setSent] = useState(0);
+  const [pending, startTransition] = useTransition();
+  const sectionRef = useRef<HTMLElement>(null);
+  const repliesRef = useRef<HTMLOListElement>(null);
   const statusId = useId();
   const hintId = useId();
+  const chosenStatus = status ?? item.status;
 
-  async function send() {
-    if (onReply === undefined || reply.trim() === "") return;
-    setPending(true);
-    setRefusal(null);
-    const outcome = await onReply(item, reply.trim());
-    setPending(false);
-    if (outcome !== null) {
-      setRefusal(outcome);
-      return;
-    }
-    setReply("");
-    showAdminToast(t("detail.sent", { email: item.senderEmail }));
+  useEffect(() => {
+    if (selections === 0) return;
+    sectionRef.current?.focus({ preventScroll: true });
+    sectionRef.current?.scrollIntoView?.({ block: "start" });
+  }, [selections]);
+
+  useEffect(() => {
+    if (sent === 0) return;
+    const last = repliesRef.current?.lastElementChild;
+    if (last instanceof HTMLElement) last.focus();
+  }, [sent]);
+
+  // A send that throws ends at the nearest error boundary rather than leaving the form disabled.
+  function send() {
+    const text = reply.trim();
+    if (text === "") return;
+    startTransition(async () => {
+      await onReply(item.id, text);
+      setReply("");
+      setSent((count) => count + 1);
+      showAdminToast(t("detail.sent", { email: item.senderEmail }));
+    });
+  }
+
+  function saveStatus() {
+    if (chosenStatus !== item.status) onStatus(item.id, chosenStatus);
+    setStatus(null);
   }
 
   return (
-    <section aria-labelledby="admin-feedback-detail" className="jp-adminfeedback__detail">
+    <section
+      ref={sectionRef}
+      tabIndex={-1}
+      aria-labelledby="admin-feedback-detail"
+      className="jp-adminfeedback__detail"
+    >
       <h2 id="admin-feedback-detail" className="sr-only">
         {t("detail.label")}
       </h2>
       <div className="jp-adminfeedback__detailhead">
         <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
         <span className="jp-pill jp-pill--neutral">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt)}</span>
-        {onStatus === undefined ? null : (
-          <span className="jp-adminfeedback__status">
-            <label htmlFor={statusId}>{t("detail.statusLabel")}</label>
-            <select
-              id={statusId}
-              className="jp-adminfeedback__select"
-              value={item.status}
-              onChange={(event) => onStatus(item, event.target.value as AdminFeedbackStatus)}
-            >
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {t(`status.${status}`)}
-                </option>
-              ))}
-            </select>
-          </span>
-        )}
+        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? dash}</span>
+        <span className="jp-adminfeedback__status">
+          <label htmlFor={statusId}>{t("detail.statusLabel")}</label>
+          <select
+            id={statusId}
+            className="jp-adminfeedback__select"
+            value={chosenStatus}
+            onChange={(event) => setStatus(event.target.value as AdminFeedbackStatus)}
+          >
+            {STATUSES.map((option) => (
+              <option key={option} value={option}>
+                {t(`status.${option}`)}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={saveStatus}>
+            {t("detail.saveStatus")}
+          </button>
+        </span>
       </div>
       <p className="jp-adminfeedback__from">{item.senderEmail}</p>
       <p className="jp-adminfeedback__text">{item.text}</p>
@@ -256,11 +305,11 @@ function FeedbackDetail({
       {item.replies.length === 0 ? (
         <p className="jp-adminsoon">{t("detail.noReplies")}</p>
       ) : (
-        <ol className="jp-adminfeedback__replies">
-          {item.replies.map((sent) => (
-            <li key={sent.id}>
-              <span className="jp-adminfeedback__time">{formatDateTime(format, sent.sentAt)}</span>
-              <p>{sent.text}</p>
+        <ol ref={repliesRef} className="jp-adminfeedback__replies">
+          {item.replies.map((sentReply) => (
+            <li key={sentReply.id} tabIndex={-1}>
+              <span className="jp-adminfeedback__time">{formatDateTime(format, sentReply.sentAt) ?? dash}</span>
+              <p>{sentReply.text}</p>
             </li>
           ))}
         </ol>
@@ -269,7 +318,7 @@ function FeedbackDetail({
         className="jp-adminfeedback__reply"
         onSubmit={(event) => {
           event.preventDefault();
-          void send();
+          send();
         }}
       >
         <Label htmlFor="admin-feedback-reply">{t("detail.reply")}</Label>
@@ -277,23 +326,15 @@ function FeedbackDetail({
           id="admin-feedback-reply"
           value={reply}
           onChange={(event) => setReply(event.target.value)}
-          disabled={onReply === undefined || pending}
+          disabled={pending}
+          required
           aria-describedby={hintId}
         />
         <p id={hintId} className="jp-adminfeedback__hint">
           {t("detail.replyHint", { email: item.senderEmail })}
         </p>
-        {refusal === null ? null : (
-          <p className="jp-admineditform__refusal" role="alert">
-            {refusal}
-          </p>
-        )}
         <div>
-          <button
-            type="submit"
-            className={onReply === undefined ? "jp-btn jp-btn--secondary" : "jp-btn jp-btn--primary"}
-            disabled={onReply === undefined || pending || reply.trim() === ""}
-          >
+          <button type="submit" className="jp-btn jp-btn--primary" disabled={pending}>
             <Send size={16} aria-hidden="true" />
             <AdminBusyLabel busy={pending} label={t("detail.send")} busyLabel={t("detail.sending")} />
           </button>

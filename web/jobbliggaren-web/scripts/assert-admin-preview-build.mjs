@@ -34,7 +34,7 @@ const TEXT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".json", ".html", ".rsc"
  */
 export function previewRoutesIn(manifest) {
   return Object.keys(manifest).filter((route) => {
-    const path = route.replace(/\/\((?!\.)[^/]*\)(?=\/|$)/g, "");
+    const path = route.replace(/\/\([^/]*\)(?=\/|$)/g, "");
     return (
       route.includes("(admin-preview)") ||
       path === gate.ADMIN_PREVIEW_ROUTE ||

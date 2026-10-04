@@ -1,9 +1,20 @@
+import { Component, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AdminFeedbackItem } from "@/lib/admin/view-models";
+import type { AdminFeedbackItem, AdminFeedbackStatus } from "@/lib/admin/view-models";
 import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-store";
 import { AdminFeedbackView } from "./admin-feedback-view";
+
+class Boundary extends Component<{ readonly children: ReactNode }, { readonly failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <p>Något gick fel.</p> : this.props.children;
+  }
+}
 
 const base = {
   screen: "1440 × 900",
@@ -37,16 +48,49 @@ const ITEMS: ReadonlyArray<AdminFeedbackItem> = [
 ];
 
 const list = () => screen.getByRole("region", { name: "Rapporter" });
+const noReply = async () => {};
+const noStatus = () => {};
 const detail = () => screen.getByRole("region", { name: "Vald rapport" });
 
+/** The caller the preview is: a sent reply joins its report, and a saved status replaces the report's. */
+function Reports({
+  onReply = noReply,
+  onStatus = noStatus,
+}: {
+  readonly onReply?: (id: string, text: string) => void | Promise<void>;
+  readonly onStatus?: (id: string, status: AdminFeedbackStatus) => void;
+}) {
+  const [items, setItems] = useState(ITEMS);
+  return (
+    <AdminFeedbackView
+      region={{ kind: "loaded", data: items }}
+      onReply={async (id, text) => {
+        await onReply(id, text);
+        setItems((previous) =>
+          previous.map((item) =>
+            item.id === id
+              ? { ...item, replies: [...item.replies, { id: `${id}-sent`, sentAt: "2026-10-04T08:00:00Z", text }] }
+              : item,
+          ),
+        );
+      }}
+      onStatus={(id, status) => {
+        onStatus(id, status);
+        setItems((previous) => previous.map((item) => (item.id === id ? { ...item, status } : item)));
+      }}
+    />
+  );
+}
+
 afterEach(() => {
+  vi.restoreAllMocks();
   const toast = getAdminToastSnapshot();
   if (toast !== null) dismissAdminToast(toast.token);
 });
 
 describe("AdminFeedbackView with reports (ADR 0150)", () => {
   it("counts each filter, lists the reports and opens the first", () => {
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} />);
+    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={noReply} onStatus={noStatus} />);
 
     expect(
       within(screen.getByRole("radiogroup", { name: "Visa rapporter" }))
@@ -62,12 +106,13 @@ describe("AdminFeedbackView with reports (ADR 0150)", () => {
     expect(within(detail()).getByText("Sida").nextElementSibling).toHaveTextContent("/ansokningar");
   });
 
-  it("opens the report pressed in the list, and narrows the list by status", async () => {
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} />);
+  it("opens the report pressed in the list and moves focus to it, and narrows the list by status", async () => {
+    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={noReply} onStatus={noStatus} />);
 
     await userEvent.click(within(list()).getByRole("button", { name: /Hur länge sparas/ }));
     expect(within(list()).getByRole("button", { name: /Hur länge sparas/ })).toHaveAttribute("aria-current", "true");
     expect(within(detail()).getByText("I tolv månader.")).toBeInTheDocument();
+    expect(detail()).toHaveFocus();
 
     await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
     expect(within(list()).getAllByRole("button")).toHaveLength(1);
@@ -75,54 +120,84 @@ describe("AdminFeedbackView with reports (ADR 0150)", () => {
     expect(list()).toHaveTextContent("Inga rapporter.");
   });
 
-  it("sends a reply only when there is one, and confirms it with a receipt", async () => {
-    const onReply = vi.fn(async () => null);
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={onReply} />);
+  it("sends no empty reply, and confirms a sent one with a receipt and focus on it", async () => {
+    const onReply = vi.fn();
+    render(<Reports onReply={onReply} />);
 
     const send = within(detail()).getByRole("button", { name: "Skicka svar" });
-    expect(send).toBeDisabled();
     expect(send).toHaveClass("jp-btn--primary");
     const field = within(detail()).getByRole("textbox", { name: "Svar" });
+    expect(field).toBeRequired();
     expect(field).toHaveAccessibleDescription("Svaret skickas till konto.b@example.test.");
+    await userEvent.click(send);
+    expect(onReply).not.toHaveBeenCalled();
 
     await userEvent.type(field, "Tack, vi tittar på det.");
     await userEvent.click(send);
-    expect(onReply).toHaveBeenCalledWith(ITEMS[0], "Tack, vi tittar på det.");
+    expect(onReply).toHaveBeenCalledWith("f1", "Tack, vi tittar på det.");
     expect(field).toHaveValue("");
     expect(getAdminToastSnapshot()?.message).toBe("Svaret skickades till konto.b@example.test.");
+    await waitFor(() => expect(within(detail()).getByText("Tack, vi tittar på det.").closest("li")).toHaveFocus());
   });
 
-  it("keeps the reply and shows a refusal where it was asked", async () => {
+  it("names the reply while it is sent", async () => {
+    let settle: () => void = () => {};
     render(
-      <AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={async () => "Svaret kunde inte skickas."} />,
+      <AdminFeedbackView
+        region={{ kind: "loaded", data: ITEMS }}
+        onReply={() => new Promise<void>((resolve) => (settle = resolve))}
+        onStatus={noStatus}
+      />,
     );
 
-    const field = within(detail()).getByRole("textbox", { name: "Svar" });
-    await userEvent.type(field, "Hej");
+    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Hej");
     await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
-    expect(within(detail()).getByRole("alert")).toHaveTextContent("Svaret kunde inte skickas.");
-    expect(field).toHaveValue("Hej");
+    expect(within(detail()).getByRole("button", { name: "Skickar…" })).toBeDisabled();
+
+    settle();
+    expect(await within(detail()).findByRole("button", { name: "Skicka svar" })).toBeEnabled();
+  });
+
+  it("hands a send that throws to the nearest error boundary instead of holding the form disabled", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <Boundary>
+        <AdminFeedbackView
+          region={{ kind: "loaded", data: ITEMS }}
+          onReply={async () => Promise.reject(new Error("network"))}
+          onStatus={noStatus}
+        />
+      </Boundary>,
+    );
+
+    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Hej");
+    await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
+    expect(await screen.findByText("Något gick fel.")).toBeInTheDocument();
     expect(getAdminToastSnapshot()).toBeNull();
   });
 
-  it("changes a report's status where the caller lets it, and only shows it otherwise", async () => {
+  it("saves a status only when it is pressed, and keeps the report open when it leaves the filter", async () => {
     const onStatus = vi.fn();
-    const { unmount } = render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onStatus={onStatus} />);
-    await userEvent.selectOptions(within(detail()).getByRole("combobox", { name: "Status" }), "Löst");
-    expect(onStatus).toHaveBeenCalledWith(ITEMS[0], "resolved");
-    unmount();
+    render(<Reports onStatus={onStatus} />);
 
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} />);
-    expect(within(detail()).queryByRole("combobox")).toBeNull();
-    expect(within(detail()).getByRole("button", { name: "Skicka svar" })).toHaveClass("jp-btn--secondary");
+    await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
+    await userEvent.selectOptions(within(detail()).getByRole("combobox", { name: "Status" }), "Pågår");
+    expect(onStatus).not.toHaveBeenCalled();
+
+    const save = within(detail()).getByRole("button", { name: "Spara status" });
+    await userEvent.click(save);
+    expect(onStatus).toHaveBeenCalledWith("f1", "inProgress");
+    expect(list()).toHaveTextContent("Inga rapporter.");
+    expect(detail()).toHaveTextContent("konto.b@example.test");
+    expect(save).toHaveFocus();
   });
 
   it.each([
     ["empty", "Inga rapporter."],
     ["failed", "Uppgifterna kunde inte hämtas. Försök igen om en stund."],
-    ["loading", "Hämtar uppgifter"],
+    ["loading", "Hämtar uppgifter…"],
   ] as const)("in the %s state shows one line and no report", (kind, line) => {
-    render(<AdminFeedbackView region={{ kind }} />);
+    render(<AdminFeedbackView region={{ kind }} onReply={noReply} onStatus={noStatus} />);
 
     expect(list()).toHaveTextContent(line);
     expect(screen.queryByRole("region", { name: "Vald rapport" })).toBeNull();

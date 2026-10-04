@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": the card holds the chosen period.
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import type { AdminTrendDay, AdminValueRegion } from "@/lib/admin/view-models";
@@ -63,7 +64,7 @@ export function AdminTrendCard({
       ) : (
         <div className="jp-admintrend__plot">
           <Guides />
-          <AdminRegionLine kind={region.kind} soonId={SOON_ID} />
+          <AdminRegionLine kind={region.kind} soonId={SOON_ID} quiet />
         </div>
       )}
     </AdminCard>
@@ -92,7 +93,7 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
 
   return (
     <>
-      <ul className="jp-admintrend__legend">
+      <ul className="jp-admintrend__legend" aria-hidden="true">
         <li>
           <span className="jp-admintrend__swatch jp-admintrend__swatch--bar" aria-hidden="true" />
           {t("legend.newAccounts")}
@@ -136,15 +137,19 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
       )}
       <p className="jp-admintrend__summary">
         {t("summary", { days: summary.days, newAccounts: summary.newAccounts, logins: summary.logins })}
-        {summary.newAccountsPeak.date === null
+        {summary.newAccountsPeak.count === 0
           ? null
-          : ` ${t("peakNewAccounts", {
-              count: summary.newAccountsPeak.count,
-              date: longLabel(summary.newAccountsPeak.date),
-            })}`}
-        {summary.loginsPeak.date === null
+          : summary.newAccountsPeak.date === null
+            ? ` ${t("peakNewAccountsShared", { count: summary.newAccountsPeak.count })}`
+            : ` ${t("peakNewAccounts", {
+                count: summary.newAccountsPeak.count,
+                date: longLabel(summary.newAccountsPeak.date),
+              })}`}
+        {summary.loginsPeak.count === 0
           ? null
-          : ` ${t("peakLogins", { count: summary.loginsPeak.count, date: longLabel(summary.loginsPeak.date) })}`}
+          : summary.loginsPeak.date === null
+            ? ` ${t("peakLoginsShared", { count: summary.loginsPeak.count })}`
+            : ` ${t("peakLogins", { count: summary.loginsPeak.count, date: longLabel(summary.loginsPeak.date) })}`}
       </p>
     </>
   );

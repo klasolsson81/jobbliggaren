@@ -56,7 +56,9 @@
       "today": "Idag",
       "summary": "{newAccounts, plural, =0 {Inga nya användare} one {# ny användare} other {# nya användare}} och {logins, plural, =0 {inga inloggningar} one {# inloggning} other {# inloggningar}} de senaste {days} dygnen.",
       "peakNewAccounts": "Flest nya användare på en dag: {count}, den {date}.",
-      "peakLogins": "Flest inloggningar på en dag: {count}, den {date}."
+      "peakLogins": "Flest inloggningar på en dag: {count}, den {date}.",
+      "peakNewAccountsShared": "Flest nya användare på en dag: {count}.",
+      "peakLoginsShared": "Flest inloggningar på en dag: {count}."
     },
     "services": {
       "title": "Tjänster",
@@ -104,8 +106,8 @@
         "accountCreated": "Nytt konto",
         "accountSuspended": "Suspendering",
         "accountReinstated": "Hävd suspendering",
-        "deletionScheduled": "Radering",
-        "emailChangeRequested": "Adressbyte",
+        "deletionScheduled": "Radering schemalagd",
+        "emailChangeRequested": "Adressbyte begärt",
         "jobFailed": "Jobbfel"
       }
     }
@@ -247,6 +249,7 @@
       "reply": "Svar",
       "send": "Skicka svar",
       "statusLabel": "Status",
+      "saveStatus": "Spara status",
       "meta": {
         "page": "Sida",
         "screen": "Skärm",
@@ -295,12 +298,12 @@
       "ip": "IP (maskerad)",
       "count": "Antal",
       "detail": "Detalj",
-      "empty": "Inga säkerhetshändelser under perioden.",
+      "empty": "Inga säkerhetshändelser.",
       "kind": {
         "loginFailed": "Misslyckad inloggning",
-        "rateLimited": "Begränsning",
+        "rateLimited": "För många försök",
         "accountLocked": "Konto låst",
-        "adminImpersonation": "Admin: imitering"
+        "adminImpersonation": "Agerade som användare"
       }
     },
     "errors": {
@@ -310,7 +313,7 @@
       "source": "Källa",
       "message": "Meddelande",
       "count24h": "24 tim",
-      "empty": "Inga applikationsfel under perioden.",
+      "empty": "Inga applikationsfel.",
       "levelValue": {
         "error": "Fel",
         "warning": "Varning"
@@ -327,12 +330,12 @@
       "updated": "Uppdaterade",
       "closed": "Avslutade",
       "status": "Status",
-      "empty": "Inga importer under perioden.",
+      "empty": "Inga importer.",
       "kind": {
         "delta": "Delta",
         "full": "Full"
       },
-      "durationValue": "{minutes} min {seconds} s",
+      "durationValue": "{minutes, plural, =0 {{seconds} s} other {# min {seconds} s}}",
       "statusValue": {
         "succeeded": "Klar",
         "failed": "Misslyckades"
@@ -506,6 +509,6 @@
   },
   "regions": {
     "failed": "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
-    "loading": "Hämtar uppgifter"
+    "loading": "Hämtar uppgifter…"
   }
 }

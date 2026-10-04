@@ -812,11 +812,16 @@
 }
 .jp-adminattention li:last-child { border-bottom: 0; }
 .jp-adminattention li > svg { flex: 0 0 auto; color: var(--jp-warning-700); }
-.jp-adminevents li {
+.jp-adminevents {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
+  column-gap: 12px;
+}
+.jp-adminevents li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--jp-border-soft);
   font-size: var(--text-ui);
@@ -828,11 +833,22 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.jp-adminevents .jp-pill {
+  white-space: nowrap;
+  justify-self: start;
+}
 .jp-adminevents__subject {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .jp-adminevents { display: block; }
+  .jp-adminevents li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .jp-adminevents__subject { flex: 1 1 100%; }
 }
 
 /* ── Feedback: the list and the open report ──────────────────────────────────────────────── */
@@ -938,8 +954,8 @@
 }
 .jp-adminfeedback__replies li {
   padding: 10px 14px;
-  border-left: 3px solid var(--jp-accent-700);
-  background: var(--jp-accent-50);
+  border-left: 3px solid var(--jp-border-strong);
+  background: var(--jp-surface-2);
 }
 .jp-adminfeedback__replies p { margin: 4px 0 0; }
 .jp-adminfeedback__hint {
@@ -957,6 +973,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.jp-table .jp-admintable__run { font-variant-numeric: tabular-nums; }
+.jp-admintable .jp-pill { white-space: nowrap; }
 .jp-adminmailfail {
   display: flex;
   flex-direction: column;
@@ -967,23 +985,33 @@
 }
 .jp-adminmailfail li {
   display: grid;
-  grid-template-columns: 150px 150px 110px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: baseline;
-  gap: 12px;
+  gap: 2px;
   padding: 10px 0;
   border-bottom: 1px solid var(--jp-border-soft);
   font-size: var(--text-body-sm);
+}
+.jp-adminmailfail li > * {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+@media (min-width: 1100px) {
+  .jp-adminmailfail {
+    display: grid;
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+  .jp-adminmailfail li {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
 }
 .jp-adminmailfail__when { font-variant-numeric: tabular-nums; }
 .jp-adminmailfail__outcome { font-weight: var(--jp-fw-bold); }
 .jp-adminmailfail__outcome[data-outcome="failed"] { color: var(--jp-danger-700); }
 .jp-adminmailfail__outcome[data-outcome="bounced"] { color: var(--jp-warning-700); }
-.jp-adminmailfail__message {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.jp-adminmailfail__message { overflow-wrap: anywhere; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {
@@ -993,8 +1021,6 @@
   .jp-admincard[data-span="7"],
   .jp-admincard[data-span="8"] { grid-column: span 12; }
   .jp-adminfeedback { grid-template-columns: minmax(0, 1fr); }
-  .jp-adminmailfail li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-  .jp-adminmailfail__message { white-space: normal; }
 }
 @media (max-width: 768px) {
   /* Touch floor (DESIGN.md §5): the card links, the sort controls and the account buttons reach 44 px. */

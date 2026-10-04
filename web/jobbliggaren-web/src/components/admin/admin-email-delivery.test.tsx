@@ -22,7 +22,7 @@ const DELIVERY: Delivery = {
   ],
 };
 
-describe("AdminEmailDelivery with outcomes (#1981's shapes)", () => {
+describe("AdminEmailDelivery with outcomes", () => {
   it("shows the totals, a failure count above zero in the danger colour", () => {
     render(<AdminEmailDelivery region={{ kind: "loaded", data: DELIVERY }} />);
 

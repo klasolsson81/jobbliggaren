@@ -56,7 +56,9 @@
       "today": "Today",
       "summary": "{newAccounts, plural, =0 {No new users} one {# new user} other {# new users}} and {logins, plural, =0 {no logins} one {# login} other {# logins}} in the last {days} days.",
       "peakNewAccounts": "Most new users in a day: {count}, on {date}.",
-      "peakLogins": "Most logins in a day: {count}, on {date}."
+      "peakLogins": "Most logins in a day: {count}, on {date}.",
+      "peakNewAccountsShared": "Most new users in a day: {count}.",
+      "peakLoginsShared": "Most logins in a day: {count}."
     },
     "services": {
       "title": "Services",
@@ -104,8 +106,8 @@
         "accountCreated": "New account",
         "accountSuspended": "Suspension",
         "accountReinstated": "Reinstatement",
-        "deletionScheduled": "Deletion",
-        "emailChangeRequested": "Address change",
+        "deletionScheduled": "Deletion scheduled",
+        "emailChangeRequested": "Address change requested",
         "jobFailed": "Job failure"
       }
     }
@@ -247,6 +249,7 @@
       "reply": "Reply",
       "send": "Send reply",
       "statusLabel": "Status",
+      "saveStatus": "Save status",
       "meta": {
         "page": "Page",
         "screen": "Screen",
@@ -295,12 +298,12 @@
       "ip": "IP (masked)",
       "count": "Count",
       "detail": "Detail",
-      "empty": "No security events in the period.",
+      "empty": "No security events.",
       "kind": {
         "loginFailed": "Failed login",
-        "rateLimited": "Rate limit",
+        "rateLimited": "Too many attempts",
         "accountLocked": "Account locked",
-        "adminImpersonation": "Admin: impersonation"
+        "adminImpersonation": "Acted as user"
       }
     },
     "errors": {
@@ -310,7 +313,7 @@
       "source": "Source",
       "message": "Message",
       "count24h": "24 h",
-      "empty": "No application errors in the period.",
+      "empty": "No application errors.",
       "levelValue": {
         "error": "Error",
         "warning": "Warning"
@@ -327,12 +330,12 @@
       "updated": "Updated",
       "closed": "Closed",
       "status": "Status",
-      "empty": "No imports in the period.",
+      "empty": "No imports.",
       "kind": {
         "delta": "Delta",
         "full": "Full"
       },
-      "durationValue": "{minutes} min {seconds} s",
+      "durationValue": "{minutes, plural, =0 {{seconds} s} other {# min {seconds} s}}",
       "statusValue": {
         "succeeded": "Done",
         "failed": "Failed"
@@ -506,6 +509,6 @@
   },
   "regions": {
     "failed": "The data could not be fetched. Try again in a moment.",
-    "loading": "Fetching data"
+    "loading": "Fetching data…"
   }
 }

@@ -1,5 +1,3 @@
-"use client";
-
 import { useFormatter, useTranslations } from "next-intl";
 import { formatDateTime } from "@/lib/i18n/format";
 import type {
@@ -123,7 +121,7 @@ export function AdminEmailDelivery({
           <ol className="jp-adminmailfail">
             {data.failures.map((failure) => (
               <li key={failure.id}>
-                <span className="jp-adminmailfail__when">{formatDateTime(format, failure.occurredAt)}</span>
+                <span className="jp-adminmailfail__when">{formatDateTime(format, failure.occurredAt) ?? dash}</span>
                 <span>{failure.recipient}</span>
                 <span className="jp-adminmailfail__outcome" data-outcome={failure.outcome}>
                   {t(`outcome.${failure.outcome}`)}

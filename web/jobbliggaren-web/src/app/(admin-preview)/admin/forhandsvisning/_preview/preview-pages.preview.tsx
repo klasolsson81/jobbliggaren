@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": each page reads the band's state and keeps its fixtures in memory.
 import { useState } from "react";
 import type {
   AdminEmailDelivery as Delivery,
@@ -12,11 +13,12 @@ import type {
   AdminSecurityLogRow,
   AdminValueRegion,
 } from "@/lib/admin/view-models";
+import { listRegion } from "@/lib/admin/view-models";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
-import type { PreviewOverviewData } from "@/lib/admin-preview/fixtures";
+import { FIXTURE_NOW, type PreviewOverviewData } from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
 
 /** Long enough for the pending state to show. */
@@ -36,7 +38,7 @@ function value<T>(kind: AdminRegionKind, loaded: T, zero: T): AdminValueRegion<T
 
 /** A list region in the band's state. */
 function list<T>(kind: AdminRegionKind, loaded: ReadonlyArray<T>): AdminRegion<ReadonlyArray<T>> {
-  return kind === "loaded" ? { kind, data: loaded } : { kind };
+  return kind === "loaded" ? listRegion(loaded) : { kind };
 }
 
 export function PreviewOverview({
@@ -74,29 +76,29 @@ export function PreviewFeedback({ items }: { readonly items: ReadonlyArray<Admin
   const { kind } = usePreviewState();
   const [reports, setReports] = useState(items);
 
-  async function reply(item: AdminFeedbackItem, text: string): Promise<string | null> {
+  async function reply(id: string, text: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
     setReports((previous) =>
       previous.map((report) =>
-        report.id === item.id
+        report.id === id
           ? {
               ...report,
               status: report.status === "new" ? "inProgress" : report.status,
-              replies: [...report.replies, { id: `${report.id}-${report.replies.length + 1}`, sentAt: new Date().toISOString(), text }],
+              replies: [...report.replies, { id: `${report.id}-${report.replies.length + 1}`, sentAt: FIXTURE_NOW, text }],
             }
           : report,
       ),
     );
-    return null;
   }
 
+  if (kind === "unavailable") return <AdminFeedbackView region={{ kind }} />;
   return (
     <AdminFeedbackView
       key={kind}
-      region={list(kind, reports)}
+      region={kind === "loaded" ? listRegion(reports) : { kind }}
       onReply={reply}
-      onStatus={(item, status) =>
-        setReports((previous) => previous.map((report) => (report.id === item.id ? { ...report, status } : report)))
+      onStatus={(id, status) =>
+        setReports((previous) => previous.map((report) => (report.id === id ? { ...report, status } : report)))
       }
     />
   );

@@ -16,6 +16,7 @@ export function AdminRegionLine({
   loading,
   soonId,
   region = false,
+  quiet = false,
   className,
 }: {
   readonly kind: AdminRegionLineKind;
@@ -29,6 +30,8 @@ export function AdminRegionLine({
   readonly region?: boolean;
   /** Replaces the line's own class, for a line that sits in a card's sub row. */
   readonly className?: string;
+  /** Leaves failure and loading unannounced, for a page that announces them once for all its regions. */
+  readonly quiet?: boolean;
 }) {
   const t = useTranslations("admin");
   const lineClass = className ?? (region ? "jp-adminsoon jp-adminsoon--region" : "jp-adminsoon");
@@ -45,13 +48,13 @@ export function AdminRegionLine({
       return <p className={lineClass}>{empty}</p>;
     case "failed":
       return (
-        <p className={lineClass} role="alert">
+        <p className={lineClass} role={quiet ? undefined : "alert"}>
           {failed ?? t("regions.failed")}
         </p>
       );
     case "loading":
       return (
-        <p className={lineClass} role="status">
+        <p className={lineClass} role={quiet ? undefined : "status"}>
           {loading ?? t("regions.loading")}
         </p>
       );

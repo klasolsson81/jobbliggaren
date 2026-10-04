@@ -56,7 +56,7 @@ Eight decisions govern the seven pages.
 `/admin` renders a 12-column grid, gap 20px, of cards:
 
 - four KPI cards, each a large number in `--jp-fs-oversikt-num` (40px); the token is reused and none is added;
-- a trend region: a hand-built SVG with `role="img"` and a text summary computed from the data. No chart library:
+- a trend region: a hand-built SVG and a text summary computed from the data. No chart library:
   BUILD.md §3.1 lists none, and CLAUDE.md §9.2 bars one outside it without discussion;
 - a services list;
 - a server card with CPU, memory and disk meters that show an observed reading or nothing (D2). DESIGN.md §6's ban on

@@ -3,7 +3,7 @@
 // "use client": the list's search, filter, sort, pages and commands run in memory.
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { AdminAccountDetail, AdminAccountRow, AdminRegion } from "@/lib/admin/view-models";
+import { listRegion, type AdminAccountDetail, type AdminAccountRow, type AdminRegion } from "@/lib/admin/view-models";
 import {
   ADMIN_ACCOUNT_FILTERS,
   AdminAccountsToolbar,
@@ -99,11 +99,7 @@ export function PreviewAccounts({
   const loaded = kind === "loaded";
   const live = kind !== "unavailable";
 
-  const region: AdminRegion<ReadonlyArray<AdminAccountRow>> = !loaded
-    ? { kind }
-    : pageRows.length === 0
-      ? { kind: "empty" }
-      : { kind: "loaded", data: pageRows };
+  const region: AdminRegion<ReadonlyArray<AdminAccountRow>> = loaded ? listRegion(pageRows) : { kind };
 
   function toggleSort(key: AdminAccountSortKey) {
     setSort((previous) =>

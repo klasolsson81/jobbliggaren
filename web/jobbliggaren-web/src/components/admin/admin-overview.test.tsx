@@ -74,6 +74,12 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     expect(card("Backup")).toHaveTextContent("Behålls30 dygn");
   });
 
+  it("degrades a loaded services region with no rows, which listRegion never builds, to its empty line", () => {
+    render(<AdminOverview regions={{ ...LOADED, services: { kind: "loaded", data: [] } }} />);
+    expect(within(card("Tjänster")).queryAllByRole("listitem")).toEqual([]);
+    expect(card("Tjänster")).toHaveTextContent("Inga tjänster att visa.");
+  });
+
   it("marks a failed email in the danger colour and lists the most sent types", () => {
     render(<AdminOverview regions={LOADED} />);
 
@@ -116,7 +122,7 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
 
     const trend = card("Nya användare och inloggningar");
     expect(within(trend).getByText(/de senaste 30 dygnen/)).toHaveTextContent(
-      "6 nya användare och 193 inloggningar de senaste 30 dygnen. Flest nya användare på en dag: 4, den 25 september. Flest inloggningar på en dag: 8, den 8 september.",
+      "6 nya användare och 193 inloggningar de senaste 30 dygnen. Flest nya användare på en dag: 4, den 25 september. Flest inloggningar på en dag: 8.",
     );
     expect(trend.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
 
@@ -126,24 +132,27 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
 });
 
 describe("AdminOverview in its other states", () => {
-  it("reports a failure in each card as an alert and keeps every number unknown", () => {
+  it("shows a failure in each card, announces it once and keeps every number unknown", () => {
     const failed = Object.fromEntries(
       Object.keys(ADMIN_OVERVIEW_UNAVAILABLE).map((key) => [key, { kind: "failed" }]),
     ) as unknown as AdminOverviewRegions;
     render(<AdminOverview regions={failed} />);
 
-    expect(screen.getAllByRole("alert").length).toBe(11);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Uppgifterna kunde inte hämtas. Försök igen om en stund.");
+    expect(card("Nya användare")).toHaveTextContent("Uppgifterna kunde inte hämtas.");
     expect(within(card("Nya användare")).getByText("–")).toBeInTheDocument();
     expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "unknown");
   });
 
-  it("reports loading in each card as a status", () => {
+  it("shows loading in each card and announces it once", () => {
     const loading = Object.fromEntries(
       Object.keys(ADMIN_OVERVIEW_UNAVAILABLE).map((key) => [key, { kind: "loading" }]),
     ) as unknown as AdminOverviewRegions;
     render(<AdminOverview regions={loading} />);
 
-    expect(screen.getAllByRole("status").every((line) => line.textContent === "Hämtar uppgifter")).toBe(true);
-    expect(screen.getAllByRole("status")).toHaveLength(11);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Hämtar uppgifter…");
+    expect(card("Tjänster")).toHaveTextContent("Hämtar uppgifter…");
   });
 });

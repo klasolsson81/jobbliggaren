@@ -13,6 +13,13 @@ export type AdminRegion<T> =
 
 export type AdminRegionKind = AdminRegion<unknown>["kind"];
 
+/** A list region holding rows, or the empty region when there are none: the one encoding every loader uses. */
+export function listRegion<T>(
+  rows: ReadonlyArray<T>,
+): Extract<AdminRegion<ReadonlyArray<T>>, { readonly kind: "empty" | "loaded" }> {
+  return rows.length === 0 ? { kind: "empty" } : { kind: "loaded", data: rows };
+}
+
 export const ADMIN_REGION_KINDS: ReadonlyArray<AdminRegionKind> = [
   "loaded",
   "unavailable",
@@ -90,7 +97,10 @@ export interface AdminLogins {
   readonly locked: number;
 }
 
-/** One calendar day of the trend, oldest first; `date` is `YYYY-MM-DD`. */
+/**
+ * One calendar day of the trend, oldest first; `date` is `YYYY-MM-DD`. The series is consecutive
+ * Europe/Stockholm days, zero-filled, and its last day is today: the card labels it "Idag".
+ */
 export interface AdminTrendDay {
   readonly date: string;
   readonly newAccounts: number;

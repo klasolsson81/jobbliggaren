@@ -64,7 +64,7 @@ describe("AdminLogsView — the three log views before #1980 (ADR 0150 D2/D8)", 
   );
 });
 
-describe("AdminLogsView with rows (#1980's shapes)", () => {
+describe("AdminLogsView with rows", () => {
   const counts = { security: 2, errors: 1, imports: 1 } as const;
 
   it("shows each view's count in its label and the security events as rows", () => {
@@ -94,7 +94,7 @@ describe("AdminLogsView with rows (#1980's shapes)", () => {
     const rows = within(screen.getByRole("table", { name: "Säkerhetshändelser" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
       ["2026-10-04 07:31", "Misslyckad inloggning", "k•••@example.test", "192.0.2.0", "3", "Fel kod"],
-      ["2026-10-04 06:02", "Begränsning", "m•••@example.test", "198.51.100.0", "12", "För många kodförsök"],
+      ["2026-10-04 06:02", "För många försök", "m•••@example.test", "198.51.100.0", "12", "För många kodförsök"],
     ]);
   });
 
@@ -150,7 +150,7 @@ describe("AdminLogsView with rows (#1980's shapes)", () => {
   });
 
   it.each([
-    ["empty", "Inga säkerhetshändelser under perioden."],
+    ["empty", "Inga säkerhetshändelser."],
     ["failed", "Uppgifterna kunde inte hämtas. Försök igen om en stund."],
     ["loading", "Hämtar uppgifter"],
   ] as const)("in the %s state holds one line across the columns", (kind, line) => {

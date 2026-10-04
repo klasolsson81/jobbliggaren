@@ -363,9 +363,9 @@ test("the overview shows its regions with fixtures, and fails, loads and goes un
   await expect(card("Nya användare och inloggningar")).toContainText("de senaste 7 dygnen.");
 
   await state(page, "Fel");
-  await expect(page.locator("main").getByRole("alert")).toHaveCount(11);
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(1);
   await state(page, "Laddar");
-  await expect(page.locator("main").getByRole("status")).toHaveCount(11);
+  await expect(page.locator("main").getByRole("status")).toHaveCount(1);
   await state(page, "Tom");
   await expect(card("Användare totalt")).toContainText("0konton");
   await expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "clear");
@@ -382,13 +382,12 @@ test("feedback opens a report, sends a reply as a receipt and moves a new report
   await expect(list.getByRole("button").first()).toHaveAttribute("aria-current", "true");
   await list.getByRole("button", { name: /Hur länge sparas/ }).click();
   await expect(detail).toContainText(mail("konto.g"));
+  await expect(detail).toBeFocused();
 
-  const send = detail.getByRole("button", { name: "Skicka svar" });
-  await expect(send).toBeDisabled();
   await detail.getByRole("textbox", { name: "Svar" }).fill("I tolv månader efter senaste inloggningen.");
-  await send.click();
+  await detail.getByRole("button", { name: "Skicka svar" }).click();
   await expect(toast(page)).toContainText(`Svaret skickades till ${mail("konto.g")}.`);
-  await expect(detail.getByRole("listitem")).toContainText("I tolv månader efter senaste inloggningen.");
+  await expect(detail.getByRole("listitem").filter({ hasText: "I tolv månader efter senaste inloggningen." })).toBeFocused();
   await expect(page.getByRole("radio", { name: "Pågår (2)" })).toBeVisible();
 
   await state(page, "Tom");

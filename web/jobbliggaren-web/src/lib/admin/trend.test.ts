@@ -23,16 +23,23 @@ describe("trendWindow", () => {
 });
 
 describe("summarizeTrend", () => {
-  it("adds up each series and names the first day that reached its peak", () => {
-    const summary = summarizeTrend([day("a", 1, 5), day("b", 3, 9), day("c", 3, 2), day("d", 0, 9)]);
+  it("adds up each series and names the day that reached its peak", () => {
+    const summary = summarizeTrend([day("a", 1, 5), day("b", 3, 9), day("c", 2, 2), day("d", 0, 4)]);
 
     expect(summary).toEqual({
       days: 4,
-      newAccounts: 7,
-      logins: 25,
+      newAccounts: 6,
+      logins: 20,
       newAccountsPeak: { count: 3, date: "b" },
       loginsPeak: { count: 9, date: "b" },
     });
+  });
+
+  it("names no day when several days share the peak", () => {
+    const summary = summarizeTrend([day("a", 1, 9), day("b", 3, 2), day("c", 3, 9)]);
+
+    expect(summary.newAccountsPeak).toEqual({ count: 3, date: null });
+    expect(summary.loginsPeak).toEqual({ count: 9, date: null });
   });
 
   it("gives a series of zeros no peak day", () => {

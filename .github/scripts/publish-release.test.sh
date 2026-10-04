@@ -366,8 +366,10 @@ check 'nothing_pushed' "and nothing is pushed"
 reset_registry
 REL=$(release_of "$C3")
 rm -f "$REG/attested/$REL"
+: >"$REG/docker-calls"
 expect_exit 1 "an existing record that does not verify is refused, not re-attested over unread bytes" record "$C3"
 check '! grep -q "^create" "$REG/docker-calls"' "and not one byte of it was copied out"
+check '! grep -q "^pull .*jobbliggaren-release@" "$REG/docker-calls"' "nor was it ever pulled: its identity is checked first, against the registry"
 
 echo "-- verify"
 reset_registry

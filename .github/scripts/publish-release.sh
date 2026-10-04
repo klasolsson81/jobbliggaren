@@ -84,6 +84,9 @@ lookup() {
 # required to name exactly that commit.
 read_record() {
   local digest="$1" expected="${2:-}" status=0
+  # Identity first, against the registry: a record that does not prove it was ours never enters this
+  # runner's daemon, in a job that holds `id-token: write`.
+  bash "$VERIFIER" "$RELEASE_REPO@$digest" >&2 || return $?
   docker pull --quiet "$RELEASE_REPO@$digest" >/dev/null 2>&1 || cannot_answer "could not pull $RELEASE_REPO@$digest"
   if [ -n "$expected" ]; then
     bash "$RECORD_TOOL" read "$RELEASE_REPO@$digest" "$expected" || status=$?

@@ -33,6 +33,13 @@ CSRF, redirects, forwarded-header trust, cache isolation and backend-path
 construction. API network isolation needs deployment evidence, not an assumption
 based on a configuration default.
 
+A build made with `ADMIN_PREVIEW_ENABLED=true` serves fictional admin pages under
+`/admin/forhandsvisning` that need no session (ADR 0150 D5). No deployed build may
+contain them, and four locks keep it so: the page extension `next.config.ts` adds
+only under the flag, the redirect in every preview route, the assertion `pnpm build`
+runs after `next build`, and the `.dockerignore` exclusion. A change that weakens one
+of them alters this boundary.
+
 ## Ownership
 
 `src/Jobbliggaren.Application/Common/Behaviors/AuthorizationBehavior.cs` checks

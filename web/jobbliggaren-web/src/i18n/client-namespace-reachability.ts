@@ -134,7 +134,7 @@ interface Resolution {
   readonly opaque: boolean;
 }
 
-function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Resolution {
+export function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Resolution {
   let base: string;
   if (spec.startsWith("@/")) base = resolve(srcRoot, spec.slice(2));
   else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);

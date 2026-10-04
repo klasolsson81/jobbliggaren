@@ -25,9 +25,9 @@
 #      and is the only step that calls `publish-release.sh advance`.
 #   3. In `publish-release.sh`, `imagetools create` appears only inside `move_tag`, `move_tag` is called
 #      only from `cmd_advance`, and `docker push` pushes only a `:pending-` tag.
-#   4. Every checkout in `release` and `publish` checks out `needs.prepare.outputs.sha`; `prepare`
-#      checks out `github.sha` when it publishes; `release` and `publish` assert at run time that the
-#      tree is `$GITHUB_SHA`.
+#   4. In every run, every job's tree is `$GITHUB_SHA`, the commit the run's own identity names:
+#      `prepare` checks out `github.sha`, `release` and `publish` check out
+#      `needs.prepare.outputs.sha`, and all three assert it at run time in a step no `if:` gates.
 #   5. The local-only tag `applied` is never pushed or moved by either file.
 #   6. `concurrency.group` is the literal `release-images` with `cancel-in-progress: false`.
 #   Plus, from #1314: in the cells, `attest` follows `push`, and `push` pushes only `:sha-`.
@@ -55,6 +55,7 @@ readonly REQUIRED_NEEDS="[prepare, release]"
 readonly REQUIRED_PUBLISH_IF="needs.prepare.outputs.publish == 'true'"
 readonly REQUIRED_ADVANCE_IF="steps.verified.outcome == 'success'"
 readonly REQUIRED_REF='${{ needs.prepare.outputs.sha }}'
+readonly REQUIRED_PREPARE_REF='${{ github.sha }}'
 readonly FOREIGN_TOOLS_RE='(^|[^A-Za-z0-9_-])(crane|oras|skopeo|regctl)([^A-Za-z0-9_-]|$)'
 
 violations=0
@@ -248,21 +249,23 @@ fi
 for i in "${!S_JOB[@]}"; do
   case "${S_USES[$i]}" in actions/checkout@*) ;; *) continue ;; esac
   case "${S_JOB[$i]}" in
+  prepare)
+    [ "${S_REF[$i]}" = "$REQUIRED_PREPARE_REF" ] ||
+      violation "prepare checks out '${S_REF[$i]:-<default ref>}', not $REQUIRED_PREPARE_REF" "The certificate names github.sha in every run; the tree holding the token must be that commit."
+    ;;
   release | publish)
     [ "${S_REF[$i]}" = "$REQUIRED_REF" ] ||
       violation "job '${S_JOB[$i]}' checks out '${S_REF[$i]:-<default ref>}', not $REQUIRED_REF"
     ;;
   esac
 done
-m=$(step_of prepare mode)
-[ "$m" -ge 0 ] && [[ ${S_RUN[$m]} == *'checkout="$GITHUB_SHA"'* ]] ||
-  violation "prepare does not check out \$GITHUB_SHA when it publishes" "The certificate names github.sha; the build must be that tree."
-for j in release publish; do
+for j in prepare release publish; do
   asserted=0
   for i in "${!S_JOB[@]}"; do
-    [ "${S_JOB[$i]}" = "$j" ] && [[ ${S_RUN[$i]} == *'"$(git rev-parse HEAD)" = "$GITHUB_SHA"'* ]] && asserted=1
+    [ "${S_JOB[$i]}" = "$j" ] && [ -z "${S_IF[$i]}" ] &&
+      [[ ${S_RUN[$i]} == *'"$(git rev-parse HEAD)" = "$GITHUB_SHA"'* ]] && asserted=1
   done
-  [ "$asserted" -eq 1 ] || violation "job '$j' never asserts at run time that its tree is \$GITHUB_SHA"
+  [ "$asserted" -eq 1 ] || violation "job '$j' never asserts, in a step no if: gates, that its tree is \$GITHUB_SHA"
 done
 
 # --- rule 6: one run at a time ----------------------------------------------------------------------------

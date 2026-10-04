@@ -53,10 +53,6 @@ on:
     - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Ref to build. Defaults to main; set it to prove a change to this workflow before it is on main (never published)."
-        required: false
-        default: main
       push:
         description: "Push to GHCR. Set false for a dry run that proves build, scan and tag resolution without touching the registry."
         type: boolean
@@ -73,7 +69,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ONE COMMIT FOR THE WHOLE RUN, and when the run publishes it is `github.sha` — the commit the
+  # ONE COMMIT FOR THE WHOLE RUN, and it is `github.sha` — the commit the
   # signing certificate names. Cosign pins that claim on the box, so an image built from any other
   # tree would fail there; the checks below make the run refuse first. Checking out the moving
   # `main` instead, as this job did until #1238, built the tip at checkout time under the trigger's
@@ -93,43 +89,34 @@ jobs:
       short: ${{ steps.resolve.outputs.short }}
       publish: ${{ steps.mode.outputs.publish }}
     steps:
-      # Inputs reach the shell as environment, never as `${{ }}` inside the script, and the ref is
-      # charset-checked before it is written to GITHUB_OUTPUT: a newline in it would write outputs.
+      # Inputs reach the shell as environment, never as `${{ }}` inside the script.
       - name: Publish or dry run
         id: mode
         env:
           EVENT: ${{ github.event_name }}
-          INPUT_REF: ${{ inputs.ref }}
           INPUT_PUSH: ${{ inputs.push }}
         run: |
-          case "$INPUT_REF" in
-            "" | main) publish_ref=1 ;;
-            *) publish_ref=0 ;;
-          esac
-          [[ $INPUT_REF =~ ^[A-Za-z0-9._/-]{0,200}$ ]] || { echo "::error::refusing ref input '$INPUT_REF'"; exit 1; }
           publish=false
           if [ "$EVENT" = schedule ]; then
             publish=true
-          elif [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_PUSH" = true ] && [ "$publish_ref" = 1 ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_PUSH" = true ] && [ "$GITHUB_REF" = refs/heads/main ]; then
             publish=true
           fi
-          if [ "$publish" = true ]; then checkout="$GITHUB_SHA"; else checkout="${INPUT_REF:-main}"; fi
           echo "publish=$publish" >>"$GITHUB_OUTPUT"
-          echo "checkout=$checkout" >>"$GITHUB_OUTPUT"
-          echo "publish=$publish (event $EVENT, ref input '${INPUT_REF}', run from $GITHUB_REF)"
+          echo "publish=$publish (event $EVENT, run from $GITHUB_REF)"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ steps.mode.outputs.checkout }}
-      - name: Resolve
-        id: resolve
-        env:
-          PUBLISH: ${{ steps.mode.outputs.publish }}
+          ref: ${{ github.sha }}
+      - name: The tree is the commit this run names
         run: |
-          sha=$(git rev-parse HEAD)
-          if [ "$PUBLISH" = true ] && [ "$sha" != "$GITHUB_SHA" ]; then
-            echo "::error::checked out $sha, but a publishing run builds exactly $GITHUB_SHA"
+          if ! [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ]; then
+            echo "::error::prepare checked out $(git rev-parse HEAD), not $GITHUB_SHA"
             exit 1
           fi
+      - name: Resolve
+        id: resolve
+        run: |
+          sha=$(git rev-parse HEAD)
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
           echo "short=${sha:0:7}" >>"$GITHUB_OUTPUT"
 
@@ -158,8 +145,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
-      - name: The tree is the commit this run publishes
-        if: needs.prepare.outputs.publish == 'true'
+      - name: The tree is the commit this run names
         env:
           PREPARED: ${{ needs.prepare.outputs.sha }}
         run: |
@@ -352,7 +338,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
 
-      - name: The tree is the commit this run publishes
+      - name: The tree is the commit this run names
         env:
           PREPARED: ${{ needs.prepare.outputs.sha }}
         run: |

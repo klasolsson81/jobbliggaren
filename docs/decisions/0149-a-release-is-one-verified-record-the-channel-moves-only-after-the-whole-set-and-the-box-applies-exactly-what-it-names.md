@@ -62,9 +62,8 @@ alike.
 
 ### 2. The publisher
 
-- `prepare` builds `github.sha` whenever it publishes — the commit the signing certificate names — and every
-  publishing job asserts at run time that its tree is `$GITHUB_SHA`. Publishing requires a run from
-  `refs/heads/main`; a dispatch from a branch with `ref=main` no longer pushes anything.
+- Every job builds `github.sha` — the commit the signing certificate names — and asserts at run time that its
+  tree is `$GITHUB_SHA`. Publishing requires a run from `refs/heads/main`.
 - The five cells push and attest only `sha-<short>`. A commit that already has a record is **frozen**: its
   cells build nothing.
 - The fan-in job `publish` runs only when all five cells succeeded, in the order `record` → `attest` →

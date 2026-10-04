@@ -178,9 +178,15 @@ echo "-- rule 4: one tree"
 wf_case 1 "a cell that checks out main instead of the prepared commit" \
   '0,/^          ref: \$\{\{ needs.prepare.outputs.sha \}\}$/s##          ref: main#' \
   "checks out 'main', not"
-wf_case 1 "prepare no longer builds github.sha when publishing" \
-  's#checkout="\$GITHUB_SHA"#checkout=main#' \
-  "prepare does not check out"
+wf_case 1 "prepare checks out the dispatch's ref input instead of github.sha" \
+  '/^  prepare:$/,/^  release:$/ s#^          ref: \$\{\{ github.sha \}\}$#          ref: ${{ inputs.ref }}#' \
+  "prepare checks out"
+wf_case 1 "a cell's tree assertion gated by an if:" \
+  '/^  release:$/,/^  publish:$/ s#^(      - name: The tree is the commit this run names)$#\1\n        if: success()#' \
+  "job 'release' never asserts"
+wf_case 1 "prepare's tree assertion removed" \
+  '/^  prepare:$/,/^  release:$/ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \]#true#' \
+  "job 'prepare' never asserts"
 wf_case 1 "the fan-in no longer asserts its tree" \
   '/^  publish:$/,$ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \] \&\& ##' \
   "job 'publish' never asserts"

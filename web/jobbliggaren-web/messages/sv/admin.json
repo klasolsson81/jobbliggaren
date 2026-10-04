@@ -28,17 +28,17 @@
     "heading": "Översikt",
     "kpi": {
       "newUsers": "Nya användare",
-      "total": "Totalt",
-      "active": "Aktiva",
+      "total": "Användare totalt",
+      "active": "Aktiva användare",
       "logins": "Inloggningar"
     },
     "trend": {
       "title": "Nya användare och inloggningar",
       "periodLabel": "Period",
       "periods": {
-        "d7": "7 d",
-        "d30": "30 d",
-        "d90": "90 d"
+        "d7": "7 dygn",
+        "d30": "30 dygn",
+        "d90": "90 dygn"
       }
     },
     "services": {
@@ -54,13 +54,13 @@
     "backup": {
       "title": "Backup",
       "latest": "Senaste",
-      "offsite": "Offsite",
+      "offsite": "Extern kopia",
       "next": "Nästa",
       "retention": "Behålls"
     },
     "email": {
       "title": "E-post",
-      "link": "Detaljer"
+      "link": "E-postleverans"
     },
     "attention": {
       "title": "Kräver uppmärksamhet"
@@ -103,14 +103,13 @@
       "title": "Feedback"
     },
     "heading": "Feedback",
-    "lede": "Rapporter från appens feedback-knapp.",
     "filter": {
       "label": "Visa rapporter",
       "all": "Alla",
       "new": "Nya",
       "inProgress": "Pågår",
       "resolved": "Lösta",
-      "skipped": "Skippade"
+      "skipped": "Avfärdade"
     },
     "list": {
       "label": "Rapporter"
@@ -128,7 +127,6 @@
       "imports": "Loggar: Platsbanken-import"
     },
     "heading": "Loggar",
-    "lede": "Säkerhetshändelser, applikationsfel och Platsbanken-importer.",
     "subnav": {
       "label": "Loggvyer",
       "security": "Säkerhet",
@@ -140,7 +138,7 @@
       "time": "Tid",
       "event": "Händelse",
       "account": "Konto",
-      "ip": "IP (anonymiserad)",
+      "ip": "IP (maskerad)",
       "count": "Antal",
       "detail": "Detalj"
     },
@@ -150,7 +148,7 @@
       "level": "Nivå",
       "source": "Källa",
       "message": "Meddelande",
-      "count24h": "24 h"
+      "count24h": "24 tim"
     },
     "imports": {
       "caption": "Platsbanken-importer",
@@ -184,7 +182,7 @@
     },
     "table": {
       "caption": "Utskick per mejltyp",
-      "function": "Funktion",
+      "function": "Mejltyp",
       "sent": "Skickade",
       "failed": "Fel",
       "lastError": "Senaste fel"

@@ -18,8 +18,8 @@ async function renderPage() {
 
 const CARDS = [
   "Nya användare",
-  "Totalt",
-  "Aktiva",
+  "Användare totalt",
+  "Aktiva användare",
   "Inloggningar",
   "Nya användare och inloggningar",
   "Tjänster",
@@ -43,11 +43,11 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
   it("shows no number at all: every value is an en-dash with no unit", async () => {
     await renderPage();
 
-    // The trend card's only digits are its period labels ("7 d"), checked below.
+    // The trend card's only digits are its period labels ("7 dygn"), checked below.
     for (const card of CARDS.filter((name) => name !== "Nya användare och inloggningar")) {
       expect(screen.getByRole("region", { name: card }).textContent ?? "").not.toMatch(/\d/);
     }
-    for (const card of ["Nya användare", "Totalt", "Aktiva", "Inloggningar", "E-post"]) {
+    for (const card of ["Nya användare", "Användare totalt", "Aktiva användare", "Inloggningar", "E-post"]) {
       const region = screen.getByRole("region", { name: card });
       expect(within(region).getByText("–")).toBeInTheDocument();
       expect(within(region).getByText("Kommer snart")).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
 
     const group = screen.getByRole("group", { name: "Period" });
     const buttons = within(group).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual(["7 d", "30 d", "90 d"]);
+    expect(buttons.map((button) => button.textContent)).toEqual(["7 dygn", "30 dygn", "90 dygn"]);
     for (const button of buttons) {
       expect(button).toBeDisabled();
       const describedBy = button.getAttribute("aria-describedby");
@@ -94,7 +94,7 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
       within(screen.getByRole("region", { name: "Tjänster" })).getByRole("link", { name: "Loggar" }),
     ).toHaveAttribute("href", "/admin/loggar");
     expect(
-      within(screen.getByRole("region", { name: "E-post" })).getByRole("link", { name: "Detaljer" }),
+      within(screen.getByRole("region", { name: "E-post" })).getByRole("link", { name: "E-postleverans" }),
     ).toHaveAttribute("href", "/admin/e-post");
     expect(
       within(screen.getByRole("region", { name: "Senaste händelser" })).getByRole("link", {

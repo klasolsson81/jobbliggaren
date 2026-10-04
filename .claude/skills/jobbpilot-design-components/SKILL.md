@@ -82,6 +82,7 @@ Rules:
 - Destructive actions require a confirmation dialog before executing
 - Icon-only buttons require `aria-label`
 - Loading state: replace label with "Sparar…" and set `disabled`; keep width
+- An action that is not built yet: DESIGN.md §6 (ADR 0150 D2)
 
 ### Card
 
@@ -101,8 +102,7 @@ Two flavors:
 
 ### Table
 
-Default pattern for data lists (preferred over card grids for app data; the only card grids are the
-scoped exceptions `/oversikt`, ADR 0140, and the admin overview `/admin`, ADR 0150).
+Default pattern for data lists (preferred over card grids for app data).
 Use `.jp-table--flat` (the base `.jp-table` already is the ledger style):
 **no zebra-stripes, no celled/inramade borders**, hairlines between rows,
 2px `border-strong` top and bottom rule, mono uppercase header in

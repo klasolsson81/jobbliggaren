@@ -62,7 +62,7 @@ export async function AdminLogsView({ view }: { readonly view: AdminLogView }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <AdminPageHeader title={t("heading")} lede={t("lede")} />
+      <AdminPageHeader title={t("heading")} />
 
       <div>
         <nav className="jp-subnav" aria-label={t("subnav.label")}>

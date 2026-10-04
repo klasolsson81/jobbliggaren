@@ -19,7 +19,6 @@ const SRC = resolve(HERE, "..", "..");
 const WEB = resolve(SRC, "..");
 
 const DENYLIST: ReadonlyArray<{ pattern: RegExp; why: string }> = [
-  // Word-bounded: "administrator" carries the same five letters.
   { pattern: /\bstrato\b/i, why: "a provider named without an observation behind it" },
   { pattern: /\bsmtp\b/i, why: "the product sends over Scaleway's HTTPS API (ADR 0131), never SMTP" },
   { pattern: /netcup|nürnberg/i, why: "a host named without an observation behind it" },

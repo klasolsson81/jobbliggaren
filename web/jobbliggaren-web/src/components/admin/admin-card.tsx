@@ -17,7 +17,7 @@ interface AdminCardProps {
    * The attention card's state. `unknown` keeps the left edge neutral, so a source that is not
    * built yet never reads as an alarm (ADR 0150 D2).
    */
-  readonly attention?: "unknown";
+  readonly attention?: "unknown" | "clear" | "raised";
   /** Right-hand slot in the head row: a link to the card's page, or a period group. */
   readonly aside?: ReactNode;
   readonly children: ReactNode;

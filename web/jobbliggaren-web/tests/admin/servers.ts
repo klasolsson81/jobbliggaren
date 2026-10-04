@@ -22,7 +22,7 @@ export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "admin-harness-session";
 
-export type AdminMode = "ok" | "empty" | "forbidden" | "rateLimited" | "error";
+export type AdminMode = "ok" | "forbidden" | "error";
 
 export type Harness = {
   who: "admin" | "member";
@@ -74,8 +74,8 @@ export async function startHarness(): Promise<Harness> {
   };
 
   const backend = createServer((request, response) => {
-    const json = (status: number, value?: unknown, headers: Record<string, string> = {}) => {
-      response.writeHead(status, { "Content-Type": "application/json", ...headers });
+    const json = (status: number, value?: unknown) => {
+      response.writeHead(status, { "Content-Type": "application/json" });
       response.end(JSON.stringify(value ?? null));
     };
     const url = new URL(request.url ?? "/", `http://localhost:${HARNESS_PORTS.backend}`);
@@ -88,19 +88,15 @@ export async function startHarness(): Promise<Harness> {
       return json(200, { activeCount: 42000, newToday: 62, isStale: false, refreshedAt: "2026-10-03T19:00:00Z" });
 
     const adminRoutes: Record<string, () => unknown> = {
-      "GET /api/v1/admin/audit-log": () =>
-        harness.mode === "empty" ? { ...AUDIT_PAGE, items: [], totalCount: 0, totalPages: 0 } : AUDIT_PAGE,
-      "GET /api/v1/admin/jobs/recurring": () => (harness.mode === "empty" ? [] : RECURRING_JOBS),
-      "GET /api/v1/admin/jobs/failed": () =>
-        harness.mode === "empty" ? { totalCount: 0, returned: 0, items: [] } : FAILED_JOBS,
+      "GET /api/v1/admin/audit-log": () => AUDIT_PAGE,
+      "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
+      "GET /api/v1/admin/jobs/failed": () => FAILED_JOBS,
     };
     const answer = adminRoutes[route];
     if (answer !== undefined) {
       switch (harness.mode) {
         case "forbidden":
           return json(403, { title: "Forbidden", status: 403 });
-        case "rateLimited":
-          return json(429, { title: "Too Many Requests", status: 429 }, { "Retry-After": "30" });
         case "error":
           return json(500, { title: "Internal Server Error", status: 500 });
         default:

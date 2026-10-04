@@ -4,12 +4,7 @@
    Imported by src/app/(admin)/layout.tsx; guarded by scripts/guard-css.mjs. Unlayered like the
    rest of the house, so a Tailwind utility for a property a rule here sets has no effect. */
 
-/* ── Header (ADR 0150 D7) ───────────────────────────────────────────────────────────────
-   Seven nav items fit one row from 1200 px. Below that the brand takes the first row and the nav
-   and the account share the second; at ≤768 px the account takes a third. Reading order stays the
-   DOM order (brand, nav, account), so focus never jumps back up the header. At ≤768 px the nav
-   wraps with 44 px targets and the header stops being sticky, so it never eats the viewport at
-   400 % zoom (WCAG 1.4.10). */
+/* ── Header (ADR 0150 D7) ─────────────────────────────────────────────────────────────── */
 .jp-adminnav {
   display: flex;
   align-items: center;
@@ -58,7 +53,7 @@
   }
   .jp-header__inner:has(> .jp-adminnav) > .jp-adminaccount { grid-area: account; }
 }
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .jp-header:has(.jp-adminnav) { position: static; }
   .jp-header__inner:has(> .jp-adminnav) {
     grid-template-columns: minmax(0, 1fr);
@@ -68,7 +63,13 @@
       "account";
   }
   .jp-header__inner:has(> .jp-adminnav) > .jp-adminaccount { margin-inline-start: 0; }
-  .jp-adminaccount__email { max-width: none; }
+  .jp-adminaccount__email {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 768px) {
   .jp-adminnav a.jp-adminnav__link {
     display: inline-flex;
     align-items: center;
@@ -126,8 +127,8 @@
 }
 /* The attention card carries a 6px warning edge while something needs attention; while the
    state is unknown or clear the edge is neutral, so an unbuilt source never raises an alarm. */
-.jp-admincard--attention { border-left: 6px solid var(--jp-warning); }
-.jp-admincard--attention[data-state="unknown"] { border-left-color: var(--jp-border-strong); }
+.jp-admincard--attention { border-left: 6px solid var(--jp-border-strong); }
+.jp-admincard--attention[data-state="raised"] { border-left-color: var(--jp-warning); }
 .jp-admincard__head {
   display: flex;
   flex-wrap: wrap;
@@ -236,7 +237,7 @@
 
 /* ── Segmented filter and period groups ─────────────────────────────────────────────────
    Separate buttons, the selected one tinted: accent-50 fill, accent-700 text and border, with
-   aria-pressed carrying the state. 36 px (the house --sm rung), 44 px at ≤768 px. */
+   aria-pressed carrying the state. */
 .jp-adminseg {
   display: inline-flex;
   flex-wrap: wrap;
@@ -299,7 +300,7 @@
   cursor: pointer;
 }
 .jp-adminusers__sortbtn:disabled { cursor: not-allowed; }
-.jp-table tbody td.jp-admintable__soon { text-align: center; padding-block: 28px; }
+.jp-table tbody td.jp-admintable__soon { text-align: start; padding-block: 28px; }
 /* The "Kommer snart" row is not a record: it takes no row hover. */
 .jp-table tbody tr:hover td.jp-admintable__soon { background: none; }
 
@@ -310,6 +311,7 @@
   align-items: center;
   gap: 12px;
 }
+.jp-admintoolbar .jp-adminseg__opt { height: 44px; }
 .jp-adminsearch {
   position: relative;
   flex: 1 1 280px;
@@ -365,8 +367,8 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {
-  .jp-admincard[data-span="3"] { grid-column: span 6; }
-  .jp-admincard[data-span="4"],
+  .jp-admincard[data-span="3"],
+  .jp-admincard[data-span="4"] { grid-column: span 6; }
   .jp-admincard[data-span="5"],
   .jp-admincard[data-span="7"],
   .jp-admincard[data-span="8"] { grid-column: span 12; }

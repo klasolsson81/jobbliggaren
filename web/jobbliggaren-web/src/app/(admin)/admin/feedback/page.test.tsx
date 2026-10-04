@@ -19,11 +19,10 @@ function describedText(element: HTMLElement): string | undefined {
 }
 
 describe("/admin/feedback — the master/detail layout before #1979 (ADR 0150 D2)", () => {
-  it("is headed Feedback and says what the page holds", async () => {
+  it("is headed Feedback", async () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Feedback" })).toBeInTheDocument();
-    expect(screen.getByText("Rapporter från appens feedback-knapp.")).toBeInTheDocument();
   });
 
   it("shows the status filters without counts, disabled", async () => {
@@ -36,7 +35,7 @@ describe("/admin/feedback — the master/detail layout before #1979 (ADR 0150 D2
       "Nya",
       "Pågår",
       "Lösta",
-      "Skippade",
+      "Avfärdade",
     ]);
     for (const button of buttons) {
       expect(button).toBeDisabled();

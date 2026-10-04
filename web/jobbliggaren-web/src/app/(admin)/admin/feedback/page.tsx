@@ -26,7 +26,7 @@ export default async function AdminFeedbackPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <AdminPageHeader title={t("heading")} lede={t("lede")} />
+      <AdminPageHeader title={t("heading")} />
 
       <AdminSegmented
         label={t("filter.label")}

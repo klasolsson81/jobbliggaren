@@ -110,25 +110,24 @@ The admin surface names an account by its email address alone: no name, no initi
 measured in Context, by reading `ApplicationUser.cs`, `JobSeeker.cs` and `IdentityExternalLoginStore.cs` at
 `7c21f8117`). A name or initials would have to be invented, and an Ort has no account field to read.
 
-### D4 — One capability map: each unbuilt entry names the issue that makes it real
+### D4 — One capability map
 
-Every unbuilt region and account action on the admin surface is listed against the one issue that makes it real. An
-issue flips only its own entries, and reviewers check a PR against this table.
+An issue flips only its own entries, and reviewers check a PR against this table.
 
-| Issue | Makes real | Scope |
-|---|---|---|
-| #1974 | listing and inspecting accounts | MVP |
-| #1975 | changing an account's email address | MVP |
-| #1976 | suspending and reinstating an account | MVP |
-| #1977 | scheduled account deletion | MVP |
-| #1978 | the overview's counts, attention and events | MVP |
-| #1979 | feedback | post-MVP |
-| #1980 | logs | post-MVP |
-| #1981 | email delivery | post-MVP |
-| #1982 | services, host and backup | post-MVP |
-| #1983 | restore, send login link, mark verified, role | post-MVP |
-| #1984 | impersonation | post-MVP |
-| #1985 | permanent deletion | post-MVP |
+| Issue | Makes real |
+|---|---|
+| #1974 | listing and inspecting accounts |
+| #1975 | changing an account's email address |
+| #1976 | suspending and reinstating an account |
+| #1977 | scheduled account deletion |
+| #1978 | the overview's counts, attention and events |
+| #1979 | feedback |
+| #1980 | logs |
+| #1981 | email delivery |
+| #1982 | services, host and backup |
+| #1983 | restore, send login link, mark verified, role |
+| #1984 | impersonation |
+| #1985 | permanent deletion |
 
 The table records ownership, never state: whether an entry is live is read from the code and the running page, so this
 ADR does not go stale.
@@ -151,8 +150,8 @@ build:
 
 Fixtures use reserved domains only (example.com, example.org and example.net; `*.test`, `*.example` and `*.invalid`;
 RFC 2606 and 6761) and the RFC 5737 documentation ranges (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24). They run on a
-fixed clock, are typed view models with no name field (D3), and are held to a denylist: real addresses, consumer mail
-domains, and the prototype's people and infrastructure names.
+fixed clock, are typed view models with no name field (D3), and are held to a denylist: consumer mail
+domains and the prototype's infrastructure names.
 
 The preview reads no backend, so it sits outside the `(admin)` auth gate by design. What keeps it from a user is that
 no deployed build contains it, not a login. Implemented by #1973's second PR.
@@ -163,20 +162,20 @@ show them in the repo rather than in an uncommitted local harness (2026-10-04, "
 
 ### D6 — A route-group stylesheet; shared tokens, not shared classes
 
-The admin surface gets `src/app/(admin)/admin.css`, and the preview later `src/app/(admin-preview)/admin-preview.css`:
-`.jp-admin*` classes over existing tokens only, a `prefers-reduced-motion` block for any motion a file adds, and each
-path added to the `guard:css` script's file list. The `/oversikt` `.jp-ov-*` classes stay in `(app)/app.css`.
+The admin surface gets `src/app/(admin)/admin.css`: `.jp-admin*` classes over existing tokens only, a
+`prefers-reduced-motion` block for any motion the file adds, and its path added to the `guard:css` script's file list.
+The `/oversikt` `.jp-ov-*` classes stay in `(app)/app.css`.
 
 *Why.* Shared tokens, not shared classes: the doctrine `(app)/app.css` and DESIGN.md §6 already state for the CV guide
 rail and the Mina sidor menu.
 
-### D7 — The admin header: one row from 1200px, two rows below
+### D7 — The admin header: one row from 1200px
 
 The nav grows from two entries to seven, so the header is one row from 1200px. Below 1200px the brand takes the first
-row and the nav and the account share the second, the account at its right edge; at 768px and below the account takes
-a third row. Reading order follows the DOM order (brand, nav, account) at every width, so focus never jumps back up
-the header (WCAG 2.4.3). At 768px and below the nav wraps with 44px targets, the header stops being sticky
-(WCAG 1.4.10, at 400% zoom) and the account address truncates with an ellipsis.
+row and the nav and the account share the second, the account at its right edge; below 1024px the account takes a
+third row, its address wraps instead of truncating, and the header stops being sticky (WCAG 1.4.10, at 400% zoom).
+Reading order follows the DOM order (brand, nav, account) at every width, so focus never jumps back up the header
+(WCAG 2.4.3). At 768px and below the nav wraps with 44px targets.
 
 ### D8 — The deviation register: the handoff against what ships
 
@@ -228,7 +227,7 @@ The handoff is a design reference, not production code. What ships departs from 
   nothing, and the interactions that need rows are visible in a preview no deployed build contains.
 - The surface ships page by page: each backend issue flips only its own entries (D4), so no issue waits on another to
   be reviewable.
-- No new token, dependency or chart library, and the admin's classes live in their own file under their own prefix.
+- No new token, dependency or chart library, and the new admin classes live in their own file under their own prefix.
 
 ### Negative and risks
 
@@ -241,8 +240,6 @@ The handoff is a design reference, not production code. What ships departs from 
   safety is the locks of D5, not a login, so a lock that quietly stops working is the failure to watch.
 - Below 1200px the header spends a row on the brand alone, so it is taller than the one-row header (D7).
 - An account can be found by its address only (D3); the account holds no other handle.
-- The build departs from the handoff in seventeen places (D8); a reader comparing the two will meet each, with its
-  ground.
 
 ## Implementation
 

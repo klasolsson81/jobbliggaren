@@ -1099,7 +1099,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
         /profil
         /integrationer        -- Gmail, Calendar
         /aviseringar
-    /(admin)                   -- role=Admin (ADR 0150)
+    /(admin)                   -- role=Admin (ADR 0028)
       /admin                   -- översikt
       /admin/anvandare
       /admin/feedback

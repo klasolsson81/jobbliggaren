@@ -8,7 +8,7 @@
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
 export const ADMIN = { userId: id(901), email: "admin@example.test", roles: ["Admin"] };
-export const MEMBER = { userId: id(902), email: "medlem@example.test", roles: ["JobSeeker"] };
+export const MEMBER = { userId: id(902), email: "medlem@example.test", roles: [] };
 
 export const AUDIT_PAGE = {
   items: [
@@ -45,7 +45,7 @@ export const AUDIT_PAGE = {
 
 export const RECURRING_JOBS = [
   {
-    id: "jobtech-sync-delta",
+    id: "sync-platsbanken-stream",
     cron: "*/15 * * * *",
     lastExecution: "2026-10-03T19:30:00Z",
     lastJobState: "Succeeded",
@@ -62,11 +62,11 @@ export const RECURRING_JOBS = [
 
 export const FAILED_JOBS = {
   totalCount: 1,
-  returned: 1,
+  returned: 50,
   items: [
     {
-      jobId: "8f2c7a91",
-      jobType: "JobTechSyncDeltaJob",
+      jobId: "18234",
+      jobType: "SyncPlatsbankenStreamWorker",
       failedAt: "2026-10-03T04:15:00Z",
       errorCategory: "HttpRequestException",
     },

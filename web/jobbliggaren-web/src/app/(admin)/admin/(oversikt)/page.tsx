@@ -28,9 +28,7 @@ const TREND_SOON_ID = "admin-overview-trend-soon";
  *
  * No source behind it exists yet, so every card renders its designed structure and says so
  * (ADR 0150 D2): an unknown number is an en-dash without its unit, an unknown list is one
- * "Kommer snart" line, and the attention edge stays neutral. #1978 connects the account counts,
- * the new-user trend, the attention items and the recent events; the rest stays unbuilt until
- * its own issue.
+ * "Kommer snart" line, and the attention edge stays neutral.
  */
 export default async function AdminOverviewPage() {
   const t = await getTranslations("admin.overview");

@@ -46,7 +46,7 @@ describe("/admin/e-post — email delivery before #1981 (ADR 0150 D2)", () => {
 
     const table = screen.getByRole("table", { name: "Utskick per mejltyp" });
     expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
-      "Funktion",
+      "Mejltyp",
       "Skickade",
       "Fel",
       "Senaste fel",

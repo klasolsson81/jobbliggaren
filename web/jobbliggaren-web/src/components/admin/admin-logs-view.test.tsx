@@ -14,8 +14,8 @@ async function renderView(view: AdminLogView) {
 }
 
 const COLUMNS: Record<AdminLogView, string[]> = {
-  security: ["Tid", "Händelse", "Konto", "IP (anonymiserad)", "Antal", "Detalj"],
-  errors: ["Senast", "Nivå", "Källa", "Meddelande", "24 h"],
+  security: ["Tid", "Händelse", "Konto", "IP (maskerad)", "Antal", "Detalj"],
+  errors: ["Senast", "Nivå", "Källa", "Meddelande", "24 tim"],
   imports: [
     "Körning",
     "Typ",

@@ -28,17 +28,17 @@
     "heading": "Overview",
     "kpi": {
       "newUsers": "New users",
-      "total": "Total",
-      "active": "Active",
+      "total": "Total users",
+      "active": "Active users",
       "logins": "Sign-ins"
     },
     "trend": {
       "title": "New users and sign-ins",
       "periodLabel": "Period",
       "periods": {
-        "d7": "7 d",
-        "d30": "30 d",
-        "d90": "90 d"
+        "d7": "7 days",
+        "d30": "30 days",
+        "d90": "90 days"
       }
     },
     "services": {
@@ -54,13 +54,13 @@
     "backup": {
       "title": "Backup",
       "latest": "Latest",
-      "offsite": "Offsite",
+      "offsite": "Off-site copy",
       "next": "Next",
       "retention": "Kept"
     },
     "email": {
       "title": "Email",
-      "link": "Details"
+      "link": "Email delivery"
     },
     "attention": {
       "title": "Needs attention"
@@ -103,14 +103,13 @@
       "title": "Feedback"
     },
     "heading": "Feedback",
-    "lede": "Reports from the app's feedback button.",
     "filter": {
       "label": "Show reports",
       "all": "All",
       "new": "New",
       "inProgress": "In progress",
       "resolved": "Resolved",
-      "skipped": "Skipped"
+      "skipped": "Dismissed"
     },
     "list": {
       "label": "Reports"
@@ -128,7 +127,6 @@
       "imports": "Logs: Platsbanken import"
     },
     "heading": "Logs",
-    "lede": "Security events, application errors and Platsbanken imports.",
     "subnav": {
       "label": "Log views",
       "security": "Security",
@@ -140,7 +138,7 @@
       "time": "Time",
       "event": "Event",
       "account": "Account",
-      "ip": "IP (anonymised)",
+      "ip": "IP (masked)",
       "count": "Count",
       "detail": "Detail"
     },
@@ -184,7 +182,7 @@
     },
     "table": {
       "caption": "Sends per email type",
-      "function": "Function",
+      "function": "Email type",
       "sent": "Sent",
       "failed": "Failed",
       "lastError": "Latest error"

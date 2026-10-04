@@ -33,8 +33,6 @@
  * existence sweeps treat as the definition universe; the class sweep additionally
  * reads all of src/ (see below), so it needs no argument of its own.
  * Wired into: pre-commit (web gates) + CI frontend job (#549 WS5).
- * Guards every split CSS entry point — globals.css + (app)/app.css (#750);
- * add each new per-route-group split file here as it is introduced.
  */
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

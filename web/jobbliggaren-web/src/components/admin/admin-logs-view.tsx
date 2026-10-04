@@ -1,10 +1,32 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatDateTime } from "@/lib/i18n/format";
+import type {
+  AdminErrorLogRow,
+  AdminImportLogRow,
+  AdminRegion,
+  AdminSecurityEventKind,
+  AdminSecurityLogRow,
+} from "@/lib/admin/view-models";
 import { AdminPageHeader } from "./admin-page-header";
+import { AdminRegionLine } from "./admin-region-line";
 import { AdminTableScroll } from "./admin-table-scroll";
-import { ComingSoon } from "./coming-soon";
 
 export type AdminLogView = "security" | "errors" | "imports";
+
+/** One view's rows; the view names the row shape. */
+export type AdminLogData =
+  | { readonly view: "security"; readonly region: AdminRegion<ReadonlyArray<AdminSecurityLogRow>> }
+  | { readonly view: "errors"; readonly region: AdminRegion<ReadonlyArray<AdminErrorLogRow>> }
+  | { readonly view: "imports"; readonly region: AdminRegion<ReadonlyArray<AdminImportLogRow>> };
+
+const SECURITY_TONE: Readonly<Record<AdminSecurityEventKind, string>> = {
+  loginFailed: "jp-pill--warning",
+  rateLimited: "jp-pill--danger",
+  accountLocked: "jp-pill--danger",
+  adminImpersonation: "jp-pill--info",
+};
 
 /**
  * Each view is its own route, so the view switcher is the house `.jp-subnav` (links with
@@ -53,15 +75,21 @@ const VIEW_ORDER: ReadonlyArray<AdminLogView> = ["security", "errors", "imports"
 /**
  * One of the three log views (ADR 0150). The logs themselves are #1980: until then each view's
  * table keeps its column structure and holds one "Kommer snart" row, and the view labels carry
- * no counts (D2).
+ * no counts (D2). Given rows, the table shows them, or the region's one line instead.
  */
 export function AdminLogsView({
   view,
   basePath = "/admin",
+  data,
+  counts,
 }: {
   readonly view: AdminLogView;
   /** "/admin", or the local preview's own root (ADR 0150 D5). */
   readonly basePath?: string;
+  /** This view's rows; absent while the logs are not built. */
+  readonly data?: AdminLogData;
+  /** Each view's count, shown in its label only when known. */
+  readonly counts?: Readonly<Record<AdminLogView, number>>;
 }) {
   const t = useTranslations("admin.logs");
   const captionId = `admin-logs-${view}-caption`;
@@ -83,7 +111,9 @@ export function AdminLogsView({
                 data-active={active}
                 aria-current={active ? "page" : undefined}
               >
-                {t(`subnav.${candidate}`)}
+                {counts === undefined
+                  ? t(`subnav.${candidate}`)
+                  : t("subnav.count", { label: t(`subnav.${candidate}`), count: counts[candidate] })}
               </Link>
             );
           })}
@@ -104,15 +134,102 @@ export function AdminLogsView({
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={columns.length} className="jp-admintable__soon">
-                  <ComingSoon />
-                </td>
-              </tr>
+              <LogRows data={data?.view === view ? data : undefined} columns={columns.length} />
             </tbody>
           </table>
         </AdminTableScroll>
       </div>
     </div>
+  );
+}
+
+function LogRows({ data, columns }: { readonly data: AdminLogData | undefined; readonly columns: number }) {
+  const t = useTranslations("admin.logs");
+  const line = (region: AdminRegion<ReadonlyArray<unknown>>, empty: string): ReactNode =>
+    region.kind === "loaded" && region.data.length > 0 ? null : (
+      <tr>
+        <td colSpan={columns} className="jp-admintable__soon">
+          <AdminRegionLine kind={region.kind === "loaded" ? "empty" : region.kind} empty={empty} />
+        </td>
+      </tr>
+    );
+
+  if (data === undefined) return line({ kind: "unavailable" }, "");
+  switch (data.view) {
+    case "security":
+      return data.region.kind === "loaded" && data.region.data.length > 0
+        ? data.region.data.map((row) => <SecurityRow key={row.id} row={row} />)
+        : line(data.region, t("security.empty"));
+    case "errors":
+      return data.region.kind === "loaded" && data.region.data.length > 0
+        ? data.region.data.map((row) => <ErrorRow key={row.id} row={row} />)
+        : line(data.region, t("errors.empty"));
+    case "imports":
+      return data.region.kind === "loaded" && data.region.data.length > 0
+        ? data.region.data.map((row) => <ImportRow key={row.id} row={row} />)
+        : line(data.region, t("imports.empty"));
+  }
+}
+
+function SecurityRow({ row }: { readonly row: AdminSecurityLogRow }) {
+  const t = useTranslations("admin.logs.security");
+  const format = useFormatter();
+  return (
+    <tr>
+      <td className="jp-admintable__when">{formatDateTime(format, row.occurredAt)}</td>
+      <td>
+        <span className={`jp-pill ${SECURITY_TONE[row.kind]}`}>{t(`kind.${row.kind}`)}</span>
+      </td>
+      <td>{row.account}</td>
+      <td>{row.ip}</td>
+      <td className="jp-admintable__num">{format.number(row.count)}</td>
+      <td>{row.detail}</td>
+    </tr>
+  );
+}
+
+function ErrorRow({ row }: { readonly row: AdminErrorLogRow }) {
+  const t = useTranslations("admin.logs.errors");
+  const format = useFormatter();
+  return (
+    <tr>
+      <td className="jp-admintable__when">{formatDateTime(format, row.lastSeenAt)}</td>
+      <td>
+        <span className={row.level === "error" ? "jp-pill jp-pill--danger" : "jp-pill jp-pill--warning"}>
+          {t(`levelValue.${row.level}`)}
+        </span>
+      </td>
+      <td>
+        <code>{row.source}</code>
+      </td>
+      <td>{row.message}</td>
+      <td className="jp-admintable__num">{format.number(row.count24h)}</td>
+    </tr>
+  );
+}
+
+function ImportRow({ row }: { readonly row: AdminImportLogRow }) {
+  const t = useTranslations("admin.logs.imports");
+  const format = useFormatter();
+  return (
+    <tr>
+      <td>
+        <code>{row.run}</code>
+      </td>
+      <td>{t(`kind.${row.kind}`)}</td>
+      <td className="jp-admintable__when">{formatDateTime(format, row.startedAt)}</td>
+      <td className="jp-admintable__when">
+        {t("durationValue", { minutes: Math.floor(row.durationSeconds / 60), seconds: row.durationSeconds % 60 })}
+      </td>
+      <td className="jp-admintable__num">{format.number(row.fetched)}</td>
+      <td className="jp-admintable__num">{format.number(row.added)}</td>
+      <td className="jp-admintable__num">{format.number(row.updated)}</td>
+      <td className="jp-admintable__num">{format.number(row.closed)}</td>
+      <td>
+        <span className={row.status === "succeeded" ? "jp-pill jp-pill--success" : "jp-pill jp-pill--danger"}>
+          {t(`statusValue.${row.status}`)}
+        </span>
+      </td>
+    </tr>
   );
 }

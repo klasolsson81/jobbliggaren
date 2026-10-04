@@ -30,7 +30,16 @@
       "newUsers": "New users",
       "total": "Total users",
       "active": "Active users",
-      "logins": "Sign-ins"
+      "logins": "Sign-ins",
+      "unit": {
+        "today": "today",
+        "accounts": "accounts",
+        "last30Days": "last 30 days"
+      },
+      "newUsersSub": "{yesterday} yesterday · {last7Days} last 7 days · {last30Days} last 30 days",
+      "totalSub": "{suspended} suspended · {pendingDeletion} pending deletion",
+      "activeSub": "{today} today · {last7Days} last 7 days",
+      "loginsSub": "{yesterday} yesterday · {failed, plural, one {# failed attempt} other {# failed attempts}} · {locked, plural, one {# locked account} other {# locked accounts}}"
     },
     "trend": {
       "title": "New users and sign-ins",
@@ -39,11 +48,24 @@
         "d7": "7 days",
         "d30": "30 days",
         "d90": "90 days"
-      }
+      },
+      "legend": {
+        "newAccounts": "New users",
+        "logins": "Logins"
+      },
+      "today": "Today",
+      "summary": "{newAccounts, plural, =0 {No new users} one {# new user} other {# new users}} and {logins, plural, =0 {no logins} one {# login} other {# logins}} in the last {days} days.",
+      "peakNewAccounts": "Most new users in a day: {count}, on {date}.",
+      "peakLogins": "Most logins in a day: {count}, on {date}."
     },
     "services": {
       "title": "Services",
-      "link": "Logs"
+      "link": "Logs",
+      "empty": "No services to show.",
+      "state": {
+        "ok": "Working",
+        "warning": "Warning"
+      }
     },
     "server": {
       "title": "Server",
@@ -56,18 +78,36 @@
       "latest": "Latest",
       "offsite": "Off-site copy",
       "next": "Next",
-      "retention": "Kept"
+      "retention": "Kept",
+      "retentionDays": "{days} days"
     },
     "email": {
       "title": "Email",
-      "link": "Email delivery"
+      "link": "Email delivery",
+      "unit": "last 24 h",
+      "failed": "{count} failed",
+      "noRecipient": "{count} without recipient",
+      "topTypes": "Most sent email types"
     },
     "attention": {
-      "title": "Needs attention"
+      "title": "Needs attention",
+      "empty": "Nothing needs attention right now.",
+      "failedJobs": "{count, plural, one {# background job has failed} other {# background jobs have failed}}",
+      "pendingDeletions": "{count, plural, one {# account is pending deletion} other {# accounts are pending deletion}}",
+      "failedEmails": "{count, plural, one {# email has failed} other {# emails have failed}}"
     },
     "events": {
       "title": "Recent events",
-      "link": "Audit log"
+      "link": "Audit log",
+      "empty": "No events yet.",
+      "kind": {
+        "accountCreated": "New account",
+        "accountSuspended": "Suspension",
+        "accountReinstated": "Reinstatement",
+        "deletionScheduled": "Deletion",
+        "emailChangeRequested": "Address change",
+        "jobFailed": "Job failure"
+      }
     }
   },
   "users": {
@@ -205,7 +245,32 @@
     "detail": {
       "label": "Selected report",
       "reply": "Reply",
-      "send": "Send reply"
+      "send": "Send reply",
+      "statusLabel": "Status",
+      "meta": {
+        "page": "Page",
+        "screen": "Screen",
+        "device": "Device",
+        "version": "Version"
+      },
+      "replies": "Sent replies",
+      "noReplies": "No replies yet.",
+      "replyHint": "The reply goes to {email}.",
+      "sent": "The reply was sent to {email}.",
+      "sending": "Sending…"
+    },
+    "filterCount": "{label} ({count})",
+    "empty": "No reports.",
+    "status": {
+      "new": "New",
+      "inProgress": "In progress",
+      "resolved": "Resolved",
+      "skipped": "Dismissed"
+    },
+    "category": {
+      "bug": "Bug",
+      "suggestion": "Suggestion",
+      "question": "Question"
     }
   },
   "logs": {
@@ -219,7 +284,8 @@
       "label": "Log views",
       "security": "Security",
       "errors": "Application errors",
-      "imports": "Platsbanken import"
+      "imports": "Platsbanken import",
+      "count": "{label} ({count})"
     },
     "security": {
       "caption": "Security events",
@@ -228,7 +294,14 @@
       "account": "Account",
       "ip": "IP (masked)",
       "count": "Count",
-      "detail": "Detail"
+      "detail": "Detail",
+      "empty": "No security events in the period.",
+      "kind": {
+        "loginFailed": "Failed login",
+        "rateLimited": "Rate limit",
+        "accountLocked": "Account locked",
+        "adminImpersonation": "Admin: impersonation"
+      }
     },
     "errors": {
       "caption": "Application errors",
@@ -236,7 +309,12 @@
       "level": "Level",
       "source": "Source",
       "message": "Message",
-      "count24h": "24 h"
+      "count24h": "24 h",
+      "empty": "No application errors in the period.",
+      "levelValue": {
+        "error": "Error",
+        "warning": "Warning"
+      }
     },
     "imports": {
       "caption": "Platsbanken imports",
@@ -248,7 +326,17 @@
       "added": "New",
       "updated": "Updated",
       "closed": "Closed",
-      "status": "Status"
+      "status": "Status",
+      "empty": "No imports in the period.",
+      "kind": {
+        "delta": "Delta",
+        "full": "Full"
+      },
+      "durationValue": "{minutes} min {seconds} s",
+      "statusValue": {
+        "succeeded": "Done",
+        "failed": "Failed"
+      }
     }
   },
   "email": {
@@ -273,10 +361,16 @@
       "function": "Email type",
       "sent": "Sent",
       "failed": "Failed",
-      "lastError": "Latest error"
+      "lastError": "Latest error",
+      "empty": "No emails sent in the period."
     },
     "failures": {
-      "heading": "Latest failed sends"
+      "heading": "Latest failed sends",
+      "empty": "No failed emails in the period."
+    },
+    "outcome": {
+      "failed": "Failed",
+      "bounced": "Bounced"
     }
   },
   "audit": {
@@ -409,5 +503,9 @@
     "label": "Act as user",
     "text": "You are acting as {email}.",
     "end": "Stop acting as the user"
+  },
+  "regions": {
+    "failed": "The data could not be fetched. Try again in a moment.",
+    "loading": "Fetching data"
   }
 }

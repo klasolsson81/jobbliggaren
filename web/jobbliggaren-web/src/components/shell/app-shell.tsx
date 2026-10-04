@@ -21,7 +21,6 @@ import {
   X,
 } from "lucide-react";
 import { LogoutForm } from "@/components/auth/logout-form";
-import { isV3Native } from "@/lib/layout/v3-native-routes";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
 import { HeaderStrip } from "@/components/site/header-strip";
@@ -65,12 +64,6 @@ const PRIMARY_NAV: NavItem[] = [
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
-
-// V3_NATIVE_ROUTES + isV3Native moved to @/lib/layout/v3-native-routes (#1062) so the
-// list has ONE home a test can read. The obligation the list creates — every page under
-// one of these prefixes must own a width container, because these routes opt out of
-// .jp-shell-transitional-container — is now held by v3-native-routes.test.ts. It was
-// undetectable while the list lived in this client component, and two pages had drifted.
 
 function NotificationsBell() {
   const t = useTranslations("common");
@@ -380,7 +373,6 @@ export function AppShell({
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  const v3Native = isV3Native(pathname);
 
   return (
     <div className="jp-shell">
@@ -435,18 +427,7 @@ export function AppShell({
       />
 
       <main id="main" tabIndex={-1} className="jp-content focus:outline-none">
-        {/* Transitionell bredd-container (CTO B1-reparation 2026-05-19):
-            v3-shellen constrainar ej bredd; un-refaktorerade (app)-sidor
-            wrappas här tills F3/F5/F6 ger dem egna .jp-container/.jp-page.
-            v3-native routes (CTO D1, Variant B) opt-out:ar ur wrappern och
-            äger sin egen .jp-container — heron går då edge-to-edge i
-            .jp-content. Borttagnings-trigger dokumenterad i globals.css +
-            ADR 0052-trail (container + V3_NATIVE_ROUTES tas bort ihop). */}
-        {v3Native ? (
-          children
-        ) : (
-          <div className="jp-shell-transitional-container">{children}</div>
-        )}
+        {children}
       </main>
     </div>
   );

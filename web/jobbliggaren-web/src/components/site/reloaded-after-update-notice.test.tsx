@@ -141,26 +141,5 @@ describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
       expect(line).toHaveClass("jp-banner");
       expect(line).not.toHaveClass("jp-banner--before-band");
     });
-
-    it.each([
-      ["/oversikt", "rail"],
-      ["/jobb/123", "rail"],
-      ["/sokningar", "rail"],
-      ["/sparade", "rail"],
-    ] as const)("app on %s resolves to %s — the test AppShell makes (isV3Native)", async (pathname, expected) => {
-      route.pathname = pathname;
-      stamp();
-      render(<ReloadedAfterUpdateNotice placement="app" />);
-
-      const line = await screen.findByText(LINE);
-      if (expected === "rail") {
-        expect(screen.getByRole("status")).toHaveClass("jp-banner-band");
-        expect(line.parentElement).toHaveClass("jp-container");
-        expect(line).toHaveClass("jp-banner--before-band");
-      } else {
-        expect(screen.getByRole("status")).not.toHaveAttribute("class");
-        expect(line).not.toHaveClass("jp-banner--before-band");
-      }
-    });
   });
 });

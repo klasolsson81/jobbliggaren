@@ -213,7 +213,7 @@ describe("content rail — a centring container is never a flex item without a w
       "no centring class found — the stylesheet scan is broken, so the rule below is vacuous"
     ).toBeGreaterThanOrEqual(8);
     expect(centring.has("jp-container")).toBe(true);
-    expect(centring.has("jp-shell-transitional-container")).toBe(true);
+    expect(centring.has("jp-pagehero__inner")).toBe(true);
     // A class that centres nothing must not be swept in.
     expect(centring.has("jp-h1")).toBe(false);
   });

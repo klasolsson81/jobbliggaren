@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stripComments } from "./strip-comments";
 
 /**
- * `stripComments` is the container guard's ORACLE: `v3-native-routes.test.ts` decides whether a
+ * `stripComments` is the container guard's ORACLE: `page-width.test.ts` decides whether a
  * page owns a width container by looking for the class names in this function's output. An
  * untested oracle is not one — and this function has already shipped two fail-open holes.
  *

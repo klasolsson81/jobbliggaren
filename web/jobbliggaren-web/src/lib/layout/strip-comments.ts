@@ -2,7 +2,7 @@
  * Removes comments from TypeScript/TSX source, for static guards that ask what a file
  * RENDERS rather than what it says about itself.
  *
- * It exists because `v3-native-routes.test.ts` decides whether a page owns a width container by
+ * It exists because `page-width.test.ts` decides whether a page owns a width container by
  * looking for class names in a source file, and the first revision looked at the raw text. That
  * made the guard **fail-open on the very file it was written for** (#1062): `cv/[id]/granska`
  * had just gained a docblock naming `jp-pagehero` and `jp-container jp-page` in prose, so the

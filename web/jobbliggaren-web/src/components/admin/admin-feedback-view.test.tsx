@@ -52,7 +52,10 @@ const noReply = async () => {};
 const noStatus = () => {};
 const detail = () => screen.getByRole("region", { name: "Vald rapport" });
 
-/** The caller the preview is: a sent reply joins its report, and a saved status replaces the report's. */
+/**
+ * The caller the preview is: a sent reply joins its report and moves a new report to Pågår, and a saved
+ * status replaces the report's.
+ */
 function Reports({
   onReply = noReply,
   onStatus = noStatus,
@@ -69,7 +72,11 @@ function Reports({
         setItems((previous) =>
           previous.map((item) =>
             item.id === id
-              ? { ...item, replies: [...item.replies, { id: `${id}-sent`, sentAt: "2026-10-04T08:00:00Z", text }] }
+              ? {
+                  ...item,
+                  status: item.status === "new" ? "inProgress" : item.status,
+                  replies: [...item.replies, { id: `${id}-sent`, sentAt: "2026-10-04T08:00:00Z", text }],
+                }
               : item,
           ),
         );
@@ -138,6 +145,18 @@ describe("AdminFeedbackView with reports (ADR 0150)", () => {
     expect(field).toHaveValue("");
     expect(getAdminToastSnapshot()?.message).toBe("Svaret skickades till konto.b@example.test.");
     await waitFor(() => expect(within(detail()).getByText("Tack, vi tittar på det.").closest("li")).toHaveFocus());
+  });
+
+  it("keeps a report open and focuses its new reply when the reply moves it out of the filter", async () => {
+    render(<Reports />);
+
+    await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
+    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Vi har rättat det.");
+    await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
+
+    await waitFor(() => expect(within(detail()).getByText("Vi har rättat det.").closest("li")).toHaveFocus());
+    expect(detail()).toHaveTextContent("konto.b@example.test");
+    expect(list()).toHaveTextContent("Inga rapporter.");
   });
 
   it("names the reply while it is sent", async () => {

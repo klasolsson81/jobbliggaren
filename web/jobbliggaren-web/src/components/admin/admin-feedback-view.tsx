@@ -153,14 +153,9 @@ export function AdminFeedbackView(props: AdminFeedbackViewProps) {
             key={selected.id}
             item={selected}
             selections={selections}
-            onReply={(id, text) => {
-              setSelectedId(id);
-              return props.onReply(id, text);
-            }}
-            onStatus={(id, status) => {
-              setSelectedId(id);
-              props.onStatus(id, status);
-            }}
+            onKeepOpen={() => setSelectedId(selected.id)}
+            onReply={props.onReply}
+            onStatus={props.onStatus}
           />
         )}
       </div>
@@ -201,12 +196,15 @@ function FeedbackListItem({
 function FeedbackDetail({
   item,
   selections,
+  onKeepOpen,
   onReply,
   onStatus,
 }: {
   readonly item: AdminFeedbackItem;
   /** How many times a report has been chosen in the list; each choice brings the open report into view. */
   readonly selections: number;
+  /** Keeps this report open when an action on it moves it out of the filter. */
+  readonly onKeepOpen: () => void;
   readonly onReply: (id: string, text: string) => Promise<void>;
   readonly onStatus: (id: string, status: AdminFeedbackStatus) => void;
 }) {
@@ -239,6 +237,9 @@ function FeedbackDetail({
   function send() {
     const text = reply.trim();
     if (text === "") return;
+    // Outside the transition: an update inside it would commit only when the send completes, after the
+    // report had already left the filter and been replaced.
+    onKeepOpen();
     startTransition(async () => {
       await onReply(item.id, text);
       startTransition(() => {
@@ -250,6 +251,7 @@ function FeedbackDetail({
   }
 
   function saveStatus() {
+    onKeepOpen();
     if (chosenStatus !== item.status) onStatus(item.id, chosenStatus);
     setStatus(null);
   }

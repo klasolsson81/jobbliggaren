@@ -167,6 +167,13 @@ step_of() { # <job> <id> → index, or -1
   echo -1
 }
 
+split_commands() { # <text> → SEGS: <text> with each command separator this reader knows turned into a newline
+  SEGS=${1//&&/$'\n'}
+  SEGS=${SEGS//||/$'\n'}
+  SEGS=${SEGS//;/$'\n'}
+  SEGS=${SEGS//|/$'\n'}
+}
+
 # --- rule 1 and 5: no mutable publish, no foreign registry tool, no `applied` — in the workflow --------
 for i in "${!S_JOB[@]}"; do
   text=${S_RUN[$i]}
@@ -174,12 +181,14 @@ for i in "${!S_JOB[@]}"; do
   # Every physical line is read on its own, and a command that trailing backslashes continue over
   # several lines (the way a long build command is written) is read once more, joined. A `#` that
   # starts a word, quoted or not, is read as a comment: what follows it in that command is dropped,
-  # and a backslash after it continues nothing, as in bash.
+  # and a line whose last command holds one does not continue.
   commands=() acc="" joined=0
   while IFS= read -r cmdline; do
     trimmed=${cmdline#"${cmdline%%[![:space:]]*}"}
     case "$trimmed" in "#"*) ;; *) commands+=("$cmdline") ;; esac
-    if [[ $cmdline == *"\\" && ! $cmdline =~ $COMMENT_RE ]]; then
+    split_commands "$cmdline"
+    last=${SEGS##*$'\n'}
+    if [[ $cmdline == *"\\" && ! $last =~ $COMMENT_RE ]]; then
       acc+="${cmdline%"\\"} "
       joined=$((joined + 1))
       continue
@@ -189,10 +198,7 @@ for i in "${!S_JOB[@]}"; do
   done <<<"$text"
   [ "$joined" -eq 0 ] || commands+=("$acc")
   for cmdline in "${commands[@]}"; do
-    segs=${cmdline//&&/$'\n'}
-    segs=${segs//||/$'\n'}
-    segs=${segs//;/$'\n'}
-    segs=${segs//|/$'\n'}
+    split_commands "$cmdline"
     while IFS= read -r seg; do
       if [[ $seg =~ $COMMENT_RE ]]; then seg=${seg%%"${BASH_REMATCH[0]}"*}; fi
       case "$seg" in
@@ -207,7 +213,7 @@ for i in "${!S_JOB[@]}"; do
       case "$seg" in *"imagetools create"*) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' runs imagetools create" "Tag moves happen only in publish-release.sh move_tag, called from cmd_advance." ;; esac
       if [[ $seg =~ $FOREIGN_TOOLS_RE ]]; then violation "job '${S_JOB[$i]}' runs a registry tool this guard does not model: ${BASH_REMATCH[2]}"; fi
       case "$seg" in *":applied"*) violation "job '${S_JOB[$i]}' names the local-only tag :applied" ;; esac
-    done <<<"$segs"
+    done <<<"$SEGS"
   done
 done
 for i in "${!S_JOB[@]}"; do

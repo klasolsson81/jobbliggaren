@@ -144,6 +144,12 @@ wf_case 1 "a build continued after a comment line, pushing as it builds" \
 wf_case 1 "a build whose --push follows a parameter expansion's # on the line before" \
   's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --build-arg REF="${GITHUB_REF\#refs/heads/}" \\\n            --push -t "$IMAGE:latest" .#' \
   "builds and pushes in one command"
+wf_case 1 "a quoted # in an earlier command on the line does not stop the continuation" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          echo "build \#$SHORT" \&\& docker buildx build . \\\n            --push -t "$IMAGE:latest"#' \
+  "builds and pushes in one command"
+wf_case 1 "nor one before a semicolon" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          echo "release \#$SHORT"; docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
 wf_case 1 "the cells' build-push-action told to push" \
   's#^          push: false$#          push: true#' \
   "publishes from docker/build-push-action"

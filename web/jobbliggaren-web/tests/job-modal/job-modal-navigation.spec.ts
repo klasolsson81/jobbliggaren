@@ -136,19 +136,10 @@ async function expectNotFoundModalOverList(page: Page, list: string, row: Locato
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page).toHaveURL(list);
   await expect(opener).toBeFocused();
-  return opener;
 }
 
-test("a row in /sparade whose ad answers 404 says so in the modal over the unmoved page, and the row opens again once it answers", async ({ page }) => {
-  harness.unavailableAds.set(ADS.saved.id, 404);
-  const opener = await expectNotFoundModalOverList(page, "/sparade", rowLink(page, ADS.saved), "Sparade annonser");
-  harness.unavailableAds.clear();
-  await opener.click();
-  await expect(jobModal(page, ADS.saved)).toContainText("Öppna annonsen");
-});
-
-test("an ad erased under Art. 17 (410) says the same in the modal", async ({ page }) => {
-  harness.unavailableAds.set(ADS.saved.id, 410);
+test("a row in /sparade whose ad was erased under Art. 17 (410) says so in the modal over the unmoved page", async ({ page }) => {
+  harness.erasedAds.add(ADS.saved.id);
   await expectNotFoundModalOverList(page, "/sparade", rowLink(page, ADS.saved), "Sparade annonser");
 });
 

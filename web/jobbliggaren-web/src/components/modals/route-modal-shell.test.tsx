@@ -118,6 +118,7 @@ describe("RouteModalShell focus lifecycle", () => {
     const list = render(<Link href="/cv/importera">Open import</Link>);
     const opener = screen.getByRole("link", { name: "Open import" });
     opener.focus();
+    const focus = vi.spyOn(opener, "focus");
     const modal = render(
       <RouteModalShell title="Importera CV">
         <div className="jp-modal__body">x</div>
@@ -126,6 +127,6 @@ describe("RouteModalShell focus lifecycle", () => {
     list.unmount();
     modal.unmount();
     expect(opener.isConnected).toBe(false);
-    expect(opener).not.toHaveFocus();
+    expect(focus).not.toHaveBeenCalled();
   });
 });

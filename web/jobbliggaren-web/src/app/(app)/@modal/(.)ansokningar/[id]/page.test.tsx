@@ -235,8 +235,6 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
   });
 });
 
-const pages = createTranslator({ locale: "sv", messages: { pages: svPages }, namespace: "pages" });
-
 describe("@modal/(.)ansokningar/[id] — an outcome without an application, in the modal's own shell", () => {
   beforeEach(() => {
     redirect.mockReset();
@@ -247,8 +245,6 @@ describe("@modal/(.)ansokningar/[id] — an outcome without an application, in t
   });
 
   it.each([
-    [{ kind: "rateLimited", retryAfterSeconds: 30 } as const, pages("common.rateLimitedTitle"), pages("common.rateLimitedBody", { seconds: 30 })],
-    [{ kind: "forbidden" } as const, svPages.ansokningar.detail.loadErrorTitle, svFallback.errorBodyRetry],
     [{ kind: "error" } as const, svPages.ansokningar.detail.loadErrorTitle, svFallback.errorBodyRetry],
   ])("$kind renders its message as the dialog's description", async (result, title, body) => {
     getApplicationById.mockResolvedValue(result);

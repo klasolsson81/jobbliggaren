@@ -124,6 +124,7 @@ describe("ApplicationModalShell focus lifecycle", () => {
     const list = render(<Link href="/ansokningar/test-application">Open application</Link>);
     const opener = screen.getByRole("link", { name: "Open application" });
     opener.focus();
+    const focus = vi.spyOn(opener, "focus");
     const modal = render(
       <ApplicationModalShell title="T" subtitle="S">
         <div className="jp-modal__body">x</div>
@@ -132,6 +133,6 @@ describe("ApplicationModalShell focus lifecycle", () => {
     list.unmount();
     modal.unmount();
     expect(opener.isConnected).toBe(false);
-    expect(opener).not.toHaveFocus();
+    expect(focus).not.toHaveBeenCalled();
   });
 });

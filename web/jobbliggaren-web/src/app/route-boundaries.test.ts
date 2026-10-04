@@ -319,4 +319,22 @@ describe("route-level failure boundaries (#1477)", () => {
         "record in its own modal shell instead (ADR 0053 Amendment 2026-10-04)"
     ).toEqual([]);
   });
+
+  it("only a page calls notFound(), so every throw site is one the rules above can see", () => {
+    const SRC = dirname(APP_ROOT);
+    const callers = sourceFiles(SRC)
+      .filter((f) => readFileSync(f, "utf8").includes("notFound") && callsNotFound(f))
+      .map((f) => toPosix(relative(SRC, f)));
+
+    expect(
+      callers.length,
+      "far fewer notFound() call sites than this tree has — the scan looks collapsed"
+    ).toBeGreaterThanOrEqual(10);
+
+    expect(
+      callers.filter((f) => !(f.startsWith("app/") && f.endsWith("/page.tsx"))),
+      'these call notFound() outside a page; a loader returns { kind: "notFound" } and the page ' +
+        "maps it (ADR 0053 Amendment 2026-10-04)"
+    ).toEqual([]);
+  });
 });

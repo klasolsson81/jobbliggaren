@@ -25,10 +25,16 @@ import { X } from "lucide-react";
 export function JobAdModalShell({
   title,
   company,
+  meta,
   children,
 }: {
   title: string;
   company: string;
+  /**
+   * The header's date line under the company (#1963), or `null` for a branch without an ad (rate
+   * limit, error). Required so no call site can drop the deadline by omission.
+   */
+  meta: React.ReactNode;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -102,13 +108,13 @@ export function JobAdModalShell({
 
   return (
     <div
-      className="jp-modal-scrim"
+      className="jp-modal-scrim jp-modal-scrim--sheet"
       onClick={close}
       role="presentation"
     >
       <div
         ref={panelRef}
-        className="jp-modal"
+        className="jp-modal jp-modal--sheet"
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
@@ -120,6 +126,7 @@ export function JobAdModalShell({
               {title}
             </h2>
             <p className="jp-modal__company">{company}</p>
+            {meta}
           </div>
           <button
             ref={closeRef}

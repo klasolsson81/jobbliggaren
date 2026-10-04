@@ -44,4 +44,16 @@ describe("ModalLoadingShell", () => {
     expect(container.querySelector(".jp-modal-scrim")!.getAttribute("role")).toBe("presentation");
     expect(container.querySelectorAll("button").length).toBe(0);
   });
+
+  it("takes the job modal's viewport-following form when asked, so the swap to content does not jump (#1963)", () => {
+    const { getByRole } = render(<ModalLoadingShell statusText="Laddar annons" variant="sheet" />);
+    const dialog = getByRole("dialog");
+    expect(dialog).toHaveClass("jp-modal--sheet");
+    expect(dialog.parentElement).toHaveClass("jp-modal-scrim--sheet");
+  });
+
+  it("keeps the shared form for the other interceptors", () => {
+    const { getByRole } = render(<ModalLoadingShell statusText="Hämtar ansökan" />);
+    expect(getByRole("dialog")).not.toHaveClass("jp-modal--sheet");
+  });
 });

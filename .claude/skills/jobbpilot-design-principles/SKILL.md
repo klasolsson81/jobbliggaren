@@ -70,7 +70,7 @@ or does it add cognitive load?**
 | Source Sans 3 / JetBrains Mono | Display fonts, scripts, Inter/Roboto/Arial |
 | Content-first pages (hero-bannern är en saklig sök-/orienterings-yta per ADR 0068, inte marketing-hero) | Marketing-heros, vibey microcopy |
 | Quantified information | Vague "positive" feedback |
-| Solid backgrounds via tokens (undantag: hero-plattans `--jp-hero-gradient`, ADR 0068) | Gradient backgrounds i övrigt |
+| Solid backgrounds via tokens (undantag: de scopade som DESIGN.md §3 listar) | Gradient backgrounds i övrigt |
 | `shadow-sm`/`shadow-md` on popovers only | Drop-shadow on cards/buttons |
 
 ---
@@ -88,11 +88,7 @@ tryckta tidtabeller. Den är **inte** modern AI-app-design, konsument-SaaS,
 
 Vit canvas. Hairlines mellan rader och sektioner. **Inga floating cards. Inga
 drop shadows utan funktion** (skuggor finns bara på popovers/dropdowns för att
-signalera lager). **Inga gradients** — med två dokumenterade undantag, leverantörsmärket
-på en aktiv provider-rad på `/logga-in` (DESIGN.md §3) och
-hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till
-`.jp-hero__plate`/`.jp-pagehero`/`.jp-land-hero` per
-[ADR 0068](../../../docs/decisions/0068-gron-accent-identitet-f4-banner.md));
+signalera lager). **Inga gradients** utom de scopade undantag som DESIGN.md §3 listar;
 gradients förblir förbjudna på knappar, badges, kort och alla andra bakgrunder.
 Tänk på UI:t som ett dokument, inte en glasplatta med widgets ovanpå.
 
@@ -135,6 +131,7 @@ guldsignatur (`--jp-gold`) — varumärkets egen färgsättning, utanför intera
 accenten. Status-färgerna används **endast** för status:
 `success` → erbjudande/drift/klar; `warning` → deadlines/uppmärksamhet;
 `danger` → avslag/fel/destruktivt; `info` → neutral info (skickad/bekräftad).
+Jobbkortets matchningsutfall är status i den meningen (DESIGN.md §3).
 **Aldrig** för temamarkering, dekoration eller "brand expression".
 
 ### 6. Tydlig, inte cute
@@ -192,7 +189,7 @@ accessible, and built to be trusted — not admired.
 ## Förbjudna mönster (anti-pattern catalog)
 
 ### Layout & styling
-- ✗ Gradienter på bakgrunder, knappar, badges (undantag: hero-banner-plattan, ADR 0068; leverantörsmärket bär sin egen, DESIGN.md §3)
+- ✗ Gradienter på bakgrunder, knappar, badges (undantag: de scopade som DESIGN.md §3 listar)
 - ✗ Drop-shadows på cards (skuggor endast på popovers/dropdowns)
 - ✗ Avrundade hörn över 6px (utom pill-prickar)
 - ✗ Floating Action Buttons (FAB)
@@ -240,7 +237,7 @@ Innan en PR lämnas, gå igenom:
 
 1. ✓ Använder du befintliga CSS-variabler (`--jp-*`) för ALLA färger? (sök efter hårdkodade hex)
 2. ✓ Är komponenten en variant av en befintlig pattern eller en ny art? Om ny — motivera först.
-3. ✓ Finns drop-shadow eller gradient i designen? Ta bort (utom leverantörsmärket, DESIGN.md §3).
+3. ✓ Finns drop-shadow eller gradient i designen? Ta bort (utom de scopade undantagen i DESIGN.md §3).
 4. ✓ Är ikoner faktiskt nyttiga, eller dekorativa? Ta bort dekorativa.
 5. ✓ Är tonen saklig — inga AI-fraser, inga uppmaningar, inget som h1/etikett/knapp redan säger (DESIGN.md §8)?
 6. ✓ Är tabeller flat (`.jp-table--flat`) och rader hairline-separerade?

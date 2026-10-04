@@ -12,8 +12,8 @@ import type { ReactNode } from "react";
  *     a) Om varje rad börjar med bullet-prefix (`- `, `* `, `• `) →
  *        rendera som `<ul>` med en `<li>` per rad.
  *     b) Om blocket är EN rad, kort (≤60 tecken), och inte slutar med
- *        skiljetecken (`.`, `!`, `?`, `,`, `:`) → rendera som `<h3>`
- *        (sektionsrubrik). Vanliga signalord: "Beskrivning", "Övrigt",
+ *        skiljetecken (`.`, `!`, `?`, `,`, `:`) → rendera som rubrik på den
+ *        nivå anroparen anger (sektionsrubrik). Vanliga signalord: "Beskrivning", "Övrigt",
  *        "Om arbetsgivaren", "Kvalifikationer", "Kontakt".
  *     c) Annars: stycke (`<p>` med `white-space: pre-line` så mjuka
  *        radbrytningar inom blocket bevaras).
@@ -93,7 +93,8 @@ export function parseAdDescription(raw: string): Block[] {
   return blocks;
 }
 
-export function formatAdDescription(raw: string): ReactNode {
+export function formatAdDescription(raw: string, headingLevel: 2 | 3): ReactNode {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   try {
     const blocks = parseAdDescription(raw);
     if (blocks.length === 0) {
@@ -105,9 +106,9 @@ export function formatAdDescription(raw: string): ReactNode {
         {blocks.map((block, idx) => {
           if (block.kind === "heading") {
             return (
-              <h3 key={idx} className="jp-ad-desc__h3">
+              <Heading key={idx} className="jp-ad-desc__h3">
                 {block.text}
-              </h3>
+              </Heading>
             );
           }
           if (block.kind === "list") {

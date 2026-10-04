@@ -3,6 +3,7 @@ import { findGuestJobAd } from "@/lib/guest/mock-data";
 import { toJobAdDetail } from "@/lib/guest/mock-adapters";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
+import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
 
 // F-Pre Punkt 5b 2026-05-24 — intercepting route för @modal-slotten
 // (gäst-tree). Speglar `(app)/@modal/(.)jobb/[id]/page.tsx` (ADR 0053).
@@ -27,8 +28,12 @@ export default async function InterceptedGuestJobbModal({
   const jobAd = toJobAdDetail(mock);
 
   return (
-    <JobAdModalShell title={jobAd.title} company={jobAd.companyName}>
-      <JobAdDetail jobAd={jobAd} headless />
+    <JobAdModalShell
+      title={jobAd.title}
+      company={jobAd.companyName}
+      meta={<JobAdDetailMeta jobAd={jobAd} />}
+    >
+      <JobAdDetail jobAd={jobAd} headless inModal />
     </JobAdModalShell>
   );
 }

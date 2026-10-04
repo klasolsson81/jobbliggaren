@@ -44,7 +44,7 @@ description: >
    Pills/badges = `rounded-pill`; `.jp-chip` = `--jp-r-chip`
 5. **Gradient-undantaget (ADR 0068):** `--jp-hero-gradient` får ENBART användas
    på hero-plattan (`.jp-hero__plate`), `.jp-pagehero` och `.jp-land-hero`.
-   Gradients är förbjudna överallt annars, utom inuti leverantörsmärket (DESIGN.md §3) — civic-utility-regeln gäller
+   Gradients är förbjudna överallt annars, utom de övriga scopade undantagen i DESIGN.md §3 — civic-utility-regeln gäller
    fortsatt för all övrig UI
 6. **Knapp-kontraktet (G1):** primärknapp = `--jp-accent-800` fill (#15603F,
    dark-skiftas ALDRIG) + vit text. `#6EE7A8` (dark-accent-700) används ENDAST

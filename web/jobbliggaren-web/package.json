@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "guard:css": "node scripts/guard-css.mjs src/app/globals.css \"src/app/(app)/app.css\"",
+    "guard:css": "node scripts/guard-css.mjs src/app/globals.css \"src/app/(app)/app.css\" src/components/job-ads/job-ad-match-section.module.css src/components/job-ads/ad-description-excerpt.module.css src/components/job-ads/recruiter-contact-card.module.css src/components/applications/har-ansokt-button.module.css",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

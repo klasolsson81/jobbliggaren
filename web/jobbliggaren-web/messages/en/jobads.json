@@ -188,9 +188,10 @@
       "published": "Published",
       "lastApplicationDay": "Application deadline",
       "description": "Ad description",
+      "showFullAd": "Show the whole ad",
+      "showLess": "Show less",
+      "bodyLabel": "The ad's content",
       "openAd": "Open the ad",
-      "appliedNotice": "See the application in",
-      "appliedNoticeLink": "My applications",
       "previousApplications": "At least {count, plural, one {# previous application} other {# previous applications}} to this employer.",
       "previousApplicationsLink": "View application history",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
@@ -204,25 +205,10 @@
     "match": {
       "heading": "Matching",
       "settingsCta": "Set up matching",
+      "settingsCtaNav": "Go to Set up matching",
       "noStatedOccupation": "You have not stated which occupations you are looking for.",
-      "youHave": "You have: {items}",
-      "alsoRequested": "The ad also asks for: {items}",
-      "requested": "The ad asks for: {items}",
       "ssyk": {
-        "matched": "Occupation that matches: {items}",
-        "related": "Similar occupation: {items}"
-      },
-      "ort": {
-        "matchedMunicipalities": "Municipality that matches: {items}",
-        "matchedRegions": "Region that matches: {items}",
-        "missingMunicipalities": "The ad's municipality: {items}",
-        "missingRegions": "The ad's region: {items}",
-        "matchedPlain": "{count, plural, one {Matching location} other {Matching locations}}: {items}",
-        "missingPlain": "{count, plural, one {The ad's location} other {The ad's locations}}: {items}"
-      },
-      "employment": {
-        "matched": "Employment type that matches: {items}",
-        "missing": "The ad's employment type: {items}"
+        "relatedWord": "Related"
       },
       "grade": {
         "Top": "Top match",
@@ -234,9 +220,7 @@
       "verdict": {
         "Match": "Matches",
         "Partial": "Partial",
-        "NoMatch": "Missing",
-        "NotAssessed": "Not assessed",
-        "Vacuous": "No extracted evidence"
+        "NoMatch": "Does not match"
       },
       "dimension": {
         "ssykOverlap": "Occupation",
@@ -247,15 +231,7 @@
         "mustHaveCoverage": "Mandatory requirements",
         "niceToHaveCoverage": "Nice to have"
       },
-      "notAssessedReason": {
-        "titleSimilarity": "No role to compare.",
-        "skills": "No skills selected."
-      },
       "matchCause": {
-        "PreferenceUnstated": {
-          "employmentFit": "You have not stated any employment type.",
-          "regionFit": "You have not stated any region."
-        },
         "AdSilent": {
           "employmentFit": "The ad does not state an employment type.",
           "regionFit": "The ad does not state a region.",
@@ -263,9 +239,6 @@
         },
         "RemoteOverride": {
           "regionFit": "The ad offers remote work."
-        },
-        "RegionContainsPreferredMunicipality": {
-          "regionFit": "The ad states only a region, not a municipality. The region contains a municipality you picked."
         }
       },
       "unnamedEvidence": {
@@ -277,15 +250,22 @@
         "Partial": "Your role partly matches the ad's title.",
         "NoMatch": "Your role differs from the ad's title."
       },
-      "skillsFoot": "Choose skills to see which requirements match.",
-      "evidence": {
-        "matched": "Matches your skills",
-        "missing": "Not matched"
-      },
+      "skillsFoot": "Choose skills under Matching in My pages to see which requirements match.",
       "requirementsEmpty": {
         "both": "The matching data has no extracted skill requirements. Read the requirements in the ad text.",
         "mustHave": "The matching data has no extracted mandatory skill requirements. Read the requirements in the ad text.",
         "niceToHave": "The matching data has no extracted desirable skills. Read the requirements in the ad text."
+      },
+      "skills": {
+        "count": "{matched, plural, one {# matches} other {# match}} · {missing} not in your profile",
+        "profileMatched": "Matches your profile",
+        "profileMatchedAlso": "Also matches your profile",
+        "profileMissing": "Not in your profile",
+        "listLabel": "Skills: {group}",
+        "metItem": "Met: {label}",
+        "unmetItem": "Missing: {label}",
+        "showMore": "Show {count} more",
+        "showLess": "Show fewer"
       }
     },
     "gradeFilter": {

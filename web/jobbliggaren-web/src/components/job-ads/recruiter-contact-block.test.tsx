@@ -168,3 +168,68 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
     expect(screen.getAllByText("Från annonstexten")).toHaveLength(1);
   });
 });
+
+describe("RecruiterContactBlock — the job-ad detail's contact card (#1963)", () => {
+  const derived: AdContactDto = {
+    name: null,
+    role: null,
+    email: "jobb@example.test",
+    phone: null,
+    isDerived: true,
+  };
+
+  it("is a region named Kontakt that shows the name, the role and labelled methods", () => {
+    render(<RecruiterContactBlock contacts={[declared]} variant="card" />);
+    const region = screen.getByRole("region", { name: "Kontakt" });
+    expect(region).toHaveTextContent("Anna Svensson");
+    expect(region).toHaveTextContent("Rekryterare");
+    expect(screen.getByRole("link", { name: "E-post: anna.svensson@acme.se" })).toHaveAttribute(
+      "href",
+      "mailto:anna.svensson@acme.se",
+    );
+    expect(screen.getByRole("link", { name: "Telefon: 070-123 45 67" })).toHaveAttribute(
+      "href",
+      "tel:070-123 45 67",
+    );
+  });
+
+  it("marks a derived contact as coming from the ad text, beside its value (R1(b))", () => {
+    render(<RecruiterContactBlock contacts={[declared, derived]} variant="card" />);
+    const tag = screen.getByText("Från annonstexten");
+    expect(tag.parentElement).toContainElement(
+      screen.getByRole("link", { name: "E-post: jobb@example.test" }),
+    );
+    expect(screen.getAllByText("Från annonstexten")).toHaveLength(1);
+  });
+
+  it("gives each card its own label id, so two contact regions never share one", () => {
+    render(
+      <>
+        <RecruiterContactBlock contacts={[declared]} variant="card" />
+        <RecruiterContactBlock contacts={[derived]} variant="card" />
+      </>,
+    );
+    const ids = screen.getAllByRole("region", { name: "Kontakt" }).map((r) => r.getAttribute("aria-labelledby"));
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("renders nothing without contacts", () => {
+    const { container } = render(<RecruiterContactBlock contacts={[]} variant="card" />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it.each([
+    ["an email", declared, "lucide-mail"],
+    ["only a phone", { name: "Anna Svensson", role: null, email: null, phone: "070-123 45 67", isDerived: false }, "lucide-phone"],
+  ] as const)("shows the emblem of the channel a contact has, for %s", (_label, contact, icon) => {
+    render(<RecruiterContactBlock contacts={[contact]} variant="card" />);
+    const emblem = screen.getByRole("region", { name: "Kontakt" }).querySelector(":scope > [aria-hidden='true'] svg");
+    expect(emblem).toHaveClass(icon);
+  });
+
+  it("shows no emblem for a contact with only a name", () => {
+    const nameOnly: AdContactDto = { name: "Anna Svensson", role: null, email: null, phone: null, isDerived: false };
+    render(<RecruiterContactBlock contacts={[nameOnly]} variant="card" />);
+    expect(screen.getByRole("region", { name: "Kontakt" }).querySelector(":scope > [aria-hidden='true']")).toBeNull();
+  });
+});

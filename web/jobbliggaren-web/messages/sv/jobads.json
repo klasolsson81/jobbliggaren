@@ -188,9 +188,10 @@
       "published": "Publicerad",
       "lastApplicationDay": "Sista ansökningsdag",
       "description": "Annonsbeskrivning",
+      "showFullAd": "Visa hela annonsen",
+      "showLess": "Visa mindre",
+      "bodyLabel": "Annonsens innehåll",
       "openAd": "Öppna annonsen",
-      "appliedNotice": "Se ansökan i",
-      "appliedNoticeLink": "Mina ansökningar",
       "previousApplications": "Minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till företaget.",
       "previousApplicationsLink": "Visa ansökningshistorik",
       "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
@@ -204,25 +205,10 @@
     "match": {
       "heading": "Matchning",
       "settingsCta": "Ställ in matchning",
+      "settingsCtaNav": "Gå till Ställ in matchning",
       "noStatedOccupation": "Du har inte angett vilka yrken du söker inom.",
-      "youHave": "Du har: {items}",
-      "alsoRequested": "Annonsen efterfrågar även: {items}",
-      "requested": "Annonsen efterfrågar: {items}",
       "ssyk": {
-        "matched": "Yrke som matchar: {items}",
-        "related": "Liknande yrke: {items}"
-      },
-      "ort": {
-        "matchedMunicipalities": "Kommun som matchar: {items}",
-        "matchedRegions": "Län som matchar: {items}",
-        "missingMunicipalities": "Annonsens kommun: {items}",
-        "missingRegions": "Annonsens län: {items}",
-        "matchedPlain": "{count, plural, one {Ort som matchar} other {Orter som matchar}}: {items}",
-        "missingPlain": "{count, plural, one {Annonsens ort} other {Annonsens orter}}: {items}"
-      },
-      "employment": {
-        "matched": "Anställningsform som matchar: {items}",
-        "missing": "Annonsens anställningsform: {items}"
+        "relatedWord": "Relaterat"
       },
       "grade": {
         "Top": "Toppmatch",
@@ -234,9 +220,7 @@
       "verdict": {
         "Match": "Matchar",
         "Partial": "Delvis",
-        "NoMatch": "Saknas",
-        "NotAssessed": "Ej bedömt",
-        "Vacuous": "Underlag saknas"
+        "NoMatch": "Matchar inte"
       },
       "dimension": {
         "ssykOverlap": "Yrke",
@@ -247,15 +231,7 @@
         "mustHaveCoverage": "Obligatoriska krav",
         "niceToHaveCoverage": "Meriterande"
       },
-      "notAssessedReason": {
-        "titleSimilarity": "Ingen roll att jämföra.",
-        "skills": "Inga kompetenser valda."
-      },
       "matchCause": {
-        "PreferenceUnstated": {
-          "employmentFit": "Du har inte angett någon anställningsform.",
-          "regionFit": "Du har inte angett någon ort."
-        },
         "AdSilent": {
           "employmentFit": "Annonsen anger ingen anställningsform.",
           "regionFit": "Annonsen anger varken län eller kommun.",
@@ -263,9 +239,6 @@
         },
         "RemoteOverride": {
           "regionFit": "Annonsen erbjuder distansarbete."
-        },
-        "RegionContainsPreferredMunicipality": {
-          "regionFit": "Annonsen anger bara län, inte kommun. Länet innehåller en kommun du valt."
         }
       },
       "unnamedEvidence": {
@@ -277,15 +250,22 @@
         "Partial": "Din roll stämmer delvis med annonsens titel.",
         "NoMatch": "Din roll skiljer sig från annonsens titel."
       },
-      "skillsFoot": "Välj kompetenser för att se vilka krav som matchar.",
-      "evidence": {
-        "matched": "Matchar dina kompetenser",
-        "missing": "Ej matchade"
-      },
+      "skillsFoot": "Välj kompetenser under Matchning på Mina sidor för att se vilka krav som matchar.",
       "requirementsEmpty": {
         "both": "Uppgifter om kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.",
         "mustHave": "Uppgifter om obligatoriska kompetenskrav saknas i matchningsunderlaget. Läs kraven i annonstexten.",
         "niceToHave": "Uppgifter om meriterande kompetenser saknas i matchningsunderlaget. Läs kraven i annonstexten."
+      },
+      "skills": {
+        "count": "{matched} matchar · {missing} finns inte i din profil",
+        "profileMatched": "Matchar din profil",
+        "profileMatchedAlso": "Matchar också din profil",
+        "profileMissing": "Finns inte i din profil",
+        "listLabel": "Kompetenser: {group}",
+        "metItem": "Uppfyllt: {label}",
+        "unmetItem": "Saknas: {label}",
+        "showMore": "Visa {count} till",
+        "showLess": "Visa färre"
       }
     },
     "gradeFilter": {

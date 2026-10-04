@@ -85,11 +85,11 @@
   "transparency": {
     "heading": "Du ser alltid varför",
     "paragraphs": [
-      "I annonsens detaljvy ser du matchade och ej matchade kompetenser i separata listor. Ej matchade betyder att de inte matchar de kompetenser du har valt. Du bedömer själv om du har kvalifikationen, vill ändra dina val eller söka jobbet."
+      "I annonsens detaljvy ser du vilka kompetenser som matchar din profil och vilka som inte finns i din profil. Finns annonsens obligatoriska krav eller meriterande kompetenser i matchningsunderlaget visas de först, i egna grupper. Du bedömer själv om du har kvalifikationen, vill ändra dina val eller söka jobbet."
     ],
-    "youHaveLabel": "Matchar dina kompetenser",
+    "youHaveLabel": "Matchar din profil",
     "youHave": ["Java", "SQL"],
-    "missingLabel": "Ej matchade",
+    "missingLabel": "Finns inte i din profil",
     "missing": ["Docker"]
   },
   "cta": {

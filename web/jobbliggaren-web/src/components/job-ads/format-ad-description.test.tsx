@@ -151,21 +151,21 @@ describe("parseAdDescription — bullet-list-detektering", () => {
 
 describe("formatAdDescription — rendering", () => {
   it("returnerar null för tom input", () => {
-    expect(formatAdDescription("")).toBeNull();
+    expect(formatAdDescription("", 3)).toBeNull();
   });
 
-  it("renderar h3 för headings med rätt CSS-klass", () => {
+  it.each([2, 3] as const)("renderar rubriken på nivå %i som anroparen anger, med rätt CSS-klass", (level) => {
     const { container } = render(
-      <>{formatAdDescription("Kvalifikationer\n\nDu har minst 3 års erfarenhet.")}</>,
+      <>{formatAdDescription("Kvalifikationer\n\nDu har minst 3 års erfarenhet.", level)}</>,
     );
-    const h3 = container.querySelector(".jp-ad-desc__h3");
-    expect(h3).not.toBeNull();
-    expect(h3?.textContent).toBe("Kvalifikationer");
+    const heading = container.querySelector(".jp-ad-desc__h3");
+    expect(heading?.tagName).toBe(`H${level}`);
+    expect(heading?.textContent).toBe("Kvalifikationer");
   });
 
   it("renderar p för stycken med rätt CSS-klass", () => {
     const { container } = render(
-      <>{formatAdDescription("Detta är ett vanligt stycke med text.")}</>,
+      <>{formatAdDescription("Detta är ett vanligt stycke med text.", 3)}</>,
     );
     const p = container.querySelector(".jp-ad-desc__p");
     expect(p?.textContent).toBe("Detta är ett vanligt stycke med text.");
@@ -173,7 +173,7 @@ describe("formatAdDescription — rendering", () => {
 
   it("renderar ul/li för bullet-list", () => {
     const { container } = render(
-      <>{formatAdDescription("- Ett\n- Två\n- Tre")}</>,
+      <>{formatAdDescription("- Ett\n- Två\n- Tre", 3)}</>,
     );
     const ul = container.querySelector(".jp-ad-desc__list");
     expect(ul).not.toBeNull();
@@ -182,7 +182,7 @@ describe("formatAdDescription — rendering", () => {
 
   it("escaper HTML i texten (XSS-säker)", () => {
     const xss = "<script>alert('xss')</script>";
-    const { container } = render(<>{formatAdDescription(xss)}</>);
+    const { container } = render(<>{formatAdDescription(xss, 3)}</>);
     // React escapar children — texten ska bli synlig som-är, inga script-element
     expect(container.querySelector("script")).toBeNull();
     expect(container.textContent).toContain("<script>alert('xss')</script>");

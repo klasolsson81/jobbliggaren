@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
 describe("JobAdModalShell", () => {
   it("names the dialog by its title", () => {
     render(
-      <JobAdModalShell title="Systemutvecklare" company="Acme AB">
+      <JobAdModalShell title="Systemutvecklare" company="Acme AB" meta={null}>
         <div className="jp-modal__body">x</div>
       </JobAdModalShell>
     );
@@ -21,11 +21,29 @@ describe("JobAdModalShell", () => {
     );
   });
 
+  it("renders the header's date line under the company and follows the viewport (#1963)", () => {
+    render(
+      <JobAdModalShell
+        title="Systemutvecklare"
+        company="Acme AB"
+        meta={<div className="jp-modal__meta">Sista ansökningsdag 29 okt. 2026</div>}
+      >
+        <div className="jp-modal__body">x</div>
+      </JobAdModalShell>
+    );
+    const dialog = screen.getByRole("dialog", { name: "Systemutvecklare" });
+    expect(dialog.querySelector(".jp-modal__head .jp-modal__meta")).toHaveTextContent(
+      "Sista ansökningsdag 29 okt. 2026"
+    );
+    expect(dialog).toHaveClass("jp-modal--sheet");
+    expect(dialog.parentElement).toHaveClass("jp-modal-scrim--sheet");
+  });
+
   // #1828 (design-reviewer B2): the dialog carries no description — it pointed at the whole
   // ad text, which a screen reader then read as one flat string before anything else.
   it("sets NO aria-describedby", () => {
     render(
-      <JobAdModalShell title="Systemutvecklare" company="Acme AB">
+      <JobAdModalShell title="Systemutvecklare" company="Acme AB" meta={null}>
         <div className="jp-modal__body">x</div>
       </JobAdModalShell>
     );
@@ -40,7 +58,7 @@ describe("JobAdModalShell focus lifecycle", () => {
     opener.focus();
     const modal = render(
       <StrictMode>
-        <JobAdModalShell title="Systemutvecklare" company="Exempelbolaget">
+        <JobAdModalShell title="Systemutvecklare" company="Exempelbolaget" meta={null}>
           <div className="jp-modal__body">Evidence</div>
         </JobAdModalShell>
       </StrictMode>
@@ -55,7 +73,7 @@ describe("JobAdModalShell focus lifecycle", () => {
     const opener = screen.getByRole("link", { name: "Open ad" });
     opener.focus();
     const modal = render(
-      <JobAdModalShell title="Systemutvecklare" company="Exempelbolaget">
+      <JobAdModalShell title="Systemutvecklare" company="Exempelbolaget" meta={null}>
         <div className="jp-modal__body">Evidence</div>
       </JobAdModalShell>
     );

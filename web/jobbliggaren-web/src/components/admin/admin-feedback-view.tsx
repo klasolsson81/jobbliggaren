@@ -241,8 +241,10 @@ function FeedbackDetail({
     if (text === "") return;
     startTransition(async () => {
       await onReply(item.id, text);
-      setReply("");
-      setSent((count) => count + 1);
+      startTransition(() => {
+        setReply("");
+        setSent((count) => count + 1);
+      });
       showAdminToast(t("detail.sent", { email: item.senderEmail }));
     });
   }

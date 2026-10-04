@@ -1,4 +1,4 @@
-import { test, expect, devices, type Page, type BrowserContext } from "@playwright/test";
+import { test, expect, devices, type Page, type BrowserContext, type Locator } from "@playwright/test";
 import { ADS } from "../job-modal/fixtures";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,6 +10,13 @@ test.afterAll(async () => { await harness?.stop(); });
 test.beforeEach(() => harness.reset());
 test.afterEach(() => expect(harness.misses).toEqual([]));
 const returns = (page: Page, name: string) => page.locator("main").getByRole("link", { name, exact: true });
+const rowInput = process.env.INFORMATION_BROWSER === "webkit" ? "WebKit keyboard opener" : "mouse opener";
+async function openRow(row: Locator, browserName: string) {
+  if (browserName === "webkit") {
+    await row.focus();
+    await row.press("Enter");
+  } else await row.click();
+}
 async function signIn(context: BrowserContext) {
   await context.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN, secure: true, httpOnly: true, sameSite: "Strict" }]);
 }
@@ -138,6 +145,41 @@ test("demo footer links retain their explicit demo origins, focus and expanded a
   }
 });
 
+for (const [list, detail, name] of [
+  ["/gast/jobb", "/gast/jobb/gj-1", "Tillbaka till jobb i demoläget"],
+  ["/gast/ansokningar", "/gast/ansokningar/ga-1", "Tillbaka till ansökningar i demoläget"],
+] as const) test(`demo ${detail}: modal close returns row focus before and after a footer excursion (${rowInput})`, async ({ page, context, browserName }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/gast/jobb");
+  const welcomeSaved = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/gast/jobb");
+  await page.getByRole("button", { name: "Börja utforska", exact: true }).click();
+  await welcomeSaved;
+  expect((await context.cookies()).find(cookie => cookie.name === "__Host-jobbliggaren_guest_welcomed")?.value).toBe("1");
+  if (list !== "/gast/jobb") await page.goto(list);
+  const row = page.locator(`a[href="${detail}"]`).first();
+  await openRow(row, browserName);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(list);
+  await expect(row).toBeFocused();
+
+  const privacy = page.locator('footer a[href="/integritet"]');
+  await privacy.click();
+  await expect(returns(page, name)).toHaveCount(2);
+  await returns(page, name).first().click();
+  await expect(page).toHaveURL(list);
+  await expect(privacy).toBeFocused();
+  await openRow(row, browserName);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(list);
+  await expect(row).toBeFocused();
+});
+
 test("direct, new-tab, reload and forged markers fall back to home", async ({ page, context }) => {
   await page.goto("/integritet?returnTo=https%3A%2F%2Fevil.test");
   await expect(returns(page, "Till startsidan")).toHaveCount(2);
@@ -200,13 +242,20 @@ test("missing live history proof fails closed and a new task releases the old dr
   await expect(page.locator('#email')).toHaveValue("");
 });
 
-for (const mode of ["full", "modal"] as const) test(`job ${mode}: expanded text, scroll and notice focus survive return`, async ({ page, context }) => {
+for (const mode of ["full", "modal"] as const) test(`job ${mode}: expanded text, scroll and notice focus survive return${mode === "modal" ? ` (${rowInput})` : ""}`, async ({ page, context, browserName }) => {
   await signIn(context);
   await page.setViewportSize({ width: 390, height: 844 });
   if (mode === "full") await page.goto(`/jobb/${ADS.saved.id}`);
   else {
     await page.goto("/sparade");
-    await page.locator(`a[href^="/jobb/${ADS.saved.id}"]`).filter({ hasText: ADS.saved.title }).click();
+    const row = page.locator(`a[href^="/jobb/${ADS.saved.id}"]`).filter({ hasText: ADS.saved.title });
+    await openRow(row, browserName);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(row).toBeFocused();
+    await openRow(row, browserName);
     await expect(page.getByRole("dialog")).toBeVisible();
   }
   await page.getByRole("button", { name: "Visa hela annonsen", exact: true }).click();
@@ -221,10 +270,56 @@ for (const mode of ["full", "modal"] as const) test(`job ${mode}: expanded text,
   expect(await page.getByRole("dialog").count()).toBe(mode === "modal" ? 1 : 0);
   const after = await page.evaluate(() => ({ window: scrollY, modal: document.querySelector('[data-information-scroll="job-modal-body"]')?.scrollTop }));
   expect(Math.abs(before.window - after.window)).toBeLessThan(3);
-  if (mode === "modal") expect(Math.abs((before.modal ?? 0) - (after.modal ?? 0))).toBeLessThan(3);
+  if (mode === "modal") {
+    expect(Math.abs((before.modal ?? 0) - (after.modal ?? 0))).toBeLessThan(3);
+    await page.goForward();
+    await expect(returns(page, "Tillbaka till annonsen")).toHaveCount(2);
+    await page.goBack();
+    await expect(notice).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator(`a[href^="/jobb/${ADS.saved.id}"]`).filter({ hasText: ADS.saved.title })).toBeFocused();
+  }
 });
 
-for (const mode of ["full", "modal"] as const) test(`application ${mode}: list query, view, selection and focus survive`, async ({ page, context }) => {
+for (const entry of ["bookmark", "filtered-title"] as const) test(`job modal ${entry}: the exact opener and source query survive an information excursion (${rowInput})`, async ({ page, context, browserName }) => {
+  await signIn(context);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(entry === "bookmark" ? "/sparade" : "/jobb");
+  if (entry === "filtered-title") {
+    const search = page.locator("#jobb-q");
+    await expect(search).toHaveAttribute("role", "combobox");
+    await search.fill("Testledare");
+    await search.press("Enter");
+    await expect(page).toHaveURL(url => url.pathname === "/jobb" && url.searchParams.get("q") === "Testledare");
+  }
+  const opener = entry === "bookmark"
+    ? page.locator(`a[href="/jobb/${ADS.saved.id}"][aria-label]`)
+    : page.locator(`a.jp-job__rowlink[href^="/jobb/${ADS.saved.id}?"]`).filter({ hasText: ADS.saved.title });
+  await expect(opener).toHaveCount(1);
+  const href = await opener.getAttribute("href");
+  expect(href).not.toBeNull();
+  if (entry === "filtered-title") expect(new URL(href!, APP_ORIGIN).searchParams.get("q")).toBe("Testledare");
+  await openRow(opener, browserName);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+  const notice = page.locator(`#information-job-${ADS.saved.id}`);
+  await notice.click();
+  await expect(returns(page, "Tillbaka till annonsen")).toHaveCount(2);
+  await returns(page, "Tillbaka till annonsen").first().click();
+  await expect(notice).toBeFocused();
+  await expect(page).toHaveURL(href!);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  if (entry === "filtered-title") {
+    await expect(page).toHaveURL(url => url.pathname === "/jobb" && url.searchParams.get("q") === "Testledare");
+    await expect(page.locator("#jobb-q")).toHaveValue("Testledare");
+    await expect(opener).toHaveAttribute("href", href!);
+  } else await expect(page).toHaveURL("/sparade");
+});
+
+for (const mode of ["full", "modal"] as const) test(`application ${mode}: list query, view, selection and focus survive${mode === "modal" ? ` (${rowInput})` : ""}`, async ({ page, context, browserName }) => {
   await signIn(context);
   await page.goto("/ansokningar");
   await page.getByRole("radio", { name: "Tabell", exact: true }).click();
@@ -233,7 +328,16 @@ for (const mode of ["full", "modal"] as const) test(`application ${mode}: list q
   const row = page.locator('a[href^="/ansokningar/"]').filter({ hasText: ADS.applied.title }).first();
   const href = await row.getAttribute("href");
   if (mode === "full") await page.goto(href ?? "");
-  else { await row.click(); await expect(page.getByRole("dialog")).toBeVisible(); }
+  else {
+    await openRow(row, browserName);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(row).toBeFocused();
+    await openRow(row, browserName);
+    await expect(page.getByRole("dialog")).toBeVisible();
+  }
   const notice = page.locator('a[id^="information-application-"]');
   await notice.scrollIntoViewIfNeeded();
   const before = await page.evaluate(() => ({ window: scrollY, modal: document.querySelector('[role="dialog"] .jp-modal__body')?.scrollTop }));
@@ -247,10 +351,49 @@ for (const mode of ["full", "modal"] as const) test(`application ${mode}: list q
   expect(Math.abs(before.window - after.window)).toBeLessThan(3);
   if (mode === "modal") expect(Math.abs((before.modal ?? 0) - (after.modal ?? 0))).toBeLessThan(3);
   if (mode === "modal") {
+    await page.goForward();
+    await expect(returns(page, "Tillbaka till ansökan")).toHaveCount(2);
+    await page.goBack();
+    await expect(notice).toBeFocused();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("searchbox")).toHaveValue("Backend");
     await expect(page.getByRole("checkbox").last()).toBeChecked();
+    await expect(row).toBeFocused();
   }
+});
+
+for (const resource of ["job", "application"] as const) test(`${resource} modal WebKit mouse: main focus survives an information excursion`, async ({ page, context, browserName }) => {
+  test.skip(browserName !== "webkit", "The existing mouse-to-main focus premise is specific to WebKit (#1968).");
+  await signIn(context);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const list = resource === "job" ? "/sparade" : "/ansokningar";
+  await page.goto(list);
+  const row = resource === "job"
+    ? page.locator(`a[href^="/jobb/${ADS.saved.id}"]`).filter({ hasText: ADS.saved.title })
+    : page.locator('a[href^="/ansokningar/"]').filter({ hasText: ADS.applied.title }).first();
+  await row.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(list);
+  const main = page.locator("main#main");
+  await expect(main).toBeFocused();
+
+  await row.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").locator("header button").first()).toBeFocused();
+  const notice = page.locator(`a[id^="information-${resource}-"]`);
+  const returnName = resource === "job" ? "Tillbaka till annonsen" : "Tillbaka till ansökan";
+  await notice.click();
+  await expect(returns(page, returnName)).toHaveCount(2);
+  await returns(page, returnName).first().click();
+  await expect(notice).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(list);
+  await expect(main).toBeFocused();
 });
 
 for (const resource of ["job", "application"] as const) for (const mode of ["full", "modal"] as const) test(`${resource} ${mode}: deliberately missing notice degrades to the restored surface heading`, async ({ page, context }) => {

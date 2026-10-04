@@ -19,11 +19,13 @@ import { useEffect, useRef, type RefObject } from "react";
 export function useRouteModalFocus(
   panelRef: RefObject<HTMLElement | null>,
   closeRef: RefObject<HTMLElement | null>,
-) {
+  resolveRestoredOpener?: (panel: HTMLElement | null) => HTMLElement | null,
+): Readonly<RefObject<HTMLElement | null>> {
   const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const active = document.activeElement;
+    const panel = panelRef.current;
+    const active = resolveRestoredOpener ? resolveRestoredOpener(panel) : document.activeElement;
     if (
       openerRef.current === null &&
       active instanceof HTMLElement &&
@@ -34,9 +36,11 @@ export function useRouteModalFocus(
     }
     closeRef.current?.focus();
     return () => {
-      if (openerRef.current?.isConnected) {
-        openerRef.current.focus({ preventScroll: true });
+      const opener = resolveRestoredOpener ? resolveRestoredOpener(panel) : openerRef.current;
+      if (opener?.isConnected) {
+        opener.focus({ preventScroll: true });
       }
     };
-  }, [panelRef, closeRef]);
+  }, [panelRef, closeRef, resolveRestoredOpener]);
+  return openerRef;
 }

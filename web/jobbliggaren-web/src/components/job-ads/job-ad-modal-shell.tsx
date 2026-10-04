@@ -4,7 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
-import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
+import { useInformationModalFocus } from "@/components/information/useInformationModalFocus";
 
 /**
  * JobAdModalShell — modal-chrome (scrim / ESC / scrim-klick / focus-trap /
@@ -49,7 +49,7 @@ export function JobAdModalShell({
 
   const close = () => router.back();
 
-  useRouteModalFocus(panelRef, closeRef);
+  useInformationModalFocus(panelRef, closeRef);
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;

@@ -62,6 +62,13 @@ The contract is bounded as follows:
   expanded ad text, focus and scroll only in memory. Restore component UI before
   focus and scroll; existing rules for changed rows and invalid selection still
   apply. If the trigger is absent, focus the restored surface's heading.
+- Preserve the opener actually captured by the shared route-modal focus hook:
+  either an opening detail link's validated canonical href and presence of
+  `aria-label`, or a typed sentinel for an actual `main#main` opener. Retain no
+  label text, query or DOM reference. Restore focus on close only when exactly
+  one current element outside the modal matches the descriptor. Missing or
+  ambiguous matches decline restoration; an absent link does not imply `main`.
+  Ordinary modal focus remains owned by the shared hook.
 - Never serialize snapshots into URLs, history state or web storage. Do not
   retain server DTOs, contact details, CV data, authentication codes or consent
   decisions. The provider is a narrow UI continuation mechanism, not a server

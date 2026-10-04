@@ -203,6 +203,8 @@ export async function startHarness(informationFlows = false, applicationCopies =
         return json(200, TAXONOMY);
       case "GET /api/v1/job-ads/taxonomy/skills/labels":
         return json(200, []);
+      case "GET /api/v1/job-ads/suggest":
+        return json(200, []);
       case "GET /api/v1/me/profile":
         return json(200, profile(harness.occupationStated));
       case "GET /api/v1/job-ads": {

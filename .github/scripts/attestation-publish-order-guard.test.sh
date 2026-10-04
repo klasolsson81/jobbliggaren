@@ -61,7 +61,7 @@ expect() {
 # Copies <real> to a case file, applies the sed script, and refuses to continue if nothing changed.
 mutant() {
   local real="$1" script="$2" out="$3"
-  sed -E "$script" "$real" | tr -d '\r' >"$out"
+  tr -d '\r' <"$real" | sed -E "$script" >"$out"
   if cmp -s <(tr -d '\r' <"$real") "$out"; then
     fail=$((fail + 1))
     echo "  FAIL FIXTURE BROKEN — the edit no longer applies to $(basename "$real"): $script" >&2

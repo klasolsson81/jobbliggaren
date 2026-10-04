@@ -62,7 +62,8 @@ function pageFiles(dir: string, acc: string[] = []): string[] {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       pageFiles(full, acc);
-    } else if (entry.name === "page.tsx") {
+    } else if (entry.name === "page.tsx" || entry.name === "page.preview.tsx") {
+      // `page.preview.tsx` is a document in a build made with the admin preview's flag (ADR 0150 D5).
       acc.push(full);
     }
   }

@@ -7,6 +7,7 @@ import { getServerSession, ROLES } from "@/lib/auth/session";
 import { LogoutForm } from "@/components/auth/logout-form";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminToastHost } from "@/components/admin/admin-toast-host";
 import { HeaderStrip } from "@/components/site/header-strip";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
@@ -71,6 +72,7 @@ export default async function AdminLayout({
             flex column. */}
         <SiteFooter />
       </div>
+      <AdminToastHost />
     </NextIntlClientProvider>
   );
 }

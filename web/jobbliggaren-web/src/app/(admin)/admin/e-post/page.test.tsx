@@ -24,12 +24,10 @@ describe("/admin/e-post — email delivery before #1981 (ADR 0150 D2)", () => {
   it("disables the period group and describes it", async () => {
     await renderPage();
 
-    const group = screen.getByRole("group", { name: "Period" });
-    for (const button of within(group).getAllByRole("button")) {
-      expect(button).toBeDisabled();
-      const describedBy = button.getAttribute("aria-describedby") ?? "";
-      expect(document.getElementById(describedBy)?.textContent).toBe("Kommer snart");
-    }
+    const group = screen.getByRole("radiogroup", { name: "Period" });
+    for (const option of within(group).getAllByRole("radio")) expect(option).toBeDisabled();
+    const describedBy = group.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(describedBy)?.textContent).toBe("Kommer snart");
   });
 
   it("shows the three totals as unknown, never as zero", async () => {

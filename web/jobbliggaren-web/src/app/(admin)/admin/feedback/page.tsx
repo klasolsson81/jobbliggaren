@@ -4,7 +4,7 @@ import { Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { AdminSegmented } from "@/components/admin/admin-segmented";
+import { AdminSegment } from "@/components/admin/admin-segment";
 import { ComingSoon } from "@/components/admin/coming-soon";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,17 +28,16 @@ export default async function AdminFeedbackPage() {
     <div className="flex flex-col gap-6">
       <AdminPageHeader title={t("heading")} />
 
-      <AdminSegmented
+      <AdminSegment
         label={t("filter.label")}
         options={[
-          { key: "all", label: t("filter.all") },
-          { key: "new", label: t("filter.new") },
-          { key: "inProgress", label: t("filter.inProgress") },
-          { key: "resolved", label: t("filter.resolved") },
-          { key: "skipped", label: t("filter.skipped") },
+          { value: "all", label: t("filter.all") },
+          { value: "new", label: t("filter.new") },
+          { value: "inProgress", label: t("filter.inProgress") },
+          { value: "resolved", label: t("filter.resolved") },
+          { value: "skipped", label: t("filter.skipped") },
         ]}
-        selected="all"
-        disabled
+        value="all"
         describedBy={LIST_SOON_ID}
       />
 

@@ -1,16 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { createTranslator } from "next-intl";
-import svAdmin from "../../../messages/sv/admin.json";
 import { AdminLogsView, type AdminLogView } from "./admin-logs-view";
 
-vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace: string) =>
-    createTranslator({ locale: "sv", messages: { admin: svAdmin }, namespace: namespace as "admin" }),
-}));
-
-async function renderView(view: AdminLogView) {
-  render(await AdminLogsView({ view }));
+function renderView(view: AdminLogView) {
+  render(<AdminLogsView view={view} />);
 }
 
 const COLUMNS: Record<AdminLogView, string[]> = {
@@ -44,8 +37,8 @@ const CURRENT: Record<AdminLogView, string> = {
 describe("AdminLogsView — the three log views before #1980 (ADR 0150 D2/D8)", () => {
   it.each(Object.keys(COLUMNS) as AdminLogView[])(
     "%s: is headed Loggar, marks its own view and keeps its columns with one Kommer snart row",
-    async (view) => {
-      await renderView(view);
+    (view) => {
+      renderView(view);
 
       expect(screen.getByRole("heading", { level: 1, name: "Loggar" })).toBeInTheDocument();
 

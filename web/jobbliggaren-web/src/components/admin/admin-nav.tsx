@@ -25,39 +25,42 @@ type AdminNavLabelKey =
   | "nav.granskning";
 
 interface AdminNavItem {
-  readonly href: string;
+  /** The item's path under the surface's base path. */
+  readonly path: string;
   readonly labelKey: AdminNavLabelKey;
   /** The overview owns the bare `/admin`, which prefixes every other item, so it matches exactly. */
   readonly exact?: true;
 }
 
 const ADMIN_NAV: ReadonlyArray<AdminNavItem> = [
-  { href: "/admin", labelKey: "nav.oversikt", exact: true },
-  { href: "/admin/anvandare", labelKey: "nav.anvandare" },
-  { href: "/admin/feedback", labelKey: "nav.feedback" },
-  { href: "/admin/loggar", labelKey: "nav.loggar" },
-  { href: "/admin/e-post", labelKey: "nav.epost" },
-  { href: "/admin/jobb", labelKey: "nav.jobb" },
-  { href: "/admin/granskning", labelKey: "nav.granskning" },
+  { path: "", labelKey: "nav.oversikt", exact: true },
+  { path: "/anvandare", labelKey: "nav.anvandare" },
+  { path: "/feedback", labelKey: "nav.feedback" },
+  { path: "/loggar", labelKey: "nav.loggar" },
+  { path: "/e-post", labelKey: "nav.epost" },
+  { path: "/jobb", labelKey: "nav.jobb" },
+  { path: "/granskning", labelKey: "nav.granskning" },
 ];
 
-function isActive(pathname: string, item: AdminNavItem): boolean {
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(item.href + "/");
+function isActive(pathname: string, href: string, exact: boolean): boolean {
+  if (exact) return pathname === href;
+  return pathname === href || pathname.startsWith(href + "/");
 }
 
-export function AdminNav() {
+/** `basePath` is "/admin", or the local preview's own root (ADR 0150 D5). */
+export function AdminNav({ basePath = "/admin" }: { readonly basePath?: string }) {
   const pathname = usePathname();
   const t = useTranslations("admin");
 
   return (
     <nav aria-label={t("nav.label")} className="jp-adminnav">
       {ADMIN_NAV.map((item) => {
-        const active = isActive(pathname, item);
+        const href = basePath + item.path;
+        const active = isActive(pathname, href, item.exact === true);
         return (
           <Link
-            key={item.href}
-            href={item.href}
+            key={item.path}
+            href={href}
             aria-current={active ? "page" : undefined}
             className="jp-adminnav__link"
           >

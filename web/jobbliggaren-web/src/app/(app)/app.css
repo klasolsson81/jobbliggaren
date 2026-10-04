@@ -180,12 +180,6 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   }
 }
 
-/* The selected option's focus ring sits on its own fill, so it takes the on-fill colour. The base
-   rule lives in globals.css; every Segment renders under (app), so this one is scoped here. */
-.jp-segment__opt[data-active="true"]:focus-visible {
-  outline-color: var(--jp-on-fill);
-}
-
 /* ── Matchning: five parts, each a .jp-settings-group (#1918) ──
    The part's button sits right of its h3, as Notiser's controls sit right of their text (GOV.UK
    summary list); a card too narrow for both puts the button on its own line under the h3. */

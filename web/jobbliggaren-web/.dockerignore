@@ -36,6 +36,11 @@ playwright*.config.ts
 **/*.pem
 **/*.key
 
+# The admin preview (ADR 0150 D5 (d)) never reaches an image: its route files and its fixtures stay
+# out of the build context, so a production module that imported a fixture fails the image build.
+**/*.preview.tsx
+src/lib/admin-preview/fixtures/
+
 # Tooling and docs.
 .vscode/
 .idea/

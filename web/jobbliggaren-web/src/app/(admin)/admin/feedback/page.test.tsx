@@ -28,19 +28,17 @@ describe("/admin/feedback — the master/detail layout before #1979 (ADR 0150 D2
   it("shows the status filters without counts, disabled", async () => {
     await renderPage();
 
-    const group = screen.getByRole("group", { name: "Visa rapporter" });
-    const buttons = within(group).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual([
+    const group = screen.getByRole("radiogroup", { name: "Visa rapporter" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((option) => option.textContent)).toEqual([
       "Alla",
       "Nya",
       "Pågår",
       "Lösta",
       "Avfärdade",
     ]);
-    for (const button of buttons) {
-      expect(button).toBeDisabled();
-      expect(describedText(button)).toBe("Kommer snart");
-    }
+    for (const option of options) expect(option).toBeDisabled();
+    expect(describedText(group)).toBe("Kommer snart");
   });
 
   it("holds no report in the list, only its Kommer snart line", async () => {

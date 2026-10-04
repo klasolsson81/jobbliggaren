@@ -86,6 +86,7 @@
       "unverified": "Unverified",
       "pendingDeletion": "Pending deletion"
     },
+    "filterCount": "{label} ({count})",
     "table": {
       "caption": "Accounts",
       "account": "Account",
@@ -94,8 +95,95 @@
       "registered": "Registered",
       "lastLogin": "Last signed in",
       "lastActive": "Last active",
-      "applications": "Applications",
+      "applications": "Applications"
+    },
+    "counter": "{shown} of {total} accounts",
+    "role": {
+      "user": "User",
+      "admin": "Admin"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "unverified": "Unverified",
+      "pendingDeletion": "Deleted no earlier than {date}"
+    },
+    "regions": {
+      "empty": "No accounts match the search or the filter.",
+      "failed": "The accounts could not be loaded. Try again in a moment.",
+      "loading": "Loading accounts"
+    },
+    "pager": {
+      "label": "Page navigation",
+      "previous": "Previous",
+      "next": "Next",
+      "position": "Page {page} of {pages}"
+    },
+    "panel": {
+      "close": "Close",
+      "savedSearches": "Saved searches",
+      "resumes": "CVs",
       "actions": "Actions"
+    },
+    "actions": {
+      "impersonate": "Act as the user",
+      "changeEmail": "Change email address",
+      "sendLoginLink": "Send login link",
+      "markVerified": "Mark email as verified",
+      "reinstate": "Lift suspension",
+      "restore": "Undo deletion",
+      "suspend": "Suspend account",
+      "scheduleDeletion": "Delete account",
+      "deletePermanently": "Delete permanently"
+    },
+    "edit": {
+      "heading": "Change email address",
+      "current": "Current address",
+      "newEmail": "New email address",
+      "hint": "The new address applies only once the account owner has confirmed it.",
+      "role": "Role",
+      "submit": "Send confirmation",
+      "cancel": "Cancel",
+      "refusal": {
+        "required": "Enter the new email address.",
+        "invalid": "Enter the new email address in the right format, for example name@example.com.",
+        "same": "The new address is the same as the account's current one. Enter another address."
+      },
+      "busy": "Sending…"
+    },
+    "confirm": {
+      "cancel": "Cancel",
+      "suspend": {
+        "title": "Suspend {email}?",
+        "body": "The account holder is signed out on all devices and cannot sign in until you reinstate the account. No data is removed.",
+        "confirm": "Suspend account"
+      },
+      "scheduleDeletion": {
+        "title": "Delete {email}?",
+        "body": "The owner is signed out on every device and cannot sign in again. The account and everything saved in it is permanently deleted no earlier than {date}.",
+        "confirm": "Delete account"
+      }
+    },
+    "toast": {
+      "close": "Close the message",
+      "suspended": "The account {email} is suspended.",
+      "reinstated": "The suspension of {email} is lifted.",
+      "deletionScheduled": "The account {email} will be permanently deleted no earlier than {date}.",
+      "emailChangeRequested": "A confirmation has been sent to {email}. The address changes once the owner has confirmed."
+    },
+    "refusal": {
+      "ownAccount": {
+        "changeEmail": "You cannot change the address of your own account here. Change it on My pages.",
+        "suspend": "You cannot suspend your own account.",
+        "reinstate": "You cannot reinstate your own account.",
+        "scheduleDeletion": "You cannot delete your own account here. Delete it on My pages."
+      }
+    },
+    "busy": {
+      "changeEmail": "Sending…",
+      "suspend": "Suspending…",
+      "reinstate": "Reinstating…",
+      "scheduleDeletion": "Deleting…"
     }
   },
   "feedback": {
@@ -316,5 +404,10 @@
         "title": "No failed jobs"
       }
     }
+  },
+  "impersonation": {
+    "label": "Act as user",
+    "text": "You are acting as {email}.",
+    "end": "Stop acting as the user"
   }
 }

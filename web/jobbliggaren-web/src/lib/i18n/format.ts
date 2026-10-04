@@ -98,6 +98,14 @@ export function formatDateTime(
   return `${iso}${separator}${time}`;
 }
 
+/** The ledger shape's date alone, "YYYY-MM-DD", for a cell beside `formatDateTime`'s. */
+export function formatLedgerDate(
+  format: JpFormatter,
+  value: string | null | undefined,
+): string | null {
+  return formatDateTime(format, value)?.slice(0, 10) ?? null;
+}
+
 /**
  * Locale-aware 24-hour clock time: "14:32" in both sv and en. A Swedish civic
  * utility uses the 24h clock per CLAUDE.md §10 (no AM/PM), so `hour12` is pinned

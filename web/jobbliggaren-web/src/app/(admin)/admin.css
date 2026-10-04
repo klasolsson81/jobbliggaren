@@ -166,7 +166,6 @@
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-semibold);
 }
-.jp-admincard__head > .jp-adminseg { margin-left: auto; }
 .jp-admincard__body {
   display: flex;
   flex-direction: column;
@@ -233,44 +232,22 @@
   margin: 0;
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
-/* ── Segmented filter and period groups ─────────────────────────────────────────────────
-   Separate buttons, the selected one tinted: accent-50 fill, accent-700 text and border, with
-   aria-pressed carrying the state. */
-.jp-adminseg {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* ── Filter and period groups: the house `.jp-segment` ─────────────────────────────────── */
+.jp-adminsegment {
+  min-width: 0;
+  max-width: 100%;
 }
-.jp-adminseg__opt {
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  background: var(--jp-surface);
-  color: var(--jp-ink-1);
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 80ms linear;
-}
-.jp-adminseg__opt:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--jp-surface-3); }
-.jp-adminseg__opt[aria-pressed="true"] {
+.jp-adminsegment .jp-segment__opt { white-space: nowrap; }
+/* An unbuilt group's chosen option is a tint, never the primary fill (ADR 0150 D8). */
+.jp-adminsegment .jp-segment__opt[data-active="true"]:disabled {
   background: var(--jp-accent-50);
   color: var(--jp-accent-700);
-  border-color: var(--jp-accent-700);
+  opacity: 1;
 }
-.jp-adminseg__opt:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-@media (max-width: 768px) {
-  .jp-adminseg__opt { height: auto; min-height: 44px; }
-}
+.jp-admincard__head > .jp-adminsegment { margin-left: auto; }
 
 /* ── Tables ──────────────────────────────────────────────────────────────────────────────
    A labelled scroll region carries a wide table at narrow widths, so the page itself never
@@ -300,6 +277,8 @@
   cursor: pointer;
 }
 .jp-adminusers__sortbtn:disabled { cursor: not-allowed; }
+.jp-adminusers__sortbtn:not(:disabled):hover { color: var(--jp-accent-700); }
+.jp-adminusers__sortbtn svg { color: var(--jp-accent-700); }
 .jp-table tbody td.jp-admintable__soon { text-align: start; padding-block: 28px; }
 /* The "Kommer snart" row is not a record: it takes no row hover. */
 .jp-table tbody tr:hover td.jp-admintable__soon { background: none; }
@@ -311,7 +290,8 @@
   align-items: center;
   gap: 12px;
 }
-.jp-admintoolbar .jp-adminseg__opt { height: 44px; }
+/* Beside the 44 px search field the filter takes the same height at every width (DESIGN.md §6). */
+.jp-admintoolbar .jp-segment__opt { min-height: 44px; }
 .jp-adminsearch {
   position: relative;
   flex: 1 1 280px;
@@ -326,6 +306,338 @@
   pointer-events: none;
 }
 .jp-adminsearch input { padding-left: 42px; }
+
+/* ── Användare: the account cell ─────────────────────────────────────────────────────────
+   The address beside a neutral account icon (ADR 0150 D3); a button opens the panel. */
+.jp-adminusers__account {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--jp-ink-1);
+}
+.jp-adminusers__account svg {
+  flex: 0 0 auto;
+  color: var(--jp-ink-2);
+}
+.jp-adminusers__email {
+  font-weight: var(--jp-fw-semibold);
+  overflow-wrap: anywhere;
+  min-width: 20rem;
+}
+.jp-adminusers__open {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.jp-adminusers__open:hover .jp-adminusers__email {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.jp-table tbody td.jp-adminusers__when {
+  font-size: var(--text-body-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jp-table .jp-adminusers__num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.jp-table tbody tr[data-selected] td { background: var(--jp-accent-50); }
+.jp-adminusers__summary {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-adminpager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jp-adminpager__position {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-adminpager__buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Account panel (handoff 10–12): a modal side panel on the house drawer's motion ─────── */
+/* Each scrim sits one below its content, as the house drawer's 99/100 do: Radix portals the scrim
+   and the content separately, so their DOM order cannot be relied on. */
+.jp-adminpanel-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 109;
+  background: var(--jp-scrim);
+  animation: jp-fade 150ms ease;
+}
+.jp-adminpanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 110;
+  width: min(460px, 100vw);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--jp-surface);
+  border-left: 1px solid var(--jp-border);
+  box-shadow: var(--jp-shadow-modal);
+  animation: jp-slide-r 200ms ease;
+}
+.jp-adminpanel__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--jp-border);
+}
+.jp-adminpanel__icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--jp-r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-2);
+}
+.jp-adminpanel__who {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.jp-adminpanel__title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+  overflow-wrap: anywhere;
+}
+.jp-adminpanel__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+.jp-adminpanel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 24px 28px;
+}
+.jp-adminpanel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-adminpanel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-adminpanel__action {
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  justify-content: flex-start;
+  text-align: start;
+}
+.jp-adminpanel__action > svg { flex-shrink: 0; }
+.jp-adminpanel__rule {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--jp-border);
+}
+/* An unbuilt action stays in place and says so: no opacity and no hover, so it promises no press
+   (ADR 0150 D2). (0,3,0) beats the house `.jp-btn[aria-disabled="true"]` dimming at (0,2,0). */
+.jp-btn.jp-adminpanel__action--soon[aria-disabled="true"] {
+  opacity: 1;
+  cursor: default;
+}
+.jp-btn--secondary.jp-adminpanel__action--soon:hover { background: var(--jp-surface); }
+.jp-adminpanel__action--soon { flex-wrap: wrap; }
+.jp-adminpanel__soon {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-1);
+}
+.jp-adminbusy {
+  display: inline-grid;
+}
+.jp-adminbusy > span { grid-area: 1 / 1; }
+.jp-adminbusy__off { visibility: hidden; }
+.jp-adminpanel__refusal,
+.jp-adminconfirm__refusal,
+.jp-admineditform__refusal {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger-700);
+}
+
+/* ── Confirmation (handoff 11): above the panel ─────────────────────────────────────────── */
+.jp-adminconfirm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  background: var(--jp-scrim);
+  animation: jp-fade 150ms ease;
+}
+.jp-adminconfirm {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 120;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  box-shadow: var(--jp-shadow-modal);
+  animation: jp-fade 150ms ease;
+}
+.jp-adminconfirm__title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+  overflow-wrap: anywhere;
+}
+.jp-adminconfirm__body {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--jp-ink-1);
+}
+.jp-adminconfirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* ── The panel's edit mode (handoff 12) ─────────────────────────────────────────────────── */
+.jp-admineditform {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.jp-admineditform__heading {
+  margin: 0;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-admineditform__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-admineditform__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-admineditform__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ── The receipt toast: an open panel turns pointer events off on the body, and the toast
+   above its scrim takes them back, so it can still be paused and closed ───────────────────── */
+.jp-admintoasthost .jp-toast {
+  pointer-events: auto;
+}
+.jp-admintoasthost .jp-toast__msg { overflow-wrap: break-word; }
+
+/* ── Impersonation banner (handoff 13) ──────────────────────────────────────────────────── */
+.jp-adminbanner {
+  background: var(--jp-warning-bg);
+  border-bottom: 1px solid var(--jp-warning);
+}
+.jp-adminbanner__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 10px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  color: var(--jp-ink-1);
+}
+.jp-adminbanner__inner > svg {
+  flex: 0 0 auto;
+  color: var(--jp-warning);
+}
+.jp-adminbanner__text {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-body-sm);
+  overflow-wrap: anywhere;
+}
+.jp-btn.jp-adminbanner__end {
+  border-color: var(--jp-warning);
+  color: var(--jp-warning);
+}
+
+/* ── The local preview's band (ADR 0150 D5) ─────────────────────────────────────────────── */
+.jp-adminpreview-band {
+  background: var(--jp-info-bg);
+  border-bottom: 1px solid var(--jp-info);
+}
+.jp-adminpreview-band__inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 10px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+}
+.jp-adminpreview-band__text {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+.jp-adminpreview-band__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-left: auto;
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-adminpanel,
+  .jp-adminpanel-scrim,
+  .jp-adminconfirm,
+  .jp-adminconfirm-scrim {
+    animation: none;
+  }
+}
 
 /* ── Feedback: master/detail ─────────────────────────────────────────────────────────── */
 .jp-adminfeedback {
@@ -375,12 +687,31 @@
   .jp-adminfeedback { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 768px) {
-  /* Touch floor (DESIGN.md §5): the card links and the sort controls reach 44 px. */
+  /* Touch floor (DESIGN.md §5): the card links, the sort controls and the account buttons reach 44 px. */
   .jp-admincard__link,
-  .jp-adminusers__sortbtn { min-height: 44px; }
+  .jp-adminusers__sortbtn,
+  .jp-adminusers__open { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
   .jp-adminfeedback__detail { padding: 20px 16px; }
+  .jp-adminpanel__head { padding: 18px 16px 16px; }
+  .jp-adminpanel__body { padding: 16px 16px 24px; }
+  .jp-adminbanner__inner,
+  .jp-adminpreview-band__inner { padding-inline: 16px; }
+  .jp-adminsegment .jp-segment {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .jp-adminsegment .jp-segment__opt,
+  .jp-adminsegment .jp-segment__opt + .jp-segment__opt {
+    border: 1px solid var(--jp-border-input);
+    border-radius: var(--jp-r-md);
+  }
 }
 @media (max-width: 640px) {
   .jp-admincard[data-span] { grid-column: span 12; }

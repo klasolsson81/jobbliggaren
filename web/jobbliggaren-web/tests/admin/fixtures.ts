@@ -46,10 +46,10 @@ export const AUDIT_PAGE = {
 export const RECURRING_JOBS = [
   {
     id: "sync-platsbanken-stream",
-    cron: "*/15 * * * *",
+    cron: "*/10 * * * *",
     lastExecution: "2026-10-03T19:30:00Z",
     lastJobState: "Succeeded",
-    nextExecution: "2026-10-03T19:45:00Z",
+    nextExecution: "2026-10-03T19:40:00Z",
   },
   {
     id: "hard-delete-accounts",

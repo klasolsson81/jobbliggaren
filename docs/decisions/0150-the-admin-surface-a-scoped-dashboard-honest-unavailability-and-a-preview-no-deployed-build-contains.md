@@ -142,19 +142,21 @@ build:
 - **(a) Compile.** `next.config.ts` adds the page extension `preview.tsx` only when `ADMIN_PREVIEW_ENABLED === "true"`
   at config load, the house exact-`"true"` flag form (`DEV_TOOLS_RESET_ENABLED`, `src/lib/env.ts`). The preview's
   files are `page.preview.tsx` and `layout.preview.tsx`, which are not routes without the extension.
-- **(b) Runtime.** The preview layout is `force-dynamic` and redirects to `/admin` when the flag is off.
+- **(b) Runtime.** The preview layout and every preview page are `force-dynamic` and redirect to `/admin` when the
+  running server lacks the flag.
 - **(c) Artifact.** A post-build assertion chained into `pnpm build` fails when a build without the flag contains the
   preview route or the fixture sentinel, and announces "never deploy" when the flag is on.
 - **(d) Build context.** The web image's Docker build context (`web/jobbliggaren-web/.dockerignore`) excludes the
   preview files.
 
 Fixtures use reserved domains only (example.com, example.org and example.net; `*.test`, `*.example` and `*.invalid`;
-RFC 2606 and 6761) and the RFC 5737 documentation ranges (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24). They run on a
-fixed clock, are typed view models with no name field (D3), and are held to a denylist: consumer mail
-domains and the prototype's infrastructure names.
+RFC 2606 and 6761) and the documentation ranges (192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24, RFC 5737;
+2001:db8::/32, RFC 3849). They run on a fixed clock, have no name field (D3), and are held to a
+denylist: consumer mail domains and the prototype's infrastructure names. Every fixture row carries the sentinel the
+assertion of (c) looks for, the reserved domain `forhandsvisning.invalid`.
 
 The preview reads no backend, so it sits outside the `(admin)` auth gate by design. What keeps it from a user is that
-no deployed build contains it, not a login. Implemented by #1973's second PR.
+no deployed build contains it, not a login. Implemented under #1973.
 
 *Why.* D2 forbids fictional rows on a real page, so the interactions that need rows have no home on one. Klas chose to
 show them in the repo rather than in an uncommitted local harness (2026-10-04, "Förhandsvisning i repot
@@ -190,14 +192,17 @@ The handoff is a design reference, not production code. What ships departs from 
 | Deletion copy promising anonymisation in 30 days under Art. 17, and an undo until then | States the backend's earliest deletion date; no statutory claim and no undo claim | #1977 and the epic: the copy says only what the backend does; restore is #1983 (D4) |
 | Mail "via SMTP (Strato)", named hosts and services marked healthy, a Seq retention period, a "Verifierad" backup, a delivery percentage | None of them | Truth: mail leaves through Scaleway Transactional Email over HTTPS, never SMTP (ADR 0131), and nothing observes the rest (D2) |
 | Information-bearing digits and times in mono | Sans with `tabular-nums`; mono only for code identifiers | DESIGN.md §4 |
-| Control heights of its own (32px period buttons, 34px icon buttons, 24–26px pills) | The two ratified systems: 36px segments, `.jp-icon-btn`, `.jp-pill` | DESIGN.md §6; ADR 0052 |
+| Control heights of its own (32px period buttons, 34px icon buttons, 24–26px pills) | The two ratified systems: `.jp-icon-btn`, `.jp-pill` | DESIGN.md §6; ADR 0052 |
 | Hex and rgba literals | Tokens only | DESIGN.md §3; the handoff's own rule of no new hex values |
 | Loggar as a `role="tablist"`; the feedback list as `aria-pressed` buttons | Three `.jp-subnav` links, one URL each; the feedback list marks the open item with `aria-current` | `.jp-subnav` is the house view-switcher: links with `aria-current` |
 | A 3.2 s toast | The house toast: 8 s, paused while hovered or focused | `ApplicationToastHost`; WCAG 2.2.1 |
-| A confirmation dialog with two buttons and no close button | The house dialog's close button stays | The house `Dialog` primitive |
 | TanStack Query and a 60 s status poll | Neither | AGENTS.md §4; no observation exists to refresh, and "checked every 60 seconds" would be a claim without one (D2) |
 | A clickable `<tr>` | A button inside the row | A native button carries the keyboard and screen-reader semantics a `<tr>` lacks |
 | A role select in the edit form | The role read-only | Role change is #1983 (D4) |
+| The edit form's receipt, "Ändringarna sparades och loggades." | "En bekräftelse har skickats till …", saying the address changes once the account holder confirms it | D2: when the request goes out nothing has changed yet (#1975) |
+| An Åtgärder column of two icon buttons per row, "Agera som användaren" and "Redigera" | No column: an account's actions are in its panel, named in words | A row holds one control, the button that opens the panel |
+| Filter and period buttons with `aria-pressed` | The house `Segment`, a radio group | One choice among several; `components/ui/segment.tsx` is the house control for it |
+| The impersonation banner's "Allt du gör loggas dubbelt i granskningsloggen." | Cut | Impersonation is #1984 (D4); D2 |
 | Live search, filters, period buttons and "Skicka svar" as a solid primary button | Natively disabled while their region is unbuilt, each pointing to its "Kommer snart" line, never with a solid primary fill | D2; DESIGN.md §6 |
 | Bakgrundsjobb and Granskning restyled: grey identifier and time cells, a red error category, smaller status pills | Both pages as delivered, apart from the new header and a labelled scroll region around each table | The prompt keeps both working; the house table paints its cells in ink-1 (`.jp-table tbody td`), and the pill is the delivered `JobStateBadge` |
 
@@ -243,7 +248,7 @@ The handoff is a design reference, not production code. What ships departs from 
 
 ## Implementation
 
-D5 is implemented by #1973's second PR. The spec changes ship in the same PR as this ADR:
+D5 is implemented under #1973, after this ADR. The spec changes ship in the same PR as this ADR:
 
 - DESIGN.md §1.2 (the exception) and §6 (a pointer, and one rule line for an unbuilt action);
 - the `jobbpilot-design-principles` and `jobbpilot-design-components` skills (pointers);

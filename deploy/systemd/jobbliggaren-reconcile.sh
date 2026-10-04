@@ -51,6 +51,9 @@ readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.s
 
 readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 readonly RELEASE_REPO="${OURS_PREFIX}release"
+# The compose file's `name:`. Our containers are selected by its label, so a one-off `compose run`
+# container (an interrupted `run --rm`) is never counted as the service's.
+readonly COMPOSE_PROJECT="jobbliggaren-prod"
 readonly CHANNEL_TAG="dev"
 readonly APPLIED_TAG="applied"
 readonly -a RELEASE_IMAGES=(api worker migrate web caddy)
@@ -129,6 +132,11 @@ repo_digest() {
 
 image_id() { /usr/bin/docker image inspect --format '{{.Id}}' "$1" 2>/dev/null; }
 
+service_containers() {
+  /usr/bin/docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT" \
+    --filter "label=com.docker.compose.service=$1" --filter "label=com.docker.compose.oneoff=False"
+}
+
 # --- --status: three states, compared; read-only, takes no lock -----------------------------------------
 if [ "$mode" = status ]; then
   [ -x "$RECORD_TOOL" ] || cannot_answer "record tool missing or not executable: $RECORD_TOOL"
@@ -138,7 +146,7 @@ if [ "$mode" = status ]; then
     log "receipt:   none — nothing has been applied by a record"
     for name in "${RELEASE_IMAGES[@]}"; do
       id=$(image_id "$OURS_PREFIX$name:$APPLIED_TAG" || true)
-      log "applied:   $name ${id:+${id:7:12}}${id:-absent}"
+      if [ -n "$id" ]; then log "applied:   $name ${id:7:12}"; else log "applied:   $name absent"; fi
     done
     log "verdict:   NOT APPLIED"
     exit 1
@@ -169,7 +177,7 @@ if [ "$mode" = status ]; then
   done
   for svc in "${APPLIED_SERVICES[@]}"; do
     want=$(image_id "$OURS_PREFIX${SERVICE_IMAGE[$svc]}@$(field "$receipt" "JBL_RELEASE_IMAGE_${SERVICE_IMAGE[$svc]^^}")" || true)
-    cid=$(compose ps -a -q "$svc" 2>/dev/null || true)
+    cid=$(service_containers "$svc" 2>/dev/null || true)
     have=""
     [ -z "$cid" ] || [ "$(wc -l <<<"$cid")" -ne 1 ] || have=$(/usr/bin/docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true)
     if [ -n "$want" ] && [ "$have" = "$want" ]; then
@@ -219,7 +227,7 @@ channel) ref="$RELEASE_REPO:$CHANNEL_TAG" pinned_digest="" expected_sha="" ;;
 "pin sha-"*) ref="$RELEASE_REPO:${selection#pin }" pinned_digest="" expected_sha="${selection#pin sha-}" ;;
 "pin sha256:"*) ref="$RELEASE_REPO@${selection#pin }" pinned_digest="${selection#pin }" expected_sha="" ;;
 esac
-log "selection: ${selection/pin /pin }"
+log "selection: $selection"
 
 # The retired rollback control: a pin there would now pin nothing, silently. Presence of the key is all
 # that is read; no line of the file is ever printed.
@@ -230,11 +238,12 @@ fi
 # Every service that runs one of our images names it as the local `:applied` tag, and every other
 # image compose declares is an allow-listed upstream one — including the operations profile.
 for svc in "${!SERVICE_IMAGE[@]}"; do
-  declared=$(compose --profile ops config --images "$svc") || cannot_answer "compose could not resolve service $svc"
+  declared=$(compose --profile ops config --images "$svc" 2>/dev/null) ||
+    cannot_answer "compose could not resolve service $svc (its own message is not logged: it can quote $ENV_FILE)"
   [ "$declared" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
     refuse "compose service $svc runs '$declared', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
 done
-mapfile -t images < <(compose --profile ops config --images | sort -u)
+mapfile -t images < <(compose --profile ops config --images 2>/dev/null | sort -u)
 [ "${#images[@]}" -gt 0 ] || refuse "compose declared no images"
 upstream=()
 for image in "${images[@]}"; do
@@ -279,8 +288,9 @@ if [ "$deploy_here" != "$(field "$record" JBL_RELEASE_DEPLOY_SHA256)" ]; then
   log "  checkout: $deploy_here"
   log "  release:  $(field "$record" JBL_RELEASE_DEPLOY_SHA256)"
   log "  Nothing is applied; the running containers stay up. To apply this release, advance the checkout"
-  log "  to its commit (a deploy, on Klas's GO; stop the timer first — vps-deploy-stack.md §3b):"
-  log "    sudo git -C $CHECKOUT fetch origin main && sudo git -C $CHECKOUT merge --ff-only $source_sha"
+  log "  to its commit (a deploy, on Klas's GO — vps-deploy-stack.md §3b):"
+  log "    sudo git -C $CHECKOUT fetch origin main && sudo flock $LOCK git -C $CHECKOUT merge --ff-only $source_sha"
+  log "  For a checkout that is not behind the release, see vps-deploy-stack.md §3b, Rollback and Never advance past the release."
   exit 1
 fi
 
@@ -486,7 +496,7 @@ compose up -d --remove-orphans --pull never
 for svc in "${APPLIED_SERVICES[@]}"; do
   want=$(image_id "$OURS_PREFIX${SERVICE_IMAGE[$svc]}@${digest_of[${SERVICE_IMAGE[$svc]}]}") ||
     cannot_answer "could not read the image id of the verified ${SERVICE_IMAGE[$svc]} image"
-  cid=$(compose ps -a -q "$svc")
+  cid=$(service_containers "$svc")
   [ -n "$cid" ] && [ "$(wc -l <<<"$cid")" -eq 1 ] || refuse "after the apply, service $svc has no single container"
   have=$(/usr/bin/docker inspect --format '{{.Image}}' "$cid") || cannot_answer "could not inspect the $svc container"
   [ "$have" = "$want" ] || refuse "after the apply, service $svc runs $have, not the release's ${SERVICE_IMAGE[$svc]} image $want"

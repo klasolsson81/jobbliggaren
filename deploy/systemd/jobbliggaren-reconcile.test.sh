@@ -120,6 +120,11 @@ if [ "$1" = compose ]; then
   case "$1" in
   config)
     [ "$2" = --images ] || { echo "stub: unexpected compose config $*" >&2; exit 99; }
+    # What compose v5.5.1 printed for an unterminated quote in .env (security-auditor, 2026-10-04).
+    if [ -f "$REG/compose-config-leaks" ]; then
+      echo 'unterminated quoted value "SECRET-FROM-DOT-ENV' >&2
+      [ "$(cat "$REG/compose-config-leaks")" = fail ] && exit 1
+    fi
     if [ -n "${3:-}" ]; then
       awk -v s="$3" '$1 == s { print $2 }' "$REG/compose-images"
     else
@@ -136,12 +141,28 @@ if [ "$1" = compose ]; then
       printf '%s' "$id" >"$REG/running/$svc"
     done <"$REG/compose-images"
     exit 0 ;;
-  ps)
-    svc="${@: -1}"; [ -f "$REG/running/$svc" ] && echo "cid-$svc"; exit 0 ;;
   esac
   echo "stub: unexpected compose $*" >&2; exit 99
 fi
 case "$1" in
+ps)
+  project="" svc="" oneoff=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --filter)
+      case "$2" in
+      label=com.docker.compose.project=*) project="${2#*project=}" ;;
+      label=com.docker.compose.service=*) svc="${2#*service=}" ;;
+      label=com.docker.compose.oneoff=*) oneoff="${2#*oneoff=}" ;;
+      esac
+      shift 2 ;;
+    *) shift ;;
+    esac
+  done
+  [ "$project" = jobbliggaren-prod ] || exit 0
+  [ -f "$REG/running/$svc" ] && echo "cid-$svc"
+  [ -f "$REG/oneoff-$svc" ] && [ "$oneoff" != False ] && echo "cid-$svc-run-1"
+  exit 0 ;;
 pull)
   ref="${@: -1}"
   [ -f "$REG/pull-fails" ] && { echo "denied" >&2; exit 1; }
@@ -281,7 +302,7 @@ applied_is() { # <sha>: every :applied tag names that release's image
 reset() {
   rm -rf "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
   mkdir -p "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers" "$REG/attested" "$REG/flip-after-pull"
-  rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
+  rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/oneoff-* "$REG"/compose-config-leaks "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
     "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
   default_compose
@@ -372,6 +393,9 @@ expect_exit 0 "a digest pin applies exactly that record"
 reset
 REC1=$(release "$SHA1" 10)
 printf '%s\n' "$REC1" >"$PIN"
+# UNREACHABLE STATE, DECLARED: a real `docker pull repo@sha256:X` records X as the repo digest, so no
+# actor produces a pinned pull carrying another one. The case asserts only that the read side refuses
+# if that invariant ever breaks.
 printf '%s' "$(digest_of something-else)" >"$REG/repodigest-as"
 expect_exit 1 "a digest pin whose pulled image carries another repo digest refuses"
 # Bound to the message — measured by mutation: with the equality check deleted, the later read of the
@@ -445,6 +469,32 @@ channel "$REC1"
 printf '%s' "$REC2" >"$REG/flip-after-pull/$(key "$RELEASE:dev")"
 expect_exit 0 "dev moving right after the snapshot changes nothing in this run"
 check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT" && applied_is "$SHA1"' "it applies — and records — the release it snapshotted"
+
+echo "-- what compose says about .env stays out of the journal (security-auditor N5)"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf 'warn' >"$REG/compose-config-leaks"
+expect_exit 0 "compose writing a value from .env to stderr on every config call still applies"
+check '! said "SECRET-FROM-DOT-ENV"' "and nothing compose wrote reaches the output"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf 'fail' >"$REG/compose-config-leaks"
+expect_exit 2 "compose failing on a malformed .env cannot be answered"
+check '! said "SECRET-FROM-DOT-ENV" && said "could not resolve service"' "with the wrapper's own line, not compose's"
+
+echo "-- containers are the service's, never a one-off run's (dotnet-architect P4)"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+touch "$REG/oneoff-migrate"
+expect_exit 0 "a left-over one-off migrate container does not fail the postcondition"
+check '[ -f "$RECEIPT" ]' "and the receipt is written"
+project_in_compose=$(sed -n 's/^name: //p' "$script_dir/../docker-compose.yml" | tr -d '\r')
+project_in_wrapper=$(sed -n 's/^readonly COMPOSE_PROJECT="\(.*\)"$/\1/p' "$SUT")
+check '[ -n "$project_in_compose" ] && [ "$project_in_compose" = "$project_in_wrapper" ]' \
+  "the wrapper's project constant is the real compose file's name: ($project_in_compose / $project_in_wrapper)"
 
 echo "-- the deployment configuration a release was built with"
 reset
@@ -561,6 +611,10 @@ expect_exit 2 "a restore that itself fails says :applied may be mixed (2)"
 check 'said "may be mixed"' "and says so"
 # Killed a surviving mutant: the case below has NO web container at all, so the "no single container"
 # check answered and the image comparison was never reached. Here web keeps the previous release.
+# THE ACTOR, for this case and the next: compose's own `up` re-creates a service whose image moved, so
+# `up-skips-web` stands for a hand-typed, lockless `docker` or `compose` command that moves `:applied`
+# or re-creates web between the tag phase and the postcondition — the one the wrapper's header names
+# under WHAT MANUAL COMMANDS SEE.
 reset
 REC1=$(release "$SHA1" 10)
 channel "$REC1"
@@ -600,12 +654,25 @@ reset
 expect_exit 1 "--status with nothing applied says NOT APPLIED" --status
 REC=$(release "$SHA1" 10)
 channel "$REC"
+run_sut --stage
+expect_exit 1 "--status on a staged box (no receipt) still says NOT APPLIED" --status
+check 'grep -qE "^applied:   api [0-9a-f]{12}$" "$TMPROOT/out"' "and prints each :applied image by its short id alone"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
 run_sut
 expect_exit 0 "--status after an apply is consistent" --status
 check 'said "verdict:   consistent"' "and says so"
 printf 'services:\n  api: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
 expect_exit 1 "--status sees a checkout advanced past the applied release's configuration" --status
 check 'said "config:    the checkout'"'"'s deployment files DIFFER"' "and names it"
+printf 'services: {}\r\n' >"$CHECKOUT/deploy/docker-compose.yml"
+expect_exit 2 "--status cannot answer when the checkout's deployment files cannot be hashed" --status
+printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+cp "$RECEIPT" "$TMPROOT/receipt.saved"
+printf 'not a receipt\n' >"$RECEIPT"
+expect_exit 2 "--status cannot answer over a receipt that does not validate" --status
+cp "$TMPROOT/receipt.saved" "$RECEIPT"
 printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
 printf '%s' "$(idof other)" >"$REG/running/api"
 rm -f "$REG/docker-calls" "$REG/up-args" "$TMPROOT/lock"

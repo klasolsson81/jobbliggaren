@@ -388,10 +388,9 @@ services:
       # not at all, and with only one on the button renders and every press is refused.
       DevTools__EnableResetMyData: ${DEV_TOOLS_RESET_ENABLED:-false}
       # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
-      # account created after this boot receives the role on the NEXT restart, and the boot
-      # in between logs "ingen matchande user hittades". It re-asserts on every start, so
-      # blank it once the role is assigned — the role persists in the database, and a
-      # standing value silently re-grants what an in-app revocation removed.
+      # account created after this boot receives the role on the NEXT restart while the role
+      # has no holder, and the boot in between logs "ingen matchande user hittades". Blank
+      # it once the role is assigned — the role persists in the database.
       AdminBootstrap__InitialAdminEmail: ${ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL:-}
       # #1350 — where the Data-Protection keyring is persisted, matched by the writable volume
       # below. Unset means the framework default, i.e. the container's writable layer, which is

@@ -66,9 +66,7 @@ public class DeployComposeRegistrationGateTests
     [Fact]
     public void AdminBootstrapEmail_DefaultsToEmpty_SoNoAccountIsGrantedAdminByDeploy()
     {
-        // IdempotentAdminRoleSeeder assigns the role at EVERY start to whichever account
-        // matches. A non-empty default would make the deploy file itself an authorization
-        // grant, re-asserted on every restart and surviving in-app revocation.
+        // A non-empty default would make the deploy file itself an authorization grant.
         LineContaining("AdminBootstrap__InitialAdminEmail:").Trim()
             .ShouldBe("AdminBootstrap__InitialAdminEmail: ${ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL:-}",
                 customMessage:

@@ -7,7 +7,7 @@ import type { AdminAccountRow, AdminRegion } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
 import { AdminAccountStatus, AdminRolePill } from "./admin-account-status";
 import { AdminTableScroll } from "./admin-table-scroll";
-import { ComingSoon } from "./coming-soon";
+import { AdminRegionLine } from "./admin-region-line";
 
 export type AdminAccountSortKey = "email" | "registeredAt";
 
@@ -37,13 +37,14 @@ interface AdminAccountsTableProps {
  * panel through a button in its first cell, never through a clickable `<tr>`.
  */
 export function AdminAccountsTable({
-  region,
+  region: given,
   sort,
   onSort,
   selectedId = null,
   onOpen,
   soonId,
 }: AdminAccountsTableProps) {
+  const region = given.kind === "loaded" && given.data.length === 0 ? ({ kind: "empty" } as const) : given;
   const t = useTranslations("admin.users");
   const unknown = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
@@ -130,7 +131,13 @@ export function AdminAccountsTable({
           ) : (
             <tr>
               <td colSpan={COLUMN_COUNT} className="jp-admintable__soon">
-                <RegionLine kind={region.kind} soonId={soonId} />
+                <AdminRegionLine
+                  kind={region.kind}
+                  empty={t("regions.empty")}
+                  failed={t("regions.failed")}
+                  loading={t("regions.loading")}
+                  soonId={soonId}
+                />
               </td>
             </tr>
           )}
@@ -138,32 +145,4 @@ export function AdminAccountsTable({
       </table>
     </AdminTableScroll>
   );
-}
-
-function RegionLine({
-  kind,
-  soonId,
-}: {
-  readonly kind: Exclude<AdminRegion<unknown>["kind"], "loaded">;
-  readonly soonId?: string;
-}) {
-  const t = useTranslations("admin.users.regions");
-  switch (kind) {
-    case "unavailable":
-      return <ComingSoon id={soonId} />;
-    case "empty":
-      return <p className="jp-adminsoon">{t("empty")}</p>;
-    case "failed":
-      return (
-        <p className="jp-adminsoon" role="alert">
-          {t("failed")}
-        </p>
-      );
-    case "loading":
-      return (
-        <p className="jp-adminsoon" role="status">
-          {t("loading")}
-        </p>
-      );
-  }
 }

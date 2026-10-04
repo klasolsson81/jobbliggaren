@@ -194,6 +194,15 @@
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+.jp-adminkpi__unit {
+  font-size: var(--text-ui);
+  color: var(--jp-ink-2);
+}
+/* A failure count above zero reads in the danger colour, with its words carrying it. */
+.jp-admin-danger {
+  color: var(--jp-danger-700);
+  font-weight: var(--jp-fw-bold);
+}
 
 /* The trend region's frame: three dashed guides and a baseline around the plot area. */
 .jp-admintrend__plot {
@@ -218,6 +227,60 @@
   padding: 4px 12px;
   background: var(--jp-surface);
 }
+.jp-admintrend__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-admintrend__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-admintrend__swatch { display: inline-block; flex: 0 0 auto; }
+.jp-admintrend__swatch--bar {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--jp-accent-500);
+}
+.jp-admintrend__swatch--line {
+  width: 16px;
+  height: 2px;
+  background: var(--jp-ink-1);
+}
+.jp-admintrend__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.jp-admintrend__bar { fill: var(--jp-accent-500); }
+.jp-admintrend__line {
+  fill: none;
+  stroke: var(--jp-ink-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.jp-admintrend__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jp-admintrend__summary {
+  margin: 12px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
 
 /* Label/value rows: the server meters and the backup facts. */
 .jp-admindl {
@@ -233,6 +296,25 @@
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+}
+.jp-adminmeter {
+  display: grid;
+  grid-template-columns: 3.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-weight: var(--jp-fw-bold);
+}
+.jp-adminmeter__track {
+  display: block;
+  height: 8px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface-3);
+  overflow: hidden;
+}
+.jp-adminmeter__fill {
+  display: block;
+  height: 100%;
+  background: var(--jp-accent-500);
 }
 
 /* ── Filter and period groups: the house `.jp-segment` ─────────────────────────────────── */
@@ -677,6 +759,262 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Overview lists: services, top email types, attention and recent events ─────────────── */
+.jp-adminservices,
+.jp-admintoplist,
+.jp-adminattention,
+.jp-adminevents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-adminservices li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-ui);
+}
+.jp-adminservices li:last-child { border-bottom: 0; }
+.jp-adminservices__state {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  text-align: end;
+}
+.jp-adminservices__state[data-state="ok"] { color: var(--jp-success-700); }
+.jp-adminservices__state[data-state="warning"] { color: var(--jp-warning-700); }
+.jp-adminservices__detail {
+  grid-column: 1 / -1;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-admintoplist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: var(--text-body-sm);
+}
+.jp-admintoplist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.jp-adminattention li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-ui);
+}
+.jp-adminattention li:last-child { border-bottom: 0; }
+.jp-adminattention li > svg { flex: 0 0 auto; color: var(--jp-warning-700); }
+.jp-adminevents {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  column-gap: 12px;
+}
+.jp-adminevents li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-ui);
+}
+.jp-adminevents li:last-child { border-bottom: 0; }
+.jp-adminevents time {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jp-adminevents .jp-pill {
+  white-space: nowrap;
+  justify-self: start;
+}
+.jp-adminevents__subject {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .jp-adminevents { display: block; }
+  .jp-adminevents li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .jp-adminevents__subject { flex: 1 1 100%; }
+}
+
+/* ── Feedback: the list and the open report ──────────────────────────────────────────────── */
+.jp-adminfeedback__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-adminfeedback__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--jp-border);
+  border-left: 3px solid transparent;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.jp-adminfeedback__item:hover { background: var(--jp-surface-3); }
+.jp-adminfeedback__item[aria-current="true"] {
+  border-left-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+}
+.jp-adminfeedback__itemhead,
+.jp-adminfeedback__detailhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.jp-adminfeedback__category {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+.jp-adminfeedback__time {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jp-adminfeedback__itemhead .jp-adminfeedback__time { margin-left: auto; }
+.jp-adminfeedback__excerpt {
+  font-size: var(--text-ui);
+  color: var(--jp-ink-1);
+}
+.jp-adminfeedback__sender {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  overflow-wrap: anywhere;
+}
+.jp-adminfeedback__status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-size: var(--text-body-sm);
+}
+.jp-adminfeedback__status .jp-btn { white-space: nowrap; }
+.jp-adminfeedback__select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font: inherit;
+}
+.jp-adminfeedback__from {
+  margin: 0;
+  font-weight: var(--jp-fw-semibold);
+  overflow-wrap: anywhere;
+}
+.jp-adminfeedback__text {
+  margin: 0;
+  font-size: var(--text-body-lg);
+  line-height: 1.55;
+  color: var(--jp-ink-1);
+}
+.jp-adminfeedback__meta {
+  padding: 12px 16px;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-2);
+}
+.jp-adminfeedback__subhead {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-adminfeedback__replies {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-adminfeedback__replies li {
+  padding: 10px 14px;
+  border-left: 3px solid var(--jp-border-strong);
+  background: var(--jp-surface-2);
+}
+.jp-adminfeedback__replies p { margin: 4px 0 0; }
+.jp-adminfeedback__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+
+/* ── Log and delivery cells ──────────────────────────────────────────────────────────────── */
+.jp-table .jp-admintable__num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.jp-table .jp-admintable__when {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jp-table .jp-admintable__run { font-variant-numeric: tabular-nums; }
+.jp-admintable .jp-pill { white-space: nowrap; }
+.jp-adminmailfail {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--jp-border-strong);
+}
+.jp-adminmailfail li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: baseline;
+  row-gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+}
+.jp-adminmailfail li > * {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+@media (min-width: 1100px) {
+  .jp-adminmailfail {
+    display: grid;
+    grid-template-columns: auto auto auto minmax(16rem, 1fr) auto;
+    column-gap: 12px;
+  }
+  .jp-adminmailfail li {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+}
+.jp-adminmailfail__when { font-variant-numeric: tabular-nums; }
+.jp-adminmailfail__outcome { font-weight: var(--jp-fw-bold); }
+.jp-adminmailfail__outcome[data-outcome="failed"] { color: var(--jp-danger-700); }
+.jp-adminmailfail__outcome[data-outcome="bounced"] { color: var(--jp-warning-700); }
+.jp-adminmailfail__message { overflow-wrap: anywhere; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {
   .jp-admincard[data-span="3"],
@@ -691,6 +1029,12 @@
   .jp-admincard__link,
   .jp-adminusers__sortbtn,
   .jp-adminusers__open { min-height: 44px; }
+  .jp-adminattention a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .jp-adminfeedback__select { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
   .jp-adminfeedback__detail { padding: 20px 16px; }

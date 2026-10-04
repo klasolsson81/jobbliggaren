@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
-import AdminEmailDeliveryPage from "@/app/(admin)/admin/e-post/page";
+import { PREVIEW_EMAIL_DELIVERY, PREVIEW_EMAIL_DELIVERY_ZERO } from "@/lib/admin-preview/fixtures";
+import { PreviewEmail } from "../_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("email"), robots: { index: false, follow: false } };
 }
 
-/** The page as it ships today; it reads no backend and links nowhere. */
 export default function AdminPreviewEmailPage() {
   requireAdminPreview();
-  return <AdminEmailDeliveryPage />;
+  return <PreviewEmail byPeriod={PREVIEW_EMAIL_DELIVERY} zero={PREVIEW_EMAIL_DELIVERY_ZERO} />;
 }

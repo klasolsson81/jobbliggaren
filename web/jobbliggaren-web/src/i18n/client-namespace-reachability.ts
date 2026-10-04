@@ -23,7 +23,8 @@
  * `ADMIN_SURFACE` path heuristic rather than generalising it — "which boundary
  * owns components/job-ads/*" has no true answer, and reachability never asks.
  *
- * Exported for the fitness function (`client-namespace-payload.test.ts`); it is
+ * Exported for the fitness function (`client-namespace-payload.test.ts`) and the admin
+ * preview's isolation test (`preview-isolation.test.ts`); it is
  * deliberately NOT used at runtime. Keeping the graph walk in test-only code
  * means a bug here fails a test loudly instead of shipping a route with missing
  * copy (the reason build-time codegen was rejected — CTO bind D2, 2026-07-25).
@@ -134,7 +135,7 @@ interface Resolution {
   readonly opaque: boolean;
 }
 
-function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Resolution {
+export function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Resolution {
   let base: string;
   if (spec.startsWith("@/")) base = resolve(srcRoot, spec.slice(2));
   else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);

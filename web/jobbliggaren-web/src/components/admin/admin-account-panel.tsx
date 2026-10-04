@@ -204,9 +204,11 @@ function PanelContent({
     setRunning(command.kind);
     startTransition(async () => {
       const outcome = await run(command);
-      setRunning(null);
-      if (outcome === null) titleRef.current?.focus();
-      else setRefusal(outcome);
+      startTransition(() => {
+        setRunning(null);
+        if (outcome === null) titleRef.current?.focus();
+        else setRefusal(outcome);
+      });
     });
   }
 

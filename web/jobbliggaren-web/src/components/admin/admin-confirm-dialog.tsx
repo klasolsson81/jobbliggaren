@@ -50,7 +50,9 @@ export function AdminConfirmDialog({
     setRefusal(null);
     startTransition(async () => {
       const outcome = await onConfirm();
-      if (outcome !== null) setRefusal(outcome);
+      startTransition(() => {
+        if (outcome !== null) setRefusal(outcome);
+      });
     });
   }
 

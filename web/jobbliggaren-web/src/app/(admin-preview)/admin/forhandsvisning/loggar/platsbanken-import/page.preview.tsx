@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { AdminLogsView } from "@/components/admin/admin-logs-view";
 import { ADMIN_PREVIEW_ROUTE } from "@/lib/admin-preview/gate.cjs";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
+import { PREVIEW_ERROR_LOG, PREVIEW_IMPORT_LOG, PREVIEW_SECURITY_LOG } from "@/lib/admin-preview/fixtures";
+import { PreviewLogs } from "../../_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +14,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function AdminPreviewImportLogsPage() {
   requireAdminPreview();
-  return <AdminLogsView view="imports" basePath={ADMIN_PREVIEW_ROUTE} />;
+  return (
+    <PreviewLogs
+      view="imports"
+      basePath={ADMIN_PREVIEW_ROUTE}
+      security={PREVIEW_SECURITY_LOG}
+      errors={PREVIEW_ERROR_LOG}
+      imports={PREVIEW_IMPORT_LOG}
+    />
+  );
 }

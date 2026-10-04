@@ -32,6 +32,27 @@ describe("previewRoutesIn", () => {
       }),
     ).toEqual(["/(admin)/admin/forhandsvisning/page", "/(admin)/(nested)/admin/forhandsvisning/jobb/page"]);
   });
+
+  it("keeps an intercepting segment under the preview's path, in a group or not", () => {
+    expect(
+      previewRoutesIn({
+        "/admin/forhandsvisning/(.)x/page": "a.js",
+        "/admin/forhandsvisning/(..)x/page": "b.js",
+        "/(admin)/admin/forhandsvisning/(.)x/page": "c.js",
+        "/(app)/@modal/(.)jobb/[id]/page": "d.js",
+      }),
+    ).toEqual([
+      "/admin/forhandsvisning/(.)x/page",
+      "/admin/forhandsvisning/(..)x/page",
+      "/(admin)/admin/forhandsvisning/(.)x/page",
+    ]);
+  });
+
+  it("reads a group whose name starts with a dot as a group", () => {
+    expect(previewRoutesIn({ "/(.probe)/admin/forhandsvisning/page": "a.js" })).toEqual([
+      "/(.probe)/admin/forhandsvisning/page",
+    ]);
+  });
 });
 
 describe("filesHolding", () => {

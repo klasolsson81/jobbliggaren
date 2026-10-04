@@ -90,4 +90,10 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Hämtar konton");
     expect(screen.getByRole("table", { name: "Konton" })).toHaveAttribute("aria-busy", "true");
   });
+
+  it("degrades a loaded region with no rows, which listRegion never builds, to the empty line", () => {
+    render(<AdminAccountsTable region={{ kind: "loaded", data: [] }} />);
+    expect(bodyRows()).toHaveLength(1);
+    expect(bodyRows()[0]).toHaveTextContent("Inga konton matchar sökningen eller filtret.");
+  });
 });

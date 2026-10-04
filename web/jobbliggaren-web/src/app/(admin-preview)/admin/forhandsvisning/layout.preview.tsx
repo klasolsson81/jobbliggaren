@@ -14,6 +14,17 @@ import { PreviewShell } from "./_preview/preview-shell.preview";
 
 export const dynamic = "force-dynamic";
 
+/** Every page whose regions follow the band's state; Bakgrundsjobb and Granskning show their data. */
+const STATEFUL_PATHS = [
+  "",
+  "/anvandare",
+  "/feedback",
+  "/loggar",
+  "/loggar/applikationsfel",
+  "/loggar/platsbanken-import",
+  "/e-post",
+];
+
 /**
  * The admin preview's layout (ADR 0150 D5): the admin chrome over fictional data, outside the
  * `(admin)` gate because it reads no backend. It is a route only in a build made with the flag, and
@@ -39,7 +50,7 @@ export default async function AdminPreviewLayout({ children }: { children: React
         </HeaderStrip>
         <PreviewShell
           impersonatedEmail={PREVIEW_ACCOUNTS[1]?.email ?? PREVIEW_ADMIN_EMAIL}
-          statefulPaths={[`${ADMIN_PREVIEW_ROUTE}/anvandare`]}
+          statefulPaths={STATEFUL_PATHS.map((path) => ADMIN_PREVIEW_ROUTE + path)}
         >
           <main
             id="main"

@@ -30,7 +30,16 @@
       "newUsers": "Nya användare",
       "total": "Användare totalt",
       "active": "Aktiva användare",
-      "logins": "Inloggningar"
+      "logins": "Inloggningar",
+      "unit": {
+        "today": "idag",
+        "accounts": "konton",
+        "last30Days": "senaste 30 dygnen"
+      },
+      "newUsersSub": "{yesterday} igår · {last7Days} senaste 7 dygnen · {last30Days} senaste 30 dygnen",
+      "totalSub": "{suspended, plural, one {# suspenderat} other {# suspenderade}} · {pendingDeletion} under radering",
+      "activeSub": "{today} idag · {last7Days} senaste 7 dygnen",
+      "loginsSub": "{yesterday} igår · {failed, plural, one {# misslyckat försök} other {# misslyckade försök}} · {locked, plural, one {# låst konto} other {# låsta konton}}"
     },
     "trend": {
       "title": "Nya användare och inloggningar",
@@ -39,11 +48,26 @@
         "d7": "7 dygn",
         "d30": "30 dygn",
         "d90": "90 dygn"
-      }
+      },
+      "legend": {
+        "newAccounts": "Nya användare",
+        "logins": "Inloggningar"
+      },
+      "today": "Idag",
+      "summary": "{newAccounts, plural, =0 {Inga nya användare} one {# ny användare} other {# nya användare}} och {logins, plural, =0 {inga inloggningar} one {# inloggning} other {# inloggningar}} de senaste {days} dygnen.",
+      "peakNewAccounts": "Flest nya användare på en dag: {count}, den {date}.",
+      "peakLogins": "Flest inloggningar på en dag: {count}, den {date}.",
+      "peakNewAccountsShared": "Flest nya användare på en dag: {count}.",
+      "peakLoginsShared": "Flest inloggningar på en dag: {count}."
     },
     "services": {
       "title": "Tjänster",
-      "link": "Loggar"
+      "link": "Loggar",
+      "empty": "Inga tjänster att visa.",
+      "state": {
+        "ok": "Fungerar",
+        "warning": "Varning"
+      }
     },
     "server": {
       "title": "Server",
@@ -56,18 +80,36 @@
       "latest": "Senaste",
       "offsite": "Extern kopia",
       "next": "Nästa",
-      "retention": "Behålls"
+      "retention": "Behålls",
+      "retentionDays": "{days} dygn"
     },
     "email": {
       "title": "E-post",
-      "link": "E-postleverans"
+      "link": "E-postleverans",
+      "unit": "senaste 24 tim",
+      "failed": "{count, plural, one {# misslyckat} other {# misslyckade}}",
+      "noRecipient": "{count} utan mottagare",
+      "topTypes": "Mest skickade mejltyper"
     },
     "attention": {
-      "title": "Kräver uppmärksamhet"
+      "title": "Kräver uppmärksamhet",
+      "empty": "Inget kräver uppmärksamhet just nu.",
+      "failedJobs": "{count} bakgrundsjobb har misslyckats",
+      "pendingDeletions": "{count, plural, one {# konto väntar på radering} other {# konton väntar på radering}}",
+      "failedEmails": "{count} utskick har misslyckats"
     },
     "events": {
       "title": "Senaste händelser",
-      "link": "Granskning"
+      "link": "Granskning",
+      "empty": "Inga händelser än.",
+      "kind": {
+        "accountCreated": "Nytt konto",
+        "accountSuspended": "Suspendering",
+        "accountReinstated": "Hävd suspendering",
+        "deletionScheduled": "Radering schemalagd",
+        "emailChangeRequested": "Adressbyte begärt",
+        "jobFailed": "Jobbfel"
+      }
     }
   },
   "users": {
@@ -205,7 +247,33 @@
     "detail": {
       "label": "Vald rapport",
       "reply": "Svar",
-      "send": "Skicka svar"
+      "send": "Skicka svar",
+      "statusLabel": "Status",
+      "saveStatus": "Spara status",
+      "meta": {
+        "page": "Sida",
+        "screen": "Skärm",
+        "device": "Enhet",
+        "version": "Version"
+      },
+      "replies": "Skickade svar",
+      "noReplies": "Inga svar än.",
+      "replyHint": "Svaret skickas till {email}.",
+      "sent": "Svaret skickades till {email}.",
+      "sending": "Skickar…"
+    },
+    "filterCount": "{label} ({count})",
+    "empty": "Inga rapporter.",
+    "status": {
+      "new": "Ny",
+      "inProgress": "Pågår",
+      "resolved": "Löst",
+      "skipped": "Avfärdad"
+    },
+    "category": {
+      "bug": "Fel",
+      "suggestion": "Förslag",
+      "question": "Fråga"
     }
   },
   "logs": {
@@ -219,7 +287,8 @@
       "label": "Loggvyer",
       "security": "Säkerhet",
       "errors": "Applikationsfel",
-      "imports": "Platsbanken-import"
+      "imports": "Platsbanken-import",
+      "count": "{label} ({count})"
     },
     "security": {
       "caption": "Säkerhetshändelser",
@@ -228,7 +297,14 @@
       "account": "Konto",
       "ip": "IP (maskerad)",
       "count": "Antal",
-      "detail": "Detalj"
+      "detail": "Detalj",
+      "empty": "Inga säkerhetshändelser.",
+      "kind": {
+        "loginFailed": "Misslyckad inloggning",
+        "rateLimited": "För många försök",
+        "accountLocked": "Konto låst",
+        "adminImpersonation": "Agerade som användare"
+      }
     },
     "errors": {
       "caption": "Applikationsfel",
@@ -236,7 +312,12 @@
       "level": "Nivå",
       "source": "Källa",
       "message": "Meddelande",
-      "count24h": "24 tim"
+      "count24h": "24 tim",
+      "empty": "Inga applikationsfel.",
+      "levelValue": {
+        "error": "Fel",
+        "warning": "Varning"
+      }
     },
     "imports": {
       "caption": "Platsbanken-importer",
@@ -248,7 +329,17 @@
       "added": "Nya",
       "updated": "Uppdaterade",
       "closed": "Avslutade",
-      "status": "Status"
+      "status": "Status",
+      "empty": "Inga importer.",
+      "kind": {
+        "delta": "Delta",
+        "full": "Full"
+      },
+      "durationValue": "{minutes, plural, =0 {{seconds} s} other {# min {seconds} s}}",
+      "statusValue": {
+        "succeeded": "Klar",
+        "failed": "Misslyckades"
+      }
     }
   },
   "email": {
@@ -273,10 +364,16 @@
       "function": "Mejltyp",
       "sent": "Skickade",
       "failed": "Fel",
-      "lastError": "Senaste fel"
+      "lastError": "Senaste fel",
+      "empty": "Inga utskick under perioden."
     },
     "failures": {
-      "heading": "Senaste misslyckade utskick"
+      "heading": "Senaste misslyckade utskick",
+      "empty": "Inga misslyckade utskick under perioden."
+    },
+    "outcome": {
+      "failed": "Misslyckades",
+      "bounced": "Studsade"
     }
   },
   "audit": {
@@ -409,5 +506,9 @@
     "label": "Agera som användare",
     "text": "Du agerar som {email}.",
     "end": "Sluta agera som användaren"
+  },
+  "regions": {
+    "failed": "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
+    "loading": "Hämtar uppgifter…"
   }
 }

@@ -56,7 +56,7 @@ Eight decisions govern the seven pages.
 `/admin` renders a 12-column grid, gap 20px, of cards:
 
 - four KPI cards, each a large number in `--jp-fs-oversikt-num` (40px); the token is reused and none is added;
-- a trend region: a hand-built SVG with `role="img"` and a text summary computed from the data. No chart library:
+- a trend region: a hand-built SVG and a text summary computed from the data. No chart library:
   BUILD.md §3.1 lists none, and CLAUDE.md §9.2 bars one outside it without discussion;
 - a services list;
 - a server card with CPU, memory and disk meters that show an observed reading or nothing (D2). DESIGN.md §6's ban on
@@ -203,6 +203,8 @@ The handoff is a design reference, not production code. What ships departs from 
 | An Åtgärder column of two icon buttons per row, "Agera som användaren" and "Redigera" | No column: an account's actions are in its panel, named in words | A row holds one control, the button that opens the panel |
 | Filter and period buttons with `aria-pressed` | The house `Segment`, a radio group | One choice among several; `components/ui/segment.tsx` is the house control for it |
 | The impersonation banner's "Allt du gör loggas dubbelt i granskningsloggen." | Cut | Impersonation is #1984 (D4); D2 |
+| A screenshot thumbnail in the feedback detail | None | No feedback store holds a screenshot (#1979, D4); D2 |
+| The reply line "Skickas från kontakt@… till {e-post}" | "Svaret skickas till {e-post}." | The sending address is #1979's to decide (D4) |
 | Live search, filters, period buttons and "Skicka svar" as a solid primary button | Natively disabled while their region is unbuilt, each pointing to its "Kommer snart" line, never with a solid primary fill | D2; DESIGN.md §6 |
 | Bakgrundsjobb and Granskning restyled: grey identifier and time cells, a red error category, smaller status pills | Both pages as delivered, apart from the new header and a labelled scroll region around each table | The prompt keeps both working; the house table paints its cells in ink-1 (`.jp-table tbody td`), and the pill is the delivered `JobStateBadge` |
 

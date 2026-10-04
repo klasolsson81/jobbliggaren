@@ -84,7 +84,7 @@ boundary.
 | RedisLoginChallengeStore, bound challenges / API volatile | `auth/challenge-bound/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Bound challenge index / API volatile | `auth/challenge-by-user/v1/*` | SET with GET and expiry |
 | Admin-initiated account email change (#1975) / API volatile | `auth/account-email-change/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
-| Account email change index (#1975) / API volatile | `auth/account-email-change-by-user/v1/*` | SET with expiry, GET |
+| Account email change index (#1975) / API volatile | `auth/account-email-change-by-user/v1/*` | SET with GET and expiry, GET |
 | RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
 | RedisOAuthStateStore / API volatile | `auth/oauth-state/v1/*` | SET with NX and expiry, GETDEL |
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |

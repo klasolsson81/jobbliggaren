@@ -30,12 +30,11 @@ namespace Jobbliggaren.Infrastructure.Identity;
 /// <c>IAuditableCommand</c> (ADR 0022). Bootstrap är en
 /// <see cref="IHostedService"/> utanför Mediator-pipelinen, så dess
 /// role-assignment hör inte hemma i samma tabell utan dedikerad
-/// audit-skrivnings-port. Sådan port är kandidat för Fas 6 admin-
-/// impersonation-ADR — inte aktuellt i Fas 1.
+/// audit-skrivnings-port.
 ///
 /// Audit-evidence verifieras av <c>IdempotentAdminRoleSeederAuditEvidenceTests</c>.
 ///
-/// A second Admin role holder fires ADR 0151 D7's trigger: the admin
+/// An Admin role holder other than the controller fires ADR 0151 D7's trigger: the admin
 /// account directory writes no audit row for a read only while the controller is the one holder.
 ///
 /// Senior-cto-advisor-beslut 2026-05-11: B1 över B2 — IaC-konsistens med
@@ -155,7 +154,7 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             return;
         }
 
-        var errors = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+        var errors = string.Join("; ", result.Errors.Select(e => e.Code));
         throw new InvalidOperationException(
             $"Kunde inte tilldela Admin-rollen till user {user.Id}: {errors}");
     }

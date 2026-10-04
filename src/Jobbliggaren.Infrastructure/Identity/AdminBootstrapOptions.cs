@@ -4,7 +4,7 @@ namespace Jobbliggaren.Infrastructure.Identity;
 /// Config för admin-roll-bootstrap. Bind:s från sektionen <c>AdminBootstrap</c>
 /// i <c>appsettings.json</c> (eller env-vars). När <see cref="InitialAdminEmail"/>
 /// är satt skapar <see cref="IdempotentAdminRoleSeeder"/> Admin-rollen om den
-/// saknas och tilldelar den till matchande user vid startup.
+/// saknas och tilldelar den till matchande user vid startup, medan rollen saknar innehavare.
 ///
 /// Tom email = inget tilldelas (rollen skapas ändå om den saknas så att
 /// admin-policies fungerar i alla miljöer).

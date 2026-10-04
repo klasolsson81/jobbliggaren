@@ -34,8 +34,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// <c>IdempotentAdminRoleSeeder.StartAsync</c> körs → <c>RoleManager</c>-query
 /// kastar <see cref="PostgresException"/> SqlState=42P01 → gate-villkoret
 /// <c>IsSchemaInitGracePeriod</c> returnerar false i Production → exception
-/// bubblar genom <c>IHost.StartAsync</c> → ECS deployment_circuit_breaker
-/// triggar rollback. Test asserterar PostgresException-typ + 42P01-SqlState.
+/// bubblar genom <c>IHost.StartAsync</c>. Test asserterar PostgresException-typ + 42P01-SqlState.
 /// </para>
 /// </summary>
 public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IAsyncLifetime

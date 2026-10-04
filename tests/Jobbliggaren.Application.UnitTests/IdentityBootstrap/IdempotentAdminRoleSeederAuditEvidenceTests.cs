@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.UnitTests.IdentityBootstrap;
 ///
 /// <para>
 /// CTO-beslut 2026-05-11 (senior-cto-advisor Alt A): seederns observability
-/// går via ILogger → Serilog → Seq/CloudWatch — INTE via <c>audit_log</c>-
+/// går via ILogger → Seq — INTE via <c>audit_log</c>-
 /// tabellen. ADR 0022 etablerar att DB-audit kräver <c>IAuditableCommand</c>-
 /// marker på Mediator-command. Bootstrap är <see cref="IHostedService"/>
 /// utanför Mediator-pipelinen och har därför ingen <c>AuditLogEntry</c>-rad.

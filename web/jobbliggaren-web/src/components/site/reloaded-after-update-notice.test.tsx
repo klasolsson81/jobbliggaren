@@ -145,8 +145,8 @@ describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
     it.each([
       ["/oversikt", "rail"],
       ["/jobb/123", "rail"],
-      ["/sokningar", "inline"],
-      ["/sparade", "inline"],
+      ["/sokningar", "rail"],
+      ["/sparade", "rail"],
     ] as const)("app on %s resolves to %s — the test AppShell makes (isV3Native)", async (pathname, expected) => {
       route.pathname = pathname;
       stamp();

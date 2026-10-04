@@ -31,7 +31,7 @@ export default async function SokningarPage() {
   const result = await getRecentSearches();
 
   return (
-    <div className="flex flex-col">
+    <div className="jp-container jp-page flex flex-col">
       <div>
         <h1 className="jp-h1">{t("sokningar.title")}</h1>
         <p className="jp-lede">{t("sokningar.lede")}</p>

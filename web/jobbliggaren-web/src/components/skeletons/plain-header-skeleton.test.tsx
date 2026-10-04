@@ -28,13 +28,8 @@ describe("PlainHeaderSkeleton", () => {
     expect(header(false)?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
   });
 
-  it("renders bare by default (shell supplies the container)", () => {
+  it("owns its width: wraps in .jp-container.jp-page", () => {
     const { container } = render(<PlainHeaderSkeleton label="…" lede={false} />);
-    expect(container.querySelector(".jp-container")).toBeNull();
-  });
-
-  it("wraps in .jp-container.jp-page when contained (V3-native routes)", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" contained lede={false} />);
     expect(container.querySelector(".jp-container.jp-page")).not.toBeNull();
   });
 

@@ -38,6 +38,9 @@ export const V3_NATIVE_ROUTES = [
   // #1740 — a new route that was rebuilt: the transitional container's allowance ended there
   // (design-reviewer Major 5).
   "/mina-sidor",
+  "/sparade",
+  "/matchningar",
+  "/sokningar",
 ] as const;
 
 /** True when `pathname` is (or is under) a v3-native route. */

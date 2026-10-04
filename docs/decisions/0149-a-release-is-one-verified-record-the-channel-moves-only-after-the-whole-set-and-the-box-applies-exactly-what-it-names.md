@@ -68,7 +68,7 @@ alike.
   cells build nothing.
 - The fan-in job `publish` runs only when all five cells succeeded, in the order `record` → `attest` →
   `verified` → `advance`: it verifies each image as built from the commit (blocking), writes the record,
-  pushes it under a `pending-<commit>` tag nothing reads, attests it, verifies it (blocking, bounded retry —
+  pushes it under a `pending-<commit>` tag, attests it, verifies it (blocking, bounded retry —
   0 unreadable attestations in 334 publishes over 120 runs, 2026-09-21 to 2026-10-03), and only then seals
   `sha-<commit>`, moves `dev` forward by git ancestry, and converges the five `latest` tags. Every move is a
   carbon copy (`imagetools create --prefer-index=false`) followed by a read-back of the landed digest.

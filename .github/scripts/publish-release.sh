@@ -5,11 +5,12 @@
 # only after that record proves itself.
 #
 # usage:  publish-release.sh frozen  <source-sha> <image-name>
+#         publish-release.sh push    <image-name> <short-sha>
 #         publish-release.sh record  <source-sha>
 #         publish-release.sh verify  <record-digest> <source-sha>
 #         publish-release.sh advance <record-digest> <source-sha>
-# stdout: `frozen` prints `frozen=true|false`; `record` prints `digest=…`, `attest=true|false`,
-#         `repo=…` — GITHUB_OUTPUT lines, each value anchored before it is printed
+# stdout: `frozen` prints `frozen=true|false`; `push` prints `digest=…`; `record` prints `digest=…`,
+#         `attest=true|false`, `repo=…` — GITHUB_OUTPUT lines, each value anchored before it is printed
 # stderr: every diagnostic
 # exit:   0 done · 1 refused (the registry holds something this run must not overwrite or trust) ·
 #         2 could not answer (a lookup, pull, verifier or git question that could not run)
@@ -20,7 +21,7 @@
 #
 # A RECORD IS NEVER REWRITTEN, AND A TAG VOUCHES FOR NOTHING. `release:sha-<commit>` is created once,
 # in `advance`, after the record's own attestation verifies — a new record is pushed under a PENDING
-# tag nothing reads, so a failed attest leaves no sealed name behind and the next run simply tries
+# tag, so a failed attest leaves no sealed name behind and the next run simply tries
 # again. An existing record is reused only when it proves itself: read in the verify-first order
 # (deploy/systemd/jobbliggaren-release-record.sh `read`), naming this commit, and all five recorded
 # images verifying as built from it. Anything else is red, never overwritten: the repair is deleting
@@ -94,6 +95,24 @@ read_record() {
 
 field() { sed -n "s/^$2=//p" <<<"$1"; }
 
+# Pushes <repo>:<tag> and prints the digest THIS push produced: the pushed image's one repo digest for
+# <repo>. An attestation signs whatever digest it is handed and a tag is mutable, so the tag is read
+# back and anything else there is refused before a digest is printed — a writer racing the push never
+# gets its manifest attested.
+push_image() {
+  local repo="$1" tag="$2" pushed now
+  local -a found
+  docker push "$repo:$tag" >&2 || cannot_answer "could not push $repo:$tag"
+  mapfile -t found < <(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$repo:$tag" 2>/dev/null |
+    awk -v r="$repo@" 'index($0, r) == 1' | sort -u)
+  [ "${#found[@]}" -eq 1 ] || cannot_answer "expected one $repo digest on the image just pushed as $repo:$tag, found ${#found[@]}"
+  pushed="${found[0]#*@}"
+  is_digest "$pushed" || cannot_answer "the image pushed as $repo:$tag carries a repo digest that is not one: $pushed"
+  now=$(lookup "$repo:$tag")
+  [ "$now" = "$pushed" ] || refuse "$repo:$tag names '$now' right after this run pushed $pushed; nothing is attested"
+  printf '%s' "$pushed"
+}
+
 verify_image() {
   local name="$1" digest="$2" sha="$3" status=0
   bash "$VERIFIER" "$PREFIX-$name@$digest" "$sha" >&2 || status=$?
@@ -143,6 +162,16 @@ cmd_frozen() {
   printf 'frozen=true\n'
 }
 
+# A cell's image, under its immutable `sha-<short>` tag; the digest printed is the one attested.
+cmd_push() {
+  [ "$#" -eq 2 ] || cannot_answer "usage: $0 push <image-name> <short-sha>"
+  local name="$1" short="$2" digest
+  case " ${NAMES[*]} " in *" $name "*) ;; *) refuse "not one of the released images: $name" ;; esac
+  [[ $short =~ ^[0-9a-f]{7}$ ]] || refuse "not a short sha: $short"
+  digest=$(push_image "$PREFIX-$name" "sha-$short")
+  printf 'digest=%s\n' "$digest"
+}
+
 # Resolves the five images this commit's cells published, verifies each as built from the commit, and
 # emits the record from them.
 emit_record() {
@@ -185,9 +214,7 @@ cmd_record() {
   printf 'FROM scratch\nCOPY release.env /release.env\n' >"$work/Dockerfile"
   docker build --quiet --provenance=false --sbom=false -t "$RELEASE_REPO:pending-$sha" "$work" >/dev/null ||
     cannot_answer "could not build the record image"
-  docker push --quiet "$RELEASE_REPO:pending-$sha" >/dev/null || cannot_answer "could not push $RELEASE_REPO:pending-$sha"
-  digest=$(lookup "$RELEASE_REPO:pending-$sha")
-  is_digest "$digest" || cannot_answer "$RELEASE_REPO:pending-$sha does not resolve right after its push ($digest)"
+  digest=$(push_image "$RELEASE_REPO" "pending-$sha")
 
   # One image manifest, as the five images are: the only shape whose digest survives the tag moves in
   # `advance` (an index would be re-wrapped, and no attestation names the wrapper).
@@ -331,11 +358,12 @@ cmd_advance() {
   log "latest names the record's image for all ${#NAMES[@]}"
 }
 
-[ "$#" -ge 1 ] || cannot_answer "usage: $0 frozen|record|verify|advance …"
+[ "$#" -ge 1 ] || cannot_answer "usage: $0 frozen|push|record|verify|advance …"
 subcommand="$1"
 shift
 case "$subcommand" in
 frozen) cmd_frozen "$@" ;;
+push) cmd_push "$@" ;;
 record) cmd_record "$@" ;;
 verify) cmd_verify "$@" ;;
 advance) cmd_advance "$@" ;;

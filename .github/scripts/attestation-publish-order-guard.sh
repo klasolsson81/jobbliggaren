@@ -23,14 +23,15 @@
 #      `needs.prepare.outputs.publish == 'true'`, and carries the steps `record`, `attest`, `verified`
 #      and `advance` in that order; `advance` is gated on exactly `steps.verified.outcome == 'success'`
 #      and is the only step that calls `publish-release.sh advance`.
-#   3. In `publish-release.sh`, `imagetools create` appears only inside `move_tag`, `move_tag` is called
-#      only from `cmd_advance`, and `docker push` pushes only a `:pending-` tag.
+#   3. In `publish-release.sh`, `imagetools create` appears only inside `move_tag`, which only
+#      `cmd_advance` calls; `docker push` appears only inside `push_image`, which only `cmd_record` (a
+#      `pending-` tag) and `cmd_push` (a `sha-` tag) call.
 #   4. In every run, every job's tree is `$GITHUB_SHA`, the commit the run's own identity names:
 #      `prepare` checks out `github.sha`, `release` and `publish` check out
 #      `needs.prepare.outputs.sha`, and all three assert it at run time in a step no `if:` gates.
 #   5. The local-only tag `applied` is never pushed or moved by either file.
 #   6. `concurrency.group` is the literal `release-images` with `cancel-in-progress: false`.
-#   Plus, from #1314: in the cells, `attest` follows `push`, and `push` pushes only `:sha-`.
+#   Plus, from #1314: in the cells, `attest` follows `push`, and `push` runs `publish-release.sh push`.
 #
 # THE EXIT CONTRACT IS THE HOUSE'S, and 2 never collapses into 1:
 #   0 — the order holds.
@@ -212,6 +213,9 @@ if [ "$p" -lt 0 ] || [ "$a" -lt 0 ]; then
 elif [ "$a" -le "$p" ]; then
   violation "in the release job, 'attest' (step $a) does not follow 'push' (step $p)"
 fi
+if [ "$p" -ge 0 ] && [[ ${S_RUN[$p]} != *"publish-release.sh push "* ]]; then
+  violation "the cells' push step does not push through publish-release.sh push" "Its push_image attests the digest the push produced, never a re-read of the tag."
+fi
 
 # --- rule 2: the fan-in ---------------------------------------------------------------------------------
 if [ -z "${JOB_NEEDS[publish]+x}" ]; then
@@ -274,7 +278,7 @@ done
     "Two overlapping publishers could each read dev as current and move it; the registry has no compare-and-swap."
 
 # --- rule 3 and 5: the publisher script ---------------------------------------------------------------------
-func="" in_move=0 creates_outside=0 move_calls_outside=0 move_calls=0
+func="" in_move=0 creates_outside=0 move_calls_outside=0 move_calls=0 pushes_outside=0 push_calls_outside=0
 while IFS= read -r raw || [ -n "$raw" ]; do
   line=${raw%$'\r'}
   if [[ $line =~ ^([a-z_]+)\(\)\ \{ ]]; then func=${BASH_REMATCH[1]}; continue; fi
@@ -289,25 +293,27 @@ while IFS= read -r raw || [ -n "$raw" ]; do
     move_calls=$((move_calls + 1))
     [ "$func" = cmd_advance ] || move_calls_outside=$((move_calls_outside + 1))
   fi
-  # Per segment, as for the workflow: on one line, `docker push "$X:sha-$s" || cannot_answer "… :pending-"`
-  # carries the exemption in an error message — measured by this guard's own suite.
-  segs=${code//&&/$'\n'}
-  segs=${segs//||/$'\n'}
-  segs=${segs//;/$'\n'}
-  segs=${segs//|/$'\n'}
-  while IFS= read -r seg; do
-    case "$seg" in
-    *"docker push"*) case "$seg" in *":pending-"*) ;; *) violation "publish-release.sh pushes something other than a :pending- tag: ${seg# }" ;; esac ;;
+  case "$code" in
+  *"docker push"* | *"docker image push"*) [ "$func" = push_image ] || pushes_outside=$((pushes_outside + 1)) ;;
+  esac
+  if [[ $code =~ (^|[^a-z_])push_image[[:space:]] ]]; then
+    case "$func" in
+    cmd_record) [[ $code == *'"pending-'* ]] || violation "publish-release.sh cmd_record pushes something other than a pending- tag: ${code# }" ;;
+    cmd_push) [[ $code == *'"sha-'* ]] || violation "publish-release.sh cmd_push pushes something other than a sha- tag: ${code# }" ;;
+    *) push_calls_outside=$((push_calls_outside + 1)) ;;
     esac
-  done <<<"$segs"
+  fi
   if [[ $code =~ $FOREIGN_TOOLS_RE ]]; then violation "publish-release.sh runs a registry tool this guard does not model: ${BASH_REMATCH[2]}"; fi
   case "$code" in *":applied"* | *" applied "*) violation "publish-release.sh names the local-only tag applied" ;; esac
 done <"$PUBLISHER"
 grep -q '^move_tag() {' "$PUBLISHER" || cannot_answer "publish-release.sh defines no move_tag(); the reader's anchoring no longer matches it"
 grep -q '^cmd_advance() {' "$PUBLISHER" || cannot_answer "publish-release.sh defines no cmd_advance()"
+grep -q '^push_image() {' "$PUBLISHER" || cannot_answer "publish-release.sh defines no push_image()"
 [ "$creates_outside" -eq 0 ] || violation "publish-release.sh runs imagetools create outside move_tag ($creates_outside place(s))"
 [ "$move_calls" -gt 0 ] || violation "publish-release.sh never calls move_tag; nothing would ever move"
 [ "$move_calls_outside" -eq 0 ] || violation "publish-release.sh calls move_tag outside cmd_advance ($move_calls_outside place(s))"
+[ "$pushes_outside" -eq 0 ] || violation "publish-release.sh runs docker push outside push_image ($pushes_outside place(s))"
+[ "$push_calls_outside" -eq 0 ] || violation "publish-release.sh calls push_image outside cmd_record and cmd_push ($push_calls_outside place(s))"
 
 if [ "$violations" -gt 0 ]; then
   exit 1

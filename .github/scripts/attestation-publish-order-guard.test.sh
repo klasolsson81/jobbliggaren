@@ -100,40 +100,43 @@ expect 0 "the real workflow and publisher hold the order" "$REAL_WF" "$REAL_PUB"
 
 echo "-- rule 1: what the workflow may not run"
 wf_case 1 "a cell that also pushes latest (the 2026-08-11 shape)" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE:latest"#' \
   "pushes a mutable tag"
 wf_case 1 "a push whose trailing comment merely MENTIONS :sha-" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"  \# mirrors the :sha- push#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE:latest"  \# mirrors the :sha- push#' \
   "pushes a mutable tag"
 wf_case 1 "an untagged push (docker tags it latest implicitly)" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE"#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE"#' \
   "pushes a mutable tag"
-wf_case 1 "an immutable and a mutable push chained on one line" \
-  's#^          docker push "\$IMAGE:sha-\$SHORT"$#          docker push "$IMAGE:sha-$SHORT" \&\& docker push "$IMAGE:latest"#' \
+wf_case 1 "the guarded push and a mutable push chained on one line" \
+  's#^          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT"$#          bash .github/scripts/publish-release.sh push "$NAME" "$SHORT" >>"$GITHUB_OUTPUT" \&\& docker push "$IMAGE:latest"#' \
   "pushes a mutable tag"
 wf_case 1 "docker image push, the long form of docker push" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker image push "$IMAGE:latest"#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker image push "$IMAGE:latest"#' \
   "pushes a mutable tag"
 wf_case 1 "a build that pushes as it builds" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker buildx build --push -t "$IMAGE:latest" .#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --push -t "$IMAGE:latest" .#' \
   "builds and pushes in one command"
 wf_case 1 "the cells' build-push-action told to push" \
   's#^          push: false$#          push: true#' \
   "publishes from docker/build-push-action"
 wf_case 1 "a manifest list pushed by hand" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker manifest push "$IMAGE:latest"#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker manifest push "$IMAGE:latest"#' \
   "runs docker manifest push"
 wf_case 1 "a tag move in a workflow step" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
   "runs imagetools create"
 wf_case 1 "a registry tool the guard does not model" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          crane tag "$IMAGE:sha-$SHORT" latest#' \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          crane tag "$IMAGE:sha-$SHORT" latest#' \
   "runs a registry tool this guard does not model"
 
-echo "-- the cells: attest follows push"
+echo "-- the cells: attest follows push, and push goes through push_image"
 wf_case 1 "attest swapped ahead of push, in the cells only" \
   '/^  release:$/,/^  publish:$/{s#^        id: push$#        id: tmp-swap#;s#^        id: attest$#        id: push#;s#^        id: tmp-swap$#        id: attest#}' \
   "does not follow 'push'"
+wf_case 1 "a cell that pushes by hand and attests a re-read" \
+  's#^          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT"$#          docker push "$IMAGE:sha-$SHORT"#' \
+  "does not push through publish-release.sh push"
 
 echo "-- rule 2: the fan-in"
 wf_case 1 "the fan-in does not wait for the cells" 's#^    needs: \[prepare, release\]$#    needs: [prepare]#' \
@@ -166,13 +169,23 @@ pub_case 1 "move_tag called from cmd_record" \
 pub_case 1 "imagetools create outside move_tag" \
   's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  docker buildx imagetools create --prefer-index=false -t "$RELEASE_REPO:dev" "$RELEASE_REPO@$digest"#' \
   "runs imagetools create outside move_tag"
-pub_case 1 "a push of something other than a :pending- tag" \
-  's#docker push --quiet "\$RELEASE_REPO:pending-\$sha"#docker push --quiet "$RELEASE_REPO:sha-$sha"#' \
-  "pushes something other than a :pending- tag"
+pub_case 1 "a docker push outside push_image" \
+  's#^(  digest=\$\(push_image "\$RELEASE_REPO" "pending-\$sha"\))$#  docker push "$RELEASE_REPO:pending-$sha"\n\1#' \
+  "runs docker push outside push_image"
+pub_case 1 "push_image called from cmd_advance" \
+  's#^(  \# Seal: the immutable name, created once.)$#  push_image "$RELEASE_REPO" "dev" >/dev/null\n\1#' \
+  "calls push_image outside cmd_record and cmd_push"
+pub_case 1 "cmd_record pushing the sealed name instead of the pending one" \
+  's#push_image "\$RELEASE_REPO" "pending-\$sha"#push_image "$RELEASE_REPO" "sha-$sha"#' \
+  "cmd_record pushes something other than a pending- tag"
+pub_case 1 "cmd_push pushing a mutable tag" \
+  's#push_image "\$PREFIX-\$name" "sha-\$short"#push_image "$PREFIX-$name" "latest"#' \
+  "cmd_push pushes something other than a sha- tag"
 pub_case 1 "a registry tool the guard does not model" \
   's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  regctl image copy "$RELEASE_REPO:pending-$sha" "$RELEASE_REPO:dev"#' \
   "publish-release.sh runs a registry tool"
 pub_case 2 "a publisher without move_tag cannot be judged" 's#^move_tag\(\) \{#move_tags() {#'
+pub_case 2 "a publisher without push_image cannot be judged" 's#^push_image\(\) \{#push_images() {#'
 
 echo "-- rule 4: one tree"
 wf_case 1 "a cell that checks out main instead of the prepared commit" \

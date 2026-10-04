@@ -290,17 +290,10 @@ jobs:
         id: push
         if: steps.published.outputs.already == 'false' && needs.prepare.outputs.publish == 'true'
         env:
-          IMAGE: ${{ steps.tag.outputs.image }}
+          NAME: ${{ matrix.name }}
           SHORT: ${{ steps.tag.outputs.sha }}
         run: |
-          docker push "$IMAGE:sha-$SHORT"
-          # The registry manifest digest, which only exists after the push — `load: true` means
-          # build-push-action never produced one. `{{json .Manifest.Digest}}` deliberately: the
-          # bare template silently falls back to the full pretty output on Docker 29 (measured
-          # 2026-08-08), which would feed a paragraph of text to the attest action as a digest.
-          digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$IMAGE:sha-$SHORT" | tr -d '"')
-          [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::could not resolve a manifest digest after push: [$digest]"; exit 1; }
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          bash .github/scripts/publish-release.sh push "$NAME" "$SHORT" >>"$GITHUB_OUTPUT"
 
       # WITHOUT THIS THE BOX REFUSES EVERY IMAGE, by design — it treats an absent attestation exactly
       # like a bad one. `push-to-registry` writes the bundle to GHCR under the referrers tag scheme,
@@ -361,7 +354,7 @@ jobs:
 
       # A released commit is proven again (its record and all five recorded images, against the
       # commit); otherwise the five `sha-<short>` images are verified as built from the commit and a
-      # new record is pushed under a PENDING tag that nothing reads. The immutable `sha-<commit>` name
+      # new record is pushed under a PENDING tag. The immutable `sha-<commit>` name
       # is created only in `advance`, after the record's own attestation verifies.
       - name: Record
         id: record

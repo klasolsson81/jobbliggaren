@@ -32,7 +32,7 @@ TMPROOT=$(mktemp -d)
 readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
 readonly BIN="$TMPROOT/bin" REG="$TMPROOT/registry" REPO="$TMPROOT/repo" TOOLS="$TMPROOT/tools"
-mkdir -p "$BIN" "$REG/tags" "$REG/blobs" "$REG/media" "$REG/built" "$REG/containers" "$TOOLS"
+mkdir -p "$BIN" "$REG/tags" "$REG/blobs" "$REG/media" "$REG/built" "$REG/containers" "$REG/repodigests" "$REG/local-image" "$TOOLS"
 SUT_PATH="$BIN:$(dirname "$(command -v git)"):/usr/bin:/bin"
 readonly SUT_PATH
 
@@ -120,12 +120,28 @@ build)
   ctx="${@: -1}"; cp "$ctx/release.env" "$REG/built/release.env"; exit 0 ;;
 push)
   ref="${@: -1}"
-  d="sha256:$(sha256sum <"$REG/built/release.env" | cut -d' ' -f1)"
-  cp "$REG/built/release.env" "$REG/blobs/$d"
-  [ -f "$REG/push-as-index" ] && echo "application/vnd.oci.image.index.v1+json" >"$REG/media/$d"
+  repo="${ref%:*}"
+  if [[ $repo == *-release ]]; then
+    d="sha256:$(sha256sum <"$REG/built/release.env" | cut -d' ' -f1)"
+    cp "$REG/built/release.env" "$REG/blobs/$d"
+    [ -f "$REG/push-as-index" ] && echo "application/vnd.oci.image.index.v1+json" >"$REG/media/$d"
+    touch "$REG/release-exists"
+  else
+    # A cell's image: only one this "runner" built and loaded can be pushed.
+    d=$(cat "$REG/local-image/$(key "$ref")" 2>/dev/null) || { echo "An image does not exist locally with the tag: $ref" >&2; exit 1; }
+    printf 'image\n' >"$REG/media/$d"
+  fi
   printf '%s' "$d" >"$REG/tags/$(key "$ref")"
-  touch "$REG/release-exists"
+  # What `docker image inspect` reports afterwards: the repo digest this push produced.
+  printf '%s@%s\n' "$repo" "$d" >>"$REG/repodigests/$(key "$ref")"
+  [ -f "$REG/two-repodigests" ] && printf '%s@sha256:%s\n' "$repo" "$(printf 'e%.0s' $(seq 64))" >>"$REG/repodigests/$(key "$ref")"
   [ -f "$REG/seal-during-push" ] && printf '%s' "sha256:$(printf 'f%.0s' $(seq 64))" >"$REG/tags/$(key "${ref%:pending-*}:sha-${ref##*:pending-}")"
+  echo "$ref: digest: $d size: 1234"
+  exit 0 ;;
+image)
+  [ "$2" = inspect ] || exit 99
+  ref="${@: -1}"
+  cat "$REG/repodigests/$(key "$ref")" 2>/dev/null || { echo "Error: No such image: $ref" >&2; exit 1; }
   exit 0 ;;
 create)
   shift; name="" ref=""
@@ -168,11 +184,13 @@ readonly NAMES=(api worker migrate web caddy)
 digest_of() { printf 'sha256:%s' "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1)"; }
 
 reset_registry() {
-  rm -rf "$REG"/tags/* "$REG"/blobs/* "$REG"/media/* "$REG"/attested/* "$REG"/containers/* "$REG"/flip "$REG"/flip-count
+  rm -rf "$REG"/tags/* "$REG"/blobs/* "$REG"/media/* "$REG"/attested/* "$REG"/containers/* "$REG"/flip "$REG"/flip-count "$REG"/repodigests/* "$REG"/local-image/*
   mkdir -p "$REG/flip" "$REG/flip-count"
   rm -f "$REG"/deny "$REG"/release-exists "$REG"/fail-lookups "$REG"/fail-pulls "$REG"/wrap-moves "$REG"/wrap-tags-matching "$REG"/push-as-index \
-    "$REG"/seal-during-push "$REG"/docker-calls "$REG"/verifier-calls
+    "$REG"/seal-during-push "$REG"/docker-calls "$REG"/verifier-calls "$REG"/two-repodigests
 }
+# An image a cell built and loaded under <ref>, with the digest a push of it would produce.
+local_image() { printf '%s' "$2" >"$REG/local-image/$(key "$1")"; }
 # The five images a cell set published for <commit>, each attested as built from it.
 publish_cells() {
   local sha="$1" name d
@@ -261,13 +279,34 @@ touch "$REG/fail-lookups"
 expect_exit 2 "a lookup that cannot answer is 'cannot answer', never 'not frozen'" frozen "$C3" api
 expect_exit 1 "an image name outside the five refuses" frozen "$C3" mongo
 
+echo "-- push: a cell's image, attested only as the digest its own push produced"
+reset_registry
+local_image "$PREFIX-api:sha-${C3:0:7}" "$(digest_of "api-$C3")"
+expect_exit 0 "a cell's image is pushed under its sha- tag" push api "${C3:0:7}"
+check 'grep -qx "digest=$(digest_of "api-$C3")" "$TMPROOT/out" && [ "$(get_tag "$PREFIX-api:sha-${C3:0:7}")" = "$(digest_of "api-$C3")" ]' \
+  "and the digest printed for the attestation is the one the push produced"
+reset_registry
+local_image "$PREFIX-api:sha-${C3:0:7}" "$(digest_of "api-$C3")"
+printf '1 %s' "$(digest_of racer)" >"$REG/flip/$(key "$PREFIX-api:sha-${C3:0:7}")"
+expect_exit 1 "a tag re-pointed between the push and its read-back is refused" push api "${C3:0:7}"
+check '! grep -q "^digest=" "$TMPROOT/out"' "and no digest is printed, so nothing is attested"
+reset_registry
+local_image "$PREFIX-api:sha-${C3:0:7}" "$(digest_of "api-$C3")"
+touch "$REG/two-repodigests"
+expect_exit 2 "an image carrying two digests for its repository cannot say which one it pushed" push api "${C3:0:7}"
+check '! grep -q "^digest=" "$TMPROOT/out"' "and prints none"
+reset_registry
+expect_exit 1 "an image name outside the five refuses" push mongo "${C3:0:7}"
+expect_exit 1 "a short sha that is not one refuses" push api latest
+check 'nothing_pushed' "and nothing was pushed"
+
 echo "-- record: a new release"
 reset_registry
 publish_cells "$C3"
 expect_exit 0 "five images verified as built from the commit become one record" record "$C3"
 NEW=$(sed -n 's/^digest=//p' "$TMPROOT/out")
 check 'grep -qx "attest=true" "$TMPROOT/out" && grep -qx "repo=$RELEASE" "$TMPROOT/out"' "and it asks for the record to be attested, naming the release repository"
-check '[ "$(get_tag "$RELEASE:pending-$C3")" = "$NEW" ]' "the record is pushed under the PENDING tag nothing reads"
+check '[ "$(get_tag "$RELEASE:pending-$C3")" = "$NEW" ]' "the record is pushed under the PENDING tag"
 check '[ -z "$(get_tag "$RELEASE:sha-$C3")" ]' "and the sealed name does not exist yet — it is created only after the record verifies"
 check 'grep -qx "JBL_RELEASE_SOURCE_SHA=$C3" "$REG/blobs/$NEW" && grep -qx "JBL_RELEASE_IMAGE_WEB=$(digest_of "web-$C3")" "$REG/blobs/$NEW"' \
   "the record names the commit and the digests the cells published"
@@ -294,6 +333,12 @@ reset_registry
 publish_cells "$C3"
 touch "$REG/seal-during-push"
 expect_exit 1 "a sealed name that appears during the push is never raced" record "$C3"
+
+reset_registry
+publish_cells "$C3"
+printf '1 %s' "$(digest_of racer)" >"$REG/flip/$(key "$RELEASE:pending-$C3")"
+expect_exit 1 "a pending tag re-pointed between the push and its read-back is refused" record "$C3"
+check '! grep -q "^digest=" "$TMPROOT/out" && ! grep -q "^attest=" "$TMPROOT/out"' "and nothing is handed to the attest step"
 
 reset_registry
 publish_cells "$C3"

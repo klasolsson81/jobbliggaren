@@ -64,6 +64,12 @@ const TEST_DIR = resolve(SRC_ROOT, "test");
 const BOUNDARIES: readonly ProviderBoundary[] = [
   { name: "root", providerFile: "app/layout.tsx", routeRoot: "app" },
   { name: "(admin)", providerFile: "app/(admin)/layout.tsx", routeRoot: "app/(admin)" },
+  // The local admin preview (ADR 0150 D5): its layout is a route only in a build made with the flag.
+  {
+    name: "(admin-preview)",
+    providerFile: "app/(admin-preview)/admin/forhandsvisning/layout.preview.tsx",
+    routeRoot: "app/(admin-preview)",
+  },
   { name: "(app)", providerFile: "app/(app)/layout.tsx", routeRoot: "app/(app)" },
   { name: "(auth)", providerFile: "app/(auth)/layout.tsx", routeRoot: "app/(auth)" },
   // routeRoot is `(guest)/gast`, NOT `(guest)`: the provider sits on
@@ -131,6 +137,7 @@ const ALL_PROVIDER_SUBTREES: readonly ProviderBoundary[] = [
 const MIN_CLIENT_FILES: Readonly<Record<string, number>> = {
   root: 1,
   "(admin)": 3,
+  "(admin-preview)": 5,
   "(app)": 120,
   "(auth)": 10,
   "(guest)": 20,

@@ -16,7 +16,9 @@ import { ADMIN, AUDIT_PAGE, FAILED_JOBS, MEMBER, RECURRING_JOBS } from "./fixtur
  * response. Anything else answers 404 and is recorded in `misses`, so a page that starts reading
  * something new shows up there rather than as a silent fallback.
  */
-export const HARNESS_PORTS = { proxy: 3120, next: 3121, backend: 3122 } as const;
+export type HarnessPorts = { readonly proxy: number; readonly next: number; readonly backend: number };
+
+export const HARNESS_PORTS: HarnessPorts = { proxy: 3120, next: 3121, backend: 3122 };
 
 export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const SESSION_COOKIE = "__Host-jobbliggaren_session";
@@ -29,6 +31,8 @@ export type Harness = {
   mode: AdminMode;
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
+  /** Every backend path the app asked for, answered or not. */
+  readonly requests: string[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -56,15 +60,18 @@ function localhostCertificate(): { key: Buffer; cert: Buffer } {
   return { key: readFileSync(key), cert: readFileSync(cert) };
 }
 
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
+  const requests: string[] = [];
 
   const harness: Harness = {
     who: "admin",
     mode: "ok",
     misses,
+    requests,
     reset() {
       misses.length = 0;
+      requests.length = 0;
       harness.who = "admin";
       harness.mode = "ok";
     },
@@ -78,8 +85,9 @@ export async function startHarness(): Promise<Harness> {
       response.writeHead(status, { "Content-Type": "application/json" });
       response.end(JSON.stringify(value ?? null));
     };
-    const url = new URL(request.url ?? "/", `http://localhost:${HARNESS_PORTS.backend}`);
+    const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
+    requests.push(route);
 
     if (route === "GET /api/v1/me") return json(200, harness.who === "admin" ? ADMIN : MEMBER);
     if (route === "POST /api/v1/auth/refresh") return json(200, { rotated: false, sessionId: null });
@@ -110,7 +118,7 @@ export async function startHarness(): Promise<Harness> {
 
   const proxy = createTlsServer(localhostCertificate(), (request, response) => {
     const upstream = forward(
-      { host: "127.0.0.1", port: HARNESS_PORTS.next, method: request.method, path: request.url, headers: request.headers },
+      { host: "127.0.0.1", port: ports.next, method: request.method, path: request.url, headers: request.headers },
       (answer) => {
         response.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(response);
@@ -123,6 +131,6 @@ export async function startHarness(): Promise<Harness> {
     request.pipe(upstream);
   });
 
-  await Promise.all([listen(backend, HARNESS_PORTS.backend), listen(proxy, HARNESS_PORTS.proxy)]);
+  await Promise.all([listen(backend, ports.backend), listen(proxy, ports.proxy)]);
   return harness;
 }

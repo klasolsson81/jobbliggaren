@@ -2,6 +2,7 @@
 // copy follows a plain, direct civic register (1177 / GOV.UK): "you", no
 // blame, no marketing language, no em-dash.
 import admin from "./admin.json";
+import adminPreview from "./admin-preview.json";
 import aktivitetsrapport from "./aktivitetsrapport.json";
 import applications from "./applications.json";
 import common from "./common.json";
@@ -27,6 +28,7 @@ import validation from "./validation.json";
 
 const messages = {
   admin,
+  "admin-preview": adminPreview,
   aktivitetsrapport,
   applications,
   common,

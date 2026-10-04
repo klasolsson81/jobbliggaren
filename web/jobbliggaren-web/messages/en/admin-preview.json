@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "overview": "Preview: Admin overview",
+    "users": "Preview: Users",
+    "feedback": "Preview: Feedback",
+    "logsSecurity": "Preview: Security logs",
+    "logsErrors": "Preview: Application errors",
+    "logsImports": "Preview: Platsbanken imports",
+    "email": "Preview: Email delivery",
+    "jobs": "Preview: Background jobs",
+    "audit": "Preview: Audit"
+  },
+  "band": {
+    "label": "Preview",
+    "text": "Preview with made-up data. Runs locally only.",
+    "stateLabel": "Show state",
+    "states": {
+      "loaded": "Connected",
+      "unavailable": "Coming soon",
+      "empty": "Empty",
+      "failed": "Error",
+      "loading": "Loading"
+    },
+    "impersonation": "Show impersonation banner"
+  }
+}

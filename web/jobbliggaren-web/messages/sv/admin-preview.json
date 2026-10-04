@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "overview": "Förhandsvisning: Adminöversikt",
+    "users": "Förhandsvisning: Användare",
+    "feedback": "Förhandsvisning: Feedback",
+    "logsSecurity": "Förhandsvisning: Säkerhetsloggar",
+    "logsErrors": "Förhandsvisning: Applikationsfel",
+    "logsImports": "Förhandsvisning: Platsbanken-importer",
+    "email": "Förhandsvisning: E-postleverans",
+    "jobs": "Förhandsvisning: Bakgrundsjobb",
+    "audit": "Förhandsvisning: Granskning"
+  },
+  "band": {
+    "label": "Förhandsvisning",
+    "text": "Förhandsvisning med påhittade uppgifter. Körs bara lokalt.",
+    "stateLabel": "Visa läge",
+    "states": {
+      "loaded": "Inkopplad",
+      "unavailable": "Kommer snart",
+      "empty": "Tom",
+      "failed": "Fel",
+      "loading": "Laddar"
+    },
+    "impersonation": "Visa imiteringsbanner"
+  }
+}

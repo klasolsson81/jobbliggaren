@@ -109,12 +109,19 @@ function parse(file: string, text: string): ts.SourceFile {
     text,
     ts.ScriptTarget.Latest,
     /* setParentNodes — the walks use forEachChild only */ false,
-    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    file.endsWith(".tsx")
+      ? ts.ScriptKind.TSX
+      : SCRIPT_SPECIFIER.test(file)
+        ? ts.ScriptKind.JS
+        : ts.ScriptKind.TS
   );
 }
 
 /** Non-source specifiers a product import may legitimately name. */
 const NON_SOURCE_SPECIFIER = /\.(css|json|svg|png|jpe?g|webp|woff2?)$/;
+
+/** Plain JavaScript a product import names with its extension; walked like any source file. */
+const SCRIPT_SPECIFIER = /\.(c|m)?js$/;
 
 interface Resolution {
   readonly file: string | null;
@@ -134,6 +141,8 @@ function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Reso
   else return { file: null, opaque: false }; // package import — never product source
 
   for (const candidate of [
+    // A specifier that names its script file outright, such as the admin preview's `gate.cjs`.
+    ...(SCRIPT_SPECIFIER.test(spec) ? [base] : []),
     `${base}.tsx`,
     `${base}.ts`,
     resolve(base, "index.tsx"),

@@ -5,15 +5,18 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 
@@ -188,6 +191,24 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         }
     }
 
+    // A pin on the SQL text: within a tie the rows already arrive in id order (UUIDv7 ids, a creation-ordered
+    // scan), so no fixture of rows can tell a dropped tie-break from a kept one.
+    [Theory]
+    [InlineData(AccountSort.RegisteredNewest, "registered_at DESC NULLS LAST, user_id")]
+    [InlineData(AccountSort.RegisteredOldest, "registered_at ASC NULLS LAST, user_id")]
+    [InlineData(AccountSort.AddressAscending, "sort_address ASC NULLS LAST, user_id")]
+    [InlineData(AccountSort.AddressDescending, "sort_address DESC NULLS LAST, user_id")]
+    public async Task Each_sort_s_sql_ends_on_the_account_id(AccountSort sort, string ordering)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var directory = (SqlAccountDirectory)scope.ServiceProvider.GetRequiredService<IAccountDirectory>();
+        await using var connection = new NpgsqlConnection();
+
+        await using var page = directory.PageCommand(connection, null, new AccountDirectorySearch(null, null, sort, 1, 25));
+
+        page.CommandText.ShouldContain($" ORDER BY {ordering} LIMIT @limit OFFSET @offset");
+    }
+
     [Fact]
     public async Task The_role_reads_the_admin_role_and_every_other_account_is_a_user()
     {
@@ -221,8 +242,15 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         }
         // The owner removes one: a removed application is no longer live and is not counted.
         (await owner.DeleteAsync($"/api/v1/applications/{applications[0]}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await owner.PostAsJsonAsync("/api/v1/resumes", new { name = "CV", fullName = "Test" }, Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.Created);
+        var resumes = new List<Guid>();
+        for (var index = 0; index < 2; index++)
+        {
+            var created = await owner.PostAsJsonAsync("/api/v1/resumes", new { name = "CV", fullName = "Test" }, Ct);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created);
+            resumes.Add((await created.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid());
+        }
+        // The owner deletes one, which soft-deletes it: the count leaves it out.
+        (await owner.DeleteAsync($"/api/v1/resumes/{resumes[0]}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         foreach (var name in new[] { "Sökning A", "Sökning B", "Sökning C" })
         {
             (await owner.PostAsJsonAsync("/api/v1/saved-searches", SavedSearch(name), Ct))

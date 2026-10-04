@@ -157,6 +157,14 @@ public sealed class AdminAccountQueriesTests
     }
 
     [Fact]
+    public void A_page_twenty_one_million_deep_is_valid_at_a_page_size_of_one()
+    {
+        new SearchAccountsQueryValidator()
+            .Validate(new SearchAccountsQuery(null, null, AccountSort.RegisteredNewest, 21_000_000, 1))
+            .IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
     public void The_largest_page_s_offset_fits_an_int_at_the_largest_page_size()
     {
         (((long)SearchAccountsQuery.MaxPage - 1) * SearchAccountsQuery.MaxPageSize).ShouldBeLessThanOrEqualTo(int.MaxValue);
@@ -165,7 +173,7 @@ public sealed class AdminAccountQueriesTests
     [Fact]
     public void A_term_as_long_as_an_address_may_be_is_accepted_and_one_more_character_is_not()
     {
-        var longest = new string('q', AccountAddressTermRules.MaxLength);
+        var longest = new string('q', 256);
         var validator = new SearchAccountsQueryValidator();
 
         validator.Validate(new SearchAccountsQuery(longest, null, AccountSort.RegisteredNewest, 1, 25))

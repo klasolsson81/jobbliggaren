@@ -65,15 +65,25 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly PIN_FILE=.*#readonly PIN_FILE=$PIN#" \
   -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
   -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
+  -e "s#^readonly PYTHON=.*#readonly PYTHON=$TOOLS/python3#" \
   -e "s#/usr/bin/docker#docker#g" \
   "$SUT" >"$FIXTURE_SUT"
 for want in "readonly SECRETS_DIR=$SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
-  "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh"; do
+  "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh" \
+  "readonly PYTHON=$TOOLS/python3"; do
   grep -qxF "$want" "$FIXTURE_SUT" || {
     echo "FIXTURE BROKEN: redirect did not apply: $want — the suite would touch the host's real paths" >&2
     exit 1
   }
 done
+host_python=$(command -v python3 || true)
+[ -n "$host_python" ] || {
+  echo "FIXTURE BROKEN: no python3 on this host — the wrapper reads compose's model with it" >&2
+  exit 1
+}
+# Python on Windows ends its lines with CRLF; the box's, like CI's, does not.
+printf '#!/usr/bin/env bash\nset -o pipefail\n"%s" "$@" | tr -d "\\r"\n' "$host_python" >"$TOOLS/python3"
+chmod +x "$TOOLS/python3"
 sed -e "s#/usr/bin/docker#docker#g" "$RECORD_TOOL_SRC" >"$TOOLS/jobbliggaren-release-record.sh"
 sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
 for f in "$FIXTURE_SUT" "$TOOLS/jobbliggaren-release-record.sh" "$FIXTURE_IDS"; do
@@ -126,12 +136,14 @@ if [ "$1" = compose ]; then
     fi
     case "$2 ${3:-}" in
     "--format json")
+      # A real model carries values interpolated from .env; the sentinel under migrate stands for them.
+      # A service compose would build has no `image` key at all.
       awk '$1 != "migrate-rewrap" || p' p="$profile" "$REG/compose-images" |
         awk 'BEGIN { printf "{\"name\": \"jobbliggaren-prod\", \"services\": {" }
-          { printf "%s\"%s\": {\"image\": \"%s\"}", (NR > 1 ? ", " : ""), $1, $2 }
+          { img = ($2 == "") ? "" : sprintf("\"image\": \"%s\"", $2)
+            env = ($1 == "migrate") ? "\"environment\": {\"POSTGRES_MASTER_PASSWORD\": \"SECRET-IN-COMPOSE-MODEL\"}" : ""
+            printf "%s\"%s\": {%s%s%s}", (NR > 1 ? ", " : ""), $1, img, (img != "" && env != "" ? ", " : ""), env }
           END { print "}}" }' ;;
-    "--images ")
-      awk '$1 != "migrate-rewrap" || p { print $2 }' p="$profile" "$REG/compose-images" | sort -u ;;
     --images*)
       # Compose 5.4.0 names a service's dependencies with it. Measured on the box, 2026-10-04:
       # `config --images api` printed the migrate, redis, postgres, api and redis images. These are
@@ -376,6 +388,7 @@ check '[ "$(sed -n 1p "$REG/verifier-calls")" = "$RELEASE@$REC" ]' "the record's
 check '[ "$(sed -n 2p "$REG/verifier-calls")" = "$RELEASE@$REC $SHA1" ]' "then the record bound to its commit"
 check '[ "$(grep -c " $SHA1\$" "$REG/verifier-calls")" -eq 6 ]' "and all five images, each bound to that commit"
 check 'said "verified 5 image(s)"' "the journal names the verified count"
+check '! said "SECRET-IN-COMPOSE-MODEL"' "and no value compose's model carries reaches the output"
 check '[ "$(grep -c "^pull --quiet $RELEASE:dev" "$REG/docker-calls")" -eq 1 ]' "the channel is read exactly once"
 
 reset
@@ -448,6 +461,7 @@ for broken in "api $PREFIX-api:latest" "migrate-rewrap $PREFIX-api:applied" "api
   awk -v s="$svc" -v line="$broken" '$1 == s { print line; next } { print }' "$REG/compose-images" >"$REG/ci" && mv "$REG/ci" "$REG/compose-images"
   expect_exit 1 "compose binding '$broken' refuses"
   check '! grep -q "^pull" "$REG/docker-calls"' "  … before any pull"
+  check '! said "SECRET-IN-COMPOSE-MODEL"' "  … and nothing from compose's model reaches the output"
 done
 reset
 REC=$(release "$SHA1" 10)
@@ -457,10 +471,38 @@ check '[ "$(PATH="$BIN:/usr/bin:/bin" docker compose --profile ops config --imag
 reset
 REC=$(release "$SHA1" 10)
 channel "$REC"
-printf '#!/bin/sh\nexit 1\n' >"$BIN/python3" && chmod +x "$BIN/python3"
-expect_exit 2 "python3 absent or failing on the box: each service's own image cannot be read"
-rm -f "$BIN/python3"
-check 'said "could not resolve its services" && nothing_tagged && ! grep -q "^pull" "$REG/docker-calls"' "  … with the wrapper's own line, before any pull"
+mkdir -p "$TMPROOT/cwd" && printf 'raise SystemExit(3)\n' >"$TMPROOT/cwd/json.py"
+cd "$TMPROOT/cwd"
+expect_exit 0 "a json.py in the directory the wrapper is run from is never imported (python3 -I)"
+cd - >/dev/null
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+mv "$TOOLS/python3" "$TOOLS/python3.hidden"
+expect_exit 2 "python3 missing on the box cannot be answered"
+mv "$TOOLS/python3.hidden" "$TOOLS/python3"
+check 'said "python3 missing or not executable" && nothing_tagged && ! grep -q "^pull" "$REG/docker-calls"' "  … with its own line, before any pull"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+mv "$TOOLS/python3" "$TOOLS/python3.real"
+printf '#!/bin/sh\nexit 1\n' >"$TOOLS/python3" && chmod +x "$TOOLS/python3"
+expect_exit 2 "python3 failing on the box cannot be answered"
+mv "$TOOLS/python3.real" "$TOOLS/python3"
+check 'said "model could not be read" && nothing_tagged && ! grep -q "^pull" "$REG/docker-calls"' "  … with a line naming compose and python3, before any pull"
+check '! said "SECRET-IN-COMPOSE-MODEL"' "  … and nothing from compose's model reaches the output"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+grep -v "^migrate-rewrap " "$REG/compose-images" >"$REG/ci" && mv "$REG/ci" "$REG/compose-images"
+expect_exit 1 "a released service missing from compose's model refuses"
+check 'said "compose service migrate-rewrap runs" && ! grep -q "^pull" "$REG/docker-calls"' "  … from its own line, before any pull"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf 'builder\n' >>"$REG/compose-images"
+expect_exit 1 "a service compose would build, with no image, refuses"
+check 'said "is neither one of the released images" && ! grep -q "^pull" "$REG/docker-calls"' "  … before any pull"
 for extra in "mongo mongo:7" "postgres postgres:19.0"; do
   reset
   release "$SHA1" 10 >/dev/null
@@ -510,7 +552,7 @@ REC=$(release "$SHA1" 10)
 channel "$REC"
 printf 'fail' >"$REG/compose-config-leaks"
 expect_exit 2 "compose failing on a malformed .env cannot be answered"
-check '! said "SECRET-FROM-DOT-ENV" && said "could not resolve its services"' "with the wrapper's own line, not compose's"
+check '! said "SECRET-FROM-DOT-ENV" && said "model could not be read"' "with the wrapper's own line, not compose's"
 
 echo "-- containers are the service's, never a one-off run's (dotnet-architect P4)"
 reset

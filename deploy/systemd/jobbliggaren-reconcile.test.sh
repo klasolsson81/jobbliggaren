@@ -496,6 +496,53 @@ project_in_wrapper=$(sed -n 's/^readonly COMPOSE_PROJECT="\(.*\)"$/\1/p' "$SUT")
 check '[ -n "$project_in_compose" ] && [ "$project_in_compose" = "$project_in_wrapper" ]' \
   "the wrapper's project constant is the real compose file's name: ($project_in_compose / $project_in_wrapper)"
 
+echo "-- the lock, receipt and pin paths: every copy in the tracked files is the wrapper's constant"
+path_drift() {
+  local wrapper="$1" name family want found
+  shift
+  for name in LOCK RECEIPT PIN_FILE; do
+    case "$name" in
+    LOCK) family='/run/[A-Za-z0-9._/-]*reconcile[A-Za-z0-9._/-]*[.]lock' ;;
+    RECEIPT) family='/var/lib/jobbliggaren/[A-Za-z0-9._/-]*applied-release([A-Za-z0-9._/-]*[A-Za-z0-9])?' ;;
+    PIN_FILE) family='/etc/jobbliggaren/[A-Za-z0-9._/-]*release-pin([A-Za-z0-9._/-]*[A-Za-z0-9])?' ;;
+    esac
+    want=$(sed -n "s/^readonly $name=//p" "$wrapper" | tr -d '\r')
+    found=$({ grep -IohE -- "$family" "$@" || true; } | LC_ALL=C sort -u | paste -sd' ' -)
+    if [ -z "$want" ] || [ "$found" != "$want" ]; then echo "$name: wrapper '$want', tracked files '$found'"; fi
+  done
+}
+repo_root=$(cd -- "$script_dir/../.." && pwd)
+tracked=$(git -C "$repo_root" ls-files -- deploy docs/runbooks BUILD.md docs/threat-model.md 2>/dev/null) || tracked=""
+consumers=()
+while IFS= read -r f; do
+  case "$f" in "" | deploy/systemd/jobbliggaren-reconcile.sh | deploy/systemd/jobbliggaren-reconcile.test.sh) continue ;; esac
+  consumers+=("$repo_root/$f")
+done <<<"$tracked"
+check '[ "${#consumers[@]}" -gt 0 ]' "git lists the tracked files that may spell the paths out (${#consumers[@]})"
+drift=$(path_drift "$SUT" "${consumers[@]}")
+check '[ -z "$drift" ]' "each of the three is the wrapper's constant in every copy${drift:+ — $drift}"
+moved="$TMPROOT/moved"
+for name in LOCK RECEIPT PIN_FILE; do
+  sed "s#^readonly $name=\(.*\)\$#readonly $name=\1-moved#" "$SUT" >"$moved"
+  drift=$(path_drift "$moved" "${consumers[@]}")
+  check '! cmp -s "$SUT" "$moved" && [[ $drift == *"$name:"* ]]' "mutant: the wrapper's $name moves and no copy follows — refused"
+done
+for spec in "LOCK|deploy/systemd/jobbliggaren-redis-secrets.sh|^readonly LOCK=" \
+  "RECEIPT|docs/runbooks/registration-gate.md|." "PIN_FILE|deploy/.env.example|."; do
+  IFS='|' read -r name rel anchor <<<"$spec"
+  want=$(sed -n "s/^readonly $name=//p" "$SUT" | tr -d '\r')
+  case "$want" in *.*) new="${want%.*}-moved.${want##*.}" ;; *) new="$want-moved" ;; esac
+  awk -v old="$want" -v new="$new" -v anchor="$anchor" \
+    '!done && $0 ~ anchor && (i = index($0, old)) { $0 = substr($0, 1, i - 1) new substr($0, i + length(old)); done = 1 } { print }' \
+    "$repo_root/$rel" >"$moved" 2>/dev/null || : >"$moved"
+  copies=()
+  for f in "${consumers[@]}"; do
+    if [ "$f" = "$repo_root/$rel" ]; then copies+=("$moved"); else copies+=("$f"); fi
+  done
+  drift=$(path_drift "$SUT" "${copies[@]}")
+  check '! cmp -s "$repo_root/$rel" "$moved" && [[ $drift == *"$name:"* ]]' "mutant: one copy of $name moves in $rel — refused"
+done
+
 echo "-- the deployment configuration a release was built with"
 reset
 REC=$(release "$SHA1" 10)

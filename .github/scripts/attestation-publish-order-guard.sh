@@ -170,9 +170,21 @@ step_of() { # <job> <id> → index, or -1
 for i in "${!S_JOB[@]}"; do
   text=${S_RUN[$i]}
   [ -n "$text" ] || continue
+  # One logical line per command: a line ending in a backslash continues on the next, the way a long
+  # build command is written. A comment line never continues — its backslash is inside the comment.
+  logical=() acc=""
   while IFS= read -r cmdline; do
     trimmed=${cmdline#"${cmdline%%[![:space:]]*}"}
-    case "$trimmed" in "#"*) continue ;; esac
+    if [ -z "$acc" ]; then case "$trimmed" in "#"*) continue ;; esac; fi
+    if [[ $cmdline == *"\\" ]]; then
+      acc+="${cmdline%"\\"} "
+      continue
+    fi
+    logical+=("$acc$cmdline")
+    acc=""
+  done <<<"$text"
+  [ -z "$acc" ] || logical+=("$acc")
+  for cmdline in "${logical[@]}"; do
     segs=${cmdline//&&/$'\n'}
     segs=${segs//||/$'\n'}
     segs=${segs//;/$'\n'}
@@ -192,7 +204,7 @@ for i in "${!S_JOB[@]}"; do
       if [[ $seg =~ $FOREIGN_TOOLS_RE ]]; then violation "job '${S_JOB[$i]}' runs a registry tool this guard does not model: ${BASH_REMATCH[2]}"; fi
       case "$seg" in *":applied"*) violation "job '${S_JOB[$i]}' names the local-only tag :applied" ;; esac
     done <<<"$segs"
-  done <<<"$text"
+  done
 done
 for i in "${!S_JOB[@]}"; do
   case "${S_USES[$i]}" in

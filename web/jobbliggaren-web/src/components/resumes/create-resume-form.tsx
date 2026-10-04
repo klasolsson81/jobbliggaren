@@ -15,8 +15,7 @@ import { createResumeAction } from "@/lib/actions/resumes";
 /**
  * CreateResumeForm — fälten för att skapa ett nytt CV.
  *
- * ⚠ MOTHBALLAD sedan #1061: skapa-från-grunden är deferrad ur MVP:n, och båda
- * värdarna (`/cv/ny` och @modal/(.)cv/ny) är grindade till 404. Komponenten har
+ * ⚠ MOTHBALLAD sedan #1061: skapa-från-grunden är deferrad ur MVP:n. Komponenten har
  * ingen nåbar renderare kvar och ligger kvar orörd med flit — ADR 0112
  * §Mechanism 1, billig återgång framför städning. Motiveringen i sin helhet
  * står i `app/(app)/cv/ny/page.tsx`.

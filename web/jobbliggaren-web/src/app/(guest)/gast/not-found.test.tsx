@@ -27,7 +27,7 @@ describe("(guest)/gast/not-found boundary (#1477)", () => {
         "Adressen kan vara felstavad eller så har sidan tagits bort.",
       ),
     ).toBeInTheDocument();
-    // Without this file the four guest notFound() call sites fell through to
+    // Without this file the guest notFound() call sites fell through to
     // the ROOT not-found, which renders the public marketing frame — the wrong
     // shell for a visitor who is inside guest mode.
     expect(

@@ -4,12 +4,13 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
+import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
 
 /**
  * ApplicationModalShell — modal-chrome (scrim / ESC / scrim-klick /
  * focus-trap / focus-return / body-scroll-lock) runt en server-renderad
  * `ApplicationDetailBody`. Speglar F3 JobAdModalShell exakt (samma
- * useDismissable/focus-trap/ESC/scrim-idiom) — medvetet INGEN
+ * focus-trap/ESC/scrim-idiom) — medvetet INGEN
  * generalisering till delad ModalShell ännu: F3-shellen passar
  * title/company i headern, ansökan-shellen behöver titel + undertitel.
  * En delad abstraktion infördes EJ för att undvika prematur generalisering
@@ -43,12 +44,9 @@ export function ApplicationModalShell({
 
   const close = () => router.back();
 
-  // Fokus in i modalen vid öppning + body-scroll-lock. Fokus-retur till
-  // utlösande element sköts av Next: router.back() återställer föregående
-  // route och DOM-fokus-position i listan (soft-nav-historik). Identiskt
-  // med F3 JobAdModalShell.
+  useRouteModalFocus(panelRef, closeRef);
+
   useEffect(() => {
-    closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {

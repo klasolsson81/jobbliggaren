@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createTranslator, createFormatter } from "next-intl";
 import svPages from "../../../../../../messages/sv/pages.json";
+import svFallback from "../../../../../../messages/sv/fallback.json";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   AdSnapshotDto,
@@ -23,13 +24,13 @@ const getApplicationById =
 // modal header renders the actual strings — and the dialog's accessible name
 // (the <h2>) is asserted against the real copy.
 vi.mock("next-intl/server", () => ({
-  // The page only calls getTranslations("pages"); the client islands
+  // The client islands
   // (ApplicationModalShell, NotesSection) resolve their own copy via the test
   // render's NextIntlClientProvider (full sv catalog), not this server entry.
-  getTranslations: async (namespace?: "pages") =>
+  getTranslations: async (namespace?: "pages" | "fallback") =>
     createTranslator({
       locale: "sv",
-      messages: { pages: svPages },
+      messages: { pages: svPages, fallback: svFallback },
       namespace,
     }),
   getFormatter: async () =>
@@ -231,5 +232,39 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     // … och subtitlen får dödssignalen suffixad. Distinkt copy från kroppens
     // "Om annonsen (sparad kopia)" — den enda "Annonsen är borttagen" på ytan.
     expect(screen.getByText(/Annonsen är borttagen/)).toBeInTheDocument();
+  });
+});
+
+describe("@modal/(.)ansokningar/[id] — an outcome without an application, in the modal's own shell", () => {
+  beforeEach(() => {
+    redirect.mockReset();
+    notFound.mockClear();
+    getServerSession.mockReset();
+    getApplicationById.mockReset();
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+  });
+
+  it.each([
+    [{ kind: "error" } as const, svPages.ansokningar.detail.loadErrorTitle, svFallback.errorBodyRetry],
+  ])("$kind renders its message as the dialog's description", async (result, title, body) => {
+    getApplicationById.mockResolvedValue(result);
+    await renderModal();
+
+    expect(screen.getByRole("dialog", { name: title })).toHaveAttribute("aria-describedby", "jp-modal-desc");
+    expect(document.getElementById("jp-modal-desc")).toHaveTextContent(body);
+  });
+
+  // #1987: a notFound() thrown here escapes the slot to the root boundary, which swaps the signed-in shell for the
+  // public frame.
+  it("an application that is gone renders 'Sidan finns inte' and never calls notFound()", async () => {
+    getApplicationById.mockResolvedValue({ kind: "notFound" });
+    await renderModal();
+
+    expect(screen.getByRole("dialog", { name: svFallback.notFound.title })).toHaveAttribute(
+      "aria-describedby",
+      "jp-modal-desc"
+    );
+    expect(document.getElementById("jp-modal-desc")).toHaveTextContent(svFallback.notFound.body);
+    expect(notFound).not.toHaveBeenCalled();
   });
 });

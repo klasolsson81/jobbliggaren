@@ -37,6 +37,10 @@ export const SESSION_ID = "job-modal-harness-session";
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
+  /** Listed ads erased under Art. 17 after the list rendered: their detail answers 410. */
+  readonly erasedAds: Set<string>;
+  /** Ads whose listed application answers 404 when it is read. */
+  readonly unavailableApplications: Set<string>;
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
   reset(): void;
@@ -115,10 +119,14 @@ export async function startHarness(): Promise<Harness> {
 
   const harness: Harness = {
     occupationStated: true,
+    erasedAds: new Set(),
+    unavailableApplications: new Set(),
     misses,
     reset() {
       misses.length = 0;
       harness.occupationStated = true;
+      harness.erasedAds.clear();
+      harness.unavailableApplications.clear();
       applied = new Map(ALL_ADS.filter((ad) => ad.appliedBeforeVisit).map((ad) => [ad.id, randomUUID()]));
       saved = new Set(ALL_ADS.filter((ad) => ad.saved).map((ad) => ad.id));
     },
@@ -214,8 +222,10 @@ export async function startHarness(): Promise<Harness> {
         }]);
     }
 
-    if (ad && route === `GET /api/v1/job-ads/${ad.id}`)
+    if (ad && route === `GET /api/v1/job-ads/${ad.id}`) {
+      if (harness.erasedAds.has(ad.id)) return json(410, { title: "Gone", status: 410 });
       return json(200, { ...summary(ad), description: DESCRIPTION, contacts: [] });
+    }
     if (ad && route === `GET /api/v1/me/job-ad-match-tags/${ad.id}`)
       return json(200, matchDetail(harness.occupationStated));
     if (ad && route === `GET /api/v1/me/applications/has-applied/${ad.id}`)
@@ -229,6 +239,8 @@ export async function startHarness(): Promise<Harness> {
     if (route === `GET /api/v1/applications/${pathId}`) {
       const owner = [...applied].find(([, applicationId]) => applicationId === pathId);
       const ownerAd = owner && adById(owner[0]);
+      if (ownerAd && harness.unavailableApplications.has(ownerAd.id))
+        return json(404, { title: "Not Found", status: 404 });
       if (ownerAd) return json(200, application(pathId, ownerAd));
     }
 

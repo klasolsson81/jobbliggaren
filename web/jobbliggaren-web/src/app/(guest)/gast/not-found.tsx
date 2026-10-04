@@ -9,9 +9,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * (guest)/gast/not-found — the 404 boundary for the guest mirrors. Four guest
+ * (guest)/gast/not-found — the 404 boundary for the guest mirrors. Guest
  * pages call notFound() for an unknown mock id (/gast/jobb/[id],
- * /gast/ansokningar/[id] and both intercepting modals); without this file they
+ * /gast/ansokningar/[id]); without this file they
  * fell through to the ROOT not-found, which renders the public marketing frame
  * — the wrong shell for a visitor who is inside guest mode (#1477).
  *

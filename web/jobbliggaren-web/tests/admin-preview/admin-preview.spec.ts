@@ -129,7 +129,7 @@ test("the band's state choice drives the account list, and is offered only where
 
 test("search, filter, sort and pages work on the fixtures, and the search never reaches the URL", async ({ page }) => {
   await page.goto(`${ROOT}/anvandare`);
-  const summary = page.getByRole("status").filter({ hasText: "konton" });
+  const summary = page.getByRole("status").filter({ hasText: /\d+ av \d+ konto/ });
   await expect(summary).toHaveText("15 av 15 konton");
   await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 1 av 2");
 
@@ -371,7 +371,7 @@ test("the overview shows its regions with fixtures, and fails, loads and goes un
   await expect(card("Användare totalt")).toContainText("0konton");
   await expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "clear");
   await state(page, "Kommer snart");
-  await expect(card("Användare totalt")).toContainText("–Kommer snart");
+  await expect(card("Användare totalt")).toContainText("–Uppgift saknasKommer snart");
 });
 
 test("feedback opens a report, sends a reply as a receipt and moves a new report to Pågår", async ({ page }) => {

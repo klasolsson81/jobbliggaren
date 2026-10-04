@@ -76,10 +76,6 @@ readonly REF="$1"
 # equal the release's source commit closes the mixed set at the signature, where it cannot be
 # argued with. Measured 2026-10-03 with cosign 2.5.0 against a published image: the right commit
 # verifies, another commit exits 1 with "no matching attestations" (the refusal arm below).
-#
-# ONE CALLER MAY OMIT IT: jobbliggaren-release-record.sh's first check of a record digest, which
-# runs before the record has been read and so before the commit it names is known. Every image
-# check, and that same record's second check, passes the commit.
 EXPECTED_SHA=""
 if [ "$#" -eq 2 ]; then
   case "$2" in

@@ -10,7 +10,7 @@ import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
  * ApplicationModalShell — modal-chrome (scrim / ESC / scrim-klick /
  * focus-trap / focus-return / body-scroll-lock) runt en server-renderad
  * `ApplicationDetailBody`. Speglar F3 JobAdModalShell exakt (samma
- * useDismissable/focus-trap/ESC/scrim-idiom) — medvetet INGEN
+ * focus-trap/ESC/scrim-idiom) — medvetet INGEN
  * generalisering till delad ModalShell ännu: F3-shellen passar
  * title/company i headern, ansökan-shellen behöver titel + undertitel.
  * En delad abstraktion infördes EJ för att undvika prematur generalisering

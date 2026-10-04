@@ -16,14 +16,12 @@ import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
  * a11y (role=dialog / aria-modal / aria-labelledby / focus-trap / ESC /
  * focus-return / scrim-klick stänger). Skillnaden mellan de två tidigare
  * shellsen låg ENBART i header-props (title/company resp. title+subtitle+id).
- * Med en tredje/fjärde modal-kontext (CV: Importera + Nytt, den senare grindad
- * sedan #1061) passeras Fowlers
+ * Med en tredje modal-kontext (CV: Importera) passeras Fowlers
  * "rule of three" — `ApplicationModalShell` flaggade själv detta som den
  * opportunistiska DRY-touchen. Denna shell är den generaliseringen; de två
  * äldre shellsen lämnas orörda (deras tester förblir gröna — låg risk).
  *
- * Children är ett Server Component-träd (CvUploadForm / CreateResumeForm är
- * klient-öar i trädet) — chrome och innehåll separeras enligt Next-docs
+ * Children är ett Server Component-träd — chrome och innehåll separeras enligt Next-docs
  * (Parallel/Intercepting Routes §Modals, verifierat node_modules/next/dist/
  * docs Next 16.2.x): "By separating the <Modal> functionality from the modal
  * content … any content inside the modal … are Server Components." Stängning

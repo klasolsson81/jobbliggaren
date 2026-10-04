@@ -129,12 +129,12 @@ test("the band's state choice drives the account list, and is offered only where
 
 test("search, filter, sort and pages work on the fixtures, and the search never reaches the URL", async ({ page }) => {
   await page.goto(`${ROOT}/anvandare`);
-  const summary = page.getByRole("status").filter({ hasText: "konton" });
+  const summary = page.getByRole("status").filter({ hasText: /\d+ av \d+ konto/ });
   await expect(summary).toHaveText("15 av 15 konton");
   await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 1 av 2");
 
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.a");
-  await expect(summary).toHaveText("1 av 15 konton");
+  await expect(summary).toHaveText("1 av 1 konto");
   expect(new URL(page.url()).search).toBe("");
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("");
 
@@ -208,7 +208,8 @@ test("scheduling deletion states the earliest date and leaves nothing but unbuil
   await confirmation(page).getByRole("button", { name: "Radera konto" }).click();
 
   await expect(toast(page)).toContainText(`Kontot ${mail("konto.b")} raderas slutgiltigt tidigast 3 nov. 2026.`);
-  await expect(panel(page)).toContainText("Raderas tidigast 2026-11-03");
+  await expect(panel(page).getByText("Raderas slutgiltigt")).toBeVisible();
+  await expect(panel(page)).toContainText("Tidigast 2026-11-03");
   for (const button of await panel(page).getByRole("region", { name: "Åtgärder" }).getByRole("button").all()) {
     await expect(button).toHaveAttribute("aria-disabled", "true");
   }
@@ -370,7 +371,7 @@ test("the overview shows its regions with fixtures, and fails, loads and goes un
   await expect(card("Användare totalt")).toContainText("0konton");
   await expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "clear");
   await state(page, "Kommer snart");
-  await expect(card("Användare totalt")).toContainText("–Kommer snart");
+  await expect(card("Användare totalt")).toContainText("–Uppgift saknasKommer snart");
 });
 
 test("feedback opens a report, sends a reply as a receipt and moves a new report to Pågår", async ({ page }) => {

@@ -30,7 +30,12 @@ export const ADMIN_REGION_KINDS: ReadonlyArray<AdminRegionKind> = [
 
 export type AdminAccountRole = "user" | "admin";
 
-export type AdminAccountStatus = "active" | "suspended" | "unverified" | "pendingDeletion";
+/**
+ * An account's lifecycle state (ADR 0151); every account is in exactly one. Whether the address is
+ * confirmed is a separate fact, since it can go with any state. Only the preview produces `suspended`
+ * until #1976 builds suspension.
+ */
+export type AdminAccountStatus = "active" | "pendingDeletion" | "profileMissing" | "suspended";
 
 /**
  * An account names itself by its address alone: the account stores no name (ADR 0150 D3). Last
@@ -38,14 +43,16 @@ export type AdminAccountStatus = "active" | "suspended" | "unverified" | "pendin
  */
 export interface AdminAccountRow {
   readonly id: string;
-  readonly email: string;
+  /** Null when Identity holds no address for the account. */
+  readonly email: string | null;
   readonly role: AdminAccountRole;
   readonly status: AdminAccountStatus;
-  /** ISO instant; null when the account predates the field. */
+  readonly emailConfirmed: boolean;
+  /** ISO instant from the account's profile; null when it has none. */
   readonly registeredAt: string | null;
   /** Null when the count is unknown for this account. */
   readonly applicationCount: number | null;
-  /** ISO instant, only while the status is `pendingDeletion`: the earliest permanent deletion. */
+  /** `YYYY-MM-DD`, only while the status is `pendingDeletion`: the earliest permanent deletion. */
   readonly deletionEarliest: string | null;
 }
 
@@ -53,6 +60,17 @@ export interface AdminAccountDetail extends AdminAccountRow {
   readonly savedSearchCount: number | null;
   readonly resumeCount: number | null;
 }
+
+/** The ledger's two sortable columns and their direction. */
+export type AdminAccountSortKey = "email" | "registeredAt";
+
+export interface AdminAccountSort {
+  readonly key: AdminAccountSortKey;
+  readonly direction: "ascending" | "descending";
+}
+
+/** An account the panel can name in a question or a receipt: one Identity holds an address for. */
+export type AdminAddressedAccount = AdminAccountDetail & { readonly email: string };
 
 /** The account actions the panel knows; which of them are live is the caller's to say (ADR 0150 D4). */
 export type AdminAccountAction =

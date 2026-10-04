@@ -42,6 +42,7 @@ public static partial class RateLimitingExtensions
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
     public const string AdminWritePolicy = "admin-write";
+    public const string AdminReadPolicy = "admin-read";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -677,6 +678,27 @@ public static partial class RateLimitingExtensions
                         PermitLimit = rateLimitOpts.AdminWrite.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.AdminWrite.WindowSeconds),
                         QueueLimit = 0,
+                    });
+            });
+
+            // #1974 (ADR 0151) — the admin account directory's reads. Partition: UserId (claim "sub");
+            // anonymous → NoLimiter, because the admin group answers 401 before the endpoint. TokenBucket, so
+            // a 429 carries Retry-After; QueueLimit 0. The numbers live in RateLimitingOptions.AdminRead.
+            options.AddPolicy(AdminReadPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-admin-read");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.AdminRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.AdminRead.PermitLimit / rateLimitOpts.AdminRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.AdminRead.WindowSeconds / (double)rateLimitOpts.AdminRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
         });

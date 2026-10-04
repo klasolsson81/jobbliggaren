@@ -454,6 +454,7 @@ app.MapApplicationsEndpoints();
 app.MapApplicationHistoryEndpoints();
 app.MapResumesEndpoints();
 app.MapAdminEndpoints();
+app.MapAdminAccountsEndpoints();
 app.MapAdminJobAdsEndpoints();
 app.MapAdminCompanyWatchesEndpoints();
 app.MapAdminResumesEndpoints();

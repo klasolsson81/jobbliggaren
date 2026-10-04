@@ -37,8 +37,7 @@ public sealed record SearchCompaniesQuery(
 {
     /// <summary>
     /// REDACTED (#883): carries a client-supplied org.nr term (possibly personnummer-shaped —
-    /// that is exactly what <c>Create</c> refuses), and the LoggingBehavior prints requests via
-    /// <c>ToString()</c>. Pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// that is exactly what <c>Create</c> refuses). Pinned by <c>OrgNrRecordLoggingGuardTests</c>.
     /// </summary>
     public override string ToString() =>
         $"SearchCompaniesQuery(sni: {SniCodes?.Count ?? 0}, kommun: {MunicipalityCodes?.Count ?? 0}, "

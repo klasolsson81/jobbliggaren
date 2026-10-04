@@ -19,6 +19,7 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 [#1972](https://github.com/klasolsson81/jobbliggaren/issues/1972) (the epic) ·
 [#1973](https://github.com/klasolsson81/jobbliggaren/issues/1973) (the issue this ADR ships under)
 **Measured against:** `origin/main` at `7c21f8117`, 2026-10-04.
+**Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -207,6 +208,10 @@ The handoff is a design reference, not production code. What ships departs from 
 | The reply line "Skickas från kontakt@… till {e-post}" | "Svaret skickas till {e-post}." | The sending address is #1979's to decide (D4) |
 | Live search, filters, period buttons and "Skicka svar" as a solid primary button | Natively disabled while their region is unbuilt, each pointing to its "Kommer snart" line, never with a solid primary fill | D2; DESIGN.md §6 |
 | Bakgrundsjobb and Granskning restyled: grey identifier and time cells, a red error category, smaller status pills | Both pages as delivered, apart from the new header and a labelled scroll region around each table | The prompt keeps both working; the house table paints its cells in ink-1 (`.jp-table tbody td`), and the pill is the delivered `JobStateBadge` |
+| Statuses Aktiv, Suspenderad, Ej verifierad and Under radering, one per account | Aktiv, Under radering and Ofullständig; "E-post ej bekräftad" as a line under the status | Measured: the address's confirmation can go with every state, and #1974 lists accounts without a profile (ADR 0151) |
+| Filters Alla, Aktiva, Suspenderade, Ej verifierade and Under radering | Alla, Aktiva, Under radering and Ofullständiga | No account can be suspended before #1976 (D4); an option that overlaps the others breaks the counts' sum (ADR 0047) |
+| Activity counts on every account | Active accounts only: "–" in the ledger, and no count rows in the panel | Measured: the counts are reliable only for an active account (ADR 0151); ADR 0120 |
+| Actions on every account | None on an incomplete account, and one line instead | It has no profile to act on; D2 |
 
 ## Alternatives considered
 

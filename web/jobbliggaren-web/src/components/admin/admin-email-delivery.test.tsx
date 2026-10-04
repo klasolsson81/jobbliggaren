@@ -4,6 +4,9 @@ import userEvent from "@testing-library/user-event";
 import type { AdminEmailDelivery as Delivery } from "@/lib/admin/view-models";
 import { AdminEmailDelivery } from "./admin-email-delivery";
 
+/** What a screen reader reads for an unknown value: the dash is hidden from it, and its words are not. */
+const UNKNOWN = "–Uppgift saknas";
+
 const DELIVERY: Delivery = {
   totals: { sent: 1234, failed: 2, noRecipient: 0 },
   types: [
@@ -37,7 +40,7 @@ describe("AdminEmailDelivery with outcomes", () => {
     const rows = within(screen.getByRole("table", { name: "Utskick per mejltyp" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
       ["login-challenge", "31", "1", "Mottagarens server svarade inte."],
-      ["email-changed-notification", "4", "0", "–"],
+      ["email-changed-notification", "4", "0", UNKNOWN],
     ]);
     expect(within(screen.getByRole("region", { name: "Senaste misslyckade utskick" })).getByRole("listitem")).toHaveTextContent(
       "2026-10-04 06:41k•••@example.testStudsadeAdressen finns inte.match-notification",
@@ -75,6 +78,6 @@ describe("AdminEmailDelivery with outcomes", () => {
 
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.getAllByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.")).toHaveLength(3);
-    expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual(["–", "–", "–"]);
+    expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
 });

@@ -1,6 +1,6 @@
-import { useFormatter, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
-import { formatLedgerDate } from "@/lib/i18n/format";
 import type {
   AdminAccountRole,
   AdminAccountRow,
@@ -9,27 +9,43 @@ import type {
 
 const TONE: Readonly<Record<Status, StatusTone>> = {
   active: "success",
-  suspended: "danger",
-  unverified: "warning",
   pendingDeletion: "neutral",
+  profileMissing: "warning",
+  suspended: "danger",
 };
 
-/** An account's status as a dot and a label; the label carries it, the colour only repeats it. */
-export function AdminAccountStatus({
+/** An account's lifecycle state as a dot and a label; the label carries it, the colour only repeats it. */
+export function AdminAccountStatus({ status }: Pick<AdminAccountRow, "status">) {
+  const t = useTranslations("admin.users.status");
+  return <StatusDot tone={TONE[status]}>{t(status)}</StatusDot>;
+}
+
+/**
+ * The ledger's status cell: the state, then the facts that can go with any state as plain lines
+ * below it, outside the dot (ADR 0151). A deletion without a date gets no line.
+ */
+export function AdminAccountStatusCell({
   status,
   deletionEarliest,
-}: Pick<AdminAccountRow, "status" | "deletionEarliest">) {
-  const t = useTranslations("admin.users.status");
-  const unknown = useTranslations("admin.unavailable")("unknownValue");
-  const format = useFormatter();
-
+  emailConfirmed,
+}: Pick<AdminAccountRow, "status" | "deletionEarliest" | "emailConfirmed">) {
+  const t = useTranslations("admin.users.statusLine");
   return (
-    <StatusDot tone={TONE[status]}>
-      {status === "pendingDeletion"
-        ? t("pendingDeletion", { date: formatLedgerDate(format, deletionEarliest) ?? unknown })
-        : t(status)}
-    </StatusDot>
+    <div className="jp-adminusers__status">
+      <AdminAccountStatus status={status} />
+      {status === "pendingDeletion" && deletionEarliest !== null ? (
+        <span className="jp-adminusers__statusline">
+          {t.rich("deletionEarliest", { date: deletionEarliest, nowrap: unbroken })}
+        </span>
+      ) : null}
+      {emailConfirmed ? null : <span className="jp-adminusers__statusline">{t("emailUnconfirmed")}</span>}
+    </div>
   );
+}
+
+/** A date that may move to the next line but never breaks inside itself. */
+export function unbroken(chunks: ReactNode) {
+  return <span className="jp-adminusers__date">{chunks}</span>;
 }
 
 export function AdminRolePill({ role }: { readonly role: AdminAccountRole }) {

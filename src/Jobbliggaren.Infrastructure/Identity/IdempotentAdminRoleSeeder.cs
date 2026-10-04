@@ -34,6 +34,9 @@ namespace Jobbliggaren.Infrastructure.Identity;
 ///
 /// Audit-evidence verifieras av <c>IdempotentAdminRoleSeederAuditEvidenceTests</c>.
 ///
+/// A second Admin role holder, by this configuration or any other way, fires ADR 0151 D7's trigger: the admin
+/// account directory writes no audit row for a read only while the controller is the one holder.
+///
 /// Senior-cto-advisor-beslut 2026-05-11: B1 över B2 — IaC-konsistens med
 /// STEG 13/14 (Terraform + Migrate-task). Twelve-Factor §III/V.
 /// </summary>

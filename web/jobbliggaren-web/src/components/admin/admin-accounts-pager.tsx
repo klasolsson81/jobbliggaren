@@ -22,8 +22,10 @@ export function AdminAccountsPager({ page, pages, onPage }: AdminAccountsPagerPr
         <button
           type="button"
           className="jp-btn jp-btn--sm jp-btn--secondary"
-          disabled={page <= 1}
-          onClick={() => onPage(page - 1)}
+          aria-disabled={page <= 1 || undefined}
+          onClick={() => {
+            if (page > 1) onPage(page - 1);
+          }}
         >
           <ArrowLeft size={16} aria-hidden="true" />
           {t("previous")}
@@ -31,8 +33,10 @@ export function AdminAccountsPager({ page, pages, onPage }: AdminAccountsPagerPr
         <button
           type="button"
           className="jp-btn jp-btn--sm jp-btn--secondary"
-          disabled={page >= pages}
-          onClick={() => onPage(page + 1)}
+          aria-disabled={page >= pages || undefined}
+          onClick={() => {
+            if (page < pages) onPage(page + 1);
+          }}
         >
           {t("next")}
           <ArrowRight size={16} aria-hidden="true" />
@@ -42,12 +46,20 @@ export function AdminAccountsPager({ page, pages, onPage }: AdminAccountsPagerPr
   );
 }
 
-/** "8 av 12 konton", announced as the filter or the search changes it. */
-export function AdminAccountsSummary({ shown, total }: { readonly shown: number; readonly total: number }) {
+/** "8 av 12 konton", announced as the filter or the search changes it; while newer rows load, it says so. */
+export function AdminAccountsSummary({
+  shown,
+  total,
+  busy = false,
+}: {
+  readonly shown: number;
+  readonly total: number;
+  readonly busy?: boolean;
+}) {
   const t = useTranslations("admin.users");
   return (
     <p className="jp-adminusers__summary" role="status">
-      {t("counter", { shown, total })}
+      {busy ? t("counterBusy") : t("counter", { shown, total })}
     </p>
   );
 }

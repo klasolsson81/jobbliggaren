@@ -6,6 +6,7 @@ import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
 import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
+import { JobAdModalMessage } from "@/components/job-ads/job-ad-modal-message";
 import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
 
 interface PageProps {
@@ -88,32 +89,13 @@ export default async function InterceptedJobbModal({
       notFound();
     case "rateLimited":
       return (
-        <JobAdModalShell title={t("common.rateLimitedTitle")} company="" meta={null}>
-          <div className="jp-modal__body">
-            <p className="text-body-sm text-text-primary">
-              {t("common.rateLimitedBody", {
-                seconds: result.retryAfterSeconds,
-              })}
-            </p>
-          </div>
-          <div className="jp-modal__foot">
-            <span className="jp-modal__foot__spacer" />
-          </div>
-        </JobAdModalShell>
+        <JobAdModalMessage
+          title={t("common.rateLimitedTitle")}
+          body={t("common.rateLimitedBody", { seconds: result.retryAfterSeconds })}
+        />
       );
     case "forbidden":
     case "error":
-      return (
-        <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="" meta={null}>
-          <div className="jp-modal__body">
-            <p className="text-body-sm text-text-primary">
-              {tf("errorBodyRetry")}
-            </p>
-          </div>
-          <div className="jp-modal__foot">
-            <span className="jp-modal__foot__spacer" />
-          </div>
-        </JobAdModalShell>
-      );
+      return <JobAdModalMessage title={t("jobb.detail.loadErrorTitle")} body={tf("errorBodyRetry")} />;
   }
 }

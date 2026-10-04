@@ -119,17 +119,33 @@ if [ "$1" = compose ]; then
   profile=""; [ "$1" = --profile ] && { profile="$2"; shift 2; }
   case "$1" in
   config)
-    [ "$2" = --images ] || { echo "stub: unexpected compose config $*" >&2; exit 99; }
     # What compose v5.5.1 printed for an unterminated quote in .env (security-auditor, 2026-10-04).
     if [ -f "$REG/compose-config-leaks" ]; then
       echo 'unterminated quoted value "SECRET-FROM-DOT-ENV' >&2
       [ "$(cat "$REG/compose-config-leaks")" = fail ] && exit 1
     fi
-    if [ -n "${3:-}" ]; then
-      awk -v s="$3" '$1 == s { print $2 }' "$REG/compose-images"
-    else
-      awk '$1 != "migrate-rewrap" || p { print $2 }' p="$profile" "$REG/compose-images" | sort -u
-    fi
+    case "$2 ${3:-}" in
+    "--format json")
+      awk '$1 != "migrate-rewrap" || p' p="$profile" "$REG/compose-images" |
+        awk 'BEGIN { printf "{\"name\": \"jobbliggaren-prod\", \"services\": {" }
+          { printf "%s\"%s\": {\"image\": \"%s\"}", (NR > 1 ? ", " : ""), $1, $2 }
+          END { print "}}" }' ;;
+    "--images ")
+      awk '$1 != "migrate-rewrap" || p { print $2 }' p="$profile" "$REG/compose-images" | sort -u ;;
+    --images*)
+      # Compose 5.4.0 names a service's dependencies with it. Measured on the box, 2026-10-04:
+      # `config --images api` printed the migrate, redis, postgres, api and redis images. These are
+      # deploy/docker-compose.yml's depends_on, transitively, for the services this fixture declares.
+      case "$3" in
+      web) deps="redis api migrate postgres" ;;
+      api) deps="migrate redis postgres" ;;
+      worker) deps="migrate postgres redis" ;;
+      migrate) deps="postgres" ;;
+      *) deps="" ;;
+      esac
+      for s in "$3" $deps; do awk -v s="$s" '$1 == s { print $2 }' "$REG/compose-images"; done ;;
+    *) echo "stub: unexpected compose config $*" >&2; exit 99 ;;
+    esac
     exit 0 ;;
   up)
     printf '%s\n' "$*" >"$REG/up-args"
@@ -433,6 +449,18 @@ for broken in "api $PREFIX-api:latest" "migrate-rewrap $PREFIX-api:applied" "api
   expect_exit 1 "compose binding '$broken' refuses"
   check '! grep -q "^pull" "$REG/docker-calls"' "  … before any pull"
 done
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "a release applies where compose names a service's dependencies with it (Compose 5.4.0)"
+check '[ "$(PATH="$BIN:/usr/bin:/bin" docker compose --profile ops config --images api | wc -l)" -gt 1 ]' "  … the fixture answers as Compose 5.4.0 does"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '#!/bin/sh\nexit 1\n' >"$BIN/python3" && chmod +x "$BIN/python3"
+expect_exit 2 "python3 absent or failing on the box: each service's own image cannot be read"
+rm -f "$BIN/python3"
+check 'said "could not resolve its services" && nothing_tagged && ! grep -q "^pull" "$REG/docker-calls"' "  … with the wrapper's own line, before any pull"
 for extra in "mongo mongo:7" "postgres postgres:19.0"; do
   reset
   release "$SHA1" 10 >/dev/null
@@ -482,7 +510,7 @@ REC=$(release "$SHA1" 10)
 channel "$REC"
 printf 'fail' >"$REG/compose-config-leaks"
 expect_exit 2 "compose failing on a malformed .env cannot be answered"
-check '! said "SECRET-FROM-DOT-ENV" && said "could not resolve service"' "with the wrapper's own line, not compose's"
+check '! said "SECRET-FROM-DOT-ENV" && said "could not resolve its services"' "with the wrapper's own line, not compose's"
 
 echo "-- containers are the service's, never a one-off run's (dotnet-architect P4)"
 reset

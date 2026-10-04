@@ -235,15 +235,21 @@ if grep -qE '^[[:space:]]*(export[[:space:]]+)?IMAGE_TAG[[:space:]]*=' "$ENV_FIL
 fi
 
 # Every service that runs one of our images names it as the local `:applied` tag, and every other
-# image compose declares is an allow-listed upstream one — including the operations profile.
+# image compose declares is an allow-listed upstream one — including the operations profile. Each
+# service's own image comes from compose's resolved model: on Compose 5.4.0, `config --images <service>`
+# also prints the images of the service's dependencies. The model holds values from $ENV_FILE, so it
+# only ever passes through the pipe; what is kept is a name and an image per service.
+declared=$(compose --profile ops config --format json 2>/dev/null |
+  python3 -c 'import json, sys
+for name, service in json.load(sys.stdin)["services"].items(): print(name, service.get("image", ""))' 2>/dev/null) ||
+  cannot_answer "compose could not resolve its services' images (its own message is not logged: it can quote $ENV_FILE)"
+declare -A image_of=()
+while read -r name image; do [ -z "$name" ] || image_of[$name]=$image; done <<<"$declared"
 for svc in "${!SERVICE_IMAGE[@]}"; do
-  declared=$(compose --profile ops config --images "$svc" 2>/dev/null) ||
-    cannot_answer "compose could not resolve service $svc (its own message is not logged: it can quote $ENV_FILE)"
-  [ "$declared" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
-    refuse "compose service $svc runs '$declared', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
+  [ "${image_of[$svc]:-}" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
+    refuse "compose service $svc runs '${image_of[$svc]:-}', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
 done
-mapfile -t images < <(compose --profile ops config --images 2>/dev/null | sort -u)
-[ "${#images[@]}" -gt 0 ] || refuse "compose declared no images"
+mapfile -t images < <(printf '%s\n' "${image_of[@]}" | sort -u)
 upstream=()
 for image in "${images[@]}"; do
   case "$image" in

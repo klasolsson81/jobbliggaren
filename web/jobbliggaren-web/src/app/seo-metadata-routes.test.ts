@@ -30,6 +30,11 @@ describe("robots.ts", () => {
     expect(disallow).toContain("/admin/");
   });
 
+  it("disallows the bare /admin overview at a segment boundary (#1973), without shadowing a sibling", () => {
+    expect(disallow).toContain("/admin$");
+    expect(disallow).not.toContain("/admin");
+  });
+
   it("disallows every authenticated app prefix at a segment boundary (#583: P$ exact + P/ subtree)", () => {
     // Authed (app) areas are single-sourced from PROTECTED_PREFIXES (frozen to the (app) route
     // group by protected-routes.test.ts — #513). Each prefix is emitted as BOTH the exact anchor
@@ -43,7 +48,7 @@ describe("robots.ts", () => {
 
   it("carries no authed (app) entry beyond the boundary-encoded PROTECTED_PREFIXES (frozen to the source of truth)", () => {
     // The (app)-slice of the disallow list = everything except the robots-local, non-(app) extras.
-    const seoLocal = new Set(["/api/", "/gast/", "/admin/"]);
+    const seoLocal = new Set(["/api/", "/gast/", "/admin$", "/admin/"]);
     const appSlice = disallow.filter((entry) => !seoLocal.has(entry)).sort();
     const expected = [...PROTECTED_PREFIXES]
       .flatMap((prefix) => [`${prefix}$`, `${prefix}/`])

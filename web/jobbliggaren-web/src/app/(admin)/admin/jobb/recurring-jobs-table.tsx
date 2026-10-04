@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import { formatDateTime, type JpFormatter } from "@/lib/i18n/format";
 import { JobStateBadge } from "./job-state-badge";
 import type { RecurringJobStatusDto } from "@/lib/dto/admin";
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll";
 
 interface RecurringJobsTableProps {
   jobs: ReadonlyArray<RecurringJobStatusDto>;
@@ -38,12 +39,12 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <AdminTableScroll labelledBy="admin-jobs-recurring-caption">
       <table
         className="jp-table w-full"
         aria-label={t("recurring.table.ariaLabel")}
       >
-        <caption className="sr-only">{t("recurring.table.caption")}</caption>
+        <caption id="admin-jobs-recurring-caption" className="sr-only">{t("recurring.table.caption")}</caption>
         <thead>
           <tr>
             <th scope="col">{t("recurring.table.id")}</th>
@@ -85,6 +86,6 @@ export function RecurringJobsTable({ jobs, format }: RecurringJobsTableProps) {
           })}
         </tbody>
       </table>
-    </div>
+    </AdminTableScroll>
   );
 }

@@ -8,9 +8,188 @@
   },
   "nav": {
     "label": "Admin-navigation",
+    "oversikt": "Översikt",
+    "anvandare": "Användare",
+    "feedback": "Feedback",
+    "loggar": "Loggar",
+    "epost": "E-postleverans",
+    "jobb": "Bakgrundsjobb",
     "granskning": "Granskning",
-    "jobb": "Jobb",
     "logout": "Logga ut"
+  },
+  "unavailable": {
+    "comingSoon": "Kommer snart",
+    "unknownValue": "–"
+  },
+  "overview": {
+    "meta": {
+      "title": "Adminöversikt"
+    },
+    "heading": "Översikt",
+    "kpi": {
+      "newUsers": "Nya användare",
+      "total": "Användare totalt",
+      "active": "Aktiva användare",
+      "logins": "Inloggningar"
+    },
+    "trend": {
+      "title": "Nya användare och inloggningar",
+      "periodLabel": "Period",
+      "periods": {
+        "d7": "7 dygn",
+        "d30": "30 dygn",
+        "d90": "90 dygn"
+      }
+    },
+    "services": {
+      "title": "Tjänster",
+      "link": "Loggar"
+    },
+    "server": {
+      "title": "Server",
+      "cpu": "CPU",
+      "memory": "Minne",
+      "disk": "Disk"
+    },
+    "backup": {
+      "title": "Backup",
+      "latest": "Senaste",
+      "offsite": "Extern kopia",
+      "next": "Nästa",
+      "retention": "Behålls"
+    },
+    "email": {
+      "title": "E-post",
+      "link": "E-postleverans"
+    },
+    "attention": {
+      "title": "Kräver uppmärksamhet"
+    },
+    "events": {
+      "title": "Senaste händelser",
+      "link": "Granskning"
+    }
+  },
+  "users": {
+    "meta": {
+      "title": "Användare"
+    },
+    "heading": "Användare",
+    "search": {
+      "label": "Sök på e-postadress"
+    },
+    "filter": {
+      "label": "Visa konton",
+      "all": "Alla",
+      "active": "Aktiva",
+      "suspended": "Suspenderade",
+      "unverified": "Ej verifierade",
+      "pendingDeletion": "Under radering"
+    },
+    "table": {
+      "caption": "Konton",
+      "account": "Konto",
+      "role": "Roll",
+      "status": "Status",
+      "registered": "Registrerad",
+      "lastLogin": "Senast inloggad",
+      "lastActive": "Senast aktiv",
+      "applications": "Ansökningar",
+      "actions": "Åtgärder"
+    }
+  },
+  "feedback": {
+    "meta": {
+      "title": "Feedback"
+    },
+    "heading": "Feedback",
+    "filter": {
+      "label": "Visa rapporter",
+      "all": "Alla",
+      "new": "Nya",
+      "inProgress": "Pågår",
+      "resolved": "Lösta",
+      "skipped": "Avfärdade"
+    },
+    "list": {
+      "label": "Rapporter"
+    },
+    "detail": {
+      "label": "Vald rapport",
+      "reply": "Svar",
+      "send": "Skicka svar"
+    }
+  },
+  "logs": {
+    "meta": {
+      "security": "Loggar: Säkerhet",
+      "errors": "Loggar: Applikationsfel",
+      "imports": "Loggar: Platsbanken-import"
+    },
+    "heading": "Loggar",
+    "subnav": {
+      "label": "Loggvyer",
+      "security": "Säkerhet",
+      "errors": "Applikationsfel",
+      "imports": "Platsbanken-import"
+    },
+    "security": {
+      "caption": "Säkerhetshändelser",
+      "time": "Tid",
+      "event": "Händelse",
+      "account": "Konto",
+      "ip": "IP (maskerad)",
+      "count": "Antal",
+      "detail": "Detalj"
+    },
+    "errors": {
+      "caption": "Applikationsfel",
+      "lastSeen": "Senast",
+      "level": "Nivå",
+      "source": "Källa",
+      "message": "Meddelande",
+      "count24h": "24 tim"
+    },
+    "imports": {
+      "caption": "Platsbanken-importer",
+      "run": "Körning",
+      "type": "Typ",
+      "start": "Start",
+      "duration": "Längd",
+      "fetched": "Hämtade",
+      "added": "Nya",
+      "updated": "Uppdaterade",
+      "closed": "Avslutade",
+      "status": "Status"
+    }
+  },
+  "email": {
+    "meta": {
+      "title": "E-postleverans"
+    },
+    "heading": "E-postleverans",
+    "lede": "Utskick per mejltyp.",
+    "period": {
+      "label": "Period",
+      "h24": "24 tim",
+      "d3": "3 dygn",
+      "d7": "7 dygn"
+    },
+    "summary": {
+      "sent": "Skickade",
+      "failed": "Misslyckade",
+      "noRecipient": "Utan mottagare"
+    },
+    "table": {
+      "caption": "Utskick per mejltyp",
+      "function": "Mejltyp",
+      "sent": "Skickade",
+      "failed": "Fel",
+      "lastError": "Senaste fel"
+    },
+    "failures": {
+      "heading": "Senaste misslyckade utskick"
+    }
   },
   "audit": {
     "heading": "Granskning",

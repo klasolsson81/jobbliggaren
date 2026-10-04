@@ -121,6 +121,8 @@ docs/design/
 docs/legal/
 docs/handoff-banner/
 docs/handoff-oversikt/
+# Admin design handoff (#1972): a local design reference that carries a real address (ADR 0150).
+docs/design_handoff_admin/
 docs/jobbpilot-v3-bundle/
 docs/current-work.md
 docs/current-work-archive.md

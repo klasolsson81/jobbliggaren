@@ -8,9 +8,188 @@
   },
   "nav": {
     "label": "Admin navigation",
+    "oversikt": "Overview",
+    "anvandare": "Users",
+    "feedback": "Feedback",
+    "loggar": "Logs",
+    "epost": "Email delivery",
+    "jobb": "Background jobs",
     "granskning": "Audit log",
-    "jobb": "Jobs",
     "logout": "Log out"
+  },
+  "unavailable": {
+    "comingSoon": "Coming soon",
+    "unknownValue": "–"
+  },
+  "overview": {
+    "meta": {
+      "title": "Admin overview"
+    },
+    "heading": "Overview",
+    "kpi": {
+      "newUsers": "New users",
+      "total": "Total users",
+      "active": "Active users",
+      "logins": "Sign-ins"
+    },
+    "trend": {
+      "title": "New users and sign-ins",
+      "periodLabel": "Period",
+      "periods": {
+        "d7": "7 days",
+        "d30": "30 days",
+        "d90": "90 days"
+      }
+    },
+    "services": {
+      "title": "Services",
+      "link": "Logs"
+    },
+    "server": {
+      "title": "Server",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk"
+    },
+    "backup": {
+      "title": "Backup",
+      "latest": "Latest",
+      "offsite": "Off-site copy",
+      "next": "Next",
+      "retention": "Kept"
+    },
+    "email": {
+      "title": "Email",
+      "link": "Email delivery"
+    },
+    "attention": {
+      "title": "Needs attention"
+    },
+    "events": {
+      "title": "Recent events",
+      "link": "Audit log"
+    }
+  },
+  "users": {
+    "meta": {
+      "title": "Users"
+    },
+    "heading": "Users",
+    "search": {
+      "label": "Search by email address"
+    },
+    "filter": {
+      "label": "Show accounts",
+      "all": "All",
+      "active": "Active",
+      "suspended": "Suspended",
+      "unverified": "Unverified",
+      "pendingDeletion": "Pending deletion"
+    },
+    "table": {
+      "caption": "Accounts",
+      "account": "Account",
+      "role": "Role",
+      "status": "Status",
+      "registered": "Registered",
+      "lastLogin": "Last signed in",
+      "lastActive": "Last active",
+      "applications": "Applications",
+      "actions": "Actions"
+    }
+  },
+  "feedback": {
+    "meta": {
+      "title": "Feedback"
+    },
+    "heading": "Feedback",
+    "filter": {
+      "label": "Show reports",
+      "all": "All",
+      "new": "New",
+      "inProgress": "In progress",
+      "resolved": "Resolved",
+      "skipped": "Dismissed"
+    },
+    "list": {
+      "label": "Reports"
+    },
+    "detail": {
+      "label": "Selected report",
+      "reply": "Reply",
+      "send": "Send reply"
+    }
+  },
+  "logs": {
+    "meta": {
+      "security": "Logs: Security",
+      "errors": "Logs: Application errors",
+      "imports": "Logs: Platsbanken import"
+    },
+    "heading": "Logs",
+    "subnav": {
+      "label": "Log views",
+      "security": "Security",
+      "errors": "Application errors",
+      "imports": "Platsbanken import"
+    },
+    "security": {
+      "caption": "Security events",
+      "time": "Time",
+      "event": "Event",
+      "account": "Account",
+      "ip": "IP (masked)",
+      "count": "Count",
+      "detail": "Detail"
+    },
+    "errors": {
+      "caption": "Application errors",
+      "lastSeen": "Last seen",
+      "level": "Level",
+      "source": "Source",
+      "message": "Message",
+      "count24h": "24 h"
+    },
+    "imports": {
+      "caption": "Platsbanken imports",
+      "run": "Run",
+      "type": "Type",
+      "start": "Start",
+      "duration": "Duration",
+      "fetched": "Fetched",
+      "added": "New",
+      "updated": "Updated",
+      "closed": "Closed",
+      "status": "Status"
+    }
+  },
+  "email": {
+    "meta": {
+      "title": "Email delivery"
+    },
+    "heading": "Email delivery",
+    "lede": "Sends per email type.",
+    "period": {
+      "label": "Period",
+      "h24": "24 h",
+      "d3": "3 days",
+      "d7": "7 days"
+    },
+    "summary": {
+      "sent": "Sent",
+      "failed": "Failed",
+      "noRecipient": "Without recipient"
+    },
+    "table": {
+      "caption": "Sends per email type",
+      "function": "Email type",
+      "sent": "Sent",
+      "failed": "Failed",
+      "lastError": "Latest error"
+    },
+    "failures": {
+      "heading": "Latest failed sends"
+    }
   },
   "audit": {
     "heading": "Audit log",

@@ -27,9 +27,10 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
  *   - `/api/`   — the API surface.
  *   - `/gast/`  — the logged-out demo sandbox: mirrors the authed app shell with demo data, not
  *                 canonical content (avoids thin/duplicate indexing). No bare `/gast` page exists.
- *   - `/admin/` — the admin surface. No bare `/admin` page exists.
+ *   - `/admin$` + `/admin/` — the admin surface; `/admin` is its overview page (#1973), so it is
+ *                 boundary-encoded like an authed prefix.
  */
-const ROBOTS_LOCAL_DISALLOW = ["/api/", "/gast/", "/admin/"] as const;
+const ROBOTS_LOCAL_DISALLOW = ["/api/", "/gast/", "/admin$", "/admin/"] as const;
 
 export default function robots(): MetadataRoute.Robots {
   return {

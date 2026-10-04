@@ -33,14 +33,14 @@ import { fileURLToPath } from "node:url";
  * Fail-closed on the axes that were live holes when this was first written (design-reviewer Major 1,
  * code-reviewer Majors 1-2, PR #1457): a replacement must sit on a focus state and carry a non-zero
  * width AND a style keyword, so neither `outline: 0px` nor a `:hover`-only ring can absolve a
- * suppression. Declarations are collected from BOTH stylesheet entry points, because a suppression
+ * suppression. Declarations are collected from stylesheet entry points, because a suppression
  * moved into `app.css` must not read as a repair. Comments are stripped first, so rule text left
  * behind in a comment cannot stand in for a live rule. A declaration ending at `}` rather than `;` is
  * collected — note that `scripts/guard-css.mjs` does NOT do this (it clears its buffer on `}`
  * without flushing), so the two scanners genuinely differ and neither is a copy of the other.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SHEETS = ["globals.css", "(app)/app.css"] as const;
+const SHEETS = ["globals.css", "(app)/app.css", "(admin)/admin.css"] as const;
 
 interface Decl {
   sheet: string;

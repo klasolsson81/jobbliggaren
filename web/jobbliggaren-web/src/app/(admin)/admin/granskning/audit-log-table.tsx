@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import type { AuditLogEntryDto } from "@/lib/types/admin";
 import { SWEDISH_TIME_ZONE } from "@/lib/time/swedish-calendar";
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll";
 
 interface AuditLogTableProps {
   entries: ReadonlyArray<AuditLogEntryDto>;
@@ -31,9 +32,9 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <AdminTableScroll labelledBy="admin-audit-caption">
       <table className="jp-table w-full" aria-label={t("audit.table.ariaLabel")}>
-        <caption className="sr-only">{t("audit.table.caption")}</caption>
+        <caption id="admin-audit-caption" className="sr-only">{t("audit.table.caption")}</caption>
         <thead>
           <tr>
             <th scope="col">{t("audit.table.occurredAt")}</th>
@@ -77,7 +78,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
           ))}
         </tbody>
       </table>
-    </div>
+    </AdminTableScroll>
   );
 }
 

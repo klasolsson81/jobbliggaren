@@ -82,6 +82,7 @@ Rules:
 - Destructive actions require a confirmation dialog before executing
 - Icon-only buttons require `aria-label`
 - Loading state: replace label with "Sparar…" and set `disabled`; keep width
+- An action that is not built yet: DESIGN.md §6 (ADR 0150 D2)
 
 ### Card
 

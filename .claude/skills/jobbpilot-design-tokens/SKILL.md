@@ -162,7 +162,7 @@ dark-flippen (`DARK_MODE_ENABLED = false`; ADR 0140 Beslut 2).
 | `--jp-info-fill` | `#1B5396` | (skiftas EJ) | Solid knapp + ikonruta i Branschbevakning-kortet, vit text (7,71:1) |
 | `--jp-info-hover` | `#164478` | (skiftas EJ) | Hover på den knappen (9,85:1) |
 | `--jp-info-border` | `#C5D8F0` | `#2E4F7E` | Kortkant mot `--jp-info-bg` (dekorativ, 1,18:1 / 1,53:1) |
-| `--jp-fs-oversikt-num` | `40px` | — | `.jp-ov-num` — kortens stora tal |
+| `--jp-fs-oversikt-num` | `40px` | — | `.jp-ov-num` — kortens stora tal; även `.jp-adminkpi__value` (ADR 0150 D1) |
 
 ### Hero / gradient (DOKUMENTERAT undantag — ADR 0068)
 

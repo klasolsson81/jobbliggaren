@@ -1,3 +1,4 @@
+import "./admin.css";
 import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
@@ -47,9 +48,10 @@ export default async function AdminLayout({
             AdminNav + account email + logout compose in unchanged. */}
         <HeaderStrip brandHref="/" brandLabel={t("layout.brandAriaLabel")}>
           <AdminNav />
-          <span className="jp-header__spacer" />
-          <div className="flex items-center gap-4">
-            <span className="text-body-sm text-text-secondary">{user.email}</span>
+          <div className="jp-adminaccount">
+            <span className="jp-adminaccount__email" title={user.email}>
+              {user.email}
+            </span>
             <LogoutForm>
               <Button type="submit" variant="ghost" size="sm">
                 {t("nav.logout")}

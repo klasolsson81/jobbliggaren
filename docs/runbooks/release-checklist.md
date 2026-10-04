@@ -2489,6 +2489,9 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
 
 - [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
       visar dem `healthy` (konkret service-namn/compose-fil: #196).
+- [ ] **En release, hel** — `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/release-checklist.md"; exit 1; } && sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status`
+      → `verdict: consistent`: kvittot, `:applied`, containrarna och checkoutens
+      deploy-filer namnger samma release (`vps-deploy-stack.md` §3b).
 - [ ] **`/api/ready` → 200** mot målmiljöns domän (strict readiness: DB +
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
@@ -2504,33 +2507,39 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
       Konkret alerting-konfig: #196 (box) + #1175 (sink).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
-- [ ] **Rollback känd** — pinna föregående image-tagg och kör reconcile-uniten
-      (se §5); över en migrationsgräns vägrar `migrate` i stället (#1236,
-      `vps-deploy-stack.md` §3a).
+- [ ] **Rollback känd** — pinna föregående release i `/etc/jobbliggaren/release-pin`
+      och kör reconcile-uniten (se §5); över en migrationsgräns vägrar `migrate` i
+      stället (#1236, `vps-deploy-stack.md` §3a).
 
 ---
 
 ## 5. Rollback
 
-Vid fel efter deploy (Netcup-lådan, ADR 0050/0122): rollback är en image-tagg —
+Vid fel efter deploy (Netcup-lådan, ADR 0050/0122/0149): rollback är en release-pin —
 **för kod, aldrig för schema** — och den går genom reconcile-uniten, **aldrig via
 handskriven `docker compose up -d`**. En hand-apply tar ingen lock och kör ingen
 attestationsverifiering; wrappern vaktar bara vägen genom uniten
 (`vps-deploy-stack.md` §3b, "Manual applies go through the unit").
 
 ```bash
-# På Netcup-lådan: pinna föregående publicerade tagg och kör uniten.
-sudoedit /opt/jobbliggaren/deploy/.env        # sätt IMAGE_TAG=sha-<föregående>
+# På Netcup-lådan: pinna föregående release och kör uniten.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/release-checklist.md"; exit 1; }
+echo 'sha-<föregående releases 40-hex-commit>' | sudo tee /etc/jobbliggaren/release-pin >/dev/null
 sudo systemctl start jobbliggaren-reconcile.service
 journalctl -u jobbliggaren-reconcile -n 40 --no-pager   # döm journalen, inte exit-koden
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # verdict: consistent
 ```
+
+Pinnen står kvar tills filen tas bort (`sudo rm /etc/jobbliggaren/release-pin`, kör
+sedan uniten).
 
 - **Schema-grinden (#1236):** över en migrationsgräns är en bakåtpinne ingen
   rollback — `migrate` vägrar (exit 3/4) och api/worker hålls nere, fail-closed.
   Vägrans anatomi, de tre utvägarna och override-nyckelns semantik:
   `vps-deploy-stack.md` §3a.
-- **Attestationsfönstret:** en pinnad tagg måste vara publicerad MED attestation,
-  annars vägrar wrappern hela applyn — fönstret ägs av `vps-deploy-stack.md` §3b.
+- **Rollbackfönstret:** bara en release med record går att pinna, så fönstret börjar
+  vid den första recorden (#1238). Det, och fallet där den pinnade releasen har en
+  annan konfiguration än checkouten, ägs av `vps-deploy-stack.md` §3b.
 
 Notera incidenten i `docs/sessions/` + relevant runbook. Skapa ADR om
 rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).

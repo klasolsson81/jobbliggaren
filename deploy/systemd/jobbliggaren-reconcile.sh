@@ -1,58 +1,71 @@
 #!/usr/bin/env bash
-# jobbliggaren-reconcile — pull the published images, prove they are ours, then apply.
+# jobbliggaren-reconcile — apply ONE verified release record, or nothing (#1238, ADR 0149).
 #
-# WHY A SCRIPT AND NOT TWO ExecStart LINES. The unit used to carry
-# `ExecStartPre=/usr/bin/flock -n <file> /bin/true`, which is a no-op: flock releases the lock
-# when /bin/true exits, i.e. inside ExecStartPre, before ExecStart ever runs. Holding a lock
-# across a critical section requires one process that keeps the descriptor open for the whole
-# section, which is this file. (systemd already serialises start jobs per unit, so the lock is
-# not about the timer racing itself — it is about a HUMAN running docker compose by hand while
-# a reconcile is mid-flight.)
+# usage:  jobbliggaren-reconcile.sh            the unit's apply
+#         jobbliggaren-reconcile.sh --stage    first boot only: verify and tag a release, apply nothing
+#         jobbliggaren-reconcile.sh --status   read-only: what is selected, applied, running and checked out
 #
-# AND THE VERIFICATION MUST BE INSIDE THE LOCK. Pulling under the lock, releasing, then
-# verifying would leave a window in which another actor moves the local tag between the check
-# and the apply.
+# WHAT IT APPLIES. Until #1238 this pulled five `latest` tags, and between the first and the last of
+# them a pull could land on a mixed set that every gate then verified, because an attestation binds
+# who built an image and never which tree. Now it reads ONE record — the `dev` channel, or the release
+# the pin file names — and applies exactly the five images that record names, each verified as built
+# from the record's commit, with the compose file that record was released with. The publisher moves
+# `dev` only after the whole set and its record are attested, and one tag move is one registry write.
 #
-# THE ORDER IS PULL, VERIFY, APPLY — AND IT FAILS CLOSED. A refused image is never applied, so
-# the containers already running keep running. That is "stale but serving", which is the right
-# failure for a box whose only alarm channel is the journal (#1175: no log sink exists yet).
+# WHY A SCRIPT AND NOT TWO ExecStart LINES. A lock must be held across the whole critical section by
+# one process: `ExecStartPre=/usr/bin/flock -n <file> /bin/true` released it when /bin/true exited.
+# systemd already serialises the unit against itself; the lock is against a HUMAN running compose, or
+# `--stage`, while a reconcile is mid-flight. Verification sits INSIDE the lock, so nothing can move a
+# local tag between the check and the apply.
 #
-# THE BYPASS IS REAL AND IS NAMED HERE RATHER THAN PRETENDED AWAY. This script guards the path
-# that goes through it. A `docker compose -f … up -d` typed by hand takes no lock and runs no
-# verification, and after a refused run the local `latest` tag already points at the unverified
-# image — so a manual apply would deploy exactly what was just refused. Manual applies go
-# through `systemctl start jobbliggaren-reconcile.service`; the runbook says so in §3b.
+# THE ORDER IS SELECT, PROVE, APPLY — AND IT FAILS CLOSED. A refused run applies nothing and the
+# running containers keep running: "stale but serving", the right failure for a box whose alarm
+# surface is the journal and `systemctl --failed`.
+#
+# WHAT MANUAL COMMANDS SEE. compose names our images `ghcr.io/klasolsson81/jobbliggaren-<x>:applied`,
+# a LOCAL tag this script moves only after everything is proven. A hand-typed `docker compose up -d --pull never api` therefore recreates from
+# the last verified release, never from something a refused run pulled. It still takes no lock and runs
+# no verification, which is why the runbook's exceptions first read `--status`.
 set -euo pipefail
 
+readonly CHECKOUT=/opt/jobbliggaren
 readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
-# Not read here, and deliberately named: compose discovers `.env` beside the compose file on
-# its own, and IMAGE_TAG (the rollback control) reaches the images through that discovery. A
-# reader looking for where the pinned tag enters would otherwise find nothing at all.
+# Read for ONE thing — whether a retired `IMAGE_TAG` key is present — and never echoed: it holds
+# credentials. Compose discovers it on its own for interpolation.
 readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 readonly VERIFIER=/opt/jobbliggaren/deploy/systemd/verify-image-attestation.sh
+readonly RECORD_TOOL=/opt/jobbliggaren/deploy/systemd/jobbliggaren-release-record.sh
 readonly LOCK=/run/jobbliggaren-reconcile.lock
 readonly STAMP=/var/lib/jobbliggaren/last-successful-reconcile
+# What the last successful apply applied: the record's digest, then the record. Written atomically,
+# validated by the record tool whenever it is read.
+readonly RECEIPT=/var/lib/jobbliggaren/applied-release.env
+# Absent: follow the channel. Present: exactly one line, `sha-<40 hex>` or `sha256:<64 hex>`, naming
+# the release to hold. Outside the checkout, so `git merge --ff-only` never touches it.
+readonly PIN_FILE=/etc/jobbliggaren/release-pin
 
 # The injected crypto secrets, and the shared measurement that says who may read them (#1295).
-# SECRETS_DIR is a second literal — jobbliggaren-inject-secrets.sh declares it too — and that is
-# named rather than hidden: COMPOSE_FILE already lives in both files, because these are
-# standalone executables with no shared config, and inventing one for two path constants would
-# cost more than it buys.
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 
-# Images built by our workflow, and therefore attestable. Everything else the compose file
-# pulls must be on the allowlist below or this script refuses: an unknown image is the shape a
-# future service arrives in, and it must fail closed rather than slip past unverified.
 readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
+readonly RELEASE_REPO="${OURS_PREFIX}release"
+# The compose file's `name:`. Our containers are selected by its label, so a one-off `compose run`
+# container (an interrupted `run --rm`) is never counted as the service's.
+readonly COMPOSE_PROJECT="jobbliggaren-prod"
+readonly CHANNEL_TAG="dev"
+readonly APPLIED_TAG="applied"
+readonly -a RELEASE_IMAGES=(api worker migrate web caddy)
+# Every compose service that runs one of our images, and the image it must run. `migrate-rewrap` is the
+# operations profile's service and runs the release's migrate image — the binding is checked here, not
+# assumed from the compose file.
+readonly -A SERVICE_IMAGE=([caddy]=caddy [web]=web [api]=api [worker]=worker [migrate]=migrate [migrate-rewrap]=migrate)
+# Services the postcondition reads after an apply (migrate-rewrap never starts with `up`).
+readonly -a APPLIED_SERVICES=(caddy web api worker migrate)
 
-# Upstream images we deliberately do not verify, named one by one. Attestations for these are
-# not ours to demand — the trust decision for them is the pin in the compose file, which is why
-# each entry carries a tag rather than a bare name.
-# KEEP IN SYNC WITH `deploy/docker-compose.yml`. A version bump there without one here makes
-# this script refuse the whole apply, hourly, with `systemctl --failed` as the only signal on a
-# box that has no log sink (#1175). The compose file carries the reciprocal note next to each
-# pinned tag.
+# Upstream images we deliberately do not verify, named one by one; the trust decision for them is the
+# pin in the compose file, which is why each carries a tag. KEEP IN SYNC WITH `deploy/docker-compose.yml`
+# — a version bump there without one here refuses the whole apply, hourly.
 readonly -a UPSTREAM_ALLOWLIST=(
   "postgres:18.3"
   "redis:8.6-alpine"
@@ -60,284 +73,449 @@ readonly -a UPSTREAM_ALLOWLIST=(
 )
 
 log() { printf '%s\n' "$*"; }
+# To stderr: both are also called inside command substitutions, which would capture stdout and lose the
+# reason. The journal keeps both streams.
+refuse() {
+  log "REFUSING: $*" >&2
+  exit 1
+}
+cannot_answer() {
+  log "CANNOT ANSWER: $*" >&2
+  exit 2
+}
 
-# flock's ABSENCE must not read as its verdict. Without this guard a missing binary makes
-# `flock -n 9` fail with "command not found", which is indistinguishable from "someone else
-# holds the lock" — so the unit would exit 0, apply nothing, and report success on every tick,
-# forever, silently. Found by the fixture suite on a host without util-linux; the wrapper had
-# been one absent package away from being permanently inert while looking healthy.
+mode=apply
+case "${1:-}" in
+"") ;;
+--stage) mode=stage ;;
+--status) mode=status ;;
+*)
+  log "usage: $0 [--stage | --status]"
+  exit 2
+  ;;
+esac
+
+# BY PATH, never COMPOSE_FILE — the compose guards are structurally blind to that channel (#1217).
+compose() { /usr/bin/docker compose -f "$COMPOSE_FILE" "$@"; }
+
+field() { sed -n "s/^$2=//p" <<<"$1"; }
+
+# The pin file, read strictly: absent → the channel; anything but one well-formed line → refused, and
+# never a fallback to the channel.
+read_selection() {
+  if [ ! -e "$PIN_FILE" ]; then
+    printf 'channel'
+    return 0
+  fi
+  [ -f "$PIN_FILE" ] && [ -r "$PIN_FILE" ] || refuse "$PIN_FILE exists but is not a readable file"
+  local lines value
+  lines=$(wc -l <"$PIN_FILE")
+  [ "$(wc -c <"$PIN_FILE")" -le 80 ] && [ "$lines" -eq 1 ] || refuse "$PIN_FILE must hold exactly one line"
+  value=$(cat "$PIN_FILE")
+  [[ $value =~ ^(sha-[0-9a-f]{40}|sha256:[0-9a-f]{64})$ ]] ||
+    refuse "$PIN_FILE must name sha-<40 hex> or sha256:<64 hex>; it names something else"
+  printf 'pin %s' "$value"
+}
+
+# The repo digest a local image carries for THIS repository — exactly one, or nothing.
+repo_digest() {
+  local ref="$1" repo="$2"
+  local -a found
+  mapfile -t found < <(
+    /usr/bin/docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" 2>/dev/null |
+      grep -F "${repo}@" | sort -u
+  )
+  [ "${#found[@]}" -eq 1 ] || return 1
+  printf '%s' "${found[0]#*@}"
+}
+
+image_id() { /usr/bin/docker image inspect --format '{{.Id}}' "$1" 2>/dev/null; }
+
+service_containers() {
+  /usr/bin/docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT" \
+    --filter "label=com.docker.compose.service=$1" --filter "label=com.docker.compose.oneoff=False"
+}
+
+# --- --status: three states, compared; read-only, takes no lock -----------------------------------------
+if [ "$mode" = status ]; then
+  [ -x "$RECORD_TOOL" ] || cannot_answer "record tool missing or not executable: $RECORD_TOOL"
+  selection=$(read_selection)
+  log "selection: ${selection/pin /pin: }"
+  if [ ! -e "$RECEIPT" ]; then
+    log "receipt:   none — nothing has been applied by a record"
+    for name in "${RELEASE_IMAGES[@]}"; do
+      id=$(image_id "$OURS_PREFIX$name:$APPLIED_TAG" || true)
+      if [ -n "$id" ]; then log "applied:   $name ${id:7:12}"; else log "applied:   $name absent"; fi
+    done
+    log "verdict:   NOT APPLIED"
+    exit 1
+  fi
+  receipt=$("$RECORD_TOOL" receipt "$RECEIPT") || cannot_answer "the receipt at $RECEIPT does not validate"
+  rec_digest=$(field "$receipt" JBL_RECEIPT_RECORD_DIGEST)
+  log "receipt:   release $rec_digest, source $(field "$receipt" JBL_RELEASE_SOURCE_SHA), sequence $(field "$receipt" JBL_RELEASE_SEQUENCE)"
+  differs=""
+  # A manual compose command re-creates from THIS checkout's compose file and `:applied`, so a checkout
+  # advanced past the applied release would put its images under a configuration they were not released
+  # with — the pairing an apply refuses.
+  deploy_here=$("$RECORD_TOOL" deploy-hash "$CHECKOUT") || cannot_answer "could not hash the deployment files in $CHECKOUT"
+  if [ "$deploy_here" = "$(field "$receipt" JBL_RELEASE_DEPLOY_SHA256)" ]; then
+    log "config:    the checkout's deployment files match the receipt"
+  else
+    log "config:    the checkout's deployment files DIFFER from the receipt's"
+    differs+=" config"
+  fi
+  for name in "${RELEASE_IMAGES[@]}"; do
+    want=$(image_id "$OURS_PREFIX$name@$(field "$receipt" "JBL_RELEASE_IMAGE_${name^^}")" || true)
+    have=$(image_id "$OURS_PREFIX$name:$APPLIED_TAG" || true)
+    if [ -n "$want" ] && [ "$have" = "$want" ]; then
+      log "applied:   $name matches the receipt"
+    else
+      log "applied:   $name DIFFERS (${have:-absent})"
+      differs+=" applied:$name"
+    fi
+  done
+  for svc in "${APPLIED_SERVICES[@]}"; do
+    want=$(image_id "$OURS_PREFIX${SERVICE_IMAGE[$svc]}@$(field "$receipt" "JBL_RELEASE_IMAGE_${SERVICE_IMAGE[$svc]^^}")" || true)
+    cid=$(service_containers "$svc" 2>/dev/null || true)
+    have=""
+    [ -z "$cid" ] || [ "$(wc -l <<<"$cid")" -ne 1 ] || have=$(/usr/bin/docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true)
+    if [ -n "$want" ] && [ "$have" = "$want" ]; then
+      log "running:   $svc matches the receipt"
+    else
+      log "running:   $svc DIFFERS (${have:-no container})"
+      differs+=" running:$svc"
+    fi
+  done
+  if [ -n "$differs" ]; then
+    log "verdict:   INCONSISTENT —$differs"
+    exit 1
+  fi
+  log "verdict:   consistent — the checkout's deployment files, :applied, the receipt and the running containers name release $rec_digest"
+  exit 0
+fi
+
+# flock's ABSENCE must not read as its verdict: a missing binary makes `flock -n 9` fail like a held
+# lock, and the unit would exit 0 forever having applied nothing.
 command -v flock >/dev/null 2>&1 || {
   log "REFUSING: flock not found — exclusivity cannot be established (install util-linux)"
   exit 2
 }
 
-# EXIT 0 WHEN THE LOCK IS HELD, and this is deliberate. A benign overlap — a manual run landing
-# on a timer firing — is not a unit failure, and marking it one would put the unit in
-# `systemctl --failed`, which is the box's only alarm surface. It must mean something is wrong.
+# EXIT 0 WHEN THE LOCK IS HELD: a benign overlap is not a unit failure, and `systemctl --failed` must
+# mean something is wrong.
 exec 9>"$LOCK"
 if ! flock -n 9; then
   log "another reconcile holds $LOCK; this run is a no-op (not a failure)"
   exit 0
 fi
 
-[ -f "$COMPOSE_FILE" ] || {
-  log "REFUSING: no compose file at $COMPOSE_FILE"
-  exit 1
-}
-[ -x "$VERIFIER" ] || {
-  log "REFUSING: verifier missing or not executable: $VERIFIER"
-  exit 1
-}
+[ -f "$COMPOSE_FILE" ] || refuse "no compose file at $COMPOSE_FILE"
+[ -x "$VERIFIER" ] || refuse "verifier missing or not executable: $VERIFIER"
+[ -x "$RECORD_TOOL" ] || cannot_answer "record tool missing or not executable: $RECORD_TOOL"
+[ -x "$RUNTIME_IDS" ] || cannot_answer "runtime-id helper missing or not executable: $RUNTIME_IDS"
+[ -r "$ENV_FILE" ] || cannot_answer "$ENV_FILE is not readable"
 
-# EXIT 2, NOT 1, AND THE DIVERGENCE FROM THE GUARD ABOVE IS DELIBERATE. A missing helper is "the
-# check could not run", which is what 2 means in this script's own vocabulary (see the verifier
-# loop below). The neighbouring verifier guard's exit 1 predates #1295 and is not this delta's
-# to change.
-[ -x "$RUNTIME_IDS" ] || {
-  log "CANNOT ANSWER: runtime-id helper missing or not executable: $RUNTIME_IDS"
-  exit 2
-}
+if [ "$mode" = stage ] && [ -e "$RECEIPT" ]; then
+  refuse "--stage is for a first boot only, and $RECEIPT exists: this box has applied a release. Run the unit."
+fi
 
-# BY PATH, never COMPOSE_FILE — the compose guards are structurally blind to that channel
-# (#1217), so a green guard would vouch for a file the deploy does not run.
-compose() { /usr/bin/docker compose -f "$COMPOSE_FILE" "$@"; }
+# --- 1. selection and the compose binding — no network yet ------------------------------------------------
+selection=$(read_selection)
+case "$selection" in
+channel) ref="$RELEASE_REPO:$CHANNEL_TAG" pinned_digest="" expected_sha="" ;;
+"pin sha-"*) ref="$RELEASE_REPO:${selection#pin }" pinned_digest="" expected_sha="${selection#pin sha-}" ;;
+"pin sha256:"*) ref="$RELEASE_REPO@${selection#pin }" pinned_digest="${selection#pin }" expected_sha="" ;;
+esac
+log "selection: $selection"
 
-log "pulling images declared in $COMPOSE_FILE"
-compose pull --quiet
+# The retired rollback control: a pin there would now pin nothing, silently. Presence of the key is all
+# that is read; no line of the file is ever printed.
+if grep -qE '^[[:space:]]*(export[[:space:]]+)?IMAGE_TAG[[:space:]]*=' "$ENV_FILE"; then
+  refuse "$ENV_FILE sets IMAGE_TAG, which no longer pins anything (#1238). Remove it; pin a release in $PIN_FILE."
+fi
 
-# The image LIST, from compose's own resolved model — client-side, no daemon call. The tag of
-# each image is resolved to a digest further down, once, from what the pull landed.
-mapfile -t images < <(compose config --images | sort -u)
-[ "${#images[@]}" -gt 0 ] || {
-  log "REFUSING: compose declared no images"
-  exit 1
-}
-
-verified=0
-skipped=0
-# Captured inside the loop and ONLY after this image has verified, so the secrets gate below can
-# never be the thing that executes an image the box just refused (#1295).
-api_digest=""
-worker_digest=""
+# Every service that runs one of our images names it as the local `:applied` tag, and every other
+# image compose declares is an allow-listed upstream one — including the operations profile.
+for svc in "${!SERVICE_IMAGE[@]}"; do
+  declared=$(compose --profile ops config --images "$svc" 2>/dev/null) ||
+    cannot_answer "compose could not resolve service $svc (its own message is not logged: it can quote $ENV_FILE)"
+  [ "$declared" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
+    refuse "compose service $svc runs '$declared', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
+done
+mapfile -t images < <(compose --profile ops config --images 2>/dev/null | sort -u)
+[ "${#images[@]}" -gt 0 ] || refuse "compose declared no images"
+upstream=()
 for image in "${images[@]}"; do
   case "$image" in
-  "$OURS_PREFIX"*) ;;
-  *)
-    allowed=0
-    for u in "${UPSTREAM_ALLOWLIST[@]}"; do
-      [ "$image" = "$u" ] && allowed=1 && break
-    done
-    if [ "$allowed" -eq 1 ]; then
-      log "skipping $image (upstream, on the allowlist)"
-      skipped=$((skipped + 1))
-      continue
-    fi
-    log "REFUSING: $image is neither ours nor on the upstream allowlist."
-    log "  Add it to UPSTREAM_ALLOWLIST with its tag, or publish it through release-images.yml."
-    exit 1
+  "$OURS_PREFIX"*":$APPLIED_TAG")
+    name=${image#"$OURS_PREFIX"}
+    name=${name%:"$APPLIED_TAG"}
+    case " ${RELEASE_IMAGES[*]} " in *" $name "*) continue ;; esac
+    refuse "$image is ours by name but not one of the released images"
     ;;
   esac
+  allowed=0
+  for u in "${UPSTREAM_ALLOWLIST[@]}"; do [ "$image" = "$u" ] && allowed=1 && break; done
+  [ "$allowed" -eq 1 ] || refuse "$image is neither one of the released images nor on the upstream allowlist"
+  upstream+=("$image")
+done
 
-  # RepoDigests, not the tag. Select the entry belonging to THIS repository: an image id can
-  # carry several (a prior pull by digest, a re-push under another tag), and index 0 is not a
-  # contract. Zero entries or two different digests for the same repository both refuse.
-  repo="${image%%:*}"
-  mapfile -t digests < <(
-    /usr/bin/docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null |
-      grep -F "${repo}@" | sort -u
-  )
-  if [ "${#digests[@]}" -ne 1 ]; then
-    log "REFUSING: expected exactly one repo digest for $repo, found ${#digests[@]}"
-    printf '  %s\n' "${digests[@]:-(none)}"
-    exit 1
+# --- 2. one snapshot of the release, read only in the verify-first order ---------------------------------
+/usr/bin/docker pull --quiet "$ref" >/dev/null 2>&1 ||
+  cannot_answer "could not pull $ref (before activation the package may not be public yet, or not published yet)"
+rec_digest=$(repo_digest "$ref" "$RELEASE_REPO") || refuse "expected exactly one repo digest for $RELEASE_REPO on $ref"
+[ -z "$pinned_digest" ] || [ "$rec_digest" = "$pinned_digest" ] || refuse "pulled $rec_digest, but $PIN_FILE pins $pinned_digest"
+
+record_status=0
+if [ -n "$expected_sha" ]; then
+  record=$("$RECORD_TOOL" read "$RELEASE_REPO@$rec_digest" "$expected_sha") || record_status=$?
+else
+  record=$("$RECORD_TOOL" read "$RELEASE_REPO@$rec_digest") || record_status=$?
+fi
+[ "$record_status" -eq 0 ] || {
+  log "REFUSING: the release $rec_digest is not a proven record (exit $record_status); nothing is applied"
+  exit "$record_status"
+}
+source_sha=$(field "$record" JBL_RELEASE_SOURCE_SHA)
+sequence=$(field "$record" JBL_RELEASE_SEQUENCE)
+log "release $rec_digest: source $source_sha, sequence $sequence"
+
+# --- 3. the deployment configuration it was released with -------------------------------------------------
+deploy_here=$("$RECORD_TOOL" deploy-hash "$CHECKOUT") || cannot_answer "could not hash the deployment files in $CHECKOUT"
+if [ "$deploy_here" != "$(field "$record" JBL_RELEASE_DEPLOY_SHA256)" ]; then
+  log "REFUSING: this checkout's deployment files are not the ones release $source_sha was built to run with."
+  log "  checkout: $deploy_here"
+  log "  release:  $(field "$record" JBL_RELEASE_DEPLOY_SHA256)"
+  log "  Nothing is applied; the running containers stay up. To apply this release, advance the checkout"
+  log "  to its commit (a deploy, on Klas's GO — vps-deploy-stack.md §3b):"
+  log "    sudo git -C $CHECKOUT fetch origin main && sudo flock $LOCK git -C $CHECKOUT merge --ff-only $source_sha"
+  log "  For a checkout that is not behind the release, see vps-deploy-stack.md §3b, Rollback and Never advance past the release."
+  exit 1
+fi
+
+# --- 4. channel acceptance against the last applied release ------------------------------------------------
+if [ -e "$RECEIPT" ]; then
+  receipt=$("$RECORD_TOOL" receipt "$RECEIPT") || cannot_answer "the receipt at $RECEIPT does not validate; nothing is applied"
+  r_sha=$(field "$receipt" JBL_RELEASE_SOURCE_SHA)
+  r_seq=$(field "$receipt" JBL_RELEASE_SEQUENCE)
+  missing=$(comm -23 <(field "$receipt" JBL_RELEASE_MIGRATIONS_APP | tr ',' '\n' | LC_ALL=C sort) \
+    <(field "$record" JBL_RELEASE_MIGRATIONS_APP | tr ',' '\n' | LC_ALL=C sort) | paste -sd, -)
+  added_identity=$(comm -13 <(field "$receipt" JBL_RELEASE_MIGRATIONS_IDENTITY | tr ',' '\n' | LC_ALL=C sort) \
+    <(field "$record" JBL_RELEASE_MIGRATIONS_IDENTITY | tr ',' '\n' | LC_ALL=C sort) | paste -sd, -)
+  if [ "$selection" = channel ]; then
+    if [ "$sequence" -lt "$r_seq" ] || { [ "$sequence" -eq "$r_seq" ] && [ "$source_sha" != "$r_sha" ]; }; then
+      refuse "the channel names release $source_sha (sequence $sequence), behind the applied $r_sha (sequence $r_seq); following the channel never moves backwards — pin a release to do that deliberately"
+    fi
+    [ -z "$missing" ] ||
+      refuse "release $source_sha lacks migrations the applied release holds ($missing); following the channel never moves the schema backwards"
+  else
+    log "pinned: the applied release is $r_sha (sequence $r_seq); the schema gate in migrate decides compatibility${missing:+ — this release lacks $missing}"
   fi
+  [ -z "$added_identity" ] ||
+    log "NOTE: release $source_sha adds Identity migrations the unit does not apply ($added_identity) — vps-deploy-stack.md §3c"
+else
+  log "no receipt at $RECEIPT: this is the first apply by a record (a bootstrap; it may move backwards once)"
+fi
 
-  # THE VERIFIER'S THREE OUTCOMES SURVIVE TO THE UNIT'S EXIT STATUS. Collapsing 1 and 2 into
-  # one code would leave `systemctl --failed` unable to distinguish "this image is not proven"
-  # from "the check could not run" — and on a box whose only alarm surface is that list
-  # (#1175: no log sink), the difference is the difference between a compromise and an outage.
-  # Both still refuse; only the reported reason differs.
+# --- 5. each image: pulled by the digest the record names, verified as built from its commit -------------
+declare -A digest_of=()
+for name in "${RELEASE_IMAGES[@]}"; do
+  digest=$(field "$record" "JBL_RELEASE_IMAGE_${name^^}")
+  repo="$OURS_PREFIX$name"
+  /usr/bin/docker pull --quiet "$repo@$digest" >/dev/null 2>&1 || cannot_answer "could not pull $repo@$digest"
+  found=$(repo_digest "$repo@$digest" "$repo") || refuse "expected exactly one repo digest for $repo"
+  [ "$found" = "$digest" ] || refuse "$repo@$digest carries the repo digest $found"
   verify_status=0
-  "$VERIFIER" "${digests[0]}" || verify_status=$?
+  "$VERIFIER" "$repo@$digest" "$source_sha" || verify_status=$?
   if [ "$verify_status" -ne 0 ]; then
-    log "REFUSING: $image did not verify (verifier exit $verify_status — 1: not proven, 2: could not answer). Nothing is applied; the running containers stay up."
+    log "REFUSING: $repo@$digest did not verify as built from $source_sha (verifier exit $verify_status — 1: not proven, 2: could not answer). Nothing is applied; the running containers stay up."
     exit "$verify_status"
   fi
-  verified=$((verified + 1))
+  digest_of[$name]="$digest"
+done
+api_digest="${OURS_PREFIX}api@${digest_of[api]}"
+worker_digest="${OURS_PREFIX}worker@${digest_of[worker]}"
 
-  # The api image is the representative: it is the one jobbliggaren-inject-secrets.sh measured
-  # when it set the ownership, so it is the one the gate must compare against. A divergence
-  # BETWEEN our three images is out of scope by decision — all three Dockerfiles declare
-  # `USER app`, and nothing on this box or in CI measures a drift between them today — while
-  # measuring every OURS_ image here would refuse falsely the day one ships that mounts no
-  # secrets.
-  #
-  # Both separators, because the classifier above is prefix-based and this selector is not.
-  # MEASURED 2026-08-12: the `@` arm is unreachable today and this is belt-and-braces, not a
-  # repair — a digest-form entry would already fail in the digest rule above, whose
-  # `repo="${image%%:*}"` cuts at the colon INSIDE `@sha256:` and then matches no RepoDigest
-  # ("found 0", exit 1). It fails closed, before this line. The arm exists so that a future fix
-  # to that truncation does not silently leave api_digest empty.
-  case "$image" in
-  "${OURS_PREFIX}api:"* | "${OURS_PREFIX}api@"*) api_digest="${digests[0]}" ;;
-  "${OURS_PREFIX}worker:"* | "${OURS_PREFIX}worker@"*) worker_digest="${digests[0]}" ;;
-  esac
+for image in "${upstream[@]}"; do
+  /usr/bin/docker pull --quiet "$image" >/dev/null 2>&1 || cannot_answer "could not pull the upstream image $image"
+  log "pulled $image (upstream, on the allowlist)"
 done
 
-# ---------------------------------------------------------------------------------------------
-# THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was
-# current AT INJECTION TIME; this pull may have brought a different one. A base-image bump that
-# moves uid or gid makes the read-only mount unreadable — the directory is 0710 root:<gid> so
-# group traversal is the container's only way in, and the files are 0400 <uid> so the owner is
-# the only reader — and the app then reports a MISSING KEY rather than a permission problem.
-#
-# It sits here, after the verify loop and before the word "applying" is ever printed, for two
-# reasons that are not interchangeable: measuring the ids RUNS the image, so it must follow
-# attestation; and a refusal must not be preceded by a line announcing an apply.
-# ---------------------------------------------------------------------------------------------
-# No `shopt -s nullglob`: setting it here would leave the shell in a state this script did not
-# find it in, and the literal-pattern case it exists to avoid is one `-e` test.
-regular_secrets=()
-for f in "$SECRETS_DIR"/*; do
-  # An unmatched glob stays literal, and so does one against a directory that does not exist.
-  [ -e "$f" ] || continue
-  # REGULAR FILES ONLY. A directory or socket under $SECRETS_DIR is not something an image's uid
-  # has to own, and counting one would turn the skip arm into a permanent refusal on a box where
-  # nothing was ever injected.
-  if [ -f "$f" ]; then
-    regular_secrets+=("$f")
-  fi
-done
+if [ "$mode" = apply ]; then
+  # ---------------------------------------------------------------------------------------------------------
+  # THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was current AT
+  # INJECTION TIME; this release may bring a different one. A base-image bump that moves uid or gid makes
+  # the read-only mount unreadable — the directory is 0710 root:<gid>, the files 0400 <uid> — and the app
+  # then reports a MISSING KEY rather than a permission problem. Measuring the ids RUNS the image, so it
+  # follows the verification above, and a refusal is never preceded by a line announcing an apply.
+  # ---------------------------------------------------------------------------------------------------------
+  regular_secrets=()
+  for f in "$SECRETS_DIR"/*; do
+    [ -e "$f" ] || continue
+    if [ -f "$f" ]; then
+      regular_secrets+=("$f")
+    fi
+  done
 
-if [ "${#regular_secrets[@]}" -eq 0 ]; then
-  # NOT A HOLE, AND IT NEEDS NO TIME BOUND. If nothing has been injected there is nothing an
-  # image bump can make unreadable, and whichever of inject and apply happens last establishes
-  # the coupling: a later injection measures the image this run is about to apply. A gate that
-  # refused here would be permanently red from the hour it shipped until cutover day, and
-  # `systemctl --failed` must mean something is wrong.
-  log "no injected secrets in $SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
-else
-  [ -n "$api_digest" ] || {
-    log "CANNOT ANSWER: secrets are injected in $SECRETS_DIR but no ${OURS_PREFIX}api image was"
-    log "  verified in this run, so the ids they must match cannot be determined. Nothing applied."
-    exit 2
-  }
-
-  # A DIGEST, AND THE SCRIPT SAYS SO RATHER THAN ASSUMING IT. What makes running this image safe
-  # is that its content is addressed by the hash the verifier just cleared; a tag would be a
-  # different artefact by the time it is run. The helper's charset admits both forms — it serves
-  # a caller that legitimately passes a tag — so the constraint belongs here, at the caller that
-  # has one.
-  case "$api_digest" in
-  *@sha256:*) ;;
-  *)
-    log "CANNOT ANSWER: the api reference to measure is not a digest ('$api_digest')."
-    log "  Measuring runs the image, and only a digest is the artefact attestation cleared."
-    log "  Nothing is applied; the running containers stay up."
-    exit 2
-    ;;
-  esac
-
-  ids_out=$("$RUNTIME_IDS" "$api_digest") || {
-    log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
-    log "  Nothing is applied; the running containers stay up."
-    exit 2
-  }
-  mapfile -t runtime_ids <<<"$ids_out"
-  want_uid="${runtime_ids[0]:-}"
-  want_gid="${runtime_ids[1]:-}"
-  # The helper already validates its own output. Re-validating here is not distrust of it but of
-  # the SEAM: it is a separate executable on the box, and a gate that compares against an empty
-  # string would refuse with a message naming no number at all.
-  if ! [[ "$want_uid" =~ ^[0-9]+$ && "$want_gid" =~ ^[0-9]+$ ]]; then
-    log "CANNOT ANSWER: $RUNTIME_IDS succeeded but did not return two numeric ids."
-    log "  Nothing is applied; the running containers stay up."
-    exit 2
-  fi
-
-  # A FAILING `stat` IS "COULD NOT ANSWER", NOT A REFUSAL, and without this it would be neither:
-  # under `set -e` the assignment would exit 1 with no journal line at all, which reads on
-  # `systemctl --failed` as an ownership refusal that never named a number.
-  dir_gid=$(stat -c '%g' "$SECRETS_DIR") || {
-    log "CANNOT ANSWER: could not stat $SECRETS_DIR. Nothing is applied."
-    exit 2
-  }
-  if [ "$dir_gid" != "$want_gid" ]; then
-    log "REFUSING: the incoming api image cannot TRAVERSE $SECRETS_DIR."
-    log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
-    log "  so group traversal is the container's only way in — api and worker would report a"
-    log "  missing master key. Nothing is applied; the running containers stay up."
-    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run the two"
-    log "  re-owning commands below, then start the unit. The files form is a find, not a glob:"
-    log "  0710 denies the read to every non-root user and YOUR shell expands a glob before"
-    log "  sudo elevates, so a glob reaches chown unexpanded. -mindepth 1 keeps the directory"
-    log "  out — root owns it, and a recursive chown would take it."
-    log "  These lines are long and journalctl's pager chops them; read with --no-pager."
-    log "    sudo chown root:$want_gid $SECRETS_DIR"
-    log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
-    log "    sudo systemctl start jobbliggaren-reconcile.service"
-    exit 1
-  fi
-
-  for f in "${regular_secrets[@]}"; do
-    # OWNER AND MODE IN ONE `stat`, because the claim this gate logs is READABILITY and the owner
-    # alone does not establish it: a file with the right owner and mode 0000 crash-loops the
-    # stack with the same "missing master key" this gate exists to prevent. Nothing else on the
-    # box reads the files' mode — `--check` reads the directory's.
-    file_meta=$(stat -c '%u %a' "$f") || {
-      log "CANNOT ANSWER: could not stat $f. Nothing is applied."
+  if [ "${#regular_secrets[@]}" -eq 0 ]; then
+    # NOT A HOLE: if nothing has been injected there is nothing an image bump can make unreadable, and a
+    # later injection measures the image this run is about to apply.
+    log "no injected secrets in $SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
+  else
+    ids_out=$("$RUNTIME_IDS" "$api_digest") || {
+      log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
+      log "  Nothing is applied; the running containers stay up."
       exit 2
     }
-    file_uid="${file_meta% *}"
-    file_mode="${file_meta#* }"
-    if [ "$file_uid" != "$want_uid" ]; then
-      log "REFUSING: the incoming api image cannot READ the injected secrets."
-      log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
-      log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
-      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
-      log "  NOT part of it — root owns that, and -mindepth 1 is what keeps it out. A glob would"
-      log "  not do: 0710 denies the read to every non-root user and YOUR shell expands a glob"
-      log "  before sudo elevates, so it would reach chown unexpanded."
+    mapfile -t runtime_ids <<<"$ids_out"
+    want_uid="${runtime_ids[0]:-}"
+    want_gid="${runtime_ids[1]:-}"
+    if ! [[ "$want_uid" =~ ^[0-9]+$ && "$want_gid" =~ ^[0-9]+$ ]]; then
+      log "CANNOT ANSWER: $RUNTIME_IDS succeeded but did not return two numeric ids."
+      log "  Nothing is applied; the running containers stay up."
+      exit 2
+    fi
+
+    dir_gid=$(stat -c '%g' "$SECRETS_DIR") || {
+      log "CANNOT ANSWER: could not stat $SECRETS_DIR. Nothing is applied."
+      exit 2
+    }
+    if [ "$dir_gid" != "$want_gid" ]; then
+      log "REFUSING: the incoming api image cannot TRAVERSE $SECRETS_DIR."
+      log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
+      log "  so group traversal is the container's only way in — api and worker would report a"
+      log "  missing master key. Nothing is applied; the running containers stay up."
+      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run the two"
+      log "  re-owning commands below, then start the unit. The files form is a find, not a glob:"
+      log "  0710 denies the read to every non-root user and YOUR shell expands a glob before"
+      log "  sudo elevates, so a glob reaches chown unexpanded. -mindepth 1 keeps the directory"
+      log "  out — root owns it, and a recursive chown would take it."
       log "  These lines are long and journalctl's pager chops them; read with --no-pager."
+      log "    sudo chown root:$want_gid $SECRETS_DIR"
       log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
       log "    sudo systemctl start jobbliggaren-reconcile.service"
       exit 1
     fi
-    # The owner's read bit, not the exact 0400: injection writes 0400, but refusing every other
-    # mode would make this gate an opinion about permissions rather than a statement about
-    # readability.
-    if (( (8#$file_mode & 0400) == 0 )); then
-      log "REFUSING: $f is owned by the right uid ($file_uid) but its mode is $file_mode —"
-      log "  the owner cannot read it, so api and worker would report a missing master key"
-      log "  anyway. Nothing is applied; the running containers stay up."
-      log "    sudo chmod 0400 $f"
-      log "    sudo systemctl start jobbliggaren-reconcile.service"
+
+    for f in "${regular_secrets[@]}"; do
+      file_meta=$(stat -c '%u %a' "$f") || {
+        log "CANNOT ANSWER: could not stat $f. Nothing is applied."
+        exit 2
+      }
+      file_uid="${file_meta% *}"
+      file_mode="${file_meta#* }"
+      if [ "$file_uid" != "$want_uid" ]; then
+        log "REFUSING: the incoming api image cannot READ the injected secrets."
+        log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
+        log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
+        log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
+        log "  NOT part of it — root owns that, and -mindepth 1 is what keeps it out. A glob would"
+        log "  not do: 0710 denies the read to every non-root user and YOUR shell expands a glob"
+        log "  before sudo elevates, so it would reach chown unexpanded."
+        log "  These lines are long and journalctl's pager chops them; read with --no-pager."
+        log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
+        log "    sudo systemctl start jobbliggaren-reconcile.service"
+        exit 1
+      fi
+      if (((8#$file_mode & 0400) == 0)); then
+        log "REFUSING: $f is owned by the right uid ($file_uid) but its mode is $file_mode —"
+        log "  the owner cannot read it, so api and worker would report a missing master key"
+        log "  anyway. Nothing is applied; the running containers stay up."
+        log "    sudo chmod 0400 $f"
+        log "    sudo systemctl start jobbliggaren-reconcile.service"
+        exit 1
+      fi
+    done
+
+    log "injected secrets are readable by the incoming image (uid $want_uid, gid $want_gid)"
+  fi
+
+  if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
+    bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check-images "$api_digest" "$worker_digest" || {
+      log "REFUSING: Redis credential mounts do not match the incoming readers; nothing is applied."
       exit 1
+    }
+  fi
+fi
+
+# --- 6. move :applied, apply, prove, record — or put :applied back ------------------------------------------
+declare -A prior=()
+for name in "${RELEASE_IMAGES[@]}"; do
+  prior[$name]=$(image_id "$OURS_PREFIX$name:$APPLIED_TAG" || true)
+done
+
+restore_applied() {
+  local name ok=0
+  for name in "${RELEASE_IMAGES[@]}"; do
+    if [ -n "${prior[$name]}" ]; then
+      /usr/bin/docker tag "${prior[$name]}" "$OURS_PREFIX$name:$APPLIED_TAG" || ok=1
+    elif image_id "$OURS_PREFIX$name:$APPLIED_TAG" >/dev/null; then
+      /usr/bin/docker rmi "$OURS_PREFIX$name:$APPLIED_TAG" >/dev/null || ok=1
     fi
   done
+  return "$ok"
+}
 
-  log "injected secrets are readable by the incoming image (uid $want_uid, gid $want_gid)"
+in_tag_phase=0
+on_exit() {
+  local status=$?
+  if [ "$in_tag_phase" -eq 1 ]; then
+    in_tag_phase=0
+    if restore_applied; then
+      log "the run failed after :applied was moved; :applied is restored to what this run found"
+    else
+      log "CANNOT ANSWER: the run failed after :applied was moved, and restoring it failed — local :applied"
+      log "  may be mixed. Do not run a manual compose command; read --status and start the unit again."
+      status=2
+    fi
+  fi
+  exit "$status"
+}
+trap on_exit EXIT
+
+in_tag_phase=1
+for name in "${RELEASE_IMAGES[@]}"; do
+  /usr/bin/docker tag "$OURS_PREFIX$name@${digest_of[$name]}" "$OURS_PREFIX$name:$APPLIED_TAG"
+done
+
+if [ "$mode" = stage ]; then
+  in_tag_phase=0
+  log "staged release $rec_digest (source $source_sha): :applied names its verified images; nothing applied, no receipt"
+  exit 0
 fi
 
-if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
-  bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check-images "$api_digest" "$worker_digest" || {
-    log "REFUSING: Redis credential mounts do not match the incoming readers; nothing is applied."
-    exit 1
-  }
-fi
-log "verified $verified image(s), skipped $skipped upstream; applying"
+log "verified ${#RELEASE_IMAGES[@]} image(s), pulled ${#upstream[@]} upstream; applying release $source_sha"
 
-# `--pull never` COMPLETES THE TOCTOU ARGUMENT. Verification ran against the digests already
-# on disk; if `up -d` were free to consult the registry again it could resolve a tag to
-# something newer than what was verified, and the whole check would guard a different image.
-# compose's default is `missing`, which would only pull an absent image — but "would only" is
-# an assumption about a version, and the box runs Compose v5.4.0 while this file's behavioural
-# notes were taken on 2.40.3. Stating it removes the assumption instead of documenting it.
+# `--pull never` (and `pull_policy: never` in compose) complete the TOCTOU argument: `up` must not
+# consult the registry again and resolve anything to something newer than what was verified.
 compose up -d --remove-orphans --pull never
 
-# A SUCCESS STAMP, so that "the box stopped reconciling" is a readable state rather than an
-# absence. Refusals are journal lines, and a journal line nobody reads is indistinguishable
-# from silence; this file's mtime answers "when did an apply last succeed" in one stat.
+# THE POSTCONDITION: every service runs exactly the image the record names. A receipt is written only
+# for an apply that measurably happened.
+for svc in "${APPLIED_SERVICES[@]}"; do
+  want=$(image_id "$OURS_PREFIX${SERVICE_IMAGE[$svc]}@${digest_of[${SERVICE_IMAGE[$svc]}]}") ||
+    cannot_answer "could not read the image id of the verified ${SERVICE_IMAGE[$svc]} image"
+  cid=$(service_containers "$svc")
+  [ -n "$cid" ] && [ "$(wc -l <<<"$cid")" -eq 1 ] || refuse "after the apply, service $svc has no single container"
+  have=$(/usr/bin/docker inspect --format '{{.Image}}' "$cid") || cannot_answer "could not inspect the $svc container"
+  [ "$have" = "$want" ] || refuse "after the apply, service $svc runs $have, not the release's ${SERVICE_IMAGE[$svc]} image $want"
+done
+
+mkdir -p "$(dirname "$RECEIPT")"
+receipt_tmp=$(mktemp "$RECEIPT.XXXXXX")
+{
+  printf 'JBL_RECEIPT_RECORD_DIGEST=%s\n' "$rec_digest"
+  printf '%s\n' "$record"
+} >"$receipt_tmp"
+"$RECORD_TOOL" receipt "$receipt_tmp" >/dev/null || {
+  rm -f -- "$receipt_tmp"
+  cannot_answer "the receipt this run composed does not validate"
+}
+chmod 0644 "$receipt_tmp"
+mv -f -- "$receipt_tmp" "$RECEIPT"
+in_tag_phase=0
+
+# A SUCCESS STAMP, so "the box stopped reconciling" is a readable state rather than an absence.
 mkdir -p "$(dirname "$STAMP")"
 date -u +%Y-%m-%dT%H:%M:%SZ >"$STAMP"
-log "reconcile complete; stamped $STAMP"
+log "reconcile complete: release $source_sha applied; receipt $RECEIPT; stamped $STAMP"

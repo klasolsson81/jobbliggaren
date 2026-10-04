@@ -143,16 +143,17 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > so it does *not* discharge this precondition.
 
 ```bash
-# The clone. NOT `git pull` blind — on this box a pull is a DEPLOY that
-# jobbliggaren-reconcile.timer applies within the hour, and one such pull cost a 13-minute
-# outage on 2026-08-10. Read what it would bring FIRST, then pull; the fetch+log is what makes
-# the pull deliberate, never a substitute for it. If deploy/docker-compose.yml is involved, read
-# vps-deploy-stack.md §3b — the apply goes through the reconcile unit, never a hand-typed
-# `up -d` — and §3a as well when the pull brings migrations or the box runs a pinned IMAGE_TAG,
-# which is what the schema gate's exits 3 and 4 answer for.
-git -C /opt/jobbliggaren fetch origin
-git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/
-sudo git -C /opt/jobbliggaren pull --ff-only
+# The clone. NOT a blind advance — on this box advancing the clone is a DEPLOY, and one such
+# pull cost a 13-minute outage on 2026-08-10. It goes to the commit of the release the box runs
+# (`--status` prints it as the receipt's `source`), never to main's tip: vps-deploy-stack.md §3b,
+# "Advancing the checkout", where the apply goes through the reconcile unit, never a hand-typed
+# `up -d`. Read what it would bring FIRST; the fetch+log is what makes the advance deliberate,
+# never a substitute for it. Read §3a as well when the box runs a pinned release, which is what
+# the schema gate's exits 3 and 4 answer for.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
+sudo git -C /opt/jobbliggaren fetch origin main
+sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 
 # FOUR unit files, two pairs. The shipping pair archives; the -fresh pair is the only thing that
 # ever calls `--check`, and without it a stopped archive is on no surface at all: the service's
@@ -183,8 +184,8 @@ transition, then silence, not a repeating one. (An earlier wording here said
 
 **Make that edit IN THE REPO, as its own PR, and pull it down here — never in the clone.**
 `jobbliggaren-heartbeat.service` runs the script straight out of `/opt/jobbliggaren`, and the file
-is git-tracked, so editing it on the box makes every later `git pull --ff-only` fail — the pull
-that is this box's whole deploy path, three lines above. The handover row lives in
+is git-tracked, so editing it on the box makes every later `git merge --ff-only` fail — the clone
+advance that is this box's whole deploy path for it, three lines above. The handover row lives in
 [`host-detection.md`](host-detection.md) §7, which is where the heartbeat script says to look.
 
 > **DONE 2026-08-18 (#1175). Both timers are armed on the box and both are named in the floor.**
@@ -586,10 +587,12 @@ personal datum three retention numbers across three layers.
 ### Steps
 
 ```bash
-# 1. Bring the clone forward. NOT a blind pull — on this box a pull is a DEPLOY that
-#    jobbliggaren-reconcile.timer applies within the hour. Read what it brings first.
-cd /opt/jobbliggaren && sudo git fetch origin && sudo git log --oneline HEAD..origin/main
-sudo git pull --ff-only
+# 1. Bring the clone to the release the box runs (`--status` prints its commit as the receipt's
+#    `source`) — never to main's tip, and never blind: advancing the clone is a DEPLOY
+#    (vps-deploy-stack.md §3b, "Advancing the checkout"). Read what it brings first.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
+cd /opt/jobbliggaren && sudo git fetch origin main && sudo git log --oneline HEAD..<release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 
 # 2. DRY RUN FIRST, ALWAYS. It reports what it would remove and removes nothing.
 #    On a box whose app containers have never rotated this correctly prints pruned=0.

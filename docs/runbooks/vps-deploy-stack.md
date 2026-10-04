@@ -60,6 +60,11 @@ docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
                    # #198 never the crypto values either.
   staging/         # transient only (corpus dump); emptied and shredded after use
 /run/jobbliggaren/secrets/   # tmpfs — the four crypto values, RAM only, re-injected per boot
+/etc/jobbliggaren/release-pin    # optional, root-owned: the release this box holds (§3b).
+                                 # Absent = follow `dev`. Outside the clone, so git never touches it.
+/var/lib/jobbliggaren/
+  applied-release.env            # the receipt: the release the last successful apply applied
+  last-successful-reconcile      # the stamp: when that was
 ```
 
 `deploy/.env.example` is the template and the required-key list for what remains in `.env`.
@@ -122,10 +127,28 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 >   restate them here.
 >
 > Both are the install block in [`master-key-ops.md`](master-key-ops.md) §2. Run it **before**
-> the first `docker compose up`, then inject (§3 of that runbook), then confirm `--check` exits 0.
-> On a box without the rclone config `--check-host` still exits 1 — that is the deferred state, and
-> §3 says what it looks like — while the crypto timer is enabled **in** that state rather than
-> after it. Nothing mechanical enforces this ordering; that is what these lines are.
+> the first `docker compose up`, then stage a release, then inject (§3 of that runbook), then
+> confirm `--check` exits 0. On a box without the rclone config `--check-host` still exits 1 — that
+> is the deferred state, and §3 says what it looks like — while the crypto timer is enabled **in**
+> that state rather than after it. Nothing mechanical enforces this ordering; that is what these
+> lines are.
+
+> **Stage before you inject, and before any `up`.** Compose runs our images only as the local
+> `:applied` tag, and the injection measures the
+> secrets' owner from that api image — so on a box that has applied nothing, neither can run until a
+> verified release is tagged. Run §3b's install block **up to, not including, enabling the timer**
+> (a timer firing now would start the stack before the secrets exist), then:
+>
+> ```bash
+> sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --stage
+> ```
+>
+> It verifies the release `dev` names — or the one the pin file names — exactly as the unit does,
+> tags its images `:applied`, and applies nothing; it refuses on a box that already holds a receipt.
+> If it refuses on configuration it prints the command that advances the clone to that release:
+> run it, then stage again. After the block below, enable the timer and start the unit (the last lines of §3b's install
+> block): its first apply is a bootstrap that writes the receipt, and `--status` must then read
+> `consistent`. **Every `up` below carries `--pull never`.**
 
 ```bash
 cd /opt/jobbliggaren
@@ -151,8 +174,7 @@ C="docker compose -f deploy/docker-compose.yml"
 #    template ships the key commented out, so nothing about a fresh .env is safe by default.
 #    The sed matches the commented form too; an anchored ^ACME_CA= would silently no-op on it.
 sed -i "s|^#*ACME_CA=.*|ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory|" deploy/.env
-$C pull caddy   # a pre-seam image ignores the variable and starts clean in EVERY mode
-$C up -d --force-recreate caddy
+$C up -d --pull never --force-recreate caddy   # the staged release's caddy; the end-state check below refuses a pre-seam one
 $C exec caddy printenv ACME_CA | grep -q acme-staging || { echo "REFUSING: not staging"; exit 1; }
 
 # 1. HTTP-01 only (row 5). Read the counterfactual out of the RUNNING container, not the file.
@@ -167,7 +189,7 @@ $C exec caddy printenv ACME_CA | grep -q acme-staging || { echo "REFUSING: not s
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=http01|" deploy/.env
 S=acme-staging-v02.api.letsencrypt.org-directory
 $C exec -T caddy rm -rf /data/caddy/certificates/$S /data/caddy/acme/$S
-$C up -d --force-recreate caddy
+$C up -d --pull never --force-recreate caddy
 sleep 30
 
 #    HALF A — the issuance line must NAME the challenge type. "certificate obtained" alone
@@ -189,7 +211,7 @@ for p in json.load(sys.stdin)["apps"]["tls"]["automation"]["policies"]:
 #    Caddy would issue nothing — or issue without a challenge. Discard both again.
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=alpn01|" deploy/.env
 $C exec -T caddy rm -rf /data/caddy/certificates/$S /data/caddy/acme/$S
-$C up -d --force-recreate caddy
+$C up -d --pull never --force-recreate caddy
 sleep 30
 $C logs caddy --since 2m | grep -iE 'challenge_type|served key authentication|obtained successfully'
 #    Same parse as half B above; expected mirror: {"http": {"disabled": true}}
@@ -199,7 +221,7 @@ $C logs caddy --since 2m | grep -iE 'challenge_type|served key authentication|ob
 #    would throw away a VALID production cert on any re-run and spend a duplicate slot.
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|#ACME_CHALLENGE_MODE=both|" deploy/.env
 sed -i "s|^#*ACME_CA=.*|#ACME_CA=|" deploy/.env
-$C up -d --force-recreate caddy
+$C up -d --pull never --force-recreate caddy
 
 #    AND PROVE THE CA FROM THE RUNNING CONTAINER BEFORE READING ANY LOG. Commenting the key
 #    out means compose's default applies; that the default IS production is a fact about the
@@ -240,33 +262,38 @@ echo "OK: both challenges live"
 
 ## 3a. Rollback and the schema gate (#1236)
 
-**Rollback is an image tag — for CODE. It is not a rollback for SCHEMA, and since
+**Rollback is a release pin — for CODE. It is not a rollback for SCHEMA, and since
 [#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236) `migrate` refuses to pretend
-it is.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the reconcile unit, and the four
-long-running services are back on the old build in seconds. But `migrate` runs EF migrations
-before `api` and `worker` start, and EF applies only *pending* (assembly minus applied) —
+it is.** Name an earlier release in `/etc/jobbliggaren/release-pin` and run the reconcile unit
+(§3b, *Rollback*), and the four long-running services are back on the old build in seconds. But
+`migrate` runs EF migrations before `api` and `worker` start, and EF applies only *pending*
+(assembly minus applied) —
 history rows an older assembly cannot name would pass **silently**, and this repo has measured
 cases where the schema direction destroys data irreversibly (a computed column reverted to an
 ordinary one; a `DROP COLUMN` taking its indexes silently). So `schema` mode now reads
 `__EFMigrationsHistory` against its own assembly first and refuses before `MigrateAsync`:
 **exit 3** for a pure backwards pin (overridable, below), **exit 4** for a diverged history —
 the squash/re-baseline shape, never overridable. **The refusal travels in the image you pin
-TO**, so it protects pins back to the first tag published after #1236 merged and no further —
-an older tag has no gate and applies silently, the same way the attestation window in §3b
-starts at #196's attest step.
+TO**, and every release a record can name carries it: records begin with #1238, long after
+#1236 merged, and there is no record-based rollback to anything older (§3b).
 
-**What a refusal leaves behind** — measured 2026-08-13 with a minimal compose fixture on local
-Docker Compose v2.40.3; **the box runs v5.4.0** (§5's verification log), so re-verify the exact
-aftermath there before relying on it mid-incident. The mechanism, by construction: `api`,
-`worker` **and `web`** all carry `IMAGE_TAG`, so a tag-changing `up -d` has already **stopped
+**A pin is where this refusal happens.** Following the channel, the unit refuses — before
+anything is stopped — a release that lacks an AppDbContext migration its receipt holds (§3b); a
+pin skips that check on purpose, and `migrate` decides. **What its refusal leaves behind** — measured
+2026-08-13 with a minimal compose fixture on local Docker Compose v2.40.3, when a pin was still an
+`IMAGE_TAG`; **the box runs v5.4.0** (§5's verification log), so re-verify the exact aftermath
+there before relying on it mid-incident. The mechanism, by construction: `api`, `worker` **and
+`web`** all run images the release moves, so a release-changing `up -d` has already **stopped
 and removed** all three when the migrate dependency fails, leaving their replacements `Created`
-but never started; `caddy` gates on nothing and moves to the pinned tag, and its only upstream
-is `web` — **the public site answers 502/503, not just an api path**. Services whose image did
-not change (postgres/redis/seq) are untouched, the failed oneshot's `docker logs` survive, and
-the unit fails before the success stamp. The journal carries compose's own line naming the
-code — `service "migrate" didn't complete successfully: exit 3` — and the full diagnosis lives
-in `docker logs jobbliggaren-migrate`: the unknown migration IDs and three exits. (1) Roll
-`IMAGE_TAG` forward to a build that contains those migrations. (2) Treat it as a **restore**
+but never started; `caddy` gates on nothing and moves to the pinned release, and its only
+upstream is `web` — **the public site answers 502/503, not just an api path**. Services whose
+image did not change (postgres/redis/seq) are untouched, the failed oneshot's `docker logs`
+survive, and the unit fails before the receipt and the stamp and puts `:applied` back to the
+release it found — so `--status` reads INCONSISTENT until this is repaired. The journal carries
+compose's own line naming the code — `service "migrate" didn't complete successfully: exit 3` —
+and the full diagnosis lives in `docker logs jobbliggaren-migrate`: the unknown migration IDs and
+three exits. (1) Roll forward: pin a release whose build contains those migrations, or remove the
+pin to follow the channel again, and run the unit. (2) Treat it as a **restore**
 problem — [`backup-restore.md`](./backup-restore.md) — never a deploy problem. (3) Deliberately
 run the old code against the newer schema: set `MIGRATE_ALLOW_SCHEMA_AHEAD=<the exact refused
 ID set>` in `deploy/.env` and re-run the unit — the refusal prints the exact line, the value is
@@ -286,7 +313,7 @@ squash ships its own history-reconciliation procedure *before* it merges (ADR 01
 A Netcup snapshot is **not** deploy rollback either: snapshots are copy-on-write, need 50 %
 free disk, only *offline* ones are consistent, and one exportable snapshot remains. Their role
 is **before a migration**, once real user data exists — which is precisely the boundary the
-tag cannot cross.
+pin cannot cross.
 
 ---
 
@@ -295,17 +322,43 @@ tag cannot cross.
 `release-images` publishes on an hourly schedule rather than on merge, because automerge
 merges as a GitHub App and app-triggered events start no workflow runs (measured
 counterfactual: #1107 app-merged, zero runs; #1108 human-merged, a run after 5 s). Nothing
-tells the box a new image exists, so the box asks. Install once:
+tells the box a new image exists, so the box asks.
 
-**What it verifies, and why the box needs a tool for it.** The unit pulls five images as root
-every hour. `latest` is mutable, so the Trivy gate in `release-images.yml` speaks about the
-image the workflow *built*, not about the one the box pulls an hour later under the same tag —
-which leaves the whole chain resting on nobody having taken over the GitHub account. Since
-#196 the wrapper verifies each pulled **digest** against a provenance attestation naming our
-workflow on `main`, and refuses the entire apply if any image fails. Refused means *nothing is
-applied*: the containers already running keep running.
+**What it applies: one release record, or nothing (#1238, ADR 0149).** A `release-images` run
+builds the five images from one `main` commit. Only when all five are built, gated and attested
+does it write a **release record** — `ghcr.io/klasolsson81/jobbliggaren-release:sha-<commit>`, a
+scratch image holding the commit, the five image digests, a hash of the deployment files it was
+released with and the migration ids — attest it, verify it, and then move `dev` to it. The unit
+reads ONE record, `dev` or the release `/etc/jobbliggaren/release-pin` names, and applies exactly
+that, under one lock, in this order:
 
-**It refuses on a second question too, and a deployer reading only the paragraph above would be
+1. **The record proves itself before a byte of it is copied out.** Its attestation must name our
+   workflow on `main` of this repository; only then is it copied out, validated, and verified as
+   built from the commit it names.
+2. **It must have been released with this checkout's configuration.** `deploy/docker-compose.yml`
+   (full-line comments and blank lines aside) and `deploy/redis/healthcheck.sh` must hash to the
+   record's value. Otherwise the run refuses and prints the exact command that advances the
+   checkout to the release (*Advancing the checkout*, below).
+3. **Following the channel never moves backwards.** A release older than the receipt's, or one
+   lacking an AppDbContext migration the receipt holds, is refused. A pin skips both checks — it
+   is a deliberate act, and `migrate`'s gate decides (§3a). Without a receipt the first apply is a
+   bootstrap and may move backwards once. A release that adds Identity migrations gets a `NOTE`
+   line; the unit never applies them (§3c).
+4. **Each image is pulled by the digest the record names and verified as built from the
+   record's commit.** One failure and nothing is applied.
+5. **Then the gates, then the apply.** After #1295's secrets gate (below) and the Redis gate
+   (`redis-service-boundaries.md`), it tags the five images `:applied`, runs
+   `docker compose up -d --remove-orphans --pull never`, checks that every service runs exactly
+   the release's image, and only then writes the receipt and the stamp. A failure after the tags
+   moved puts `:applied` back to what the run found.
+
+Refused means *nothing is applied*: the containers already running keep running. **Why a record
+and not five tags:** the unit used to pull five mutable `latest` tags, each moved by its own
+matrix cell, and an attestation binds who built an image, never which tree — so a pull between
+two cells' moves installed a mixed set that verified end to end. A record names one commit, and
+moving `dev` is one registry write.
+
+**It refuses on another question too, and a deployer reading only the list above would be
 surprised by it (#1295).** After attestation and before the apply, the wrapper checks that the
 incoming api image can actually **read the injected secrets**. `jobbliggaren-inject-secrets.sh`
 owned `/run/jobbliggaren/secrets` to the uid and gid of the image current at injection time —
@@ -347,23 +400,27 @@ cosign version   # expect 2.5.0 on trixie
 sudo cosign initialize
 sudo ls -la /root/.sigstore/root/  # the cached root, proving it landed for the right user
 
-cd /opt/jobbliggaren && sudo git pull --ff-only      # the wrapper and verifier live in deploy/
+# The clone at the release the box is to apply, never at main's tip (Advancing the checkout, below).
+sudo git -C /opt/jobbliggaren fetch origin main && sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
+cd /opt/jobbliggaren
 sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
-# THREE scripts, not two: since #1295 the wrapper calls jobbliggaren-runtime-ids.sh, and a
-# non-executable helper stops the apply with exit 2 rather than failing loudly at install time.
-# (git carries 100755 and CI gates it, so this line is belt-and-braces on a clone that lost it.)
+# FOUR scripts: the wrapper, the verifier, the record tool the wrapper reads releases with
+# (#1238) and the runtime-id helper (#1295). A non-executable helper stops the apply with exit 2
+# rather than failing loudly at install time. (git carries 100755 and CI gates it, so this line
+# is belt-and-braces on a clone that lost it.)
 sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh \
-  deploy/systemd/jobbliggaren-runtime-ids.sh
+  deploy/systemd/jobbliggaren-release-record.sh deploy/systemd/jobbliggaren-runtime-ids.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-reconcile.timer
 systemctl list-timers jobbliggaren-reconcile            # Expected: one entry, next at :47
 sudo systemctl start jobbliggaren-reconcile.service     # prove it runs at all, not just that it is scheduled
 journalctl -u jobbliggaren-reconcile -n 40 --no-pager
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # expect: verdict: consistent
 ```
 
 `enable --now` schedules it; it does not run it. `list-timers` showing an entry proves
 scheduling and nothing else — the one-shot `start` above is what proves the unit works,
-and it is safe because an unchanged pull is a no-op.
+and it is safe because re-applying the release already applied changes nothing.
 
 **JUDGE THE JOURNAL, NOT THE EXIT CODE.** `systemctl start` returning 0 does not mean the
 reconcile ran: if the timer fires in the same window (:47 plus up to `RandomizedDelaySec`), the
@@ -372,49 +429,62 @@ land the unit in `systemctl --failed`, which is this box's only alarm surface. S
 the journal carrying `verified N image(s)` followed by `reconcile complete`. A run that logged
 `another reconcile holds` proved nothing and should simply be repeated.
 
-**Install only after a publish that carries attestations.** Images pushed before the attest
-step existed have none, and the wrapper refuses them correctly — which would read as a broken
-install rather than as a working gate.
+**Install only after the first record is published and readable from the box.** Records begin
+with the first `release-images` run after #1238 merged. Before one exists — or while the
+`jobbliggaren-release` package is still private — the unit cannot pull `dev` and exits 2 every
+hour, which reads as a broken install rather than as a working gate.
 
 **Refusal is readable, and absence is not.** A refused run writes to the journal, and a journal
-line nobody reads is indistinguishable from silence, so a successful apply also stamps
-`/var/lib/jobbliggaren/last-successful-reconcile`. "When did this box last apply anything"
-is then one `stat` rather than an inference from missing output.
+line nobody reads is indistinguishable from silence, so a successful apply also writes the receipt,
+`/var/lib/jobbliggaren/applied-release.env`, and stamps
+`/var/lib/jobbliggaren/last-successful-reconcile`. "When did this box last apply anything, and
+what" is then one `stat` and one `--status` rather than an inference from missing output.
+
+**`--status` reads what the box runs: read-only, no lock, no network.** It prints the selection
+(the channel or the pin) and compares the receipt with the local `:applied` tags, the running
+containers and the checkout's deployment files. Exit 0 is `verdict: consistent`; exit 1 is
+`NOT APPLIED`, or `INCONSISTENT` with what differs; exit 2 means it could not answer. Every manual
+exception below reads it first.
+
+```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
+```
 
 **Manual applies go through the unit.** `sudo systemctl start jobbliggaren-reconcile.service`,
-never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it:
-a manual apply takes no lock and runs no verification, and after a refused run the local
-`latest` tag already points at the image that was just refused.
+never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it: a
+manual apply takes no lock and runs no verification. Compose names our images as the local
+`:applied` tag with `pull_policy: never`, and only a
+proven run moves that tag, so a hand-typed `up` re-creates from the last verified release — never
+from something a refused run pulled.
 
 **The one exception is a re-create that applies a `deploy/.env` change to a service whose image
 is not moving** — `registration-gate.md` step 3 (opening the gate), step 7 (blanking the admin
 knob) and step 10 (closing it). A container's environment is fixed at creation, so `.env` is
-re-read only by a re-create; and the reconcile unit is the wrong instrument for it, because
-`compose pull` is its **first** action and is unconditional. That makes the blast radius of a
-one-variable config change depend on what GHCR holds at that second — including the mixed set
-below, which nothing closes — and its lock branch reports success having applied nothing. So
-these steps run:
+re-read only by a re-create; and the reconcile unit is the wrong instrument for it: it applies
+whatever release the channel names at that second, so the blast radius of a one-variable config
+change would depend on what GHCR holds then, and its lock branch reports success having applied
+nothing. So these steps run:
 
 ```bash
 cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
-`--pull never` is not decoration. Compose's default is `missing`, which is an assumption about a
-version rather than a guarantee — the wrapper states that same argument at its own `up`.
+`--pull never` is not decoration: it says on the command line what `pull_policy: never` says in
+the file, and the wrapper states the same argument at its own `up`.
 
 **What the exception costs, in full:**
 
-- **It re-creates from whatever the local `latest` points at, and after a refused reconcile that
-  is the refused image.** This is the real residual, which is why the exception carries a
-  precondition rather than a warning. Before running it:
+- **It re-creates from the checkout's compose file and the local `:applied` tag, so both must
+  be the applied release's.** That is the precondition, and `--status` measures it:
 
   ```bash
-  stat -c %y /var/lib/jobbliggaren/last-successful-reconcile
-  sudo journalctl -u jobbliggaren-reconcile --no-pager | grep -n 'REFUSING\|CANNOT ANSWER' | tail -5
+  sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
+  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # must end: verdict: consistent
   ```
 
-  The stamp must be **more recent than the last refusal**. If it is not, repair the reconcile
-  first: a gate is not closed by deploying an image the box just refused.
+  Anything else — `INCONSISTENT`, `NOT APPLIED`, exit 2 — means repairing through the unit first:
+  a gate is not closed by re-creating from a state the unit has not vouched for.
 - **It takes no lock**, the case the wrapper's own header names. The timer fires at `:47` plus up
   to 180 s of jitter and may run for up to 900 s. Do not run this inside that window; if you must,
   re-read the gate's own log line afterwards, because a concurrent reconcile can re-create the
@@ -429,26 +499,99 @@ version rather than a guarantee — the wrapper states that same argument at its
 `postgres`/`redis`/`seq` tag bump — and goes through the unit. The second exception, an Identity
 migration, is §3c.
 
-**The timer fires at :47, offset from the publish run's :17 — and the hazard is cross-image
-skew, not a half-published single image.** The publish job is a five-cell matrix with no
-fan-in, so between the first cell's push and the last one's, `latest` resolves to the new
-build for some images and the previous one for others; a pull landing there installs a mixed
-set. (It cannot be the other split: the workflow pushes `sha-<short>` **before** `latest`, out
-of one locally built image.) **The offset narrows that window and nothing closes it** — each
-cell allows 30 minutes, so a slow `:17` run can still be pushing at `:47`. Attestation does
-not close it either: it binds who built an image, never which tree, so a mixed set verifies
-end to end. Owed, not delivered — [#1238](https://github.com/klasolsson81/jobbliggaren/issues/1238).
+**The timer fires at :47, offset from the publish run's :17.** Until #1238 that offset was the
+only thing between a pull and a mixed set, and it closed nothing: each matrix cell allowed 30
+minutes, so a slow `:17` run could still be pushing at `:47`. A unit that reads records sees the
+previous release or the next one, whole, and the offset only keeps the two hourly jobs apart.
+**That holds only on a box running this unit.** Until activation (below) the box runs the
+pre-#1238 consumer on the five `latest` tags, which the publisher now moves one after another,
+seconds apart and not atomically (ADR 0149 R10).
 
-**Rollback stays an image tag, with the schema gate above.** Pin `IMAGE_TAG=sha-<short>` in
-`deploy/.env` and run the unit: the pull resolves the pinned tag, every image is verified
-against it, and `up -d` recreates only what moved. Seconds, and it is the primary rollback path
-for the four long-running services. Across a **migration boundary** it is not a rollback at all
-— `migrate` refuses the apply (exit 3/4) instead of running an older assembly silently; §3a
-carries the refusal anatomy and the exits
+**Advancing the checkout is a deploy, and it goes to a release's commit — never to main's tip.**
+The unit applies a release only with the configuration it was released with, so the clone
+follows the releases (ADR 0149 R5). The commit is the one the unit names: a configuration refusal
+prints the exact command, and `--status` prints the applied release's `source`. On Klas's GO:
+
+```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
+sudo git -C /opt/jobbliggaren fetch origin main
+sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/   # read what it brings
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager
+```
+
+The advance also delivers the systemd scripts and units at that commit, as a pull always did;
+refresh an installed unit file whose source changed. **Never advance past the release:**
+`merge --ff-only` cannot move the clone back, and a checkout ahead of `dev` with a different
+configuration refuses every release until `dev` catches up with it.
+
+**Rollback is a release pin, with the schema gate above.** Name the release in the pin file —
+one line, `sha-<40-hex commit>` or `sha256:<record digest>`, root-owned — and run the unit:
+
+```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
+echo 'sha-<40-hex commit>' | sudo tee /etc/jobbliggaren/release-pin >/dev/null
+sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager
+```
+
+The unit verifies the pinned release like any other and re-creates only what moved: seconds, and
+the primary rollback path for the four long-running services. A pin holds until the file is
+removed (`sudo rm /etc/jobbliggaren/release-pin`, then run the unit); a malformed file is refused,
+never read as "follow the channel". **Across a configuration change** the pinned release refuses
+this checkout's configuration, so check out its two bound files at its commit first —
+`sudo git -C /opt/jobbliggaren checkout <its commit> -- deploy/docker-compose.yml deploy/redis/healthcheck.sh`
+— and restore them with `checkout HEAD --` and the same two paths once the pin is removed, before
+the unit runs again: a clone left dirty also blocks the next advance. **Across a migration
+boundary** it is not a rollback at all — `migrate` refuses the apply (exit 3/4) instead of running
+an older assembly silently; §3a carries the refusal anatomy and the exits
 ([#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236)).
-A pinned tag must also be one that was published *with* an attestation, or the wrapper refuses
-it: images pushed before #196's attest step exist but cannot be verified, so the reachable
-rollback window starts there.
+
+**The rollback window starts at the first record.** Every record published since is retained —
+nothing deletes package versions automatically, and CI guards that; deleting one is Klas's
+decision — and there is no record-based rollback to a build older than the first record.
+
+**A record or a `dev` that does not prove itself is red, never overwritten, and the repair is
+Klas's.** If `dev` names something that does not verify, the publisher refuses to move it and the
+unit refuses to apply it: the box stays on its last release, serving. The repair is re-pointing
+`dev` to a proven record, from a machine with `write:packages` —
+`docker buildx imagetools create --prefer-index=false -t ghcr.io/klasolsson81/jobbliggaren-release:dev ghcr.io/klasolsson81/jobbliggaren-release@<proven digest>`.
+A `sha-<commit>` record that does not prove itself keeps that commit red until the version is
+deleted. Neither is repaired automatically, because the hourly schedule would otherwise fight,
+silently, whoever moved it.
+
+**Never re-run a `release-images` run from before #1238 — dispatch a new one.** A re-run executes
+the workflow file of the original run, which moved `latest` per cell and knows nothing of records.
+A dispatch on `main` runs today's file and, for a commit that already has a record, builds nothing.
+
+**Activation — once, on Klas's GO, in this order.** Merging #1238 changed only what GHCR holds;
+the box keeps its old consumer until this:
+
+1. Klas flips the `jobbliggaren-release` package to **public**. This cannot be undone; the
+   package holds public metadata about a public repository.
+2. From the box, read-only and anonymously — `DOCKER_CONFIG` pointing at an empty directory, so no
+   stored login answers — the identity check of `release:dev`'s digest exits 0
+   (`deploy/systemd/verify-image-attestation.sh ghcr.io/klasolsson81/jobbliggaren-release@<digest>`).
+3. Measure that the box's Compose (v5.4.0) honours `pull_policy: never` for `pull`, `up` and `run`,
+   with a throwaway project. If it does not, stop.
+4. Stop the timer, then wait out any in-flight run: `sudo flock /run/jobbliggaren-reconcile.lock true`.
+5. Remove `IMAGE_TAG` from `deploy/.env` if it is present — the unit refuses an `.env` that sets it.
+6. Advance the clone to `release:dev`'s commit, at or after the #1238 merge — the `publish` job
+   that moved `dev` names it in its log — and refresh the unit files if they changed.
+
+   ```bash
+   sudo git -C /opt/jobbliggaren fetch origin main
+   sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
+   sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
+   ```
+7. Start the service once and read the journal: the selection, the release's digest and source,
+   the verified images, the apply and `reconcile complete`. `--status` must read `consistent`.
+   All five of our containers are re-created once, `:latest` → `:applied`.
+8. Start the timer.
+
+Until then the box runs the pre-#1238 consumer on `latest`, the window above still exists in its
+narrower form, and the pin, `--status` and the receipt this section describes do not exist on the
+box. **The old wrapper ignores its arguments:** `--status` or `--stage` handed to it runs a full
+reconcile. Run neither before step 6 has advanced the clone.
 
 ## 3c. Identity migrations: `bootstrap`
 
@@ -471,14 +614,15 @@ cd /opt/jobbliggaren/deploy
 **Preconditions, all five:**
 
 1. **Klas's GO for this run.** Not a standing grant.
-2. **One revision.** For `migrate`, `api` and `worker` each, `latest` is the digest the registry's
-   `:sha-<X>` points to. Each digest verifies against its own repository's attestation
-   (`deploy/systemd/verify-image-attestation.sh`, over that repository's RepoDigest, never
-   `index 0`). X is on or after the commit that stopped mapping what the migration drops — for
+2. **One release.** `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; } && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status` reads
+   `verdict: consistent` (it takes no lock, so it runs inside this one): the checkout's deployment
+   files, the local `:applied` tags, the receipt and the running containers all name one release,
+   whose images the unit verified as built from its commit X — the receipt's `source`. The run
+   below runs that release's `migrate` image, its `:applied` tag, and never pulls. X is on or after
+   the commit that stopped mapping what the migration drops — for
    `20260917195454_DropAuthProviderColumns` that is `93a85abe`, which dropped the mapping and added
-   the migration together. The running `api` and `worker` containers run those digests. This one
-   condition rules out both a mixed set and an older `migrate` image, whose older grant list could
-   hand back a revoked grant.
+   the migration together. This one condition rules out both a mixed set and an older `migrate`
+   image, whose older grant list could hand back a revoked grant.
 3. **The exact pending set.** List the Identity migrations at X with git
    (`git ls-tree --name-only X src/Jobbliggaren.Infrastructure/Identity/Migrations/`) and diff them
    against `select migration_id from identity."__EFMigrationsHistory"` (the column is snake_case;
@@ -1377,24 +1521,25 @@ re-run all five or record none.
   same loaded image, or push by digest), never rebuild from the Dockerfile for the push.
 - **Publishing the images this stack pulls** — `.github/workflows/release-images.yml`,
   delivered by #1225 and no longer owed. It builds, Trivy-gates and pushes the five images
-  on an hourly reconciler (`sha-<short>` + `latest`), because automerge merges as a GitHub
-  App and app-triggered events start no workflow runs. Named here because an earlier
+  hourly (`sha-<short>`), then publishes one release record for them and moves `dev` and
+  `latest` to it (§3b, ADR 0149), because automerge merges as a GitHub App and
+  app-triggered events start no workflow runs. Named here because an earlier
   revision of this bullet said it was "not built yet" and that a `docker compose pull`
   would find no tags — false since #1225, and a reader acting on it would conclude §3
   cannot run.
 - **That Trivy gate speaks once, at build time, and a second workflow is what speaks after**
   (#1519). `release-images.yml` skips build, scan and push entirely when the current `main` SHA
-  is already published under both tags with a readable attestation, so a published image was
-  never rescanned: no GitHub Actions event fires on a published advisory, Dependabot proposes
+  already has a release record that proves itself, so a published image was never rescanned: no GitHub Actions event fires on a published advisory, Dependabot proposes
   nothing for a floating base tag, and the only thing producing a new image was a merge for some
   unrelated reason. `.github/workflows/rescan-images.yml` runs daily at 05:05 UTC and scans the
-  **published digests** — what an *unpinned* reconcile pulls — with the same parameters
+  **published digests** — `latest`, which follows `dev`: what an *unpinned* box applies — with
+  the same parameters
   (`HIGH,CRITICAL`, `ignore-unfixed`), so the claim it makes is *"this artefact would not pass
-  today the gate it passed when it was built"*. **Under a pinned `IMAGE_TAG` it is not scanning
-  what you are running**: the rollback procedure above sets `IMAGE_TAG=sha-<short>`, and the
-  rescan still measures `latest`, which is then a *newer* image than the one on the box. There is
-  no fix for that in CI, which cannot read this box's `.env` — so during a pinned rollback, treat
-  a green rescan as saying nothing about the running containers. It **detects and does not
+  today the gate it passed when it was built"*. **Under a release pin it is not scanning what
+  you are running**: the rollback procedure in §3b pins an older release, and the rescan still
+  measures `latest`, which is then a *newer* image than the one on the box. There is no fix for
+  that in CI, which cannot read this box's pin file — so during a pinned rollback, treat a green
+  rescan as saying nothing about the running containers. It **detects and does not
   repair**: the repair is a merge, which yields a new SHA and sends the image down the existing
   publish path. It carries **no** write permission of any kind and is deliberately **not** in
   `ci`'s required set. Its intended reader is the scheduled-run failure notification; that link

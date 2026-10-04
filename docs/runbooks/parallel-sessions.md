@@ -442,12 +442,14 @@ none of them. Every session had watched its own PR to merge and stopped there, w
 section told them to do.
 
 ⚠ **Publishing is not deploying, and the second half is not yours.** The box's
-`jobbliggaren-reconcile.timer` pulls the published images on its own (schedule and jitter live in
-`deploy/systemd/jobbliggaren-reconcile.timer`), so the dispatch is the whole of your part for
+`jobbliggaren-reconcile.timer` applies the published release on its own (schedule and jitter live
+in `deploy/systemd/jobbliggaren-reconcile.timer`), so the dispatch is the whole of your part for
 anything that ships *inside* an image — and `deploy/caddy/` is one of the five, its `Dockerfile`
 bakes the Caddyfile in. **A change to a file the box reads from its git CHECKOUT — the compose
-file, systemd units — is in no image**: reconcile pulls images and never advances git. That needs
-a `git pull` on the box, which is a deploy and needs Klas's GO (CLAUDE.md §9.2).
+file, systemd units — is in no image**, and reconcile never advances git. The reconcile unit
+refuses a release whose compose file or Redis healthcheck differs from the checkout's until the
+clone is advanced to the release's commit (`vps-deploy-stack.md` §3b) — a deploy that needs
+Klas's GO (CLAUDE.md §9.2).
 Measure the checkout HEAD and the image dates separately before claiming what the box is running.
 
 ---

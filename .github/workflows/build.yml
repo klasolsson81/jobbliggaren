@@ -255,7 +255,8 @@ jobs:
   scripts:
     name: scripts (bash fixtures)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Raised from 5 when #1238 added two suites that build git histories and run a fake registry.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -274,16 +275,18 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. SIXTEEN scripts, measured 2026-08-28 with `git ls-files` (was eight until
-          # #1201 added the heartbeat and its fixture suite, then ten until #1175 added logship
-          # and its own, then twelve until #1295 added the runtime-id helper and its own, then
-          # fourteen until #1170 added the log prune and its own); the
+          # coverage. The floor follows `git ls-files 'deploy/systemd/*.sh' | wc -l` as scripts land
+          # (eight until #1201 added the heartbeat and its fixture suite, then ten until #1175 added
+          # logship and its own, twelve until #1295 added the runtime-id helper and its own, fourteen
+          # until #1170 added the log prune and its own, sixteen until #1775 added the two Redis
+          # scripts without raising it, eighteen until #1238 added the release record tool and its
+          # own); the
           # floor is a floor and not an equality, so adding one does not fail the build for the
           # wrong reason — but it is RAISED when scripts land, or the gate silently stops
           # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 16 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 16."
+          if [ "$n" -lt 20 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 20."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -336,6 +339,16 @@ jobs:
       # sviten behöver varken daemon, registry eller nätverk.
       - name: verify-image-attestation (fixturer)
         run: bash deploy/systemd/verify-image-attestation.test.sh
+
+      # The release record (#1238, ADR 0149): one format, read by the box and the publisher alike, and
+      # the only order in which a record's bytes may be trusted. It reads the real tree too, and
+      # proves the canonical compose form against `docker compose config` (the CLI, no daemon). Both
+      # flags turn a platform skip into a failure here, where neither may be skipped.
+      - name: jobbliggaren-release-record (fixturer + det riktiga trädet)
+        run: bash deploy/systemd/jobbliggaren-release-record.test.sh
+        env:
+          JBL_REQUIRE_SYMLINK_CASES: "1"
+          JBL_REQUIRE_COMPOSE_CASES: "1"
 
       # Mäthemmet för container-runtimens uid/gid (#1295), delat av injektionen som SÄTTER
       # ägarskapet på /run/jobbliggaren/secrets och av reconcile som GRINDAR applyn på det.
@@ -547,13 +560,25 @@ jobs:
       - name: nocache-stage-guard (fixturer + den riktiga matrisen)
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
-      # #1314. `latest` is what the box pulls, and the box refuses the whole apply when what it
-      # pulled carries no attestation from our workflow. The repair is the step ORDER, and its
-      # whole correctness lives in one `if:` expression and the position of one step — nothing
-      # in Actions, buildx or cosign checks either. The incident that measured it, and what the
-      # guard refuses, are in `attestation-publish-order-guard.sh`'s own header.
-      - name: attestation-publish-order-guard (fixturer + det riktiga workflowet)
+      # #1314 and #1238. Nothing a consumer follows may move before the whole release is attested,
+      # and only the fan-in's gated `advance` step may move it. That order lives in strings across
+      # `release-images.yml` and `publish-release.sh`, and nothing in Actions, buildx or cosign
+      # checks any of them. The rules and the incidents behind them are in the guard's own header;
+      # every case mutates the REAL files.
+      - name: attestation-publish-order-guard (fixturer + de riktiga filerna)
         run: bash .github/scripts/attestation-publish-order-guard.test.sh
+
+      # #1238. The publisher's decisions — frozen, record, verify, advance — against a file-backed
+      # fake registry, a stub verifier, the real record tool and a real git history: an incomplete or
+      # mixed set publishes nothing, a release is never rewritten, an old run never moves `dev`, and
+      # every move lands on the digest it names.
+      - name: publish-release (fixturer)
+        run: bash .github/scripts/publish-release.test.sh
+
+      # #1238, ADR 0149 R3. The rollback window is every record since the first, for exactly as long
+      # as nothing deletes package versions; this makes that a rule rather than a measurement.
+      - name: package-retention-guard (fixturer + det riktiga trädet)
+        run: bash .github/scripts/package-retention-guard.test.sh
 
       # #1519. `rescan-images.yml` scans the PUBLISHED images, and what it scans is resolved by
       # this script out of `release-images.yml`'s OWN matrix — no sixth copy of the image names.

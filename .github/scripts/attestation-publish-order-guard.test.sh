@@ -4,19 +4,13 @@
 #
 # Run:  bash .github/scripts/attestation-publish-order-guard.test.sh
 #
-# NEEDS NO DOCKER, NO REGISTRY AND NO NETWORK. Every case is a workflow file this suite writes
-# itself, so what is measured is the guard's PREDICATE — which shapes it refuses, which it
-# passes, and which it declines to judge.
+# NEEDS NO DOCKER, NO REGISTRY AND NO NETWORK. Every case starts from the REAL
+# `.github/workflows/release-images.yml` and `.github/scripts/publish-release.sh`, applies ONE edit an
+# ordinary change could make, and runs the guard on the result. A case whose edit no longer applies
+# (the real file moved on) fails as FIXTURE BROKEN rather than passing over an unmutated copy.
 #
-# THE NEGATIVE FIXTURES CARRY THE FILE. A guard whose cases all pass has shown it does not
-# crash, not that it refuses anything. Each case below is a way the #1314 repair has been undone
-# or could be undone by an ordinary edit, and each one was verified to turn this suite red
-# before it was written down.
-#
-# AND THE LAST CASE IS THE ONE THAT PROTECTS THE REPO. Everything above it measures the guard
-# against synthetic files; the coupling case runs it against the REAL
-# `.github/workflows/release-images.yml`. A guard that is correct about fixtures and never
-# pointed at production is decoration — the same floor `nocache-stage-guard.test.sh` applies.
+# THE FIRST CASE PROTECTS THE REPO: the guard must pass the real files as they are. A guard that is
+# correct about mutants and never pointed at production is decoration.
 #
 # THREE OUTCOMES, NEVER COLLAPSED (the house rule):
 #   exit 0 — the publish order holds.
@@ -26,11 +20,14 @@ set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly SUT="$script_dir/attestation-publish-order-guard.sh"
-readonly REAL="$script_dir/../workflows/release-images.yml"
-[ -f "$SUT" ] || {
-  echo "missing script under test: $SUT" >&2
-  exit 1
-}
+readonly REAL_WF="$script_dir/../workflows/release-images.yml"
+readonly REAL_PUB="$script_dir/publish-release.sh"
+for f in "$SUT" "$REAL_WF" "$REAL_PUB"; do
+  [ -f "$f" ] || {
+    echo "missing: $f" >&2
+    exit 1
+  }
+done
 
 TMPROOT=$(mktemp -d)
 readonly TMPROOT
@@ -38,227 +35,225 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
-out="$TMPROOT/out"
 
-# Emits a workflow shaped like release-images.yml's publish tail. Knobs, all defaulting to the
-# correct shape, so each case names ONLY what it breaks:
-#   PUSH_LATEST=1        the push step publishes the mutable tag itself (the 2026-08-11
-#                        regression). PUSH_LATEST_STYLE picks HOW it is written: plain,
-#                        a trailing shell comment, a backslash continuation, an untagged
-#                        reference, an && chain (one line or split), a `;` chain, a
-#                        trailing comment that merely MENTIONS :sha-, or a comment line
-#                        ending in a backslash. Every one of them was measured passing
-#                        with exit 0 at some point in this PR's review.
-#                        not a second step and not ungated. SECOND_STEP=1 is that one.
-#   SECOND_STEP=1        a real second publisher step, after the guarded one, with no if:
-#   PUBLISH_IF=<expr>    the publisher's guard expression; "OMIT" writes no if: at all
-#   ATTEST_ID=0          the attest step carries no id:
-#   ORDER=reversed       the publisher is emitted BEFORE the attest step
-#   INDENT=<n>           step marker indentation; the reader models 6
-emit() {
-  local path="$1"
-  local push_latest="${PUSH_LATEST:-0}"
-  local publish="${PUBLISH:-1}"
-  local publish_twice="${PUBLISH_TWICE:-0}"
-  # A sentinel rather than an inline default: the correct expression contains single quotes,
-  # and there is no way to write them inside ${VAR:-...} that does not emit literal
-  # backslashes. The first version of this file did exactly that, and it cost two findings at
-  # once: the shape it called correct was refused, and the near-miss case below then PASSED
-  # FOR THE WRONG REASON — rejected for its backslashes rather than for naming the push step.
-  local publish_if="${PUBLISH_IF:-DEFAULT}"
-  if [ "$publish_if" = "DEFAULT" ]; then
-    publish_if="steps.attest.outcome == 'success'"
-  fi
-  local attest_id="${ATTEST_ID:-1}"
-  local order="${ORDER:-normal}"
-  local ind
-  ind=$(printf '%*s' "${INDENT:-6}" '')
-
-  {
-    echo "name: release-images"
-    echo "jobs:"
-    echo "  release:"
-    echo "    steps:"
-    echo "${ind}- name: Push api"
-    echo "        id: push"
-    echo "        run: |"
-    echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"'
-    if [ "$push_latest" = "1" ]; then
-      case "${PUSH_LATEST_STYLE:-plain}" in
-      comment) echo '          docker push "${{ steps.tag.outputs.image }}:latest"  # keep latest moving' ;;
-      continuation)
-        printf '%s
-' '          docker push \'
-        printf '%s
-' '            "${{ steps.tag.outputs.image }}:latest"'
-        ;;
-      and-oneline) echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" && docker push "${{ steps.tag.outputs.image }}:latest"' ;;
-      and-split)
-        printf '%s
-' '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" && \'
-        printf '%s
-' '          docker push "${{ steps.tag.outputs.image }}:latest"'
-        ;;
-      semicolon) echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"; docker push "${{ steps.tag.outputs.image }}:latest"' ;;
-      comment-sha) echo '          docker push "${{ steps.tag.outputs.image }}:latest"  # mirrors the :sha- push' ;;
-      comment-cont)
-        printf '%s
-' '          # quick fix \'
-        printf '%s
-' '          docker push "${{ steps.tag.outputs.image }}:latest"'
-        ;;
-      implicit) echo '          docker push "${{ steps.tag.outputs.image }}"' ;;
-      *) echo '          docker push "${{ steps.tag.outputs.image }}:latest"' ;;
-      esac
-    fi
-    if [ "$order" = "reversed" ] && [ "$publish" = "1" ]; then emit_publisher "$publish_if" "$publish_twice"; fi
-    echo "${ind}- name: Attest api"
-    [ "$attest_id" = "1" ] && echo "        id: attest"
-    echo "        uses: actions/attest-build-provenance@v4"
-    if [ "$order" != "reversed" ] && [ "$publish" = "1" ]; then emit_publisher "$publish_if" "$publish_twice"; fi
-    if [ "${SECOND_STEP:-0}" = "1" ]; then emit_publisher "OMIT" "0"; fi
-  } >"$path"
-}
-
-emit_publisher() {
-  local guard="$1" twice="$2" ind
-  ind=$(printf '%*s' "${INDENT:-6}" '')
-  echo "${ind}- name: Publish latest api"
-  [ "$guard" != "OMIT" ] && echo "        if: $guard"
-  echo "        run: |"
-  echo '          docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" "${{ steps.tag.outputs.image }}:latest"'
-  echo '          docker push "${{ steps.tag.outputs.image }}:latest"'
-  [ "$twice" = "1" ] && echo '          docker push "${{ steps.tag.outputs.image }}:latest"'
-  return 0
-}
-
-# Runs the guard on $1 and records the verdict against a wanted exit code AND a wanted message
-# fragment. The fragment matters: several distinct defects all exit 1, and a case that checked
-# only the code would pass while the guard blamed the wrong thing — measured, twice, while this
-# guard was being written.
-expect() {
-  local want="$1" needle="$2" desc="$3" path="$4"
+run_guard() {
   local got=0
-  bash "$SUT" "$path" >"$out" 2>&1 || got=$?
-  if [ "$got" -eq "$want" ] && grep -qF -- "$needle" "$out"; then
+  bash "$SUT" "$1" "$2" >"$TMPROOT/out" 2>&1 || got=$?
+  echo "$got"
+}
+
+# <msg>, when given, is a piece of the rule's OWN message: a mutant that trips some other rule as well
+# must not pass the case for the rule it was written for (measured: two rules survived their own
+# deletion while their cases stayed green on a neighbour's message).
+expect() {
+  local want="$1" desc="$2" wf="$3" pub="$4" msg="${5:-}" got
+  got=$(run_guard "$wf" "$pub")
+  if [ "$got" -eq "$want" ] && { [ -z "$msg" ] || grep -qF -- "$msg" "$TMPROOT/out"; }; then
     pass=$((pass + 1))
     echo "  ok   $desc (exit $got)"
   else
     fail=$((fail + 1))
-    echo "  FAIL $desc — wanted exit $want naming [$needle], got exit $got" >&2
-    sed 's/^/       /' "$out" >&2
+    echo "  FAIL $desc — wanted exit $want${msg:+ saying \"$msg\"}, got $got" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
   fi
+}
+
+# Copies <real> to a case file, applies the sed script, and refuses to continue if nothing changed.
+mutant() {
+  local real="$1" script="$2" out="$3"
+  tr -d '\r' <"$real" | sed -E "$script" >"$out"
+  if cmp -s <(tr -d '\r' <"$real") "$out"; then
+    fail=$((fail + 1))
+    echo "  FAIL FIXTURE BROKEN — the edit no longer applies to $(basename "$real"): $script" >&2
+    return 1
+  fi
+}
+
+# A workflow case: mutate the workflow, keep the real publisher.
+wf_case() {
+  local want="$1" desc="$2" script="$3" msg="${4:-}"
+  mutant "$REAL_WF" "$script" "$TMPROOT/wf.yml" || return 0
+  expect "$want" "$desc" "$TMPROOT/wf.yml" "$REAL_PUB" "$msg"
+}
+# A publisher case: keep the real workflow, mutate the publisher.
+pub_case() {
+  local want="$1" desc="$2" script="$3" msg="${4:-}"
+  mutant "$REAL_PUB" "$script" "$TMPROOT/pub.sh" || return 0
+  expect "$want" "$desc" "$REAL_WF" "$TMPROOT/pub.sh" "$msg"
+}
+# A workflow case no line-oriented sed can express: <awk> rewrites the whole file.
+wf_case_awk() {
+  local want="$1" desc="$2" prog="$3" msg="${4:-}"
+  tr -d '\r' <"$REAL_WF" | awk "$prog" >"$TMPROOT/wf.yml"
+  if cmp -s <(tr -d '\r' <"$REAL_WF") "$TMPROOT/wf.yml"; then
+    fail=$((fail + 1))
+    echo "  FAIL FIXTURE BROKEN — the edit no longer applies: $desc" >&2
+    return 0
+  fi
+  expect "$want" "$desc" "$TMPROOT/wf.yml" "$REAL_PUB" "$msg"
 }
 
 echo "attestation-publish-order-guard.sh"
 
-echo "-- the correct shape passes"
-(emit "$TMPROOT/ok.yml")
-expect 0 "order holds" "push, then attest, then latest is the shape that holds" "$TMPROOT/ok.yml"
+echo "-- the real files"
+expect 0 "the real workflow and publisher hold the order" "$REAL_WF" "$REAL_PUB"
 
-echo "-- the regression this guard exists for"
-# The exact 2026-08-11 shape: the push step moves :latest itself, so a failing Attest leaves an
-# unattested image on the tag the box pulls. It also makes the count two — the guard checks this
-# FIRST so the message names the regression rather than the count.
-(PUSH_LATEST=1 emit "$TMPROOT/regress.yml")
-expect 1 "publishes \`:latest\` itself" "the push step publishing :latest is refused BY NAME" "$TMPROOT/regress.yml"
+echo "-- rule 1: what the workflow may not run"
+wf_case 1 "a cell that also pushes latest (the 2026-08-11 shape)" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a push whose trailing comment merely MENTIONS :sha-" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE:latest"  \# mirrors the :sha- push#' \
+  "pushes a mutable tag"
+wf_case 1 "an untagged push (docker tags it latest implicitly)" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker push "$IMAGE"#' \
+  "pushes a mutable tag"
+wf_case 1 "the guarded push and a mutable push chained on one line" \
+  's#^          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT"$#          bash .github/scripts/publish-release.sh push "$NAME" "$SHORT" >>"$GITHUB_OUTPUT" \&\& docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "docker image push, the long form of docker push" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker image push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a build that pushes as it builds" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "a build that pushes, written across a continuation line" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "a comment ending in a backslash does not swallow the push after it" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          \# a note that ends in a backslash \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a comment line inside a continued command does not hide the push after it" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --load -t "$IMAGE:sha-$SHORT" . \\\n            \# loaded only, the push step pushes \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a trailing comment ending in a backslash does not hide the push after it" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker tag "$IMAGE:sha-$SHORT" "$IMAGE:latest"  \# retagged for the box \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a push continued from a line with a parameter expansion's #" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          BRANCH="${GITHUB_REF\#refs/heads/}" \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a tag move continued from such a line" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          TAG="${GITHUB_REF_NAME\#v}" \\\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
+  "runs imagetools create"
+wf_case 1 "a push continued from a line that names a :sha- tag" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          REF="$IMAGE:sha-$SHORT" \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a build continued after a comment line, pushing as it builds" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --load -t "$IMAGE:sha-$SHORT" . \\\n            \# cache flags go here \\\n          docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "a build whose --push follows a parameter expansion's # on the line before" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --build-arg REF="${GITHUB_REF\#refs/heads/}" \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "a quoted # in an earlier command on the line does not stop the continuation" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          echo "build \#$SHORT" \&\& docker buildx build . \\\n            --push -t "$IMAGE:latest"#' \
+  "builds and pushes in one command"
+wf_case 1 "nor one before a semicolon" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          echo "release \#$SHORT"; docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "nor one in a middle command: only the last command decides" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          cd web \&\& echo "build \#$SHORT" \&\& docker buildx build . \\\n            --push -t "$IMAGE:latest"#' \
+  "builds and pushes in one command"
+wf_case 1 "the cells' build-push-action told to push" \
+  's#^          push: false$#          push: true#' \
+  "publishes from docker/build-push-action"
+wf_case 1 "a manifest list pushed by hand" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker manifest push "$IMAGE:latest"#' \
+  "runs docker manifest push"
+wf_case 1 "a tag move in a workflow step" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
+  "runs imagetools create"
+wf_case 1 "a registry tool the guard does not model" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          crane tag "$IMAGE:sha-$SHORT" latest#' \
+  "runs a registry tool this guard does not model"
 
-# THREE SPELLINGS THAT ALL PASSED WITH EXIT 0 BEFORE REVIEW, each measured. The detector
-# excluded any line containing a `#` ANYWHERE, matched single lines only, and tested for the
-# literal `:latest` — so a trailing comment, a line break, or an untagged reference each hid
-# the regression completely. The rule is inverted now: every `docker push` that is not the
-# immutable `:sha-<short>` tag is a mutable publish.
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment emit "$TMPROOT/regress-comment.yml")
-expect 1 "publishes \`:latest\` itself" "a trailing shell comment does not hide the regression" "$TMPROOT/regress-comment.yml"
+echo "-- the cells: attest follows push, and push goes through push_image"
+wf_case 1 "attest swapped ahead of push, in the cells only" \
+  '/^  release:$/,/^  publish:$/{s#^        id: push$#        id: tmp-swap#;s#^        id: attest$#        id: push#;s#^        id: tmp-swap$#        id: attest#}' \
+  "does not follow 'push'"
+wf_case 1 "a cell that pushes by hand and attests a re-read" \
+  's#^          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT"$#          docker push "$IMAGE:sha-$SHORT"#' \
+  "does not push through publish-release.sh push"
 
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=continuation emit "$TMPROOT/regress-cont.yml")
-expect 1 "publishes \`:latest\` itself" "nor does a backslash continuation — this file's own house style" "$TMPROOT/regress-cont.yml"
+echo "-- rule 2: the fan-in"
+wf_case 1 "the fan-in does not wait for the cells" 's#^    needs: \[prepare, release\]$#    needs: [prepare]#' \
+  "the publish job's needs is"
+wf_case 1 "the fan-in runs on a status function (over a failed cell)" \
+  "s#^    if: needs.prepare.outputs.publish == 'true'\$#    if: always()#" \
+  "the publish job's if: is"
+wf_case 1 "advance gated on the implicit success() alone" \
+  "s#^        if: steps.verified.outcome == 'success'\$#        if: success()#" \
+  "the advance step's if: is"
+wf_case 1 "the verified step removed" 's#^        id: verified$#        id: checked#' \
+  "lacks one of the step ids"
+wf_case 1 "advance and verified swapping ids" \
+  's#^        id: verified$#        id: tmp-swap#; s#^        id: advance$#        id: verified#; s#^        id: tmp-swap$#        id: advance#' \
+  "are not in the order record"
+wf_case_awk 1 "the advance step moved, whole, ahead of verified" \
+  '/^      - name: Advance$/ { inadv = 1 } inadv { adv = adv $0 "\n"; next } { lines[++n] = $0 } END { for (i = 1; i <= n; i++) { if (lines[i] == "      - name: Verified") printf "%s", adv; print lines[i] } }' \
+  "are not in the order record"
+wf_case 1 "the record step also calls advance" \
+  's#^(        run: bash .github/scripts/publish-release.sh record "\$SOURCE_SHA" >>"\$GITHUB_OUTPUT")$#        run: bash .github/scripts/publish-release.sh record "$SOURCE_SHA" >>"$GITHUB_OUTPUT" \&\& bash .github/scripts/publish-release.sh advance x y#' \
+  "only the gated advance step may"
+wf_case 1 "the record attested by something other than attest-build-provenance" \
+  '/^  publish:$/,$ s#^        uses: actions/attest-build-provenance@.*#        uses: someone/attest@v1#' \
+  "does not use actions/attest-build-provenance"
 
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=implicit emit "$TMPROOT/regress-implicit.yml")
-expect 1 "publishes \`:latest\` itself" "nor an untagged reference, whose tag DEFAULTS to latest" "$TMPROOT/regress-implicit.yml"
+echo "-- rule 3: the publisher script"
+pub_case 1 "move_tag called from cmd_record" \
+  's#^(  log "pushed the record for \$sha as \$digest .*)$#  move_tag "$RELEASE_REPO" "sha-$sha" "$digest"\n\1#' \
+  "calls move_tag outside cmd_advance"
+pub_case 1 "imagetools create outside move_tag" \
+  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  docker buildx imagetools create --prefer-index=false -t "$RELEASE_REPO:dev" "$RELEASE_REPO@$digest"#' \
+  "runs imagetools create outside move_tag"
+pub_case 1 "a docker push outside push_image" \
+  's#^(  digest=\$\(push_image "\$RELEASE_REPO" "pending-\$sha"\))$#  docker push "$RELEASE_REPO:pending-$sha"\n\1#' \
+  "runs docker push outside push_image"
+pub_case 1 "push_image called from cmd_advance" \
+  's#^(  \# Seal: the immutable name, created once.)$#  push_image "$RELEASE_REPO" "dev" >/dev/null\n\1#' \
+  "calls push_image outside cmd_record and cmd_push"
+pub_case 1 "cmd_record pushing the sealed name instead of the pending one" \
+  's#push_image "\$RELEASE_REPO" "pending-\$sha"#push_image "$RELEASE_REPO" "sha-$sha"#' \
+  "cmd_record pushes something other than a pending- tag"
+pub_case 1 "cmd_push pushing a mutable tag" \
+  's#push_image "\$PREFIX-\$name" "sha-\$short"#push_image "$PREFIX-$name" "latest"#' \
+  "cmd_push pushes something other than a sha- tag"
+pub_case 1 "a registry tool the guard does not model" \
+  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  regctl image copy "$RELEASE_REPO:pending-$sha" "$RELEASE_REPO:dev"#' \
+  "publish-release.sh runs a registry tool"
+pub_case 2 "a publisher without move_tag cannot be judged" 's#^move_tag\(\) \{#move_tags() {#'
+pub_case 2 "a publisher without push_image cannot be judged" 's#^push_image\(\) \{#push_images() {#'
 
-# FIVE MORE, ALL FOUND IN THE SCOPED RE-CHECK OF THE FIX ABOVE. Inverting the rule was right,
-# but the exemption was tested against the whole LINE while it belongs to a COMMAND: one
-# immutable push then vouched for a mutable one beside it. And the comment test ran AFTER the
-# continuation accumulator, so a comment ending in a backslash swallowed the command below it.
-# Each of these was measured exit 0 before the predicate was made per-segment.
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=and-oneline emit "$TMPROOT/regress-and1.yml")
-expect 1 "publishes \`:latest\` itself" "an && chain does not let the sha- push vouch for the mutable one" "$TMPROOT/regress-and1.yml"
+echo "-- rule 4: one tree"
+wf_case 1 "a cell that checks out main instead of the prepared commit" \
+  '0,/^          ref: \$\{\{ needs.prepare.outputs.sha \}\}$/s##          ref: main#' \
+  "checks out 'main', not"
+wf_case 1 "prepare checks out the dispatch's ref input instead of github.sha" \
+  '/^  prepare:$/,/^  release:$/ s#^          ref: \$\{\{ github.sha \}\}$#          ref: ${{ inputs.ref }}#' \
+  "prepare checks out"
+wf_case 1 "a cell's tree assertion gated by an if:" \
+  '/^  release:$/,/^  publish:$/ s#^(      - name: The tree is the commit this run names)$#\1\n        if: success()#' \
+  "job 'release' never asserts"
+wf_case 1 "prepare's tree assertion removed" \
+  '/^  prepare:$/,/^  release:$/ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \]#true#' \
+  "job 'prepare' never asserts"
+wf_case 1 "the fan-in no longer asserts its tree" \
+  '/^  publish:$/,$ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \] \&\& ##' \
+  "job 'publish' never asserts"
 
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=and-split emit "$TMPROOT/regress-and2.yml")
-expect 1 "publishes \`:latest\` itself" "nor an && chain split across a real backslash continuation" "$TMPROOT/regress-and2.yml"
+echo "-- rule 5: the local-only tag"
+pub_case 1 "the publisher moves a tag named applied" \
+  's#^(  log "latest names the record.s image for all .*)$#  move_tag "$PREFIX-api" applied "$image"\n\1#' \
+  "names the local-only tag applied"
 
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=semicolon emit "$TMPROOT/regress-semi.yml")
-expect 1 "publishes \`:latest\` itself" "nor a semicolon chain" "$TMPROOT/regress-semi.yml"
+echo "-- rule 6: one run at a time"
+wf_case 1 "runs allowed to overlap" 's#^  cancel-in-progress: false$#  cancel-in-progress: true#' "concurrency is group"
+wf_case 1 "a computed concurrency group" 's#^  group: release-images$#  group: release-images-${{ github.run_id }}#' "concurrency is group"
 
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment-sha emit "$TMPROOT/regress-csha.yml")
-expect 1 "publishes \`:latest\` itself" "nor a trailing comment that merely MENTIONS :sha-" "$TMPROOT/regress-csha.yml"
-
-(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment-cont emit "$TMPROOT/regress-ccont.yml")
-expect 1 "publishes \`:latest\` itself" "nor a comment line ending in a backslash, which used to swallow the next command" "$TMPROOT/regress-ccont.yml"
-
-echo "-- the guard expression"
-(PUBLISH_IF="success()" emit "$TMPROOT/bare.yml")
-expect 1 "not gated on the attestation" "a bare success() is refused — it is TRUE when push was SKIPPED" "$TMPROOT/bare.yml"
-
-(PUBLISH_IF="OMIT" emit "$TMPROOT/noif.yml")
-expect 1 "not gated on the attestation" "no if: at all is refused" "$TMPROOT/noif.yml"
-
-# The near-miss: gating on the PUSH step looks right and is not. It is true when the attestation
-# failed, which is precisely the case that must not publish.
-(PUBLISH_IF="steps.push.outcome == 'success'" emit "$TMPROOT/onpush.yml")
-expect 1 "not gated on the attestation" "gating on the PUSH step instead of the ATTEST step is refused" "$TMPROOT/onpush.yml"
-
-echo "-- how many publishers"
-(PUBLISH=0 emit "$TMPROOT/none.yml")
-expect 1 "no step publishes" "a pipeline that never moves latest can never ship, and is refused" "$TMPROOT/none.yml"
-
-(PUBLISH_TWICE=1 emit "$TMPROOT/two.yml")
-expect 1 "mutable publishes found" "a second publish command inside the guarded step is refused" "$TMPROOT/two.yml"
-
-# The shape check 1's own rationale names — "two publishers means one of them is unguarded" —
-# and which had no fixture at all until review: a real second step, after the guarded one,
-# carrying no if: whatsoever.
-(SECOND_STEP=1 emit "$TMPROOT/twostep.yml")
-expect 1 "mutable publishes found" "a second, UNGATED publisher step is refused" "$TMPROOT/twostep.yml"
-
-echo "-- order, not merely presence"
-# steps.attest.outcome read before that step has run is the empty string, so a publisher above
-# the attest step never fires: green pipeline, box never updated. Presence is not order.
-(ORDER=reversed emit "$TMPROOT/rev.yml")
-expect 1 "does not follow" "a publisher placed BEFORE the attest step is refused" "$TMPROOT/rev.yml"
-
-echo "-- what it declines to judge, rather than passing"
-(ATTEST_ID=0 emit "$TMPROOT/noid.yml")
-expect 2 "id: attest" "an attest step with no id: is UNANSWERABLE, never a pass" "$TMPROOT/noid.yml"
-
-(INDENT=4 emit "$TMPROOT/indent.yml")
-expect 2 "read no steps at all" "a shape the reader cannot parse is UNANSWERABLE, never a pass" "$TMPROOT/indent.yml"
-
-expect 2 "no such workflow" "a missing workflow is UNANSWERABLE, never a pass" "$TMPROOT/does-not-exist.yml"
-
-echo "-- line endings"
-# The repo default is core.autocrlf=true, so this file is CRLF in a Windows worktree and LF on
-# a CI checkout. A trailing \r breaks every comparison in the guard, silently and in the PASSING
-# direction, so both are pinned rather than assumed.
-(emit "$TMPROOT/lf.yml")
-expect 0 "order holds" "an LF workflow (what CI checks out) passes" "$TMPROOT/lf.yml"
-sed 's/$/\r/' "$TMPROOT/lf.yml" >"$TMPROOT/crlf.yml"
-expect 0 "order holds" "a CRLF workflow (what a Windows worktree holds) passes identically" "$TMPROOT/crlf.yml"
-
-(PUSH_LATEST=1 emit "$TMPROOT/regress-lf.yml")
-sed 's/$/\r/' "$TMPROOT/regress-lf.yml" >"$TMPROOT/regress-crlf.yml"
-expect 1 "publishes \`:latest\` itself" "and a CRLF regression is still caught, not passed" "$TMPROOT/regress-crlf.yml"
-
-echo "-- the coupling: the guard against the REAL workflow"
-# Everything above measures the guard. THIS measures the repo. Without it the guard could be
-# correct about fixtures while release-images.yml drifted underneath it.
-if [ -f "$REAL" ]; then
-  expect 0 "order holds" "release-images.yml itself publishes latest only over an attested digest" "$REAL"
-else
-  fail=$((fail + 1))
-  echo "  FAIL the real workflow is not where this suite expects it: $REAL" >&2
-fi
+echo "-- could not answer"
+expect 2 "a missing workflow" "$TMPROOT/nope.yml" "$REAL_PUB"
+expect 2 "a missing publisher" "$REAL_WF" "$TMPROOT/nope.sh"
+printf 'name: x\njobs:\n  prepare:\n    runs-on: ubuntu-latest\n' >"$TMPROOT/empty.yml"
+expect 2 "a workflow whose steps the reader cannot see" "$TMPROOT/empty.yml" "$REAL_PUB"
 
 echo
 echo "passed: $pass   failed: $fail"

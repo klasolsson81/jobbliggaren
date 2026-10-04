@@ -1,7 +1,7 @@
 # Rescans the five PUBLISHED images against today's advisory database (#1519).
 #
 # THE DEFECT THIS CLOSES. `release-images.yml` skips Build, Trivy AND Push whenever the current
-# `main` SHA is already published under both tags with a readable attestation. That skip is
+# `main` SHA already has a release record that proves itself (#1238). That skip is
 # deliberate, well argued, and NOT CHANGED BY THIS FILE. Its unnamed consequence was that a
 # published image is never rescanned: no GitHub Actions event fires on a published advisory
 # (measured 2026-08-28 — neither `security_advisory`, `repository_advisory` nor
@@ -19,14 +19,15 @@
 #
 # THE THREE ALTERNATIVES WERE MEASURED AND REFUSED, and they are written out so this is not
 # re-litigated from scratch. (1) An AGE TERM that rebuilds a stale-but-unchanged SHA re-points
-# `sha-<short>`, which `release-images.yml` defines as the rollback handle the box pins in its
-# `.env` — a handle that means two digests at two times is a rollback that does not roll back —
+# what the box's rollback names — then `sha-<short>` in its `.env`, since #1238 a release record
+# that must never be rewritten — and a handle that means two digests at two times is a rollback
+# that does not roll back —
 # and it turns the hourly timer into an unattended production deploy of an image no human asked
 # for. (2) ALWAYS BUILD AND SCAN, PUSH ON CHANGE scans a freshly built image rather than the
 # published artefact, so a green scan says nothing about what the box actually runs. (3) The
 # HYBRID (scan, and let a red scan force a rebuild) inherits both of (1)'s worst properties and
-# adds a loop: after such a rebuild `latest` no longer equals `sha-<short>`, so the next hourly
-# run sees `already=false` and rebuilds again, forever, until a new tag scheme is designed.
+# adds a loop: under the 2026-08-28 predicate a rebuild left `latest` unequal to `sha-<short>`, so
+# the next hourly run saw `already=false` and rebuilt again, forever.
 #
 # WHY ITS OWN FILE RATHER THAN A STEP IN `release-images.yml`, and the first reason is the one
 # that matters: PRIVILEGE. This workflow can read the registry and nothing else. A detector that

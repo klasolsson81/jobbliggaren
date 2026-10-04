@@ -3,8 +3,13 @@
 #
 # Selected BY PATH, never by COMPOSE_FILE in the box's .env:
 #
-#   docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml pull
-#   docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d
+#   docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
+#
+# OUR SIX SERVICES RUN `jobbliggaren-<x>:applied`, A LOCAL TAG, AND NOTHING HERE PULLS THEM (#1238,
+# ADR 0149). `jobbliggaren-reconcile.sh` reads one release record, verifies every image it names as built
+# from the record's commit, and only then points `:applied` at them; `pull_policy: never` makes compose
+# skip those services on a `pull`. The record also binds this file:
+# a release is applied only with the compose file it was released with (canonical form, comments aside).
 #
 # COMPOSE_FILE overrides a project's own file resolution, and the compose guard is
 # structurally blind to it (#1217) — a green guard would then vouch for a file the
@@ -231,7 +236,8 @@ services:
   # Edge — the only service that publishes
   # ==============================================================
   caddy:
-    image: ghcr.io/klasolsson81/jobbliggaren-caddy:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-caddy:applied
+    pull_policy: never
     container_name: jobbliggaren-caddy
     ports:
       # Wide by requirement, not by omission — see the header.
@@ -296,7 +302,8 @@ services:
   # Next.js — the only thing Caddy proxies to (Option B)
   # ==============================================================
   web:
-    image: ghcr.io/klasolsson81/jobbliggaren-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-web:applied
+    pull_policy: never
     container_name: jobbliggaren-web
     environment:
       # Option B invariant 6: server-only, internal service DNS, never the public
@@ -334,7 +341,8 @@ services:
   # Application
   # ==============================================================
   api:
-    image: ghcr.io/klasolsson81/jobbliggaren-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-api:applied
+    pull_policy: never
     container_name: jobbliggaren-api
     environment:
       <<: [*app-secrets, *app-connections, *app-email, *app-seq]
@@ -453,7 +461,8 @@ services:
     networks: [web-api, api-postgres, api-redis, api-volatile, api-seq, api-egress]
 
   worker:
-    image: ghcr.io/klasolsson81/jobbliggaren-worker:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-worker:applied
+    pull_policy: never
     container_name: jobbliggaren-worker
     environment:
       <<: [*app-secrets, *app-connections, *app-email, *app-seq]
@@ -529,7 +538,8 @@ services:
   # is an operator step — `docker compose -f <path> run --rm migrate init` — because it
   # needs the master credentials and must not run on every restart.
   migrate:
-    image: ghcr.io/klasolsson81/jobbliggaren-migrate:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-migrate:applied
+    pull_policy: never
     container_name: jobbliggaren-migrate
     command: ["schema"]
     environment:
@@ -582,7 +592,8 @@ services:
   # holds TWO master keys in plaintext for the whole run, and without it a container at its
   # ceiling pages that memory into zram.
   migrate-rewrap:
-    image: ghcr.io/klasolsson81/jobbliggaren-migrate:${IMAGE_TAG:-latest}
+    image: ghcr.io/klasolsson81/jobbliggaren-migrate:applied
+    pull_policy: never
     container_name: jobbliggaren-migrate-rewrap
     profiles: ["ops"]
     command: ["rewrap-master-key"]

@@ -53,9 +53,9 @@ public sealed record SchemaAheadDecision(
 /// against the database whose applied-migration list it has just read?
 ///
 /// <para>
-/// <b>Why it exists.</b> An image-tag rollback rolls back CODE only. EF applies pending
+/// <b>Why it exists.</b> A release rollback rolls back CODE only. EF applies pending
 /// migrations (assembly ∖ applied) and silently ignores history rows it cannot name, so a
-/// backwards-pinned <c>IMAGE_TAG</c> runs an older assembly against a newer schema without a
+/// release pinned backwards runs an older assembly against a newer schema without a
 /// single log line — and this repo holds measured cases where that direction destroys data
 /// irreversibly. The gate turns that silence into a refusal before <c>MigrateAsync</c> runs.
 /// </para>

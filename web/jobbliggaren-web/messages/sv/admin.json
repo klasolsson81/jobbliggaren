@@ -109,12 +109,12 @@
       "pendingDeletion": "Raderas tidigast {date}"
     },
     "regions": {
-      "empty": "Inga konton matchar sökningen.",
+      "empty": "Inga konton matchar sökningen eller filtret.",
       "failed": "Kontona kunde inte hämtas. Försök igen om en stund.",
       "loading": "Hämtar konton"
     },
     "pager": {
-      "label": "Sidor",
+      "label": "Sidnavigering",
       "previous": "Föregående",
       "next": "Nästa",
       "position": "Sida {page} av {pages}"
@@ -148,13 +148,14 @@
         "required": "Skriv in den nya e-postadressen.",
         "invalid": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
         "same": "Den nya adressen är samma som kontots nuvarande. Skriv in en annan adress."
-      }
+      },
+      "busy": "Skickar…"
     },
     "confirm": {
       "cancel": "Avbryt",
       "suspend": {
         "title": "Suspendera {email}?",
-        "body": "Kontot låses och alla sessioner loggas ut. Kontoägaren kan inte logga in förrän du häver suspenderingen. Inga uppgifter tas bort.",
+        "body": "Kontoägaren loggas ut på alla enheter och kan inte logga in förrän du häver suspenderingen. Inga uppgifter tas bort.",
         "confirm": "Suspendera konto"
       },
       "scheduleDeletion": {
@@ -165,13 +166,24 @@
     },
     "toast": {
       "close": "Stäng meddelandet",
-      "suspended": "{email} är suspenderat.",
+      "suspended": "Kontot {email} är suspenderat.",
       "reinstated": "Suspenderingen av {email} är hävd.",
-      "deletionScheduled": "{email} raderas slutgiltigt tidigast {date}.",
+      "deletionScheduled": "Kontot {email} raderas slutgiltigt tidigast {date}.",
       "emailChangeRequested": "En bekräftelse har skickats till {email}. Adressen byts när kontoägaren har bekräftat."
     },
     "refusal": {
-      "ownAccount": "Du kan inte göra det med ditt eget konto."
+      "ownAccount": {
+        "changeEmail": "Du kan inte byta adress på ditt eget konto här. Byt den på Mina sidor.",
+        "suspend": "Du kan inte suspendera ditt eget konto.",
+        "reinstate": "Du kan inte häva suspenderingen av ditt eget konto.",
+        "scheduleDeletion": "Du kan inte radera ditt eget konto här. Radera det på Mina sidor."
+      }
+    },
+    "busy": {
+      "changeEmail": "Skickar…",
+      "suspend": "Suspenderar…",
+      "reinstate": "Häver…",
+      "scheduleDeletion": "Raderar…"
     }
   },
   "feedback": {
@@ -394,8 +406,8 @@
     }
   },
   "impersonation": {
-    "label": "Imitering",
+    "label": "Agera som användare",
     "text": "Du agerar som {email}.",
-    "end": "Avsluta imitering"
+    "end": "Sluta agera som användaren"
   }
 }

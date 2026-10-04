@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": the list's search, filter, sort, pages and commands run in memory.
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { AdminAccountDetail, AdminAccountRow, AdminRegion } from "@/lib/admin/view-models";
@@ -117,7 +118,7 @@ export function PreviewAccounts({
     next: AdminAccountCommand,
   ): Promise<AdminCommandRefusal> {
     await new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
-    if (account.email === adminEmail) return t("refusal.ownAccount");
+    if (account.email === adminEmail) return t(`refusal.ownAccount.${next.kind}`);
     setRows((previous) =>
       previous.map((row) => (row.id === account.id ? applyCommand(row, next, deletionEarliest) : row)),
     );
@@ -151,7 +152,7 @@ export function PreviewAccounts({
       {loaded ? <AdminAccountsSummary shown={filtered.length} total={rows.length} /> : null}
       <AdminAccountsTable
         region={region}
-        sort={sort}
+        sort={loaded ? sort : undefined}
         onSort={loaded ? toggleSort : undefined}
         selectedId={openId}
         onOpen={loaded ? setOpenId : undefined}

@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AdminAccountDetail } from "@/lib/admin/view-models";
-import { dismissAdminToast, getAdminToastSnapshot, showAdminToast } from "@/lib/admin/toast-store";
+import {
+  dismissAdminToast,
+  getAdminToastHeld,
+  getAdminToastSnapshot,
+  showAdminToast,
+} from "@/lib/admin/toast-store";
 import { AdminToastHost } from "./admin-toast-host";
 import {
   AdminAccountPanel,
@@ -43,10 +48,17 @@ function renderPanel(
   return { onClose };
 }
 
+/** The text a reader sees: a busy label's hidden form is not part of it. */
+function shownText(node: Node): string {
+  if (node instanceof Element && node.getAttribute("aria-hidden") === "true") return "";
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  return [...node.childNodes].map(shownText).join("");
+}
+
 function actionNames() {
   return within(screen.getByRole("region", { name: "Åtgärder" }))
     .getAllByRole("button")
-    .map((button) => button.textContent);
+    .map(shownText);
 }
 
 afterEach(() => {
@@ -87,7 +99,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(unbuilt).not.toBeDisabled();
   });
 
-  it("offers a suspended account its reinstatement and a pending deletion its (unbuilt) restore", () => {
+  it("offers a suspended account its reinstatement instead of its suspension", () => {
     renderPanel({ ...ACTIVE, status: "suspended" });
     expect(actionNames()).toContain("Häv suspendering");
     expect(actionNames()).not.toContain("Suspendera konto");
@@ -124,7 +136,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     await userEvent.click(within(confirm).getByRole("button", { name: "Suspendera konto" }));
     expect(onCommand).toHaveBeenCalledWith(ACTIVE, { kind: "suspend" });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(getAdminToastSnapshot()?.message).toBe("konto.a@example.test är suspenderat.");
+    expect(getAdminToastSnapshot()?.message).toBe("Kontot konto.a@example.test är suspenderat.");
   });
 
   it("keeps the confirmation open with the refusal when the command is refused, and shows no receipt", async () => {
@@ -209,5 +221,54 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     fireEvent.pointerDown(document.body);
     fireEvent.click(document.body);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus to the action that opened a confirmation the reader cancelled", async () => {
+    renderPanel(ACTIVE);
+
+    const suspend = screen.getByRole("button", { name: "Suspendera konto" });
+    await userEvent.click(suspend);
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Avbryt" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Suspendera konto" })).toHaveFocus());
+  });
+
+  it("names a direct command while it runs, and moves focus to its refusal", async () => {
+    let settle: (refusal: AdminCommandRefusal) => void = () => {};
+    renderPanel({ ...ACTIVE, status: "suspended" }, () => new Promise((resolve) => (settle = resolve)));
+
+    await userEvent.click(screen.getByRole("button", { name: "Häv suspendering" }));
+    expect(screen.getByRole("button", { name: "Häver…" })).toBeDisabled();
+
+    settle("Du kan inte häva suspenderingen av ditt eget konto.");
+    const refusal = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("alert");
+    expect(refusal).toHaveTextContent("Du kan inte häva suspenderingen av ditt eget konto.");
+    await waitFor(() => expect(refusal).toHaveFocus());
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("holds the receipt's clock while it is open, and lets it go when it closes", () => {
+    const { rerender } = render(
+      <AdminAccountPanel
+        account={ACTIVE}
+        onClose={() => {}}
+        live={ALL_LIVE}
+        onCommand={async () => null}
+        deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
+      />,
+    );
+    expect(getAdminToastHeld()).toBe(true);
+
+    rerender(
+      <AdminAccountPanel
+        account={null}
+        onClose={() => {}}
+        live={ALL_LIVE}
+        onCommand={async () => null}
+        deletionEarliestIfScheduledNow="2026-11-03T08:00:00Z"
+      />,
+    );
+    expect(getAdminToastHeld()).toBe(false);
   });
 });

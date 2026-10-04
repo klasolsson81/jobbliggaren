@@ -13,6 +13,7 @@ import { PREVIEW_PORTS } from "./ports";
 const ROOT = "/admin/forhandsvisning";
 const DOMAIN = "forhandsvisning.invalid";
 const mail = (local: string) => `${local}@${DOMAIN}`;
+const LONG = mail("konto.n.med.en.mycket.lang.adress.for.smala.skarmar");
 
 let harness: Harness;
 
@@ -113,7 +114,7 @@ test("the band's state choice drives the account list, and is offered only where
   await expect(table.getByRole("button", { name: /@/ })).toHaveCount(0);
 
   await state.getByRole("radio", { name: "Tom" }).click();
-  await expect(table).toContainText("Inga konton matchar sökningen.");
+  await expect(table).toContainText("Inga konton matchar sökningen eller filtret.");
 
   await state.getByRole("radio", { name: "Fel" }).click();
   await expect(table.getByRole("alert")).toHaveText("Kontona kunde inte hämtas. Försök igen om en stund.");
@@ -129,17 +130,17 @@ test("the band's state choice drives the account list, and is offered only where
 test("search, filter, sort and pages work on the fixtures, and the search never reaches the URL", async ({ page }) => {
   await page.goto(`${ROOT}/anvandare`);
   const summary = page.getByRole("status").filter({ hasText: "konton" });
-  await expect(summary).toHaveText("14 av 14 konton");
-  await expect(page.getByRole("navigation", { name: "Sidor" })).toContainText("Sida 1 av 2");
+  await expect(summary).toHaveText("15 av 15 konton");
+  await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 1 av 2");
 
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.a");
-  await expect(summary).toHaveText("1 av 14 konton");
+  await expect(summary).toHaveText("1 av 15 konton");
   expect(new URL(page.url()).search).toBe("");
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("");
 
   await page.getByRole("radio", { name: "Suspenderade (2)" }).click();
-  await expect(summary).toHaveText("2 av 14 konton");
-  await page.getByRole("radio", { name: "Alla (14)" }).click();
+  await expect(summary).toHaveText("2 av 15 konton");
+  await page.getByRole("radio", { name: "Alla (15)" }).click();
 
   await page.getByRole("button", { name: "Konto", exact: true }).click();
   await expect(page.getByRole("columnheader", { name: "Konto", exact: true })).toHaveAttribute("aria-sort", "ascending");
@@ -147,7 +148,7 @@ test("search, filter, sort and pages work on the fixtures, and the search never 
   await expect(firstRow).toContainText(mail("admin"));
 
   await page.getByRole("button", { name: "Nästa" }).click();
-  await expect(page.getByRole("navigation", { name: "Sidor" })).toContainText("Sida 2 av 2");
+  await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 2 av 2");
   await expect(page.getByRole("button", { name: "Nästa" })).toBeDisabled();
 });
 
@@ -181,10 +182,15 @@ test("suspending asks first, then confirms with a receipt, and the account can b
   await panel(page).getByRole("button", { name: "Suspendera konto" }).click();
   await expect(confirmation(page)).toHaveAccessibleName(`Suspendera ${mail("konto.a")}?`);
   await expect(confirmation(page).getByRole("button", { name: "Avbryt" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirmation(page)).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: "Suspendera konto" })).toBeFocused();
+
+  await panel(page).getByRole("button", { name: "Suspendera konto" }).click();
   await confirmation(page).getByRole("button", { name: "Suspendera konto" }).click();
 
   await expect(confirmation(page)).toHaveCount(0);
-  await expect(toast(page)).toContainText(`${mail("konto.a")} är suspenderat.`);
+  await expect(toast(page)).toContainText(`Kontot ${mail("konto.a")} är suspenderat.`);
   await expect(panel(page).getByRole("heading", { name: mail("konto.a") })).toBeFocused();
   await expect(panel(page)).toContainText("Suspenderad");
 
@@ -201,8 +207,8 @@ test("scheduling deletion states the earliest date and leaves nothing but unbuil
   await expect(confirmation(page)).toContainText("raderas slutgiltigt tidigast 3 nov. 2026");
   await confirmation(page).getByRole("button", { name: "Radera konto" }).click();
 
-  await expect(toast(page)).toContainText(`${mail("konto.b")} raderas slutgiltigt tidigast 3 nov. 2026.`);
-  await expect(panel(page)).toContainText("Raderas tidigast 3 nov. 2026");
+  await expect(toast(page)).toContainText(`Kontot ${mail("konto.b")} raderas slutgiltigt tidigast 3 nov. 2026.`);
+  await expect(panel(page)).toContainText("Raderas tidigast 2026-11-03");
   for (const button of await panel(page).getByRole("region", { name: "Åtgärder" }).getByRole("button").all()) {
     await expect(button).toHaveAttribute("aria-disabled", "true");
   }
@@ -214,7 +220,8 @@ test("an action on the administrator's own account is refused where it was asked
 
   await panel(page).getByRole("button", { name: "Suspendera konto" }).click();
   await confirmation(page).getByRole("button", { name: "Suspendera konto" }).click();
-  await expect(confirmation(page).getByRole("alert")).toHaveText("Du kan inte göra det med ditt eget konto.");
+  await expect(confirmation(page).getByRole("alert")).toHaveText("Du kan inte suspendera ditt eget konto.");
+  await expect(confirmation(page).getByRole("alert")).toBeFocused();
   await expect(toast(page)).toHaveCount(0);
   await confirmation(page).getByRole("button", { name: "Avbryt" }).click();
 
@@ -222,7 +229,9 @@ test("an action on the administrator's own account is refused where it was asked
   const field = panel(page).getByLabel("Ny e-postadress");
   await field.fill(mail("ny.adress"));
   await panel(page).getByRole("button", { name: "Skicka bekräftelse" }).click();
-  await expect(panel(page).getByRole("alert")).toHaveText("Du kan inte göra det med ditt eget konto.");
+  await expect(panel(page).getByRole("alert")).toHaveText(
+    "Du kan inte byta adress på ditt eget konto här. Byt den på Mina sidor.",
+  );
   await expect(panel(page).getByRole("alert")).toBeFocused();
   await expect(field).toHaveValue(mail("ny.adress"));
   await expect(toast(page)).toHaveCount(0);
@@ -263,13 +272,13 @@ test("an unbuilt action stays in place, says Kommer snart and does nothing", asy
 
 test("the impersonation banner turns on from the band and off from its own button", async ({ page }) => {
   await page.goto(ROOT);
-  const toggle = page.getByRole("button", { name: "Visa imiteringsbanner" });
+  const toggle = page.getByRole("button", { name: "Visa läget Agera som användaren" });
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("region", { name: "Imitering" })).toHaveText(/Du agerar som konto\.a@forhandsvisning\.invalid\./);
+  await expect(page.getByRole("region", { name: "Agera som användare" })).toHaveText(/Du agerar som konto\.a@forhandsvisning\.invalid\./);
 
-  await page.getByRole("button", { name: "Avsluta imitering" }).click();
-  await expect(page.getByRole("region", { name: "Imitering" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Sluta agera som användaren" }).click();
+  await expect(page.getByRole("region", { name: "Agera som användare" })).toHaveCount(0);
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
 });
 
@@ -284,10 +293,53 @@ for (const width of [320, 375]) {
       expect(overflow, `${path} at ${width} px`).toBeLessThanOrEqual(0);
     }
 
+    for (const path of [`${ROOT}/anvandare`, `${ROOT}/feedback`, `${ROOT}/e-post`]) {
+      await page.goto(path);
+      const clipped = await page
+        .locator(".jp-adminsegment .jp-segment")
+        .evaluateAll((groups) => groups.filter((group) => group.scrollWidth > group.clientWidth).length);
+      expect(clipped, `${path}: a group hides options at ${width} px`).toBe(0);
+    }
+
     await page.goto(`${ROOT}/anvandare`);
-    await openAccount(page, mail("konto.a"));
+    await openAccount(page, LONG);
     const box = await panel(page).boundingBox();
     expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
     expect((box?.x ?? 0) + (box?.width ?? Infinity)).toBeLessThanOrEqual(width);
+    await panel(page).getByRole("button", { name: "Ändra e-postadress" }).click();
+    const sideways = await panel(page).evaluate((dialog) => dialog.scrollWidth - dialog.clientWidth);
+    expect(sideways, `the panel scrolls sideways at ${width} px`).toBeLessThanOrEqual(0);
   });
 }
+
+test("a receipt published from the open panel waits for the panel to close", async ({ page }) => {
+  await page.clock.install();
+  await page.goto(`${ROOT}/anvandare`);
+  await openAccount(page, mail("konto.a"));
+
+  await panel(page).getByRole("button", { name: "Suspendera konto" }).click();
+  await confirmation(page).getByRole("button", { name: "Suspendera konto" }).click();
+  await page.clock.runFor(500);
+  await expect(toast(page)).toContainText(`Kontot ${mail("konto.a")} är suspenderat.`);
+
+  await page.clock.runFor(30_000);
+  await expect(toast(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel(page)).toHaveCount(0);
+  await page.clock.runFor(8_100);
+  await expect(toast(page)).toHaveCount(0);
+});
+
+test("a refused deletion of the own account takes focus, and Avbryt returns to its button", async ({ page }) => {
+  await page.goto(`${ROOT}/anvandare`);
+  await openAccount(page, mail("admin"));
+
+  await panel(page).getByRole("button", { name: "Radera konto" }).click();
+  await confirmation(page).getByRole("button", { name: "Radera konto" }).click();
+  await expect(confirmation(page).getByRole("alert")).toHaveText(
+    "Du kan inte radera ditt eget konto här. Radera det på Mina sidor.",
+  );
+  await expect(confirmation(page).getByRole("alert")).toBeFocused();
+  await confirmation(page).getByRole("button", { name: "Avbryt" }).click();
+  await expect(panel(page).getByRole("button", { name: "Radera konto" })).toBeFocused();
+});

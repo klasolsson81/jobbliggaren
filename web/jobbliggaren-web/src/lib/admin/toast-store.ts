@@ -10,6 +10,7 @@ export interface AdminToast {
 
 let current: AdminToast | null = null;
 let nextToken = 1;
+let holds = 0;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -31,6 +32,22 @@ export function dismissAdminToast(token: number): void {
   emit();
 }
 
+/**
+ * Stops the receipt's clock while a dialog keeps keyboard focus away from it; the returned
+ * function releases the hold, once.
+ */
+export function holdAdminToasts(): () => void {
+  holds += 1;
+  emit();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    holds -= 1;
+    emit();
+  };
+}
+
 export function subscribeAdminToast(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -42,4 +59,12 @@ export function getAdminToastSnapshot(): AdminToast | null {
 
 export function getAdminToastServerSnapshot(): AdminToast | null {
   return null;
+}
+
+export function getAdminToastHeld(): boolean {
+  return holds > 0;
+}
+
+export function getAdminToastHeldServerSnapshot(): boolean {
+  return false;
 }

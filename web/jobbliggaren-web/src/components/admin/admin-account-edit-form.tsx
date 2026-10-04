@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": React Hook Form owns the new address and its refusal.
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,11 +11,11 @@ import { Label } from "@/components/ui/label";
 import { checkNewAddress, type NewAddressRefusal } from "@/lib/auth/new-address";
 import type { AdminAccountDetail } from "@/lib/admin/view-models";
 import { AdminRolePill } from "./admin-account-status";
+import { AdminBusyLabel } from "./admin-busy-label";
 
 export const ADMIN_NEW_EMAIL_FIELD_ID = "admin-account-new-email";
 
-// The address rule is the one self-service change-email runs before a code is spent: it refuses at
-// least what the backend refuses and never an address the backend would take.
+// The address rule is the one self-service change-email runs before a code is spent.
 function makeSchema(currentEmail: string, refusal: (reason: NewAddressRefusal) => string) {
   return z.object({
     newEmail: z.string().superRefine((value, context) => {
@@ -122,7 +123,7 @@ export function AdminAccountEditForm({ account, onSubmit, onCancel }: AdminAccou
       )}
       <div className="jp-admineditform__actions">
         <button type="submit" className="jp-btn jp-btn--primary" disabled={pending}>
-          {t("submit")}
+          <AdminBusyLabel busy={pending} label={t("submit")} busyLabel={t("busy")} />
         </button>
         <button type="button" className="jp-btn jp-btn--ghost" disabled={pending} onClick={onCancel}>
           {t("cancel")}

@@ -21,6 +21,6 @@
       "failed": "Error",
       "loading": "Loading"
     },
-    "impersonation": "Show impersonation banner"
+    "impersonation": "Show the Act as user state"
   }
 }

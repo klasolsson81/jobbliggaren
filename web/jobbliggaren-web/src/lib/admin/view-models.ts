@@ -1,8 +1,4 @@
-/**
- * The admin surface's view models (ADR 0150). The pages and their components read these shapes and
- * nothing else; a backend DTO is mapped into them where it is fetched, and the preview's fixtures
- * build them directly.
- */
+/** The admin surface's view models (ADR 0150). */
 
 /**
  * A data region is exactly one of these (ADR 0150 D2). `unavailable` means no source exists yet,

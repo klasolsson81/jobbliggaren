@@ -232,16 +232,21 @@
   margin: 0;
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* ── Filter and period groups: the house `.jp-segment` ─────────────────────────────────── */
-/* Joined options do not wrap well, so at narrow widths a group scrolls inside its own box. */
 .jp-adminsegment {
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
 }
 .jp-adminsegment .jp-segment__opt { white-space: nowrap; }
+/* An unbuilt group's chosen option is a tint, never the primary fill (ADR 0150 D8). */
+.jp-adminsegment .jp-segment__opt[data-active="true"]:disabled {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  opacity: 1;
+}
 .jp-admincard__head > .jp-adminsegment { margin-left: auto; }
 
 /* ── Tables ──────────────────────────────────────────────────────────────────────────────
@@ -272,6 +277,8 @@
   cursor: pointer;
 }
 .jp-adminusers__sortbtn:disabled { cursor: not-allowed; }
+.jp-adminusers__sortbtn:not(:disabled):hover { color: var(--jp-accent-700); }
+.jp-adminusers__sortbtn svg { color: var(--jp-accent-700); }
 .jp-table tbody td.jp-admintable__soon { text-align: start; padding-block: 28px; }
 /* The "Kommer snart" row is not a record: it takes no row hover. */
 .jp-table tbody tr:hover td.jp-admintable__soon { background: none; }
@@ -315,7 +322,7 @@
 }
 .jp-adminusers__email {
   font-weight: var(--jp-fw-semibold);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .jp-adminusers__open {
   padding: 4px 0;
@@ -443,8 +450,12 @@
 }
 .jp-adminpanel__action {
   width: 100%;
+  height: auto;
+  min-height: 44px;
   justify-content: flex-start;
+  text-align: start;
 }
+.jp-adminpanel__action > svg { flex-shrink: 0; }
 .jp-adminpanel__rule {
   margin: 4px 0;
   border: 0;
@@ -459,10 +470,16 @@
 .jp-btn--secondary.jp-adminpanel__action--soon:hover { background: var(--jp-surface); }
 .jp-adminpanel__soon {
   margin-left: auto;
+  white-space: nowrap;
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-regular);
   color: var(--jp-ink-1);
 }
+.jp-adminbusy {
+  display: inline-grid;
+}
+.jp-adminbusy > span { grid-area: 1 / 1; }
+.jp-adminbusy__off { visibility: hidden; }
 .jp-adminpanel__refusal,
 .jp-adminconfirm__refusal,
 .jp-admineditform__refusal {
@@ -548,7 +565,9 @@
    above its scrim takes them back, so it can still be paused and closed ───────────────────── */
 .jp-admintoasthost .jp-toast {
   pointer-events: auto;
+  max-width: calc(100vw - 32px);
 }
+.jp-admintoasthost .jp-toast__msg { overflow-wrap: anywhere; }
 
 /* ── Impersonation banner (handoff 13) ──────────────────────────────────────────────────── */
 .jp-adminbanner {
@@ -571,8 +590,10 @@
 }
 .jp-adminbanner__text {
   flex: 1 1 240px;
+  min-width: 0;
   margin: 0;
   font-size: var(--text-body-sm);
+  overflow-wrap: anywhere;
 }
 .jp-btn.jp-adminbanner__end {
   border-color: var(--jp-warning);
@@ -676,6 +697,20 @@
   .jp-adminpanel__body { padding: 16px 16px 24px; }
   .jp-adminbanner__inner,
   .jp-adminpreview-band__inner { padding-inline: 16px; }
+  .jp-adminsegment .jp-segment {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .jp-adminsegment .jp-segment__opt,
+  .jp-adminsegment .jp-segment__opt + .jp-segment__opt {
+    border: 1px solid var(--jp-border-input);
+    border-radius: var(--jp-r-md);
+  }
 }
 @media (max-width: 640px) {
   .jp-admincard[data-span] { grid-column: span 12; }

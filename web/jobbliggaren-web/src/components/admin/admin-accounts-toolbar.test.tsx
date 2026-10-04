@@ -23,6 +23,9 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
       "Under radering",
     ]);
     for (const radio of within(filter).getAllByRole("radio")) expect(radio).toBeDisabled();
+    // Nothing in a disabled group takes focus: no option, and no box around it.
+    expect(filter.parentElement).not.toHaveAttribute("tabindex");
+    expect(screen.queryByRole("region")).toBeNull();
   });
 
   it("searches by address on each keystroke and filters by status", async () => {
@@ -71,7 +74,7 @@ describe("AdminAccountsPager", () => {
     const onPage = vi.fn();
     const { rerender } = render(<AdminAccountsPager page={1} pages={3} onPage={onPage} />);
 
-    const nav = screen.getByRole("navigation", { name: "Sidor" });
+    const nav = screen.getByRole("navigation", { name: "Sidnavigering" });
     expect(nav).toHaveTextContent("Sida 1 av 3");
     expect(within(nav).getByRole("button", { name: "Föregående" })).toBeDisabled();
     await userEvent.click(within(nav).getByRole("button", { name: "Nästa" }));

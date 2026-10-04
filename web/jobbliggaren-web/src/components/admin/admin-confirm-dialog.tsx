@@ -1,14 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+// "use client": a controlled Radix alert dialog with a running command and its refusal.
+import { useEffect, useRef, useState, useTransition } from "react";
 import { AlertDialog } from "radix-ui";
 import { useTranslations } from "next-intl";
+import { AdminBusyLabel } from "./admin-busy-label";
 
 interface AdminConfirmDialogProps {
   readonly open: boolean;
   readonly title: string;
   readonly body: string;
   readonly confirmLabel: string;
+  /** The confirming button's label while the command runs, such as "Suspenderar…". */
+  readonly busyLabel: string;
   /** Resolves to a refusal to show in the dialog, or null when the action went through. */
   readonly onConfirm: () => Promise<string | null>;
   readonly onCancel: () => void;
@@ -18,29 +22,36 @@ interface AdminConfirmDialogProps {
 
 /**
  * The confirmation a destructive account action asks for (DESIGN.md §6). Focus starts on Avbryt,
- * the confirming button names the action, and a refusal stays in the dialog as an alert. The dialog
- * closes only when the action went through: the caller closes it then.
+ * the confirming button names the action, and a refusal stays in the dialog as an alert that takes
+ * focus. The dialog closes only when the action went through: the caller closes it then. A command
+ * that throws ends at the nearest error boundary rather than holding the dialog open.
  */
 export function AdminConfirmDialog({
   open,
   title,
   body,
   confirmLabel,
+  busyLabel,
   onConfirm,
   onCancel,
   onCloseAutoFocus,
 }: AdminConfirmDialogProps) {
   const t = useTranslations("admin.users.confirm");
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const [pending, setPending] = useState(false);
+  const refusalRef = useRef<HTMLParagraphElement>(null);
+  const [pending, startTransition] = useTransition();
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  async function confirm() {
-    setPending(true);
+  useEffect(() => {
+    if (refusal !== null) refusalRef.current?.focus();
+  }, [refusal]);
+
+  function confirm() {
     setRefusal(null);
-    const outcome = await onConfirm();
-    setPending(false);
-    if (outcome !== null) setRefusal(outcome);
+    startTransition(async () => {
+      const outcome = await onConfirm();
+      if (outcome !== null) setRefusal(outcome);
+    });
   }
 
   return (
@@ -63,7 +74,7 @@ export function AdminConfirmDialog({
           <AlertDialog.Title className="jp-adminconfirm__title">{title}</AlertDialog.Title>
           <AlertDialog.Description className="jp-adminconfirm__body">{body}</AlertDialog.Description>
           {refusal === null ? null : (
-            <p className="jp-adminconfirm__refusal" role="alert">
+            <p ref={refusalRef} tabIndex={-1} className="jp-adminconfirm__refusal" role="alert">
               {refusal}
             </p>
           )}
@@ -72,7 +83,7 @@ export function AdminConfirmDialog({
               {t("cancel")}
             </AlertDialog.Cancel>
             <button type="button" className="jp-btn jp-btn--danger" disabled={pending} onClick={confirm}>
-              {confirmLabel}
+              <AdminBusyLabel busy={pending} label={confirmLabel} busyLabel={busyLabel} />
             </button>
           </div>
         </AlertDialog.Content>

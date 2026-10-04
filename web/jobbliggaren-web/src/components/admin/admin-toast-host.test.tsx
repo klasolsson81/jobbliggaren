@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { dismissAdminToast, getAdminToastSnapshot, showAdminToast } from "@/lib/admin/toast-store";
+import {
+  dismissAdminToast,
+  getAdminToastSnapshot,
+  holdAdminToasts,
+  showAdminToast,
+} from "@/lib/admin/toast-store";
 import { AdminToastHost } from "./admin-toast-host";
 
 function show(message: string) {
@@ -92,6 +97,40 @@ describe("AdminToastHost (ADR 0150, handoff 12)", () => {
     advance(2_000);
     expect(screen.getByRole("status")).toHaveTextContent("Andra");
     advance(6_000);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("keeps the receipt while a dialog holds it, and gives it a full 8 seconds once released", () => {
+    render(<AdminToastHost />);
+    let release = () => {};
+    act(() => {
+      release = holdAdminToasts();
+    });
+    show("Kvitto");
+
+    advance(30_000);
+    expect(screen.getByRole("status")).toHaveTextContent("Kvitto");
+    act(() => release());
+    advance(7_999);
+    expect(screen.getByRole("status")).toHaveTextContent("Kvitto");
+    advance(1);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("stays paused while the pointer has left but focus has not", () => {
+    render(<AdminToastHost />);
+    show("Kvitto");
+    const card = screen.getByText("Kvitto").parentElement!;
+    const close = screen.getByRole("button", { name: "Stäng meddelandet" });
+
+    fireEvent.mouseEnter(card);
+    act(() => close.focus());
+    fireEvent.mouseLeave(card);
+    advance(30_000);
+    expect(screen.getByRole("status")).toHaveTextContent("Kvitto");
+
+    act(() => close.blur());
+    advance(8_000);
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

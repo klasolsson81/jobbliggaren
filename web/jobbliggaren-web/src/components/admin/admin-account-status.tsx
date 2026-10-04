@@ -1,6 +1,6 @@
 import { useFormatter, useTranslations } from "next-intl";
 import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
-import { formatDate } from "@/lib/i18n/format";
+import { formatLedgerDate } from "@/lib/i18n/format";
 import type {
   AdminAccountRole,
   AdminAccountRow,
@@ -26,7 +26,7 @@ export function AdminAccountStatus({
   return (
     <StatusDot tone={TONE[status]}>
       {status === "pendingDeletion"
-        ? t("pendingDeletion", { date: formatDate(format, deletionEarliest) ?? unknown })
+        ? t("pendingDeletion", { date: formatLedgerDate(format, deletionEarliest) ?? unknown })
         : t(status)}
     </StatusDot>
   );

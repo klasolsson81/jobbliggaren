@@ -22,6 +22,16 @@ describe("previewRoutesIn", () => {
       "/(admin-preview)/admin/forhandsvisning/anvandare/page",
     ]);
   });
+
+  it("also picks a route at the preview's path that sits in another group", () => {
+    expect(
+      previewRoutesIn({
+        "/(admin)/admin/forhandsvisning/page": "a.js",
+        "/(admin)/(nested)/admin/forhandsvisning/jobb/page": "b.js",
+        "/(admin)/admin/forhandsvisningar/page": "c.js",
+      }),
+    ).toEqual(["/(admin)/admin/forhandsvisning/page", "/(admin)/(nested)/admin/forhandsvisning/jobb/page"]);
+  });
 });
 
 describe("filesHolding", () => {

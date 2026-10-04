@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": its sort and open buttons carry click handlers.
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, UserRound } from "lucide-react";
 import type { AdminAccountRow, AdminRegion } from "@/lib/admin/view-models";

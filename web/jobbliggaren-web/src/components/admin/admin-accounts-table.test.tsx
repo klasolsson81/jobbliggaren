@@ -29,7 +29,7 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
       "4",
     ]);
     expect(second).toHaveTextContent("Admin");
-    expect(second).toHaveTextContent("Raderas tidigast 3 nov. 2026");
+    expect(second).toHaveTextContent("Raderas tidigast 2026-11-03");
     expect(within(second!).getAllByRole("cell")[3]).toHaveTextContent("–");
   });
 
@@ -61,7 +61,7 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
 
   it.each([
     ["unavailable", "Kommer snart"],
-    ["empty", "Inga konton matchar sökningen."],
+    ["empty", "Inga konton matchar sökningen eller filtret."],
     ["failed", "Kontona kunde inte hämtas. Försök igen om en stund."],
     ["loading", "Hämtar konton"],
   ] as const)("in the %s state shows one line and no account", (kind, line) => {

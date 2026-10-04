@@ -57,6 +57,7 @@ export const PREVIEW_ACCOUNTS: ReadonlyArray<AdminAccountDetail> = [
   account({ id: id(12), email: address("konto.k"), role: "user", status: "active", registeredAt: daysAgo(15, 20, 14), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
   account({ id: id(13), email: address("konto.l"), role: "user", status: "suspended", registeredAt: daysAgo(61, 15, 3), applicationCount: 3, deletionEarliest: null, savedSearchCount: 1, resumeCount: 2 }),
   account({ id: id(14), email: address("konto.m"), role: "user", status: "active", registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null }),
+  account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
 ];
 
 function recurringJob(row: RecurringJobStatusDto): RecurringJobStatusDto {
@@ -85,6 +86,6 @@ function auditEntry(row: AuditLogEntryDto): AuditLogEntryDto {
 export const PREVIEW_AUDIT_ENTRIES: ReadonlyArray<AuditLogEntryDto> = [
   auditEntry({ id: id(101), occurredAt: daysAgo(0, 7, 41), correlationId: id(201), userId: id(2), impersonatedBy: null, eventType: "Application.StatusTransitioned", aggregateType: "Application", aggregateId: id(301), ipAddress: "192.0.2.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
   auditEntry({ id: id(102), occurredAt: daysAgo(0, 6, 12), correlationId: id(202), userId: id(8), impersonatedBy: null, eventType: "SavedSearch.Created", aggregateType: "SavedSearch", aggregateId: id(302), ipAddress: "198.51.100.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
-  auditEntry({ id: id(103), occurredAt: daysAgo(1, 19, 3), correlationId: id(203), userId: null, impersonatedBy: null, eventType: "RecurringJob.Triggered", aggregateType: "RecurringJob", aggregateId: id(303), ipAddress: null, userAgent: null }),
-  auditEntry({ id: id(104), occurredAt: daysAgo(1, 15, 26), correlationId: id(204), userId: id(3), impersonatedBy: null, eventType: "Session.Created", aggregateType: "Session", aggregateId: id(304), ipAddress: "203.0.113.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
+  auditEntry({ id: id(103), occurredAt: daysAgo(1, 19, 3), correlationId: id(203), userId: null, impersonatedBy: null, eventType: "Admin.RecurringJobTriggered", aggregateType: "RecurringJob", aggregateId: id(303), ipAddress: null, userAgent: null }),
+  auditEntry({ id: id(104), occurredAt: daysAgo(1, 15, 26), correlationId: id(204), userId: id(3), impersonatedBy: null, eventType: "User.InboxProvenByLogin", aggregateType: "User", aggregateId: id(304), ipAddress: "203.0.113.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
 ];

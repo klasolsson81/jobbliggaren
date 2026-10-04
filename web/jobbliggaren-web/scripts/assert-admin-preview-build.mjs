@@ -12,9 +12,9 @@
  * `.next/cache` may keep chunks from an earlier build with the flag on.
  */
 import { createRequire } from "node:module";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const gate = require("../src/lib/admin-preview/gate.cjs");
@@ -28,11 +28,19 @@ export const ADMIN_PREVIEW_SENTINEL = "forhandsvisning.invalid";
 
 const TEXT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".json", ".html", ".rsc", ".body", ".meta", ".map", ".txt", ".css"]);
 
-/** The app-paths manifest's preview entries, keyed like "/(admin-preview)/admin/forhandsvisning/page". */
+/**
+ * The app-paths manifest's preview entries, keyed like "/(admin-preview)/admin/forhandsvisning/page":
+ * the preview's group, or the preview's path in any group.
+ */
 export function previewRoutesIn(manifest) {
-  return Object.keys(manifest).filter(
-    (route) => route.includes("(admin-preview)") || route.startsWith(gate.ADMIN_PREVIEW_ROUTE),
-  );
+  return Object.keys(manifest).filter((route) => {
+    const path = route.replace(/\/\([^/]+\)/g, "");
+    return (
+      route.includes("(admin-preview)") ||
+      path === gate.ADMIN_PREVIEW_ROUTE ||
+      path.startsWith(`${gate.ADMIN_PREVIEW_ROUTE}/`)
+    );
+  });
 }
 
 /** Every text file under the given directories whose content contains the needle. */
@@ -108,6 +116,6 @@ function main() {
   if (!result.ok) process.exit(1);
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] !== undefined && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) {
   main();
 }

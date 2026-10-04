@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+// Client: subscribes to the receipt store and runs the receipt's clock.
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import {
   dismissAdminToast,
+  getAdminToastHeld,
+  getAdminToastHeldServerSnapshot,
   getAdminToastServerSnapshot,
   getAdminToastSnapshot,
   subscribeAdminToast,
@@ -21,8 +24,9 @@ export function isInAdminToast(target: EventTarget | null): boolean {
 
 /**
  * The one renderer of the admin receipt toast, on the house `.jp-toast`. It closes after 8 seconds,
- * and the clock stops while the toast is hovered or focused (WCAG 2.2.1). The live region is always
- * mounted, empty when there is no toast, so a screen reader hears what is put into it.
+ * and the clock stops while the toast is hovered or focused, or while a dialog holds it (WCAG 2.2.1).
+ * The live region is always mounted, empty when there is no toast, so a screen reader hears what is
+ * put into it.
  */
 export function AdminToastHost() {
   const toast = useSyncExternalStore(
@@ -40,37 +44,26 @@ export function AdminToastHost() {
 
 function ToastCard({ toast }: { readonly toast: AdminToast }) {
   const t = useTranslations("admin.users.toast");
-  const pausedRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useSyncExternalStore(subscribeAdminToast, getAdminToastHeld, getAdminToastHeldServerSnapshot);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = held || hovered || focused;
   const { token } = toast;
 
+  // Each resume gives the reader a full 8 seconds.
   useEffect(() => {
-    timerRef.current = setTimeout(() => {
-      if (!pausedRef.current) dismissAdminToast(token);
-    }, AUTO_CLOSE_MS);
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-    };
-  }, [token]);
-
-  function pause() {
-    pausedRef.current = true;
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
-  }
-
-  function resume() {
-    pausedRef.current = false;
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => dismissAdminToast(token), AUTO_CLOSE_MS);
-  }
+    if (paused) return;
+    const timer = setTimeout(() => dismissAdminToast(token), AUTO_CLOSE_MS);
+    return () => clearTimeout(timer);
+  }, [token, paused]);
 
   return (
     <div
       className="jp-toast"
-      onMouseEnter={pause}
-      onMouseLeave={resume}
-      onFocus={pause}
-      onBlur={resume}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
     >
       <span className="jp-toast__msg">{toast.message}</span>
       <button

@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": it holds the band's state choice and the banner switch.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";

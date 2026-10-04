@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": the search field carries a change handler.
 import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";

@@ -1,5 +1,6 @@
 "use client";
 
+// "use client": its buttons carry click handlers.
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 

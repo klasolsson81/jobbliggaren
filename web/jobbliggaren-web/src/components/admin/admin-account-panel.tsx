@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+// "use client": the panel holds its account's mode, the running command and its refusal.
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Dialog } from "radix-ui";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -22,9 +23,10 @@ import type {
 } from "@/lib/admin/view-models";
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
 import { useReturnFocus } from "@/lib/hooks/use-return-focus";
-import { showAdminToast } from "@/lib/admin/toast-store";
+import { holdAdminToasts, showAdminToast } from "@/lib/admin/toast-store";
 import { AdminAccountStatus, AdminRolePill } from "./admin-account-status";
 import { ADMIN_NEW_EMAIL_FIELD_ID, AdminAccountEditForm } from "./admin-account-edit-form";
+import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { isInAdminToast } from "./admin-toast-host";
 
@@ -42,6 +44,8 @@ export type AdminAccountCommand =
 
 /** Null when the command went through; otherwise the refusal, shown where the command was asked. */
 export type AdminCommandRefusal = string | null;
+
+type Confirming = "suspend" | "scheduleDeletion";
 
 interface AdminAccountPanelProps {
   readonly account: AdminAccountDetail | null;
@@ -127,8 +131,6 @@ export function AdminAccountPanel({
   );
 }
 
-type Confirming = "suspend" | "scheduleDeletion" | null;
-
 function PanelContent({
   account,
   live,
@@ -148,22 +150,32 @@ function PanelContent({
   const format = useFormatter();
 
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [confirming, setConfirming] = useState<Confirming>(null);
+  const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [running, setRunning] = useState<AdminLiveAction | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const changeEmailRef = useRef<HTMLButtonElement>(null);
+  const refusalRef = useRef<HTMLParagraphElement>(null);
+  const actionRefs = useRef<Partial<Record<AdminLiveAction, HTMLButtonElement | null>>>({});
+  const confirmOpener = useRef<Confirming | null>(null);
   const focusTitleAfterConfirm = useRef(false);
   const leftEdit = useRef(false);
+
+  // A receipt published while the panel holds focus waits for the panel to close (WCAG 2.2.1).
+  useEffect(() => holdAdminToasts(), []);
 
   // Entering edit mode puts the caret in the new address; leaving it returns to the button that opened it.
   useEffect(() => {
     if (mode === "edit") document.getElementById(ADMIN_NEW_EMAIL_FIELD_ID)?.focus();
     else if (leftEdit.current) {
       leftEdit.current = false;
-      changeEmailRef.current?.focus();
+      actionRefs.current.changeEmail?.focus();
     }
   }, [mode]);
+
+  useEffect(() => {
+    if (refusal !== null) refusalRef.current?.focus();
+  }, [refusal]);
 
   const deletionDate = formatDate(format, deletionEarliestIfScheduledNow) ?? unknown;
 
@@ -186,13 +198,16 @@ function PanelContent({
     return outcome;
   }
 
-  async function runDirect(command: AdminAccountCommand) {
-    setPending(true);
+  // A command that throws ends at the nearest error boundary rather than leaving the panel disabled.
+  function runDirect(command: { readonly kind: "reinstate" }) {
     setRefusal(null);
-    const outcome = await run(command);
-    setPending(false);
-    if (outcome === null) titleRef.current?.focus();
-    else setRefusal(outcome);
+    setRunning(command.kind);
+    startTransition(async () => {
+      const outcome = await run(command);
+      setRunning(null);
+      if (outcome === null) titleRef.current?.focus();
+      else setRefusal(outcome);
+    });
   }
 
   function activate(action: AdminLiveAction) {
@@ -203,10 +218,11 @@ function PanelContent({
         return;
       case "suspend":
       case "scheduleDeletion":
+        confirmOpener.current = action;
         setConfirming(action);
         return;
       case "reinstate":
-        void runDirect({ kind: "reinstate" });
+        runDirect({ kind: "reinstate" });
         return;
     }
   }
@@ -233,13 +249,15 @@ function PanelContent({
       <li key={action}>
         <button
           type="button"
-          ref={action === "changeEmail" ? changeEmailRef : undefined}
+          ref={(element) => {
+            actionRefs.current[action] = element;
+          }}
           className={`jp-btn ${destructive ? "jp-btn--danger" : "jp-btn--secondary"} jp-adminpanel__action`}
           disabled={pending}
           onClick={() => activate(action)}
         >
           <Icon size={18} aria-hidden="true" />
-          <span>{t(`actions.${action}`)}</span>
+          <AdminBusyLabel busy={running === action} label={t(`actions.${action}`)} busyLabel={t(`busy.${action}`)} />
         </button>
       </li>
     );
@@ -254,6 +272,13 @@ function PanelContent({
       aria-describedby={undefined}
       onCloseAutoFocus={onCloseAutoFocus}
       onEscapeKeyDown={(event) => {
+        // Right after a confirmation opens, Escape can still reach the panel: it cancels the
+        // confirmation, never the panel.
+        if (confirming !== null) {
+          event.preventDefault();
+          setConfirming(null);
+          return;
+        }
         if (mode !== "edit") return;
         event.preventDefault();
         leftEdit.current = true;
@@ -322,7 +347,7 @@ function PanelContent({
               <hr className="jp-adminpanel__rule" />
               <ul className="jp-adminpanel__list">{destructive.map((action) => actionButton(action, true))}</ul>
               {refusal === null ? null : (
-                <p className="jp-adminpanel__refusal" role="alert">
+                <p ref={refusalRef} tabIndex={-1} className="jp-adminpanel__refusal" role="alert">
                   {refusal}
                 </p>
               )}
@@ -349,6 +374,7 @@ function PanelContent({
             ? t("confirm.scheduleDeletion.confirm")
             : t("confirm.suspend.confirm")
         }
+        busyLabel={confirming === "scheduleDeletion" ? t("busy.scheduleDeletion") : t("busy.suspend")}
         onConfirm={async () => {
           if (confirming === null) return null;
           const outcome = await run({ kind: confirming });
@@ -360,10 +386,16 @@ function PanelContent({
         }}
         onCancel={() => setConfirming(null)}
         onCloseAutoFocus={(event) => {
-          if (!focusTitleAfterConfirm.current) return;
-          focusTitleAfterConfirm.current = false;
+          // A completed command lands on the account's title; a cancelled one returns to its button.
           event.preventDefault();
-          titleRef.current?.focus();
+          const opener = confirmOpener.current;
+          confirmOpener.current = null;
+          if (focusTitleAfterConfirm.current) {
+            focusTitleAfterConfirm.current = false;
+            titleRef.current?.focus();
+          } else if (opener !== null) {
+            actionRefs.current[opener]?.focus();
+          }
         }}
       />
     </Dialog.Content>

@@ -109,12 +109,12 @@
       "pendingDeletion": "Deleted no earlier than {date}"
     },
     "regions": {
-      "empty": "No accounts match the search.",
+      "empty": "No accounts match the search or the filter.",
       "failed": "The accounts could not be loaded. Try again in a moment.",
       "loading": "Loading accounts"
     },
     "pager": {
-      "label": "Pages",
+      "label": "Page navigation",
       "previous": "Previous",
       "next": "Next",
       "position": "Page {page} of {pages}"
@@ -148,13 +148,14 @@
         "required": "Enter the new email address.",
         "invalid": "Enter the new email address in the right format, for example name@example.com.",
         "same": "The new address is the same as the account's current one. Enter another address."
-      }
+      },
+      "busy": "Sending…"
     },
     "confirm": {
       "cancel": "Cancel",
       "suspend": {
         "title": "Suspend {email}?",
-        "body": "The account is locked and every session is signed out. The owner cannot sign in until you lift the suspension. No data is removed.",
+        "body": "The account holder is signed out on all devices and cannot sign in until you reinstate the account. No data is removed.",
         "confirm": "Suspend account"
       },
       "scheduleDeletion": {
@@ -165,13 +166,24 @@
     },
     "toast": {
       "close": "Close the message",
-      "suspended": "{email} is suspended.",
+      "suspended": "The account {email} is suspended.",
       "reinstated": "The suspension of {email} is lifted.",
-      "deletionScheduled": "{email} is permanently deleted no earlier than {date}.",
+      "deletionScheduled": "The account {email} will be permanently deleted no earlier than {date}.",
       "emailChangeRequested": "A confirmation has been sent to {email}. The address changes once the owner has confirmed."
     },
     "refusal": {
-      "ownAccount": "You cannot do that to your own account."
+      "ownAccount": {
+        "changeEmail": "You cannot change the address of your own account here. Change it on My pages.",
+        "suspend": "You cannot suspend your own account.",
+        "reinstate": "You cannot reinstate your own account.",
+        "scheduleDeletion": "You cannot delete your own account here. Delete it on My pages."
+      }
+    },
+    "busy": {
+      "changeEmail": "Sending…",
+      "suspend": "Suspending…",
+      "reinstate": "Reinstating…",
+      "scheduleDeletion": "Deleting…"
     }
   },
   "feedback": {
@@ -394,8 +406,8 @@
     }
   },
   "impersonation": {
-    "label": "Impersonation",
+    "label": "Act as user",
     "text": "You are acting as {email}.",
-    "end": "End impersonation"
+    "end": "Stop acting as the user"
   }
 }

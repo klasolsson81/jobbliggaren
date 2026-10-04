@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { AdminSegmented } from "@/components/admin/admin-segmented";
+import { AdminSegment } from "@/components/admin/admin-segment";
 import { AdminTableScroll } from "@/components/admin/admin-table-scroll";
 import { ComingSoon } from "@/components/admin/coming-soon";
 
@@ -30,15 +30,14 @@ export default async function AdminEmailDeliveryPage() {
         title={t("heading")}
         lede={t("lede")}
         aside={
-          <AdminSegmented
+          <AdminSegment
             label={t("period.label")}
             options={[
-              { key: "h24", label: t("period.h24") },
-              { key: "d3", label: t("period.d3") },
-              { key: "d7", label: t("period.d7") },
+              { value: "h24", label: t("period.h24") },
+              { value: "d3", label: t("period.d3") },
+              { value: "d7", label: t("period.d7") },
             ]}
-            selected="d7"
-            disabled
+            value="d7"
             describedBy={SOON_ID}
           />
         }

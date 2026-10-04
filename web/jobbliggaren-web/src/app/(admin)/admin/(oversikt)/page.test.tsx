@@ -1,19 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { createTranslator } from "next-intl";
-import svAdmin from "../../../../../messages/sv/admin.json";
+import { AdminOverview } from "@/components/admin/admin-overview";
 import AdminOverviewPage from "./page";
 
-// The async page resolves its copy via getTranslations (next-intl/server, unavailable in jsdom):
-// a real translator over the Swedish catalog. ComingSoon reads its copy from the test render's
-// own provider.
-vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace: string) =>
-    createTranslator({ locale: "sv", messages: { admin: svAdmin }, namespace: namespace as "admin" }),
-}));
-
-async function renderPage() {
-  render(await AdminOverviewPage());
+function renderPage() {
+  render(<AdminOverviewPage />);
 }
 
 const CARDS = [
@@ -31,8 +22,8 @@ const CARDS = [
 ];
 
 describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", () => {
-  it("is headed Översikt and renders every designed card as a labelled region", async () => {
-    await renderPage();
+  it("is headed Översikt and renders every designed card as a labelled region", () => {
+    renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Översikt" })).toBeInTheDocument();
     for (const card of CARDS) {
@@ -40,8 +31,8 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
     }
   });
 
-  it("shows no number at all: every value is an en-dash with no unit", async () => {
-    await renderPage();
+  it("shows no number at all: every value is an en-dash with no unit", () => {
+    renderPage();
 
     // The trend card's only digits are its period labels ("7 dygn"), checked below.
     for (const card of CARDS.filter((name) => name !== "Nya användare och inloggningar")) {
@@ -54,8 +45,8 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
     }
   });
 
-  it("says Kommer snart in every unbuilt list instead of placeholder rows", async () => {
-    await renderPage();
+  it("says Kommer snart in every unbuilt list instead of placeholder rows", () => {
+    renderPage();
 
     for (const card of ["Tjänster", "Kräver uppmärksamhet", "Senaste händelser"]) {
       const region = screen.getByRole("region", { name: card });
@@ -64,8 +55,8 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
     }
   });
 
-  it("keeps the attention edge neutral while the state is unknown", async () => {
-    await renderPage();
+  it("keeps the attention edge neutral while the state is unknown", () => {
+    renderPage();
 
     expect(screen.getByRole("region", { name: "Kräver uppmärksamhet" })).toHaveAttribute(
       "data-state",
@@ -73,22 +64,20 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
     );
   });
 
-  it("disables the trend period group and describes it with the region's Kommer snart line", async () => {
-    await renderPage();
+  it("disables the trend period group and describes it with the region's Kommer snart line", () => {
+    renderPage();
 
-    const group = screen.getByRole("group", { name: "Period" });
-    const buttons = within(group).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual(["7 dygn", "30 dygn", "90 dygn"]);
-    for (const button of buttons) {
-      expect(button).toBeDisabled();
-      const describedBy = button.getAttribute("aria-describedby");
-      expect(describedBy).not.toBeNull();
-      expect(document.getElementById(describedBy ?? "")?.textContent).toBe("Kommer snart");
-    }
+    const group = screen.getByRole("radiogroup", { name: "Period" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((option) => option.textContent)).toEqual(["7 dygn", "30 dygn", "90 dygn"]);
+    for (const option of options) expect(option).toBeDisabled();
+    const describedBy = group.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toBe("Kommer snart");
   });
 
-  it("links each card to the page that holds its subject", async () => {
-    await renderPage();
+  it("links each card to the page that holds its subject", () => {
+    renderPage();
 
     expect(
       within(screen.getByRole("region", { name: "Tjänster" })).getByRole("link", { name: "Loggar" }),
@@ -101,5 +90,13 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
         name: "Granskning",
       }),
     ).toHaveAttribute("href", "/admin/granskning");
+  });
+
+  it("points its card links under the base path it is given", () => {
+    render(<AdminOverview basePath="/admin/forhandsvisning" />);
+
+    expect(
+      within(screen.getByRole("region", { name: "Tjänster" })).getByRole("link", { name: "Loggar" }),
+    ).toHaveAttribute("href", "/admin/forhandsvisning/loggar");
   });
 });

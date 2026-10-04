@@ -37,19 +37,17 @@ describe("/admin/anvandare — the account list before #1974 (ADR 0150 D2/D3)", 
   it("shows the status filters without counts, disabled", async () => {
     await renderPage();
 
-    const group = screen.getByRole("group", { name: "Visa konton" });
-    const buttons = within(group).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual([
+    const group = screen.getByRole("radiogroup", { name: "Visa konton" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((option) => option.textContent)).toEqual([
       "Alla",
       "Aktiva",
       "Suspenderade",
       "Ej verifierade",
       "Under radering",
     ]);
-    for (const button of buttons) {
-      expect(button).toBeDisabled();
-      expectDescribedByComingSoon(button);
-    }
+    for (const option of options) expect(option).toBeDisabled();
+    expectDescribedByComingSoon(group);
     expect(group.textContent ?? "").not.toMatch(/\d/);
   });
 
@@ -65,7 +63,6 @@ describe("/admin/anvandare — the account list before #1974 (ADR 0150 D2/D3)", 
       "Senast inloggad",
       "Senast aktiv",
       "Ansökningar",
-      "Åtgärder",
     ]);
     expect(within(table).queryByText(/namn/i)).toBeNull();
 

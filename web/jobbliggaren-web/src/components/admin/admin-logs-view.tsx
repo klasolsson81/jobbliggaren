@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminTableScroll } from "./admin-table-scroll";
 import { ComingSoon } from "./coming-soon";
@@ -12,7 +12,7 @@ export type AdminLogView = "security" | "errors" | "imports";
  */
 const VIEWS = {
   security: {
-    href: "/admin/loggar",
+    path: "/loggar",
     columns: [
       "security.time",
       "security.event",
@@ -23,7 +23,7 @@ const VIEWS = {
     ],
   },
   errors: {
-    href: "/admin/loggar/applikationsfel",
+    path: "/loggar/applikationsfel",
     columns: [
       "errors.lastSeen",
       "errors.level",
@@ -33,7 +33,7 @@ const VIEWS = {
     ],
   },
   imports: {
-    href: "/admin/loggar/platsbanken-import",
+    path: "/loggar/platsbanken-import",
     columns: [
       "imports.run",
       "imports.type",
@@ -55,8 +55,15 @@ const VIEW_ORDER: ReadonlyArray<AdminLogView> = ["security", "errors", "imports"
  * table keeps its column structure and holds one "Kommer snart" row, and the view labels carry
  * no counts (D2).
  */
-export async function AdminLogsView({ view }: { readonly view: AdminLogView }) {
-  const t = await getTranslations("admin.logs");
+export function AdminLogsView({
+  view,
+  basePath = "/admin",
+}: {
+  readonly view: AdminLogView;
+  /** "/admin", or the local preview's own root (ADR 0150 D5). */
+  readonly basePath?: string;
+}) {
+  const t = useTranslations("admin.logs");
   const captionId = `admin-logs-${view}-caption`;
   const { columns } = VIEWS[view];
 
@@ -71,7 +78,7 @@ export async function AdminLogsView({ view }: { readonly view: AdminLogView }) {
             return (
               <Link
                 key={candidate}
-                href={VIEWS[candidate].href}
+                href={basePath + VIEWS[candidate].path}
                 className="jp-subnav__item"
                 data-active={active}
                 aria-current={active ? "page" : undefined}

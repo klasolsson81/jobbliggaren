@@ -86,6 +86,7 @@
       "unverified": "Ej verifierade",
       "pendingDeletion": "Under radering"
     },
+    "filterCount": "{label} ({count})",
     "table": {
       "caption": "Konton",
       "account": "Konto",
@@ -94,8 +95,83 @@
       "registered": "Registrerad",
       "lastLogin": "Senast inloggad",
       "lastActive": "Senast aktiv",
-      "applications": "Ansökningar",
+      "applications": "Ansökningar"
+    },
+    "counter": "{shown} av {total} konton",
+    "role": {
+      "user": "Användare",
+      "admin": "Admin"
+    },
+    "status": {
+      "active": "Aktiv",
+      "suspended": "Suspenderad",
+      "unverified": "Ej verifierad",
+      "pendingDeletion": "Raderas tidigast {date}"
+    },
+    "regions": {
+      "empty": "Inga konton matchar sökningen.",
+      "failed": "Kontona kunde inte hämtas. Försök igen om en stund.",
+      "loading": "Hämtar konton"
+    },
+    "pager": {
+      "label": "Sidor",
+      "previous": "Föregående",
+      "next": "Nästa",
+      "position": "Sida {page} av {pages}"
+    },
+    "panel": {
+      "close": "Stäng",
+      "savedSearches": "Sparade sökningar",
+      "resumes": "CV:n",
       "actions": "Åtgärder"
+    },
+    "actions": {
+      "impersonate": "Agera som användaren",
+      "changeEmail": "Ändra e-postadress",
+      "sendLoginLink": "Skicka inloggningslänk",
+      "markVerified": "Markera e-post som verifierad",
+      "reinstate": "Häv suspendering",
+      "restore": "Ångra radering",
+      "suspend": "Suspendera konto",
+      "scheduleDeletion": "Radera konto",
+      "deletePermanently": "Radera permanent"
+    },
+    "edit": {
+      "heading": "Ändra e-postadress",
+      "current": "Nuvarande adress",
+      "newEmail": "Ny e-postadress",
+      "hint": "Den nya adressen gäller först när kontoägaren har bekräftat den.",
+      "role": "Roll",
+      "submit": "Skicka bekräftelse",
+      "cancel": "Avbryt",
+      "refusal": {
+        "required": "Skriv in den nya e-postadressen.",
+        "invalid": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
+        "same": "Den nya adressen är samma som kontots nuvarande. Skriv in en annan adress."
+      }
+    },
+    "confirm": {
+      "cancel": "Avbryt",
+      "suspend": {
+        "title": "Suspendera {email}?",
+        "body": "Kontot låses och alla sessioner loggas ut. Kontoägaren kan inte logga in förrän du häver suspenderingen. Inga uppgifter tas bort.",
+        "confirm": "Suspendera konto"
+      },
+      "scheduleDeletion": {
+        "title": "Radera {email}?",
+        "body": "Kontoägaren loggas ut på alla enheter och kan inte logga in igen. Kontot och allt som är sparat raderas slutgiltigt tidigast {date}.",
+        "confirm": "Radera konto"
+      }
+    },
+    "toast": {
+      "close": "Stäng meddelandet",
+      "suspended": "{email} är suspenderat.",
+      "reinstated": "Suspenderingen av {email} är hävd.",
+      "deletionScheduled": "{email} raderas slutgiltigt tidigast {date}.",
+      "emailChangeRequested": "En bekräftelse har skickats till {email}. Adressen byts när kontoägaren har bekräftat."
+    },
+    "refusal": {
+      "ownAccount": "Du kan inte göra det med ditt eget konto."
     }
   },
   "feedback": {
@@ -316,5 +392,10 @@
         "title": "Inga misslyckade jobb"
       }
     }
+  },
+  "impersonation": {
+    "label": "Imitering",
+    "text": "Du agerar som {email}.",
+    "end": "Avsluta imitering"
   }
 }

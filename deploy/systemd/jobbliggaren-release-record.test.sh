@@ -485,8 +485,22 @@ else
   fi
 fi
 
-# Every file the real compose bind-mounts by a relative path is one the deployment hash covers.
-mounted=$(sed -nE 's#^[[:space:]]*-[[:space:]]+\./([^:]+):.*#deploy/\1#p; s#^[[:space:]]*source:[[:space:]]+\./(.*)#deploy/\1#p' "$repo_root/deploy/docker-compose.yml" | tr -d '\r' | LC_ALL=C sort -u)
+# Every file the real compose names by a relative path is one the deployment hash covers. The reader
+# takes a volume's short form, quoted or not, a long form's source and an env_file, each `./` or
+# `../`; a parent path stays as written, so it can never match DEPLOY_FILES.
+relative_paths() {
+  tr -d '\r' <"$1" | sed -nE \
+    -e 's#^[[:space:]]*-[[:space:]]+["'"'"']?(\.\.?/[^:"'"'"']+).*#\1#p' \
+    -e 's#^[[:space:]]*(source|env_file):[[:space:]]+["'"'"']?(\.\.?/[^"'"'"'[:space:]]+).*#\2#p' |
+    sed -E 's#^\./#deploy/#' | LC_ALL=C sort -u
+}
+printf '      - "./redis/x.sh:/usr/local/bin/x:ro"\n' >"$TMPROOT/quoted.yml"
+check '[ "$(relative_paths "$TMPROOT/quoted.yml")" = deploy/redis/x.sh ]' "the reader sees a quoted short-form mount"
+printf '      - ../secrets/z:/run/z:ro\n' >"$TMPROOT/parent.yml"
+check '[ "$(relative_paths "$TMPROOT/parent.yml")" = ../secrets/z ]' "the reader sees a parent-directory mount, and leaves it unbindable"
+printf '    env_file: ./app.env\n' >"$TMPROOT/envfile.yml"
+check '[ "$(relative_paths "$TMPROOT/envfile.yml")" = deploy/app.env ]' "the reader sees an env_file"
+mounted=$(relative_paths "$repo_root/deploy/docker-compose.yml")
 bound=$(sed -n '/^readonly -a DEPLOY_FILES=(/,/^)/p' "$SUT" | sed -n 's/^[[:space:]]*\(deploy\/[^[:space:]]*\)$/\1/p')
 missing=$(comm -23 <(printf '%s\n' "$mounted") <(printf '%s\n' "$bound" | LC_ALL=C sort -u))
 check '[ -n "$mounted" ] && [ -z "$missing" ]' "every relatively mounted file is in DEPLOY_FILES (mounted: $(echo $mounted); missing: ${missing:-none})"

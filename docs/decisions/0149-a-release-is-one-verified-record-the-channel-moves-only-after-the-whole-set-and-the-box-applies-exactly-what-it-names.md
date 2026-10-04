@@ -186,8 +186,7 @@ an image is a cosign verification. `latest` survives as a transitional tag.
 Delivered in #1238's PR: the record tool, the verifier's commit/ref/repository pins, the publisher fan-in and
 `publish-release.sh`, the reworked order guard, the retention guard, the consumer with `--stage` and
 `--status`, compose on `:applied` with `pull_policy: never`, runtime-ids `--pull never`, the threat model's
-release section and the runbooks. Fixture suites cover every class of the contract's point 5, each security
-check is pinned by a killed mutant, and the publisher and the consumer were rehearsed against a real local
+release section and the runbooks. Fixture suites cover every class of the contract's point 5, and the publisher and the consumer were rehearsed against a real local
 registry and Compose v2.40.3.
 
 **Open, each with a dated measurement (#1238 stays open until all four):** (i) the first run of the new

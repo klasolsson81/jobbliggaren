@@ -15,8 +15,10 @@
 # another ref, or a move called from `record` instead of `advance` all keep every job green.
 #
 # THE RULES, each with its own mutation case in the suite:
-#   1. No mutable publish in the workflow file at all: a `docker push` of anything but `:sha-`, any
-#      `imagetools create`, and any other registry tool (crane, oras, skopeo, regctl) is refused.
+#   1. In the workflow file: `docker push` or `docker image push` of anything but `:sha-`, `docker build`
+#      or `docker buildx build` with `--push`, `docker manifest push`, a `docker/build-push-action` step
+#      whose `push:` is present and not `false`, any `imagetools create`, and crane, oras, skopeo and
+#      regctl are refused.
 #   2. The fan-in job `publish` needs exactly `[prepare, release]`, runs only on
 #      `needs.prepare.outputs.publish == 'true'`, and carries the steps `record`, `attest`, `verified`
 #      and `advance` in that order; `advance` is gated on exactly `steps.verified.outcome == 'success'`
@@ -72,7 +74,7 @@ cannot_answer() {
 
 # --- read the workflow into steps -----------------------------------------------------------------------
 # Per step: job, index within the job, id, if, uses, checkout ref, run text (all lines of the block).
-declare -a S_JOB S_ID S_IF S_USES S_REF S_RUN
+declare -a S_JOB S_ID S_IF S_USES S_REF S_RUN S_PUSH
 declare -A JOB_NEEDS JOB_IF
 section="" job="" n=-1 in_run=0 in_with=0
 conc_group="" conc_cancel=""
@@ -110,6 +112,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
     S_USES[$n]=""
     S_REF[$n]=""
     S_RUN[$n]=""
+    S_PUSH[$n]="<absent>"
     in_run=0
     in_with=0
     case "$line" in
@@ -128,7 +131,10 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   fi
   if [ "$in_with" -eq 1 ]; then
     if [[ $line == "          "* ]]; then
-      case "$line" in "          ref: "*) S_REF[$n]=${line#          ref: } ;; esac
+      case "$line" in
+      "          ref: "*) S_REF[$n]=${line#          ref: } ;;
+      "          push: "*) S_PUSH[$n]=${line#          push: } ;;
+      esac
       continue
     fi
     in_with=0
@@ -172,15 +178,29 @@ for i in "${!S_JOB[@]}"; do
     while IFS= read -r seg; do
       seg=${seg%%#*}
       case "$seg" in
-      *"docker push"*)
+      *"docker push"* | *"docker image push"*)
         case "$seg" in *":sha-"*) ;; *) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' pushes a mutable tag: ${seg# }" "Only :sha-<short> is pushed by the workflow; every mutable tag moves in publish-release.sh advance." ;; esac
         ;;
       esac
+      if [[ $seg =~ docker([[:space:]]+buildx)?[[:space:]]+build([[:space:]]|$) && $seg =~ (^|[[:space:]])--push([[:space:]=]|$) ]]; then
+        violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' builds and pushes in one command (--push): ${seg# }"
+      fi
+      case "$seg" in *"docker manifest push"*) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' runs docker manifest push: ${seg# }" ;; esac
       case "$seg" in *"imagetools create"*) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' runs imagetools create" "Tag moves happen only in publish-release.sh move_tag, called from cmd_advance." ;; esac
       if [[ $seg =~ $FOREIGN_TOOLS_RE ]]; then violation "job '${S_JOB[$i]}' runs a registry tool this guard does not model: ${BASH_REMATCH[2]}"; fi
       case "$seg" in *":applied"*) violation "job '${S_JOB[$i]}' names the local-only tag :applied" ;; esac
     done <<<"$segs"
   done <<<"$text"
+done
+for i in "${!S_JOB[@]}"; do
+  case "${S_USES[$i]}" in
+  docker/build-push-action@*)
+    case "${S_PUSH[$i]}" in
+    "<absent>" | false) ;;
+    *) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' publishes from docker/build-push-action (push: ${S_PUSH[$i]})" "A build step loads the image; the push step pushes it, after the scan." ;;
+    esac
+    ;;
+  esac
 done
 
 # --- the cells (#1314): attest follows push, and push pushes only :sha- ----------------------------------

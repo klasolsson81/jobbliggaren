@@ -42,15 +42,18 @@ run_guard() {
   echo "$got"
 }
 
+# <msg>, when given, is a piece of the rule's OWN message: a mutant that trips some other rule as well
+# must not pass the case for the rule it was written for (measured: two rules survived their own
+# deletion while their cases stayed green on a neighbour's message).
 expect() {
-  local want="$1" desc="$2" wf="$3" pub="$4" got
+  local want="$1" desc="$2" wf="$3" pub="$4" msg="${5:-}" got
   got=$(run_guard "$wf" "$pub")
-  if [ "$got" -eq "$want" ]; then
+  if [ "$got" -eq "$want" ] && { [ -z "$msg" ] || grep -qF -- "$msg" "$TMPROOT/out"; }; then
     pass=$((pass + 1))
     echo "  ok   $desc (exit $got)"
   else
     fail=$((fail + 1))
-    echo "  FAIL $desc — wanted exit $want, got $got" >&2
+    echo "  FAIL $desc — wanted exit $want${msg:+ saying \"$msg\"}, got $got" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 }
@@ -68,15 +71,26 @@ mutant() {
 
 # A workflow case: mutate the workflow, keep the real publisher.
 wf_case() {
-  local want="$1" desc="$2" script="$3"
+  local want="$1" desc="$2" script="$3" msg="${4:-}"
   mutant "$REAL_WF" "$script" "$TMPROOT/wf.yml" || return 0
-  expect "$want" "$desc" "$TMPROOT/wf.yml" "$REAL_PUB"
+  expect "$want" "$desc" "$TMPROOT/wf.yml" "$REAL_PUB" "$msg"
 }
 # A publisher case: keep the real workflow, mutate the publisher.
 pub_case() {
-  local want="$1" desc="$2" script="$3"
+  local want="$1" desc="$2" script="$3" msg="${4:-}"
   mutant "$REAL_PUB" "$script" "$TMPROOT/pub.sh" || return 0
-  expect "$want" "$desc" "$REAL_WF" "$TMPROOT/pub.sh"
+  expect "$want" "$desc" "$REAL_WF" "$TMPROOT/pub.sh" "$msg"
+}
+# A workflow case no line-oriented sed can express: <awk> rewrites the whole file.
+wf_case_awk() {
+  local want="$1" desc="$2" prog="$3" msg="${4:-}"
+  tr -d '\r' <"$REAL_WF" | awk "$prog" >"$TMPROOT/wf.yml"
+  if cmp -s <(tr -d '\r' <"$REAL_WF") "$TMPROOT/wf.yml"; then
+    fail=$((fail + 1))
+    echo "  FAIL FIXTURE BROKEN — the edit no longer applies: $desc" >&2
+    return 0
+  fi
+  expect "$want" "$desc" "$TMPROOT/wf.yml" "$REAL_PUB" "$msg"
 }
 
 echo "attestation-publish-order-guard.sh"
@@ -84,64 +98,101 @@ echo "attestation-publish-order-guard.sh"
 echo "-- the real files"
 expect 0 "the real workflow and publisher hold the order" "$REAL_WF" "$REAL_PUB"
 
-echo "-- rule 1: no mutable publish in the workflow"
+echo "-- rule 1: what the workflow may not run"
 wf_case 1 "a cell that also pushes latest (the 2026-08-11 shape)" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"#'
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
 wf_case 1 "a push whose trailing comment merely MENTIONS :sha-" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"  \# mirrors the :sha- push#'
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE:latest"  \# mirrors the :sha- push#' \
+  "pushes a mutable tag"
 wf_case 1 "an untagged push (docker tags it latest implicitly)" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE"#'
-wf_case 1 "a tag move in a workflow step" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#'
-wf_case 1 "a registry tool the guard does not model" \
-  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          crane tag "$IMAGE:sha-$SHORT" latest#'
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker push "$IMAGE"#' \
+  "pushes a mutable tag"
 wf_case 1 "an immutable and a mutable push chained on one line" \
-  's#^          docker push "\$IMAGE:sha-\$SHORT"$#          docker push "$IMAGE:sha-$SHORT" \&\& docker push "$IMAGE:latest"#'
+  's#^          docker push "\$IMAGE:sha-\$SHORT"$#          docker push "$IMAGE:sha-$SHORT" \&\& docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "docker image push, the long form of docker push" \
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker image push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a build that pushes as it builds" \
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker buildx build --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "the cells' build-push-action told to push" \
+  's#^          push: false$#          push: true#' \
+  "publishes from docker/build-push-action"
+wf_case 1 "a manifest list pushed by hand" \
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker manifest push "$IMAGE:latest"#' \
+  "runs docker manifest push"
+wf_case 1 "a tag move in a workflow step" \
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
+  "runs imagetools create"
+wf_case 1 "a registry tool the guard does not model" \
+  's#^(          docker push "\$IMAGE:sha-\$SHORT")$#\1\n          crane tag "$IMAGE:sha-$SHORT" latest#' \
+  "runs a registry tool this guard does not model"
 
 echo "-- the cells: attest follows push"
-wf_case 1 "attest swapped ahead of push" \
-  's#^        id: push$#        id: tmp-swap#; s#^        id: attest$#        id: push#; s#^        id: tmp-swap$#        id: attest#'
+wf_case 1 "attest swapped ahead of push, in the cells only" \
+  '/^  release:$/,/^  publish:$/{s#^        id: push$#        id: tmp-swap#;s#^        id: attest$#        id: push#;s#^        id: tmp-swap$#        id: attest#}' \
+  "does not follow 'push'"
 
 echo "-- rule 2: the fan-in"
-wf_case 1 "the fan-in does not wait for the cells" 's#^    needs: \[prepare, release\]$#    needs: [prepare]#'
+wf_case 1 "the fan-in does not wait for the cells" 's#^    needs: \[prepare, release\]$#    needs: [prepare]#' \
+  "the publish job's needs is"
 wf_case 1 "the fan-in runs on a status function (over a failed cell)" \
-  "s#^    if: needs.prepare.outputs.publish == 'true'\$#    if: always()#"
+  "s#^    if: needs.prepare.outputs.publish == 'true'\$#    if: always()#" \
+  "the publish job's if: is"
 wf_case 1 "advance gated on the implicit success() alone" \
-  "s#^        if: steps.verified.outcome == 'success'\$#        if: success()#"
-wf_case 1 "the verified step removed" 's#^        id: verified$#        id: checked#'
-wf_case 1 "advance moved ahead of verified" \
-  's#^        id: verified$#        id: tmp-swap#; s#^        id: advance$#        id: verified#; s#^        id: tmp-swap$#        id: advance#'
+  "s#^        if: steps.verified.outcome == 'success'\$#        if: success()#" \
+  "the advance step's if: is"
+wf_case 1 "the verified step removed" 's#^        id: verified$#        id: checked#' \
+  "lacks one of the step ids"
+wf_case 1 "advance and verified swapping ids" \
+  's#^        id: verified$#        id: tmp-swap#; s#^        id: advance$#        id: verified#; s#^        id: tmp-swap$#        id: advance#' \
+  "are not in the order record"
+wf_case_awk 1 "the advance step moved, whole, ahead of verified" \
+  '/^      - name: Advance$/ { inadv = 1 } inadv { adv = adv $0 "\n"; next } { lines[++n] = $0 } END { for (i = 1; i <= n; i++) { if (lines[i] == "      - name: Verified") printf "%s", adv; print lines[i] } }' \
+  "are not in the order record"
 wf_case 1 "the record step also calls advance" \
-  's#^(        run: bash .github/scripts/publish-release.sh record "\$SOURCE_SHA" >>"\$GITHUB_OUTPUT")$#        run: bash .github/scripts/publish-release.sh record "$SOURCE_SHA" >>"$GITHUB_OUTPUT" \&\& bash .github/scripts/publish-release.sh advance x y#'
+  's#^(        run: bash .github/scripts/publish-release.sh record "\$SOURCE_SHA" >>"\$GITHUB_OUTPUT")$#        run: bash .github/scripts/publish-release.sh record "$SOURCE_SHA" >>"$GITHUB_OUTPUT" \&\& bash .github/scripts/publish-release.sh advance x y#' \
+  "only the gated advance step may"
 wf_case 1 "the record attested by something other than attest-build-provenance" \
-  '/^  publish:$/,$ s#^        uses: actions/attest-build-provenance@.*#        uses: someone/attest@v1#'
+  '/^  publish:$/,$ s#^        uses: actions/attest-build-provenance@.*#        uses: someone/attest@v1#' \
+  "does not use actions/attest-build-provenance"
 
 echo "-- rule 3: the publisher script"
 pub_case 1 "move_tag called from cmd_record" \
-  's#^(  log "pushed the record for \$sha as \$digest .*)$#  move_tag "$RELEASE_REPO" "sha-$sha" "$digest"\n\1#'
+  's#^(  log "pushed the record for \$sha as \$digest .*)$#  move_tag "$RELEASE_REPO" "sha-$sha" "$digest"\n\1#' \
+  "calls move_tag outside cmd_advance"
 pub_case 1 "imagetools create outside move_tag" \
-  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  docker buildx imagetools create --prefer-index=false -t "$RELEASE_REPO:dev" "$RELEASE_REPO@$digest"#'
+  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  docker buildx imagetools create --prefer-index=false -t "$RELEASE_REPO:dev" "$RELEASE_REPO@$digest"#' \
+  "runs imagetools create outside move_tag"
 pub_case 1 "a push of something other than a :pending- tag" \
-  's#docker push --quiet "\$RELEASE_REPO:pending-\$sha"#docker push --quiet "$RELEASE_REPO:sha-$sha"#'
+  's#docker push --quiet "\$RELEASE_REPO:pending-\$sha"#docker push --quiet "$RELEASE_REPO:sha-$sha"#' \
+  "pushes something other than a :pending- tag"
 pub_case 1 "a registry tool the guard does not model" \
-  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  regctl image copy "$RELEASE_REPO:pending-$sha" "$RELEASE_REPO:dev"#'
+  's#^(  emit_record "\$sha" >"\$work/release.env")$#\1\n  regctl image copy "$RELEASE_REPO:pending-$sha" "$RELEASE_REPO:dev"#' \
+  "publish-release.sh runs a registry tool"
 pub_case 2 "a publisher without move_tag cannot be judged" 's#^move_tag\(\) \{#move_tags() {#'
 
 echo "-- rule 4: one tree"
 wf_case 1 "a cell that checks out main instead of the prepared commit" \
-  '0,/^          ref: \$\{\{ needs.prepare.outputs.sha \}\}$/s##          ref: main#'
+  '0,/^          ref: \$\{\{ needs.prepare.outputs.sha \}\}$/s##          ref: main#' \
+  "checks out 'main', not"
 wf_case 1 "prepare no longer builds github.sha when publishing" \
-  's#checkout="\$GITHUB_SHA"#checkout=main#'
+  's#checkout="\$GITHUB_SHA"#checkout=main#' \
+  "prepare does not check out"
 wf_case 1 "the fan-in no longer asserts its tree" \
-  '/^  publish:$/,$ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \] \&\& ##'
+  '/^  publish:$/,$ s#\[ "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA" \] \&\& ##' \
+  "job 'publish' never asserts"
 
 echo "-- rule 5: the local-only tag"
 pub_case 1 "the publisher moves a tag named applied" \
-  's#^(  log "latest names the record.s image for all .*)$#  move_tag "$PREFIX-api" applied "$image"\n\1#'
+  's#^(  log "latest names the record.s image for all .*)$#  move_tag "$PREFIX-api" applied "$image"\n\1#' \
+  "names the local-only tag applied"
 
 echo "-- rule 6: one run at a time"
-wf_case 1 "runs allowed to overlap" 's#^  cancel-in-progress: false$#  cancel-in-progress: true#'
-wf_case 1 "a computed concurrency group" 's#^  group: release-images$#  group: release-images-${{ github.run_id }}#'
+wf_case 1 "runs allowed to overlap" 's#^  cancel-in-progress: false$#  cancel-in-progress: true#' "concurrency is group"
+wf_case 1 "a computed concurrency group" 's#^  group: release-images$#  group: release-images-${{ github.run_id }}#' "concurrency is group"
 
 echo "-- could not answer"
 expect 2 "a missing workflow" "$TMPROOT/nope.yml" "$REAL_PUB"

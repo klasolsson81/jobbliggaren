@@ -32,9 +32,10 @@ import { useApplicationPending } from "./application-actions";
 import { ApplicationsTableRow } from "./applications-table-row";
 import { ApplicationsBulkBar } from "./applications-bulk-bar";
 import { ApplicationsPager } from "./applications-pager";
+import type { InformationSnapshots } from "@/components/information/types";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 
 const PAGE_SIZE = 50;
-
 interface ApplicationsTableProps {
   rows: ApplicationDto[];
   /** Server-beräknad referenstidpunkt (#336-determinism), trädad ned per rad. */
@@ -61,13 +62,14 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
   // ändras inte) → ingen om-sortering, och memo(ApplicationsTableRow) skippar alla
   // rader utom den togglade.
   const pendingIds = useApplicationPending();
+  const restored = useInformationSnapshot("table");
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
+    () => new Set(restored?.rowsKey === rows.map(row => row.id).join(",") ? restored.selectedIds : []),
   );
-  const [sortKey, setSortKey] = useState<TableSortKey>("days");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<TableSortKey>(restored?.sortKey ?? "days");
+  const [sortDir, setSortDir] = useState<SortDir>(restored?.sortDir ?? "desc");
+  const [page, setPage] = useState(restored?.rowsKey === rows.map(row => row.id).join(",") ? restored.page : 1);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bulkPending, startBulk] = useTransition();
 
@@ -81,7 +83,8 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
   // under render via prev-jämförelse (Reacts "adjusting state during render"-
   // mönster) — ingen effekt, ingen flash av inaktuellt urval.
   const rowsKey = useMemo(() => rows.map((r) => r.id).join(","), [rows]);
-  const [prevRowsKey, setPrevRowsKey] = useState(rowsKey);
+  useInformationAdapter("table", (): InformationSnapshots["table"] => ({ selectedIds: [...selectedIds], sortKey, sortDir, page, rowsKey }));
+  const [prevRowsKey, setPrevRowsKey] = useState(restored?.rowsKey ?? rowsKey);
   if (prevRowsKey !== rowsKey) {
     setPrevRowsKey(rowsKey);
     setSelectedIds(new Set());

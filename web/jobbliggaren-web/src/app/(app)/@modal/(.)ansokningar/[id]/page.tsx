@@ -55,7 +55,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           {/* jp-modal__body äger padding + intern scroll i .jp-modal-flexkolumnen
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen
               över panelens max-height. */}
-          <div className="jp-modal__body">
+          <div className="jp-modal__body" data-information-scroll="application-modal-body">
             <ApplicationDetailBody
               application={application}
               now={new Date()}

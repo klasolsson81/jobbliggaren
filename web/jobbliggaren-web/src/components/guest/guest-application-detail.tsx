@@ -48,7 +48,7 @@ export function GuestApplicationDetail({
   const liveStatus = GUEST_TO_LIVE_STATUS[application.status];
 
   return (
-    <div className="jp-modal__body">
+    <div className="jp-modal__body" data-information-scroll="application-modal-body">
       <span
         className={getStatusPillClass(liveStatus)}
         style={{ alignSelf: "flex-start" }}

@@ -1,5 +1,7 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
+import { legalSectionId } from "@/components/information/section-ids";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,35 +18,21 @@ type Section = {
   list?: string[];
 };
 
-/**
- * Publik innehållssida: Användarvillkor (#262). Statisk RSC. Innehållet drivs
- * ur `content-legal` (sv = källa, en speglad, paritetstestad), samma mönster som
- * /integritet. Civic-utility: en h1, hög-kontrast text, ingen em-dash.
- */
+
 export default async function VillkorPage() {
   const t = await getTranslations("content-legal");
   const sections = t.raw("terms.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="villkor-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="villkor-heading" className="jp-pagehero__title">
-              {t("terms.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("terms.updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("terms.title")} lede={t("terms.updated")} headingId="villkor-heading" sections={sections.map((section, index) => ({ id: legalSectionId("villkor", index), label: section.heading }))}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("terms.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
-          {sections.map((section) => (
+          {sections.map((section, index) => (
             <div key={section.heading}>
-              <h2 className="text-body-lg font-semibold text-text-primary">
+              <h2 id={legalSectionId("villkor", index)} tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
                 {section.heading}
               </h2>
               {section.paragraphs.map((paragraph, i) => (
@@ -83,7 +71,7 @@ export default async function VillkorPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

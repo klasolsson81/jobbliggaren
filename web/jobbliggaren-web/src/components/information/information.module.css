@@ -1,0 +1,13 @@
+.page h2[id], .page h1[id] { scroll-margin-block-start: 100px; }
+.return { margin-inline: auto; max-inline-size: 42rem; padding: 16px 24px; }
+.content { margin-inline: auto; inline-size: 100%; max-inline-size: 42rem; padding: 48px 24px; }
+.contents { margin-block-end: 32px; border-block-end: 1px solid var(--jp-border); padding-block-end: 24px; }
+.contents ul { margin-block-start: 12px; }
+.contents a, .top a { display: inline-flex; align-items: center; min-block-size: 32px; text-decoration: underline; text-underline-offset: 3px; }
+.top { margin-block-start: 32px; }
+.entryLink { display: inline-flex; align-items: center; min-block-size: 32px; }
+.end { margin-block-start: 32px; border-block-start: 1px solid var(--jp-border); padding-block-start: 24px; }
+@media (max-width: 768px) {
+  .contents a, .top a, .entryLink { min-block-size: 44px; }
+  .page a[data-information-link] { display: inline-flex; align-items: center; min-block-size: 44px; max-inline-size: 100%; }
+}

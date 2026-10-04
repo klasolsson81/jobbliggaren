@@ -33,6 +33,7 @@ export const HARNESS_PORTS = { proxy: 3110, next: 3111, backend: 3112 } as const
 export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "job-modal-harness-session";
+export const SYNTHETIC_CV = "%PDF-1.4 synthetic navigation fixture";
 
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
@@ -43,6 +44,9 @@ export type Harness = {
   readonly unavailableApplications: Set<string>;
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
+  readonly requests: string[];
+  readonly syntheticUploadReceipts: readonly boolean[];
+  rejectNextImport: boolean;
   reset(): void;
   stop(): Promise<void>;
 };
@@ -94,7 +98,7 @@ const jobAdOf = (ad: HarnessAd) => {
   return { jobAdId: id, title, company: companyName, url, source, publishedAt, expiresAt, status };
 };
 
-const application = (applicationId: string, ad: HarnessAd) => ({
+const application = (applicationId: string, ad: HarnessAd, withContacts = false) => ({
   id: applicationId,
   jobSeekerId: USER.userId,
   jobAdId: ad.id,
@@ -107,28 +111,42 @@ const application = (applicationId: string, ad: HarnessAd) => ({
   followUps: [],
   notes: [],
   statusChanges: [{ from: "Draft", to: "Submitted", changedAt: PUBLISHED_AT }],
-  preservedAd: null,
+  preservedAd: withContacts ? { jobAdId: ad.id, title: ad.title, company: ad.company, location: null, url: summary(ad).url, source: "Platsbanken", publishedAt: PUBLISHED_AT, expiresAt: EXPIRES_AT, description: DESCRIPTION, contacts: [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }], capturedAt: PUBLISHED_AT } : null,
 });
 
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
+  const requests: string[] = [];
+  const syntheticUploadReceipts: boolean[] = [];
+  const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
+    ...ALL_ADS[1]!,
+    id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
+    title: `Volume application ${index + 1}`,
+    company: `Test company ${String(index + 1).padStart(3, "0")}`,
+  }))];
   let applied = new Map<string, string>();
   let saved = new Set<string>();
 
-  const adById = (adId: string) => ALL_ADS.find((ad) => ad.id === adId);
+  const adById = (adId: string) => ads.find((ad) => ad.id === adId);
 
   const harness: Harness = {
     occupationStated: true,
     erasedAds: new Set(),
     unavailableApplications: new Set(),
     misses,
+    requests,
+    syntheticUploadReceipts,
+    rejectNextImport: false,
     reset() {
       misses.length = 0;
+      requests.length = 0;
+      syntheticUploadReceipts.length = 0;
+      harness.rejectNextImport = false;
       harness.occupationStated = true;
       harness.erasedAds.clear();
       harness.unavailableApplications.clear();
-      applied = new Map(ALL_ADS.filter((ad) => ad.appliedBeforeVisit).map((ad) => [ad.id, randomUUID()]));
-      saved = new Set(ALL_ADS.filter((ad) => ad.saved).map((ad) => ad.id));
+      applied = new Map(ads.filter((ad) => ad.appliedBeforeVisit).map((ad) => [ad.id, randomUUID()]));
+      saved = new Set(ads.filter((ad) => ad.saved).map((ad) => ad.id));
     },
     async stop() {
       await Promise.all([close(proxy), close(backend)]);
@@ -141,12 +159,34 @@ export async function startHarness(): Promise<Harness> {
       response.writeHead(status, { "Content-Type": "application/json" });
       response.end(status === 204 ? "" : JSON.stringify(value ?? null));
     };
-    const url = new URL(request.url ?? "/", `http://localhost:${HARNESS_PORTS.backend}`);
+    const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
+    requests.push(route);
     const pathId = url.pathname.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? "";
     const ad = adById(pathId);
 
+    if (informationFlows && route === "POST /api/v1/auth/challenge") {
+      const body = await bodyOf(request);
+      if (body.email === "invalid") return json(400);
+      return json(202, { challengeId: "information-harness-challenge" });
+    }
+    if (informationFlows && route === "POST /api/v1/auth/challenge/verify") {
+      await bodyOf(request);
+      return json(200, { outcome: "consentRequired", grantToken: "information-harness-grant" });
+    }
+    if (informationFlows && route === "POST /api/v1/resumes/import") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      syntheticUploadReceipts.push(Buffer.concat(chunks).includes(Buffer.from(SYNTHETIC_CV)));
+      if (harness.rejectNextImport) {
+        harness.rejectNextImport = false;
+        return json(503, { title: "Synthetic import unavailable", status: 503 });
+      }
+      return json(200, { parsedResumeId: "19860000-0000-4000-8000-000000000001", personnummer: { found: true, count: 1, kinds: ["Personnummer"] }, outcome: "LeftPending", resumeId: null, blockReason: "PersonnummerPresent" });
+    }
     switch (route) {
+      case "GET /api/v1/auth/oauth/providers":
+        return json(200, []);
       case "GET /api/v1/me":
         return json(200, USER);
       case "POST /api/v1/auth/refresh":
@@ -166,7 +206,7 @@ export async function startHarness(): Promise<Harness> {
       case "GET /api/v1/me/profile":
         return json(200, profile(harness.occupationStated));
       case "GET /api/v1/job-ads": {
-        const items = ALL_ADS.map(summary);
+        const items = ads.map(summary);
         return json(200, { items, totalCount: items.length, page: 1, pageSize: 20 });
       }
       case "POST /api/v1/me/job-ad-match-tags": {
@@ -187,7 +227,7 @@ export async function startHarness(): Promise<Harness> {
       case "POST /api/v1/me/job-ad-status": {
         const ids = request.method === "POST"
           ? (((await bodyOf(request)) as { jobAdIds?: string[] }).jobAdIds ?? [])
-          : ALL_ADS.map((a) => a.id);
+          : ads.map((a) => a.id);
         return json(200, { savedIds: ids.filter((i) => saved.has(i)), appliedIds: ids.filter((i) => applied.has(i)) });
       }
       case "POST /api/v1/me/company-watches/status": {
@@ -212,11 +252,11 @@ export async function startHarness(): Promise<Harness> {
           applications: [...applied].flatMap(([adId, applicationId]) => {
             const appliedAd = adById(adId);
             return appliedAd ? [{
-              ...application(applicationId, appliedAd),
+              ...application(applicationId, appliedAd, informationFlows),
               lastStatusChangeAt: PUBLISHED_AT,
               lastFollowUpAt: null,
               attentionSignal: "None",
-              hasPreservedAdText: false,
+              hasPreservedAdText: informationFlows,
             }] : [];
           }),
         }]);
@@ -224,7 +264,7 @@ export async function startHarness(): Promise<Harness> {
 
     if (ad && route === `GET /api/v1/job-ads/${ad.id}`) {
       if (harness.erasedAds.has(ad.id)) return json(410, { title: "Gone", status: 410 });
-      return json(200, { ...summary(ad), description: DESCRIPTION, contacts: [] });
+      return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [] });
     }
     if (ad && route === `GET /api/v1/me/job-ad-match-tags/${ad.id}`)
       return json(200, matchDetail(harness.occupationStated));
@@ -241,7 +281,7 @@ export async function startHarness(): Promise<Harness> {
       const ownerAd = owner && adById(owner[0]);
       if (ownerAd && harness.unavailableApplications.has(ownerAd.id))
         return json(404, { title: "Not Found", status: 404 });
-      if (ownerAd) return json(200, application(pathId, ownerAd));
+      if (ownerAd) return json(200, application(pathId, ownerAd, informationFlows));
     }
 
     misses.push(route);
@@ -250,7 +290,7 @@ export async function startHarness(): Promise<Harness> {
 
   const proxy = createTlsServer(localhostCertificate(), (request, response) => {
     const upstream = forward(
-      { host: "127.0.0.1", port: HARNESS_PORTS.next, method: request.method, path: request.url, headers: request.headers },
+      { host: "127.0.0.1", port: ports.next, method: request.method, path: request.url, headers: request.headers },
       (answer) => {
         response.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(response);
@@ -263,6 +303,6 @@ export async function startHarness(): Promise<Harness> {
     request.pipe(upstream);
   });
 
-  await Promise.all([listen(backend, HARNESS_PORTS.backend), listen(proxy, HARNESS_PORTS.proxy)]);
+  await Promise.all([listen(backend, ports.backend), listen(proxy, ports.proxy)]);
   return harness;
 }

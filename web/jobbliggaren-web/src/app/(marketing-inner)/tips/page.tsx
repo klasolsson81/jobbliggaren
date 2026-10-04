@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,14 +21,7 @@ const TIP_KEYS = [
   "deadlines",
 ] as const;
 
-/**
- * Publik innehållssida: Tips för jobbsökande (#261). Statisk RSC. Återbrukar
- * (marketing-inner)-mönstret (delad SiteHeader/SiteFooter; eget
- * `<main id="main">` som skip-mål per #284). Civic-utility: en h1, hög-kontrast
- * text, ingen em-dash, inget utropstecken. Ingen HowTo/Article-strukturdata i
- * v1 (FAQPage är det enda schemat på sajten). Interna länkar till /jobb och /cv
- * (auth-gated; oinloggad besökare slussas till inloggning).
- */
+
 export default async function TipsPage() {
   const t = await getTranslations("content-tips");
   const sections = TIP_KEYS.map((key) => ({
@@ -36,19 +30,9 @@ export default async function TipsPage() {
   }));
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="tips-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="tips-heading" className="jp-pagehero__title">
-              {t("title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("title")} lede={t("lede")} headingId="tips-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <div className="flex flex-col gap-8">
           {sections.map((section, index) => (
             <section key={TIP_KEYS[index]}>
@@ -74,7 +58,7 @@ export default async function TipsPage() {
             {t("links.cvLabel")}
           </Link>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

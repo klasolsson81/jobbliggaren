@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InformationLink } from "@/components/information/InformationLink";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
@@ -24,9 +25,8 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  *     "Juridik" column carries the policy links (Villkor, Integritet, Cookies,
  *     Tillgänglighet) — the old "Om och juridik" mix is split into the two.
  *
- * Sync RSC: `useTranslations("landing")` resolves synchronously. The footer has
- * NO client island any more: the language switcher moved to the public header
- * (Klas-direktiv 2026-08-23), and the `.jp-foot__lang*` classes went with it.
+ * Sync RSC: `useTranslations("landing")` resolves synchronously. Information
+ * links use a small client island to preserve an active information excursion.
  *
  * All footer colour is LITERAL #FFFFFF / rgba(255,255,255,a) via the `.jp-foot*`
  * classes — never `--jp-ink-inverse` (it flips dark on the green in dark theme).
@@ -151,7 +151,7 @@ export function SiteFooter() {
                   {col.links.map((link) => (
                     <li key={link.labelKey}>
                       {link.href ? (
-                        <Link href={link.href}>{t(link.labelKey)}</Link>
+                        <InformationLink id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href}>{t(link.labelKey)}</InformationLink>
                       ) : (
                         <span className="opacity-70" aria-disabled="true">
                           {t(link.labelKey)}

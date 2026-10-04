@@ -1,0 +1,27 @@
+{
+  "contents": "On this page",
+  "top": "Back to the top",
+  "fallback": "Go to the home page",
+  "return": {
+    "home": "Back to the home page",
+    "login": "Back to sign in",
+    "help": "Back to the help centre",
+    "jobs": "Back to jobs",
+    "saved": "Back to saved jobs",
+    "matches": "Back to matches",
+    "applications": "Back to applications",
+    "cv": "Back to your CVs",
+    "overview": "Back to the overview",
+    "searches": "Back to searches",
+    "settings": "Back to My account",
+    "job": "Back to the job ad",
+    "application": "Back to the application",
+    "guestJobs": "Back to demo jobs",
+    "guestApplications": "Back to demo applications",
+    "guestCV": "Back to demo CVs",
+    "guestOverview": "Back to the demo overview",
+    "guestJob": "Back to the demo job ad",
+    "guestApplication": "Back to the demo application"
+  },
+  "cvTab": "Continue in the tab where you are uploading your CV"
+}

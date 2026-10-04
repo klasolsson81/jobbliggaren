@@ -105,7 +105,7 @@ export default async function AnsokningarPage() {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <h1 className="jp-pagehero__title">{t("ansokningar.title")}</h1>
+            <h1 tabIndex={-1} className="jp-pagehero__title">{t("ansokningar.title")}</h1>
             <p className="jp-pagehero__lede">{t("ansokningar.lede")}</p>
           </div>
           {/* Sidåtgärderna ligger i plattan (Klas-beslut 2026-07-10; #805

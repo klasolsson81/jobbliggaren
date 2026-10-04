@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { InformationLink } from "@/components/information/InformationLink";
 import { useFormatter, useTranslations } from "next-intl";
 import { RecruiterContactBlock } from "@/components/job-ads/recruiter-contact-block";
 import contactLinkStyles from "@/components/job-ads/recruiter-contact-link.module.css";
@@ -167,9 +167,9 @@ export function ApplicationDetailBody({
         <div>
           <RecruiterContactBlock contacts={contacts} />
           <p className="jp-recruiter-notice mt-2">
-            <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
+            <InformationLink id={`information-application-${application.id}`} href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
               {tUi("preservedAd.recruiterNoticeLink")}
-            </Link>
+            </InformationLink>
           </p>
         </div>
       )}

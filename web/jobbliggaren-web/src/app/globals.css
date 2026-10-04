@@ -3422,6 +3422,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-accent-800);
   color: var(--jp-on-fill);
 }
+.jp-segment__opt[data-active="true"]:focus-visible {
+  outline-color: var(--jp-on-fill);
+  outline-offset: -4px;
+}
 .jp-segment__opt:disabled {
   opacity: 0.55;
   cursor: not-allowed;

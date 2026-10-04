@@ -322,7 +322,8 @@
 }
 .jp-adminusers__email {
   font-weight: var(--jp-fw-semibold);
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+  min-width: 20rem;
 }
 .jp-adminusers__open {
   padding: 4px 0;
@@ -468,6 +469,7 @@
   cursor: default;
 }
 .jp-btn--secondary.jp-adminpanel__action--soon:hover { background: var(--jp-surface); }
+.jp-adminpanel__action--soon { flex-wrap: wrap; }
 .jp-adminpanel__soon {
   margin-left: auto;
   white-space: nowrap;
@@ -565,9 +567,8 @@
    above its scrim takes them back, so it can still be paused and closed ───────────────────── */
 .jp-admintoasthost .jp-toast {
   pointer-events: auto;
-  max-width: calc(100vw - 32px);
 }
-.jp-admintoasthost .jp-toast__msg { overflow-wrap: anywhere; }
+.jp-admintoasthost .jp-toast__msg { overflow-wrap: break-word; }
 
 /* ── Impersonation banner (handoff 13) ──────────────────────────────────────────────────── */
 .jp-adminbanner {

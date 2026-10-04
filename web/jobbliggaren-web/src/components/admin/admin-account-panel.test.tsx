@@ -215,7 +215,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     // The open dialog sets pointer-events: none on the body, and jsdom does not load the stylesheet
     // that gives the toast its own back.
     const user = userEvent.setup({ pointerEventsCheck: 0 });
-    await user.click(screen.getByRole("button", { name: "Stäng meddelandet", hidden: true }));
+    await user.click(screen.getByRole("button", { name: "Stäng meddelandet" }));
     expect(getAdminToastSnapshot()).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.pointerDown(document.body);
@@ -234,18 +234,16 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Suspendera konto" })).toHaveFocus());
   });
 
-  it("names a direct command while it runs, and moves focus to its refusal", async () => {
+  it("names a direct command while it runs, then publishes its receipt and moves focus to the title", async () => {
     let settle: (refusal: AdminCommandRefusal) => void = () => {};
     renderPanel({ ...ACTIVE, status: "suspended" }, () => new Promise((resolve) => (settle = resolve)));
 
     await userEvent.click(screen.getByRole("button", { name: "Häv suspendering" }));
     expect(screen.getByRole("button", { name: "Häver…" })).toBeDisabled();
 
-    settle("Du kan inte häva suspenderingen av ditt eget konto.");
-    const refusal = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("alert");
-    expect(refusal).toHaveTextContent("Du kan inte häva suspenderingen av ditt eget konto.");
-    await waitFor(() => expect(refusal).toHaveFocus());
-    expect(getAdminToastSnapshot()).toBeNull();
+    settle(null);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
+    expect(getAdminToastSnapshot()?.message).toBe("Suspenderingen av konto.a@example.test är hävd.");
   });
 
   it("holds the receipt's clock while it is open, and lets it go when it closes", () => {

@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
@@ -68,7 +68,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
     case "unauthorized":
       redirect("/logga-in");
     case "notFound":
-      notFound();
+      return <ApplicationModalMessage title={tf("notFound.title")} body={tf("notFound.body")} />;
     case "rateLimited":
       return (
         <ApplicationModalMessage

@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { findGuestApplication } from "@/lib/guest/mock-data";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
+import { ApplicationModalMessage } from "@/components/applications/application-modal-message";
 import { GuestApplicationDetail } from "@/components/guest/guest-application-detail";
 
 // F-Pre Punkt 5b 2026-05-24 — intercepting route för @modal-slotten i
@@ -27,7 +27,10 @@ export default async function InterceptedGuestAnsokanModal({
 }: PageProps) {
   const { id } = await params;
   const application = findGuestApplication(id);
-  if (!application) notFound();
+  if (!application) {
+    const tf = await getTranslations("fallback");
+    return <ApplicationModalMessage title={tf("notFound.title")} body={tf("notFound.body")} />;
+  }
 
   const t = await getTranslations("guest");
 

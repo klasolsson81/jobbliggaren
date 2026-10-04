@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, getSessionId } from "@/lib/auth/session";
 import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
@@ -86,7 +86,7 @@ export default async function InterceptedJobbModal({
     case "unauthorized":
       redirect("/logga-in");
     case "notFound":
-      notFound();
+      return <JobAdModalMessage title={tf("notFound.title")} body={tf("notFound.body")} />;
     case "rateLimited":
       return (
         <JobAdModalMessage

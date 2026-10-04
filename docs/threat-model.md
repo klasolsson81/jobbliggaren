@@ -50,6 +50,13 @@ under `Application/Resumes/Queries/GetResumeById`, `GetParsedResume` and
 Inspect admin policy paths separately, including
 `src/Jobbliggaren.Api/Authorization/AdminRoleAuthorizationHandler.cs`.
 
+The admin account directory (ADR 0151) reads across every account by design: each
+address, its status and its activity counts. The gate is the Admin HTTP policy,
+which resolves the role on every request, plus `IAdminRequest` in the pipeline, and
+an architecture test pins which handlers may inject `IAccountDirectory`. A hijacked
+admin session can read every address; the `admin-read` rate limit bounds the cost
+of reading, not the exfiltration.
+
 ## Untrusted documents and external text
 
 `web/jobbliggaren-web/src/app/api/cv/import/route.ts` checks same-origin requests

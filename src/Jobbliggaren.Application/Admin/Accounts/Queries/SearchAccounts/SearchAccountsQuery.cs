@@ -18,7 +18,6 @@ public sealed record SearchAccountsQuery(
 {
     public const int MaxPageSize = 100;
 
-    /// <summary>The largest page whose offset, <c>(Page - 1) * PageSize</c>, an int holds at any page size.</summary>
     public const int MaxPage = int.MaxValue / MaxPageSize;
 
     public override string ToString() =>

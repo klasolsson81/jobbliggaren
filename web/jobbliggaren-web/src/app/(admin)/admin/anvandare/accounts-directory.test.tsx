@@ -53,7 +53,6 @@ const FIRST: AccountsListing = { kind: "loaded", page: toAccountsPage(answer([A,
 
 const DETAIL: AccountDetailsDto = { ...A, resumeCount: 2, savedSearchCount: 3 };
 
-/** Sixty accounts, thirty in each of two states, so every filter has a second page. */
 const MANY: ReadonlyArray<Item> = Array.from({ length: 60 }, (_, index) => ({
   ...(index % 2 === 0 ? A : B),
   id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,

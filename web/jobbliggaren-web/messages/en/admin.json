@@ -140,7 +140,8 @@
       "lastActive": "Last active",
       "applications": "Applications"
     },
-    "counter": "{shown} of {total} accounts",
+    "counter": "{shown} of {total, plural, one {# account} other {# accounts}}",
+    "counterBusy": "Fetching accounts…",
     "role": {
       "user": "User",
       "admin": "Admin"
@@ -152,7 +153,7 @@
       "suspended": "Suspended"
     },
     "statusLine": {
-      "deletionEarliest": "Permanently no earlier than {date}",
+      "deletionEarliest": "Permanently no earlier than <nowrap>{date}</nowrap>",
       "emailUnconfirmed": "Email not confirmed"
     },
     "regions": {
@@ -165,7 +166,9 @@
       "unauthorized": "You are no longer signed in. Sign in and try again.",
       "forbidden": "Your session does not have the Admin role.",
       "detailFailed": "The account's details could not be loaded. Try again in a moment.",
-      "gone": "The account no longer exists."
+      "gone": "The account no longer exists.",
+      "retry": "Try again",
+      "signIn": "Sign in"
     },
     "pager": {
       "label": "Page navigation",
@@ -180,7 +183,7 @@
       "actions": "Actions",
       "loading": "Fetching the account's details…",
       "deletion": "Permanently deleted",
-      "deletionEarliest": "No earlier than {date}",
+      "deletionEarliest": "No earlier than <nowrap>{date}</nowrap>",
       "email": "Email",
       "emailConfirmed": "Confirmed",
       "emailUnconfirmed": "Not confirmed",

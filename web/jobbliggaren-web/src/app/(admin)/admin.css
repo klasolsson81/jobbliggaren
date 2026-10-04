@@ -335,7 +335,7 @@
    A labelled scroll region carries a wide table at narrow widths, so the page itself never
    scrolls sideways (WCAG 1.4.10). */
 /* Positioned, so a visually hidden span inside a cell is clipped here instead of widening the page. */
-.jp-admintable-scroll { position: relative; overflow-x: auto; }
+.jp-admintable-scroll { position: relative; overflow-x: auto; container-type: inline-size; }
 /* The new admin ledgers keep their columns readable and scroll inside the region instead. */
 .jp-table.jp-admintable { min-width: 720px; }
 /* A sortable header row is control text, not a receipt label (DESIGN.md §4 deviation (1)):
@@ -363,6 +363,19 @@
 .jp-adminusers__sortbtn:not(:disabled):hover { color: var(--jp-accent-700); }
 .jp-adminusers__sortbtn svg { color: var(--jp-accent-700); }
 .jp-table tbody td.jp-admintable__soon { text-align: start; padding-block: 28px; }
+/* A region's line is a message, not table data: it stays in view and wraps inside the region's width. */
+.jp-table tbody td.jp-admintable__soon > .jp-adminsoon,
+.jp-table tbody td.jp-admintable__soon > .jp-admintable__line {
+  position: sticky;
+  inset-inline-start: 0;
+  max-inline-size: calc(100cqi - 32px);
+}
+.jp-admintable__line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
 /* The "Kommer snart" row is not a record: it takes no row hover. */
 .jp-table tbody tr:hover td.jp-admintable__soon { background: none; }
 
@@ -440,6 +453,7 @@
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
 }
+.jp-adminusers__date { white-space: nowrap; }
 .jp-table tbody tr[data-selected] td { background: var(--jp-accent-50); }
 .jp-adminusers__summary {
   margin: 0;
@@ -539,6 +553,12 @@
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
+}
+.jp-adminpanel__failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 .jp-adminpanel__list {
   display: flex;

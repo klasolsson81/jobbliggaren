@@ -140,7 +140,8 @@
       "lastActive": "Senast aktiv",
       "applications": "Ansökningar"
     },
-    "counter": "{shown} av {total} konton",
+    "counter": "{shown} av {total, plural, one {# konto} other {# konton}}",
+    "counterBusy": "Hämtar konton…",
     "role": {
       "user": "Användare",
       "admin": "Admin"
@@ -152,7 +153,7 @@
       "suspended": "Suspenderad"
     },
     "statusLine": {
-      "deletionEarliest": "Slutgiltigt tidigast {date}",
+      "deletionEarliest": "Slutgiltigt tidigast <nowrap>{date}</nowrap>",
       "emailUnconfirmed": "E-post ej bekräftad"
     },
     "regions": {
@@ -165,7 +166,9 @@
       "unauthorized": "Du är inte inloggad längre. Logga in och försök igen.",
       "forbidden": "Din session saknar Admin-rollen.",
       "detailFailed": "Kontots uppgifter kunde inte hämtas. Försök igen om en stund.",
-      "gone": "Kontot finns inte längre."
+      "gone": "Kontot finns inte längre.",
+      "retry": "Försök igen",
+      "signIn": "Logga in"
     },
     "pager": {
       "label": "Sidnavigering",
@@ -180,7 +183,7 @@
       "actions": "Åtgärder",
       "loading": "Hämtar kontots uppgifter…",
       "deletion": "Raderas slutgiltigt",
-      "deletionEarliest": "Tidigast {date}",
+      "deletionEarliest": "Tidigast <nowrap>{date}</nowrap>",
       "email": "E-post",
       "emailConfirmed": "Bekräftad",
       "emailUnconfirmed": "Ej bekräftad",

@@ -2,7 +2,9 @@
 
 // "use client": the search, the filter, the sort, the pages and the panel's read run in the browser.
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
@@ -104,6 +106,8 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
   const [open, setOpen] = useState<AdminAccountRow | null>(null);
   const [details, setDetails] = useState<AdminAccountDetails>({ kind: "loading" });
   const detailRequest = useRef<AbortController | null>(null);
+  const tableRegion = useRef<HTMLDivElement>(null);
+  const refocusTableAfterRetry = useRef(false);
 
   // The term follows the field once typing pauses, and a new term starts again from the first page.
   useEffect(() => {
@@ -138,6 +142,14 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
 
   useEffect(() => () => detailRequest.current?.abort(), []);
 
+  // The retry button leaves with the failed line once rows arrive, and the browser drops its focus.
+  useEffect(() => {
+    if (!refocusTableAfterRetry.current) return;
+    refocusTableAfterRetry.current = false;
+    const active = document.activeElement;
+    if (listing.kind === "loaded" && (active === null || active === document.body)) tableRegion.current?.focus();
+  }, [listing]);
+
   function failureText(failure: AccountsFailure, fallback: string): string {
     switch (failure.reason) {
       case "rateLimited":
@@ -151,26 +163,64 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
     }
   }
 
-  function openAccount(id: string) {
-    const row = listing.kind === "loaded" ? listing.page.rows.find((candidate) => candidate.id === id) : undefined;
-    if (row === undefined) return;
+  function recoveryOf(failure: AccountsFailure): "retry" | "signIn" | "none" {
+    if (failure.reason === "unauthorized") return "signIn";
+    return failure.reason === "forbidden" ? "none" : "retry";
+  }
+
+  function readDetails(row: AdminAccountRow) {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
-    setOpen(row);
     setDetails({ kind: "loading" });
-    void post("/api/admin/konton/detalj", { id }, parseDetail, controller.signal).then((answer) => {
+    void post("/api/admin/konton/detalj", { id: row.id }, parseDetail, controller.signal).then((answer) => {
       if (controller.signal.aborted) return;
       if (answer.ok) {
         setDetails({ kind: "loaded", data: answer.data });
         return;
       }
+      if (answer.gone) {
+        setDetails({ kind: "gone" });
+        setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+        return;
+      }
       setDetails({
         kind: "failed",
-        message: answer.gone ? t("errors.gone") : failureText(answer.failure, t("errors.detailFailed")),
+        message: failureText(answer.failure, t("errors.detailFailed")),
+        recovery: recoveryOf(answer.failure),
       });
-      if (answer.gone) setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
     });
+  }
+
+  function openAccount(id: string) {
+    const row = listing.kind === "loaded" ? listing.page.rows.find((candidate) => candidate.id === id) : undefined;
+    if (row === undefined) return;
+    setOpen(row);
+    readDetails(row);
+  }
+
+  function retryListing() {
+    refocusTableAfterRetry.current = true;
+    setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+  }
+
+  function failedAction(failure: AccountsFailure) {
+    switch (recoveryOf(failure)) {
+      case "retry":
+        return (
+          <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={retryListing}>
+            {t("errors.retry")}
+          </button>
+        );
+      case "signIn":
+        return (
+          <Link href="/logga-in" className={STANDALONE_LINK}>
+            {t("errors.signIn")}
+          </Link>
+        );
+      case "none":
+        return null;
+    }
   }
 
   function toggleSort(key: AdminAccountSortKey) {
@@ -195,10 +245,14 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
         onFilterChange={(filter) => setCriteria((current) => ({ ...current, filter, page: 1 }))}
         counts={loaded?.counts}
       />
-      {loaded === null ? null : <AdminAccountsSummary shown={loaded.totalCount} total={loaded.counts.all} />}
+      {loaded === null ? null : (
+        <AdminAccountsSummary shown={loaded.totalCount} total={loaded.counts.all} busy={criteria !== answered} />
+      )}
       <AdminAccountsTable
         region={loaded === null ? { kind: "failed" } : listRegion(loaded.rows)}
         failedMessage={listing.kind === "failed" ? failureText(listing.failure, t("regions.failed")) : undefined}
+        failedAction={listing.kind === "failed" ? failedAction(listing.failure) : undefined}
+        scrollRef={tableRegion}
         busy={criteria !== answered}
         sort={criteria.sort}
         onSort={toggleSort}
@@ -215,6 +269,8 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
       <AdminAccountPanel
         account={open}
         details={details}
+        onRetry={open === null ? undefined : () => readDetails(open)}
+        fallbackFocus={() => tableRegion.current}
         onClose={() => {
           detailRequest.current?.abort();
           setOpen(null);

@@ -1,7 +1,8 @@
 "use client";
 
 // "use client": the panel holds its account's mode, the running command and its refusal.
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { Dialog } from "radix-ui";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -25,7 +26,8 @@ import type {
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
 import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 import { holdAdminToasts, showAdminToast } from "@/lib/admin/toast-store";
-import { AdminAccountStatus, AdminRolePill } from "./admin-account-status";
+import { STANDALONE_LINK } from "@/components/auth/mail-link";
+import { AdminAccountStatus, AdminRolePill, unbroken } from "./admin-account-status";
 import { ADMIN_NEW_EMAIL_FIELD_ID, AdminAccountEditForm } from "./admin-account-edit-form";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
@@ -56,10 +58,14 @@ export interface AdminAccountCommands {
   readonly deletionEarliestIfScheduledNow: string;
 }
 
-/** The panel's facts as they arrive, or why they did not: the caller words the failure. */
+/**
+ * The panel's facts as they arrive, or why they did not. The caller words a failure and says what the admin
+ * can do about it; an account that no longer exists is its own state, so the head stops describing it.
+ */
 export type AdminAccountDetails =
   | { readonly kind: "loading" }
-  | { readonly kind: "failed"; readonly message: string }
+  | { readonly kind: "failed"; readonly message: string; readonly recovery: "retry" | "signIn" | "none" }
+  | { readonly kind: "gone" }
   | { readonly kind: "loaded"; readonly data: AdminAccountDetail };
 
 type Confirming = "suspend" | "scheduleDeletion";
@@ -70,6 +76,10 @@ interface AdminAccountPanelProps {
   readonly details: AdminAccountDetails;
   readonly onClose: () => void;
   readonly commands?: AdminAccountCommands;
+  /** Reads the details again, for a failure whose recovery is a retry. */
+  readonly onRetry?: () => void;
+  /** Where focus goes on close when the row that opened the panel is gone. */
+  readonly fallbackFocus?: () => HTMLElement | null;
 }
 
 const ICONS: Readonly<Record<AdminAccountAction, LucideIcon>> = {
@@ -116,9 +126,24 @@ function isAddressed(account: AdminAccountDetail): account is AdminAddressedAcco
  * account without a profile has no actions at all (ADR 0151).
  * Escape is layered: in edit mode it leaves the edit, otherwise it closes the panel.
  */
-export function AdminAccountPanel({ account, details, onClose, commands }: AdminAccountPanelProps) {
+export function AdminAccountPanel({
+  account,
+  details,
+  onClose,
+  commands,
+  onRetry,
+  fallbackFocus,
+}: AdminAccountPanelProps) {
   const open = account !== null;
-  const { onCloseAutoFocus } = useReturnFocus(open);
+  const { onCloseAutoFocus: returnToOpener } = useReturnFocus(open);
+  const onCloseAutoFocus = useCallback(
+    (event: Event) => {
+      returnToOpener(event);
+      const active = document.activeElement;
+      if (active === null || active === document.body) fallbackFocus?.()?.focus();
+    },
+    [returnToOpener, fallbackFocus],
+  );
 
   return (
     <Dialog.Root
@@ -135,6 +160,7 @@ export function AdminAccountPanel({ account, details, onClose, commands }: Admin
             row={account}
             details={details}
             commands={commands}
+            onRetry={onRetry}
             onCloseAutoFocus={onCloseAutoFocus}
           />
         )}
@@ -147,11 +173,13 @@ function PanelContent({
   row,
   details,
   commands,
+  onRetry,
   onCloseAutoFocus,
 }: {
   readonly row: AdminAccountRow;
   readonly details: AdminAccountDetails;
   readonly commands: AdminAccountCommands | undefined;
+  readonly onRetry: (() => void) | undefined;
   readonly onCloseAutoFocus: (event: Event) => void;
 }) {
   const t = useTranslations("admin.users");
@@ -299,7 +327,7 @@ function PanelContent({
               {detail.deletionEarliest === null ? (
                 <AdminUnknown />
               ) : (
-                t("panel.deletionEarliest", { date: detail.deletionEarliest })
+                t.rich("panel.deletionEarliest", { date: detail.deletionEarliest, nowrap: unbroken })
               )}
             </dd>
           </>
@@ -340,13 +368,23 @@ function PanelContent({
   }
 
   function body() {
-    if (loaded === null) {
+    if (details.kind === "loading") return <AdminRegionLine kind="loading" loading={t("panel.loading")} />;
+    if (details.kind === "gone") return <AdminRegionLine kind="failed" failed={t("errors.gone")} />;
+    if (details.kind === "failed") {
       return (
-        <AdminRegionLine
-          kind={details.kind === "failed" ? "failed" : "loading"}
-          failed={details.kind === "failed" ? details.message : undefined}
-          loading={t("panel.loading")}
-        />
+        <div className="jp-adminpanel__failure">
+          <AdminRegionLine kind="failed" failed={details.message} />
+          {details.recovery === "retry" && onRetry !== undefined ? (
+            <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={onRetry}>
+              {t("errors.retry")}
+            </button>
+          ) : null}
+          {details.recovery === "signIn" ? (
+            <Link href="/logga-in" className={STANDALONE_LINK}>
+              {t("errors.signIn")}
+            </Link>
+          ) : null}
+        </div>
       );
     }
     if (account !== null && mode === "edit") {
@@ -371,8 +409,8 @@ function PanelContent({
     }
     return (
       <>
-        {facts(loaded)}
-        {loaded.status === "profileMissing" ? (
+        {facts(details.data)}
+        {details.data.status === "profileMissing" ? (
           <p className="jp-adminpanel__note">{t("panel.profileMissing")}</p>
         ) : account === null ? (
           <p className="jp-adminpanel__note">{t("panel.noAddress")}</p>
@@ -415,10 +453,12 @@ function PanelContent({
               {head.email ?? <AdminUnknown />}
             </h2>
           </Dialog.Title>
-          <div className="jp-adminpanel__badges">
-            <AdminRolePill role={head.role} />
-            <AdminAccountStatus status={head.status} />
-          </div>
+          {details.kind === "gone" ? null : (
+            <div className="jp-adminpanel__badges">
+              <AdminRolePill role={head.role} />
+              <AdminAccountStatus status={head.status} />
+            </div>
+          )}
         </div>
         <Dialog.Close className="jp-icon-btn" aria-label={t("panel.close")}>
           <X size={20} aria-hidden="true" />

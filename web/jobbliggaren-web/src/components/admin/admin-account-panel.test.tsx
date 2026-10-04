@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -144,6 +145,9 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   });
 
   it("says whether the address is confirmed, and offers an unconfirmed one's marking as Kommer snart", () => {
+    // The retired password registration (ADR 0142) left addresses unconfirmed; the current writer never does
+    // (AdminAccountsDirectoryTests.The_current_writer_creates_every_account_confirmed), and
+    // AdminAccountsDirectoryTests.Email_confirmed_reads_the_column pins that the directory reports the flag.
     renderPanel({ ...ACTIVE, emailConfirmed: false });
 
     const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
@@ -191,18 +195,79 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(within(dialog).getByRole("region", { name: "Åtgärder" })).toBeInTheDocument();
   });
 
-  it("shows the failure its caller words in place of the details", () => {
+  it("shows the failure its caller words in place of the details, with the retry it offers", async () => {
+    const onRetry = vi.fn();
     render(
       <AdminAccountPanel
         account={ACTIVE}
-        details={{ kind: "failed", message: "Kontot finns inte längre." }}
+        details={{ kind: "failed", message: "Kontots uppgifter kunde inte hämtas. Försök igen om en stund.", recovery: "retry" }}
         onClose={() => {}}
         commands={commands()}
+        onRetry={onRetry}
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Kontots uppgifter kunde inte hämtas.");
     expect(screen.queryByRole("region", { name: "Åtgärder" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Försök igen" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a sign-in link instead of a retry when the session has ended", () => {
+    render(
+      <AdminAccountPanel
+        account={ACTIVE}
+        details={{ kind: "failed", message: "Du är inte inloggad längre. Logga in och försök igen.", recovery: "signIn" }}
+        onClose={() => {}}
+        onRetry={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Logga in" })).toHaveAttribute("href", "/logga-in");
+    expect(screen.queryByRole("button", { name: "Försök igen" })).toBeNull();
+  });
+
+  it("names an account that no longer exists by its address alone", () => {
+    render(<AdminAccountPanel account={ACTIVE} details={{ kind: "gone" }} onClose={() => {}} />);
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
+    expect(within(dialog).queryByText("Aktiv")).toBeNull();
+    expect(within(dialog).queryByText("Användare")).toBeNull();
+  });
+
+  it("returns focus to the caller's fallback when the row that opened it has gone", async () => {
+    let removeOpener: () => void = () => {};
+    function Harness() {
+      const [account, setAccount] = useState<AdminAccountDetail | null>(null);
+      const [opener, setOpener] = useState(true);
+      const fallback = useRef<HTMLDivElement>(null);
+      removeOpener = () => setOpener(false);
+      return (
+        <>
+          <div ref={fallback} tabIndex={-1} data-testid="fallback" />
+          {opener ? (
+            <button type="button" onClick={() => setAccount(ACTIVE)}>
+              Öppna
+            </button>
+          ) : null}
+          <AdminAccountPanel
+            account={account}
+            details={loaded(account)}
+            onClose={() => setAccount(null)}
+            fallbackFocus={() => fallback.current}
+          />
+        </>
+      );
+    }
+    render(<Harness />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Öppna" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stäng" })).toHaveFocus());
+    act(() => removeOpener());
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.getByTestId("fallback")).toHaveFocus());
   });
 
   it("offers every action as Kommer snart where no command is built", () => {

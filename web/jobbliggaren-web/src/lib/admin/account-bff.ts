@@ -19,7 +19,7 @@ import { isSameOriginRequest } from "@/lib/security/same-origin";
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 /** The longest address an account can hold; the backend refuses a longer term the same way. */
-const MAX_TERM = 254;
+const MAX_TERM = 256;
 const MAX_PAGE_SIZE = 100;
 
 export function refuse(status: number, error: string, headers: Readonly<Record<string, string>> = {}): NextResponse {

@@ -1,6 +1,7 @@
 "use client";
 
 // "use client": its sort and open buttons carry click handlers.
+import type { ReactNode, Ref } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, UserRound } from "lucide-react";
 import type {
@@ -32,6 +33,10 @@ interface AdminAccountsTableProps {
   readonly busy?: boolean;
   /** The failed region's sentence, when the caller knows more than that the read failed. */
   readonly failedMessage?: string;
+  /** What the admin can do about a failed read, under its sentence. */
+  readonly failedAction?: ReactNode;
+  /** The scroll region, for a caller that returns focus to the table. */
+  readonly scrollRef?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -48,6 +53,8 @@ export function AdminAccountsTable({
   soonId,
   busy = false,
   failedMessage,
+  failedAction,
+  scrollRef,
 }: AdminAccountsTableProps) {
   const region = given.kind === "loaded" && given.data.length === 0 ? ({ kind: "empty" } as const) : given;
   const t = useTranslations("admin.users");
@@ -73,7 +80,7 @@ export function AdminAccountsTable({
   }
 
   return (
-    <AdminTableScroll labelledBy={CAPTION_ID}>
+    <AdminTableScroll labelledBy={CAPTION_ID} ref={scrollRef}>
       <table
         className="jp-table jp-admintable jp-adminusers"
         aria-busy={region.kind === "loading" || busy || undefined}
@@ -143,13 +150,16 @@ export function AdminAccountsTable({
           ) : (
             <tr>
               <td colSpan={COLUMN_COUNT} className="jp-admintable__soon">
-                <AdminRegionLine
-                  kind={region.kind}
-                  empty={t("regions.empty")}
-                  failed={failedMessage ?? t("regions.failed")}
-                  loading={t("regions.loading")}
-                  soonId={soonId}
-                />
+                <div className="jp-admintable__line">
+                  <AdminRegionLine
+                    kind={region.kind}
+                    empty={t("regions.empty")}
+                    failed={failedMessage ?? t("regions.failed")}
+                    loading={t("regions.loading")}
+                    soonId={soonId}
+                  />
+                  {region.kind === "failed" ? failedAction : null}
+                </div>
               </td>
             </tr>
           )}

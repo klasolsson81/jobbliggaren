@@ -94,11 +94,38 @@ export const ACCOUNTS = [
   { ...account(1, "admin", "Active"), role: "Admin" },
 ];
 
-export function accountsPage(term: string | undefined) {
-  const items = term === undefined ? ACCOUNTS : ACCOUNTS.filter((row) => row.email.includes(term.toLowerCase()));
+/** Thirty more accounts, for a listing with a second page. */
+const MORE = Array.from({ length: 30 }, (_, index) =>
+  account(100 + index, `konto.extra${String(index).padStart(2, "0")}`, "Active", {
+    registeredAt: "2026-08-01T09:00:00Z",
+    applicationCount: 1,
+  })
+);
+
+export interface AccountsQuery {
+  readonly page?: number;
+  readonly pageSize?: number;
+  /** Thirty more accounts, so the listing has a second page. */
+  readonly many?: boolean;
+  /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
+  readonly gone?: ReadonlySet<string>;
+}
+
+export function accountsPage(
+  term: string | undefined,
+  { page = 1, pageSize = 25, many = false, gone = new Set<string>() }: AccountsQuery = {}
+) {
+  const all = (many ? [...ACCOUNTS, ...MORE] : ACCOUNTS).filter((row) => !gone.has(row.id));
+  const items = term === undefined ? all : all.filter((row) => row.email.includes(term.toLowerCase()));
   const count = (status: string) => items.filter((row) => row.status === status).length;
   return {
-    accounts: { items, totalCount: items.length, page: 1, pageSize: 25, totalPages: items.length === 0 ? 0 : 1 },
+    accounts: {
+      items: items.slice((page - 1) * pageSize, page * pageSize),
+      totalCount: items.length,
+      page,
+      pageSize,
+      totalPages: Math.ceil(items.length / pageSize),
+    },
     counts: {
       total: items.length,
       active: count("Active"),
@@ -108,8 +135,8 @@ export function accountsPage(term: string | undefined) {
   };
 }
 
-export function accountDetails(accountId: string) {
-  const row = ACCOUNTS.find((candidate) => candidate.id === accountId);
+export function accountDetails(accountId: string, gone: ReadonlySet<string> = new Set()) {
+  const row = gone.has(accountId) ? undefined : [...ACCOUNTS, ...MORE].find((candidate) => candidate.id === accountId);
   if (row === undefined) return undefined;
   const active = row.status === "Active";
   return { ...row, resumeCount: active ? 2 : null, savedSearchCount: active ? 1 : null };

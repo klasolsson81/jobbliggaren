@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
 import type {
@@ -33,11 +34,18 @@ export function AdminAccountStatusCell({
     <div className="jp-adminusers__status">
       <AdminAccountStatus status={status} />
       {status === "pendingDeletion" && deletionEarliest !== null ? (
-        <span className="jp-adminusers__statusline">{t("deletionEarliest", { date: deletionEarliest })}</span>
+        <span className="jp-adminusers__statusline">
+          {t.rich("deletionEarliest", { date: deletionEarliest, nowrap: unbroken })}
+        </span>
       ) : null}
       {emailConfirmed ? null : <span className="jp-adminusers__statusline">{t("emailUnconfirmed")}</span>}
     </div>
   );
+}
+
+/** A date that may move to the next line but never breaks inside itself. */
+export function unbroken(chunks: ReactNode) {
+  return <span className="jp-adminusers__date">{chunks}</span>;
 }
 
 export function AdminRolePill({ role }: { readonly role: AdminAccountRole }) {

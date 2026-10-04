@@ -6,6 +6,7 @@ vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://test-backend" } }));
 const { cookiesMock } = vi.hoisted(() => ({ cookiesMock: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 
+import * as route from "./route";
 import { POST } from "./route";
 
 const ID = "00000000-0000-4000-8000-000000000001";
@@ -61,6 +62,11 @@ async function expectRefused(response: Response, status: number, error: string) 
 }
 
 describe("POST /api/admin/konton/detalj (#1974, ADR 0151)", () => {
+  it("answers POST alone, so no link or prefetch can reach it", () => {
+    const methods = Object.keys(route).filter((name) => /^(GET|HEAD|PUT|PATCH|DELETE|OPTIONS)$/.test(name));
+    expect(methods).toEqual([]);
+  });
+
   it("reads the account the body names and relays its details, storing nothing", async () => {
     fetchMock.mockResolvedValue(backend(200));
     const incoming = request({ id: ID });
@@ -104,6 +110,12 @@ describe("POST /api/admin/konton/detalj (#1974, ADR 0151)", () => {
     fetchMock.mockResolvedValue(backend(status, { title: "x" }));
 
     await expectRefused(await POST(request({ id: ID })), status === 500 ? 502 : status, error);
+  });
+
+  it("answers a backend it cannot reach with the fixed code", async () => {
+    fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    await expectRefused(await POST(request({ id: ID })), 502, "error");
   });
 
   it("forwards a rate limit with its wait", async () => {

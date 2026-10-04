@@ -37,13 +37,23 @@ const RESPONSE: AccountSearchResponse = {
         deletionEarliest: null,
         applicationCount: null,
       },
+      {
+        id: "00000000-0000-4000-8000-000000000003",
+        email: "konto.c@example.test",
+        role: "User",
+        status: "ProfileMissing",
+        emailConfirmed: true,
+        registeredAt: null,
+        deletionEarliest: null,
+        applicationCount: null,
+      },
     ],
-    totalCount: 2,
+    totalCount: 3,
     page: 1,
     pageSize: 25,
     totalPages: 1,
   },
-  counts: { total: 2, active: 1, pendingDeletion: 0, profileMissing: 1 },
+  counts: { total: 3, active: 1, pendingDeletion: 0, profileMissing: 2 },
 };
 
 async function renderPage() {
@@ -66,9 +76,10 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
     expect(rows.map((row) => within(row).getAllByRole("cell")[0]?.textContent)).toEqual([
       "konto.a@example.test",
       "konto.b@example.test",
+      "konto.c@example.test",
     ]);
     expect(rows[1]).toHaveTextContent("Ofullständig");
-    expect(screen.getByRole("status")).toHaveTextContent("2 av 2 konton");
+    expect(screen.getByRole("status")).toHaveTextContent("3 av 3 konton");
   });
 
   it("counts each filter, a known zero included, and searches by address", async () => {
@@ -77,10 +88,10 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
 
     const group = screen.getByRole("radiogroup", { name: "Visa konton" });
     expect(within(group).getAllByRole("radio").map((option) => option.textContent)).toEqual([
-      "Alla (2)",
+      "Alla (3)",
       "Aktiva (1)",
       "Under radering (0)",
-      "Ofullständiga (1)",
+      "Ofullständiga (2)",
     ]);
     expect(screen.getByRole("searchbox", { name: "Sök på e-postadress" })).toBeEnabled();
   });

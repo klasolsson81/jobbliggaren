@@ -91,6 +91,8 @@ test("Bakgrundsjobb and Granskning still render their data", async ({ page }) =>
 
 const accountRows = (page: Page) => page.getByRole("table", { name: "Konton" }).locator("tbody tr");
 
+const ACCOUNT_E = "00000000-0000-4000-8000-000000000005";
+
 test("Användare lists the accounts with their counts, and searches by a body the URL never carries", async ({ page }) => {
   await page.goto("/admin/anvandare");
   await expect(accountRows(page)).toHaveCount(5);
@@ -100,6 +102,7 @@ test("Användare lists the accounts with their counts, and searches by a body th
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.d");
   await expect(accountRows(page)).toHaveCount(1);
   await expect(accountRows(page).first()).toContainText("Slutgiltigt tidigast 2026-10-30");
+  await expect(accountRows(page).first().locator(".jp-adminusers__date")).toHaveCSS("white-space", "nowrap");
 
   expect(new URL(page.url()).search).toBe("");
   const searched = harness.searches.map((body) => JSON.parse(body) as { address?: string });
@@ -116,11 +119,58 @@ test("Användare opens an account in the panel, shows its details, and returns f
   await expect(panel.getByText("CV:n")).toBeVisible();
   await expect(panel.getByRole("button", { name: "Stäng" })).toBeFocused();
   await expect(panel.getByRole("button", { name: /Kommer snart$/ }).first()).toBeVisible();
-  expect(harness.requests).toContain("GET /api/v1/admin/accounts/00000000-0000-4000-8000-000000000005");
+  expect(harness.requests).toContain(`GET /api/v1/admin/accounts/${ACCOUNT_E}`);
 
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   await expect(open).toBeFocused();
+});
+
+test("an account gone by the time it opens says so, and Escape returns focus to the table", async ({ page }) => {
+  await page.goto("/admin/anvandare");
+  await expect(accountRows(page)).toHaveCount(5);
+  harness.gone.add(ACCOUNT_E);
+  await page.getByRole("button", { name: "konto.e@example.test" }).click();
+
+  const panel = page.getByRole("dialog", { name: "konto.e@example.test" });
+  await expect(panel.getByRole("alert")).toHaveText("Kontot finns inte längre.");
+  // The open panel hides the page from the accessibility tree, so the rows are counted by their markup.
+  await expect(page.locator("table.jp-adminusers tbody tr")).toHaveCount(4);
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(page.getByRole("region", { name: "Konton" })).toBeFocused();
+});
+
+test("paging to the last page and back keeps focus on the pager's button", async ({ page }) => {
+  harness.many = true;
+  await page.goto("/admin/anvandare");
+  const pager = page.getByRole("navigation", { name: "Sidnavigering" });
+  await expect(pager).toContainText("Sida 1 av 2");
+
+  const next = pager.getByRole("button", { name: "Nästa" });
+  await next.focus();
+  await page.keyboard.press("Enter");
+  await expect(pager).toContainText("Sida 2 av 2");
+  await expect(next).toHaveAttribute("aria-disabled", "true");
+  await expect(next).toBeFocused();
+
+  const previous = pager.getByRole("button", { name: "Föregående" });
+  await previous.focus();
+  await page.keyboard.press("Enter");
+  await expect(pager).toContainText("Sida 1 av 2");
+  await expect(previous).toBeFocused();
+});
+
+test("a retried read that brings rows returns focus to the table", async ({ page }) => {
+  harness.mode = "error";
+  await page.goto("/admin/anvandare");
+  const retry = page.getByRole("button", { name: "Försök igen" });
+  await expect(retry).toBeVisible();
+
+  harness.mode = "ok";
+  await retry.click();
+  await expect(accountRows(page)).toHaveCount(5);
+  await expect(page.getByRole("region", { name: "Konton" })).toBeFocused();
 });
 
 for (const mode of ["forbidden", "error"] as const) {
@@ -155,29 +205,67 @@ const TABLE_ROUTES = [
   "/admin/e-post",
 ] as const;
 
+/**
+ * The table's region line and each link or button under it, measured against the scroll region:
+ * `toBeVisible()` does not see clipping by an `overflow-x: auto` ancestor.
+ */
+async function regionLineParts(page: Page) {
+  return page.evaluate(() => {
+    const line = document.querySelector(
+      "td.jp-admintable__soon > .jp-adminsoon, td.jp-admintable__soon > .jp-admintable__line"
+    );
+    const region = line?.closest(".jp-admintable-scroll");
+    if (!line || !region) return null;
+    const box = region.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    const parts = [range.getBoundingClientRect(), ...Array.from(line.querySelectorAll("a, button"), (part) => part.getBoundingClientRect())];
+    return parts.map((rect) => ({ width: rect.width, left: rect.left - box.left, right: box.right - rect.right }));
+  });
+}
+
+function expectInside(parts: Awaited<ReturnType<typeof regionLineParts>>, where: string) {
+  if (parts === null) throw new Error(`${where} has no region line inside a scroll region`);
+  for (const part of parts) {
+    expect(part.width, where).toBeGreaterThan(0);
+    expect(part.left, where).toBeGreaterThanOrEqual(0);
+    expect(part.right, where).toBeGreaterThanOrEqual(0);
+  }
+}
+
+/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
+const TEXT_SPACING =
+  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+
+const ACCOUNT_LINES = [
+  { state: "empty", mode: "ok", term: "ingen-traff", text: "Inga konton matchar sökningen eller filtret." },
+  { state: "rate-limited", mode: "rateLimited", text: "För många förfrågningar." },
+  { state: "signed-out", mode: "unauthorized", text: "Du är inte inloggad längre." },
+  { state: "failed", mode: "error", text: "Kontona kunde inte hämtas." },
+] as const;
+
 for (const width of [320, 375]) {
   test(`each table's Kommer snart line sits inside its scroll region at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     for (const path of TABLE_ROUTES) {
       await page.goto(path);
-      // `toBeVisible()` does not see clipping by an `overflow-x: auto` ancestor, so the text's own
-      // rectangle is compared with the region's.
-      const fit = await page.evaluate(() => {
-        const line = document.querySelector("td.jp-admintable__soon .jp-adminsoon");
-        const region = line?.closest(".jp-admintable-scroll");
-        if (!line || !region) return null;
-        const range = document.createRange();
-        range.selectNodeContents(line);
-        const text = range.getBoundingClientRect();
-        const box = region.getBoundingClientRect();
-        return { width: text.width, left: text.left - box.left, right: box.right - text.right };
-      });
-      if (fit === null) throw new Error(`${path} has no Kommer snart row inside a scroll region`);
-      expect(fit.width, path).toBeGreaterThan(0);
-      expect(fit.left, `${path} at ${width}px`).toBeGreaterThanOrEqual(0);
-      expect(fit.right, `${path} at ${width}px`).toBeGreaterThanOrEqual(0);
+      expectInside(await regionLineParts(page), `${path} at ${width}px`);
     }
   });
+
+  for (const spaced of [false, true]) {
+    test(`Användare's region lines and their actions sit inside the scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      for (const line of ACCOUNT_LINES) {
+        harness.mode = line.mode;
+        await page.goto("/admin/anvandare");
+        if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
+        if ("term" in line) await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill(line.term);
+        await expect(page.locator("td.jp-admintable__soon")).toContainText(line.text);
+        expectInside(await regionLineParts(page), `the ${line.state} line at ${width}px`);
+      }
+    });
+  }
 }
 
 test("an ordinary account is sent away from the admin surface", async ({ page }) => {

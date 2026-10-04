@@ -134,7 +134,7 @@ test("search, filter, sort and pages work on the fixtures, and the search never 
   await expect(page.getByRole("navigation", { name: "Sidnavigering" })).toContainText("Sida 1 av 2");
 
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.a");
-  await expect(summary).toHaveText("1 av 1 konton");
+  await expect(summary).toHaveText("1 av 1 konto");
   expect(new URL(page.url()).search).toBe("");
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("");
 

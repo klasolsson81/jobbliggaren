@@ -6,6 +6,7 @@ vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://test-backend" } }));
 const { cookiesMock } = vi.hoisted(() => ({ cookiesMock: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 
+import * as route from "./route";
 import { POST } from "./route";
 
 const TERM = "konto.sentinel@example.test";
@@ -65,6 +66,11 @@ async function expectRefused(response: Response, status: number, error: string) 
 }
 
 describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
+  it("answers POST alone, so no link or prefetch can reach it", () => {
+    const methods = Object.keys(route).filter((name) => /^(GET|HEAD|PUT|PATCH|DELETE|OPTIONS)$/.test(name));
+    expect(methods).toEqual([]);
+  });
+
   it("relays the backend's page with the term in its body, never in a URL, and stores nothing", async () => {
     fetchMock.mockResolvedValue(backend(200));
     const incoming = search({ address: TERM, status: "ProfileMissing", sort: "AddressAscending", page: 2, pageSize: 50 });
@@ -86,6 +92,14 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
       pageSize: 50,
     });
     expect(init?.signal).toBe(incoming.signal);
+  });
+
+  it("passes on a term as long as an address may be", async () => {
+    fetchMock.mockResolvedValue(backend(200));
+    const longest = `${"q".repeat(256 - TERM.length)}${TERM}`;
+
+    expect((await POST(search({ address: longest }))).status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).address).toBe(longest);
   });
 
   it("sends the defaults when the island leaves them out", async () => {
@@ -117,7 +131,7 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
   it.each([
     ["text that does not parse", `{"address": "${TERM}"`],
     ["an array", JSON.stringify([TERM])],
-    ["a term over 254 characters", JSON.stringify({ address: `${"q".repeat(250)}${TERM}` })],
+    ["a term longer than an address may be", JSON.stringify({ address: `${"q".repeat(257 - TERM.length)}${TERM}` })],
     ["a term that is not text", JSON.stringify({ address: 7 })],
     ["a status the backend does not filter by", JSON.stringify({ address: TERM, status: "Suspended" })],
     ["an unknown sort", JSON.stringify({ address: TERM, sort: "Newest" })],
@@ -153,6 +167,13 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
 
     await expectRefused(response, 429, "rateLimited");
     expect(response.headers.get("retry-after")).toBe("7");
+  });
+
+  it("answers a backend it cannot reach with the fixed code, and writes the term nowhere", async () => {
+    fetchMock.mockRejectedValue(new Error(`connect ECONNREFUSED while sending ${TERM}`));
+
+    await expectRefused(await POST(search({ address: TERM })), 502, "error");
+    expect(JSON.stringify(consoleCalls)).not.toContain(TERM);
   });
 
   it("answers any other failure with one fixed code", async () => {

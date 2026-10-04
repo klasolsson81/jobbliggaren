@@ -16,7 +16,7 @@ const accountRoleSchema = z.enum(["User", "Admin"]);
 const count = z.number().int().nonnegative();
 
 const accountListItemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   email: z.string().nullable(),
   role: accountRoleSchema,
   status: accountStatusSchema,

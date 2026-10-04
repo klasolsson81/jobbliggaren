@@ -4,6 +4,9 @@ import userEvent from "@testing-library/user-event";
 import type { AdminAccountRow } from "@/lib/admin/view-models";
 import { AdminAccountsTable } from "./admin-accounts-table";
 
+// The retired password registration (ADR 0142) left addresses unconfirmed; the current writer never does
+// (AdminAccountsDirectoryTests.The_current_writer_creates_every_account_confirmed), and
+// AdminAccountsDirectoryTests.Email_confirmed_reads_the_column pins that the directory reports the flag.
 const ROWS: ReadonlyArray<AdminAccountRow> = [
   { id: "a", email: "konto.a@example.test", role: "user", status: "active", emailConfirmed: true, registeredAt: "2026-09-28T12:02:00Z", applicationCount: 4, deletionEarliest: null },
   { id: "b", email: "konto.b@example.test", role: "admin", status: "pendingDeletion", emailConfirmed: false, registeredAt: "2026-08-14T07:30:00Z", applicationCount: null, deletionEarliest: "2026-11-03" },
@@ -44,6 +47,7 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
     expect(status(first)).toHaveTextContent(/^Aktiv$/);
     expect(status(second)).toHaveTextContent("Under radering");
     expect(status(second)).toHaveTextContent("Slutgiltigt tidigast 2026-11-03");
+    expect(status(second)?.querySelector(".jp-adminusers__date")).toHaveTextContent(/^2026-11-03$/);
     expect(status(second)).toHaveTextContent("E-post ej bekräftad");
     expect(status(third)).toHaveTextContent(/^Ofullständig$/);
     expect(within(third!).getAllByRole("cell")[3]).toHaveTextContent(UNKNOWN);
@@ -102,6 +106,14 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
     render(<AdminAccountsTable region={{ kind: "loaded", data: ROWS }} busy />);
     expect(screen.getByRole("table", { name: "Konton" })).toHaveAttribute("aria-busy", "true");
     expect(bodyRows()).toHaveLength(3);
+  });
+
+  it("puts the caller's action under a failed read's sentence", () => {
+    render(<AdminAccountsTable region={{ kind: "failed" }} failedAction={<button type="button">Försök igen</button>} />);
+
+    const [row] = bodyRows();
+    expect(within(row!).getByRole("alert")).toBeInTheDocument();
+    expect(within(row!).getByRole("button", { name: "Försök igen" })).toBeInTheDocument();
   });
 
   it("words a failure the way its caller knows it", () => {

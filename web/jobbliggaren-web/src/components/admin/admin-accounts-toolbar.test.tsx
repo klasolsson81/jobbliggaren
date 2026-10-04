@@ -102,14 +102,27 @@ describe("AdminAccountsPager", () => {
 
     const nav = screen.getByRole("navigation", { name: "Sidnavigering" });
     expect(nav).toHaveTextContent("Sida 1 av 3");
-    expect(within(nav).getByRole("button", { name: "Föregående" })).toBeDisabled();
+    expect(within(nav).getByRole("button", { name: "Föregående" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(within(nav).getByRole("button", { name: "Föregående" }));
+    expect(onPage).not.toHaveBeenCalled();
     await userEvent.click(within(nav).getByRole("button", { name: "Nästa" }));
     expect(onPage).toHaveBeenCalledWith(2);
 
     rerender(<AdminAccountsPager page={3} pages={3} onPage={onPage} />);
-    expect(screen.getByRole("button", { name: "Nästa" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Nästa" })).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(screen.getByRole("button", { name: "Föregående" }));
     expect(onPage).toHaveBeenLastCalledWith(2);
+  });
+
+  it("keeps focus on the button that reached the last page, which is still focusable", async () => {
+    const { rerender } = render(<AdminAccountsPager page={2} pages={3} onPage={() => {}} />);
+
+    const next = screen.getByRole("button", { name: "Nästa" });
+    next.focus();
+    rerender(<AdminAccountsPager page={3} pages={3} onPage={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Nästa" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Nästa" })).not.toBeDisabled();
   });
 });
 
@@ -117,5 +130,15 @@ describe("AdminAccountsSummary", () => {
   it("announces how many accounts the search and filter left", () => {
     render(<AdminAccountsSummary shown={8} total={12} />);
     expect(screen.getByRole("status")).toHaveTextContent("8 av 12 konton");
+  });
+
+  it("counts one account in the singular", () => {
+    render(<AdminAccountsSummary shown={1} total={1} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 av 1 konto");
+  });
+
+  it("says so while newer rows are on their way", () => {
+    render(<AdminAccountsSummary shown={8} total={12} busy />);
+    expect(screen.getByRole("status")).toHaveTextContent("Hämtar konton…");
   });
 });

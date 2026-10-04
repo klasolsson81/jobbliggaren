@@ -9,6 +9,7 @@ import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminSegment } from "./admin-segment";
 import { AdminTableScroll } from "./admin-table-scroll";
+import { AdminUnknown } from "./admin-unknown";
 
 const SOON_ID = "admin-email-soon";
 const CAPTION_ID = "admin-email-caption";
@@ -31,14 +32,13 @@ export function AdminEmailDelivery({
 }) {
   const t = useTranslations("admin.email");
   const shared = useTranslations("admin.regions");
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
   const data = region.kind === "loaded" ? region.data : null;
   const lineKind = region.kind === "loaded" ? "empty" : region.kind;
 
   const total = (value: number | undefined, danger = false) =>
     value === undefined ? (
-      dash
+      <AdminUnknown />
     ) : (
       <span className={danger && value > 0 ? "jp-admin-danger" : undefined}>{format.number(value)}</span>
     );
@@ -110,7 +110,7 @@ export function AdminEmailDelivery({
                   </td>
                   <td className="jp-admintable__num">{format.number(row.sent)}</td>
                   <td className="jp-admintable__num">{total(row.failed, true)}</td>
-                  <td>{row.lastError ?? dash}</td>
+                  <td>{row.lastError ?? <AdminUnknown />}</td>
                 </tr>
               ))
             ) : (
@@ -132,7 +132,7 @@ export function AdminEmailDelivery({
           <ol className="jp-adminmailfail">
             {data.failures.map((failure) => (
               <li key={failure.id}>
-                <span className="jp-adminmailfail__when">{formatDateTime(format, failure.occurredAt) ?? dash}</span>
+                <span className="jp-adminmailfail__when">{formatDateTime(format, failure.occurredAt) ?? <AdminUnknown />}</span>
                 <span>{failure.recipient}</span>
                 <span className="jp-adminmailfail__outcome" data-outcome={failure.outcome}>
                   {t(`outcome.${failure.outcome}`)}

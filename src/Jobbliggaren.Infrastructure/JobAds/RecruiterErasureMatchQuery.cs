@@ -251,8 +251,6 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         var writtenForms = WrittenForms(identifier);
 
         // The matching itself is raw SQL (it has to be — see the class remarks), and it yields IDs.
-        // EF's Database.SqlQuery<T> supports SCALAR results only, so the ads themselves are then
-        // projected through EF.
         //
         // The organization_number arm binds every WRITTEN form, not the normalised one. This column
         // LOOKS like a normalising one and is not: the ingest ACL hands the wire value to
@@ -524,9 +522,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                     """)
                 .ToListAsync(cancellationToken);
 
-        // Same shape, one arm over: WHICH rows matched on a concept-id axis. Scalar ids and not
-        // (id, value) pairs because Database.SqlQuery<T> is SCALAR-ONLY (see FindJobAdsAsync), so
-        // the matched VALUE is recovered from the projection below rather than from SQL.
+        // Same shape, one arm over: WHICH rows matched on a concept-id axis.
         var taxonomyMatched = await _db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"

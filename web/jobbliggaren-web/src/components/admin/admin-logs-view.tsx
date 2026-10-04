@@ -12,6 +12,7 @@ import type {
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminTableScroll } from "./admin-table-scroll";
+import { AdminUnknown } from "./admin-unknown";
 
 export type AdminLogView = "security" | "errors" | "imports";
 
@@ -183,10 +184,9 @@ function LogRows({ data, columns }: { readonly data: AdminLogData | undefined; r
 function SecurityRow({ row }: { readonly row: AdminSecurityLogRow }) {
   const t = useTranslations("admin.logs.security");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   return (
     <tr>
-      <td className="jp-admintable__when">{formatDateTime(format, row.occurredAt) ?? dash}</td>
+      <td className="jp-admintable__when">{formatDateTime(format, row.occurredAt) ?? <AdminUnknown />}</td>
       <td>
         <span className={`jp-pill ${SECURITY_TONE[row.kind]}`}>{t(`kind.${row.kind}`)}</span>
       </td>
@@ -201,10 +201,9 @@ function SecurityRow({ row }: { readonly row: AdminSecurityLogRow }) {
 function ErrorRow({ row }: { readonly row: AdminErrorLogRow }) {
   const t = useTranslations("admin.logs.errors");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   return (
     <tr>
-      <td className="jp-admintable__when">{formatDateTime(format, row.lastSeenAt) ?? dash}</td>
+      <td className="jp-admintable__when">{formatDateTime(format, row.lastSeenAt) ?? <AdminUnknown />}</td>
       <td>
         <span className={row.level === "error" ? "jp-pill jp-pill--danger" : "jp-pill jp-pill--warning"}>
           {t(`levelValue.${row.level}`)}
@@ -222,12 +221,11 @@ function ErrorRow({ row }: { readonly row: AdminErrorLogRow }) {
 function ImportRow({ row }: { readonly row: AdminImportLogRow }) {
   const t = useTranslations("admin.logs.imports");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   return (
     <tr>
       <td className="jp-admintable__run">{row.run}</td>
       <td>{t(`kind.${row.kind}`)}</td>
-      <td className="jp-admintable__when">{formatDateTime(format, row.startedAt) ?? dash}</td>
+      <td className="jp-admintable__when">{formatDateTime(format, row.startedAt) ?? <AdminUnknown />}</td>
       <td className="jp-admintable__when">
         {t("durationValue", { minutes: Math.floor(row.durationSeconds / 60), seconds: row.durationSeconds % 60 })}
       </td>

@@ -13,6 +13,9 @@ async function renderPage() {
   render(await AdminEmailDeliveryPage());
 }
 
+/** What a screen reader reads for an unknown value: the dash is hidden from it, and its words are not. */
+const UNKNOWN = "–Uppgift saknas";
+
 describe("/admin/e-post — email delivery before #1981 (ADR 0150 D2)", () => {
   it("is headed E-postleverans and names no provider it has no outcome from", async () => {
     await renderPage();
@@ -36,7 +39,7 @@ describe("/admin/e-post — email delivery before #1981 (ADR 0150 D2)", () => {
     const terms = screen.getAllByRole("term").map((term) => term.textContent);
     const values = screen.getAllByRole("definition").map((value) => value.textContent);
     expect(terms).toEqual(["Skickade", "Misslyckade", "Utan mottagare"]);
-    expect(values).toEqual(["–", "–", "–"]);
+    expect(values).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
 
   it("keeps the per-type table with one Kommer snart row and the failures list as one line", async () => {

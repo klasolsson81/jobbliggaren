@@ -4,7 +4,15 @@ import { createServer, request as forward, type Server } from "node:http";
 import { createServer as createTlsServer, type Server as TlsServer } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ADMIN, AUDIT_PAGE, FAILED_JOBS, MEMBER, RECURRING_JOBS } from "./fixtures";
+import {
+  ADMIN,
+  AUDIT_PAGE,
+  FAILED_JOBS,
+  MEMBER,
+  RECURRING_JOBS,
+  accountDetails,
+  accountsPage,
+} from "./fixtures";
 
 /**
  * The servers around the app for the admin harness (#1973): a fixture backend the admin pages read,
@@ -24,15 +32,21 @@ export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "admin-harness-session";
 
-export type AdminMode = "ok" | "forbidden" | "error";
+export type AdminMode = "ok" | "forbidden" | "error" | "rateLimited" | "unauthorized";
 
 export type Harness = {
   who: "admin" | "member";
   mode: AdminMode;
+  /** The account directory holds thirty more accounts, so its listing has a second page. */
+  many: boolean;
+  /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
+  readonly gone: Set<string>;
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
   /** Every backend path the app asked for, answered or not. */
   readonly requests: string[];
+  /** Every account search's request body, as the backend received it. */
+  readonly searches: string[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -63,17 +77,24 @@ function localhostCertificate(): { key: Buffer; cert: Buffer } {
 export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
+  const searches: string[] = [];
 
   const harness: Harness = {
     who: "admin",
     mode: "ok",
+    many: false,
+    gone: new Set(),
     misses,
     requests,
+    searches,
     reset() {
       misses.length = 0;
       requests.length = 0;
+      searches.length = 0;
       harness.who = "admin";
       harness.mode = "ok";
+      harness.many = false;
+      harness.gone.clear();
     },
     async stop() {
       await Promise.all([close(proxy), close(backend)]);
@@ -81,8 +102,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   };
 
   const backend = createServer((request, response) => {
-    const json = (status: number, value?: unknown) => {
-      response.writeHead(status, { "Content-Type": "application/json" });
+    const json = (status: number, value?: unknown, headers: Record<string, string> = {}) => {
+      response.writeHead(status, { "Content-Type": "application/json", ...headers });
       response.end(JSON.stringify(value ?? null));
     };
     const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
@@ -100,6 +121,38 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => FAILED_JOBS,
     };
+    const refusal = () => {
+      switch (harness.mode) {
+        case "forbidden":
+          return json(403, { title: "Forbidden", status: 403 });
+        case "rateLimited":
+          return json(429, { title: "Too Many Requests", status: 429 }, { "Retry-After": "6" });
+        case "unauthorized":
+          return json(401, { title: "Unauthorized", status: 401 });
+        default:
+          return json(500, { title: "Internal Server Error", status: 500 });
+      }
+    };
+
+    if (route === "POST /api/v1/admin/accounts/search") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        searches.push(body);
+        if (harness.mode !== "ok") return refusal();
+        const { address, page, pageSize } = JSON.parse(body) as { address?: string; page?: number; pageSize?: number };
+        return json(200, accountsPage(address, { page, pageSize, many: harness.many, gone: harness.gone }));
+      });
+      return;
+    }
+    const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
+    if (detail !== null) {
+      if (harness.mode !== "ok") return refusal();
+      const found = accountDetails(detail[1] ?? "", harness.gone);
+      return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+    }
+
     const answer = adminRoutes[route];
     if (answer !== undefined) {
       switch (harness.mode) {

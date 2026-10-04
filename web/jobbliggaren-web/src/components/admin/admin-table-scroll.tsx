@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 /**
  * A wide admin table's scroll region. At narrow widths the table scrolls inside it rather than
@@ -9,12 +9,14 @@ import type { ReactNode } from "react";
 export function AdminTableScroll({
   labelledBy,
   children,
+  ref,
 }: {
   readonly labelledBy: string;
   readonly children: ReactNode;
+  readonly ref?: Ref<HTMLDivElement>;
 }) {
   return (
-    <div className="jp-admintable-scroll" role="region" aria-labelledby={labelledBy} tabIndex={0}>
+    <div ref={ref} className="jp-admintable-scroll" role="region" aria-labelledby={labelledBy} tabIndex={0}>
       {children}
     </div>
   );

@@ -200,6 +200,17 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_AdminRead_Is30Per10s_TokenBucket()
+    {
+        // #1974 (ADR 0151) — the admin account directory's debounced search and its detail read.
+        var sut = new RateLimitingOptions();
+
+        sut.AdminRead.PermitLimit.ShouldBe(30);
+        sut.AdminRead.WindowSeconds.ShouldBe(10);
+        sut.AdminRead.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_OccupationDivisions_Is30Per10s()
     {
         // #1682 — the picker's occupation block, the same debounce-burst family as

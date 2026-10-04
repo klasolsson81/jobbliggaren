@@ -436,6 +436,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // that polls readiness or higher parallelism could silently trip a 429 in an unrelated class.
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", "60");
+        // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting
+        // test calls them more often than the burst allows.
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", "60");
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod

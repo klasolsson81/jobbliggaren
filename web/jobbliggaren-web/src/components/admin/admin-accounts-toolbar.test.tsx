@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { AdminAccountsToolbar } from "./admin-accounts-toolbar";
 import { AdminAccountsPager, AdminAccountsSummary } from "./admin-accounts-pager";
 
-const COUNTS = { all: 12, active: 8, suspended: 1, unverified: 2, pendingDeletion: 1 } as const;
+const COUNTS = { all: 12, active: 8, pendingDeletion: 1, profileMissing: 3 } as const;
 
 describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
   it("while unbuilt, disables the search and the filter and points both to the Kommer snart line", () => {
@@ -18,9 +18,8 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(within(filter).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
       "Alla",
       "Aktiva",
-      "Suspenderade",
-      "Ej verifierade",
       "Under radering",
+      "Ofullständiga",
     ]);
     for (const radio of within(filter).getAllByRole("radio")) expect(radio).toBeDisabled();
     // Nothing in a disabled group takes focus: no option, and no box around it.
@@ -47,8 +46,34 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(onQueryChange.mock.calls).toEqual([["k"], ["o"]]);
 
     expect(screen.getByRole("radio", { name: "Alla" })).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(screen.getByRole("radio", { name: "Suspenderade" }));
-    expect(onFilterChange).toHaveBeenCalledWith("suspended");
+    await userEvent.click(screen.getByRole("radio", { name: "Ofullständiga" }));
+    expect(onFilterChange).toHaveBeenCalledWith("profileMissing");
+  });
+
+  it("keeps a typed address out of the browser's form history and its spelling service", () => {
+    render(<AdminAccountsToolbar filter="all" query="" onQueryChange={() => {}} onFilterChange={() => {}} />);
+
+    const search = screen.getByRole("searchbox", { name: "Sök på e-postadress" });
+    expect(search).toHaveAttribute("autocomplete", "off");
+    expect(search).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("shows the options its caller names, in their order", () => {
+    render(
+      <AdminAccountsToolbar
+        filter="all"
+        filters={["all", "active", "suspended", "pendingDeletion", "profileMissing"]}
+        onQueryChange={() => {}}
+        onFilterChange={() => {}}
+      />,
+    );
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
+      "Alla",
+      "Aktiva",
+      "Suspenderade",
+      "Under radering",
+      "Ofullständiga",
+    ]);
   });
 
   it("shows a count in each filter label only when the counts are known", () => {
@@ -57,6 +82,7 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     );
     expect(screen.getByRole("radio", { name: "Aktiva (8)" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Ofullständiga (3)" })).toBeInTheDocument();
     unmount();
 
     render(<AdminAccountsToolbar filter="active" onQueryChange={() => {}} onFilterChange={() => {}} />);
@@ -76,14 +102,27 @@ describe("AdminAccountsPager", () => {
 
     const nav = screen.getByRole("navigation", { name: "Sidnavigering" });
     expect(nav).toHaveTextContent("Sida 1 av 3");
-    expect(within(nav).getByRole("button", { name: "Föregående" })).toBeDisabled();
+    expect(within(nav).getByRole("button", { name: "Föregående" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(within(nav).getByRole("button", { name: "Föregående" }));
+    expect(onPage).not.toHaveBeenCalled();
     await userEvent.click(within(nav).getByRole("button", { name: "Nästa" }));
     expect(onPage).toHaveBeenCalledWith(2);
 
     rerender(<AdminAccountsPager page={3} pages={3} onPage={onPage} />);
-    expect(screen.getByRole("button", { name: "Nästa" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Nästa" })).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(screen.getByRole("button", { name: "Föregående" }));
     expect(onPage).toHaveBeenLastCalledWith(2);
+  });
+
+  it("keeps focus on the button that reached the last page, which is still focusable", async () => {
+    const { rerender } = render(<AdminAccountsPager page={2} pages={3} onPage={() => {}} />);
+
+    const next = screen.getByRole("button", { name: "Nästa" });
+    next.focus();
+    rerender(<AdminAccountsPager page={3} pages={3} onPage={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Nästa" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Nästa" })).not.toBeDisabled();
   });
 });
 
@@ -91,5 +130,15 @@ describe("AdminAccountsSummary", () => {
   it("announces how many accounts the search and filter left", () => {
     render(<AdminAccountsSummary shown={8} total={12} />);
     expect(screen.getByRole("status")).toHaveTextContent("8 av 12 konton");
+  });
+
+  it("counts one account in the singular", () => {
+    render(<AdminAccountsSummary shown={1} total={1} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 av 1 konto");
+  });
+
+  it("says so while newer rows are on their way", () => {
+    render(<AdminAccountsSummary shown={8} total={12} busy />);
+    expect(screen.getByRole("status")).toHaveTextContent("Hämtar konton…");
   });
 });

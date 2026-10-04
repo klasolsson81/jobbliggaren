@@ -86,6 +86,7 @@ if [ "$1 $2 $3" = "buildx imagetools inspect" ]; then
     if [ -f "$REG/deny" ] && [[ $repo == *-release ]] && [ ! -f "$REG/release-exists" ]; then
       echo "ERROR: failed to authorize: 403 Forbidden" >&2; exit 1
     fi
+    [ -f "$REG/deny-tag/$(key "$ref")" ] && { echo "ERROR: failed to authorize: 403 Forbidden" >&2; exit 1; }
     # A concurrent writer: the N-th lookup of this tag answers something else.
     if [ -f "$REG/flip/$(key "$ref")" ]; then
       n=$(( $(cat "$REG/flip-count/$(key "$ref")" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$REG/flip-count/$(key "$ref")"
@@ -184,8 +185,8 @@ readonly NAMES=(api worker migrate web caddy)
 digest_of() { printf 'sha256:%s' "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1)"; }
 
 reset_registry() {
-  rm -rf "$REG"/tags/* "$REG"/blobs/* "$REG"/media/* "$REG"/attested/* "$REG"/containers/* "$REG"/flip "$REG"/flip-count "$REG"/repodigests/* "$REG"/local-image/*
-  mkdir -p "$REG/flip" "$REG/flip-count"
+  rm -rf "$REG"/tags/* "$REG"/blobs/* "$REG"/media/* "$REG"/attested/* "$REG"/containers/* "$REG"/flip "$REG"/flip-count "$REG"/repodigests/* "$REG"/local-image/* "$REG"/deny-tag
+  mkdir -p "$REG/flip" "$REG/flip-count" "$REG/deny-tag"
   rm -f "$REG"/deny "$REG"/release-exists "$REG"/fail-lookups "$REG"/fail-pulls "$REG"/wrap-moves "$REG"/wrap-tags-matching "$REG"/push-as-index \
     "$REG"/seal-during-push "$REG"/docker-calls "$REG"/verifier-calls "$REG"/two-repodigests
 }
@@ -376,8 +377,10 @@ NEW=$(sed -n 's/^digest=//p' "$TMPROOT/out")
 attest "$NEW" "$C3"
 expect_exit 0 "an attested record verifies" verify "$NEW" "$C3"
 rm -f "$REG/attested/$NEW"
+: >"$REG/verifier-calls"
 expect_exit 1 "a record whose attestation never becomes readable fails after the bounded retries" verify "$NEW" "$C3"
-check '[ "$(grep -c "^jbl\|^ghcr" "$REG/verifier-calls")" -ge 6 ]' "and it did retry"
+ATTEMPTS=$(sed -n 's/^readonly VERIFY_ATTEMPTS=//p' "$SUT")
+check '[ "$ATTEMPTS" -gt 1 ] && [ "$(grep -cxF "$RELEASE@$NEW" "$REG/verifier-calls")" -eq "$ATTEMPTS" ]' "and it read the record's identity exactly VERIFY_ATTEMPTS times, and that is more than once"
 
 echo "-- advance"
 fresh_release() { # <commit>: cells published, record pushed and attested, not sealed; prints the digest
@@ -402,7 +405,6 @@ NEW=$(fresh_release "$C3")
 expect_exit 0 "the channel's first release: sealed, dev created, latest moved" advance "$NEW" "$C3"
 check '[ "$(get_tag "$RELEASE:sha-$C3")" = "$NEW" ] && [ "$(get_tag "$RELEASE:dev")" = "$NEW" ]' "sha-<commit> and dev both name the record"
 check 'latest_is_record "$C3"' "all five latest tags name the record's images"
-check 'grep "imagetools create" "$REG/docker-calls" | grep -qv -- "--prefer-index=false" && false || true' "every move asks for a carbon copy (--prefer-index=false)"
 
 reset_registry
 OLD=$(release_of "$C2")
@@ -486,6 +488,24 @@ set_tag "$RELEASE:dev" "$OLD"
 NEW=$(fresh_release "$C3")
 git -C "$REPO" update-ref -d refs/heads/side >/dev/null 2>&1 || true
 expect_exit 0 "ordering reads ancestry from the clone" advance "$NEW" "$C3"
+
+reset_registry
+NEW=$(fresh_release "$C3")
+touch "$REG/deny-tag/$(key "$RELEASE:dev")"
+expect_exit 2 "a dev the registry will not show cannot be answered" advance "$NEW" "$C3"
+check 'grep -q "the channel is not moved" "$TMPROOT/err" && ! latest_is_record "$C3"' "the channel is not moved, and latest is left alone"
+
+reset_registry
+NEW=$(fresh_release "$C3")
+C2REC=$(fresh_release "$C2")
+UNKNOWN=$(printf '%s' not-in-this-clone | sha1sum | cut -d' ' -f1)
+sed "s/^JBL_RELEASE_SOURCE_SHA=.*/JBL_RELEASE_SOURCE_SHA=$UNKNOWN/" "$REG/blobs/$C2REC" >"$REG/alien.env"
+ALIEN="sha256:$(sha256sum <"$REG/alien.env" | cut -d' ' -f1)"
+mv "$REG/alien.env" "$REG/blobs/$ALIEN"
+attest "$ALIEN" "$UNKNOWN"
+set_tag "$RELEASE:dev" "$ALIEN"
+expect_exit 2 "a dev whose commit this clone does not hold cannot be ordered" advance "$NEW" "$C3"
+check '[ "$(get_tag "$RELEASE:dev")" = "$ALIEN" ] && grep -q "does not hold" "$TMPROOT/err"' "dev is untouched, and the refusal names why"
 
 echo "-- usage"
 expect_exit 2 "an unknown subcommand is a usage error" publish

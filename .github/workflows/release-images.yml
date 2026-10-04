@@ -226,14 +226,11 @@ jobs:
           # STDERR IS DISCARDED: under `2>&1` a failed lookup put the error text into the variable,
           # and two identical failures once compared equal.
           digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$IMAGE:sha-$SHORT" 2>/dev/null | tr -d '"') || digest=""
-          case "$digest" in
-            sha256:*) ;;
-            *)
-              echo "already=false" >> "$GITHUB_OUTPUT"
-              echo "Building: $IMAGE:sha-$SHORT does not resolve."
-              exit 0
-              ;;
-          esac
+          if ! [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "already=false" >> "$GITHUB_OUTPUT"
+            echo "Building: $IMAGE:sha-$SHORT does not resolve."
+            exit 0
+          fi
           verify_status=0
           deploy/systemd/verify-image-attestation.sh "$IMAGE@$digest" "$SOURCE_SHA" || verify_status=$?
           if [ "$verify_status" -eq 0 ]; then

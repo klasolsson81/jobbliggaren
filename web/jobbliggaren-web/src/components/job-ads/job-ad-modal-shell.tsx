@@ -27,15 +27,18 @@ export function JobAdModalShell({
   title,
   company,
   meta,
+  describedBy,
   children,
 }: {
   title: string;
   company: string;
   /**
-   * The header's date line under the company (#1963), or `null` for a branch without an ad (rate
-   * limit, error). Required so no call site can drop the deadline by omission.
+   * The header's date line under the company (#1963), or `null` for a branch without an ad.
+   * Required so no call site can drop the deadline by omission.
    */
   meta: React.ReactNode;
+  /** The id of a branch without an ad's one-line body; an ad's own text never describes the dialog (#1828). */
+  describedBy?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -107,6 +110,7 @@ export function JobAdModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
+        aria-describedby={describedBy}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="jp-modal__head">

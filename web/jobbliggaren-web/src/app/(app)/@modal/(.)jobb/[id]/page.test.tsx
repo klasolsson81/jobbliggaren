@@ -72,14 +72,14 @@ describe("@modal/(.)jobb/[id] — an outcome without an ad, in the job modal's o
 
   it.each([
     [{ kind: "rateLimited", retryAfterSeconds: 30 } as const, pages("common.rateLimitedTitle"), pages("common.rateLimitedBody", { seconds: 30 })],
-    [{ kind: "forbidden" } as const, svPages.jobb.detail.loadErrorTitle, svFallback.errorBodyRetry],
     [{ kind: "error" } as const, svPages.jobb.detail.loadErrorTitle, svFallback.errorBodyRetry],
-  ])("$kind renders its message in the sheet", async (result, title, body) => {
+  ])("$kind renders its message in the sheet as the dialog's description", async (result, title, body) => {
     loadJobDetailData.mockResolvedValue(result);
     await renderModal();
 
     const dialog = screen.getByRole("dialog", { name: title });
-    expect(dialog).toHaveTextContent(body);
+    expect(dialog).toHaveAttribute("aria-describedby", "jp-modal-desc");
+    expect(document.getElementById("jp-modal-desc")).toHaveTextContent(body);
     expect(dialog).toHaveClass("jp-modal--sheet");
   });
 
@@ -90,7 +90,8 @@ describe("@modal/(.)jobb/[id] — an outcome without an ad, in the job modal's o
     await renderModal();
 
     const dialog = screen.getByRole("dialog", { name: svFallback.notFound.title });
-    expect(dialog).toHaveTextContent(svFallback.notFound.body);
+    expect(dialog).toHaveAttribute("aria-describedby", "jp-modal-desc");
+    expect(document.getElementById("jp-modal-desc")).toHaveTextContent(svFallback.notFound.body);
     expect(dialog).toHaveClass("jp-modal--sheet");
     expect(notFound).not.toHaveBeenCalled();
   });

@@ -7,9 +7,11 @@ import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
  */
 export function JobAdModalMessage({ title, body }: { title: string; body: string }) {
   return (
-    <JobAdModalShell title={title} company="" meta={null}>
+    <JobAdModalShell title={title} company="" meta={null} describedBy="jp-modal-desc">
       <div className="jp-modal__body">
-        <p className="text-body-sm text-text-primary">{body}</p>
+        <p id="jp-modal-desc" className="text-body-sm text-text-primary">
+          {body}
+        </p>
       </div>
       <div className="jp-modal__foot">
         <span className="jp-modal__foot__spacer" />

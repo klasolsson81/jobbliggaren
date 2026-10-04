@@ -1,10 +1,11 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { applicationDetailHeader } from "@/lib/applications/header";
 import { ApplicationDetailBody } from "@/components/applications/application-detail-body";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
+import { ApplicationModalMessage } from "@/components/applications/application-modal-message";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -67,37 +68,18 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
     case "unauthorized":
       redirect("/logga-in");
     case "notFound":
-      notFound();
+      return <ApplicationModalMessage title={tf("notFound.title")} body={tf("notFound.body")} />;
     case "rateLimited":
       return (
-        <ApplicationModalShell
+        <ApplicationModalMessage
           title={t("common.rateLimitedTitle")}
-          subtitle=""
-        >
-          {/* id="jp-modal-desc" så modal-skalets aria-describedby aldrig dinglar
-              även i fel-grenarna (bodyn bär det i ok-fallet). */}
-          <div className="jp-modal__body">
-            <p id="jp-modal-desc" className="text-body-sm text-text-primary">
-              {t("common.rateLimitedBody", {
-                seconds: result.retryAfterSeconds,
-              })}
-            </p>
-          </div>
-        </ApplicationModalShell>
+          body={t("common.rateLimitedBody", { seconds: result.retryAfterSeconds })}
+        />
       );
     case "forbidden":
     case "error":
       return (
-        <ApplicationModalShell
-          title={t("ansokningar.detail.loadErrorTitle")}
-          subtitle=""
-        >
-          <div className="jp-modal__body">
-            <p id="jp-modal-desc" className="text-body-sm text-text-primary">
-              {tf("errorBodyRetry")}
-            </p>
-          </div>
-        </ApplicationModalShell>
+        <ApplicationModalMessage title={t("ansokningar.detail.loadErrorTitle")} body={tf("errorBodyRetry")} />
       );
   }
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import Link from "next/link";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouteModalShell } from "./route-modal-shell";
@@ -95,5 +96,37 @@ describe("RouteModalShell", () => {
     expect(document.body.style.overflow).toBe("hidden");
     unmount();
     expect(document.body.style.overflow).not.toBe("hidden");
+  });
+});
+
+describe("RouteModalShell focus lifecycle", () => {
+  it("returns focus to an opener that is still in the document", () => {
+    render(<Link href="/cv/importera">Open import</Link>);
+    const opener = screen.getByRole("link", { name: "Open import" });
+    opener.focus();
+    const modal = render(
+      <RouteModalShell title="Importera CV">
+        <div className="jp-modal__body">x</div>
+      </RouteModalShell>
+    );
+    expect(screen.getByRole("button", { name: "Stäng dialogrutan" })).toHaveFocus();
+    modal.unmount();
+    expect(opener).toHaveFocus();
+  });
+
+  it("does not focus an opener removed by navigation", () => {
+    const list = render(<Link href="/cv/importera">Open import</Link>);
+    const opener = screen.getByRole("link", { name: "Open import" });
+    opener.focus();
+    const focus = vi.spyOn(opener, "focus");
+    const modal = render(
+      <RouteModalShell title="Importera CV">
+        <div className="jp-modal__body">x</div>
+      </RouteModalShell>
+    );
+    list.unmount();
+    modal.unmount();
+    expect(opener.isConnected).toBe(false);
+    expect(focus).not.toHaveBeenCalled();
   });
 });

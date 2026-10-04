@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
+import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
 
 /**
  * RouteModalShell — generic modal-chrome (scrim / ESC / scrim-klick /
@@ -15,14 +16,12 @@ import { X } from "lucide-react";
  * a11y (role=dialog / aria-modal / aria-labelledby / focus-trap / ESC /
  * focus-return / scrim-klick stänger). Skillnaden mellan de två tidigare
  * shellsen låg ENBART i header-props (title/company resp. title+subtitle+id).
- * Med en tredje/fjärde modal-kontext (CV: Importera + Nytt, den senare grindad
- * sedan #1061) passeras Fowlers
+ * Med en tredje modal-kontext (CV: Importera) passeras Fowlers
  * "rule of three" — `ApplicationModalShell` flaggade själv detta som den
  * opportunistiska DRY-touchen. Denna shell är den generaliseringen; de två
  * äldre shellsen lämnas orörda (deras tester förblir gröna — låg risk).
  *
- * Children är ett Server Component-träd (CvUploadForm / CreateResumeForm är
- * klient-öar i trädet) — chrome och innehåll separeras enligt Next-docs
+ * Children är ett Server Component-träd — chrome och innehåll separeras enligt Next-docs
  * (Parallel/Intercepting Routes §Modals, verifierat node_modules/next/dist/
  * docs Next 16.2.x): "By separating the <Modal> functionality from the modal
  * content … any content inside the modal … are Server Components." Stängning
@@ -50,11 +49,9 @@ export function RouteModalShell({
 
   const close = () => router.back();
 
-  // Fokus in i modalen vid öppning + body-scroll-lock. Fokus-retur till
-  // utlösande element sköts av Next: router.back() återställer föregående
-  // route och DOM-fokus-position (soft-nav-historik). Identiskt med F3/F5.
+  useRouteModalFocus(panelRef, closeRef);
+
   useEffect(() => {
-    closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {

@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { findGuestJobAd } from "@/lib/guest/mock-data";
 import { toJobAdDetail } from "@/lib/guest/mock-adapters";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
+import { JobAdModalMessage } from "@/components/job-ads/job-ad-modal-message";
 import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
 
 // F-Pre Punkt 5b 2026-05-24 — intercepting route för @modal-slotten
@@ -23,7 +24,10 @@ export default async function InterceptedGuestJobbModal({
 }: PageProps) {
   const { id } = await params;
   const mock = findGuestJobAd(id);
-  if (!mock) notFound();
+  if (!mock) {
+    const tf = await getTranslations("fallback");
+    return <JobAdModalMessage title={tf("notFound.title")} body={tf("notFound.body")} />;
+  }
 
   const jobAd = toJobAdDetail(mock);
 

@@ -19,6 +19,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const require = createRequire(import.meta.url);
 const gate = require("../src/lib/admin-preview/gate.cjs");
 
+/**
+ * The reserved domain every fixture row carries (RFC 6761 `.invalid`): a build output holding it
+ * holds fixture data, whichever row was imported. Defined here rather than in the gate, so a
+ * production module that imports the gate never carries it into a build.
+ */
+export const ADMIN_PREVIEW_SENTINEL = "forhandsvisning.invalid";
+
 const TEXT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".json", ".html", ".rsc", ".body", ".meta", ".map", ".txt", ".css"]);
 
 /** The app-paths manifest's preview entries, keyed like "/(admin-preview)/admin/forhandsvisning/page". */
@@ -94,7 +101,7 @@ function main() {
   const routes = previewRoutesIn(JSON.parse(readFileSync(manifestPath, "utf8")));
   const leaks = flagOn
     ? []
-    : filesHolding([join(next, "server"), join(next, "static")], gate.ADMIN_PREVIEW_SENTINEL);
+    : filesHolding([join(next, "server"), join(next, "static")], ADMIN_PREVIEW_SENTINEL);
 
   const result = verdict({ flagOn, routes, leaks });
   (result.ok ? console.log : console.error)(result.message);

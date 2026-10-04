@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   ADMIN_PREVIEW_EXTENSION,
   ADMIN_PREVIEW_FLAG,
-  ADMIN_PREVIEW_SENTINEL,
   DEFAULT_PAGE_EXTENSIONS,
   adminPreviewEnabled,
   pageExtensionsFor,
@@ -28,9 +27,5 @@ describe("admin preview gate (ADR 0150 D5)", () => {
       ...DEFAULT_PAGE_EXTENSIONS,
     ]);
     expect(DEFAULT_PAGE_EXTENSIONS).toEqual(["tsx", "ts", "jsx", "js"]);
-  });
-
-  it("marks fixtures with a domain no mailbox can have (RFC 6761)", () => {
-    expect(ADMIN_PREVIEW_SENTINEL.endsWith(".invalid")).toBe(true);
   });
 });

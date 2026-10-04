@@ -17,12 +17,6 @@ const ADMIN_PREVIEW_ROUTE = "/admin/forhandsvisning";
 /** The page extension that makes `page.preview.tsx` and `layout.preview.tsx` route files. */
 const ADMIN_PREVIEW_EXTENSION = "preview.tsx";
 
-/**
- * The reserved domain every fixture value carries (RFC 6761 `.invalid`). A build output that
- * contains it contains fixture data, whichever fixture row was imported.
- */
-const ADMIN_PREVIEW_SENTINEL = "forhandsvisning.invalid";
-
 /** Next's defaults, kept as they are. */
 const DEFAULT_PAGE_EXTENSIONS = ["tsx", "ts", "jsx", "js"];
 
@@ -41,7 +35,6 @@ function pageExtensionsFor(env) {
 exports.ADMIN_PREVIEW_FLAG = ADMIN_PREVIEW_FLAG;
 exports.ADMIN_PREVIEW_ROUTE = ADMIN_PREVIEW_ROUTE;
 exports.ADMIN_PREVIEW_EXTENSION = ADMIN_PREVIEW_EXTENSION;
-exports.ADMIN_PREVIEW_SENTINEL = ADMIN_PREVIEW_SENTINEL;
 exports.DEFAULT_PAGE_EXTENSIONS = DEFAULT_PAGE_EXTENSIONS;
 exports.adminPreviewEnabled = adminPreviewEnabled;
 exports.pageExtensionsFor = pageExtensionsFor;

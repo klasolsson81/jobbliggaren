@@ -1,14 +1,14 @@
 import type { AdminAccountDetail } from "@/lib/admin/view-models";
 import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from "@/lib/dto/admin";
-import { ADMIN_PREVIEW_SENTINEL } from "../gate.cjs";
-
 /**
- * The admin preview's fictional data (ADR 0150 D5). Addresses are on the reserved `.invalid`
- * domain the gate names, IP addresses are from the RFC 5737 documentation ranges, and every date
- * is counted from one fixed clock. Accounts carry no name field (D3). Every row carries the
- * gate's sentinel, so a row that reaches a build output is found there whichever row it is.
- * This module never reaches an image (`.dockerignore`), and nothing outside the preview imports it.
+ * The admin preview's fictional data (ADR 0150 D5). Addresses are on a reserved `.invalid`
+ * domain, IP addresses are from the documentation ranges, and every date is counted from one
+ * fixed clock. Accounts carry no name field (D3). Every row carries the domain, which is the
+ * sentinel the build assertion looks for, so a row that reaches a build output is found there
+ * whichever row it is. This module never reaches an image (`.dockerignore`), and nothing outside
+ * the preview imports it.
  */
+const SENTINEL = "forhandsvisning.invalid";
 
 export const FIXTURE_NOW = "2026-10-04T08:00:00.000Z";
 
@@ -27,10 +27,10 @@ function daysAhead(days: number): string {
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
 function marked<T extends object>(row: T): T {
-  return { ...row, fixture: ADMIN_PREVIEW_SENTINEL };
+  return { ...row, fixture: SENTINEL };
 }
 
-const address = (local: string) => `${local}@${ADMIN_PREVIEW_SENTINEL}`;
+const address = (local: string) => `${local}@${SENTINEL}`;
 
 /** The administrator the preview's header shows; also an account in the list. */
 export const PREVIEW_ADMIN_EMAIL = address("admin");
@@ -83,8 +83,8 @@ function auditEntry(row: AuditLogEntryDto): AuditLogEntryDto {
 }
 
 export const PREVIEW_AUDIT_ENTRIES: ReadonlyArray<AuditLogEntryDto> = [
-  auditEntry({ id: id(101), occurredAt: daysAgo(0, 7, 41), correlationId: id(201), userId: id(2), impersonatedBy: null, eventType: "Application.StatusTransitioned", aggregateType: "Application", aggregateId: id(301), ipAddress: "192.0.2.0", userAgent: `Mozilla/5.0 (${ADMIN_PREVIEW_SENTINEL})` }),
-  auditEntry({ id: id(102), occurredAt: daysAgo(0, 6, 12), correlationId: id(202), userId: id(8), impersonatedBy: null, eventType: "SavedSearch.Created", aggregateType: "SavedSearch", aggregateId: id(302), ipAddress: "198.51.100.0", userAgent: `Mozilla/5.0 (${ADMIN_PREVIEW_SENTINEL})` }),
+  auditEntry({ id: id(101), occurredAt: daysAgo(0, 7, 41), correlationId: id(201), userId: id(2), impersonatedBy: null, eventType: "Application.StatusTransitioned", aggregateType: "Application", aggregateId: id(301), ipAddress: "192.0.2.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
+  auditEntry({ id: id(102), occurredAt: daysAgo(0, 6, 12), correlationId: id(202), userId: id(8), impersonatedBy: null, eventType: "SavedSearch.Created", aggregateType: "SavedSearch", aggregateId: id(302), ipAddress: "198.51.100.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
   auditEntry({ id: id(103), occurredAt: daysAgo(1, 19, 3), correlationId: id(203), userId: null, impersonatedBy: null, eventType: "RecurringJob.Triggered", aggregateType: "RecurringJob", aggregateId: id(303), ipAddress: null, userAgent: null }),
-  auditEntry({ id: id(104), occurredAt: daysAgo(1, 15, 26), correlationId: id(204), userId: id(3), impersonatedBy: null, eventType: "Session.Created", aggregateType: "Session", aggregateId: id(304), ipAddress: "203.0.113.0", userAgent: `Mozilla/5.0 (${ADMIN_PREVIEW_SENTINEL})` }),
+  auditEntry({ id: id(104), occurredAt: daysAgo(1, 15, 26), correlationId: id(204), userId: id(3), impersonatedBy: null, eventType: "Session.Created", aggregateType: "Session", aggregateId: id(304), ipAddress: "203.0.113.0", userAgent: `Mozilla/5.0 (${SENTINEL})` }),
 ];

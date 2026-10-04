@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_PREVIEW_SENTINEL } from "../gate.cjs";
+import { ADMIN_PREVIEW_SENTINEL } from "../../../../scripts/assert-admin-preview-build.mjs";
 import * as fixtures from "./index";
 
 /**

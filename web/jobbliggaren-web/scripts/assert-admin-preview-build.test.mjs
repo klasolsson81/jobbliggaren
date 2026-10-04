@@ -2,9 +2,12 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { filesHolding, previewRoutesIn, verdict } from "./assert-admin-preview-build.mjs";
-
-const SENTINEL = "forhandsvisning.invalid";
+import {
+  ADMIN_PREVIEW_SENTINEL as SENTINEL,
+  filesHolding,
+  previewRoutesIn,
+  verdict,
+} from "./assert-admin-preview-build.mjs";
 
 describe("previewRoutesIn", () => {
   it("picks the preview group's entries and nothing else", () => {

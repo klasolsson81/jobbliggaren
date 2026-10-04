@@ -58,6 +58,7 @@ readonly REQUIRED_ADVANCE_IF="steps.verified.outcome == 'success'"
 readonly REQUIRED_REF='${{ needs.prepare.outputs.sha }}'
 readonly REQUIRED_PREPARE_REF='${{ github.sha }}'
 readonly FOREIGN_TOOLS_RE='(^|[^A-Za-z0-9_-])(crane|oras|skopeo|regctl)([^A-Za-z0-9_-]|$)'
+readonly COMMENT_RE='(^|[[:space:];&|()])#'
 
 violations=0
 violation() {
@@ -170,27 +171,30 @@ step_of() { # <job> <id> → index, or -1
 for i in "${!S_JOB[@]}"; do
   text=${S_RUN[$i]}
   [ -n "$text" ] || continue
-  # One logical line per command: a line ending in a backslash continues on the next, the way a long
-  # build command is written. A comment line never continues — its backslash is inside the comment.
-  logical=() acc=""
+  # Every physical line is read on its own, and a command that trailing backslashes continue over
+  # several lines (the way a long build command is written) is read once more, joined. A `#` that
+  # starts a word, quoted or not, is read as a comment: what follows it in that command is dropped,
+  # and a backslash after it continues nothing, as in bash.
+  commands=() acc="" joined=0
   while IFS= read -r cmdline; do
     trimmed=${cmdline#"${cmdline%%[![:space:]]*}"}
-    if [ -z "$acc" ]; then case "$trimmed" in "#"*) continue ;; esac; fi
-    if [[ $cmdline == *"\\" ]]; then
+    case "$trimmed" in "#"*) ;; *) commands+=("$cmdline") ;; esac
+    if [[ $cmdline == *"\\" && ! $cmdline =~ $COMMENT_RE ]]; then
       acc+="${cmdline%"\\"} "
+      joined=$((joined + 1))
       continue
     fi
-    logical+=("$acc$cmdline")
-    acc=""
+    [ "$joined" -eq 0 ] || commands+=("$acc$cmdline")
+    acc="" joined=0
   done <<<"$text"
-  [ -z "$acc" ] || logical+=("$acc")
-  for cmdline in "${logical[@]}"; do
+  [ "$joined" -eq 0 ] || commands+=("$acc")
+  for cmdline in "${commands[@]}"; do
     segs=${cmdline//&&/$'\n'}
     segs=${segs//||/$'\n'}
     segs=${segs//;/$'\n'}
     segs=${segs//|/$'\n'}
     while IFS= read -r seg; do
-      seg=${seg%%#*}
+      if [[ $seg =~ $COMMENT_RE ]]; then seg=${seg%%"${BASH_REMATCH[0]}"*}; fi
       case "$seg" in
       *"docker push"* | *"docker image push"*)
         case "$seg" in *":sha-"*) ;; *) violation "job '${S_JOB[$i]}' step '${S_ID[$i]:-<no id>}' pushes a mutable tag: ${seg# }" "Only :sha-<short> is pushed by the workflow; every mutable tag moves in publish-release.sh advance." ;; esac

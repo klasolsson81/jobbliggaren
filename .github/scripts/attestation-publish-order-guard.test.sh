@@ -123,6 +123,27 @@ wf_case 1 "a build that pushes, written across a continuation line" \
 wf_case 1 "a comment ending in a backslash does not swallow the push after it" \
   's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          \# a note that ends in a backslash \\\n          docker push "$IMAGE:latest"#' \
   "pushes a mutable tag"
+wf_case 1 "a comment line inside a continued command does not hide the push after it" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --load -t "$IMAGE:sha-$SHORT" . \\\n            \# loaded only, the push step pushes \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a trailing comment ending in a backslash does not hide the push after it" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker tag "$IMAGE:sha-$SHORT" "$IMAGE:latest"  \# retagged for the box \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a push continued from a line with a parameter expansion's #" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          BRANCH="${GITHUB_REF\#refs/heads/}" \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a tag move continued from such a line" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          TAG="${GITHUB_REF_NAME\#v}" \\\n          docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE@$digest"#' \
+  "runs imagetools create"
+wf_case 1 "a push continued from a line that names a :sha- tag" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          REF="$IMAGE:sha-$SHORT" \\\n          docker push "$IMAGE:latest"#' \
+  "pushes a mutable tag"
+wf_case 1 "a build continued after a comment line, pushing as it builds" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --load -t "$IMAGE:sha-$SHORT" . \\\n            \# cache flags go here \\\n          docker buildx build \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
+wf_case 1 "a build whose --push follows a parameter expansion's # on the line before" \
+  's#^(          bash .github/scripts/publish-release.sh push "\$NAME" "\$SHORT" >>"\$GITHUB_OUTPUT")$#\1\n          docker buildx build --build-arg REF="${GITHUB_REF\#refs/heads/}" \\\n            --push -t "$IMAGE:latest" .#' \
+  "builds and pushes in one command"
 wf_case 1 "the cells' build-push-action told to push" \
   's#^          push: false$#          push: true#' \
   "publishes from docker/build-push-action"

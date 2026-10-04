@@ -39,8 +39,6 @@ describe("stripComments — the container guard's oracle", () => {
   });
 
   it("keeps a class rendered through a variable, which the attribute form cannot see", () => {
-    // PlainHeaderSkeleton does exactly this, and reading className="…" instead of stripping
-    // comments produced a false failure on /ny-ansokan/loading.tsx because of it.
     const source = `const wrapperClass = contained ? "jp-container jp-page" : "";`;
     expect(stripComments(source)).toContain("jp-container");
   });

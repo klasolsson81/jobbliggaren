@@ -67,6 +67,18 @@ function collectRouteFiles(dir: string, segments: string[] = []): RouteFile[] {
   return out;
 }
 
+/** Every `layout.tsx` below `dir`, outside parallel-route slots and private folders. */
+function nestedLayouts(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith("@") || entry.name.startsWith("_")) continue;
+    const child = join(dir, entry.name);
+    if (existsSync(join(child, "layout.tsx"))) out.push(join(child, "layout.tsx"));
+    out.push(...nestedLayouts(child));
+  }
+  return out;
+}
+
 /** Resolve a `@/…` import to a file on disk, or null when it is not a local module. */
 function resolveLocalImport(spec: string): string | null {
   if (!spec.startsWith("@/")) return null;
@@ -100,6 +112,14 @@ describe("(app) — every page owns its width", () => {
     ).toBeGreaterThanOrEqual(20);
   });
 
+  it("finds no layout below the group's own", () => {
+    expect(
+      nestedLayouts(APP),
+      "this guard reads only the files in SHELL_PAINTING_FILES, never a layout; extend it " +
+        "before adding a nested layout.tsx",
+    ).toEqual([]);
+  });
+
   it.each(routeFiles.map((f) => [f.url, f] as const))(
     "%s owns a container, delegates to one, or renders nothing",
     (_url, routeFile) => {
@@ -127,7 +147,7 @@ describe("(app) — every page owns its width", () => {
       // delegating purely for importing `@/lib/auth/session`. That narrowing is an allowlist
       // on import prefix; the assertion below the delegation branch is what stops it becoming
       // a hole. Delegation is checked BEFORE the gate on purpose: a page that both redirects
-      // on auth AND renders a component (`/oversikt` is the only one today) must be judged on
+      // on auth AND renders a component must be judged on
       // the component, or the gate branch would let it through unchecked.
       //
       // `delegates.some(...)` accepts ANY imported component, not necessarily the one
@@ -141,6 +161,11 @@ describe("(app) — every page owns its width", () => {
         .map(resolveLocalImport)
         .filter((p): p is string => p !== null)
         .map((p) => readFileSync(p, "utf-8"));
+      const unresolved = imports.filter((spec) => resolveLocalImport(spec) === null);
+      expect(
+        unresolved,
+        `${file}: resolveLocalImport cannot follow ${unresolved.join(", ")}. Teach it the form.`,
+      ).toEqual([]);
 
       if (delegates.length > 0) {
         expect(

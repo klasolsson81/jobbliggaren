@@ -219,7 +219,7 @@ export default async function MatchningPage() {
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {missing.map((item) => (
-              <span key={item} className="jp-tag" data-tag="status-warning">
+              <span key={item} className="jp-tag" data-tag="status-neutral">
                 {item}
               </span>
             ))}

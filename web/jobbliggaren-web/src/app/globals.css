@@ -3737,6 +3737,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-modal__footgroup:has([role="alert"]) {
   align-items: flex-start;
 }
+.jp-modal__footgroup [role="alert"] {
+  contain: inline-size;
+}
 @media (max-width: 560px) {
   .jp-modal__foot.jp-modal__foot--split {
     flex-direction: column;
@@ -3769,9 +3772,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-modal--sheet .jp-modal__head,
   .jp-modal--sheet .jp-modal__body,
   .jp-modal--sheet .jp-modal__foot,
-  .jp-page > .jp-modal .jp-modal__head,
-  .jp-page > .jp-modal .jp-modal__body,
-  .jp-page > .jp-modal .jp-modal__foot {
+  .jp-page > .jp-modal:not(.jp-modal--page) .jp-modal__head,
+  .jp-page > .jp-modal:not(.jp-modal--page) .jp-modal__body,
+  .jp-page > .jp-modal:not(.jp-modal--page) .jp-modal__foot {
     padding-inline: 16px;
   }
 }

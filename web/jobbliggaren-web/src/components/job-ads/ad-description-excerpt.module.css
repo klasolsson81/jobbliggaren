@@ -9,6 +9,7 @@
   --excerpt-height: clamp(220px, 32svh, 420px);
   position: relative;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .clip[data-collapsed] {

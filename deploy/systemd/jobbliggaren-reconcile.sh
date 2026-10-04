@@ -47,6 +47,8 @@ readonly PIN_FILE=/etc/jobbliggaren/release-pin
 # The injected crypto secrets, and the shared measurement that says who may read them (#1295).
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
+# Reads compose's resolved model in the binding step.
+readonly PYTHON=/usr/bin/python3
 
 readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 readonly RELEASE_REPO="${OURS_PREFIX}release"
@@ -213,6 +215,7 @@ fi
 [ -x "$VERIFIER" ] || refuse "verifier missing or not executable: $VERIFIER"
 [ -x "$RECORD_TOOL" ] || cannot_answer "record tool missing or not executable: $RECORD_TOOL"
 [ -x "$RUNTIME_IDS" ] || cannot_answer "runtime-id helper missing or not executable: $RUNTIME_IDS"
+[ -x "$PYTHON" ] || cannot_answer "python3 missing or not executable: $PYTHON"
 [ -r "$ENV_FILE" ] || cannot_answer "$ENV_FILE is not readable"
 
 if [ "$mode" = stage ] && [ -e "$RECEIPT" ]; then
@@ -235,15 +238,22 @@ if grep -qE '^[[:space:]]*(export[[:space:]]+)?IMAGE_TAG[[:space:]]*=' "$ENV_FIL
 fi
 
 # Every service that runs one of our images names it as the local `:applied` tag, and every other
-# image compose declares is an allow-listed upstream one — including the operations profile.
+# image compose declares is an allow-listed upstream one — including the operations profile. Each
+# service's own image comes from compose's resolved model: on Compose 5.4.0, `config --images <service>`
+# also prints the images of the service's dependencies. The model holds values from $ENV_FILE, so it
+# only ever passes through the pipe; what is kept is a name and an image per service. `-I` keeps the
+# caller's directory and PYTHON* variables off root's import path.
+declared=$(compose --profile ops config --format json 2>/dev/null |
+  "$PYTHON" -I -c 'import json, sys
+for name, service in json.load(sys.stdin)["services"].items(): print(name, service.get("image", ""))' 2>/dev/null) ||
+  cannot_answer "compose's model could not be read: compose failed, or python3 could not parse it (neither message is logged: compose's can quote $ENV_FILE)"
+declare -A image_of=()
+while read -r name image; do [ -z "$name" ] || image_of[$name]=$image; done <<<"$declared"
 for svc in "${!SERVICE_IMAGE[@]}"; do
-  declared=$(compose --profile ops config --images "$svc" 2>/dev/null) ||
-    cannot_answer "compose could not resolve service $svc (its own message is not logged: it can quote $ENV_FILE)"
-  [ "$declared" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
-    refuse "compose service $svc runs '$declared', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
+  [ "${image_of[$svc]:-}" = "${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG" ] ||
+    refuse "compose service $svc runs '${image_of[$svc]:-}', not ${OURS_PREFIX}${SERVICE_IMAGE[$svc]}:$APPLIED_TAG"
 done
-mapfile -t images < <(compose --profile ops config --images 2>/dev/null | sort -u)
-[ "${#images[@]}" -gt 0 ] || refuse "compose declared no images"
+mapfile -t images < <(printf '%s\n' "${image_of[@]}" | sort -u)
 upstream=()
 for image in "${images[@]}"; do
   case "$image" in

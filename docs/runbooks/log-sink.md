@@ -150,9 +150,10 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 # `up -d`. Read what it would bring FIRST; the fetch+log is what makes the advance deliberate,
 # never a substitute for it. Read §3a as well when the box runs a pinned release, which is what
 # the schema gate's exits 3 and 4 answer for.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
 sudo git -C /opt/jobbliggaren fetch origin main
 sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
-sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 
 # FOUR unit files, two pairs. The shipping pair archives; the -fresh pair is the only thing that
 # ever calls `--check`, and without it a stopped archive is on no surface at all: the service's
@@ -589,8 +590,9 @@ personal datum three retention numbers across three layers.
 # 1. Bring the clone to the release the box runs (`--status` prints its commit as the receipt's
 #    `source`) — never to main's tip, and never blind: advancing the clone is a DEPLOY
 #    (vps-deploy-stack.md §3b, "Advancing the checkout"). Read what it brings first.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
 cd /opt/jobbliggaren && sudo git fetch origin main && sudo git log --oneline HEAD..<release commit>
-sudo git merge --ff-only <release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 
 # 2. DRY RUN FIRST, ALWAYS. It reports what it would remove and removes nothing.
 #    On a box whose app containers have never rotated this correctly prints pruned=0.

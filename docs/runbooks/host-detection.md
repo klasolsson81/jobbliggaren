@@ -161,7 +161,8 @@ armed **last**, so arming does not itself page.
 ```bash
 # The units and rules live in deploy/. Advance the clone to the release the box runs, never to
 # main's tip (vps-deploy-stack.md §3b, "Advancing the checkout"):
-cd /opt/jobbliggaren && sudo git fetch origin main && sudo git merge --ff-only <release commit>
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
+cd /opt/jobbliggaren && sudo git fetch origin main && sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 
 # 1. Journal window first: it is what gives every later step an evidence window.
 #    The 60- prefix is deliberate — drop-ins sort by filename across ALL directories and systemd

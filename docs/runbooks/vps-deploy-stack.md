@@ -401,7 +401,7 @@ sudo cosign initialize
 sudo ls -la /root/.sigstore/root/  # the cached root, proving it landed for the right user
 
 # The clone at the release the box is to apply, never at main's tip (Advancing the checkout, below).
-sudo git -C /opt/jobbliggaren fetch origin main && sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo git -C /opt/jobbliggaren fetch origin main && sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 cd /opt/jobbliggaren
 sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
 # FOUR scripts: the wrapper, the verifier, the record tool the wrapper reads releases with
@@ -447,6 +447,7 @@ containers and the checkout's deployment files. Exit 0 is `verdict: consistent`;
 exception below reads it first.
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
 ```
 
@@ -478,6 +479,7 @@ the file, and the wrapper states the same argument at its own `up`.
   be the applied release's.** That is the precondition, and `--status` measures it:
 
   ```bash
+  sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
   sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # must end: verdict: consistent
   ```
 
@@ -511,12 +513,11 @@ follows the releases (ADR 0149 R5). The commit is the one the unit names: a conf
 prints the exact command, and `--status` prints the applied release's `source`. On Klas's GO:
 
 ```bash
-sudo systemctl stop jobbliggaren-reconcile.timer
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
 sudo git -C /opt/jobbliggaren fetch origin main
 sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/   # read what it brings
-sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager
-sudo systemctl start jobbliggaren-reconcile.timer
 ```
 
 The advance also delivers the systemd scripts and units at that commit, as a pull always did;
@@ -528,6 +529,7 @@ configuration refuses every release until `dev` catches up with it.
 one line, `sha-<40-hex commit>` or `sha256:<record digest>`, root-owned — and run the unit:
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; }
 echo 'sha-<40-hex commit>' | sudo tee /etc/jobbliggaren/release-pin >/dev/null
 sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager
 ```
@@ -571,10 +573,16 @@ the box keeps its old consumer until this:
    (`deploy/systemd/verify-image-attestation.sh ghcr.io/klasolsson81/jobbliggaren-release@<digest>`).
 3. Measure that the box's Compose (v5.4.0) honours `pull_policy: never` for `pull`, `up` and `run`,
    with a throwaway project. If it does not, stop.
-4. Stop the timer **and** the service: `Persistent=true` fires the timer as soon as it restarts.
+4. Stop the timer, then wait out any in-flight run: `sudo flock /run/jobbliggaren-reconcile.lock true`.
 5. Remove `IMAGE_TAG` from `deploy/.env` if it is present — the unit refuses an `.env` that sets it.
 6. Advance the clone to `release:dev`'s commit, at or after the #1238 merge — the `publish` job
    that moved `dev` names it in its log — and refresh the unit files if they changed.
+
+   ```bash
+   sudo git -C /opt/jobbliggaren fetch origin main
+   sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
+   sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
+   ```
 7. Start the service once and read the journal: the selection, the release's digest and source,
    the verified images, the apply and `reconcile complete`. `--status` must read `consistent`.
    All five of our containers are re-created once, `:latest` → `:applied`.
@@ -606,7 +614,7 @@ cd /opt/jobbliggaren/deploy
 **Preconditions, all five:**
 
 1. **Klas's GO for this run.** Not a standing grant.
-2. **One release.** `/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status` reads
+2. **One release.** `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; } && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status` reads
    `verdict: consistent` (it takes no lock, so it runs inside this one): the checkout's deployment
    files, the local `:applied` tags, the receipt and the running containers all name one release,
    whose images the unit verified as built from its commit X — the receipt's `source`. The run

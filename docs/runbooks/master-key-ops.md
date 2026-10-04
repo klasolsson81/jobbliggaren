@@ -364,9 +364,10 @@ remembered. Take it in `log-sink.md` §2's deliberate form, which carries the re
 blind and is not repeated here:
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
 sudo git -C /opt/jobbliggaren fetch origin main
 sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
-sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 ```
 
 **Then start the archive by hand, once — MANDATORY, not tidiness, whenever

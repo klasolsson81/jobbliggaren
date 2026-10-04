@@ -2489,7 +2489,7 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
 
 - [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
       visar dem `healthy` (konkret service-namn/compose-fil: #196).
-- [ ] **En release, hel** — `sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status`
+- [ ] **En release, hel** — `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/release-checklist.md"; exit 1; } && sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status`
       → `verdict: consistent`: kvittot, `:applied`, containrarna och checkoutens
       deploy-filer namnger samma release (`vps-deploy-stack.md` §3b).
 - [ ] **`/api/ready` → 200** mot målmiljöns domän (strict readiness: DB +
@@ -2523,6 +2523,7 @@ attestationsverifiering; wrappern vaktar bara vägen genom uniten
 
 ```bash
 # På Netcup-lådan: pinna föregående release och kör uniten.
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/release-checklist.md"; exit 1; }
 echo 'sha-<föregående releases 40-hex-commit>' | sudo tee /etc/jobbliggaren/release-pin >/dev/null
 sudo systemctl start jobbliggaren-reconcile.service
 journalctl -u jobbliggaren-reconcile -n 40 --no-pager   # döm journalen, inte exit-koden

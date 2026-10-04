@@ -112,6 +112,7 @@ between the two says so where it stands.
 **0. Confirm the box runs one release, whole.**
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status   # must end: verdict: consistent
 ```
 
@@ -121,8 +122,6 @@ reconcile unit runs no `git` at all: anything else is repaired through
 [`vps-deploy-stack.md`](vps-deploy-stack.md) §3b first, where advancing the clone goes to a
 release's commit and never to main's tip. A compose file without the `Auth__*` passthrough would
 leave the knobs below sitting in `.env` looking set, and the gate closed with no error.
-⚠ **Only on a box activated for #1238** (`vps-deploy-stack.md` §3b, *Activation*): the wrapper
-before it ignores `--status` and runs a full reconcile.
 
 **1. The mail credentials and the provider value are already in place — precondition 1, and
 nothing this procedure runs.** The injection order, the flip and its gate belong to
@@ -147,6 +146,7 @@ line, so `worker` — which shares those through the `x-app-email` anchor and co
 `Auth__*` at all — has no cause to restart here.
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
   cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
@@ -208,6 +208,7 @@ sudo docker restart jobbliggaren-api
 If it is not, re-create instead — same command as step 10:
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
   cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
@@ -225,6 +226,7 @@ never the address.
 **Then blank the knob — and RE-CREATE, not restart.**
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
   cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
@@ -261,6 +263,7 @@ that way: this repo is public, and the file carries the K2 credential. It is del
 `AUTH_REGISTRATIONS_OPEN`, then:
 
 ```bash
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
   cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```

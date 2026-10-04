@@ -189,7 +189,7 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > `jobbliggaren-reconcile.timer` fires at `*:47:00` with `RandomizedDelaySec=180`, and
 > `jobbliggaren-reconcile.sh` applies `docker compose up -d --remove-orphans --pull never` before
 > writing its stamp. The unit runs no `git` command — it applies whatever is already in the clone
-> — so **a pull is applied to the live stack by the next tick, up to ~63 minutes later, by a unit
+> — so **an advance is applied to the live stack by the next tick, up to ~63 minutes later, by a unit
 > rather than by a decision, and not at a moment anyone chose.** Confirm the timer's state before
 > you rely on any of this: `systemctl list-timers 'jobbliggaren-reconcile*'`.
 >
@@ -208,21 +208,19 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > the pulled `_FILE` compose against a `/run/jobbliggaren/secrets` no install has created. That is
 > the crash-loop this branch exists to avoid, arriving sooner than if you had done nothing.
 >
-> **1.** Stop the timer **and the service**, then measure that it took. Stopping the timer alone
-> is not enough: nothing binds the two — no `PropagatesStopTo`, `BindsTo` or `PartOf` — so a
-> reconcile already in flight keeps running and reads the compose file off disk at `up -d` time,
-> which is after your pull. Its `flock` does not help either; that lock exists against a human
-> running compose by hand, and `git pull` takes no lock.
+> **1.** Stop the timer.
 >
 > ```bash
-> sudo systemctl stop jobbliggaren-reconcile.timer jobbliggaren-reconcile.service
-> systemctl is-active jobbliggaren-reconcile.service   # expect: inactive
+> sudo systemctl stop jobbliggaren-reconcile.timer
 > ```
 >
 > **2.** Update the clone.
 >
 > ```bash
-> sudo git -C /opt/jobbliggaren pull
+> sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
+> sudo git -C /opt/jobbliggaren fetch origin main
+> sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/
+> sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 > ```
 >
 > **3.** Run `master-key-ops.md` §2 (install), then §3 (inject). §3 prompts for the secret values
@@ -330,9 +328,10 @@ grep -qx age17xdg97ppkkpv5cl0qlsfctmkrdy7dt6ps0klt79evwcwsnz0j35sn3skut /opt/job
 #     The advance goes to the commit of a release that carries the rotation — `--status` prints
 #     the applied one as the receipt's `source` — never to main's tip (vps-deploy-stack.md §3b,
 #     "Advancing the checkout").
+sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
 sudo git -C /opt/jobbliggaren fetch origin main       # read what the advance brings FIRST — on
 sudo git -C /opt/jobbliggaren log --oneline HEAD..<release commit> -- deploy/   # this box it is a DEPLOY
-sudo git -C /opt/jobbliggaren merge --ff-only <release commit>
+sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 #     The advance RECREATES age.recipient, and git carries only the exec bit — so step 3's
 #     0444 root:root does not survive it. Re-apply the chown/chmod above, then re-run the
 #     RECIPIENT-OK line. A rotation that stops at the merge leaves the box one manual advance

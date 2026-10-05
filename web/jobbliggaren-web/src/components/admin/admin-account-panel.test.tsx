@@ -249,6 +249,18 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(actionNames()).not.toContain("Suspendera konto");
   });
 
+  it("offers a suspended account no address change, and nothing in its place (ADR 0153 D11)", () => {
+    renderPanel({ ...ACTIVE, status: "suspended" });
+
+    expect(actionNames()).toEqual([
+      "Agera som användaren Kommer snart",
+      "Häv suspendering",
+      "Radera konto",
+      "Radera permanent Kommer snart",
+    ]);
+    expect(within(screen.getByRole("region", { name: "Åtgärder" })).queryByRole("paragraph")).toBeNull();
+  });
+
   it("offers no edit and no second deletion to an account already pending deletion", () => {
     renderPanel(PENDING);
     expect(actionNames()).toEqual([

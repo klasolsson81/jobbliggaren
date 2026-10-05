@@ -171,7 +171,7 @@ function actionsFor(
   // A pending change is cancelled, never requested again: a second request would displace the code its owner holds.
   if (emailChange.kind === "pending") general.push("cancelEmailChange");
   else if (emailChange.kind === "unknown") general.push("emailChangeUnknown");
-  else if (status !== "pendingDeletion") general.push(administrator ? "addressNote" : "changeEmail");
+  else if (status === "active") general.push(administrator ? "addressNote" : "changeEmail");
   if (status === "active") general.push("sendLoginLink");
   if (status === "active" && !emailConfirmed) general.push("markVerified");
   if (status === "suspended") general.push("reinstate");

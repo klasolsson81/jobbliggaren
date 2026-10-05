@@ -29,11 +29,6 @@ async function completableFromOf(res: Response): Promise<string | null> {
  * Anonymous: no session and no cookie is read or written. The forwarded headers keep the route's per-IP budget per
  * client (`challenge-actions.ts`, #1202). Nothing here logs; the addresses go back to the form so it can re-seed them,
  * the code never does.
- *
- * The answers: a 204 is done; one 410 is every refusal; a 409 with an instant is a full match too early, which spends
- * nothing; a 429 and a 503 come before anything is spent, so trying again is true. Every other answer, a lost response
- * and one that does not read among them, may sit over a change that happened, since the backend answers 500 for
- * anything that fails after the swap: it claims nothing and advises no retry.
  */
 export async function completeAddressChange(
   _prev: AddressChangeState,

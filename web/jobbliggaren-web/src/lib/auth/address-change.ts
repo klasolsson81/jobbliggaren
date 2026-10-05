@@ -57,7 +57,6 @@ export type AddressChangeState =
   /** A full match before the delay has run; nothing was spent. `completableFrom` is an ISO instant. */
   | { readonly kind: "notYet"; readonly completableFrom: string; readonly values: AddressChangeValues }
   | { readonly kind: "tooManyAttempts"; readonly values: AddressChangeValues }
-  /** Decided before any input was read, so trying again later is true. */
   | { readonly kind: "unavailable"; readonly values: AddressChangeValues }
   /** Nothing readable came back: the address may have changed, so this claims nothing and advises no retry. */
   | { readonly kind: "unknown"; readonly values: AddressChangeValues }

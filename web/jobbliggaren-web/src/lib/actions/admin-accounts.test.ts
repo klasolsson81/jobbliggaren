@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // #1975 — an administrator's request and cancel of an account's address change. What it pins: the input and the
 // role are checked before a code is spent; the step-up code is verified by the action that spends it, so no grant
-// leaves the server (#1740 S1); every answer after a verified code says the code is spent; the request's answers
+// leaves the server (#1740 S1); the request's answers
 // fall in three classes, and a 5xx, a lost response or an unreadable 202 claim nothing (design-reviewer item 5);
 // a cancel that found nothing is never a success. The translator returns "namespace.key", so assertions check the
 // resolved key.

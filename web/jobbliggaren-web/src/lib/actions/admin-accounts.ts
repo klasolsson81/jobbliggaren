@@ -26,7 +26,7 @@ const REQUEST_CONTEXT = "POST /api/v1/admin/accounts/{id}/email-change";
  * (security-auditor, #1740 S1). The new address is checked as any address must be before a code is spent; that it
  * differs from the account's own address is the panel's check, and the backend's.
  *
- * Once the code is accepted it is spent, and every answer after it says so. The answers fall in three classes
+ * Once the code is accepted it is spent. The answers fall in three classes
  * (design-reviewer, #1975 item 5): a 202 that reads is a pending change; a refusal the backend documents changed
  * nothing; a 5xx, a lost response or a 202 that does not read may sit over a pending change whose two mails have
  * gone, so it claims nothing. Among the 409s only those with copy of their own are compared; every other one, the

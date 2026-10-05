@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
@@ -16,6 +17,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
@@ -1613,13 +1615,14 @@ public static class DependencyInjection
     /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token provider (one
     /// <c>DataProtectorTokenProvider</c>: of the four <c>AddDefaultTokenProviders</c> registers only Default
     /// is DataProtector-based, the other three being TOTP), the login challenge store (#1735, purpose
-    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>), the grant store (<c>RedisGrantStore</c>) and the OAuth state
-    /// store (#1744, <c>RedisOAuthStateStore</c>). Sharing a
+    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>), the grant store (<c>RedisGrantStore</c>), the OAuth state
+    /// store (#1744, <c>RedisOAuthStateStore</c>) and the store of address changes an administrator starts (#1975,
+    /// <c>RedisAccountEmailChangeStore</c>). Sharing a
     /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
     /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
     /// no antiforgery, so the keyring's blast radius is the one token KIND that provider mints - change
-    /// email - plus every live login challenge's address and code (ADR 0142 D1), every live grant and every live
-    /// OAuth flow's PKCE verifier, and
+    /// email - plus every live login challenge's address and code (ADR 0142 D1), every live grant, every live
+    /// OAuth flow's PKCE verifier and every pending address change's new address and code, and
     /// nothing else. The keys are persisted unprotected on the file system (no
     /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
     /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,
@@ -1751,6 +1754,10 @@ public static class DependencyInjection
         // the grant store protects its payload with the Api's keyring too.
         services.AddSingleton<IGrantStore, RedisGrantStore>();
         services.AddSingleton<IRegistrationClaim, RedisRegistrationClaim>();
+
+        // #1975 (ADR 0153) — an address change an administrator starts, pending until the account's owner completes
+        // it. On the volatile connection and the Api's keyring, like the stores above.
+        services.AddSingleton<IAccountEmailChangeStore, RedisAccountEmailChangeStore>();
 
         // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
         // drop event. Api-EXCLUSIVE: the consumer's store

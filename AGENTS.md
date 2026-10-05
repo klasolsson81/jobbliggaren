@@ -289,7 +289,7 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
 - `main` is protected; **all changes via feature branch + PR** (ADR 0065,
   `enforce_admins: true` — Klas included). Branch: `<type>/<short-slug>`.
   Linear history (squash/rebase — no merge commits). Deploy: `main` → one
-  verified release, hourly, to dev (ADR 0149); no prod path yet (#1961).
+  verified release, live on the one production box (ADR 0154).
 - **Conventional Commits:** `<type>(<scope>): <description>` — types feat/fix/
   docs/refactor/test/chore/perf/build/ci; scopes e.g. applications, resumes,
   ai, infra, web; imperative; English (language policy §1).

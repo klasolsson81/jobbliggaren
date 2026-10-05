@@ -1,31 +1,30 @@
 # Release-checklist (generisk, återkommande)
 
-> Repeterbar release-procedur för JobbPilot. Gäller **varje** tag-driven
-> release, oavsett fas. Skild från `v0.2-prod-launch-checklist.md` — den är
-> en engångs-checklist för *första* prod-deployen; detta är den löpande
-> rutinen som används om och om igen.
+> Repeterbar release-procedur för JobbPilot. Varje merge till `main` blir en verifierad release som
+> lådan applicerar (ADR 0149), och lådan är produktion (ADR 0154): mergen är
+> godkännandet. Den här runbooken strukturerar verifieringen kring det, och de hårda grindarna i §2.x
+> före första riktiga användare.
 >
 > **Skapad:** 2026-05-17 (roster-gap-CTO 2026-05-17 §1.5 — "runbook, inte
-> release-manager-agent"; ADR 0045-bunt steg 6). Deploy-beslut är strategiska
-> och kräver Klas-godkännande (CLAUDE.md §9.2) — denna runbook ersätter inte
-> det, den strukturerar det.
+> release-manager-agent"; ADR 0045-bunt steg 6). Leveransmodellen skrevs om 2026-10-05 (ADR 0154).
 
 ---
 
-## 1. Tag-semantik (ADR 0019)
+## 1. Leveransmodell (ADR 0149, ADR 0154)
 
-| Tag-mönster | Miljö | Approval | Exempel |
-|---|---|---|---|
-| `v*-dev` | dev | Automatisk (deploy-dev.yml) | `v0.3.1-dev` |
-| `v*-rc*` | staging | Automatisk till staging | `v0.3.0-rc1` |
-| `v*` (ren) | prod | **Manuell approval (Klas)** | `v0.3.0` |
+| Händelse | Vad som händer | Vem |
+|---|---|---|
+| Merge till `main` | `release-images.yml` bygger, attesterar och publicerar en release-record och flyttar kanalen `dev`; lådans reconcile-unit applicerar den | Automatiskt |
+| Merge som ändrar `deploy/docker-compose.yml` eller `deploy/redis/healthcheck.sh` | Lådan vägrar releasen tills checkouten flyttats till dess commit (`vps-deploy-stack.md` §3b) | Den mergande sessionen, Klas stående GO |
+| Merge med en Identity-migrering | Uniten applicerar den inte; `vps-deploy-stack.md` §3c gör det | Den mergande sessionen, Klas stående GO |
+| Rollback | En pin i `/etc/jobbliggaren/release-pin` (§5) | Klas GO |
 
-`main` är enda branch (ADR 0019, direct-push). Staging är *miljö*, inte
-branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
+Lådan är den enda miljön; det finns ingen staging och ingen promotion (ADR 0154). Taggmodellen i
+ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger togs bort 2026-06-28.
 
 ---
 
-## 2. Före tag (pre-flight)
+## 2. Före merge (pre-flight)
 
 - [ ] **main-CI grön** — `gh run list --workflow build --limit 1` → `success`
       (frontend + coverage + ci alla gröna). Coverage-gaten
@@ -52,7 +51,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       Postgres **kraschar inte** på det: frågorna blir bara tyst fel (rader hittas inte,
       `ORDER BY` ljuger). Detta gäller `en_US.utf8` **redan idag** (collversion 2.41);
       #884 skapade inte exponeringen, det är första gången repot **namnger** den.
-      **Efter varje Postgres-image- eller major-bump, före tag:**
+      **Efter varje Postgres-image- eller major-bump:**
       ```sql
       -- 1. Har någon kollation drivit? (tom output = inget att göra)
       SELECT collname, collversion, pg_collation_actual_version(oid) AS faktisk
@@ -69,14 +68,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
       kollat alls.
 
-      **DEN HÄR GRINDEN LÄSER DEN TAGGADE MILJÖN, OCH DET RÄCKER INTE SEDAN 2026-08-04**
-      (#1197 / PR #1206). Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
+      Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
       bumpas automatiskt i `docker-compose.yml`. Basimagen bär ICU-biblioteket, migration
       `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
       **dev-databasen är den enda som i dag håller riktiga data** (106 071 annonser,
-      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen — den läser den taggade
-      miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också efter varje
-      postgres-bump**, inte bara före tag.
+      1 066 938 företagsrader).
       *(Samma PR gjorde **varje** image-bump icke auto-mergebar i
       `dependabot-automerge.yml` — det generella skälet är att ingenting läser den image
       som ändras; att just compose-felmoden är tyst kommer utöver det. En människa läser
@@ -95,7 +91,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       följer INTE av det första** (#1202, ADR 0050 `Amendment 2026-08-04` §5:s punkt *"Per-IP-rate-limiting fungerar"* —
       citerad på sin text, inte på sitt nummer).
       Gäller varje release mot en miljö bakom reverse-proxy.
-      - **Led 1 — HÅRD (fail-loud boot).** Värdet måste vara satt för miljön som taggas,
+      - **Led 1 — HÅRD (fail-loud boot).** Värdet måste vara satt för miljön releasen går till,
         via Compose-/env-overlay — **aldrig** genom att redigera den committade
         `appsettings.Production.json`, där `[]` är avsiktligt (Klas-beslut 2026-08-04,
         PR #1203: ingen compose-fil i repot deklarerar ett nätverk, så en ifylld gissning
@@ -108,7 +104,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         någon — sex IP-partitionerade rate-limit-policies delar en hink oavsett värde.
         **Beviset läses på SVARSSIDAN:** en request från en känd klient-IP ska synas med
         den IP:n i rate-limit-partitionen **och** i auth-revisionsspåret. **En grön
-        `EnsureSafeForEnvironment` är inte beviset.** Ingenting hindrar taggaren från att
+        `EnsureSafeForEnvironment` är inte beviset.** Ingenting hindrar den som mergar från att
         hoppa över det här ledet; det är därför #1202 dessutom är ett blockerande
         acceptanskriterium på #196 (spärrhaken i Klas-beslutet).
 - [ ] **GDPR-konsekvens** för nytt scope bedömd (CLAUDE.md §8 punkt 8) — ny
@@ -1304,8 +1300,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > ⚠ **Värdraden är den MOTSATTA sortens fall och är AVKLARAD, inte trasig — blanda inte ihop
 > dem:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
 > (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
-> drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
-> skeppad till dev, men det finns ingen prod-deploy — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
+> drift — samma defekt som en förtidig flip, i spegelvänd form. Policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
 > förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
 > providern är `NullCompanyRegistry` och den riktiga adaptern finns inte, så ett
 > presens-påstående skulle hävda en överföring till en myndighet som **bevisligen
@@ -2455,23 +2450,15 @@ overksamt inom en omstart; en halvriven kodbas är inte.
 
 ---
 
-## 3. Tagga + deploy
+## 3. Merge = deploy
 
-```bash
-# Verifiera HEAD är exakt det som ska släppas
-git log --oneline -1
-git rev-parse HEAD
+Det finns inget separat deploysteg. Efter mergen:
 
-# dev/staging — automatisk efter push
-git tag v<X.Y.Z>-dev <HEAD> && git push origin v<X.Y.Z>-dev      # → dev
-git tag v<X.Y.Z>-rc1 <HEAD> && git push origin v<X.Y.Z>-rc1      # → staging
-
-# prod — KRÄVER Klas-GO innan tag-push (CLAUDE.md §9.2)
-git tag v<X.Y.Z> <HEAD> && git push origin v<X.Y.Z>             # → prod (manuell approval i pipeline)
-```
-
-CC får **inte** push:a en prod-tag (ren `v*`) utan explicit Klas-GO i
-sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
+1. Följ `release-images`-körningen för merge-commiten till grönt `publish` (`gh run list --workflow
+   release-images --limit 3`); en `workflow_dispatch` på `main`.
+2. Ändrade mergen en bunden deploy-fil, en unit eller ett Identity-schema: gör §1:s steg under Klas
+   stående GO (CLAUDE.md §9.2).
+3. Verifiera enligt §4 efter nästa reconcile.
 
 **Utrullningsordning för policyversionen (ADR 0142 D6, #1736):** `TermsAcceptance.CurrentPrivacyPolicyVersion`
 i API-imagen och `privacy.updated` i web-imagen är samma datum — pinnat i ett träd, inte vid deploy.
@@ -2502,8 +2489,8 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
       INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
       prod-sink = #1175) + direkt `audit_log`-query (ADR 0035).
 - [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
-      (UptimeRobot/BetterStack, ADR 0050 — ersätter ALB/CloudWatch-health);
-      jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
+      — detektionen är heartbeat-timern och dess dead-man (ADR 0126; UptimeRobot och BetterStack
+      avvisades där); jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
       Konkret alerting-konfig: #196 (box) + #1175 (sink).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
@@ -2551,19 +2538,19 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
 - [ ] `docs/current-work.md` — status uppdaterad (CLAUDE.md §1.5).
 - [ ] Session-logg i `docs/sessions/` om release var en egen session.
 - [ ] `docs/steg-tracker.md` om STEG flyttat status.
-- [ ] Tag + miljö noterad så nästa release vet senaste prod-state.
+- [ ] Den applicerade releasens commit och sekvens noterad (`--status`) så nästa release vet senaste
+      prod-state.
 
 ---
 
 ## Referenser
 
-- ADR 0019 (direct-push + tag-semantik), ADR 0033/0034 (migrations/DB-roller),
+- ADR 0149 (release-recorden), ADR 0154 (en låda, varje merge live), ADR 0019 (historisk
+  tag-semantik), ADR 0033/0034 (migrations/DB-roller),
   ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
   rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
   ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
   ADR 0045 (perf observe-only-signaler); #196 (Compose-stack) / #1175 (prod-sink)
   (logg-sink/observability)
-- CLAUDE.md §6.3 (granskningsspärrar), §8 (DoD), §9.2 (deploy kräver Klas-GO)
+- AGENTS.md §6 (granskningsspärrar), §8 (DoD); CLAUDE.md §9.2 (release-vägen under stående GO)
 - BUILD.md §15 (deployment/rollback)
-- `docs/runbooks/v0.2-prod-launch-checklist.md` — engångs-checklist för
-  *första* prod-deployen (komplement, inte ersättning för denna)

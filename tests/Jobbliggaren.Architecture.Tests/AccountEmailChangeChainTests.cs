@@ -1,9 +1,12 @@
 using System.Reflection;
 using Jobbliggaren.Api.Endpoints;
+using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailChange;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetPendingAccountEmailChange;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
+using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -48,6 +51,7 @@ public class AccountEmailChangeChainTests
             .. new[]
             {
                 typeof(CancelAccountEmailChangeCommandHandler).FullName!,
+                typeof(CompleteAccountEmailChangeCommandHandler).FullName!,
                 typeof(GetPendingAccountEmailChangeQueryHandler).FullName!,
                 typeof(RequestAccountEmailChangeCommandHandler).FullName!,
             }.Order(),
@@ -76,6 +80,47 @@ public class AccountEmailChangeChainTests
         typeof(GetPendingAccountEmailChangeQuery).GetInterfaces().ShouldNotContain(typeof(IAuditableCommand));
     }
 
+    [Fact]
+    public void The_completion_is_public_outside_the_admin_surface_and_writes_its_own_row()
+    {
+        // Public: the owner has no session. Outside Application.Admin, whose every message carries the admin gate. Not
+        // AuditBehavior's: on an anonymous route it would stamp a null user, and the eraser keys on the user id.
+        var completion = typeof(CompleteAccountEmailChangeCommand);
+
+        completion.GetInterfaces().ShouldNotContain(typeof(IAuthenticatedRequest));
+        completion.GetInterfaces().ShouldNotContain(typeof(IAuditableCommand));
+        completion.Namespace.ShouldNotBeNull().ShouldNotStartWith("Jobbliggaren.Application.Admin");
+    }
+
+    [Fact]
+    public void The_completion_cannot_reach_a_session_a_login_or_the_account_directory()
+    {
+        // The handler's constructor dependencies, and those of any concrete class among them. The completion issues no
+        // session and invalidates them at the endpoint, never in a handler.
+        var reached = new HashSet<Type>();
+        var pending = new Stack<Type>([typeof(CompleteAccountEmailChangeCommandHandler)]);
+        while (pending.TryPop(out var type))
+        {
+            foreach (var parameter in type.GetConstructors().SelectMany(c => c.GetParameters()))
+            {
+                if (reached.Add(parameter.ParameterType) && parameter.ParameterType is { IsClass: true, IsAbstract: false })
+                    pending.Push(parameter.ParameterType);
+            }
+        }
+
+        reached.ShouldContain(typeof(IAccountEmailChangeStore));
+        reached.ShouldContain(typeof(ConfirmedAddressSwap));
+        foreach (var forbidden in new[]
+                 {
+                     typeof(ISessionStore), typeof(LoginProofOutcome), typeof(PasswordlessSessionGrant),
+                     typeof(LoginSubjectResolver), typeof(ILoginAccountLookup), typeof(IAccountDirectory),
+                     typeof(ICurrentUser),
+                 })
+        {
+            reached.ShouldNotContain(forbidden);
+        }
+    }
+
     public static TheoryData<string> PrintedRecords() =>
     [
         nameof(RequestAccountEmailChangeCommand),
@@ -85,6 +130,8 @@ public class AccountEmailChangeChainTests
         nameof(AccountEmailChangePut.Written),
         nameof(ExpectedCurrentAddress),
         nameof(AddressSwapped),
+        nameof(CompleteAccountEmailChangeCommand),
+        nameof(AuthEndpoints.AccountEmailChangeCompleteRequest),
     ];
 
     private const string Address = "kansligt.namn@example.se";
@@ -100,6 +147,9 @@ public class AccountEmailChangeChainTests
             LoginCode.FromRaw(Secret), DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, null!),
         nameof(ExpectedCurrentAddress) => new ExpectedCurrentAddress(Secret),
         nameof(AddressSwapped) => new AddressSwapped(Address),
+        nameof(CompleteAccountEmailChangeCommand) => new CompleteAccountEmailChangeCommand(Address, Address, Secret),
+        nameof(AuthEndpoints.AccountEmailChangeCompleteRequest) =>
+            new AuthEndpoints.AccountEmailChangeCompleteRequest(Address, Address, Secret),
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 

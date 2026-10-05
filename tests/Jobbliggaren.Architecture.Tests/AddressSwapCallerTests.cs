@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
@@ -65,6 +66,7 @@ public sealed class AddressSwapCallerTests
 
         consumers.ShouldBe(
         [
+            typeof(CompleteAccountEmailChangeCommandHandler).FullName!,
             typeof(ConfirmEmailChangeCommandHandler).FullName!,
         ]);
     }

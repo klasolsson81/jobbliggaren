@@ -1,7 +1,6 @@
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
-using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Auth;
 
@@ -52,24 +51,15 @@ public sealed class ReauthenticationService(
         // window) whose session outlived deletion must not run a sensitive op — reject it, and
         // best-effort self-heal by tearing down its surviving sessions (complements PR2c-0's
         // Layer 2 :deleted tombstone, which fail-closes the read path; this covers the rare case
-        // where the tombstone was never planted, e.g. Redis was down at deletion). IgnoreQueryFilters
-        // — the global DeletedAt==null filter would hide the row; keyed userId -> JobSeeker.UserId.
-        // #1349 — projected to a ROW, not to a nullable value, and that is the whole repair. The
-        // previous `Select(js => (DateTimeOffset?)js.DeletedAt)` made FirstOrDefaultAsync answer null
-        // for BOTH "no row at all" and "a live row", so this gate could not see an account with no
-        // JobSeeker and let it through. An orphan holding a live session then passed re-auth, changed
-        // its password, and was handed a FRESH session by the /change-password re-issue — renewing the
-        // capability without ever crossing the login guard (security-auditor M-1).
+        // where the tombstone was never planted, e.g. Redis was down at deletion). An account with no
+        // JobSeeker at all is refused the same way (#1349, ProfileLiveness): an orphan holding a live
+        // session once passed re-auth, changed its password, and was handed a FRESH session by the
+        // /change-password re-issue — renewing the capability without ever crossing the login guard
+        // (security-auditor M-1).
         //
         // The predicate is deliberately the same rule as LoginSubjectResolver's: two gates, one sentence —
         // "a row with no JobSeeker is granted nothing". Read them together.
-        var profile = await db.JobSeekers
-            .IgnoreQueryFilters()
-            .Where(js => js.UserId == userId)
-            .Select(js => new { js.DeletedAt })
-            .FirstOrDefaultAsync(ct);
-
-        if (profile is null || profile.DeletedAt is not null)
+        if (!await db.HasLiveProfileAsync(userId, ct))
         {
             try
             {

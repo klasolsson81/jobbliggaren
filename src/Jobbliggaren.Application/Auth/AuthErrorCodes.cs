@@ -170,6 +170,25 @@ public static class AuthErrorCodes
     public const string AccountEmailChangeNothingPendingMessage = "Det finns inget adressbyte att avbryta.";
 
     /// <summary>
+    /// #1975 — the public completion's one answer to everything but a full match: no change, an expired, cancelled,
+    /// burned or completed one, a wrong code or a wrong current address; and to every refusal after a match, which
+    /// consumes the change: an account no longer active, one that now holds Admin or another address, or a new address
+    /// someone has since taken. One body, so no cause can be told apart. Gone → 410.
+    /// </summary>
+    public const string AccountEmailChangeUnusable = "Auth.AccountEmailChangeUnusable";
+
+    public const string AccountEmailChangeUnusableMessage = "Adressbytet gick inte att genomföra.";
+
+    /// <summary>
+    /// #1975 — the code and the current address matched before the delay had run. Only a full match reaches it, so it
+    /// tells nobody anything they did not already hold; the earliest instant travels as the problem's
+    /// <c>completableFrom</c> extension. Nothing is spent. Conflict → 409.
+    /// </summary>
+    public const string AccountEmailChangeNotYet = "Auth.AccountEmailChangeNotYet";
+
+    public const string AccountEmailChangeNotYetMessage = "Adressbytet kan inte genomföras ännu.";
+
+    /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
     /// ADR 0083 Amendment 2026-08-03). Rendered as an endpoint-local 503 by
     /// <c>AuthEndpoints.ToErrorResult</c>, not via the kind-union — see that arm for why.

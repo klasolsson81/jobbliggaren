@@ -84,8 +84,7 @@ received that false confirmation. That is luck, not design.
    (ADR 0072). The identifier lives in the controller's case record. The
    application itself never stores it: the audit row carries an
    **HMAC-SHA256** of it, never the value.
-4. **Klas signs off before the destructive call.** The dry run is yours to run;
-   the erasure is his to approve.
+4. **Klas signs off before the destructive call.**
 
 ---
 

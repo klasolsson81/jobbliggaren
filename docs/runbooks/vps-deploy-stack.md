@@ -389,8 +389,9 @@ serves only "latest" — so unattended-upgrades would move the gate's own binary
 **Install once** (order matters — the tool before the unit that requires it):
 
 ```bash
-sudo apt-get update && sudo apt-get install -y cosign
+sudo apt-get update && sudo apt-get install -y cosign python3
 cosign version   # expect 2.5.0 on trixie
+/usr/bin/python3 --version   # the unit reads compose's model with it (`-I`) and refuses without it
 
 # Fetch the Sigstore trust root ONCE, as root, before the unit ever runs. Verification is
 # root's, and cosign caches the root under the invoking user's home — so leaving the first
@@ -503,14 +504,16 @@ migration, is §3c.
 only thing between a pull and a mixed set, and it closed nothing: each matrix cell allowed 30
 minutes, so a slow `:17` run could still be pushing at `:47`. A unit that reads records sees the
 previous release or the next one, whole, and the offset only keeps the two hourly jobs apart.
-**That holds only on a box running this unit.** Until activation (below) the box runs the
-pre-#1238 consumer on the five `latest` tags, which the publisher now moves one after another,
-seconds apart and not atomically (ADR 0149 R10).
+The box has run this unit since activation on 2026-10-04 (below); before it, the pre-#1238
+consumer read the five `latest` tags, which the publisher moves one after another (ADR 0149 R10).
 
 **Advancing the checkout is a deploy, and it goes to a release's commit — never to main's tip.**
 The unit applies a release only with the configuration it was released with, so the clone
 follows the releases (ADR 0149 R5). The commit is the one the unit names: a configuration refusal
-prints the exact command, and `--status` prints the applied release's `source`. On Klas's GO:
+prints the exact command, and `--status` prints the applied release's `source`. The box is
+production (ADR 0154), and the session whose merge needs the advance runs it under Klas's
+standing GO (A2, ADR 0154 §4) and verifies. **Not past a Redis-ACL change** that Klas has not yet
+re-published from escrow: from that commit on, every reconcile refuses until he has.
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, its step 6 is the only advance of this checkout."; exit 1; }
@@ -521,7 +524,8 @@ sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggare
 ```
 
 The advance also delivers the systemd scripts and units at that commit, as a pull always did;
-refresh an installed unit file whose source changed. **Never advance past the release:**
+refresh an installed unit file whose source changed with the install block's `cp`, `chmod` and
+`daemon-reload` lines, under the same standing GO. **Never advance past the release:**
 `merge --ff-only` cannot move the clone back, and a checkout ahead of `dev` with a different
 configuration refuses every release until `dev` catches up with it.
 
@@ -563,8 +567,9 @@ silently, whoever moved it.
 the workflow file of the original run, which moved `latest` per cell and knows nothing of records.
 A dispatch on `main` runs today's file and, for a commit that already has a record, builds nothing.
 
-**Activation — once, on Klas's GO, in this order.** Merging #1238 changed only what GHCR holds;
-the box keeps its old consumer until this:
+**Activation — once, on Klas's GO, in this order. Done 2026-10-04, 20:30–20:36 UTC (sequence
+1563)**; kept as the record of how a box first comes to apply records. Merging #1238 changed only
+what GHCR holds; the box kept its old consumer until this:
 
 1. Klas flips the `jobbliggaren-release` package to **public**. This cannot be undone; the
    package holds public metadata about a public repository.
@@ -588,16 +593,17 @@ the box keeps its old consumer until this:
    All five of our containers are re-created once, `:latest` → `:applied`.
 8. Start the timer.
 
-Until then the box runs the pre-#1238 consumer on `latest`, the window above still exists in its
-narrower form, and the pin, `--status` and the receipt this section describes do not exist on the
-box. **The old wrapper ignores its arguments:** `--status` or `--stage` handed to it runs a full
-reconcile. Run neither before step 6 has advanced the clone.
+Before activation the box ran the pre-#1238 consumer on `latest`, and the pin, `--status` and the
+receipt this section describes did not exist on it. **The old wrapper ignores its arguments:**
+`--status` or `--stage` handed to it runs a full reconcile, so on a box that has not been activated,
+run neither before step 6 has advanced the clone.
 
 ## 3c. Identity migrations: `bootstrap`
 
 `schema`, which every `up` runs, applies `AppDbContext` migrations only. A migration on
 `AppIdentityDbContext` (the `identity` schema) is applied by `Jobbliggaren.Migrate bootstrap`, and
-nothing runs that by itself: an operator runs it, on Klas's GO for that run. It is the **second**
+nothing runs that by itself: the session whose merge adds the migration runs it once the release is
+applied, under Klas's standing GO (ADR 0154; Klas 2026-10-05: "Stående GO täcker §3c"). It is the **second**
 sanctioned exception to *"manual applies go through the unit"* (§3b), and it has **no schema-ahead
 gate** (§3a), so it must never run an image older than the history it meets.
 
@@ -613,7 +619,8 @@ cd /opt/jobbliggaren/deploy
 
 **Preconditions, all five:**
 
-1. **Klas's GO for this run.** Not a standing grant.
+1. **Authority.** Klas's standing GO covers this run (ADR 0154), for the Identity migrations the
+   applied release adds and no others.
 2. **One release.** `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/vps-deploy-stack.md"; exit 1; } && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status` reads
    `verdict: consistent` (it takes no lock, so it runs inside this one): the checkout's deployment
    files, the local `:applied` tags, the receipt and the running containers all name one release,

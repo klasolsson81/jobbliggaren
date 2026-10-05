@@ -190,10 +190,19 @@ architecture decisions. **The driving session MAY edit
 spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
 Mandatory spec-edit agents still apply (dotnet-architect + code-reviewer; plus
 design-reviewer for `DESIGN.md` design-token changes). The driving session does
-**not**: deploy
-without Klas GO; add top-level dependencies without justification or libraries
+**not**: deploy outside the release path without Klas GO; add top-level
+dependencies without justification or libraries
 outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
+
+**The release path is the deploy (ADR 0154).** Every merge reaches the one box, which is
+production; the merge is the approval. Under Klas's standing GO (A2, ADR 0154
+§4) the merging session advances the box's checkout to the release commit the unit names,
+refreshes any unit file that release changes, runs `vps-deploy-stack.md` §3c for the
+Identity migrations it adds, and verifies `--status`. His own GO is still needed for one-off
+box writes, `.env`, pins, manual compose, DNS, providers,
+GHCR/repo settings and an escrow sitting — and no advance passes a Redis-ACL change before
+that sitting.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +

@@ -1,4 +1,4 @@
-import { codeInputSchema } from "@/lib/auth/challenge-schemas";
+import { CODE_PATTERN } from "@/lib/auth/code-format";
 import { checkNewAddress } from "@/lib/auth/new-address";
 
 // `/adressbyte`, where an account's owner completes the address change an administrator started (#1975, ADR 0153):
@@ -41,11 +41,12 @@ export function checkAddressChange(typed: AddressChangeInput): AddressChangeChec
   if (!current.ok) errors.currentEmail = current.reason;
   const next = checkNewAddress(typed.newEmail, current.ok ? current.address : "");
   if (!next.ok) errors.newEmail = next.reason;
-  const code = codeInputSchema.safeParse(typed.code);
-  if (!code.success) errors.code = typed.code.trim() === "" ? "required" : "malformed";
+  const code = typed.code.trim();
+  const codeOk = CODE_PATTERN.test(code);
+  if (!codeOk) errors.code = code === "" ? "required" : "malformed";
 
-  if (!current.ok || !next.ok || !code.success) return { ok: false, errors };
-  return { ok: true, input: { currentEmail: current.address, newEmail: next.address, code: code.data } };
+  if (!current.ok || !next.ok || !codeOk) return { ok: false, errors };
+  return { ok: true, input: { currentEmail: current.address, newEmail: next.address, code } };
 }
 
 /** What the action answers; the form words it, so nothing here is copy. */

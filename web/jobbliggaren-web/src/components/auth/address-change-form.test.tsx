@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AddressChangeState } from "@/lib/auth/address-change";
-import { CODE_MAX_ATTEMPTS } from "@/lib/auth/login-flow";
+import { CODE_MAX_ATTEMPTS } from "@/lib/auth/code-format";
 import { AddressChangeForm } from "./address-change-form";
 
 // #1975 — /adressbyte's form in every state design-reviewer bound (items 10–13): the fields and their order, the

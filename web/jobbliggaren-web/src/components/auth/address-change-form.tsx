@@ -16,7 +16,7 @@ import {
   type AddressChangeState,
 } from "@/lib/auth/address-change";
 import { completeAddressChange } from "@/lib/auth/address-change-actions";
-import { CODE_MAX_ATTEMPTS } from "@/lib/auth/login-flow";
+import { CODE_MAX_ATTEMPTS } from "@/lib/auth/code-format";
 import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { formatLedgerDate, formatTime } from "@/lib/i18n/format";
 

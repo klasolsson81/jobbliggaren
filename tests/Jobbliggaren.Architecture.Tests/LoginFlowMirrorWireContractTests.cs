@@ -36,6 +36,7 @@ public class LoginFlowMirrorWireContractTests
 {
     private const string FlowModule = "web/jobbliggaren-web/src/lib/auth/login-flow.ts";
     private const string SchemaModule = "web/jobbliggaren-web/src/lib/auth/challenge-schemas.ts";
+    private const string CodeModule = "web/jobbliggaren-web/src/lib/auth/code-format.ts";
 
     [Fact]
     public void TheCodeCookieLivesAsLongAsTheChallenge() =>
@@ -54,14 +55,14 @@ public class LoginFlowMirrorWireContractTests
 
     [Fact]
     public void TheRefusalCountsTheAttemptsTheBackendAllows() =>
-        ReadInteger("CODE_MAX_ATTEMPTS").ShouldBe(LoginChallengePolicy.MaxAttempts, Hint(FlowModule));
+        ReadInteger("CODE_MAX_ATTEMPTS", CodeModule).ShouldBe(LoginChallengePolicy.MaxAttempts, Hint(CodeModule));
 
     [Fact]
     public void TheCodeFieldAsksForAsManyDigitsAsTheBackendMints()
     {
-        var digits = Capture(SchemaModule, @"\bcodeInputSchema\b[^;]*?\[0-9\]\{(\d+)\}");
+        var digits = Capture(CodeModule, @"\bCODE_PATTERN\b[^;]*?\[0-9\]\{(\d+)\}");
 
-        digits.ShouldBe(LoginChallengePolicy.CodeLength, Hint(SchemaModule));
+        digits.ShouldBe(LoginChallengePolicy.CodeLength, Hint(CodeModule));
     }
 
     [Fact]
@@ -94,20 +95,20 @@ public class LoginFlowMirrorWireContractTests
         $"{module} re-types this number from the backend. Change both sides in the same PR.";
 
     /// <summary>An exported constant written as an integer or as a product of integers.</summary>
-    private static int ReadInteger(string name)
+    private static int ReadInteger(string name, string module = FlowModule)
     {
         var expression = Regex
-            .Match(Read(FlowModule), $@"\bexport\s+const\s+{name}\s*=\s*([^;]+);")
+            .Match(Read(module), $@"\bexport\s+const\s+{name}\s*=\s*([^;]+);")
             .Groups[1];
 
         if (!expression.Success)
-            throw Unreadable(name, FlowModule);
+            throw Unreadable(name, module);
 
         var product = 1;
         foreach (var factor in expression.Value.Split('*'))
         {
             if (!int.TryParse(factor.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var value))
-                throw Unreadable(name, FlowModule);
+                throw Unreadable(name, module);
             product *= value;
         }
 

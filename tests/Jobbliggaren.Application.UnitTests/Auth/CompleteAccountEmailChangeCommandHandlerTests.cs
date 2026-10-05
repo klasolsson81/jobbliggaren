@@ -164,6 +164,8 @@ public sealed class CompleteAccountEmailChangeCommandHandlerTests
     [InlineData(true)]
     public async Task An_account_whose_profile_is_gone_or_soft_deleted_is_the_one_refusal_and_never_moves(bool profileExists)
     {
+        // No profile row is unreachable today: initiation refuses an account without one, and nothing removes one within
+        // a change's life. That row is asserted only as the one refusal.
         if (profileExists)
             await SeedProfileAsync(softDeleted: true);
 

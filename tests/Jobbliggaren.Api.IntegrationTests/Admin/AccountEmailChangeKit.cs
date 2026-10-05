@@ -46,6 +46,14 @@ internal static class AccountEmailChangeKit
         client.PostAsJsonAsync(CompletePath, new { currentEmail, newEmail, code }, ct);
 
     /// <summary>
+    /// Admin for an account that is not the bootstrap holder. The actor is
+    /// <see cref="Jobbliggaren.Infrastructure.Identity.IdempotentAdminRoleSeeder"/> before #2006, which is retired, and
+    /// <see cref="AdminBootstrapHolderTests.The_bootstrap_never_grants_the_configured_address_s_next_holder_while_the_role_has_one"/> pins that today's seeder does not produce it (AGENTS.md §5 <c>Tests:</c>).
+    /// </summary>
+    public static Task GrantAdminAsTheRetiredSeederDidAsync(ApiFactory factory, Guid userId) =>
+        AdminAccountsKit.PromoteAsync(factory, userId);
+
+    /// <summary>
     /// A pending change whose delay has run. The actor is THE CLOCK (AGENTS.md §5 <c>Tests:</c>): the production adapter,
     /// over the host's own keyring and volatile connection, writes the change as it would have been written 73 hours
     /// ago, and both keys are then left the life the payload states, so the TTL and the payload agree as production

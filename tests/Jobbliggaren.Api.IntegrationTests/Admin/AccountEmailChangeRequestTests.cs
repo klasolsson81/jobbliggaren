@@ -75,6 +75,7 @@ public sealed class AccountEmailChangeRequestTests(ApiFactory factory)
         var (admin, target, _) = await AdminAndTargetAsync();
         (await admin.Client.GetAsync(AccountEmailChangeKit.Path(target), Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
+        // Unreachable today: nothing in src/ removes the role. Asserted only as the read side's safe degradation.
         await AdminAccountsKit.DemoteAsync(factory, admin.UserId);
 
         (await admin.Client.GetAsync(AccountEmailChangeKit.Path(target), Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -249,7 +250,7 @@ public sealed class AccountEmailChangeRequestTests(ApiFactory factory)
         var (admin, _, _) = await AdminAndTargetAsync();
         var otherAdmin = Address("admin2");
         var otherAdminId = await AdminAccountsKit.OpenActiveAsync(factory, otherAdmin, Ct);
-        await AdminAccountsKit.PromoteAsync(factory, otherAdminId);
+        await AccountEmailChangeKit.GrantAdminAsTheRetiredSeederDidAsync(factory, otherAdminId);
 
         await ShouldBeProblemAsync(
             await AccountEmailChangeKit.RequestAsync(factory, admin, otherAdminId, Address("ny"), Ct),

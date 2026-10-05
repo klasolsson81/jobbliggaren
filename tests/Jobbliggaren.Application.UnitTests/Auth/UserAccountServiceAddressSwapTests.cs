@@ -119,6 +119,8 @@ public class UserAccountServiceAddressSwapTests
     [Fact]
     public async Task SwapConfirmedAddressAsync_ShouldWriteNothing_WhenTheAccountHoldsAdmin()
     {
+        // A second Admin holder: produced by IdempotentAdminRoleSeeder before #2006. Today's seeder does not, pinned by
+        // AdminBootstrapHolderTests.The_bootstrap_never_grants_the_configured_address_s_next_holder_while_the_role_has_one.
         _userManager.IsInRoleAsync(_user, Roles.Admin).Returns(true);
 
         var result = await SwapStartedFromAsync(OldEmail);

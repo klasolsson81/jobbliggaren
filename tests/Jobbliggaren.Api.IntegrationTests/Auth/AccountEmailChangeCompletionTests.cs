@@ -219,7 +219,7 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
                 await DeleteOwnAccountAsync(owner);
                 break;
             case Cause.AccountBecameAdministrator:
-                await AdminAccountsKit.PromoteAsync(factory, owner.UserId);
+                await AccountEmailChangeKit.GrantAdminAsTheRetiredSeederDidAsync(factory, owner.UserId);
                 break;
             case Cause.AccountMovedByItsOwner:
                 (await ReauthTestHelpers.MoveTheAddressAsync(

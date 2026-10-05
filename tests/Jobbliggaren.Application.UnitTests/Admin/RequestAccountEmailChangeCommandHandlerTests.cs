@@ -171,6 +171,8 @@ public sealed class RequestAccountEmailChangeCommandHandlerTests
     [Fact]
     public async Task An_administrator_account_is_refused_by_its_role_read_fresh()
     {
+        // A second Admin holder: produced by IdempotentAdminRoleSeeder before #2006. Today's seeder does not, pinned by
+        // AdminBootstrapHolderTests.The_bootstrap_never_grants_the_configured_address_s_next_holder_while_the_role_has_one.
         _directory.FindAsync(TargetId, Arg.Any<CancellationToken>()).Returns(Account(isAdmin: true));
 
         var result = await Sut().Handle(Command, Ct);

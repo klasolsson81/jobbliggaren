@@ -103,6 +103,16 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         return Task.CompletedTask;
     }
 
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("account-email-change-requested-notification");
+        return Task.CompletedTask;
+    }
+
     public Task SendLoginChallengeAsync(
         string toEmail,
         LoginChallengeEmail content,

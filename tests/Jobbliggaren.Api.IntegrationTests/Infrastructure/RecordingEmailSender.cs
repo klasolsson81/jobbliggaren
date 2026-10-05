@@ -27,12 +27,16 @@ internal sealed class RecordingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<RecordedEmail> _sent = new();
     private readonly ConcurrentQueue<RecordedLoginChallenge> _loginChallenges = new();
+    private readonly ConcurrentQueue<RecordedAccountEmailChangeNotice> _accountEmailChangeNotices = new();
 
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
 
     /// <summary>Snapshot of every login-challenge mail's typed content since host start.</summary>
     public IReadOnlyList<RecordedLoginChallenge> LoginChallenges => [.. _loginChallenges];
+
+    /// <summary>Snapshot of every notice to a current address that an administrator started a change of it (#1975).</summary>
+    public IReadOnlyList<RecordedAccountEmailChangeNotice> AccountEmailChangeNotices => [.. _accountEmailChangeNotices];
 
     private volatile bool _canDeliver = true;
 
@@ -97,6 +101,17 @@ internal sealed class RecordingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        _accountEmailChangeNotices.Enqueue(new RecordedAccountEmailChangeNotice(toEmail, completableFrom, expiresAt));
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountEmailChangeRequestedNotification, toEmail));
+        return Task.CompletedTask;
+    }
+
     public Task SendLoginChallengeAsync(
         string toEmail,
         LoginChallengeEmail content,
@@ -114,6 +129,7 @@ internal enum RecordedEmailKind
     MatchNotification,
     FollowedCompanyNotification,
     EmailChangedNotification,
+    AccountEmailChangeRequestedNotification,
     LoginChallenge,
 }
 
@@ -122,3 +138,7 @@ internal sealed record RecordedEmail(RecordedEmailKind Kind, string ToEmail);
 
 /// <summary>A login-challenge mail's recipient and typed content, recorded for the link and code tests.</summary>
 internal sealed record RecordedLoginChallenge(string ToEmail, LoginChallengeEmail Content);
+
+/// <summary>The notice to a current address (#1975): its recipient and the two instants it states.</summary>
+internal sealed record RecordedAccountEmailChangeNotice(
+    string ToEmail, DateTimeOffset CompletableFrom, DateTimeOffset ExpiresAt);

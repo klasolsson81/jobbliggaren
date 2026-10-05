@@ -74,6 +74,15 @@ public class ConsoleEmailSenderReservedRecipientTests
             (s, to) => s.SendEmailChangedNotificationAsync(to, CancellationToken.None),
             CarriesProbe: false),
 
+        new(nameof(IEmailSender.SendAccountEmailChangeRequestedNotificationAsync),
+            "account-email-change-requested-notification",
+            (s, to) => s.SendAccountEmailChangeRequestedNotificationAsync(
+                to,
+                new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 10, 9, 12, 30, 0, TimeSpan.Zero),
+                CancellationToken.None),
+            CarriesProbe: false),
+
         new(nameof(IEmailSender.SendLoginChallengeAsync), "login-challenge",
             (s, to) => s.SendLoginChallengeAsync(
                 to,

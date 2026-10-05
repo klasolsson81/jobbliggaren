@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Time;
 
 namespace Jobbliggaren.Infrastructure.Email;
 
@@ -11,6 +13,10 @@ internal static partial class EmailTemplates
     /// <summary>The login link's route. Its one query parameter is spelled exactly <c>token</c>, the name the
     /// Caddy edge filter deletes from its access log (ADR 0142 "Page form").</summary>
     internal const string LoginLinkRoute = "/logga-in/lank";
+
+    /// <summary>The page where an account's owner completes a change an administrator started (#1975). A bare route:
+    /// it carries no parameter, so neither the code nor an address ever sits in a URL.</summary>
+    internal const string AccountEmailChangeRoute = "/adressbyte";
 
     /// <summary>
     /// #1735 — the login-challenge mail, one variant per mail. The plan chooses the variant at issue time
@@ -26,6 +32,8 @@ internal static partial class EmailTemplates
         LoginChallengeEmail.NewAccountCodeLimitReached => LoginNewAccountCodeLimitReached(),
         LoginChallengeEmail.ReauthenticationCode reauthenticationCode => LoginReauthenticationCode(reauthenticationCode),
         LoginChallengeEmail.AddressChangeCode addressChangeCode => LoginAddressChangeCode(addressChangeCode),
+        LoginChallengeEmail.AccountEmailChangeCode accountEmailChangeCode =>
+            LoginAccountEmailChangeCode(baseUrl, accountEmailChangeCode),
         _ => throw new UnreachableException("A LoginChallengeEmail variant has no template."),
     };
 
@@ -321,10 +329,10 @@ internal static partial class EmailTemplates
 
     /// <summary>
     /// A re-authentication code for a signed-in user (#1739, ADR 0142 D5): a code and never a link, to the
-    /// account's own address. It names what the code is for, because the operation it unlocks is the
-    /// account's deletion or the address it is reached at, and a holder of a hijacked session is who
-    /// requested it when it was not the owner. No Art. 14 block: the recipient is the account holder, and
-    /// the address is the one the account already holds.
+    /// account's own address. It names what the code is for, because a holder of a hijacked session is who
+    /// requested it when it was not the owner. By example rather than as a list: since #1975 an administrator's
+    /// code also starts a change of another account's address. No Art. 14 block: the recipient is the account
+    /// holder, and the address is the one the account already holds.
     /// </summary>
     internal static EmailContent LoginReauthenticationCode(LoginChallengeEmail.ReauthenticationCode content)
     {
@@ -334,8 +342,8 @@ internal static partial class EmailTemplates
         return new EmailContent(
             Subject: "Din bekräftelsekod till Jobbliggaren",
             PlainTextBody: $"""
-                Någon som är inloggad på ditt konto vill göra en ändring: radera kontot eller
-                byta e-postadress.
+                Någon som är inloggad på ditt konto vill göra en ändring som kräver en kod,
+                till exempel radera kontot eller byta en e-postadress.
 
                 {code}
 
@@ -352,8 +360,8 @@ internal static partial class EmailTemplates
                 title: "Din bekräftelsekod till Jobbliggaren",
                 preheader: $"Koden gäller i {minutes} minuter.",
                 body: EmailHtml.P(
-                        "Någon som är inloggad på ditt konto vill göra en ändring: radera kontot eller byta "
-                        + "e-postadress.")
+                        "Någon som är inloggad på ditt konto vill göra en ändring som kräver en kod, till exempel "
+                        + "radera kontot eller byta en e-postadress.")
                     + EmailHtml.Code(code)
                     + EmailHtml.P($"Koden gäller i {minutes} minuter.")
                     + EmailHtml.LinkParagraph(
@@ -438,6 +446,87 @@ internal static partial class EmailTemplates
                     + EmailHtml.SignOff()));
     }
 
+    /// <summary>
+    /// The code that proves the new address of a change an administrator started (#1975, ADR 0153), to that address.
+    /// <para>
+    /// The link names the page and carries no parameter (security-auditor C-3): the recipient needs somewhere to use
+    /// the code, and a bare route holds neither a credential nor an address. Recipient class (3), so the whole Art. 14
+    /// notice is unconditional, its source given as a category: an administrator. Both instants are the pending
+    /// change's own, in Swedish time, because the code works only after the delay and a relative lifespan read hours
+    /// later would be false. The retention is the record's whole life, the longest any key holds the address or a
+    /// fingerprint of it.
+    /// </para>
+    /// </summary>
+    internal static EmailContent LoginAccountEmailChangeCode(
+        string baseUrl, LoginChallengeEmail.AccountEmailChangeCode content)
+    {
+        var code = content.Code.Reveal();
+        var from = SwedishTime(content.CompletableFrom);
+        var until = SwedishTime(content.ExpiresAt);
+        var page = $"{baseUrl.TrimEnd('/')}{AccountEmailChangeRoute}";
+        var lifetime = Window(AccountEmailChangePolicy.Ttl).Duration;
+
+        return new EmailContent(
+            Subject: "Bekräfta din nya e-postadress",
+            PlainTextBody: $"""
+                En administratör har begärt att byta e-postadress på ett Jobbliggaren-konto
+                till den här adressen.
+
+                {code}
+
+                Koden går att använda från {from} till {until}.
+
+                Gå till adressbytet:
+                {page}
+
+                Där skriver du kontots nuvarande e-postadress, den här adressen och koden.
+
+                Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till
+                kontot.
+
+                Adressen har vi fått från en administratör hos oss, som angav den för bytet.
+                Den används för att skicka det här meddelandet, för att begränsa hur många
+                meddelanden som kan skickas till den, för att kontrollera att den som äger
+                adressen godkänner bytet, och som kontots nya adress om bytet slutförs.
+                Grunden är berättigat intresse (artikel 6.1 f): en adress ska inte kunna
+                kopplas till ett konto utan att den som äger den bekräftar det.
+
+                Vi sparar adressen skyddad, och ett avtryck av den, i högst {lifetime}.
+                Slutförs bytet sparas adressen så länge kontot finns, annars finns den inte
+                kvar hos oss efter den tiden.
+                {ProcessorPlain}
+
+                {ControllerRightsAndComplaintPlain}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Bekräfta din nya e-postadress",
+                preheader: $"Koden går att använda från {from}.",
+                body: EmailHtml.P(
+                        "En administratör har begärt att byta e-postadress på ett Jobbliggaren-konto till den här "
+                        + "adressen.")
+                    + EmailHtml.Code(code)
+                    + EmailHtml.P($"Koden går att använda från {from} till {until}.")
+                    + EmailHtml.Button(page, "Gå till adressbytet")
+                    + EmailHtml.P("Där skriver du kontots nuvarande e-postadress, den här adressen och koden.")
+                    + EmailHtml.P(
+                        "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot.")
+                    + EmailHtml.P(
+                        "Adressen har vi fått från en administratör hos oss, som angav den för bytet. Den används för "
+                        + "att skicka det här meddelandet, för att begränsa hur många meddelanden som kan skickas till "
+                        + "den, för att kontrollera att den som äger adressen godkänner bytet, och som kontots nya "
+                        + "adress om bytet slutförs. Grunden är berättigat intresse (artikel 6.1 f): en adress ska "
+                        + "inte kunna kopplas till ett konto utan att den som äger den bekräftar det.")
+                    + EmailHtml.P(
+                        $"Vi sparar adressen skyddad, och ett avtryck av den, i högst {lifetime}. Slutförs bytet "
+                        + "sparas adressen så länge kontot finns, annars finns den inte kvar hos oss efter den tiden. "
+                        + ProcessorHtml)
+                    + ControllerRightsAndComplaintHtml()
+                    + EmailHtml.SignOff()));
+    }
+
     // The Art. 14 blocks every mail to an address without an account carries (recipient class (3)). One home
     // each, so the mails cannot drift apart. The plain forms keep the hard wraps of the bodies they
     // are interpolated into.
@@ -493,6 +582,12 @@ internal static partial class EmailTemplates
         $"{baseUrl.TrimEnd('/')}{LoginLinkRoute}?token={token.Reveal()}";
 
     private static int ChallengeMinutes() => (int)LoginChallengePolicy.ChallengeTtl.TotalMinutes;
+
+    private static readonly TimeZoneInfo SwedishZone = TimeZoneInfo.FindSystemTimeZoneById(SwedishCalendar.ZoneId);
+
+    // An instant as a mail that may be read hours later states it: absolute, in Swedish time ("2026-10-08 kl 14:30").
+    private static string SwedishTime(DateTimeOffset instant) =>
+        TimeZoneInfo.ConvertTime(instant, SwedishZone).ToString("yyyy-MM-dd 'kl' HH:mm", CultureInfo.InvariantCulture);
 
     // The longest-lived fingerprint is the code budget's, so its window is the retention the mails state:
     // as a length ("högst ett dygn") and as the period just passed ("det senaste dygnet").

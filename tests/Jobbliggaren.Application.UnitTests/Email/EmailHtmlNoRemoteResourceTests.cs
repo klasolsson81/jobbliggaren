@@ -139,7 +139,17 @@ public class EmailHtmlNoRemoteResourceTests
             new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")))),
         ("LoginAddressChangeCode", EmailTemplates.LoginAddressChangeCode(
             new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917")))),
+        ("LoginAccountEmailChangeCode", EmailTemplates.LoginAccountEmailChangeCode(
+            BaseUrl,
+            new LoginChallengeEmail.AccountEmailChangeCode(
+                LoginCode.FromRaw("042917"), SampleCompletableFrom, SampleCompletableFrom.AddHours(24)))),
+
+        // #1975: the notice to the current address when an administrator starts a change of it.
+        ("AccountEmailChangeRequestedNotification", EmailTemplates.AccountEmailChangeRequestedNotification(
+            SampleCompletableFrom, SampleCompletableFrom.AddHours(24))),
     ];
+
+    private static readonly DateTimeOffset SampleCompletableFrom = new(2026, 10, 8, 12, 30, 0, TimeSpan.Zero);
 
     private static readonly LoginLinkToken SampleLink =
         LoginLinkToken.FromRaw("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
@@ -311,6 +321,16 @@ public class EmailHtmlNoRemoteResourceTests
             part.ShouldNotContain("Några annonser kan saknas");
             part.ShouldNotContain("Ändra filtren under Företag");
         }
+    }
+
+    [Fact]
+    public void EmailHtml_ForTheAccountEmailChangeRequestedNotice_CarriesNoLoginLink()
+    {
+        var html = Case("AccountEmailChangeRequestedNotification").HtmlBody;
+
+        html.ShouldNotContain(EmailTemplates.LoginLinkRoute);
+        html.ShouldNotContain(EmailTemplates.AccountEmailChangeRoute);
+        html.ShouldNotContain("token=");
     }
 
     [Fact]

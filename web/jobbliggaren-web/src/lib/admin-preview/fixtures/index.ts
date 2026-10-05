@@ -16,8 +16,10 @@ import type {
   AdminSecurityLogRow,
   AdminServerReading,
   AdminServiceStatus,
+  AdminSelf,
   AdminTrendDay,
 } from "@/lib/admin/view-models";
+import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
 import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from "@/lib/dto/admin";
 /**
  * The admin preview's fictional data (ADR 0150 D5). Addresses are on a reserved `.invalid`
@@ -78,6 +80,30 @@ export const PREVIEW_ACCOUNTS: ReadonlyArray<AdminAccountDetail> = [
   account({ id: id(14), email: address("konto.m"), role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null }),
   account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
 ];
+
+/** The administrator the preview acts as: the first account, told by its id as the real page tells it (#1975). */
+export const PREVIEW_SELF: AdminSelf = { userId: id(1), email: PREVIEW_ADMIN_EMAIL };
+
+const HOUR_MS = 3_600_000;
+
+function hoursAhead(hours: number): string {
+  return new Date(Date.parse(FIXTURE_NOW) + hours * HOUR_MS).toISOString();
+}
+
+/**
+ * Address changes started before the fixed clock, one in each state the panel names (#1975): one still waiting for
+ * its owner, and one whose code was entered wrongly too many times.
+ */
+export const PREVIEW_EMAIL_CHANGES: ReadonlyArray<{
+  readonly accountId: string;
+  readonly change: AdminPendingEmailChange;
+}> = [
+  marked({ accountId: id(7), change: { state: "pending", completableFrom: hoursAhead(50), expiresAt: hoursAhead(74) } }),
+  marked({ accountId: id(11), change: { state: "codeBurned", completableFrom: hoursAhead(-6), expiresAt: hoursAhead(18) } }),
+];
+
+/** The two instants of a change the preview starts at the fixed clock. */
+export const PREVIEW_EMAIL_CHANGE_STARTED = marked({ completableFrom: hoursAhead(72), expiresAt: hoursAhead(96) });
 
 function recurringJob(row: RecurringJobStatusDto): RecurringJobStatusDto {
   return marked(row);

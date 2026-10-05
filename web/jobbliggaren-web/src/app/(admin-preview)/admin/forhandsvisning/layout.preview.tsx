@@ -34,7 +34,8 @@ export default async function AdminPreviewLayout({ children }: { children: React
   requireAdminPreview();
   const t = await getTranslations("admin");
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "admin-preview"]);
+  // `common`, `pages` and `settings` are the shared re-authentication dialog's (#1975).
+  const messages = pickClientMessages(await getMessages(), ["admin", "admin-preview", "common", "pages", "settings"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

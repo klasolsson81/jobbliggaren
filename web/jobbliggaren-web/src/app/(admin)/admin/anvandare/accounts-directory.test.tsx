@@ -2,8 +2,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountsListing } from "@/lib/admin/account-directory";
+import type {
+  AdminEmailChangeCancelOutcome,
+  AdminEmailChangeRequestOutcome,
+} from "@/lib/admin/account-email-change";
+import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-store";
+import type { AdminSelf } from "@/lib/admin/view-models";
+import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { toAccountsPage, type AccountDetailsDto, type AccountSearchResponse } from "@/lib/dto/admin-accounts";
+
+const { requestActionMock, cancelActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
+  requestActionMock: vi.fn<(accountId: string, newEmail: string, proof: CodeProof) => Promise<AdminEmailChangeRequestOutcome>>(),
+  cancelActionMock: vi.fn<(accountId: string) => Promise<AdminEmailChangeCancelOutcome>>(),
+  requestReauthCodeMock: vi.fn<() => Promise<ReauthRequestResult>>(),
+}));
+
+vi.mock("@/lib/actions/admin-accounts", () => ({
+  requestAccountEmailChangeAction: requestActionMock,
+  cancelAccountEmailChangeAction: cancelActionMock,
+}));
+vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: requestReauthCodeMock }));
+
 import { AccountsDirectory } from "./accounts-directory";
+
+/** The signed-in administrator, as the page reads them from the session. */
+const SELF: AdminSelf = { userId: "00000000-0000-4000-8000-000000000999", email: "admin@example.test" };
 
 type Item = AccountSearchResponse["accounts"]["items"][number];
 
@@ -89,6 +112,36 @@ function call(index: number) {
   return { path, init, body: JSON.parse(String(init?.body)) as Record<string, unknown> };
 }
 
+/** The calls to one BFF route, in order. */
+function callsTo(path: string) {
+  return fetchMock.mock.calls
+    .filter(([called]) => called === path)
+    .map(([, init]) => JSON.parse(String(init.body)) as Record<string, unknown>);
+}
+
+const LIST = "/api/admin/konton";
+const DETAIL_ROUTE = "/api/admin/konton/detalj";
+const EMAIL_CHANGE_ROUTE = "/api/admin/konton/adressbyte";
+
+type Route = () => Response | Promise<Response>;
+
+/** Answers each BFF route by its path, each answer in turn and the last one again once they run out. */
+function serve(routes: Partial<Record<string, Route | ReadonlyArray<Route>>>) {
+  const served = new Map<string, number>();
+  fetchMock.mockImplementation(async (path) => {
+    const route = routes[path];
+    if (route === undefined) throw new Error(`unexpected path ${path}`);
+    const answers = typeof route === "function" ? [route] : route;
+    const index = served.get(path) ?? 0;
+    served.set(path, index + 1);
+    const answer = answers[Math.min(index, answers.length - 1)];
+    if (answer === undefined) throw new Error(`no answer for ${path}`);
+    return answer();
+  });
+}
+
+const NOTHING_PENDING = () => json({ pending: null });
+
 /** The rows' addresses; `hidden` reads them behind an open panel, which hides the page from the tree. */
 function shownAddresses(hidden = false) {
   return within(screen.getByRole("table", { name: "Konton", hidden }))
@@ -100,16 +153,22 @@ function shownAddresses(hidden = false) {
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
+  requestActionMock.mockReset();
+  cancelActionMock.mockReset();
+  requestReauthCodeMock.mockReset();
+  requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: "step-up-challenge" });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  const toast = getAdminToastSnapshot();
+  if (toast !== null) dismissAdminToast(toast.token);
 });
 
 describe("AccountsDirectory (#1974, ADR 0151)", () => {
   it("asks nothing on its own: the server answered the first page", async () => {
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -119,7 +178,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
 
   it("searches once typing pauses, with the term in the request body and never in its URL", async () => {
     fetchMock.mockResolvedValue(json(answer([B])));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.type(screen.getByRole("searchbox", { name: "Sök på e-postadress" }), " konto.b ");
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -137,14 +196,17 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
     const pushState = vi.spyOn(window.history, "pushState");
     const replaceState = vi.spyOn(window.history, "replaceState");
     const setItem = vi.spyOn(Storage.prototype, "setItem");
-    fetchMock.mockResolvedValueOnce(json(answer([B])));
-    fetchMock.mockResolvedValue(json({ ...B, resumeCount: null, savedSearchCount: null }));
-    render(<AccountsDirectory initial={FIRST} />);
+    serve({
+      [LIST]: () => json(answer([B])),
+      [DETAIL_ROUTE]: () => json({ ...B, resumeCount: null, savedSearchCount: null }),
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.type(screen.getByRole("searchbox", { name: "Sök på e-postadress" }), "konto.b");
     await waitFor(() => expect(shownAddresses()).toEqual(["konto.b@example.test"]));
     await userEvent.click(screen.getByRole("button", { name: "konto.b@example.test" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
     const written = JSON.stringify([pushState.mock.calls, replaceState.mock.calls, setItem.mock.calls, window.location.href]);
     for (const value of ["konto.b", B.id]) expect(written).not.toContain(value);
@@ -152,7 +214,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
 
   it("filters and sorts by the backend's names, each from the first page", async () => {
     fetchMock.mockImplementation(async () => json(answer([B, C], [A, B, C])));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Ofullständiga (2)" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -165,7 +227,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
 
   it("sends each filter and each sort by the backend's own name", async () => {
     fetchMock.mockImplementation(async () => json(answer([A, B, C])));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -194,7 +256,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
     ["term", () => userEvent.type(screen.getByRole("searchbox", { name: "Sök på e-postadress" }), "konto"), { address: "konto" }],
   ] as const)("starts again from the first page when the %s changes", async (_, change, sent) => {
     fetchMock.mockImplementation(async (_path, init) => json(directory(JSON.parse(String(init.body)))));
-    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(directory({ page: 1, pageSize: 25 })) }} />);
+    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(directory({ page: 1, pageSize: 25 })) }} self={SELF} />);
 
     await userEvent.click(within(screen.getByRole("navigation", { name: "Sidnavigering" })).getByRole("button", { name: "Nästa" }));
     await waitFor(() => expect(screen.getByRole("navigation", { name: "Sidnavigering" })).toHaveTextContent("Sida 2 av 3"));
@@ -208,7 +270,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
   it("keeps its rows while a newer read is on its way, says so, and aborts a read the next one replaces", async () => {
     fetchMock.mockImplementationOnce(() => new Promise<Response>(() => {}));
     fetchMock.mockResolvedValue(json(answer([B, C], [A, B, C])));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -226,7 +288,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
 
   it("words a rate-limited search with its wait, in place of the rows and the counts", async () => {
     fetchMock.mockResolvedValue(json({ error: "rateLimited" }, 429, { "Retry-After": "6" }));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("För många förfrågningar. Försök igen om 6 sekunder.");
@@ -236,7 +298,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
   it("reads the list again when the reader asks after a failed read, and returns focus to the table", async () => {
     fetchMock.mockResolvedValueOnce(json({ error: "error" }, 502));
     fetchMock.mockResolvedValue(json(answer([A], [A, B, C])));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Kontona kunde inte hämtas. Försök igen om en stund.");
@@ -251,7 +313,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
   it("offers a sign-in link instead of a retry once the session has ended, and nothing when the role is gone", async () => {
     fetchMock.mockResolvedValueOnce(json({ error: "unauthorized" }, 401));
     fetchMock.mockResolvedValueOnce(json({ error: "forbidden" }, 403));
-    render(<AccountsDirectory initial={FIRST} />);
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Du är inte inloggad längre.");
@@ -266,25 +328,31 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
 
   it("opens an account at once, reads its details by a body, and shows them when they arrive", async () => {
     let arrive: (response: Response) => void = () => {};
-    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (arrive = resolve)));
-    render(<AccountsDirectory initial={FIRST} />);
+    serve({
+      [DETAIL_ROUTE]: () => new Promise<Response>((resolve) => (arrive = resolve)),
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("button", { name: "konto.a@example.test" }));
     const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
     expect(within(dialog).getByRole("status")).toHaveTextContent("Hämtar kontots uppgifter…");
     const { path, body } = call(0);
-    expect(path).toBe("/api/admin/konton/detalj");
+    expect(path).toBe(DETAIL_ROUTE);
     expect(body).toEqual({ id: A.id });
 
     arrive(json(DETAIL));
     await waitFor(() => expect(within(dialog).getByText("CV:n").nextElementSibling).toHaveTextContent("2"));
     expect(within(dialog).getByText("Sparade sökningar").nextElementSibling).toHaveTextContent("3");
+    expect(within(dialog).queryByText("Adressbyte")).toBeNull();
   });
 
   it("reads an account's details again when the reader asks after a failed read", async () => {
-    fetchMock.mockResolvedValueOnce(json({ error: "error" }, 502));
-    fetchMock.mockResolvedValue(json(DETAIL));
-    render(<AccountsDirectory initial={FIRST} />);
+    serve({
+      [DETAIL_ROUTE]: [() => json({ error: "error" }, 502), () => json(DETAIL)],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("button", { name: "konto.a@example.test" }));
     const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
@@ -292,23 +360,184 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Försök igen" }));
 
     await waitFor(() => expect(within(dialog).getByText("CV:n").nextElementSibling).toHaveTextContent("2"));
-    expect(call(1)).toMatchObject({ path: "/api/admin/konton/detalj", body: { id: A.id } });
+    expect(callsTo(DETAIL_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
   });
 
   it("says an account that no longer exists is gone, stops describing it, and reads the list again", async () => {
-    fetchMock.mockResolvedValueOnce(json({ error: "notFound" }, 404));
-    fetchMock.mockResolvedValue(json(answer([B, C])));
-    render(<AccountsDirectory initial={FIRST} />);
+    serve({
+      [DETAIL_ROUTE]: () => json({ error: "notFound" }, 404),
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+      [LIST]: () => json(answer([B, C])),
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("button", { name: "konto.a@example.test" }));
     const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
     expect(within(dialog).queryByText("Aktiv")).toBeNull();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(call(1).path).toBe("/api/admin/konton");
+    await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
     await waitFor(() => expect(shownAddresses(true)).toEqual(["konto.b@example.test", "konto.c@example.test"]));
 
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.getByRole("region", { name: "Konton" })).toHaveFocus());
+  });
+});
+
+describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", () => {
+  const PENDING_READ = {
+    pending: { state: "Pending", completableFrom: "2026-10-08T12:00:00+00:00", expiresAt: "2026-10-09T12:00:00+00:00" },
+  };
+  const PENDING_LINE = "Väntar på kontoägaren. Koden kan användas från 2026-10-08 14:00 till 2026-10-09 14:00.";
+  const NEW = "ny.adress@example.test";
+
+  /** The text a reader sees: a busy label's hidden form is not part of it. */
+  function shownText(node: Node): string {
+    if (node instanceof Element && node.getAttribute("aria-hidden") === "true") return "";
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+    return [...node.childNodes].map(shownText).join("");
+  }
+
+  function actionNames(dialog: HTMLElement) {
+    return within(within(dialog).getByRole("region", { name: "Åtgärder" }))
+      .getAllByRole("button")
+      .map(shownText);
+  }
+
+  async function openA() {
+    await userEvent.click(screen.getByRole("button", { name: "konto.a@example.test" }));
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    await within(dialog).findByText("CV:n");
+    return dialog;
+  }
+
+  /** Types the new address, goes through the administrator's step-up and presses its primary. */
+  async function requestChange(user: ReturnType<typeof userEvent.setup>, panel: HTMLElement) {
+    await user.click(within(panel).getByRole("button", { name: "Ändra e-postadress" }));
+    await user.type(within(panel).getByLabelText("Ny e-postadress"), NEW);
+    await user.click(within(panel).getByRole("button", { name: "Fortsätt" }));
+    const stepUp = await screen.findByRole("dialog", { name: "Ändra e-postadress" });
+    await user.click(within(stepUp).getByRole("button", { name: "Skicka kod" }));
+    await user.type(await within(stepUp).findByLabelText("Sexsiffrig kod"), "123456");
+    await user.click(within(stepUp).getByRole("button", { name: "Bekräfta koden" }));
+    return stepUp;
+  }
+
+  it("reads the pending change beside the details, by a body, and states it as a fact with its cancel", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json(PENDING_READ) });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const dialog = await openA();
+
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }]);
+    expect(fetchMock.mock.calls.find(([path]) => path === EMAIL_CHANGE_ROUTE)?.[1].cache).toBe("no-store");
+    expect(within(dialog).getByText("Adressbyte").nextElementSibling).toHaveTextContent(PENDING_LINE);
+    expect(actionNames(dialog)).toContain("Avbryt adressbytet");
+    expect(actionNames(dialog)).not.toContain("Ändra e-postadress");
+  });
+
+  it("costs only the address change's fact when its read fails", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json({ error: "error" }, 502) });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const dialog = await openA();
+
+    expect(within(dialog).getByText("CV:n").nextElementSibling).toHaveTextContent("2");
+    expect(within(dialog).getByText("Adressbyte").nextElementSibling?.querySelector(".sr-only")).toHaveTextContent(
+      "Uppgift saknas",
+    );
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
+  it("offers the address change live, and every other action as Kommer snart (ADR 0150 D4)", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const dialog = await openA();
+
+    expect(actionNames(dialog)).toEqual([
+      "Agera som användaren Kommer snart",
+      "Ändra e-postadress",
+      "Skicka inloggningslänk Kommer snart",
+      "Suspendera konto Kommer snart",
+      "Radera konto Kommer snart",
+      "Radera permanent Kommer snart",
+    ]);
+  });
+
+  it("tells the administrator's own account by the session's id, and points it to Mina sidor", async () => {
+    const own = { ...A, id: SELF.userId, email: SELF.email, role: "Admin" as const };
+    serve({
+      [DETAIL_ROUTE]: () => json({ ...own, resumeCount: 2, savedSearchCount: 3 }),
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+    });
+    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([own, B])) }} self={SELF} />);
+
+    await userEvent.click(screen.getByRole("button", { name: SELF.email }));
+    const dialog = screen.getByRole("dialog", { name: SELF.email });
+
+    expect(
+      await within(dialog).findByText("Adressen på ett administratörskonto byts inte här. Byt din på Mina sidor."),
+    ).toBeInTheDocument();
+    expect(actionNames(dialog)).not.toContain("Ändra e-postadress");
+  });
+
+  it("requests through its Server Action with the administrator's step-up, and shows the pending change it answers", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    requestActionMock.mockResolvedValue({
+      ok: true,
+      value: { state: "pending", completableFrom: "2026-10-08T12:00:00Z", expiresAt: "2026-10-09T12:00:00Z" },
+    });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await requestChange(user, panel);
+
+    await waitFor(() => expect(within(panel).getByText("Adressbyte").nextElementSibling).toHaveTextContent(PENDING_LINE));
+    expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
+    expect(requestActionMock).toHaveBeenCalledWith(A.id, NEW, { challengeId: "step-up-challenge", code: "123456" });
+    // The pending change came from the action's answer; the account was not read again for it.
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(1);
+  });
+
+  it.each(["changed", "refetch"] as const)("reads the account again after a refusal it answers with %s", async (after) => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    requestActionMock.mockResolvedValue({ ok: false, kind: "operationRefused", error: "Nej.", channel: "status", after });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await requestChange(user, panel);
+
+    await waitFor(() => expect(callsTo(DETAIL_ROUTE)).toHaveLength(2));
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
+  });
+
+  it("cancels through its Server Action, and the pending change goes with it", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json(PENDING_READ) });
+    cancelActionMock.mockResolvedValue({ kind: "cancelled" });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(within(panel).getByRole("button", { name: "Avbryt adressbytet" }));
+
+    await waitFor(() => expect(within(panel).queryByText("Adressbyte")).toBeNull());
+    expect(cancelActionMock).toHaveBeenCalledWith(A.id);
+    expect(getAdminToastSnapshot()?.message).toBe(
+      "Adressbytet är avbrutet. Koden till den nya adressen gäller inte längre.",
+    );
+  });
+
+  it("reads the account again when there was nothing left to cancel", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [() => json(PENDING_READ), NOTHING_PENDING] });
+    cancelActionMock.mockResolvedValue({ kind: "nothingPending" });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(within(panel).getByRole("button", { name: "Avbryt adressbytet" }));
+
+    expect(await within(panel).findByText("Det finns inget adressbyte att avbryta längre.")).toBeInTheDocument();
+    await waitFor(() => expect(within(panel).queryByText("Adressbyte")).toBeNull());
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
   });
 });

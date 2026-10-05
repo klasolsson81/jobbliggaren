@@ -549,7 +549,9 @@
   flex-direction: column;
   gap: 10px;
 }
-.jp-adminpanel__note {
+/* A note, and a status a command left: plain text, never the danger colour. */
+.jp-adminpanel__note,
+.jp-adminpanel__status {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
@@ -671,11 +673,19 @@
   flex-direction: column;
   gap: 6px;
 }
-.jp-admineditform__hint {
+.jp-admineditform__hint,
+.jp-admineditform__status {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+
+/* ── The step-up dialog the edit form opens (#1975): above the panel, as the confirmation is ───
+   The shared dialog's overlay and content and the panel all sit at 110, which leaves their order to
+   the portals. Lifted here to the confirmation's 119/120, so the shared component is unchanged
+   everywhere else; its overlay is the sibling portalled directly before the content. */
+.jp-adminstepup { z-index: 120; }
+[data-slot="dialog-overlay"]:has(+ .jp-adminstepup) { z-index: 119; }
 .jp-admineditform__actions {
   display: flex;
   flex-wrap: wrap;

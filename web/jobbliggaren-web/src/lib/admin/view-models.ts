@@ -72,9 +72,19 @@ export interface AdminAccountSort {
 /** An account the panel can name in a question or a receipt: one Identity holds an address for. */
 export type AdminAddressedAccount = AdminAccountDetail & { readonly email: string };
 
+/**
+ * The signed-in administrator, as the account page knows them from the session: their own account is told
+ * by its id, never by its address, and their own step-up code goes to their own address (#1975).
+ */
+export interface AdminSelf {
+  readonly userId: string;
+  readonly email: string;
+}
+
 /** The account actions the panel knows; which of them are live is the caller's to say (ADR 0150 D4). */
 export type AdminAccountAction =
   | "changeEmail"
+  | "cancelEmailChange"
   | "suspend"
   | "reinstate"
   | "scheduleDeletion"

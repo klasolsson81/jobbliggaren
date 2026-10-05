@@ -31,6 +31,7 @@ import { codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { CODE_PHASE_MAX_AGE_SECONDS, RESEND_COOLDOWN_SECONDS } from "@/lib/auth/login-flow";
 import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { useCountdown } from "@/lib/hooks/use-countdown";
+import { cn } from "@/lib/utils";
 
 // Re-authentication by a code to the account's own address (#1740, ADR 0142 D5), as design-reviewer
 // bound it in the form round: the dialog ONLY re-authenticates (Klas 2026-09-22). It asks for a code,
@@ -70,6 +71,8 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 type ReAuthCodeDialogProps<T, C> = {
   /** The element that opens the dialog; its own `onClick` may `preventDefault()` to keep it closed. */
   trigger: ReactNode;
+  /** A class for the dialog's content, for a surface that layers it (the admin panel's, #1975). */
+  className?: string;
   title: string;
   /** What the operation does and what it costs. Plain text: nothing focusable before the first field. */
   description: string;
@@ -105,6 +108,7 @@ type ReAuthCodeDialogProps<T, C> = {
 
 export function ReAuthCodeDialog<T, C = undefined>({
   trigger,
+  className,
   title,
   description,
   currentEmail,
@@ -357,7 +361,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
       <DialogContent
         // WCAG 1.4.10 / 1.4.4: at 200 % zoom a short viewport is 360 CSS px tall, and the code step is
         // taller than that; the content scrolls rather than cutting off its title or its primary.
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto", className)}
         onOpenAutoFocus={(event) => {
           if (step === "code") {
             event.preventDefault();

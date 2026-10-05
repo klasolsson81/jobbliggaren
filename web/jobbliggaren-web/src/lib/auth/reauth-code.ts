@@ -1,6 +1,6 @@
 import "server-only";
 import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
-import type { CodeProof } from "@/lib/auth/reauth-action-state";
+import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { changeEmailGrantSchema, reauthGrantSchema } from "@/lib/dto/reauth";
 import { authedFetch } from "@/lib/http/authed-fetch";
@@ -86,5 +86,34 @@ export async function verifyBoundCode(
     return { ok: true, grant: await read(res) };
   } catch {
     return { ok: false, kind: "status", cause: "unavailable" };
+  }
+}
+
+/**
+ * A bound code the backend did not accept, in the consumer's copy. The code was not spent by it: a
+ * wrong code keeps its remaining attempts, and a dead one needs a new code whatever happens next.
+ * Every action that verifies a code before it acts answers a refusal this way.
+ */
+export function codeRefusalOutcome(
+  refusal: BoundCodeRefusal,
+  copy: { wrongCode: string; lastAttempt: string; tooManyAttempts: string; unavailable: string }
+): Exclude<ReauthOutcome<never>, { kind: "refused" }> {
+  switch (refusal.kind) {
+    case "wrongCode":
+      // One slot, one announcement: the last-attempt warning rides in the same alert as the miss.
+      return {
+        ok: false,
+        kind: "wrongCode",
+        error: refusal.lastAttempt ? `${copy.wrongCode} ${copy.lastAttempt}` : copy.wrongCode,
+      };
+    case "deadCode":
+      return { ok: false, kind: "deadCode", reason: refusal.reason };
+    case "status":
+      if (refusal.cause === "notLoggedIn") return { ok: false, kind: "notLoggedIn" };
+      return {
+        ok: false,
+        kind: "status",
+        error: refusal.cause === "tooManyAttempts" ? copy.tooManyAttempts : copy.unavailable,
+      };
   }
 }

@@ -17,7 +17,7 @@ import { comparableAddress } from "@/lib/auth/comparable-address";
 import { writeLoginFlow } from "@/lib/auth/login-flow-cookie";
 import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
 import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
-import { type BoundCodeRefusal, verifyBoundCode } from "@/lib/auth/reauth-code";
+import { codeRefusalOutcome, verifyBoundCode } from "@/lib/auth/reauth-code";
 import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { parseResponse, type ApiResult } from "@/lib/dto/_helpers";
 import { boundChallengeSchema, reissuedSessionSchema } from "@/lib/dto/reauth";
@@ -175,34 +175,6 @@ function notificationSettingOutcome(
 }
 
 /**
- * A bound code the backend did not accept, in the consumer's copy. The code was not spent by it: a
- * wrong code keeps its remaining attempts, and a dead one needs a new code whatever happens next.
- */
-function codeRefusal(
-  refusal: BoundCodeRefusal,
-  copy: { wrongCode: string; lastAttempt: string; tooManyAttempts: string; unavailable: string }
-): Exclude<ReauthOutcome<never>, { kind: "refused" }> {
-  switch (refusal.kind) {
-    case "wrongCode":
-      // One slot, one announcement: the last-attempt warning rides in the same alert as the miss.
-      return {
-        ok: false,
-        kind: "wrongCode",
-        error: refusal.lastAttempt ? `${copy.wrongCode} ${copy.lastAttempt}` : copy.wrongCode,
-      };
-    case "deadCode":
-      return { ok: false, kind: "deadCode", reason: refusal.reason };
-    case "status":
-      if (refusal.cause === "notLoggedIn") return { ok: false, kind: "notLoggedIn" };
-      return {
-        ok: false,
-        kind: "status",
-        error: refusal.cause === "tooManyAttempts" ? copy.tooManyAttempts : copy.unavailable,
-      };
-  }
-}
-
-/**
  * #1740 — deletes the account on a re-authentication code (ADR 0142 D5). The code is verified and the
  * account deleted in this one action, so the grant between them never leaves the server.
  *
@@ -246,7 +218,7 @@ export async function deleteAccountAction(
 
   const verified = await verifyBoundCode("reauth", sessionId, code.data);
   if (!verified.ok) {
-    return codeRefusal(verified, {
+    return codeRefusalOutcome(verified, {
       wrongCode: tp("auth.passwordless.code.wrongCode"),
       lastAttempt: tp("auth.passwordless.code.lastAttempt"),
       tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
@@ -314,7 +286,7 @@ export async function requestEmailChangeAction(
 
   const verified = await verifyBoundCode("reauth", sessionId, code.data);
   if (!verified.ok) {
-    return codeRefusal(verified, {
+    return codeRefusalOutcome(verified, {
       wrongCode: tp("auth.passwordless.code.wrongCode"),
       lastAttempt: tp("auth.passwordless.code.lastAttempt"),
       tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
@@ -424,7 +396,7 @@ export async function confirmEmailChangeAction(
 
   const verified = await verifyBoundCode("changeEmail", sessionId, code.data);
   if (!verified.ok) {
-    return codeRefusal(verified, {
+    return codeRefusalOutcome(verified, {
       wrongCode: ts("account.changeEmail.wrongCode"),
       lastAttempt: ts("account.changeEmail.lastAttempt"),
       tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),

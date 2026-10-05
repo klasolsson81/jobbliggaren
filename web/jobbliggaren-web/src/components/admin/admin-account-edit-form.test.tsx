@@ -125,7 +125,9 @@ describe("AdminAccountEditForm (#1975)", () => {
     await user.type(await within(dialog).findByLabelText("Sexsiffrig kod"), "123456");
     await user.click(within(dialog).getByRole("button", { name: "Bekräfta koden" }));
 
-    await waitFor(() => expect(onExit).toHaveBeenCalledWith({ kind: "requested", newEmail: NEW }));
+    await waitFor(() =>
+      expect(onExit).toHaveBeenCalledWith({ kind: "requested", newEmail: NEW, completableFrom: "2026-10-08T12:00:00Z" }),
+    );
     expect(requestMock).toHaveBeenCalledWith(NEW, { challengeId: "step-up-challenge", code: "123456" });
     expect(requestCodeMock).toHaveBeenCalledTimes(1);
   });

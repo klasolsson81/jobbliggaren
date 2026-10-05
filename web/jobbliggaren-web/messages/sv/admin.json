@@ -251,7 +251,7 @@
       "suspended": "Kontot {email} är suspenderat.",
       "reinstated": "Suspenderingen av {email} är hävd.",
       "deletionScheduled": "Kontot {email} raderas slutgiltigt tidigast {date}.",
-      "emailChangeRequested": "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden.",
+      "emailChangeRequested": "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden, tidigast <nowrap>{from}</nowrap>.",
       "emailChangeCancelled": "Adressbytet är avbrutet. Koden till den nya adressen gäller inte längre."
     },
     "refusal": {

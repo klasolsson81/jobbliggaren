@@ -28,7 +28,11 @@ export default async function AddressChangePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <FocusHeading>{t("auth.addressChange.title")}</FocusHeading>
+      <FocusHeading>
+        {t.rich("auth.addressChange.title", {
+          nowrap: (chunks) => <span className="whitespace-nowrap">{chunks}</span>,
+        })}
+      </FocusHeading>
       <AddressChangeForm />
     </div>
   );

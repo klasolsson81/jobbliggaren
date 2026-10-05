@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /**
  * The admin surface's receipt toast: a module store, so an action in the account panel and the one
  * host in the layout share it without a provider (the `/ansokningar` toast's idiom). Publishing
@@ -5,7 +7,7 @@
  */
 export interface AdminToast {
   readonly token: number;
-  readonly message: string;
+  readonly message: ReactNode;
 }
 
 let current: AdminToast | null = null;
@@ -18,7 +20,7 @@ function emit(): void {
 }
 
 /** Publishes a receipt and returns its token. Only a completed action publishes one (ADR 0150 D2). */
-export function showAdminToast(message: string): number {
+export function showAdminToast(message: ReactNode): number {
   const token = nextToken++;
   current = { token, message };
   emit();

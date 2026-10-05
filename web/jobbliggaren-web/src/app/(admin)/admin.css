@@ -698,6 +698,29 @@
   pointer-events: auto;
 }
 .jp-admintoasthost .jp-toast__msg { overflow-wrap: break-word; }
+/* Beside an open panel's 460 px, a receipt is centred in the page to the panel's left: by its insets rather than the
+   house toast's translate, which its rise animation replaces while it runs. */
+@media (min-width: 769px) {
+  :root:has(.jp-adminpanel) .jp-admintoasthost .jp-toast {
+    left: 16px;
+    right: calc(460px + 16px);
+    width: fit-content;
+    max-width: 560px;
+    margin-inline: auto;
+    transform: none;
+  }
+}
+/* Where the panel is the full width, its body ends in room for the receipt, and focus scrolls clear of it: the
+   toast's offset from the bottom, its padding and six lines of its text. */
+@media (max-width: 768px) {
+  .jp-adminpanel { width: 100%; }
+  :root:has(.jp-admintoasthost .jp-toast) .jp-adminpanel {
+    scroll-padding-bottom: calc(28px + 24px + 6 * 1.55 * var(--text-ui));
+  }
+  :root:has(.jp-admintoasthost .jp-toast) .jp-adminpanel__body {
+    padding-bottom: calc(28px + 24px + 6 * 1.55 * var(--text-ui));
+  }
+}
 
 /* ── Impersonation banner (handoff 13) ──────────────────────────────────────────────────── */
 .jp-adminbanner {

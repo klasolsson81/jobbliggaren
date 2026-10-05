@@ -449,7 +449,13 @@ function PanelContent({
     setMode("view");
     switch (exit.kind) {
       case "requested":
-        showAdminToast(t("toast.emailChangeRequested", { email: exit.newEmail }));
+        showAdminToast(
+          t.rich("toast.emailChangeRequested", {
+            email: exit.newEmail,
+            from: formatDateTime(format, exit.completableFrom) ?? unknown,
+            nowrap: unbroken,
+          }),
+        );
         exitFocus.current = "title";
         return;
       case "notice":

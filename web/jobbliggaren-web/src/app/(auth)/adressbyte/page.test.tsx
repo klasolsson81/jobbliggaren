@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../messages/sv/pages.json";
 import sitemap from "@/app/sitemap";
@@ -27,6 +27,7 @@ describe("/adressbyte (#1975, ADR 0153)", () => {
     render(await AddressChangePage());
 
     const heading = screen.getByRole("heading", { level: 1, name: "Bekräfta ny e-postadress" });
+    expect(within(heading).getByText("e-postadress")).toHaveClass("whitespace-nowrap");
     expect(heading.nextElementSibling?.tagName).toBe("FORM");
     expect(screen.getByRole("button", { name: "Byt adress" })).toBeInTheDocument();
   });

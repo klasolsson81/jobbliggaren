@@ -693,7 +693,7 @@
       "meta": {
         "title": "Bekräfta ny e-postadress"
       },
-      "title": "Bekräfta ny e-postadress",
+      "title": "Bekräfta ny <nowrap>e-postadress</nowrap>",
       "currentEmailLabel": "Kontots nuvarande e-postadress",
       "currentEmailHint": "Adressen du byter från.",
       "newEmailLabel": "Ny e-postadress",

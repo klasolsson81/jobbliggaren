@@ -20,7 +20,11 @@ export const ADMIN_NEW_EMAIL_FIELD_ID = "admin-account-new-email";
  * panel from its caller, which keeps the server's answer.
  */
 export type AdminEditExit =
-  | { readonly kind: "requested"; readonly newEmail: string }
+  | {
+      readonly kind: "requested";
+      readonly newEmail: string;
+      readonly completableFrom: AdminPendingEmailChange["completableFrom"];
+    }
   /** A message about the account rather than the address typed: the panel shows it beside the account's facts. */
   | { readonly kind: "notice"; readonly message: string }
   | { readonly kind: "gone" };
@@ -124,7 +128,7 @@ export function AdminAccountEditForm({
     switch (handOff.kind) {
       case "verified":
         handOffFocus.current = "exit";
-        onExit({ kind: "requested", newEmail: pendingAddress });
+        onExit({ kind: "requested", newEmail: pendingAddress, completableFrom: handOff.value.completableFrom });
         return;
       case "outcomeUnknown":
         handOffFocus.current = "exit";

@@ -251,7 +251,7 @@
       "suspended": "The account {email} is suspended.",
       "reinstated": "The suspension of {email} is lifted.",
       "deletionScheduled": "The account {email} will be permanently deleted no earlier than {date}.",
-      "emailChangeRequested": "A code has been sent to {email}. The address changes when the account owner has used the code.",
+      "emailChangeRequested": "A code has been sent to {email}. The address changes when the account owner has used the code, no earlier than <nowrap>{from}</nowrap>.",
       "emailChangeCancelled": "The address change is cancelled. The code to the new address no longer works."
     },
     "refusal": {

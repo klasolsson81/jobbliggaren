@@ -790,9 +790,11 @@ describe("AdminAccountPanel — requesting an address change (#1975, design-revi
     await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
     expect(requestMock).toHaveBeenCalledWith(ACTIVE, NEW, { challengeId: "step-up-challenge", code: "123456" });
     expect(screen.queryByLabelText("Ny e-postadress")).toBeNull();
-    expect(getAdminToastSnapshot()?.message).toBe(
-      `En kod har skickats till ${NEW}. Adressen byts när kontoägaren har använt koden.`,
+    const receipt = render(<>{getAdminToastSnapshot()?.message}</>).container;
+    expect(receipt.textContent).toBe(
+      `En kod har skickats till ${NEW}. Adressen byts när kontoägaren har använt koden, tidigast 2026-10-08 14:00.`,
     );
+    expect(receipt.querySelector(".jp-adminusers__date")).toHaveTextContent("2026-10-08 14:00");
     expect(screen.getByText("Adressbyte").nextElementSibling).toHaveTextContent(
       "Väntar på kontoägaren. Koden kan användas från 2026-10-08 14:00 till 2026-10-09 14:00.",
     );

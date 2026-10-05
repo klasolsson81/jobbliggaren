@@ -18,15 +18,19 @@ for name in ('jobbliggaren-redis-secrets.sh',):
     shutil.copyfile(repo / 'deploy/systemd' / name, base / 'deploy/systemd' / name)
 (base / 'deploy/docker-compose.yml').write_text('services: {}\n')
 ids = base / 'deploy/systemd/jobbliggaren-runtime-ids.sh'
-ids.write_text('#!/bin/sh\nprintf "1654\\n1654\\n"\n')
+shutil.copyfile(repo / 'deploy/systemd/jobbliggaren-runtime-ids.sh', ids)
 ids.chmod(0o755)
 docker = Path('/usr/bin/docker')
-docker.write_text('''#!/bin/sh
+docker.write_text('''#!/bin/bash
+exec 7>>/run/jobbliggaren-reconcile.lock
+if flock -n 7; then exit 91; fi
 printf '%s\\n' "$1" >> /tmp/docker-calls
 case "$1" in
 compose) printf '%s\\n' '{"services":{"api":{"image":"fixture-api"},"worker":{"image":"fixture-worker"},"redis":{"image":"fixture-redis"},"redis-volatile":{"image":"fixture-volatile"}}}';;
 image) printf 'sha256:%064d\\n' 1;;
-run) printf '999\\n999\\n';;
+run)
+  if [[ ${*: -1} == 'id -u redis; id -g redis' ]]; then printf '999\\n999\\n';
+  else printf '1654\\n1654\\n'; fi;;
 *) exit 90;;
 esac
 ''')
@@ -44,7 +48,10 @@ def checked(name, ok):
     print('PASS ' + name, flush=True)
 
 def run(*args):
-    return subprocess.run(['bash', str(script), *args], capture_output=True).returncode
+    command = ['bash', str(script), *args]
+    if args and args[0] == '--check-images':
+        command = ['bash', '-c', 'exec 9>/run/jobbliggaren-reconcile.lock; flock -n 9 || exit; exec \"$@\"', 'reconcile-fixture'] + command
+    return subprocess.run(command, capture_output=True).returncode
 
 def inject(values=credentials, interrupt_after=None):
     master, slave = pty.openpty()

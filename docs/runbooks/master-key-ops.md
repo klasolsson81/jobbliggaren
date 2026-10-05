@@ -481,7 +481,7 @@ compare-and-swaps the row. One transaction over all rows, then a post-commit pas
 every row unwraps under the new key.
 
 ```bash
-docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --profile ops run --rm \
+sudo flock /run/jobbliggaren-reconcile.lock docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --profile ops run --rm --pull never \
   -e REWRAP_RETIRING_MASTER_KEY_FILE=/run/app-secrets/OLD_KEY \
   -e REWRAP_INCOMING_MASTER_KEY_FILE=/run/app-secrets/FieldEncryption__LocalMasterKeyBase64 \
   -e REWRAP_RETIRING_KEY_ID=local-v1 \
@@ -527,7 +527,7 @@ the damage unrecoverable.
 
 1. `sudo systemctl stop jobbliggaren-reconcile.timer` — a `*:47` tick would otherwise start
    api/worker in the middle of the rewrap.
-2. `docker stop jobbliggaren-api jobbliggaren-worker`.
+2. `sudo flock /run/jobbliggaren-reconcile.lock docker stop jobbliggaren-api jobbliggaren-worker`.
 3. **PRESERVE THE RETIRING KEY FIRST. It exists nowhere else.** Step 5 needs it, and step 4
    overwrites the only copy — with no at-rest copy on this box, and an escrow (§1) that holds
    whatever generation was last written to it and not this one,
@@ -540,9 +540,9 @@ the damage unrecoverable.
    # to inline its own `docker run`, described as "the same way the injection script does it" —
    # true when written, false from #1295, and without the argument guards, the containment flags
    # or the numeric validation the real one carries.
-   ids=$(sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh \
-     "$(sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config --images \
-        | grep -m1 -F jobbliggaren-api)")
+   ids=$(sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c '
+     image=$(docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config --images | grep -m1 -F jobbliggaren-api) &&
+       /opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh "$image"')
    uid=$(echo "$ids" | head -1); gid=$(echo "$ids" | tail -1)
 
    sudo install -m 0400 -o "$uid" -g "$gid" \

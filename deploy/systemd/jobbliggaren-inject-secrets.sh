@@ -778,7 +778,9 @@ puts it in argv and in shell history, which is exactly what this script exists t
 # container's ONLY way into a 0710 directory, so deriving gid from uid would reintroduce the
 # same class one level down: an image where gid != uid makes the mount unreadable, and the app
 # then fails with "master key missing" rather than "permission denied".
-resolve_runtime_ids() {
+resolve_runtime_ids() (
+  exec 8>/run/jobbliggaren-reconcile.lock
+  flock -n 8 || die 'reconciliation is in progress; runtime ids were not measured'
   local image
   image=$(docker compose -f "$COMPOSE_FILE" config --images 2>&1 | grep -m1 -F 'jobbliggaren-api') \
     || die "could not resolve the api image from ${COMPOSE_FILE} (compose interpolates .env —
@@ -793,7 +795,7 @@ a missing required variable fails here)"
   # it has just verified — so sharing the resolution would be sharing the wrong thing. The helper's
   # own diagnostics reach stderr from here, so this call adds no message of its own.
   "$RUNTIME_IDS" "$image"
-}
+)
 
 # COMMAND substitution, not process substitution, and the `|| die` is not decoration: a `die`
 # inside resolve_runtime_ids runs in the SUBSHELL and cannot stop this script. `< <(…)` would

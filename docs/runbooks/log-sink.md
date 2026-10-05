@@ -301,12 +301,11 @@ load-bearing. This is an interactive editor and is not something you can paste f
 > password lives in Seq's own store and **this value stops being the source of truth.** Do not
 > spend it on an experiment: a `docker volume rm seq_data` is the only way back.
 
-**2.** Bring the service up. reconcile does this hourly on its own; doing it by hand takes no lock,
-so stop the timer first.
+**2.** Bring the service up.
 
 ```bash
 sudo systemctl stop jobbliggaren-reconcile.timer
-sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d seq
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c '/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d --pull never seq'
 sudo docker logs jobbliggaren-seq --tail 20
 ```
 
@@ -452,7 +451,7 @@ temp file is made in the **same directory** so the rename stays inside one files
 
 ```bash
 sudo systemctl start jobbliggaren-reconcile.timer
-sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d api worker
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c '/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d --pull never api worker'
 ```
 
 **9.** **Prove an event arrived, in the same session as the install.** Everything up to here talks

@@ -59,6 +59,7 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENVF#" \
   -e "s#^readonly VERIFIER=.*#readonly VERIFIER=$TOOLS/verify-image-attestation.sh#" \
   -e "s#^readonly RECORD_TOOL=.*#readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh#" \
+  -e "s#^readonly RETENTION=.*#readonly RETENTION=$TOOLS/retention.sh#" \
   -e "s#^readonly LOCK=.*#readonly LOCK=$TMPROOT/lock#" \
   -e "s#^readonly STAMP=.*#readonly STAMP=$STAMP#" \
   -e "s#^readonly RECEIPT=.*#readonly RECEIPT=$RECEIPT#" \
@@ -103,6 +104,23 @@ if [ "$(stat -c '%u %g' "$probe_dir")" != "$(id -u) $(id -g)" ]; then
 fi
 rm -rf "$probe_dir"
 
+cat >"$TOOLS/retention.sh" <<'EOF'
+#!/usr/bin/env bash
+REG="__REG__"
+RECEIPT="__RECEIPT__"
+STAMP="__STAMP__"
+[ "$*" = "--apply --compose-file __COMPOSE__ --receipt $RECEIPT --budget-seconds 60 --lock-fd 9" ] || exit 9
+[ -e /proc/self/fd/9 ] || exit 9
+count=0
+[ ! -f "$REG/retention-calls" ] || count=$(wc -l <"$REG/retention-calls")
+sha=$(sed -n 's/^JBL_RELEASE_SOURCE_SHA=//p' "$RECEIPT")
+printf '%s stamp=%s\n' "$sha" "$([ -f "$STAMP" ] && echo yes || echo no)" >>"$REG/retention-calls"
+printf 'retention %s\n' "$count" >>"$REG/docker-calls"
+[ ! -f "$REG/retention-fail-$count" ]
+EOF
+sed -i -e "s#__REG__#$REG#g" -e "s#__RECEIPT__#$RECEIPT#g" -e "s#__STAMP__#$STAMP#g" \
+  -e "s#__COMPOSE__#$CHECKOUT/deploy/docker-compose.yml#g" "$TOOLS/retention.sh"
+chmod +x "$TOOLS/retention.sh"
 # --- the verifier stub --------------------------------------------------------------------------------
 mkdir -p "$REG/attested"
 cat >"$TOOLS/verify-image-attestation.sh" <<EOF
@@ -333,6 +351,7 @@ reset() {
   rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/oneoff-* "$REG"/compose-config-leaks "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
     "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
+  rm -f "$REG"/retention-calls "$REG"/retention-fail-*
   default_compose
   printf 'POSTGRES_APP_PASSWORD=x\n#IMAGE_TAG=sha-0000000\n' >"$ENVF"
   rm -rf "$SECRETS"
@@ -398,6 +417,51 @@ run_sut
 : >"$REG/docker-calls"
 expect_exit 0 "the same release again is a re-apply, not a refusal"
 
+echo "-- retention pass ordering and failure recovery"
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "bootstrap applies before its sole retention pass"
+check '[ "$(wc -l <"$REG/retention-calls")" -eq 1 ] && grep -qx "$SHA1 stamp=yes" "$REG/retention-calls"' "bootstrap post-pass sees committed receipt and stamp"
+check '[ "$(grep -n "^retention " "$REG/docker-calls" | cut -d: -f1)" -gt "$(grep -n "^compose.* up " "$REG/docker-calls" | cut -d: -f1)" ]' "post-pass follows compose up"
+: >"$REG/docker-calls"
+: >"$REG/retention-calls"
+touch "$REG/retention-fail-0"
+expect_exit 0 "pre-pass failure is resolved by a complete post-pass"
+check '[ "$(wc -l <"$REG/retention-calls")" -eq 2 ] && said "pre-pass incomplete"' "both passes run"
+check '[ "$(head -n 1 "$REG/docker-calls")" = "retention 0" ]' "pre-pass precedes the first pull"
+
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+: >"$REG/retention-calls"
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/retention-fail-1"
+expect_exit 2 "post-pass failure reports failure after successful deploy"
+check 'applied_is "$SHA2" && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC2" "$RECEIPT" && [ -f "$STAMP" ]' "new tags, receipt and stamp survive post-pass failure"
+check '[ "$(head -n 1 "$REG/retention-calls" | cut -d" " -f1)" = "$SHA1" ] && [ "$(tail -n 1 "$REG/retention-calls" | cut -d" " -f1)" = "$SHA2" ]' "pre-pass protects old receipt; post-pass protects new receipt"
+
+reset
+REC1=$(release "$SHA1" 10)
+channel "$REC1"
+run_sut
+: >"$REG/retention-calls"
+REC2=$(release "$SHA2" 11)
+channel "$REC2"
+touch "$REG/retention-fail-0" "$REG/up-fails"
+expect_exit 1 "ordinary deploy failure preserves its exit and restores prior tags"
+check 'applied_is "$SHA1" && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$REC1" "$RECEIPT" && [ "$(wc -l <"$REG/retention-calls")" -eq 1 ]' "failed deploy has only a pre-pass and keeps old receipt"
+: >"$REG/retention-calls"
+expect_exit 0 "status stays read-only with no retention" --status
+check '[ ! -s "$REG/retention-calls" ]' "status calls no helper"
+
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "stage never runs retention" --stage
+check '[ ! -e "$REG/retention-calls" ]' "stage calls no helper"
 echo "-- selection"
 reset
 REC1=$(release "$SHA1" 10)

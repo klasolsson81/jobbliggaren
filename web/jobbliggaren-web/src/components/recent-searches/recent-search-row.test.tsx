@@ -80,7 +80,7 @@ describe("RecentSearchRow", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders NO match-count meta when count prop is absent (lazy — not yet fetched / timeout / error)", () => {
+  it("renders NO match-count meta when the counts failed (timeout / error) or the row has no entry", () => {
     render(
       <RecentSearchRow
         item={makeDto({ currentCount: 42, newCount: 0 })}
@@ -94,6 +94,21 @@ describe("RecentSearchRow", () => {
     // currentCount on the DTO is ignored — no count prop → no meta, never "(0)".
     expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+  });
+
+  it("reserves the count line, with no number in it, while the counts are pending", () => {
+    const { container } = render(
+      <RecentSearchRow
+        item={makeDto({ currentCount: 42, newCount: 0 })}
+        countsPending
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const line = container.querySelector(".jp-job__meta--search-count");
+    expect(line).toHaveAttribute("aria-hidden", "true");
+    expect(line?.textContent?.trim()).toBe("");
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
   });
 
   it("renders '(N) träffar' from the lazy count prop when newCount === 0", () => {

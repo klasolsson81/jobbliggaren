@@ -1,6 +1,6 @@
 "use client";
 
-// "use client": the search, the filter, the sort, the pages and the panel's read run in the browser.
+// "use client": the search, the filter, the sort, the pages and the panel's reads and commands run in the browser.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -8,7 +8,14 @@ import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
-import { AdminAccountPanel, type AdminAccountDetails } from "@/components/admin/admin-account-panel";
+import {
+  AdminAccountPanel,
+  type AdminAccountCommands,
+  type AdminAccountDetails,
+  type AdminLiveAction,
+} from "@/components/admin/admin-account-panel";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction } from "@/lib/actions/admin-accounts";
+import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
 import {
   ACCOUNTS_PAGE_SIZE,
   FIRST_SORT,
@@ -22,16 +29,25 @@ import {
   type AdminAccountRow,
   type AdminAccountSort,
   type AdminAccountSortKey,
+  type AdminSelf,
 } from "@/lib/admin/view-models";
+import { requestReauthCode } from "@/lib/auth/reauth-actions";
 import { parseRetryAfter } from "@/lib/dto/_helpers";
 import {
   accountDetailsSchema,
   accountSearchResponseSchema,
+  pendingEmailChangeReadSchema,
   toAccountDetail,
   toAccountsPage,
+  toPendingEmailChange,
 } from "@/lib/dto/admin-accounts";
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** ADR 0150 D4: the address change and its cancel are built (#1975); every other action is "Kommer snart". */
+const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange"]);
+
+const RETURN_PATH = "/admin/anvandare";
 
 interface Criteria {
   readonly term: string;
@@ -91,13 +107,26 @@ const parseDetail = (json: unknown) => {
   return parsed.success ? toAccountDetail(parsed.data) : null;
 };
 
+const parseEmailChange = (json: unknown): AdminEmailChangeState | null => {
+  const parsed = pendingEmailChangeReadSchema.safeParse(json);
+  if (!parsed.success) return null;
+  return parsed.data.pending === null
+    ? { kind: "none" }
+    : { kind: "pending", change: toPendingEmailChange(parsed.data.pending) };
+};
+
+const UNKNOWN_EMAIL_CHANGE: AdminEmailChangeState = { kind: "unknown" };
+
+const GONE: AdminEmailChangeReread = { kind: "gone" };
+
 /**
  * `/admin/anvandare`'s list after its first page (#1974, ADR 0151): a search that waits for typing to
  * pause, the status filter, the sort and the pages, each read through the BFF with the newest request
  * aborting the one before. The rows shown stay until newer ones arrive. Opening an account shows its
- * row at once and its details when they come.
+ * row at once and its details when they come, its pending address change read beside them (#1975), so a
+ * fault on the volatile instance costs that one fact.
  */
-export function AccountsDirectory({ initial }: { readonly initial: AccountsListing }) {
+export function AccountsDirectory({ initial, self }: { readonly initial: AccountsListing; readonly self: AdminSelf }) {
   const t = useTranslations("admin.users");
   const [query, setQuery] = useState("");
   const [criteria, setCriteria] = useState<Criteria>(FIRST);
@@ -105,7 +134,9 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
   const [answered, setAnswered] = useState<Criteria>(FIRST);
   const [open, setOpen] = useState<AdminAccountRow | null>(null);
   const [details, setDetails] = useState<AdminAccountDetails>({ kind: "loading" });
+  const [emailChange, setEmailChange] = useState<AdminEmailChangeState>({ kind: "none" });
   const detailRequest = useRef<AbortController | null>(null);
+  const openId = useRef<string | null>(null);
   const tableRegion = useRef<HTMLDivElement>(null);
   const refocusTableAfterRetry = useRef(false);
 
@@ -168,36 +199,84 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
     return failure.reason === "forbidden" ? "none" : "retry";
   }
 
-  function readDetails(row: AdminAccountRow) {
+  function markGone() {
+    setDetails({ kind: "gone" });
+    setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+  }
+
+  /**
+   * Reads one account's details and its pending address change, side by side, and shows them together. Again,
+   * after a command, it keeps what the panel shows until the answers arrive, and a failed read changes nothing.
+   */
+  function readAccount(id: string, again = false): Promise<AdminEmailChangeReread> {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
-    setDetails({ kind: "loading" });
-    void post("/api/admin/konton/detalj", { id: row.id }, parseDetail, controller.signal).then((answer) => {
-      if (controller.signal.aborted) return;
+    if (!again) setDetails({ kind: "loading" });
+    const detail = post("/api/admin/konton/detalj", { id }, parseDetail, controller.signal);
+    const change = post("/api/admin/konton/adressbyte", { id }, parseEmailChange, controller.signal);
+    return Promise.all([detail, change]).then(([answer, pending]): AdminEmailChangeReread => {
+      if (controller.signal.aborted) return UNKNOWN_EMAIL_CHANGE;
+      const read = pending.ok ? pending.data : UNKNOWN_EMAIL_CHANGE;
+      if (pending.ok || !again) setEmailChange(read);
       if (answer.ok) {
         setDetails({ kind: "loaded", data: answer.data });
-        return;
+        return read;
       }
       if (answer.gone) {
-        setDetails({ kind: "gone" });
-        setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
-        return;
+        markGone();
+        return GONE;
       }
+      if (again) return read;
       setDetails({
         kind: "failed",
         message: failureText(answer.failure, t("errors.detailFailed")),
         recovery: recoveryOf(answer.failure),
       });
+      return read;
     });
   }
 
   function openAccount(id: string) {
     const row = listing.kind === "loaded" ? listing.page.rows.find((candidate) => candidate.id === id) : undefined;
     if (row === undefined) return;
+    openId.current = row.id;
     setOpen(row);
-    readDetails(row);
+    setEmailChange({ kind: "none" });
+    void readAccount(row.id);
   }
+
+  /** A command's answer for the account still open; one for an account since closed is dropped. */
+  function stillOpen(id: string): boolean {
+    return openId.current === id;
+  }
+
+  // The panel's commands (ADR 0150 D4): the address change and its cancel through their Server Actions. What a
+  // request or a cancel answers becomes the panel's pending change, never what the form held.
+  const commands: AdminAccountCommands = {
+    live: LIVE,
+    emailChange: {
+      requestCode: requestReauthCode,
+      request: async (account, newEmail, proof) => {
+        const outcome = await requestAccountEmailChangeAction(account.id, newEmail, proof);
+        if (!stillOpen(account.id)) return outcome;
+        if (outcome.ok) setEmailChange({ kind: "pending", change: outcome.value });
+        else if (outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
+        if (outcome.after === "gone") markGone();
+        else if (outcome.after !== undefined) void readAccount(account.id, true);
+        return outcome;
+      },
+      cancel: async (account) => {
+        const outcome = await cancelAccountEmailChangeAction(account.id);
+        if (!stillOpen(account.id)) return outcome;
+        if (outcome.kind === "cancelled") setEmailChange({ kind: "none" });
+        else if (outcome.kind === "unknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
+        else if (outcome.kind === "nothingPending") void readAccount(account.id, true);
+        return outcome;
+      },
+      returnPath: RETURN_PATH,
+    },
+  };
 
   function retryListing() {
     refocusTableAfterRetry.current = true;
@@ -269,10 +348,15 @@ export function AccountsDirectory({ initial }: { readonly initial: AccountsListi
       <AdminAccountPanel
         account={open}
         details={details}
-        onRetry={open === null ? undefined : () => readDetails(open)}
+        commands={commands}
+        self={self}
+        emailChange={emailChange}
+        onRetry={open === null ? undefined : () => void readAccount(open.id)}
+        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {
           detailRequest.current?.abort();
+          openId.current = null;
           setOpen(null);
         }}
       />

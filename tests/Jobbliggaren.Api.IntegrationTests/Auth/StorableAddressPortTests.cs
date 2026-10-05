@@ -140,7 +140,7 @@ public class StorableAddressPortTests(ApiFactory factory)
         var (result, row) = await WithAccountsAsync(async (creator, accounts, users) =>
         {
             var userId = (await creator.CreatePasswordlessUserAsync(stored, Ct)).Value;
-            var swap = await accounts.SwapConfirmedAddressAsync(userId, padded, Ct);
+            var swap = await accounts.SwapConfirmedAddressAsync(userId, padded, SwapPrecondition.None, Ct);
             return (swap, (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull());
         });
 
@@ -162,7 +162,7 @@ public class StorableAddressPortTests(ApiFactory factory)
         {
             var userId = (await creator.CreatePasswordlessUserAsync(stored, Ct)).Value;
             (await accounts.CheckAddressIsFreeAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
-            (await accounts.SwapConfirmedAddressAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
+            (await accounts.SwapConfirmedAddressAsync(userId, next, SwapPrecondition.None, Ct)).IsSuccess.ShouldBeTrue();
             return (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
         });
 

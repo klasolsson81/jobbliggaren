@@ -89,6 +89,12 @@ export function redactIssues(
 }
 
 /**
+ * An instant as the backend writes a `DateTimeOffset`, that also reads as a date here, so the page can show it in
+ * Swedish time. Kept a string on the wire (ADR 0020); an answer whose instant does not read is not read at all.
+ */
+export const readableInstantSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
+
+/**
  * Schema-factory för backend `PagedResult<T>`. Ersätter hand-rullad
  * `isPagedResult<T>` från `lib/types/paged.ts` (TD-55) — item-validering
  * är nu default istället för opt-in.

@@ -27,12 +27,16 @@ internal sealed class RecordingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<RecordedEmail> _sent = new();
     private readonly ConcurrentQueue<RecordedLoginChallenge> _loginChallenges = new();
+    private readonly ConcurrentQueue<RecordedAccountEmailChangeNotice> _accountEmailChangeNotices = new();
 
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
 
     /// <summary>Snapshot of every login-challenge mail's typed content since host start.</summary>
     public IReadOnlyList<RecordedLoginChallenge> LoginChallenges => [.. _loginChallenges];
+
+    /// <summary>Snapshot of every notice to a current address that an administrator started a change of it (#1975).</summary>
+    public IReadOnlyList<RecordedAccountEmailChangeNotice> AccountEmailChangeNotices => [.. _accountEmailChangeNotices];
 
     private volatile bool _canDeliver = true;
 
@@ -71,6 +75,30 @@ internal sealed class RecordingEmailSender : IEmailSender
         public void Dispose() => owner._canDeliver = true;
     }
 
+    private volatile object? _refused;
+
+    /// <summary>
+    /// #1975 — the provider refuses every send of one kind for the duration of the scope, the way the transactional
+    /// arm fails: an <see cref="Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException"/> carrying the
+    /// kind, and nothing recorded. A scope for the reason <see cref="Incapable"/> gives.
+    /// </summary>
+    internal IDisposable Refusing(RecordedEmailKind kind)
+    {
+        _refused = kind;
+        return new RefusalScope(this);
+    }
+
+    private void ThrowIfRefused(RecordedEmailKind kind)
+    {
+        if (_refused is RecordedEmailKind refused && refused == kind)
+            throw new Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException(kind.ToString(), "HttpRequestException");
+    }
+
+    private sealed class RefusalScope(RecordingEmailSender owner) : IDisposable
+    {
+        public void Dispose() => owner._refused = null;
+    }
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
@@ -97,11 +125,24 @@ internal sealed class RecordingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfRefused(RecordedEmailKind.AccountEmailChangeRequestedNotification);
+        _accountEmailChangeNotices.Enqueue(new RecordedAccountEmailChangeNotice(toEmail, completableFrom, expiresAt));
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountEmailChangeRequestedNotification, toEmail));
+        return Task.CompletedTask;
+    }
+
     public Task SendLoginChallengeAsync(
         string toEmail,
         LoginChallengeEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfRefused(RecordedEmailKind.LoginChallenge);
         _loginChallenges.Enqueue(new RecordedLoginChallenge(toEmail, content));
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.LoginChallenge, toEmail));
         return Task.CompletedTask;
@@ -114,6 +155,7 @@ internal enum RecordedEmailKind
     MatchNotification,
     FollowedCompanyNotification,
     EmailChangedNotification,
+    AccountEmailChangeRequestedNotification,
     LoginChallenge,
 }
 
@@ -122,3 +164,7 @@ internal sealed record RecordedEmail(RecordedEmailKind Kind, string ToEmail);
 
 /// <summary>A login-challenge mail's recipient and typed content, recorded for the link and code tests.</summary>
 internal sealed record RecordedLoginChallenge(string ToEmail, LoginChallengeEmail Content);
+
+/// <summary>The notice to a current address (#1975): its recipient and the two instants it states.</summary>
+internal sealed record RecordedAccountEmailChangeNotice(
+    string ToEmail, DateTimeOffset CompletableFrom, DateTimeOffset ExpiresAt);

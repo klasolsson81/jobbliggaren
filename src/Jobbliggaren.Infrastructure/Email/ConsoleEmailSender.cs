@@ -78,6 +78,17 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.AccountEmailChangeRequestedNotification(completableFrom, expiresAt);
+        WriteEmail("account-email-change-requested-notification", toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     public Task SendLoginChallengeAsync(
         string toEmail,
         LoginChallengeEmail content,

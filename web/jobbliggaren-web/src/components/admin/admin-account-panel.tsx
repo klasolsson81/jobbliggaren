@@ -1,7 +1,7 @@
 "use client";
 
-// "use client": the panel holds its account's mode, the running command and its refusal.
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+// "use client": the panel holds its account's mode, the running command and what came of it.
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Dialog } from "radix-ui";
 import { useFormatter, useTranslations } from "next-intl";
@@ -9,6 +9,7 @@ import {
   BadgeCheck,
   Ban,
   Link2,
+  MailX,
   Pencil,
   RotateCcw,
   Trash2,
@@ -18,17 +19,26 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type {
+  AdminEmailChangeCancelOutcome,
+  AdminEmailChangeReread,
+  AdminEmailChangeRequestOutcome,
+  AdminEmailChangeState,
+  AdminPendingEmailChange,
+} from "@/lib/admin/account-email-change";
+import type {
   AdminAccountAction,
   AdminAccountDetail,
   AdminAccountRow,
   AdminAddressedAccount,
+  AdminSelf,
 } from "@/lib/admin/view-models";
+import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
 import { useReturnFocus } from "@/lib/hooks/use-return-focus";
 import { holdAdminToasts, showAdminToast } from "@/lib/admin/toast-store";
 import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountStatus, AdminRolePill, unbroken } from "./admin-account-status";
-import { ADMIN_NEW_EMAIL_FIELD_ID, AdminAccountEditForm } from "./admin-account-edit-form";
+import { ADMIN_NEW_EMAIL_FIELD_ID, AdminAccountEditForm, type AdminEditExit } from "./admin-account-edit-form";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { AdminRegionLine } from "./admin-region-line";
@@ -38,11 +48,11 @@ import { isInAdminToast } from "./admin-toast-host";
 /** The actions whose flows exist in the MVP (#1975–#1977); every other action is "Kommer snart" here. */
 export type AdminLiveAction = Extract<
   AdminAccountAction,
-  "changeEmail" | "suspend" | "reinstate" | "scheduleDeletion"
+  "changeEmail" | "cancelEmailChange" | "suspend" | "reinstate" | "scheduleDeletion"
 >;
 
+/** The commands #1976 and #1977 run; the address change has commands of its own. */
 export type AdminAccountCommand =
-  | { readonly kind: "changeEmail"; readonly newEmail: string }
   | { readonly kind: "suspend" }
   | { readonly kind: "reinstate" }
   | { readonly kind: "scheduleDeletion" };
@@ -50,12 +60,35 @@ export type AdminAccountCommand =
 /** Null when the command went through; otherwise the refusal, shown where the command was asked. */
 export type AdminCommandRefusal = string | null;
 
-/** The built actions and how to run them (ADR 0150 D4). Without them every action is "Kommer snart". */
+/** The address change and its cancel (#1975, ADR 0153), run by the caller, so the panel reaches no backend. */
+export interface AdminEmailChangeCommands {
+  /** Asks for the administrator's own step-up code, to their own address. */
+  readonly requestCode: () => Promise<ReauthRequestResult>;
+  /** Verifies that code and requests the change, in one Server Action. */
+  readonly request: (
+    account: AdminAddressedAccount,
+    newEmail: string,
+    proof: CodeProof,
+  ) => Promise<AdminEmailChangeRequestOutcome>;
+  readonly cancel: (account: AdminAddressedAccount) => Promise<AdminEmailChangeCancelOutcome>;
+  /** The page a lapsed session returns to after logging in again. */
+  readonly returnPath: string;
+}
+
+/**
+ * The built actions and how to run them (ADR 0150 D4). Without them every action is "Kommer snart", and so is an
+ * action named live without the command that runs it.
+ */
 export interface AdminAccountCommands {
   readonly live: ReadonlySet<AdminLiveAction>;
-  readonly run: (account: AdminAddressedAccount, command: AdminAccountCommand) => Promise<AdminCommandRefusal>;
-  /** `YYYY-MM-DD`: the earliest permanent deletion a deletion scheduled now would get. */
-  readonly deletionEarliestIfScheduledNow: string;
+  /** Suspend, reinstate and schedule deletion (#1976, #1977). */
+  readonly run?: (account: AdminAddressedAccount, command: AdminAccountCommand) => Promise<AdminCommandRefusal>;
+  /**
+   * `YYYY-MM-DD`: the earliest permanent deletion a deletion scheduled now would get. Absent where scheduling
+   * deletion is not built, so no date is made up for it.
+   */
+  readonly deletionEarliestIfScheduledNow?: string;
+  readonly emailChange?: AdminEmailChangeCommands;
 }
 
 /**
@@ -70,14 +103,33 @@ export type AdminAccountDetails =
 
 type Confirming = "suspend" | "scheduleDeletion";
 
+/** What a command left under the actions: a refusal of what was asked, or a status that is no one's fault. */
+interface Notice {
+  readonly text: string;
+  readonly role: "alert" | "status";
+}
+
+type FocusTarget = "title" | "notice";
+
+type RereadFocus = "title" | "retry" | "emailChangeValue" | "emailChangeAction";
+
 interface AdminAccountPanelProps {
   /** The row that opened the panel, or null while it is closed. The head shows it until the facts arrive. */
   readonly account: AdminAccountRow | null;
   readonly details: AdminAccountDetails;
   readonly onClose: () => void;
   readonly commands?: AdminAccountCommands;
+  /**
+   * The signed-in administrator. Their own account is told by its id, never by its address, and their step-up code
+   * goes to their own address; without them the address change is not offered.
+   */
+  readonly self?: AdminSelf;
+  /** The open account's pending address change, as the caller last read it or a command left it (#1975). */
+  readonly emailChange?: AdminEmailChangeState;
   /** Reads the details again, for a failure whose recovery is a retry. */
   readonly onRetry?: () => void;
+  /** Reads the pending address change again, for a read that failed. */
+  readonly onRetryEmailChange?: () => Promise<AdminEmailChangeReread>;
   /** Where focus goes on close when the row that opened the panel is gone. */
   readonly fallbackFocus?: () => HTMLElement | null;
 }
@@ -85,6 +137,7 @@ interface AdminAccountPanelProps {
 const ICONS: Readonly<Record<AdminAccountAction, LucideIcon>> = {
   impersonate: UserCog,
   changeEmail: Pencil,
+  cancelEmailChange: MailX,
   sendLoginLink: Link2,
   markVerified: BadgeCheck,
   reinstate: RotateCcw,
@@ -96,10 +149,32 @@ const ICONS: Readonly<Record<AdminAccountAction, LucideIcon>> = {
 
 const NO_LIVE_ACTIONS: ReadonlySet<AdminLiveAction> = new Set();
 
+const NO_EMAIL_CHANGE: AdminEmailChangeState = { kind: "none" };
+
+/** The actions that run at a press and name themselves while they run; the others open a form or a question. */
+type DirectAction = Extract<AdminLiveAction, "reinstate" | "cancelEmailChange">;
+
+function isDirect(action: AdminLiveAction): action is DirectAction {
+  return action === "reinstate" || action === "cancelEmailChange";
+}
+
+/**
+ * The note that stands where an administrator account's address change would, and the note and retry that stand
+ * where the address change or its cancel would while the pending change cannot be read.
+ */
+type ActionSlot = AdminAccountAction | "addressNote" | "emailChangeUnknown";
+
 /** The handoff's order, narrowed by the state the account is in. */
-function actionsFor({ status, emailConfirmed }: Pick<AdminAccountRow, "status" | "emailConfirmed">) {
-  const general: AdminAccountAction[] = ["impersonate"];
-  if (status !== "pendingDeletion") general.push("changeEmail");
+function actionsFor(
+  { status, emailConfirmed }: Pick<AdminAccountRow, "status" | "emailConfirmed">,
+  emailChange: AdminEmailChangeState,
+  administrator: boolean,
+) {
+  const general: ActionSlot[] = ["impersonate"];
+  // A pending change is cancelled, never requested again: a second request would displace the code its owner holds.
+  if (emailChange.kind === "pending") general.push("cancelEmailChange");
+  else if (emailChange.kind === "unknown") general.push("emailChangeUnknown");
+  else if (status === "active") general.push(administrator ? "addressNote" : "changeEmail");
   if (status === "active") general.push("sendLoginLink");
   if (status === "active" && !emailConfirmed) general.push("markVerified");
   if (status === "suspended") general.push("reinstate");
@@ -111,13 +186,11 @@ function actionsFor({ status, emailConfirmed }: Pick<AdminAccountRow, "status" |
   return { general, destructive };
 }
 
-function isLive(action: AdminAccountAction, live: ReadonlySet<AdminLiveAction>): action is AdminLiveAction {
-  return (live as ReadonlySet<AdminAccountAction>).has(action);
-}
-
 function isAddressed(account: AdminAccountDetail): account is AdminAddressedAccount {
   return account.email !== null;
 }
+
+const sameId = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
 
 /**
  * The account panel (ADR 0150, handoff 10–12): a modal side panel with the account's facts and its
@@ -131,7 +204,10 @@ export function AdminAccountPanel({
   details,
   onClose,
   commands,
+  self,
+  emailChange = NO_EMAIL_CHANGE,
   onRetry,
+  onRetryEmailChange,
   fallbackFocus,
 }: AdminAccountPanelProps) {
   const open = account !== null;
@@ -160,7 +236,10 @@ export function AdminAccountPanel({
             row={account}
             details={details}
             commands={commands}
+            self={self}
+            emailChange={emailChange}
             onRetry={onRetry}
+            onRetryEmailChange={onRetryEmailChange}
             onCloseAutoFocus={onCloseAutoFocus}
           />
         )}
@@ -173,13 +252,19 @@ function PanelContent({
   row,
   details,
   commands,
+  self,
+  emailChange,
   onRetry,
+  onRetryEmailChange,
   onCloseAutoFocus,
 }: {
   readonly row: AdminAccountRow;
   readonly details: AdminAccountDetails;
   readonly commands: AdminAccountCommands | undefined;
+  readonly self: AdminSelf | undefined;
+  readonly emailChange: AdminEmailChangeState;
   readonly onRetry: (() => void) | undefined;
+  readonly onRetryEmailChange: (() => Promise<AdminEmailChangeReread>) | undefined;
   readonly onCloseAutoFocus: (event: Event) => void;
 }) {
   const t = useTranslations("admin.users");
@@ -191,18 +276,30 @@ function PanelContent({
   const head = loaded ?? row;
   const account = loaded !== null && isAddressed(loaded) ? loaded : null;
   const live = commands?.live ?? NO_LIVE_ACTIONS;
+  const emailChangeCommands = commands?.emailChange;
+  // The administrator's own account, by its id: an address is no identity (security-auditor, #1975 C-1).
+  const ownAccount = self !== undefined && sameId(head.id, self.userId);
+  const administrator = head.role === "admin" || ownAccount;
 
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [confirming, setConfirming] = useState<Confirming | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [pending, startTransition] = useTransition();
   const [running, setRunning] = useState<AdminLiveAction | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const refusalRef = useRef<HTMLParagraphElement>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
   const actionRefs = useRef<Partial<Record<AdminLiveAction, HTMLButtonElement | null>>>({});
   const confirmOpener = useRef<Confirming | null>(null);
   const focusTitleAfterConfirm = useRef(false);
   const leftEdit = useRef(false);
+  const pendingFocus = useRef<FocusTarget | null>(null);
+  const exitFocus = useRef<FocusTarget | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  const emailChangeValueRef = useRef<HTMLElement>(null);
+  const rereadFocus = useRef<RereadFocus | null>(null);
+  const unknownNoteId = useId();
 
   // A receipt published while the panel holds focus waits for the panel to close (WCAG 2.2.1).
   useEffect(() => holdAdminToasts(), []);
@@ -216,17 +313,87 @@ function PanelContent({
     }
   }, [mode]);
 
+  // Focus follows what a command left on screen, once it is there.
   useEffect(() => {
-    if (refusal !== null) refusalRef.current?.focus();
-  }, [refusal]);
+    const target = pendingFocus.current;
+    if (target === null) return;
+    const element = (target === "title" ? titleRef : noticeRef).current;
+    if (element === null) return;
+    pendingFocus.current = null;
+    element.focus();
+  });
+
+  function rereadElement(target: RereadFocus): HTMLElement | null {
+    switch (target) {
+      case "title":
+        return titleRef.current;
+      case "retry":
+        return retryRef.current;
+      case "emailChangeValue":
+        return emailChangeValueRef.current;
+      case "emailChangeAction":
+        return actionRefs.current.changeEmail ?? titleRef.current;
+    }
+  }
+
+  useLayoutEffect(() => {
+    const target = rereadFocus.current;
+    if (target === null) return;
+    const element = rereadElement(target);
+    if (element === null) return;
+    rereadFocus.current = null;
+    element.focus();
+  });
+
+  function focusOn(target: FocusTarget) {
+    (target === "title" ? titleRef : noticeRef).current?.focus();
+  }
+
+  function rereadEmailChange(reread: () => Promise<AdminEmailChangeReread>) {
+    if (retrying) return;
+    setRetrying(true);
+    void reread().then((answer) => {
+      setRetrying(false);
+      switch (answer.kind) {
+        case "gone":
+          rereadFocus.current = "title";
+          return;
+        case "unknown":
+          setRetryAttempt((attempt) => attempt + 1);
+          rereadFocus.current = "retry";
+          return;
+        case "pending":
+          setNotice(null);
+          rereadFocus.current = "emailChangeValue";
+          return;
+        case "none":
+          setNotice(null);
+          rereadFocus.current = "emailChangeAction";
+          return;
+      }
+    });
+  }
+
+  function isLive(action: AdminAccountAction): action is AdminLiveAction {
+    if (!(live as ReadonlySet<AdminAccountAction>).has(action)) return false;
+    switch (action) {
+      case "changeEmail":
+        // The step-up code goes to the administrator's own address, so the panel must know it.
+        return emailChangeCommands !== undefined && self !== undefined;
+      case "cancelEmailChange":
+        return emailChangeCommands !== undefined;
+      default:
+        return commands?.run !== undefined;
+    }
+  }
 
   const deletionDate =
-    commands === undefined ? unknown : (formatDate(format, commands.deletionEarliestIfScheduledNow) ?? unknown);
+    commands?.deletionEarliestIfScheduledNow === undefined
+      ? unknown
+      : (formatDate(format, commands.deletionEarliestIfScheduledNow) ?? unknown);
 
   function receipt(target: AdminAddressedAccount, command: AdminAccountCommand): string {
     switch (command.kind) {
-      case "changeEmail":
-        return t("toast.emailChangeRequested", { email: command.newEmail });
       case "suspend":
         return t("toast.suspended", { email: target.email });
       case "reinstate":
@@ -237,31 +404,78 @@ function PanelContent({
   }
 
   async function run(target: AdminAddressedAccount, command: AdminAccountCommand): Promise<AdminCommandRefusal> {
-    if (commands === undefined) return null;
-    const outcome = await commands.run(target, command);
+    const runCommand = commands?.run;
+    // Reached only through a live action, and an action is live only with the command that runs it.
+    if (runCommand === undefined) throw new Error(`No command runs ${command.kind}.`);
+    const outcome = await runCommand(target, command);
     if (outcome === null) showAdminToast(receipt(target, command));
     return outcome;
   }
 
   // A command that throws ends at the nearest error boundary rather than leaving the panel disabled.
   function runDirect(target: AdminAddressedAccount, command: { readonly kind: "reinstate" }) {
-    setRefusal(null);
+    setNotice(null);
     setRunning(command.kind);
     startTransition(async () => {
       const outcome = await run(target, command);
       startTransition(() => {
         setRunning(null);
         if (outcome === null) titleRef.current?.focus();
-        else setRefusal(outcome);
+        else {
+          setNotice({ text: outcome, role: "alert" });
+          pendingFocus.current = "notice";
+        }
+      });
+    });
+  }
+
+  function cancelNotice(outcome: Exclude<AdminEmailChangeCancelOutcome, { readonly kind: "cancelled" }>): string {
+    switch (outcome.kind) {
+      case "nothingPending":
+        return t("emailChange.nothingToCancel");
+      case "unknown":
+        return t("emailChange.cancelUnknown");
+      case "refused":
+        switch (outcome.reason) {
+          case "rateLimited":
+            return t("errors.rateLimited", { seconds: outcome.retryAfterSeconds });
+          case "unauthorized":
+            return t("errors.unauthorized");
+          case "forbidden":
+            return t("errors.forbidden");
+        }
+    }
+  }
+
+  // No confirmation: a cancel removes nothing the account holds and returns it to its state before the request.
+  function cancelEmailChange(target: AdminAddressedAccount) {
+    const cancel = emailChangeCommands?.cancel;
+    if (cancel === undefined) return;
+    setNotice(null);
+    setRunning("cancelEmailChange");
+    startTransition(async () => {
+      const outcome = await cancel(target);
+      startTransition(() => {
+        setRunning(null);
+        if (outcome.kind === "cancelled") {
+          showAdminToast(t("toast.emailChangeCancelled"));
+          pendingFocus.current = "title";
+          return;
+        }
+        setNotice({ text: cancelNotice(outcome), role: "status" });
+        pendingFocus.current = "notice";
       });
     });
   }
 
   function activate(target: AdminAddressedAccount, action: AdminLiveAction) {
-    setRefusal(null);
+    setNotice(null);
     switch (action) {
       case "changeEmail":
         setMode("edit");
+        return;
+      case "cancelEmailChange":
+        cancelEmailChange(target);
         return;
       case "suspend":
       case "scheduleDeletion":
@@ -274,9 +488,40 @@ function PanelContent({
     }
   }
 
+  // A request that ended where the panel shows it: the form is left, and the dialog's close moves focus.
+  function leaveEdit(exit: AdminEditExit) {
+    leftEdit.current = false;
+    setMode("view");
+    switch (exit.kind) {
+      case "requested":
+        showAdminToast(
+          t.rich("toast.emailChangeRequested", {
+            email: exit.newEmail,
+            from: formatDateTime(format, exit.completableFrom) ?? unknown,
+            nowrap: unbroken,
+          }),
+        );
+        exitFocus.current = "title";
+        return;
+      case "notice":
+        setNotice({ text: exit.message, role: "status" });
+        exitFocus.current = "notice";
+        return;
+      case "gone":
+        exitFocus.current = "title";
+        return;
+    }
+  }
+
+  function focusAfterExit() {
+    const target = exitFocus.current;
+    exitFocus.current = null;
+    if (target !== null) focusOn(target);
+  }
+
   function actionButton(target: AdminAddressedAccount, action: AdminAccountAction, destructive: boolean) {
     const Icon = ICONS[action];
-    if (!isLive(action, live)) {
+    if (!isLive(action)) {
       // The accessible name reads "{action} Kommer snart"; no handler, no hover, no opacity (ADR 0150 D2).
       return (
         <li key={action}>
@@ -304,10 +549,56 @@ function PanelContent({
           onClick={() => activate(target, action)}
         >
           <Icon size={18} aria-hidden="true" />
-          <AdminBusyLabel busy={running === action} label={t(`actions.${action}`)} busyLabel={t(`busy.${action}`)} />
+          {isDirect(action) ? (
+            <AdminBusyLabel busy={running === action} label={t(`actions.${action}`)} busyLabel={t(`busy.${action}`)} />
+          ) : (
+            <span>{t(`actions.${action}`)}</span>
+          )}
         </button>
       </li>
     );
+  }
+
+  // Where an administrator account's address change would stand: it is changed on Mina sidor, never here.
+  function addressNote() {
+    return (
+      <li key="addressNote">
+        <p className="jp-adminpanel__note">
+          {t("panel.adminAddress")}
+          {ownAccount ? <> {t("panel.adminAddressOwn")}</> : null}
+        </p>
+      </li>
+    );
+  }
+
+  function emailChangeUnknown() {
+    return (
+      <li key="emailChangeUnknown" className="jp-adminpanel__failure">
+        <p id={unknownNoteId} className="jp-adminpanel__note">
+          {t("panel.emailChangeUnknown")}
+        </p>
+        {onRetryEmailChange === undefined ? null : (
+          <button
+            key={retryAttempt}
+            ref={retryRef}
+            type="button"
+            className="jp-btn jp-btn--secondary jp-btn--sm"
+            aria-describedby={unknownNoteId}
+            aria-disabled={retrying || undefined}
+            onClick={() => rereadEmailChange(onRetryEmailChange)}
+          >
+            <AdminBusyLabel busy={retrying} label={t("errors.retry")} busyLabel={t("busy.retry")} />
+          </button>
+        )}
+      </li>
+    );
+  }
+
+  function pendingLine(change: AdminPendingEmailChange) {
+    const until = formatDateTime(format, change.expiresAt) ?? unknown;
+    if (change.state === "codeBurned") return t.rich("panel.emailChangeBurned", { until, nowrap: unbroken });
+    const from = formatDateTime(format, change.completableFrom) ?? unknown;
+    return t.rich("panel.emailChangePending", { from, until, nowrap: unbroken });
   }
 
   function facts(detail: AdminAccountDetail) {
@@ -344,6 +635,15 @@ function PanelContent({
         </dd>
         <dt>{t("panel.email")}</dt>
         <dd>{detail.emailConfirmed ? t("panel.emailConfirmed") : t("panel.emailUnconfirmed")}</dd>
+        {/* A server's answer only, never the form's: a reload, a second tab and a second admin agree (#1975). */}
+        {emailChange.kind === "none" ? null : (
+          <>
+            <dt>{t("panel.emailChange")}</dt>
+            <dd ref={emailChangeValueRef} tabIndex={-1}>
+              {emailChange.kind === "pending" ? pendingLine(emailChange.change) : <AdminUnknown />}
+            </dd>
+          </>
+        )}
         {count(t("table.applications"), detail.applicationCount)}
         {count(t("panel.savedSearches"), detail.savedSearchCount)}
         {count(t("panel.resumes"), detail.resumeCount)}
@@ -352,15 +652,26 @@ function PanelContent({
   }
 
   function actions(target: AdminAddressedAccount) {
-    const { general, destructive } = actionsFor(target);
+    const { general, destructive } = actionsFor(target, emailChange, administrator);
     return (
       <section className="jp-adminpanel__actions" aria-label={t("panel.actions")}>
-        <ul className="jp-adminpanel__list">{general.map((action) => actionButton(target, action, false))}</ul>
+        <ul className="jp-adminpanel__list">
+          {general.map((slot) => {
+            if (slot === "addressNote") return addressNote();
+            if (slot === "emailChangeUnknown") return emailChangeUnknown();
+            return actionButton(target, slot, false);
+          })}
+        </ul>
         <hr className="jp-adminpanel__rule" />
         <ul className="jp-adminpanel__list">{destructive.map((action) => actionButton(target, action, true))}</ul>
-        {refusal === null ? null : (
-          <p ref={refusalRef} tabIndex={-1} className="jp-adminpanel__refusal" role="alert">
-            {refusal}
+        {notice === null ? null : (
+          <p
+            ref={noticeRef}
+            tabIndex={-1}
+            className={notice.role === "alert" ? "jp-adminpanel__refusal" : "jp-adminpanel__status"}
+            role={notice.role}
+          >
+            {notice.text}
           </p>
         )}
       </section>
@@ -387,19 +698,16 @@ function PanelContent({
         </div>
       );
     }
-    if (account !== null && mode === "edit") {
+    if (account !== null && mode === "edit" && self !== undefined && emailChangeCommands !== undefined) {
       return (
         <AdminAccountEditForm
           account={account}
-          onSubmit={async (newEmail) => {
-            const outcome = await run(account, { kind: "changeEmail", newEmail });
-            if (outcome === null) {
-              leftEdit.current = false;
-              setMode("view");
-              titleRef.current?.focus();
-            }
-            return outcome;
-          }}
+          selfEmail={self.email}
+          requestCode={emailChangeCommands.requestCode}
+          request={(newEmail, proof) => emailChangeCommands.request(account, newEmail, proof)}
+          returnPath={emailChangeCommands.returnPath}
+          onExit={leaveEdit}
+          focusAfterExit={focusAfterExit}
           onCancel={() => {
             leftEdit.current = true;
             setMode("view");

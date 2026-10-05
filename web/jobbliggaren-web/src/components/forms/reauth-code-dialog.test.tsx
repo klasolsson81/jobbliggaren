@@ -7,12 +7,10 @@ import { ReAuthCodeDialog, type ReauthHandOff } from "./reauth-code-dialog";
 
 // #1740 — the shared re-authentication dialog, through a consumer of its own, in every D1 state
 // design-reviewer bound: request, code, resend, the panels, the hand-offs, and a close. `render` is
-// auto-wrapped in the Swedish catalogue.
+// auto-wrapped in the Swedish catalogue. The code request is the consumer's (#1975), so no module is
+// mocked: the harness hands the dialog its own.
 
-const requestReauthCodeMock = vi.fn<() => Promise<ReauthRequestResult>>();
-vi.mock("@/lib/auth/reauth-actions", () => ({
-  requestReauthCode: () => requestReauthCodeMock(),
-}));
+const requestCodeMock = vi.fn<() => Promise<ReauthRequestResult>>();
 
 const ADDRESS = "anna@exempel.se";
 const FIRST = "first-challenge-under-test";
@@ -45,6 +43,7 @@ function Harness({
         pendingLabel="Utför…"
         cancelLabel="Avbryt"
         returnPath="/sida"
+        requestCode={requestCodeMock}
         action={(proof) => operation(proof)}
         onHandOff={onHandOff}
         focusAfterHandOff={() => target.current?.focus()}
@@ -75,8 +74,8 @@ describe("ReAuthCodeDialog", () => {
   const operation = vi.fn<Operation>();
 
   beforeEach(() => {
-    requestReauthCodeMock.mockReset();
-    requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: FIRST });
+    requestCodeMock.mockReset();
+    requestCodeMock.mockResolvedValue({ ok: true, challengeId: FIRST });
     operation.mockReset();
     operation.mockResolvedValue({ ok: true, value: "done" });
   });
@@ -107,7 +106,7 @@ describe("ReAuthCodeDialog", () => {
 
   it("keeps the request step on a status, the message taking focus", async () => {
     const unavailable = "Det går inte att skicka någon kod just nu. Försök igen om några minuter.";
-    requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "status", error: unavailable });
+    requestCodeMock.mockResolvedValue({ ok: false, kind: "status", error: unavailable });
     const user = userEvent.setup();
     render(<Harness operation={operation} />);
 
@@ -121,7 +120,7 @@ describe("ReAuthCodeDialog", () => {
   });
 
   it("replaces the step with a panel when no code can be sent today", async () => {
-    requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "terminal", error: BUDGET });
+    requestCodeMock.mockResolvedValue({ ok: false, kind: "terminal", error: BUDGET });
     const user = userEvent.setup();
     render(<Harness operation={operation} />);
 
@@ -137,7 +136,7 @@ describe("ReAuthCodeDialog", () => {
   });
 
   it("sends a lapsed session to the login page and back", async () => {
-    requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "notLoggedIn" });
+    requestCodeMock.mockResolvedValue({ ok: false, kind: "notLoggedIn" });
     const user = userEvent.setup();
     render(<Harness operation={operation} />);
 
@@ -154,7 +153,7 @@ describe("ReAuthCodeDialog", () => {
   });
 
   it("hands over a deployment without mail before any code exists, and closes", async () => {
-    requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "refused" });
+    requestCodeMock.mockResolvedValue({ ok: false, kind: "refused" });
     const onHandOff = vi.fn();
     const user = userEvent.setup();
     render(<Harness operation={operation} onHandOff={onHandOff} />);
@@ -316,7 +315,7 @@ describe("ReAuthCodeDialog", () => {
     expect(field).toHaveValue("");
     await waitFor(() => expect(field).toHaveFocus());
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
-    expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not re-open on a dead code's step", async () => {
@@ -373,7 +372,7 @@ describe("ReAuthCodeDialog", () => {
       await wait(60);
       expect(resend()).toBeEnabled();
 
-      requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: SECOND });
+      requestCodeMock.mockResolvedValue({ ok: true, challengeId: SECOND });
       await user.click(resend());
 
       expect(
@@ -392,7 +391,7 @@ describe("ReAuthCodeDialog", () => {
 
       await toCodeStep(user);
       await wait(60);
-      requestReauthCodeMock.mockResolvedValue({
+      requestCodeMock.mockResolvedValue({
         ok: false,
         kind: "status",
         error: COOLDOWN,
@@ -416,7 +415,7 @@ describe("ReAuthCodeDialog", () => {
 
       await toCodeStep(user);
       await wait(60);
-      requestReauthCodeMock.mockResolvedValue({ ok: false, kind: "terminal", error: BUDGET });
+      requestCodeMock.mockResolvedValue({ ok: false, kind: "terminal", error: BUDGET });
       await user.click(resend());
 
       expect(await screen.findByText(BUDGET)).toBeInTheDocument();

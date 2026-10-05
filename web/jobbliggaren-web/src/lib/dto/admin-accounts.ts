@@ -1,10 +1,11 @@
 import { z } from "zod";
+import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
 import type {
   AdminAccountDetail,
   AdminAccountRow,
   AdminAccountStatus,
 } from "@/lib/admin/view-models";
-import { pagedResultWithTotalPages } from "./_helpers";
+import { pagedResultWithTotalPages, readableInstantSchema as instant } from "./_helpers";
 
 /**
  * The admin account directory's wire shapes (#1974, ADR 0151). The backend names its enums the .NET way;
@@ -98,6 +99,37 @@ export interface AccountsPage {
   readonly totalCount: number;
   readonly totalPages: number;
   readonly counts: Readonly<Record<AccountCountKey, number>>;
+}
+
+/**
+ * `GET /api/v1/admin/accounts/{id}/email-change` → 200 (#1975, ADR 0153); a 204 means nothing is pending.
+ * No address: the read carries none.
+ */
+export const pendingEmailChangeSchema = z.object({
+  state: z.enum(["Pending", "CodeBurned"]),
+  completableFrom: instant,
+  expiresAt: instant,
+});
+
+export type PendingEmailChangeDto = z.infer<typeof pendingEmailChangeSchema>;
+
+/** `POST /api/v1/admin/accounts/{id}/email-change` → 202: the change is pending from now, with its two instants. */
+export const emailChangeRequestedSchema = z.object({
+  completableFrom: instant,
+  expiresAt: instant,
+});
+
+/** The account BFF's answer for the panel's read: the pending change, or null when there is none. */
+export const pendingEmailChangeReadSchema = z.object({
+  pending: pendingEmailChangeSchema.nullable(),
+});
+
+export function toPendingEmailChange(dto: PendingEmailChangeDto): AdminPendingEmailChange {
+  return {
+    state: dto.state === "CodeBurned" ? "codeBurned" : "pending",
+    completableFrom: dto.completableFrom,
+    expiresAt: dto.expiresAt,
+  };
 }
 
 export function toAccountsPage(response: AccountSearchResponse): AccountsPage {

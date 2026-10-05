@@ -36,20 +36,9 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     private const string AttemptsField = "a";
     private const int LinkSecretLength = 16;
 
-    // One atomic step: the existence guard keeps HINCRBY from recreating an expired or unknown record without
-    // a TTL (a client chooses the id), and the increment happens BEFORE any compare, so a parallel burst of
-    // guesses gets distinct attempt numbers.
-    private const string ConsumeCodeScript = """
-        if redis.call('EXISTS', KEYS[1]) == 0 then return false end
-        local n = redis.call('HINCRBY', KEYS[1], 'a', 1)
-        return { n, redis.call('HGET', KEYS[1], 'p') }
-        """;
-
-    // Stand-ins compared against when there is nothing real to compare, so every path pays one Unprotect and
-    // one fixed-time compare of the same length.
-    private static readonly byte[] DummyCode = Encoding.ASCII.GetBytes(new string('0', LoginChallengePolicy.CodeLength));
+    // The link arm's stand-in, compared against when there is nothing real to compare, so every path pays one
+    // Unprotect and one fixed-time compare of the same length. The code arm's is ChallengeCodeArm.DummyCode.
     private static readonly byte[] DummyLinkHash = new byte[SHA256.HashSizeInBytes];
-    private static readonly int CodeSpace = (int)Math.Pow(10, LoginChallengePolicy.CodeLength);
     private static readonly string FullestCode = new('0', LoginChallengePolicy.CodeLength);
     private static readonly string FullestLinkHash = new('<', Convert.ToBase64String(DummyLinkHash).Length);
 
@@ -81,7 +70,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 ChallengeCredentials.CodeAndLink => (true, true),
                 var other => throw new UnreachableException($"Unmapped challenge credentials {other}."),
             };
-            LoginCode? code = mintsCode ? MintCode() : null;
+            LoginCode? code = mintsCode ? ChallengeCodeArm.Mint() : null;
             var secret = mintsLink ? RandomNumberGenerator.GetBytes(LinkSecretLength) : null;
 
             var payload = new ChallengePayload(
@@ -127,7 +116,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var presentedBytes = Encoding.ASCII.GetBytes(presented.Reveal());
             var recordKey = RecordKey(RecordSegment(id));
 
-            var result = await db.ScriptEvaluateAsync(ConsumeCodeScript, [recordKey]);
+            var result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
             if (result.IsNull)
             {
                 PayDummyCompare(presentedBytes);
@@ -150,7 +139,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
             // A record without a code compares against a stand-in and can never match, so it answers Wrong,
             // Wrong, Burned exactly as a record whose code was guessed wrong (security-auditor, Q18 (A) (i)).
-            var stored = payload.Code is null ? DummyCode : Encoding.ASCII.GetBytes(payload.Code);
+            var stored = payload.Code is null ? ChallengeCodeArm.DummyCode : Encoding.ASCII.GetBytes(payload.Code);
             var matched = CryptographicOperations.FixedTimeEquals(presentedBytes, stored) && payload.Code is not null;
 
             if (matched)
@@ -202,7 +191,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
         _redis.ExecuteAsync(async db =>
         {
             var binding = challenge.Binding;
-            var code = MintCode();
+            var code = ChallengeCodeArm.Mint();
 
             // No padding: the code is always present and of one length, and a Guid serialises to one width, so
             // the protected length already depends on the address alone.
@@ -239,7 +228,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var presentedBytes = Encoding.ASCII.GetBytes(presented.Reveal());
             var recordKey = BoundRecordKey(RecordSegment(id));
 
-            var result = await db.ScriptEvaluateAsync(ConsumeCodeScript, [recordKey]);
+            var result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
             if (result.IsNull)
             {
                 PayDummyCompare(presentedBytes);
@@ -254,7 +243,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var payload = OpenBound((byte[]?)parts[1], expected.Purpose);
             if (payload is null || payload.UserId != expected.UserId)
             {
-                _ = CryptographicOperations.FixedTimeEquals(presentedBytes, DummyCode);
+                _ = CryptographicOperations.FixedTimeEquals(presentedBytes, ChallengeCodeArm.DummyCode);
                 return ChallengeVerdict.Missing;
             }
 
@@ -274,16 +263,10 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 : ChallengeVerdict.Wrong(LoginChallengePolicy.MaxAttempts - (int)attempt);
         });
 
-    // RandomNumberGenerator.GetInt32 draws uniformly over the range (the runtime rejects biased samples), so
-    // no `% 1_000_000` skew exists to correct for (ADR 0142 D10).
-    private static LoginCode MintCode() =>
-        LoginCode.FromRaw(RandomNumberGenerator.GetInt32(0, CodeSpace)
-            .ToString("D" + LoginChallengePolicy.CodeLength, CultureInfo.InvariantCulture));
-
     private void PayDummyCompare(byte[] presented)
     {
         _ = Open(_dummyPayload);
-        _ = CryptographicOperations.FixedTimeEquals(presented, DummyCode);
+        _ = CryptographicOperations.FixedTimeEquals(presented, ChallengeCodeArm.DummyCode);
     }
 
     private void PayDummyLinkCompare(byte[] secretHash)

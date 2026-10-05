@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
+using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
@@ -162,6 +164,35 @@ public static class AuthEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
+        // An address change an administrator started — COMPLETION (#1975, ADR 0153). PUBLIC: the owner presents the
+        // account's current address, the new address and the code mailed there, and no session is read or issued.
+        // Every refusal is one 410 with one body; a full match before the delay is a 409 carrying the earliest instant;
+        // a sender that cannot deliver is a 503 decided by the handler's first statement, before the store is asked.
+        // On success every session of the account is invalidated and the answer is 204. CancellationToken.None: a
+        // disconnect must abort neither the swap nor its teardown, and anything that fails after the swap answers 500,
+        // never a 503 that would invite a retry the refusal then meets.
+        group.MapPost("/account-email-change/complete", async (
+            AccountEmailChangeCompleteRequest body,
+            IMediator mediator,
+            ISessionStore sessions,
+            ILoggerFactory loggers) =>
+        {
+            var result = await mediator.Send(
+                new CompleteAccountEmailChangeCommand(body.CurrentEmail, body.NewEmail, body.Code),
+                CancellationToken.None);
+            if (result.IsFailure)
+                return ToErrorResult(result.Error);
+
+            return result.Value switch
+            {
+                AccountEmailChangeOutcome.NotYet notYet => AccountEmailChangeNotYet(notYet.CompletableFrom),
+                AccountEmailChangeOutcome.Completed completed => await AccountEmailChangeTeardownAsync(
+                    completed, sessions, loggers.CreateLogger(typeof(AuthEndpoints))),
+                var other => throw new UnreachableException(
+                    $"Unmapped account email change outcome {other.GetType().Name}."),
+            };
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
         // Login challenge — REQUEST step (#1735, ADR 0142 D2). PUBLIC and uniform: every well-formed address
         // answers 202 with a challenge id, whether it has an account, was just used, or is over its budget;
         // the only other answers are a format 400 and the 503s (a sender that cannot deliver, a store that is
@@ -275,6 +306,15 @@ public static class AuthEndpoints
     /// </summary>
     public sealed record EmailChangeConfirmRequest(string? ChangeEmailGrant, string? NewEmail);
 
+    /// <summary>
+    /// POST /auth/account-email-change/complete body (#1975). The addresses name a person and the code is a credential:
+    /// none is logged, and a record's generated text prints none.
+    /// </summary>
+    public sealed record AccountEmailChangeCompleteRequest(string? CurrentEmail, string? NewEmail, string? Code)
+    {
+        public override string ToString() => "AccountEmailChangeCompleteRequest(addresses and code redacted)";
+    }
+
     /// <summary>POST /auth/challenge body (#1735). A pure transport DTO; the address is never logged.</summary>
     public sealed record LoginChallengeRequest(string? Email);
 
@@ -300,6 +340,33 @@ public static class AuthEndpoints
     /// POST /auth/oauth/{provider}/callback body (#1744). The code and the state are credentials and are never logged.
     /// </summary>
     public sealed record ExternalLoginCallbackRequest(string? Code, string? State);
+
+    // The earliest instant travels as an extension of the problem, so the page can say when to come back.
+    private static IResult AccountEmailChangeNotYet(DateTimeOffset completableFrom) => Results.Problem(
+        detail: AuthErrorCodes.AccountEmailChangeNotYetMessage,
+        title: AuthErrorCodes.AccountEmailChangeNotYet,
+        statusCode: StatusCodes.Status409Conflict,
+        extensions: new Dictionary<string, object?> { ["completableFrom"] = completableFrom });
+
+    // The swap has committed, so the sessions go whatever happened to the audit row, and the answer is success only
+    // when both the teardown and the row are done.
+    private static async Task<IResult> AccountEmailChangeTeardownAsync(
+        AccountEmailChangeOutcome.Completed completed, ISessionStore sessions, ILogger logger)
+    {
+        try
+        {
+            await sessions.InvalidateAllForUserAsync(completed.UserId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            AccountEmailChangeLog.TeardownFailed(logger, completed.UserId, ex.GetType().Name);
+            return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+        }
+
+        return completed.AuditRecorded
+            ? Results.NoContent()
+            : Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+    }
 
     // Every outcome is a 200 carrying `outcome`. Internal so a test can hand it every variant: the default
     // arm below would otherwise turn a variant added without its arm into a 500 found at runtime. An external
@@ -388,10 +455,9 @@ public static class AuthEndpoints
         //     LoginChallengeAdmission's first statement and reads no input, so this 503 is decided
         //     before the submitted address is looked at and cannot vary with it. Move that check
         //     after the account lookup and this arm becomes an enumeration oracle.
-        AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
-            detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
-            title: AuthErrorCodes.EmailDeliveryUnavailable,
-            statusCode: StatusCodes.Status503ServiceUnavailable),
+        //   · POST /auth/account-email-change/complete (#1975) — unauthenticated, safe by the same ORDER:
+        //     the check is the handler's first statement, before the store is asked.
+        AuthErrorCodes.EmailDeliveryUnavailable => AuthProblem.EmailDeliveryUnavailable(),
 
         // #1744 — the external-login start budget is spent: the same availability axis. No Retry-After: the web's
         // start does not read it.

@@ -20,4 +20,12 @@ export const AUTH_ERROR_CODES = {
   ChangeEmailTargetBudgetExhausted: "Auth.ChangeEmailTargetBudgetExhausted",
   EmailChangeIncomplete: "Auth.EmailChangeIncomplete",
   ExternalEmailUnverified: "Auth.ExternalEmailUnverified",
+  InvalidCredentials: "Auth.InvalidCredentials",
+  UserNotFound: "Auth.UserNotFound",
+  AccountEmailChangeAdministratorTarget: "Auth.AccountEmailChangeAdministratorTarget",
+  AccountEmailChangeInactiveTarget: "Auth.AccountEmailChangeInactiveTarget",
+  AccountEmailChangePendingForAnotherAccount: "Auth.AccountEmailChangePendingForAnotherAccount",
+  AccountEmailChangeNothingPending: "Auth.AccountEmailChangeNothingPending",
+  AccountEmailChangeUnusable: "Auth.AccountEmailChangeUnusable",
+  AccountEmailChangeNotYet: "Auth.AccountEmailChangeNotYet",
 } as const;

@@ -10,7 +10,9 @@ import {
   type AdminAccountSortKey,
   type AdminAddressedAccount,
   type AdminRegion,
+  type AdminSelf,
 } from "@/lib/admin/view-models";
+import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
@@ -18,6 +20,7 @@ import {
   AdminAccountPanel,
   type AdminAccountCommand,
   type AdminCommandRefusal,
+  type AdminEmailChangeCommands,
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
 import { useTranslations } from "next-intl";
@@ -26,11 +29,21 @@ import { usePreviewState } from "./preview-shell.preview";
 const PAGE_SIZE = 10;
 const SOON_ID = "admin-preview-users-soon";
 /** The MVP's account actions (#1975–#1977), shown working here with fictional data. */
-const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "suspend", "reinstate", "scheduleDeletion"]);
+const LIVE: ReadonlySet<AdminLiveAction> = new Set([
+  "changeEmail",
+  "cancelEmailChange",
+  "suspend",
+  "reinstate",
+  "scheduleDeletion",
+]);
 /** The production filters, and Suspenderade, which the suspend flow here can fill. */
 const FILTERS: ReadonlyArray<AdminAccountFilter> = ["all", "active", "suspended", "pendingDeletion", "profileMissing"];
 /** Long enough for the pending state to show. */
 const SIMULATED_LATENCY_MS = 400;
+/** The step-up's challenge in memory: any six digits are taken as the administrator's code. */
+const PREVIEW_CHALLENGE = "preview-step-up";
+
+const latency = () => new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
 
 /** The directory's order: by the key, an unknown value last in both directions, then by id. */
 function compare(sort: AdminAccountSort) {
@@ -67,25 +80,33 @@ function applyCommand(
         savedSearchCount: null,
         resumeCount: null,
       };
-    case "changeEmail":
-      // A request, not a change: the address changes when the owner confirms.
-      return account;
   }
 }
 
 /** The account list and panel over the fixtures, in the state the band chose. */
 export function PreviewAccounts({
   accounts,
-  adminEmail,
+  self,
   deletionEarliest,
+  emailChanges,
+  startedChange,
+  returnPath,
 }: {
   readonly accounts: ReadonlyArray<AdminAccountDetail>;
-  readonly adminEmail: string;
+  readonly self: AdminSelf;
   readonly deletionEarliest: string;
+  /** The changes started before the fixed clock, by account. */
+  readonly emailChanges: ReadonlyArray<{ readonly accountId: string; readonly change: AdminPendingEmailChange }>;
+  /** The instants a change started here gets. */
+  readonly startedChange: Pick<AdminPendingEmailChange, "completableFrom" | "expiresAt">;
+  readonly returnPath: string;
 }) {
   const t = useTranslations("admin.users");
   const { kind } = usePreviewState();
   const [rows, setRows] = useState(accounts);
+  const [changes, setChanges] = useState<ReadonlyMap<string, AdminPendingEmailChange>>(
+    () => new Map(emailChanges.map(({ accountId, change }) => [accountId, change])),
+  );
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AdminAccountFilter>("all");
   const [sort, setSort] = useState<AdminAccountSort>({ key: "registeredAt", direction: "descending" });
@@ -116,6 +137,7 @@ export function PreviewAccounts({
   const loaded = kind === "loaded";
   const live = kind !== "unavailable";
   const open = loaded ? (rows.find((row) => row.id === openId) ?? null) : null;
+  const openChange = open === null ? undefined : changes.get(open.id);
 
   const region: AdminRegion<ReadonlyArray<AdminAccountRow>> = loaded ? listRegion(pageRows) : { kind };
 
@@ -131,13 +153,44 @@ export function PreviewAccounts({
     account: AdminAddressedAccount,
     next: AdminAccountCommand,
   ): Promise<AdminCommandRefusal> {
-    await new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
-    if (account.email === adminEmail) return t(`refusal.ownAccount.${next.kind}`);
+    await latency();
+    // The administrator's own account, told by its id as the real page tells it, never by its address.
+    if (account.id === self.userId) return t(`refusal.ownAccount.${next.kind}`);
     setRows((previous) =>
       previous.map((row) => (row.id === account.id ? applyCommand(row, next, deletionEarliest) : row)),
     );
     return null;
   }
+
+  // The address change over memory: a fixture step-up takes any six digits, and a request or a cancel changes only
+  // this tab's state, as the real commands change only the server's.
+  const emailChange: AdminEmailChangeCommands = {
+    requestCode: async () => {
+      await latency();
+      return { ok: true, challengeId: PREVIEW_CHALLENGE };
+    },
+    request: async (account) => {
+      await latency();
+      const change: AdminPendingEmailChange = {
+        state: "pending",
+        completableFrom: startedChange.completableFrom,
+        expiresAt: startedChange.expiresAt,
+      };
+      setChanges((previous) => new Map(previous).set(account.id, change));
+      return { ok: true, value: change };
+    },
+    cancel: async (account) => {
+      await latency();
+      if (!changes.has(account.id)) return { kind: "nothingPending" };
+      setChanges((previous) => {
+        const next = new Map(previous);
+        next.delete(account.id);
+        return next;
+      });
+      return { kind: "cancelled" };
+    },
+    returnPath,
+  };
 
   return (
     <>
@@ -178,7 +231,9 @@ export function PreviewAccounts({
         account={open}
         details={open === null ? { kind: "loading" } : { kind: "loaded", data: open }}
         onClose={() => setOpenId(null)}
-        commands={{ live: LIVE, run: command, deletionEarliestIfScheduledNow: deletionEarliest }}
+        self={self}
+        emailChange={openChange === undefined ? { kind: "none" } : { kind: "pending", change: openChange }}
+        commands={{ live: LIVE, run: command, deletionEarliestIfScheduledNow: deletionEarliest, emailChange }}
       />
     </>
   );

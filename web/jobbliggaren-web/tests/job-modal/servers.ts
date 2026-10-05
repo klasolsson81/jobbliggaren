@@ -35,6 +35,15 @@ export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "job-modal-harness-session";
 export const SYNTHETIC_CV = "%PDF-1.4 synthetic navigation fixture";
 
+/** The code that draws each answer of /adressbyte's completion (#1975); any other code is the one refusal. */
+export const ADDRESS_CHANGE_CODES = {
+  done: "111111",
+  notYet: "222222",
+  tooManyAttempts: "333333",
+  unavailable: "444444",
+  unknown: "555555",
+} as const;
+
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
@@ -173,6 +182,18 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (informationFlows && route === "POST /api/v1/auth/challenge/verify") {
       await bodyOf(request);
       return json(200, { outcome: "consentRequired", grantToken: "information-harness-grant" });
+    }
+    // #1975 — /adressbyte's completion, answered by the code typed: each code is one of the route's answers.
+    if (informationFlows && route === "POST /api/v1/auth/account-email-change/complete") {
+      const { code } = await bodyOf(request);
+      if (code === ADDRESS_CHANGE_CODES.done) return json(204);
+      if (code === ADDRESS_CHANGE_CODES.notYet) {
+        return json(409, { title: "Auth.AccountEmailChangeNotYet", status: 409, completableFrom: "2026-10-08T12:00:00+00:00" });
+      }
+      if (code === ADDRESS_CHANGE_CODES.tooManyAttempts) return json(429, { title: "Too Many Requests", status: 429 });
+      if (code === ADDRESS_CHANGE_CODES.unavailable) return json(503, { title: "Auth.EmailDeliveryUnavailable", status: 503 });
+      if (code === ADDRESS_CHANGE_CODES.unknown) return json(500, { status: 500 });
+      return json(410, { title: "Auth.AccountEmailChangeUnusable", status: 410 });
     }
     if (informationFlows && route === "POST /api/v1/resumes/import") {
       const chunks: Buffer[] = [];

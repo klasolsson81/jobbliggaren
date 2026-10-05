@@ -58,6 +58,7 @@ const PUBLIC_PAGES: PageTarget[] = [
   { path: "/logga-in", name: "logga-in" },
   // A token, or the page can only render its dead-link arm.
   { path: "/logga-in/lank?token=x", name: "logga-in-lank" },
+  { path: "/adressbyte", name: "adressbyte" },
 ];
 
 const VIEWPORTS = [

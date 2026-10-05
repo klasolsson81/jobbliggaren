@@ -334,4 +334,50 @@ internal static partial class EmailTemplates
                         ContactAddress)
                     + EmailHtml.SignOff()));
     }
+
+    /// <summary>
+    /// #1975 (ADR 0153) — told to an account's CURRENT address when an administrator starts a change of it, while the
+    /// change still waits, so that its holder can object (NIST SP 800-63B-4 §4.6). The properties of
+    /// <see cref="EmailChangedNotification"/>: no code, no site link and never the new address, none of which this
+    /// template is handed. Both instants are the pending change's own, in Swedish time.
+    /// </summary>
+    public static EmailContent AccountEmailChangeRequestedNotification(
+        DateTimeOffset completableFrom, DateTimeOffset expiresAt)
+    {
+        const string subject = "Begäran om att byta e-postadress på ditt konto";
+        var from = SwedishTime(completableFrom);
+        var until = SwedishTime(expiresAt);
+
+        return new EmailContent(
+            Subject: subject,
+            PlainTextBody: $"""
+                En administratör på Jobbliggaren har begärt att e-postadressen för ditt
+                konto byts.
+
+                Bytet kan göras tidigast {from}, och bara med koden som har
+                skickats till den nya adressen. Koden gäller till {until}.
+
+                Om du har bett oss om bytet behöver du inte göra något.
+
+                Om du inte känner igen begäran, skriv till oss så snart du kan:
+                {ContactAddress}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: subject,
+                preheader: $"Bytet kan göras tidigast {from}.",
+                body: EmailHtml.P(
+                        "En administratör på Jobbliggaren har begärt att e-postadressen för ditt konto byts.")
+                    + EmailHtml.P(
+                        $"Bytet kan göras tidigast {from}, och bara med koden som har skickats till den nya "
+                        + $"adressen. Koden gäller till {until}.")
+                    + EmailHtml.P("Om du har bett oss om bytet behöver du inte göra något.")
+                    + EmailHtml.LinkParagraph(
+                        "Om du inte känner igen begäran, skriv till oss så snart du kan:",
+                        $"mailto:{ContactAddress}",
+                        ContactAddress)
+                    + EmailHtml.SignOff()));
+    }
 }

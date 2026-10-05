@@ -478,6 +478,24 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         LoggedSurface().ShouldContain("EmailKind=email-changed-notification");
     }
 
+    [Fact]
+    public async Task ScalewayEmailSender_SendsAnAccountEmailChangeRequestedNotice_SelectsItsTemplate()
+    {
+        var sut = CreateSut();
+
+        await sut.SendAccountEmailChangeRequestedNotificationAsync(
+            Recipient,
+            new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 10, 9, 12, 30, 0, TimeSpan.Zero),
+            CancellationToken.None);
+
+        SubjectSent().ShouldBe("Begäran om att byta e-postadress på ditt konto");
+        TextSent().ShouldContain("tidigast 2026-10-08 kl 14:30");
+        TextSent().ShouldContain(EmailTemplates.ContactAddress);
+        TextSent().ShouldNotContain("https://");
+        LoggedSurface().ShouldContain("EmailKind=account-email-change-requested-notification");
+    }
+
     /// <summary>#1735's login-challenge mail, in its code-and-link variant.</summary>
     [Fact]
     public async Task ScalewayEmailSender_SendsALoginChallenge_SelectsTheLoginChallengeTemplate()

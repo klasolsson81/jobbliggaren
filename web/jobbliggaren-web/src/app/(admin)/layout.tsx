@@ -35,8 +35,10 @@ export default async function AdminLayout({
   // (which is empty). timeZone is inherited from the server request config.
   // The declaration is verified for EQUALITY against the import graph by
   // client-namespace-payload.test.ts — do not edit it by hand-reasoning.
+  // `pages` and `settings` are the shared re-authentication dialog's, which the
+  // account panel opens for an address change (#1975).
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "pages", "settings"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

@@ -56,4 +56,13 @@ public abstract record LoginChallengeEmail
     /// typed it may not own it, so the mail carries the whole Art. 14 notice.
     /// </summary>
     public sealed record AddressChangeCode(LoginCode Code) : LoginChallengeEmail;
+
+    /// <summary>
+    /// The code that proves the NEW address of a change an administrator started (#1975, ADR 0153), sent to that
+    /// address with the pending change's two instants: the code works from <see cref="CompletableFrom"/> until
+    /// <see cref="ExpiresAt"/>. Recipient class (3), and not <see cref="AddressChangeCode"/>: its Art. 14 notice names a
+    /// user as the address's source, and here the source is an administrator.
+    /// </summary>
+    public sealed record AccountEmailChangeCode(
+        LoginCode Code, DateTimeOffset CompletableFrom, DateTimeOffset ExpiresAt) : LoginChallengeEmail;
 }

@@ -6,7 +6,8 @@ import { PREVIEW_PORTS } from "./ports";
  * The local admin preview in a real browser (ADR 0150 D5): it stays inside its own route and reads
  * no backend; the band's state choice drives the account list; the account panel traps focus, layers
  * Escape and returns focus to its row; a destructive action asks first and confirms with a receipt;
- * an action on the administrator's own account is refused where it was asked; an unbuilt action does
+ * an action on the administrator's own account is refused where it was asked; an address change goes
+ * through a step-up over fixtures to a pending change and its cancel (#1975); an unbuilt action does
  * nothing; and no page scrolls sideways at phone width. Every account and address is fictional.
  */
 
@@ -50,7 +51,9 @@ const ALL_PATHS = [
 ];
 
 const adminNav = (page: Page) => page.getByRole("navigation", { name: "Admin-navigation" });
-const panel = (page: Page) => page.getByRole("dialog");
+/** The account panel, named by its account's address; the step-up it opens is another dialog. */
+const panel = (page: Page) => page.getByRole("dialog", { name: /@forhandsvisning\.invalid$/ });
+const stepUp = (page: Page) => page.getByRole("dialog", { name: "Ändra e-postadress" });
 const confirmation = (page: Page) => page.getByRole("alertdialog");
 const toast = (page: Page) => page.locator(".jp-toast");
 
@@ -225,37 +228,69 @@ test("an action on the administrator's own account is refused where it was asked
   await expect(confirmation(page).getByRole("alert")).toBeFocused();
   await expect(toast(page)).toHaveCount(0);
   await confirmation(page).getByRole("button", { name: "Avbryt" }).click();
-
-  await panel(page).getByRole("button", { name: "Ändra e-postadress" }).click();
-  const field = panel(page).getByLabel("Ny e-postadress");
-  await field.fill(mail("ny.adress"));
-  await panel(page).getByRole("button", { name: "Skicka bekräftelse" }).click();
-  await expect(panel(page).getByRole("alert")).toHaveText(
-    "Du kan inte byta adress på ditt eget konto här. Byt den på Mina sidor.",
-  );
-  await expect(panel(page).getByRole("alert")).toBeFocused();
-  await expect(field).toHaveValue(mail("ny.adress"));
-  await expect(toast(page)).toHaveCount(0);
 });
 
-test("an address change is sent as a request and refused when empty or unchanged", async ({ page }) => {
+test("the administrator's own account offers no address change, and points to Mina sidor", async ({ page }) => {
+  await page.goto(`${ROOT}/anvandare`);
+  await openAccount(page, mail("admin"));
+
+  const actions = panel(page).getByRole("region", { name: "Åtgärder" });
+  await expect(actions.getByRole("button", { name: /e-postadress/ })).toHaveCount(0);
+  await expect(actions).toContainText("Adressen på ett administratörskonto byts inte här. Byt din på Mina sidor.");
+});
+
+test("an address change is refused when empty or unchanged, then goes through a step-up to a pending change and its cancel", async ({ page }) => {
   await page.goto(`${ROOT}/anvandare`);
   await openAccount(page, mail("konto.a"));
   await panel(page).getByRole("button", { name: "Ändra e-postadress" }).click();
   const field = panel(page).getByLabel("Ny e-postadress");
-  const submit = panel(page).getByRole("button", { name: "Skicka bekräftelse" });
+  const proceed = panel(page).getByRole("button", { name: "Fortsätt" });
 
-  await submit.click();
+  await proceed.click();
   await expect(panel(page).getByRole("alert")).toHaveText("Skriv in den nya e-postadressen.");
   await expect(field).toBeFocused();
+  await expect(stepUp(page)).toHaveCount(0);
   await field.fill(mail("konto.a").toUpperCase());
-  await submit.click();
+  await proceed.click();
   await expect(panel(page).getByRole("alert")).toContainText("samma som kontots nuvarande");
+  await expect(stepUp(page)).toHaveCount(0);
 
   await field.fill(mail("ny.adress"));
-  await submit.click();
-  await expect(toast(page)).toContainText(`En bekräftelse har skickats till ${mail("ny.adress")}.`);
-  await expect(panel(page)).toHaveAccessibleName(mail("konto.a"));
+  await proceed.click();
+  await expect(stepUp(page)).toContainText(`En kod skickas till ${mail("ny.adress")} och ett meddelande till ${mail("konto.a")}.`);
+  await expect(stepUp(page)).toContainText(`skickar vi en sexsiffrig kod till ${mail("admin")}`);
+  await page.keyboard.press("Escape");
+  await expect(stepUp(page)).toHaveCount(0);
+  await expect(proceed).toBeFocused();
+
+  await proceed.click();
+  await stepUp(page).getByRole("button", { name: "Skicka kod" }).click();
+  await stepUp(page).getByLabel("Sexsiffrig kod").fill("123456");
+  await stepUp(page).getByRole("button", { name: "Bekräfta koden" }).click();
+
+  await expect(stepUp(page)).toHaveCount(0);
+  await expect(toast(page)).toContainText(`En kod har skickats till ${mail("ny.adress")}.`);
+  await expect(panel(page).getByRole("heading", { name: mail("konto.a") })).toBeFocused();
+  await expect(panel(page)).toContainText("Väntar på kontoägaren.");
+
+  await panel(page).getByRole("button", { name: "Avbryt adressbytet" }).click();
+  await expect(toast(page)).toContainText("Adressbytet är avbrutet.");
+  await expect(panel(page).getByRole("button", { name: "Ändra e-postadress" })).toBeVisible();
+});
+
+test("a change waiting for its owner, and one whose code was entered wrongly too often, show as facts", async ({ page }) => {
+  await page.goto(`${ROOT}/anvandare`);
+  await openAccount(page, mail("konto.f"));
+  await expect(panel(page)).toContainText(
+    "Väntar på kontoägaren. Koden kan användas från 2026-10-06 12:00 till 2026-10-07 12:00.",
+  );
+  await expect(panel(page).getByRole("button", { name: "Avbryt adressbytet" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await openAccount(page, mail("konto.j"));
+  await expect(panel(page)).toContainText(
+    "Koden har skrivits fel för många gånger och kan inte användas. Bytet upphör 2026-10-05 04:00.",
+  );
 });
 
 test("an unbuilt action stays in place, says Kommer snart and does nothing", async ({ page }) => {

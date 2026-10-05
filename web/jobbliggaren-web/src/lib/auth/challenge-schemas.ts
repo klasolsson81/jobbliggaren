@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CODE_PATTERN } from "@/lib/auth/code-format";
 
 // Input schemas of the login flow's Server Actions. A Server Action is reachable by an ordinary POST
 // that never passed through the form, so every field is parsed here whatever the markup promises.
@@ -11,11 +12,8 @@ import { z } from "zod";
  */
 export const emailInputSchema = z.string().trim().min(1).max(256);
 
-/** MIRROR of the backend `LoginChallengePolicy.CodeLength`. A malformed code spends no attempt. */
-export const codeInputSchema = z
-  .string()
-  .trim()
-  .regex(/^[0-9]{6}$/);
+/** A malformed code spends no attempt. */
+export const codeInputSchema = z.string().trim().regex(CODE_PATTERN);
 
 /** A bound challenge's id, re-authentication's and change-email's; the backend validators' bound (64). */
 export const challengeIdInputSchema = z.string().min(1).max(64);

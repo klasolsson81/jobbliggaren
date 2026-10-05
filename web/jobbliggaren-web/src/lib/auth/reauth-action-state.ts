@@ -33,7 +33,6 @@ export type ReauthOutcome<T> =
   | { ok: false; kind: "deadCode"; reason: "expired" | "burned" }
   /** Nothing the user typed, and nothing spent. */
   | { ok: false; kind: "status"; error: string }
-  /** The session is gone before the code was checked. */
   | { ok: false; kind: "notLoggedIn" }
   /**
    * The action refused its own input before the code was presented, so nothing was spent. Only a

@@ -523,6 +523,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `POST /api/v1/auth/change-email`
 - `POST /api/v1/auth/change-email/verify`
 - `POST /api/v1/auth/change-email/confirm`
+- `POST /api/v1/auth/account-email-change/complete`
 - `POST /api/v1/auth/oauth/{provider}/start`
 - `POST /api/v1/auth/oauth/{provider}/callback`
 - `GET /api/v1/auth/oauth/providers`
@@ -605,6 +606,9 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 **Admin (role = Admin eller SuperAdmin)**
 - `POST /api/v1/admin/accounts/search` — kontolistan: en sida och statusräkningarna; söktermen går i kroppen, aldrig i URL:en (#1974, ADR 0151)
 - `GET /api/v1/admin/accounts/{id}` — ett kontos uppgifter (#1974, ADR 0151)
+- `POST /api/v1/admin/accounts/{id}/email-change` — påbörja ett adressbyte som kontoägaren slutför efter fördröjningen; kräver administratörens egen kod (#1975, ADR 0153)
+- `DELETE /api/v1/admin/accounts/{id}/email-change` — avbryt kontots väntande adressbyte (#1975, ADR 0153)
+- `GET /api/v1/admin/accounts/{id}/email-change` — kontots väntande adressbyte, utan adress (#1975, ADR 0153)
 - `POST /api/v1/admin/accounts/{id}/suspend` — **OBYGGD** (#1976)
 - `POST /api/v1/admin/accounts/{id}/unsuspend` — **OBYGGD** (#1976)
 - `POST /api/v1/admin/accounts/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827

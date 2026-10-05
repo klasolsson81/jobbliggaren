@@ -57,6 +57,17 @@ an architecture test pins which handlers may inject `IAccountDirectory`. A hijac
 admin session can read every address; the `admin-read` rate limit bounds the cost
 of reading, not the exfiltration.
 
+An administrator can start a change of another account's address (ADR 0153), the
+one admin write that moves an account to another inbox. Each request costs the
+administrator's own re-authentication code; Admin accounts are refused by a fresh
+role read; the account's current address is told at once, and the change completes
+only after a delay, on the public `/adressbyte`, with the current address, the new
+address and the code mailed there. Every other presentation gets one identical
+refusal, the swap compares the account it loads against the address the change
+started from, and every session ends with none issued. A hijacked admin session
+alone cannot start one; a compromised or deceived administrator can, and the delay,
+the notice and `docs/runbooks/account-email-change-by-administrator.md` are the stops.
+
 ## Untrusted documents and external text
 
 `web/jobbliggaren-web/src/app/api/cv/import/route.ts` checks same-origin requests

@@ -5,6 +5,7 @@ import {
   emailInputSchema,
   linkTokenInputSchema,
 } from "./challenge-schemas";
+import { CODE_PATTERN } from "./code-format";
 
 describe("emailInputSchema", () => {
   it("trims, and decides nothing else about what an address is", () => {
@@ -30,6 +31,14 @@ describe("codeInputSchema", () => {
   it.each(["12345", "1234567", "12345a", "12 345", "", "１２３４５６"])("refuses %j", (value) => {
     expect(codeInputSchema.safeParse(value).success).toBe(false);
   });
+
+  // The browser checks a code with CODE_PATTERN alone (/adressbyte), so the action's schema must take exactly that.
+  it.each([" 012345 ", "012345", "12345", "1234567", "12345a", "12 345", "", "１２３４５６"])(
+    "decides %j as CODE_PATTERN does after a trim",
+    (value) => {
+      expect(codeInputSchema.safeParse(value).success).toBe(CODE_PATTERN.test(value.trim()));
+    },
+  );
 });
 
 describe("linkTokenInputSchema", () => {

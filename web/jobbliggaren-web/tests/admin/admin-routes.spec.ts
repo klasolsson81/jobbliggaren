@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { STEP_UP_GRANT } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
@@ -124,6 +125,66 @@ test("Användare opens an account in the panel, shows its details, and returns f
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   await expect(open).toBeFocused();
+});
+
+test("an address change goes through the administrator's own step-up, above the panel, then shows as pending until cancelled", async ({ page }) => {
+  await page.goto("/admin/anvandare");
+  await page.getByRole("button", { name: "konto.e@example.test" }).click();
+  const panel = page.getByRole("dialog", { name: "konto.e@example.test" });
+  await expect(panel.getByText("CV:n")).toBeVisible();
+  expect(harness.requests).toContain(`GET /api/v1/admin/accounts/${ACCOUNT_E}/email-change`);
+
+  await panel.getByRole("button", { name: "Ändra e-postadress" }).click();
+  await panel.getByLabel("Ny e-postadress").fill("ny.adress@example.test");
+  await panel.getByRole("button", { name: "Fortsätt" }).click();
+  const stepUp = page.getByRole("dialog", { name: "Ändra e-postadress" });
+  await expect(stepUp).toContainText("En kod skickas till ny.adress@example.test och ett meddelande till konto.e@example.test.");
+  await expect(stepUp).toContainText("skickar vi en sexsiffrig kod till admin@example.test");
+
+  // The step-up sits above the panel, by the stylesheet's layers and not by portal order: what is drawn at the
+  // panel's head is the step-up's overlay, and at the step-up's middle the step-up itself. The open step-up turns
+  // the panel's pointer events off, and elementFromPoint skips such an element, so they are on for the probe:
+  // otherwise a panel drawn above the overlay would pass unseen.
+  const paint = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>(".jp-adminstepup");
+    const overlay = content?.previousElementSibling as HTMLElement | null;
+    const panelElement = document.querySelector<HTMLElement>(".jp-adminpanel");
+    const head = panelElement?.querySelector<HTMLElement>(".jp-adminpanel__head");
+    if (!content || !overlay || !panelElement || !head) return null;
+    const middle = (element: HTMLElement) => {
+      const box = element.getBoundingClientRect();
+      return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    };
+    const before = panelElement.style.pointerEvents;
+    panelElement.style.pointerEvents = "auto";
+    const result = {
+      overHead: middle(head) === overlay,
+      overContent: content.contains(middle(content)),
+      z: [getComputedStyle(overlay).zIndex, getComputedStyle(content).zIndex],
+    };
+    panelElement.style.pointerEvents = before;
+    return result;
+  });
+  expect(paint).toEqual({ overHead: true, overContent: true, z: ["119", "120"] });
+
+  await stepUp.getByRole("button", { name: "Skicka kod" }).click();
+  await stepUp.getByLabel("Sexsiffrig kod").fill("123456");
+  await stepUp.getByRole("button", { name: "Bekräfta koden" }).click();
+
+  await expect(stepUp).toBeHidden();
+  await expect(panel.getByRole("heading", { name: "konto.e@example.test" })).toBeFocused();
+  await expect(panel.getByText("Adressbyte", { exact: true })).toBeVisible();
+  await expect(panel).toContainText("Koden kan användas från 2026-10-08 14:00 till 2026-10-09 14:00.");
+  await expect(page.locator(".jp-toast")).toContainText("En kod har skickats till ny.adress@example.test.");
+  // The grant went from the Server Action to the backend, and never through the browser.
+  expect(harness.emailChangeRequests.map((body) => JSON.parse(body))).toEqual([
+    { newEmail: "ny.adress@example.test", reauthGrant: STEP_UP_GRANT },
+  ]);
+
+  await panel.getByRole("button", { name: "Avbryt adressbytet" }).click();
+  await expect(panel.getByText("Adressbyte", { exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Ändra e-postadress" })).toBeVisible();
+  expect(harness.requests).toContain(`DELETE /api/v1/admin/accounts/${ACCOUNT_E}/email-change`);
 });
 
 test("an account gone by the time it opens says so, and Escape returns focus to the table", async ({ page }) => {

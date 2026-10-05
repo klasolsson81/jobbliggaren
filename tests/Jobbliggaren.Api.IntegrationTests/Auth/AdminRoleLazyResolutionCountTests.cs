@@ -133,7 +133,8 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
         public Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct)
             => inner.CheckAddressIsFreeAsync(userId, newEmail, ct);
 
-        public Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
-            => inner.SwapConfirmedAddressAsync(userId, newEmail, ct);
+        public Task<Result<AddressSwapped>> SwapConfirmedAddressAsync(
+            Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct)
+            => inner.SwapConfirmedAddressAsync(userId, newEmail, precondition, ct);
     }
 }

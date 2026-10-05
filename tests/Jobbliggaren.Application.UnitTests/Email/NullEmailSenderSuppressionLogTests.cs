@@ -101,6 +101,7 @@ public class NullEmailSenderSuppressionLogTests
 
     [Theory]
     [InlineData("email-changed-notification")]
+    [InlineData("account-email-change-requested-notification")]
     [InlineData("login-challenge")]
     public async Task EveryAccountLifecycleKind_LogsAtWarning(string expectedKind)
     {
@@ -112,6 +113,8 @@ public class NullEmailSenderSuppressionLogTests
         // minting or sending (#1735). It is raised at Warning anyway: if it ever fires, an invariant
         // broke, which is a louder event than a missing provider, not a quieter one.
         await sender.SendEmailChangedNotificationAsync("old@example.com", ct);
+        await sender.SendAccountEmailChangeRequestedNotificationAsync(
+            "current@example.com", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ct);
         await sender.SendLoginChallengeAsync(
             "user@example.com", new LoginChallengeEmail.RegistrationClosed(), ct);
 

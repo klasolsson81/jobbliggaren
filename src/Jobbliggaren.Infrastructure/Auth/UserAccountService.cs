@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -137,14 +138,27 @@ public sealed partial class UserAccountService(
         return user is { Email: { } accountEmail } ? new LoginAccount(user.Id, accountEmail) : null;
     }
 
-    public async Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
+    public async Task<Result<AddressSwapped>> SwapConfirmedAddressAsync(
+        Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct)
     {
         if (!StorableAddress.IsStorable(newEmail))
-            return Result.Failure(EmailNotStorableFailure());
+            return Result.Failure<AddressSwapped>(EmailNotStorableFailure());
 
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            return Result.Failure(DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
+            return Result.Failure<AddressSwapped>(
+                DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
+
+        // #1975 — checked on the instance just loaded, whose concurrency stamp guards the user-name write below: the
+        // owner's own swap or a role grant that lands after this load fails that write (Optimistic Offline Lock).
+        if (precondition is SwapPrecondition.FromAdministrator fromAdministrator
+            && !await StillFitsAsync(user, fromAdministrator.Expected))
+        {
+            return Result.Failure<AddressSwapped>(DomainError.Conflict(
+                AuthErrorCodes.AccountEmailChangeStale, AuthErrorCodes.AccountEmailChangeStaleMessage));
+        }
+
+        var previousEmail = user.Email;
 
         // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
         // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
@@ -158,12 +172,12 @@ public sealed partial class UserAccountService(
         catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
             // Both swaps passed the validator's read; the index refused this one's write.
-            return Result.Failure(EmailTakenFailure());
+            return Result.Failure<AddressSwapped>(EmailTakenFailure());
         }
 
         if (!userNameResult.Succeeded)
         {
-            return Result.Failure(userNameResult.Errors.Any(error => IsDuplicateAccountError(error.Code))
+            return Result.Failure<AddressSwapped>(userNameResult.Errors.Any(error => IsDuplicateAccountError(error.Code))
                 ? EmailTakenFailure()
                 : EmailChangeIncompleteFailure());
         }
@@ -176,11 +190,18 @@ public sealed partial class UserAccountService(
         if (!changeResult.Succeeded)
         {
             LogAddressWriteFailedAfterUserName(userId);
-            return Result.Failure(EmailChangeIncompleteFailure());
+            return Result.Failure<AddressSwapped>(EmailChangeIncompleteFailure());
         }
 
-        return Result.Success();
+        return Result.Success(new AddressSwapped(previousEmail));
     }
+
+    // An administrator-initiated change fits the account only while the account still holds the address the change
+    // was started from, by the one normaliser every key uses, and does not hold Admin.
+    private async Task<bool> StillFitsAsync(ApplicationUser user, ExpectedCurrentAddress expected) =>
+        user.Email is { } email
+        && string.Equals(SubjectFingerprint.Hex(email), expected.Fingerprint, StringComparison.Ordinal)
+        && !await userManager.IsInRoleAsync(user, Roles.Admin);
 
     // Identity IdentityErrorDescriber codes (== the describer method names) for a taken username /
     // email. With UserName == Email + RequireUniqueEmail, a duplicate create trips both (#481 Low).

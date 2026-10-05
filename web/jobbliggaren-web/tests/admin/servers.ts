@@ -7,9 +7,12 @@ import { join } from "node:path";
 import {
   ADMIN,
   AUDIT_PAGE,
+  EMAIL_CHANGE_INSTANTS,
   FAILED_JOBS,
   MEMBER,
   RECURRING_JOBS,
+  STEP_UP_CHALLENGE,
+  STEP_UP_GRANT,
   accountDetails,
   accountsPage,
 } from "./fixtures";
@@ -41,6 +44,10 @@ export type Harness = {
   many: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
   readonly gone: Set<string>;
+  /** Accounts with a pending address change (#1975), as the request left them and the cancel removes them. */
+  readonly emailChanges: Set<string>;
+  /** Every address change request's body, as the backend received it. */
+  readonly emailChangeRequests: string[];
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
   /** Every backend path the app asked for, answered or not. */
@@ -78,12 +85,15 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const misses: string[] = [];
   const requests: string[] = [];
   const searches: string[] = [];
+  const emailChangeRequests: string[] = [];
 
   const harness: Harness = {
     who: "admin",
     mode: "ok",
     many: false,
     gone: new Set(),
+    emailChanges: new Set(),
+    emailChangeRequests,
     misses,
     requests,
     searches,
@@ -91,10 +101,12 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       misses.length = 0;
       requests.length = 0;
       searches.length = 0;
+      emailChangeRequests.length = 0;
       harness.who = "admin";
       harness.mode = "ok";
       harness.many = false;
       harness.gone.clear();
+      harness.emailChanges.clear();
     },
     async stop() {
       await Promise.all([close(proxy), close(backend)]);
@@ -146,6 +158,35 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       });
       return;
     }
+    // #1975 — the administrator's own step-up, then an account's address change: its request, cancel and read.
+    if (route === "POST /api/v1/auth/reauth") return json(202, { challengeId: STEP_UP_CHALLENGE });
+    if (route === "POST /api/v1/auth/reauth/verify") {
+      request.resume();
+      return json(200, { reauthGrant: STEP_UP_GRANT });
+    }
+    const emailChange = /^(GET|POST|DELETE) \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})\/email-change$/.exec(route);
+    if (emailChange !== null) {
+      const [, method, accountId = ""] = emailChange;
+      if (method === "GET") {
+        return harness.emailChanges.has(accountId) ? json(200, { state: "Pending", ...EMAIL_CHANGE_INSTANTS }) : json(204);
+      }
+      if (method === "DELETE") {
+        if (!harness.emailChanges.delete(accountId)) {
+          return json(410, { title: "Auth.AccountEmailChangeNothingPending", status: 410 });
+        }
+        return json(204);
+      }
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        emailChangeRequests.push(body);
+        harness.emailChanges.add(accountId);
+        json(202, EMAIL_CHANGE_INSTANTS);
+      });
+      return;
+    }
+
     const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
     if (detail !== null) {
       if (harness.mode !== "ok") return refusal();

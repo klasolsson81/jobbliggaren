@@ -127,6 +127,19 @@ public interface IEmailSender
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// #1975 (ADR 0153) — tells an account's CURRENT address that an administrator has started a change of it, while the
+    /// change still waits (NIST SP 800-63B-4 §4.6), with the earliest instant it can complete and the instant its code
+    /// stops working. It has the properties of <see cref="SendEmailChangedNotificationAsync"/>: no code, no site link,
+    /// and never the new address. <b>Delivery-dependent:</b> the caller awaits it, and a change whose notice was not
+    /// accepted never becomes completable.
+    /// </summary>
+    Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Sends the login-challenge mail (#1735, ADR 0142 D2): exactly one per admitted request, in the variant
     /// <paramref name="content"/> names.
     /// <para>

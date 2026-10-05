@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
@@ -25,7 +26,8 @@ public sealed class EmailTemplatesLoginChallengeTests
 
     public static TheoryData<string> Variants() =>
         ["code-and-link", "link-only", "registration-closed", "pending-deletion", "new-account-code",
-            "new-account-code-limit-reached", "reauthentication-code", "address-change-code"];
+            "new-account-code-limit-reached", "reauthentication-code", "address-change-code",
+            "account-email-change-code"];
 
     private static EmailTemplates.EmailContent RenderVariant(string variant) => variant switch
     {
@@ -37,10 +39,17 @@ public sealed class EmailTemplatesLoginChallengeTests
         "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
         "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw(SampleCode))),
         "address-change-code" => Render(AddressChange()),
+        "account-email-change-code" => Render(AccountEmailChange()),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
     private static LoginChallengeEmail.AddressChangeCode AddressChange() => new(LoginCode.FromRaw(SampleCode));
+
+    // 12:30 UTC is 14:30 in Stockholm while summer time holds; the code works for the window after the delay.
+    private static readonly DateTimeOffset CompletableFrom = new(2026, 10, 8, 12, 30, 0, TimeSpan.Zero);
+
+    private static LoginChallengeEmail.AccountEmailChangeCode AccountEmailChange() =>
+        new(LoginCode.FromRaw(SampleCode), CompletableFrom, CompletableFrom.AddHours(24));
 
     private static readonly Regex Tag = new("<[^>]*>", RegexOptions.CultureInvariant);
 
@@ -280,7 +289,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         var text = Unwrapped(rendered.PlainTextBody);
         text.ShouldContain("ditt konto");
-        text.ShouldContain("radera kontot eller byta e-postadress.");
+        text.ShouldContain("till exempel radera kontot eller byta en e-postadress.");
         text.ShouldNotContain("lösenord");
         rendered.HtmlBody.ShouldNotContain("lösenord");
         text.ShouldContain(EmailTemplates.ContactAddress);
@@ -300,7 +309,8 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.HtmlBody.ShouldNotContain("token=");
     }
 
-    // The bound blocks as security-auditor signed them in #1825's form round (DESIGN.md §8 rule 7, ADR 0144 D4).
+    // The bound blocks as security-auditor signed them (DESIGN.md §8 rule 7, ADR 0144 D4): #1825's form round, and the
+    // #1975 panel for the administrator-initiated change's mail and the re-authentication opening it widened.
     // Each is asserted word for word in both parts, because the two are hand-maintained copies.
     private const string SignedProcessor =
         "E-posten levereras av Scaleway SAS i Frankrike, som i personuppgiftsbiträdesavtalet har åtagit sig att "
@@ -340,7 +350,8 @@ public sealed class EmailTemplatesLoginChallengeTests
         ["controller-and-rights"] = SignedControllerAndRights,
         ["complaint"] = SignedComplaint,
         ["reauth-opening"] =
-            "Någon som är inloggad på ditt konto vill göra en ändring: radera kontot eller byta e-postadress.",
+            "Någon som är inloggad på ditt konto vill göra en ändring som kräver en kod, till exempel radera kontot "
+            + "eller byta en e-postadress.",
         ["reauth-detection"] =
             "Om det inte var du är någon annan inloggad på ditt konto. Ändringen kan inte göras utan koden. Skriv "
             + "till oss så hjälper vi dig: " + EmailTemplates.ContactAddress,
@@ -357,6 +368,20 @@ public sealed class EmailTemplatesLoginChallengeTests
             "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller, och i högst 10 minuter till om du "
             + "använder koden. Avtryck av adressen sparas i högst ett dygn. Slutförs bytet sparas adressen så länge "
             + "kontot finns, annars finns den inte kvar hos oss efter tiderna ovan. " + SignedProcessor,
+        ["account-email-change-opening"] =
+            "En administratör har begärt att byta e-postadress på ett Jobbliggaren-konto till den här adressen.",
+        ["account-email-change-validity"] = "Koden går att använda från 2026-10-08 kl 14:30 till 2026-10-09 kl 14:30.",
+        ["account-email-change-what-to-enter"] =
+            "Där skriver du kontots nuvarande e-postadress, den här adressen och koden.",
+        ["account-email-change-ground"] =
+            "Adressen har vi fått från en administratör hos oss, som angav den för bytet. Den används för att skicka "
+            + "det här meddelandet, för att begränsa hur många meddelanden som kan skickas till den, för att "
+            + "kontrollera att den som äger adressen godkänner bytet, och som kontots nya adress om bytet slutförs. "
+            + "Grunden är berättigat intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto utan att "
+            + "den som äger den bekräftar det.",
+        ["account-email-change-retention"] =
+            "Vi sparar adressen skyddad, och ett avtryck av den, i högst 96 timmar. Slutförs bytet sparas adressen så "
+            + "länge kontot finns. " + SignedProcessor,
         ["pending-deletion-restore"] =
             "Kontot raderas permanent tidigast 2026-10-19. Fram till dess kan du få det återställt genom att skriva "
             + "till oss: " + EmailTemplates.ContactAddress,
@@ -373,6 +398,12 @@ public sealed class EmailTemplatesLoginChallengeTests
         [
             "address-change-ground", "address-change-ignoring", "address-change-retention", "controller-and-rights",
             "complaint",
+        ],
+        ["account-email-change-code"] =
+        [
+            "account-email-change-opening", "account-email-change-validity", "account-email-change-what-to-enter",
+            "address-change-ignoring", "account-email-change-ground", "account-email-change-retention",
+            "controller-and-rights", "complaint",
         ],
         ["reauthentication-code"] = ["reauth-opening", "reauth-detection"],
         ["pending-deletion"] = ["pending-deletion-restore"],
@@ -442,6 +473,53 @@ public sealed class EmailTemplatesLoginChallengeTests
             .ShouldBe([nameof(LoginChallengeEmail.AddressChangeCode.Code)]);
     }
 
+    [Fact]
+    public void AccountEmailChangeCode_names_the_page_with_no_parameter_in_both_parts()
+    {
+        // Somewhere to use the code, and nothing in the URL: neither the code nor an address (security-auditor C-3).
+        var rendered = Render(AccountEmailChange());
+
+        rendered.Subject.ShouldBe("Bekräfta din nya e-postadress");
+        rendered.PlainTextBody.Split('\n').Select(line => line.TrimEnd('\r')).ShouldContain($"{BaseUrl}/adressbyte");
+        rendered.HtmlBody.ShouldContain($"href=\"{BaseUrl}/adressbyte\"");
+        foreach (var part in new[] { rendered.PlainTextBody, rendered.HtmlBody })
+        {
+            part.ShouldNotContain("/adressbyte?");
+            part.ShouldNotContain("token=");
+            part.ShouldNotContain(EmailTemplates.LoginLinkRoute);
+        }
+    }
+
+    [Fact]
+    public void AccountEmailChangeCode_names_no_account_and_reads_its_retention_from_the_policy()
+    {
+        var rendered = Render(AccountEmailChange());
+
+        foreach (var part in new[] { Unwrapped(rendered.PlainTextBody), Unwrapped(Tag.Replace(rendered.HtmlBody, " ")) })
+        {
+            part.ShouldNotContain("ditt konto");
+            part.ShouldNotContain("en användare");
+            part.ShouldNotContain("!");
+            part.ShouldNotContain("—");
+        }
+
+        AccountEmailChangePolicy.Ttl.ShouldBe(TimeSpan.FromHours(96), "the copy's 'högst 96 timmar'");
+    }
+
+    [Fact]
+    public void AccountEmailChangeCode_is_handed_nothing_that_identifies_the_account()
+    {
+        typeof(LoginChallengeEmail.AccountEmailChangeCode).GetProperties()
+            .Select(property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(
+            [
+                nameof(LoginChallengeEmail.AccountEmailChangeCode.Code),
+                nameof(LoginChallengeEmail.AccountEmailChangeCode.CompletableFrom),
+                nameof(LoginChallengeEmail.AccountEmailChangeCode.ExpiresAt),
+            ]);
+    }
+
     [Theory]
     [InlineData("code-and-link")]
     [InlineData("link-only")]
@@ -479,6 +557,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
         [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw(SampleCode)),
         [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(),
+        [nameof(LoginChallengeEmail.AccountEmailChangeCode)] = AccountEmailChange(),
     };
 
     private static string Unwrapped(string body) => MailText.Unwrapped(body);

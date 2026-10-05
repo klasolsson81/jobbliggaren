@@ -19,7 +19,8 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 [#1972](https://github.com/klasolsson81/jobbliggaren/issues/1972) (the epic) ·
 [#1973](https://github.com/klasolsson81/jobbliggaren/issues/1973) (the issue this ADR ships under)
 **Measured against:** `origin/main` at `7c21f8117`, 2026-10-04.
-**Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions.
+**Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions;
+2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -200,7 +201,8 @@ The handoff is a design reference, not production code. What ships departs from 
 | TanStack Query and a 60 s status poll | Neither | AGENTS.md §4; no observation exists to refresh, and "checked every 60 seconds" would be a claim without one (D2) |
 | A clickable `<tr>` | A button inside the row | A native button carries the keyboard and screen-reader semantics a `<tr>` lacks |
 | A role select in the edit form | The role read-only | Role change is #1983 (D4) |
-| The edit form's receipt, "Ändringarna sparades och loggades." | "En bekräftelse har skickats till …", saying the address changes once the account holder confirms it | D2: when the request goes out nothing has changed yet (#1975) |
+| The edit form's receipt, "Ändringarna sparades och loggades." | "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden, tidigast {from}." *(rewritten 2026-10-05, ADR 0153 D5: it read "En bekräftelse har skickats till …")* | D2: when the request goes out nothing has changed yet (#1975) |
+| The edit form's primary "Spara", a direct save of the address, with no step-up, no pending state and no cancel (README lines 143-145) | "Fortsätt", which opens the administrator's own step-up code, then the pending row with its earliest instant and "Avbryt adressbytet" | ADR 0142 D5: a change of the recovery address is proved by inboxes, never saved directly; #1975's form round (ADR 0153) |
 | An Åtgärder column of two icon buttons per row, "Agera som användaren" and "Redigera" | No column: an account's actions are in its panel, named in words | A row holds one control, the button that opens the panel |
 | Filter and period buttons with `aria-pressed` | The house `Segment`, a radio group | One choice among several; `components/ui/segment.tsx` is the house control for it |
 | The impersonation banner's "Allt du gör loggas dubbelt i granskningsloggen." | Cut | Impersonation is #1984 (D4); D2 |

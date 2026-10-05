@@ -114,6 +114,11 @@ its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{b64
 `auth/challenge-by-user/v1/{purpose}/{hex}` (3a), `auth/oauth-state/v1/{b64url(sha256(state))}` (6a), `budget/{scope}/v1/{hex}`. No new root
 segment beside `session:`; a record-shape change costs a new segment, never a decode crash on live
 records.
+
+*(Pointer, 2026-10-05, #1975: two families join this list, `auth/account-email-change/v1/{hex}` and its account index
+`auth/account-email-change-by-user/v1/{hex}`, held by a store of their own (ADR 0153 D3). Their record lives 96 hours, so
+the TTL in the next paragraph is the login and re-authentication challenges' and is not edited.)*
+
 **TTL 15 min** for code and link (one expiry state). **3 attempts, then the code is burned** — a state of
 the code arm only: the record stays until its TTL and its link still signs in (Klas's (A),
 security-auditor Q-S1). Code and link share one record, so consuming either removes both — but a wrong
@@ -407,6 +412,11 @@ per-address mail budget is not consulted, because the public login arm spends it
 #1790's order, verifying no token of its own, notifies the old address, and then, as `/change-password` does,
 invalidates every session and issues this device a fresh one with its lifetime. An address taken by then is 409
 `Auth.EmailTaken`; an unusable grant is 410. `AddressSwapCallerTests` pins the three files that name the swap.
+
+*(Pointer, 2026-10-05, #1975: "the three files" named the port, the adapter and the confirm handler. Since the swap's
+caller was extracted, the third is `ConfirmedAddressSwap`, the one caller every completed address change goes through,
+and `AddressSwapCallerTests` also pins by constructor the two handlers that take it: this step's confirm, and the
+completion of an address change an administrator started (ADR 0153 D7). The sentence above is not edited.)*
 
 **The mailed link is retired, and the re-authentication request's mail-budget gate with it.** The public
 `POST /auth/confirm-email-change`, the `/bekrafta-epost` page, `SendEmailChangeConfirmationAsync` and its template are
@@ -2748,6 +2758,12 @@ registered `IConnectionMultiplexer`", it means `VolatileRedisConnection` from th
 and `RedisCooldownGate`'s remaining surfaces stay on the durable instance and are not changed here
 (#1757).
 
+*(Pointer, 2026-10-05, #1975: the longest-lived key on the volatile instance is now an administrator-minted one, the
+pending address change's record and index at 96 hours (ADR 0153 D2, D3), where this paragraph names 24 hours at most. The
+anonymous-flood bound in the trigger-5 quotation below is untouched, because only an administrator can mint it: the Admin
+policy, a re-authentication grant of their own under `reauth-codes` (10 per 24 h), `AdminWrite`, and at most one live
+record per account and per new address. The paragraph above is not edited.)*
+
 **How code reaches it (dotnet-architect F1–F6).** `VolatileRedisConnection` is internal and owns a
 PRIVATE multiplexer that is never registered as `IConnectionMultiplexer`: an unkeyed second registration
 is last-wins and would move every session onto an instance that forgets them at a restart.
@@ -3230,6 +3246,7 @@ Answered 2026-09-25, "(b) Officiella märken": the marks and their exception are
 | Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
 | Re-authentication mint budget (3a) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h; past `reauth-codes` the request is REFUSED, since a link cannot re-authenticate | `IRateBudget` |
 | Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window and `change-email-per-target-daily` 3 / 24 h; each request also spends a re-authentication grant | `IRateBudget` |
+| Address change an administrator starts (#1975, 2026-10-05, ADR 0153) | per new address, whoever asks: `change-email-target` and `change-email-per-target-daily` above, shared with self-service; per administrator: `reauth-codes` 10 / 24 h, one grant per request, and `AdminWrite`; 3 attempts per change, counted before the compare; usable for 24 h after a 72 h delay | `IRateBudget` in the request handler; `IAccountEmailChangeStore` |
 | Live bound challenges | 1 per user and purpose: every mint burns the previous | `PutBoundAsync` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
@@ -3257,6 +3274,14 @@ new measurement recorded in an amendment here:
    (#1756, #1779, #1783), and part 2 re-bound the copy so that it rests on no such premise
    (Amendment 2026-09-21 (3)).
 
+*(Pointer, 2026-10-05, #1975: lapse trigger 5 fired and was re-run for the address change an administrator starts (ADR
+0153). It is a new minting path. The per-address bound is unchanged, because the change spends the same two per-address
+scopes as self-service and its attempts are the login challenge's: per new address, whoever asks, at most 3 codes per 24 h,
+3 attempts each, so at most 9 guesses a day, 9 × 10⁻⁶ = 0.0009 %/day, and 1 − (1 − 9 × 10⁻⁶)³⁶⁵, about 0.328 %/year,
+however many accounts or administrators ask. The figure counts attempts, and a code's longer life adds none. It ignores the
+second factor, the account's current address, so it is an upper bound. An administrator is bounded further by
+`reauth-codes`, 10 per 24 h. Arithmetic, re-taken 2026-10-05, not an observation, and not inherited by a later change.)*
+
 The rejected TOTP provider (`DependencyInjection.cs:1658-1676`) was rejected as **stateless**; the
 challenge path never goes through Identity's `opts.Tokens` providers, and re-enabling the "Email"
 provider would reintroduce exactly the property that was rejected.
@@ -3276,6 +3301,9 @@ while `DARK_MODE_ENABLED` is `false`.
   session. `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
   permanent (`retired-routes.test.ts`; why, in Amendment 2026-09-22 (5)).
+- *(Pointer, 2026-10-05, #1975: `/adressbyte` joins `(auth)`, a public page on which an account's owner completes an address
+  change an administrator started, with no session and no address in any URL. Its form is ADR 0153 D11, and nothing above
+  changes for the login routes.)*
 - **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list:**
   h1 → email field + the Art. 13 line → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no

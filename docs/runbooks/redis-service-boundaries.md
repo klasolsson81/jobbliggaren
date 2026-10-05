@@ -106,6 +106,15 @@ Each is enumerated in the template; unknown scopes are refused.
 `VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
 application declares differ.
 
+Both #1975 families are `RedisAccountEmailChangeStore`'s. On the record it sends
+one-key scripts only: the put (HGET, HMSET and EXPIRE in one), the owner-guarded and
+payload-guarded deletes (UNLINK), the guarded refund (HINCRBY), the owner-checked
+read (HGET), and the shared consume script with EXISTS before HINCRBY. On the index
+it sends SET with GET and EX on a put, and GET on a consume, a cancel and a read.
+It sends no `Condition` (WATCH), no PEXPIRE, HSET, HMGET or PTTL.
+`RedisAclContractTests.AccountEmailChanges_ApiVolatileIdentity_PutConsumeCancelAndReadThroughTheAdapter`
+runs those calls as `api-volatile`.
+
 A missing selector fails closed and does not look like what it is: the API is
 healthy and `/api/ready` is green, because both volatile identities may `PING`,
 while every route that reaches the uncovered key family answers the uniform

@@ -45,8 +45,6 @@ export function splitSelectorList(prelude: string): string[] {
 
 /**
  * Flat rule reader: every `selector { ... }`, with the enclosing at-rule prelude when there is one.
- * Deliberately not a full CSS parser — it only needs selector text, property names and byte order,
- * and a parser that understood more could disagree with the browser.
  *
  * It must nonetheless be fail-CLOSED, because a parser that silently sees no rules makes a
  * consumer's sweep report a clean stylesheet. The one error direction that matters is a `;`-terminated

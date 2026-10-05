@@ -6,7 +6,6 @@ readonly PYTHON=/usr/bin/python3
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 exec "$PYTHON" -I - "$script_dir" "$LOCK" "$@" <<'PY'
 import argparse
-import errno
 import fcntl
 import json
 import os
@@ -20,7 +19,7 @@ import time
 DOCKER = "/usr/bin/docker"
 ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 CID = re.compile(r"[0-9a-f]{64}\Z")
-REPO = re.compile(r"(?:[a-z0-9][a-z0-9.-]*(?::[0-9]+)?/)?[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*\Z")
+REPO = re.compile(r"(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::[0-9]+)?/)?[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*\Z")
 TAG = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}\Z")
 
 
@@ -45,7 +44,7 @@ def reference_kind(ref):
         name, tag = name.rsplit(":", 1)
         if not TAG.fullmatch(tag):
             return "unknown"
-    if not REPO.fullmatch(name):
+    if len(name) > 255 - len("docker.io/library/") or not REPO.fullmatch(name):
         return "unknown"
     return "tag" if tagged or len(parts) == 1 else "digest"
 

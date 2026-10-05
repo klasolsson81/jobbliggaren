@@ -25,7 +25,7 @@
 # WHAT MANUAL COMMANDS SEE. compose names our images `ghcr.io/klasolsson81/jobbliggaren-<x>:applied`,
 # a LOCAL tag this script moves only after everything is proven. A hand-typed `docker compose up -d --pull never api` therefore recreates from
 # the last verified release, never from something a refused run pulled. It still takes no lock and runs
-# no verification; manual mutations must hold the same reconcile lock (runbook §3d).
+# no verification; manual mutations must hold the same reconcile lock (runbook §3e).
 set -euo pipefail
 
 readonly CHECKOUT=/opt/jobbliggaren

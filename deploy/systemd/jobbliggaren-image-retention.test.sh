@@ -171,6 +171,16 @@ class Retention(unittest.TestCase):
         self.assertTrue(all(image_id(i) in self.s["images"] for i in range(40, 47)))
         self.assertIn(image_id(51), self.s["images"])
 
+    def test_moby_malformed_containerd_names_are_preserved(self):
+        # Moby collectRepoTagsAndDigests retains names ParseAnyReference rejects.
+        # These are read-side degradation assertions against that fallback shape.
+        for n, repo in enumerate(["bad..example/repo", "a-/repo", "-a/repo",
+                                  "bad.-example/repo", "repo/" + "a" * 260], 40):
+            self.add(n, [repo + "@" + image_id(300)])
+        r = self.invoke("--apply")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(self.removed(), [image_id(31), image_id(30)])
+        self.assertTrue(all(image_id(n) in self.s["images"] for n in range(40, 45)))
     def test_all_container_states_and_projects(self):
         for n, status in enumerate(["running", "exited", "created", "paused", "dead"], 40):
             self.add(n)

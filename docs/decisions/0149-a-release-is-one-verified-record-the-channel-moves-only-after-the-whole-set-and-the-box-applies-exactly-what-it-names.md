@@ -95,7 +95,8 @@ checkout's deployment files.
   pinned SHA. Record values never pass through `source`, `eval` or `${{ }}`.
 - **R2, content, not tag.** A record is identified by its digest. A tag (`dev`, `sha-<40>`) selects a record
   and vouches for nothing. A record under `sha-<X>` is accepted only if `SOURCE_SHA` = X and it verifies
-  against X. The publisher never rewrites a record, and a production promotion (#1961) names the digest.
+  against X. The publisher never rewrites a record, and a pin, like any promotion a second environment
+  would bring (deferred, ADR 0154), names the digest.
 - **R3, rollback window.** Every record published since this ADR merged is retained. Nothing deletes package
   versions automatically, and CI guards that; deleting one is Klas's decision. Within the window, the #1236
   schema gate decides what is compatible. There is no record-based rollback to an earlier release.
@@ -122,20 +123,22 @@ checkout's deployment files.
 - **R8, format evolution.** A format change ships consumer first: the box must accept FORMAT N+1, activated,
   before the publisher emits it.
 - **R9.** A record is not environment-neutral: its web digest inlines the build-time `NEXT_PUBLIC_SITE_URL`.
-  #1961 makes the artifact environment-neutral before any record is promoted.
-- **R10.** Until activation the box runs the pre-#1238 consumer on `latest`. The mixed window shrinks from the
-  spread across the matrix cells to the fan-in's five sequential tag moves. It closes only when the box
-  applies records.
+  With one box (ADR 0154) nothing is promoted, so the value is a fixed build input set to that box's domain.
+  Making the artifact environment-neutral is deferred to a second box.
+- **R10 (history).** Until activation on 2026-10-04 the box ran the pre-#1238 consumer on `latest`, and the
+  mixed window was the fan-in's five sequential tag moves. It closed when the box began applying records.
 
 ### 5. What C3–C9 settled
 
 - **C3 (a):** the box refuses a release whose deployment files differ from its checkout's, and prints the
-  exact command that advances the checkout to the release's commit. Whether dev may advance the checkout
-  without a GO each time is Klas's question (A / A2 / B, asked 2026-10-03); it gates activation, not this
-  merge.
+  exact command that advances the checkout to the release's commit. Klas answered A2 on 2026-10-04 (#1238,
+  comment 5982420396): "A2 för dev, med fortsatt stopp vid inkompatibilitet. Ansvarig session får stående GO
+  att uppdatera dev enligt runbooken och verifiera resultatet." On 2026-10-05 he extended it to the one box,
+  now production: "Det gäller direkt och tillsvidare." ADR 0154 §4 reads its scope.
 - **C4 (a):** App migration ids gate the channel (R7); Identity ids are recorded, and a journal line names
   any the incoming release adds (the unit never applies them; `vps-deploy-stack.md` §3c).
-- **C5 (a):** `latest` stays, moved after `dev`, until #1961 retires it and re-points `rescan-images.yml`.
+- **C5 (a):** `latest` stays, moved after `dev`, until a later change retires it and re-points
+  `rescan-images.yml` (parked on #1961; not in scope, not verified).
 - **C7:** frozen commits, with R2's validity predicate. **C8:** the record's readability gate is blocking.
   **C9:** activation is a separate, GO'd deploy.
 
@@ -147,9 +150,9 @@ published release is never rewritten, and an old run never moves the channel. Th
 runbooks recreate from the last verified release instead of whatever a refused pull left behind. The box
 records which release it runs (the receipt), which #1960 needs before any production GO.
 
-**Accepted costs.** `jobbliggaren-release` becomes public, irreversibly (it holds public metadata). Dev pauses
-on configuration-changing merges until the checkout is advanced (21 of 27 compose commits since 2026-08-01
-changed configuration — the session's measurement — pending Klas's answer). There is no record-based
+**Accepted costs.** `jobbliggaren-release` becomes public, irreversibly (it holds public metadata). Delivery
+pauses on a configuration-changing merge until the merging session advances the checkout (A2, §5 C3); 21 of
+27 compose commits between 2026-08-01 and 2026-10-03 changed configuration (that session's measurement). There is no record-based
 rollback to releases before the first record. Every fan-in run does a full clone, and every read of a record or
 an image is a cosign verification. `latest` survives as a transitional tag.
 
@@ -162,7 +165,8 @@ an image is a cosign verification. `latest` survives as a transitional tag.
   in the image stays authoritative on the box; a cross-check against `GetMigrations()` is #1961's, where the
   list first gates a promotion.
 - Upstream images (postgres, redis, seq) are bound by tag through compose, not by digest.
-- `:applied`, the receipt, the lock and the pin file are one per Docker daemon and host.
+- `:applied`, the receipt, the lock and the pin file are one per Docker daemon and host; with one box
+  (ADR 0154) that is one per environment.
 
 ## Alternatives considered
 
@@ -191,11 +195,12 @@ Delivered in #1238's PR: the record tool, the verifier's commit/ref/repository p
 release section and the runbooks. Fixture suites cover every class of the contract's point 5, and the publisher and the consumer were rehearsed against a real local
 registry and Compose v2.40.3.
 
-**Open, each with a dated measurement (#1238 stays open until all four):** (i) the first run of the new
-publisher on `main`, read from GHCR — dispatching it needs Klas's GO; (ii) Klas's C3 answer, recorded on
-#1238; (iii) activation on Klas's GO, in the order `vps-deploy-stack.md` §3b gives (visibility flip first;
-`pull_policy` measured on the box's Compose v5.4.0); (iv) the first automatic channel advance after it.
+**Done; #1238 closed 2026-10-04:** (i) the new publisher's first run on `main`, read from GHCR; (ii) Klas's
+C3 answer, A2 (§5); (iii) activation in `vps-deploy-stack.md` §3b's order, 2026-10-04 20:30–20:36 UTC,
+sequence 1563, after PR #2000 read each service's own image on the box's Compose v5.4.0; (iv) the first
+automatic channel advance, 21:47 UTC the same day, sequence 1564.
 
-**Handed to #1961:** an environment-neutral web artifact (R9); per-environment `:applied`, receipt, lock and
-pin (or C2-D); retiring `latest` and re-pointing the rescan; digests for upstream images; the migration-id
-cross-check.
+**Handed to #1961, re-scoped by ADR 0154 to hardening the unattended delivery on the one box:** digests for
+upstream images and the migration-id cross-check. Parked there (not in scope, not verified): retiring
+`latest` and re-pointing the rescan. Deferred to a second box: an environment-neutral web artifact (R9) and
+per-environment `:applied`, receipt, lock and pin (or C2-D).

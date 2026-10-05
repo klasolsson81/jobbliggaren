@@ -30,6 +30,16 @@ describe("useRecentSearchCounts", () => {
     expect(result.current).toBeUndefined();
   });
 
+  it("väntar (undefined) även när den slås på efter mount, tills hämtningen svarat", () => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise<Response>(() => {}));
+    const { result, rerender } = renderHook(({ on }) => useRecentSearchCounts(on), {
+      initialProps: { on: false },
+    });
+    expect(result.current).toBeNull();
+    rerender({ on: true });
+    expect(result.current).toBeUndefined();
+  });
+
   it("bygger en id→count-map vid 200 + giltigt svar", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse([

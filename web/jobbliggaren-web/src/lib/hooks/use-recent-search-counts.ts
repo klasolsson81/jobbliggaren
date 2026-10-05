@@ -35,7 +35,8 @@ const countsResponseSchema = z.array(
 );
 
 export function useRecentSearchCounts(enabled: boolean): RecentSearchCounts {
-  const [counts, setCounts] = useState<RecentSearchCounts>(enabled ? undefined : null);
+  const [counts, setCounts] = useState<ReadonlyMap<string, RecentSearchCount> | null>(null);
+  const [failed, setFailed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -50,18 +51,23 @@ export function useRecentSearchCounts(enabled: boolean): RecentSearchCounts {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const fail = () => {
+      setCounts(null);
+      setFailed(true);
+    };
+
     (async () => {
       try {
         const res = await fetch("/api/me/recent-searches/counts", {
           signal: controller.signal,
         });
         if (!res.ok) {
-          setCounts(null);
+          fail();
           return;
         }
         const parsed = countsResponseSchema.safeParse(await res.json());
         if (!parsed.success) {
-          setCounts(null);
+          fail();
           return;
         }
         setCounts(
@@ -72,9 +78,10 @@ export function useRecentSearchCounts(enabled: boolean): RecentSearchCounts {
             ]),
           ),
         );
+        setFailed(false);
       } catch {
         // Abort/nätverksfel → tyst degradering (ingen krasch, inga tal).
-        if (!controller.signal.aborted) setCounts(null);
+        if (!controller.signal.aborted) fail();
       }
     })();
 
@@ -83,5 +90,6 @@ export function useRecentSearchCounts(enabled: boolean): RecentSearchCounts {
     };
   }, [enabled]);
 
-  return counts;
+  if (counts) return counts;
+  return failed || !enabled ? null : undefined;
 }

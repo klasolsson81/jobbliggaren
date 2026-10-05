@@ -218,9 +218,10 @@ class Retention(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertEqual(self.removed(), [])
 
-    def test_unreadable_record_tool_fails_closed(self):
-        # Broken staging is an invariant break; assert only safe refusal.
-        (self.root / "jobbliggaren-release-record.sh").chmod(0o000)
+    def test_directory_in_place_of_record_tool_fails_closed(self):
+        tool = self.root / "jobbliggaren-release-record.sh"
+        tool.unlink()
+        tool.mkdir()
         r = self.invoke("--apply")
         self.assertEqual(r.returncode, 2)
         self.assertEqual(self.removed(), [])
@@ -285,11 +286,14 @@ class Retention(unittest.TestCase):
         self.assertEqual(self.removed(), [])
 
     def test_timeout_before_deletion_and_lock_released(self):
-        self.s["sleep"] = ["image", "ls"]
+        tool = self.root / "jobbliggaren-release-record.sh"
+        tool.write_text("#!/usr/bin/env bash\nprintf '%s\\n' \"$$\" > " +
+                        str(self.root / "pid") + "\nexec /usr/bin/sleep 20\n")
         start = time.monotonic()
-        r = self.invoke("--apply", "--budget-seconds", "1")
+        r = self.invoke("--apply", "--budget-seconds", "3")
         self.assertEqual(r.returncode, 2, r.stdout)
-        self.assertLess(time.monotonic() - start, 1.8)
+        self.assertIn("receipt validation timed out", r.stdout)
+        self.assertLess(time.monotonic() - start, 4)
         self.assertEqual(self.removed(), [])
         with self.lock.open("r+") as f:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -300,7 +304,7 @@ class Retention(unittest.TestCase):
     def test_timeout_mutation_outcome_requires_new_inventory(self):
         self.s["sleep"] = ["image", "rm"]
         self.s["daemon_remove"] = image_id(31)
-        r = self.invoke("--apply", "--budget-seconds", "2")
+        r = self.invoke("--apply", "--budget-seconds", "5")
         self.assertEqual(r.returncode, 2, r.stdout)
         self.assertIn("daemon outcome unknown", r.stdout)
         self.assertNotIn(image_id(31), self.s["images"])

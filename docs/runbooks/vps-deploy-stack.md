@@ -660,7 +660,9 @@ cd /opt/jobbliggaren/deploy
 **The run, inside the same shell:**
 
 ```bash
-out=$(docker compose -f docker-compose.yml run --rm -T --pull never --no-deps migrate bootstrap </dev/null 2>&1); rc=$?
+out=$(exec </dev/null 2>&1
+  docker compose -f docker-compose.yml run --rm -T --pull never --no-deps migrate bootstrap
+); rc=$?
 echo "exit $rc"; [ "$rc" -eq 1 ] || printf '%s\n' "$out"; unset out
 ```
 

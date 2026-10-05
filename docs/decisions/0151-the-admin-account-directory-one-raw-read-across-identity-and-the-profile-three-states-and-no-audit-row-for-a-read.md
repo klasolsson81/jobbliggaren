@@ -158,7 +158,10 @@ account id travel only in request bodies.
 
 - **Architecture test.** Every message under `Application.Admin` implements `IAdminRequest`; none implements
   `ICapturesRecentSearch`; and only the three admin account query handlers inject `IAccountDirectory`, checked across
-  Application, Infrastructure, Api and Worker.
+  Application, Infrastructure, Api and Worker. *(Pointer, 2026-10-05, #1975: the consumer list is widened by one handler,
+  the request of an address change, which reads the account's role, status and address fresh through the directory by the
+  same rule the panel shows; the alternative was a fourth copy of the profile rule (ADR 0153 D5). "The three" above is
+  the count on 2026-10-04 and is not edited.)*
 - **Integration tests.** The status rule agrees with the login classifier for each state, each produced by a named actor.
   Every composed branch of the SQL runs against the migrated schema, so an Identity upgrade that renames the PascalCase
   tables, now names the code depends on, fails there. The term is in no log record, with the capture reading exceptions,

@@ -1,4 +1,5 @@
 using System.Net;
+using Jobbliggaren.Api.IntegrationTests.Admin;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -214,6 +215,26 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
             winner.UserName.ShouldBe(race.Contested);
             loser.Email.ShouldBe(loserOld);
         }
+    }
+
+    [Fact]
+    public async Task A_role_granted_after_the_account_was_loaded_refuses_that_instances_user_name_write()
+    {
+        // ADR 0153 D7: the administrator-initiated swap reads the role on the instance it loaded.
+        var ct = TestContext.Current.CancellationToken;
+        var oldEmail = Address("cas");
+        var userId = await CreateAccountAsync(oldEmail, ct);
+
+        using var swap = _factory.Services.CreateScope();
+        var userManager = swap.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var loaded = (await userManager.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
+
+        await AccountEmailChangeKit.GrantAdminAsTheRetiredSeederDidAsync(_factory, userId);
+
+        var write = await userManager.SetUserNameAsync(loaded, Address("cas-new"));
+        write.Succeeded.ShouldBeFalse();
+        write.Errors.ShouldContain(e => e.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure));
+        (await ReadAsync(userId)).UserName.ShouldBe(oldEmail);
     }
 
     private sealed record Account(Guid Id, string Email, string Session);

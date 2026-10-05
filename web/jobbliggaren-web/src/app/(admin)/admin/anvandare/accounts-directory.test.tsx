@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountsListing } from "@/lib/admin/account-directory";
 import type {
@@ -582,5 +582,81 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     expect(actionNames(panel)).not.toContain("Ändra e-postadress");
     expect(actionNames(panel)).not.toContain("Avbryt adressbytet");
     expect(within(panel).getByText("Det går inte att se om ett adressbyte väntar.")).toBeInTheDocument();
+  });
+
+  it("claims nothing about a request whose outcome is unknown, and offers no second request while it cannot tell", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    const unknown = "Vi kan inte se om koden skickades. Öppna kontot igen för att se om ett adressbyte väntar.";
+    requestActionMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: unknown });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await requestChange(user, panel);
+
+    const status = await within(panel).findByText(unknown);
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(within(panel).getByText("Adressbyte").nextElementSibling?.querySelector(".sr-only")).toHaveTextContent(
+      "Uppgift saknas",
+    );
+    expect(actionNames(panel)).not.toContain("Ändra e-postadress");
+    expect(within(panel).getByText("Det går inte att se om ett adressbyte väntar.")).toBeInTheDocument();
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(1);
+  });
+
+  it("says an account a request's refusal found gone is gone, and reads the list again", async () => {
+    serve({
+      [DETAIL_ROUTE]: () => json(DETAIL),
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+      [LIST]: () => json(answer([B, C])),
+    });
+    requestActionMock.mockResolvedValue({
+      ok: false,
+      kind: "operationRefused",
+      error: "Kontot finns inte längre.",
+      channel: "status",
+      after: "gone",
+    });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await requestChange(user, panel);
+
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
+    expect(within(panel).queryByRole("region", { name: "Åtgärder" })).toBeNull();
+    await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+    await waitFor(() => expect(shownAddresses(true)).toEqual(["konto.b@example.test", "konto.c@example.test"]));
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(1);
+  });
+
+  it("drops a cancel's answer that arrives after the panel has opened another account", async () => {
+    const D_EMAIL = "konto.d@example.test";
+    const D: Item = { ...A, id: "00000000-0000-4000-8000-000000000004", email: D_EMAIL };
+    fetchMock.mockImplementation(async (path, init) => {
+      const { id } = JSON.parse(String(init.body)) as { readonly id: string };
+      if (path === DETAIL_ROUTE) return json({ ...(id === D.id ? D : A), resumeCount: 2, savedSearchCount: 3 });
+      if (path === EMAIL_CHANGE_ROUTE) return json(PENDING_READ);
+      throw new Error(`unexpected path ${path}`);
+    });
+    let settle: (outcome: AdminEmailChangeCancelOutcome) => void = () => {};
+    cancelActionMock.mockImplementation(() => new Promise((resolve) => (settle = resolve)));
+    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([A, D])) }} self={SELF} />);
+
+    const panelA = await openA();
+    await userEvent.click(within(panelA).getByRole("button", { name: "Avbryt adressbytet" }));
+    expect(cancelActionMock).toHaveBeenCalledWith(A.id);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: D_EMAIL }));
+    const panelD = screen.getByRole("dialog", { name: D_EMAIL });
+    await waitFor(() => expect(within(panelD).getByText("Adressbyte").nextElementSibling).toHaveTextContent(PENDING_LINE));
+
+    await act(async () => settle({ kind: "cancelled" }));
+
+    expect(within(panelD).getByText("Adressbyte").nextElementSibling).toHaveTextContent(PENDING_LINE);
+    expect(actionNames(panelD)).toContain("Avbryt adressbytet");
+    expect(callsTo(DETAIL_ROUTE)).toEqual([{ id: A.id }, { id: D.id }]);
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: D.id }]);
   });
 });

@@ -563,6 +563,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
 
 describe("AdminAccountPanel — an administrator account's address (#1975, design-reviewer item 1)", () => {
   it("offers no address change for an administrator account, and says so where it would stand", () => {
+    // A second Admin holder: produced by IdempotentAdminRoleSeeder before #2006; AdminBootstrapHolderTests.The_bootstrap_never_grants_the_configured_address_s_next_holder_while_the_role_has_one pins that today's seeder does not.
     renderPanel({ ...ACTIVE, role: "admin" });
 
     expect(actionNames()).not.toContain("Ändra e-postadress");

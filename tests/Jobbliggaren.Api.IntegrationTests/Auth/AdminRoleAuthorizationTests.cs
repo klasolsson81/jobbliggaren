@@ -135,6 +135,7 @@ public class AdminRoleAuthorizationTests(ApiFactory factory)
         var beforeRevoke = await client.GetAsync(AdminEndpoint, ct);
         beforeRevoke.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        // Unreachable today: nothing in src/ removes the role. Asserted only as the read side's safe degradation.
         await DemoteFromAdminAsync(userId, ct);
 
         var afterRevoke = await client.GetAsync(AdminEndpoint, ct);

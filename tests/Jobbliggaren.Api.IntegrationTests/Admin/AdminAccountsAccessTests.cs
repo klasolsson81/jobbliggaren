@@ -45,6 +45,7 @@ public sealed class AdminAccountsAccessTests(ApiFactory factory)
         (await SearchAsync(client, new { }, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await client.GetAsync(DetailPath(userId), Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        // Unreachable today: nothing in src/ removes the role. Asserted only as the read side's safe degradation.
         await DemoteAsync(factory, userId);
 
         (await SearchAsync(client, new { }, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);

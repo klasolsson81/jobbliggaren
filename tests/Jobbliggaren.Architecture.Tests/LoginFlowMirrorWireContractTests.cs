@@ -13,9 +13,9 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// <b>The contract.</b> The web client cannot read a C# constant, so it re-types the numbers it
-/// shares with the backend. Six are joined here: how long the code and consent cookies live, how
-/// long "Skicka ny kod" stays closed, how many digits a code has, and how long an address and a
-/// link token may be. No test compared the two sides. The drift is not cosmetic: a longer server
+/// shares with the backend. Seven are joined here: how long the code and consent cookies live, how
+/// long "Skicka ny kod" stays closed, how many digits a code has, how many wrong codes end one, and
+/// how long an address and a link token may be. No test compared the two sides. The drift is not cosmetic: a longer server
 /// cooldown than the client's lets a resend through that answers with a record-less challenge id,
 /// and a longer code makes the client refuse every code before it is sent.
 /// </para>
@@ -39,18 +39,22 @@ public class LoginFlowMirrorWireContractTests
 
     [Fact]
     public void TheCodeCookieLivesAsLongAsTheChallenge() =>
-        ReadSeconds("CODE_PHASE_MAX_AGE_SECONDS")
+        ReadInteger("CODE_PHASE_MAX_AGE_SECONDS")
             .ShouldBe((int)LoginChallengePolicy.ChallengeTtl.TotalSeconds, Hint(FlowModule));
 
     [Fact]
     public void TheConsentCookieLivesAsLongAsTheGrant() =>
-        ReadSeconds("CONSENT_PHASE_MAX_AGE_SECONDS")
+        ReadInteger("CONSENT_PHASE_MAX_AGE_SECONDS")
             .ShouldBe((int)LoginChallengePolicy.GrantTtl.TotalSeconds, Hint(FlowModule));
 
     [Fact]
     public void TheResendCooldownIsTheDefaultServerWindow() =>
-        ReadSeconds("RESEND_COOLDOWN_SECONDS")
+        ReadInteger("RESEND_COOLDOWN_SECONDS")
             .ShouldBe(new AuthEmailCooldownOptions().LoginChallengeWindowSeconds, Hint(FlowModule));
+
+    [Fact]
+    public void TheRefusalCountsTheAttemptsTheBackendAllows() =>
+        ReadInteger("CODE_MAX_ATTEMPTS").ShouldBe(LoginChallengePolicy.MaxAttempts, Hint(FlowModule));
 
     [Fact]
     public void TheCodeFieldAsksForAsManyDigitsAsTheBackendMints()
@@ -90,7 +94,7 @@ public class LoginFlowMirrorWireContractTests
         $"{module} re-types this number from the backend. Change both sides in the same PR.";
 
     /// <summary>An exported constant written as an integer or as a product of integers.</summary>
-    private static int ReadSeconds(string name)
+    private static int ReadInteger(string name)
     {
         var expression = Regex
             .Match(Read(FlowModule), $@"\bexport\s+const\s+{name}\s*=\s*([^;]+);")

@@ -4,15 +4,11 @@ import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 import { checkAddressChange, type AddressChangeState } from "@/lib/auth/address-change";
 import { accountEmailChangeNotYetSchema } from "@/lib/dto/account-email-change";
 import { env } from "@/lib/env";
+import { formString } from "@/lib/forms/form-string";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemTitle } from "@/lib/http/problem";
 
 const COMPLETE_PATH = "/api/v1/auth/account-email-change/complete";
-
-const formString = (formData: FormData, name: string): string => {
-  const value = formData.get(name);
-  return typeof value === "string" ? value : "";
-};
 
 /** The earliest instant a "not yet" carries, or null when the answer does not read as one. */
 async function completableFromOf(res: Response): Promise<string | null> {

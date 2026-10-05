@@ -30,6 +30,7 @@ import { getSessionId, setSessionCookie } from "@/lib/auth/session";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { loginChallengeResponseSchema, loginOutcomeSchema } from "@/lib/dto/login-challenge";
 import { env } from "@/lib/env";
+import { formString } from "@/lib/forms/form-string";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemBody, readProblemTitle } from "@/lib/http/problem";
 
@@ -57,11 +58,6 @@ async function post(path: string, body: unknown): Promise<Response> {
     cache: "no-store",
   });
 }
-
-const formString = (formData: FormData, name: string): string => {
-  const value = formData.get(name);
-  return typeof value === "string" ? value : "";
-};
 
 export async function requestCode(
   _prev: EmailStepState,

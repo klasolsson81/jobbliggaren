@@ -77,7 +77,7 @@ jobs:
       # `docker_compose` var dessutom det fall vars felmod är **tyst**. Mekanismen har TRE
       # hem, avsiktligt, för tre publiker: **ADR 0110** § "What this does NOT guarantee",
       # stycket "Collation-version drift" (beslutet
-      # — GITIGNORERAD, `git grep` ser den inte), `release-checklist.md` §2 (den som taggar,
+      # — GITIGNORERAD, `git grep` ser den inte), `release-checklist.md` §2 (den som mergar,
       # plus reparationsproceduren) och `docker-compose.yml`:s `postgres-dev`-block (den som
       # bumpar). Lägg inte till ett fjärde — regenerera med
       #

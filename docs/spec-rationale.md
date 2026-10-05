@@ -171,6 +171,13 @@ PR rather than a TD; **no owner is assigned**, and it is not closed.
 **The fork exception, as the docs put it:** a fork "skips both filters and receives the
 main conversation's exact tool pool" (same page, same reading).
 
+**Why the release path is the deploy (ADR 0154, 2026-10-05):** the earlier "does not:
+deploy without Klas GO" and AGENTS.md §6's "no prod path yet" predate Klas's decision that
+the one box is production and every merge goes live. Keeping them would make every
+automerge a breach. His A2 answer of 2026-10-04 covered dev only; on 2026-10-05 he
+extended it: "Det gäller direkt och tillsvidare." ADR 0154 §4 reads its scope by its
+criterion (what a merged, recorded release contains).
+
 **Native review evidence (2026-10-03):** Klas reported repeated stalls when a
 completed GitHub bot result was followed by a demand to read a private Security
 Report behind authentication/Cloudflare. He directed sessions to use completed

@@ -2594,6 +2594,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  /* `anywhere`, not `break-word`: this is a flex container, and only `anywhere` lowers its items'
+     min-content, so a word wider than the card wraps inside it (#1875). */
+  overflow-wrap: anywhere;
 }
 .jp-job__company,
 .jp-app__company {
@@ -2628,6 +2631,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: flex-end;
   gap: 8px;
 }
+/* Row templates beside the chassis' `1fr auto`. They stay above the <=720px arm below, which has to
+   win at narrow widths: a media query adds no specificity, so source order decides (#1875). */
+.jp-job--icon { grid-template-columns: auto 1fr auto; }
+.jp-job--single { grid-template-columns: 1fr; }
 
 /* Dark mode: job- och application-titel byter till fet vit */
 [data-theme="dark"] .jp-job__title,
@@ -2643,6 +2650,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-job__actions {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+  /* The plate repeats the page heading (on /sparade, the title's own link too). `display: none`,
+     never a hidden box: it also takes the link out of the tab order (#1875). */
+  .jp-job--icon > .jp-job__match { display: none; }
+  /* A first icon button under the text puts its 16px glyph on the text rail; the hit area stays the
+     44px touch floor. Same idea as .jp-btn--flush. */
+  .jp-job__actions > .jp-icon-btn:first-child {
+    margin-inline-start: calc((16px - 44px) / 2);
   }
 }
 

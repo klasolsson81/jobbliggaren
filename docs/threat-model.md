@@ -146,12 +146,15 @@ on a `dev` that does not prove itself. Deleting a package version is Klas's
 decision; `.github/scripts/package-retention-guard.sh` refuses one in
 `.github/workflows` and `.github/scripts`.
 
-Root on the box is the remaining boundary. `/etc/jobbliggaren/release-pin`
+Root on the box is the remaining boundary. Since ADR 0154 the box is production.
+`security-auditor`'s finding on that stands as recorded, with its remedy (a separate production
+host) withdrawn by Klas.
+`/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the
 local `:applied` tags are root state. A
 record binds `deploy/docker-compose.yml` and `deploy/redis/healthcheck.sh`, and
 the box refuses one whose files differ from its checkout. Outside the record:
 `deploy/.env` and the secrets, the systemd scripts, and the upstream images,
 which are bound by tag. No record value passes through `source`, `eval` or a
-workflow expression. A box still running the pre-#1238 consumer reads the five
-`latest` tags, which the fan-in moves one after another, not atomically.
+workflow expression. The box has applied records since 2026-10-04; the five
+`latest` tags still move after `dev`, and nothing on the box reads them.

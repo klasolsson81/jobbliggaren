@@ -18,12 +18,12 @@ import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 interface RecentSearchRowProps {
   item: RecentJobSearchDto;
   /**
-   * Lat-hämtad träffräknare (B, CTO 2026-06-13). `undefined` = ännu inte
-   * laddad / timeout / fel → ingen siffra renderas (ALDRIG falsk "(0)").
+   * Lat-hämtad träffräknare (B, CTO 2026-06-13).
    * Kommer från `useRecentSearchCounts` i listan, INTE från `item.currentCount`
    * (som är 0 vid sidladdning, `includeCount=false`).
    */
   count?: RecentSearchCount;
+  countsPending?: boolean;
   onDeleted: (id: string) => void;
   onDeleteFailed: (id: string, error: string) => void;
 }
@@ -33,40 +33,49 @@ interface RecentSearchRowProps {
 // om newCount > 0.
 //
 // Talet hämtas LAT klient-side (B, CTO 2026-06-13) via `useRecentSearchCounts`
-// i listan och skickas in som `count`-prop. Saknas det (laddar/timeout/fel)
-// renderas ingen siffra — ALDRIG en falsk "(0)" (husets degraderingskontrakt).
+// i listan och skickas in som `count`-prop.
 function CountMeta({
-  currentCount,
-  newCount,
+  count,
+  pending,
   t,
-}: RecentSearchCount & { t: ReturnType<typeof useTranslations<"jobads.recent">> }) {
+}: {
+  count: RecentSearchCount | undefined;
+  pending: boolean;
+  t: ReturnType<typeof useTranslations<"jobads.recent">>;
+}) {
+  if (count === undefined && !pending) return null;
   const bold = (chunks: React.ReactNode) => <b>{chunks}</b>;
-  if (newCount > 0) {
-    return (
-      <div className="jp-job__meta jp-job__meta--search-count" style={{ marginTop: 8 }}>
-        <span>
-          {t.rich("hitsWithNew", {
-            b: bold,
-            currentCount,
-            newCount,
-          })}
-        </span>
-      </div>
-    );
-  }
   return (
-    <div className="jp-job__meta jp-job__meta--search-count" style={{ marginTop: 8 }}>
+    <div
+      className="jp-job__meta jp-job__meta--search-count"
+      style={{ marginTop: 8 }}
+      aria-hidden={count === undefined ? true : undefined}
+    >
       <span>
-        {t.rich("hits", {
-          b: bold,
-          currentCount,
-        })}
+        {count === undefined
+          ? "\u00A0"
+          : count.newCount > 0
+            ? t.rich("hitsWithNew", {
+                b: bold,
+                currentCount: count.currentCount,
+                newCount: count.newCount,
+              })
+            : t.rich("hits", {
+                b: bold,
+                currentCount: count.currentCount,
+              })}
       </span>
     </div>
   );
 }
 
-export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
+export function RecentSearchRow({
+  item,
+  count,
+  countsPending = false,
+  onDeleted,
+  onDeleteFailed,
+}: RecentSearchRowProps) {
   const router = useRouter();
   const t = useTranslations("jobads.recent");
   const coded = useCodedTaxonomyName();
@@ -97,11 +106,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
 
   return (
     <li>
-      <article
-        className="jp-job"
-        style={{ gridTemplateColumns: "auto 1fr auto", cursor: "pointer" }}
-        onClick={handleRowClick}
-      >
+      <article className="jp-job jp-job--icon" onClick={handleRowClick}>
         <div
           className="jp-job__match jp-job__match--neutral"
           aria-hidden="true"
@@ -110,9 +115,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
         </div>
         <div className="jp-job__body">
           <h3 className="jp-job__title">{label}</h3>
-          {count !== undefined && (
-            <CountMeta currentCount={count.currentCount} newCount={count.newCount} t={t} />
-          )}
+          <CountMeta count={count} pending={countsPending} t={t} />
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
           <Link href={href} className="jp-btn jp-btn--primary jp-btn--sm">

@@ -16,12 +16,12 @@ interface SavedJobAdRowProps {
 
 /**
  * F6 P5 Punkt 2 Del A — rad i `/sparade`-listan. Visar JobAd-metadata
- * från ADR 0048 in-handler-join (`item.jobAd`). `item.jobAd === null` betyder att
- * annonsRADEN saknas (föräldralöst `JobAdId`) → fallback "Annonsen är borttagen".
+ * från ADR 0048 in-handler-join (`item.jobAd`). `item.jobAd === null` →
+ * fallback "Annonsen är borttagen".
  *
  * #805-3 sanningssynk: den tidigare utsagan ("när annonsen soft-deletats eller
- * borttagits från Platsbanken") var falsk. `JobAd.DeletedAt` saknar writer (#821),
- * och en annons som försvinner ur Platsbankens flöde ARKIVERAS
+ * borttagits från Platsbanken") var falsk. En annons som försvinner ur
+ * Platsbankens flöde ARKIVERAS
  * (`Status = "Archived"`) — den joinar fortfarande och renderas som en vanlig rad.
  * Den sanningsenliga signalen är `item.jobAd.status`, som DTO:n numera bär. Att
  * surfa "aktiv/inte längre aktiv" på den här raden är **#817**.
@@ -50,17 +50,10 @@ export function SavedJobAdRow({
     });
   }
 
-  // Fallback-rendering när JobAd är null (soft-deletad / borttagen).
   if (item.jobAd === null) {
     return (
       <li>
-        <article
-          className="jp-job"
-          style={{
-            gridTemplateColumns: "auto 1fr auto",
-            opacity: 0.7,
-          }}
-        >
+        <article className="jp-job jp-job--icon" style={{ opacity: 0.7 }}>
           <div
             className="jp-job__match jp-job__match--neutral"
             aria-hidden="true"
@@ -97,10 +90,7 @@ export function SavedJobAdRow({
 
   return (
     <li>
-      <article
-        className="jp-job"
-        style={{ gridTemplateColumns: "auto 1fr auto" }}
-      >
+      <article className="jp-job jp-job--icon">
         <Link
           href={`/jobb/${item.jobAdId}`}
           className="jp-job__match jp-job__match--neutral"

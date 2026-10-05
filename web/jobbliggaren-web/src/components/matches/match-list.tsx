@@ -107,10 +107,7 @@ export function MatchList({ items }: MatchListProps) {
       <ul className="jp-jobs" aria-label={t("listLabel")}>
         {items.map((item) => (
           <li key={item.jobAdId}>
-            <article
-              className="jp-job"
-              style={{ gridTemplateColumns: "1fr auto" }}
-            >
+            <article className="jp-job">
               <div className="jp-job__body">
                 <h3 className="jp-job__title">
                   <Link href={`/jobb/${item.jobAdId}`} className="text-inherit no-underline">

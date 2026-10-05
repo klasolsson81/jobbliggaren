@@ -604,7 +604,7 @@ merge goes live on the one box (ADR 0154), no checkout advance may pass a Redis 
 ## References
 
 - AGENTS.md §2.1, §5, §12 · CLAUDE.md §6.5, §9.1, §9.2, §9.6 · BUILD.md §6.2
-- ADR 0008, 0022, 0023, 0024, 0028, 0142, 0143, 0150, 0151
+- ADR 0008, 0022, 0023, 0024, 0028, 0142, 0143, 0150, 0151, 0154
 - `docs/reviews/2026-10-04-1975-form-cto.md` and the three memos beside it (local)
 - `docs/runbooks/account-email-change-by-administrator.md` · `docs/runbooks/redis-service-boundaries.md` ·
   `docs/threat-model.md`

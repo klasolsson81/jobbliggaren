@@ -27,7 +27,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly IUserAccountService _accounts = Substitute.For<IUserAccountService>();
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
-    private readonly RecordingLogger<ConfirmEmailChangeCommandHandler> _logger = new();
+    private readonly RecordingLogger<ConfirmedAddressSwap> _logger = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -43,7 +43,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     }
 
     private ConfirmEmailChangeCommandHandler Sut() =>
-        new(_currentUser, _grants, _accounts, _sender, _logger);
+        new(_currentUser, _grants, new ConfirmedAddressSwap(_accounts, _sender, _logger));
 
     private static ConfirmEmailChangeCommand Command => new(Grant.Reveal(), NewEmail);
 

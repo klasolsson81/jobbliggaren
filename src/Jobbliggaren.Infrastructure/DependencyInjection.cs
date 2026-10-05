@@ -1805,6 +1805,7 @@ public static class DependencyInjection
             new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()));
 
         services.AddScoped<IUserAccountService, UserAccountService>();
+        services.AddScoped<ConfirmedAddressSwap>();
 
         // #746 PR-B: role resolution moved OUT of an IClaimsTransformation (which ran on every
         // authenticated request) and INTO the Api-layer Admin authorization handler

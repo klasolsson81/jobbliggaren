@@ -381,7 +381,7 @@ public sealed class EmailTemplatesLoginChallengeTests
             + "den som äger den bekräftar det.",
         ["account-email-change-retention"] =
             "Vi sparar adressen skyddad, och ett avtryck av den, i högst 96 timmar. Slutförs bytet sparas adressen så "
-            + "länge kontot finns, annars finns den inte kvar hos oss efter den tiden. " + SignedProcessor,
+            + "länge kontot finns. " + SignedProcessor,
         ["pending-deletion-restore"] =
             "Kontot raderas permanent tidigast 2026-10-19. Fram till dess kan du få det återställt genom att skriva "
             + "till oss: " + EmailTemplates.ContactAddress,

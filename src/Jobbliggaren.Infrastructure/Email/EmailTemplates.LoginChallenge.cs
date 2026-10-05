@@ -492,8 +492,7 @@ internal static partial class EmailTemplates
                 kopplas till ett konto utan att den som äger den bekräftar det.
 
                 Vi sparar adressen skyddad, och ett avtryck av den, i högst {lifetime}.
-                Slutförs bytet sparas adressen så länge kontot finns, annars finns den inte
-                kvar hos oss efter den tiden.
+                Slutförs bytet sparas adressen så länge kontot finns.
                 {ProcessorPlain}
 
                 {ControllerRightsAndComplaintPlain}
@@ -521,7 +520,7 @@ internal static partial class EmailTemplates
                         + "inte kunna kopplas till ett konto utan att den som äger den bekräftar det.")
                     + EmailHtml.P(
                         $"Vi sparar adressen skyddad, och ett avtryck av den, i högst {lifetime}. Slutförs bytet "
-                        + "sparas adressen så länge kontot finns, annars finns den inte kvar hos oss efter den tiden. "
+                        + "sparas adressen så länge kontot finns. "
                         + ProcessorHtml)
                     + ControllerRightsAndComplaintHtml()
                     + EmailHtml.SignOff()));

@@ -46,7 +46,7 @@ blind to that channel (#1217) — a green guard would then vouch for a file the 
 not run.
 
 ```bash
-docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
+sudo flock /run/jobbliggaren-reconcile.lock docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
 ```
 
 ---
@@ -152,7 +152,7 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 
 ```bash
 cd /opt/jobbliggaren
-C="docker compose -f deploy/docker-compose.yml"
+C="sudo flock /run/jobbliggaren-reconcile.lock docker compose -f deploy/docker-compose.yml"
 
 # 0. RE-ENTRY IS NOT FIRST BOOT. This block assumes empty certificate storage. On a box that
 #    has already issued anything, list BOTH trees before starting —
@@ -454,8 +454,7 @@ sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
 ```
 
 **Manual applies go through the unit.** `sudo systemctl start jobbliggaren-reconcile.service`,
-never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it: a
-manual apply takes no lock and runs no verification. Compose names our images as the local
+never a hand-typed `docker compose up -d`. Compose names our images as the local
 `:applied` tag with `pull_policy: never`, and only a
 proven run moves that tag, so a hand-typed `up` re-creates from the last verified release — never
 from something a refused run pulled.
@@ -469,7 +468,7 @@ change would depend on what GHCR holds then, and its lock branch reports success
 nothing. So these steps run:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 `--pull never` is not decoration: it says on the command line what `pull_policy: never` says in
@@ -487,10 +486,6 @@ the file, and the wrapper states the same argument at its own `up`.
 
   Anything else — `INCONSISTENT`, `NOT APPLIED`, exit 2 — means repairing through the unit first:
   a gate is not closed by re-creating from a state the unit has not vouched for.
-- **It takes no lock**, the case the wrapper's own header names. The timer fires at `:47` plus up
-  to 180 s of jitter and may run for up to 900 s. Do not run this inside that window; if you must,
-  re-read the gate's own log line afterwards, because a concurrent reconcile can re-create the
-  container underneath you.
 - **It does not run #1295's secrets-ownership gate — and here there is nothing for that gate to
   catch.** It compares the *incoming* image's uid and gid against the injected secrets' ownership,
   against a base-image bump that moves them. These steps re-create from the image already running
@@ -752,8 +747,7 @@ sudo JBL_INJECT_GOOGLE=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-se
 # then set, in deploy/.env:
 #   AUTH_OAUTH_GOOGLE_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__Google__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 Re-create, never `docker restart`: the variables are read at container creation.
@@ -840,9 +834,7 @@ sudo JBL_INJECT_GITHUB=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-se
 # then set, in deploy/.env:
 #   AUTH_OAUTH_GITHUB_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__GitHub__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy
-sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+sudo flock -n /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api'
 ```
 
 **The reading, dated, as a comment on #1732.** Counts, never printouts:
@@ -915,9 +907,7 @@ sudo JBL_INJECT_LINKEDIN=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-
 # then set, in deploy/.env:
 #   AUTH_OAUTH_LINKEDIN_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__LinkedIn__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy
-sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+sudo flock -n /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api'
 ```
 
 **The reading, dated, as a comment on #1732.** Counts, never printouts:
@@ -972,7 +962,9 @@ and apply stamp have committed. Bootstrap has only the after pass.
 `--stage`, `--status` and lock overlap never prune.
 
 Each automatic pass has a 60-second monotonic budget, including subprocess
-termination and reaping. An incomplete before pass is logged and does not
+termination and reaping. SIGINT or SIGTERM stops the active client group before
+releasing the lock and exits 2; an already submitted daemon operation may have
+completed, so the next pass inventories again. An incomplete before pass is logged and does not
 block release verification or repair. A complete after pass resolves that
 failure. An incomplete after pass exits 2 without restoring the successful
 deploy, its receipt or `:applied`. Ordinary deploy failures retain their

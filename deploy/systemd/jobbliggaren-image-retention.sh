@@ -27,6 +27,10 @@ class Incomplete(Exception):
     pass
 
 
+class Interrupted(Incomplete):
+    pass
+
+
 def log(message):
     print("retention: " + message, flush=True)
 
@@ -69,6 +73,7 @@ def main():
     deadline = time.monotonic() + args.budget_seconds
     removed = skipped = 0
     lock_fd = None
+    interruption_requested = finalizing = False
 
     def remaining():
         seconds = deadline - time.monotonic()
@@ -76,17 +81,9 @@ def main():
             raise Incomplete("budget exhausted; inventory again on the next pass")
         return seconds
 
-    def run(command, operation):
-        timeout = remaining() - 0.5
+    def stop_client(process, operation):
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
         try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                       start_new_session=True, close_fds=True)
-        except OSError:
-            raise Incomplete(operation + " could not start") from None
-        try:
-            output, _ = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            # Children never inherit the lock. A daemon mutation may outlive its client.
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
@@ -94,14 +91,49 @@ def main():
             try:
                 process.communicate(timeout=max(0.01, min(0.4, deadline - time.monotonic())))
             except subprocess.TimeoutExpired:
-                raise Incomplete(operation + " timed out; client reaping incomplete; daemon outcome unknown") from None
-            raise Incomplete(operation + " timed out; daemon outcome unknown; inventory again") from None
-        if process.returncode:
-            raise Incomplete(operation + " failed (exit " + str(process.returncode) + ")")
+                raise Incomplete(operation + " client reaping incomplete; daemon outcome unknown") from None
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+    def on_termination(signum, _frame):
+        nonlocal interruption_requested
+        if interruption_requested or finalizing:
+            return
+        interruption_requested = True
+        raise Interrupted("interrupted by " + signal.Signals(signum).name +
+                          "; daemon outcome unknown; inventory again")
+
+    def run(command, operation):
+        timeout = remaining() - 0.5
+        process = None
+        completed = False
         try:
-            return output.decode("utf-8")
-        except UnicodeError:
-            raise Incomplete(operation + " returned invalid encoding") from None
+            previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+            try:
+                try:
+                    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                               start_new_session=True, close_fds=True)
+                except OSError:
+                    raise Incomplete(operation + " could not start") from None
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+            try:
+                output, _ = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                raise Incomplete(operation + " timed out; daemon outcome unknown; inventory again") from None
+            completed = True
+            if process.returncode:
+                raise Incomplete(operation + " failed (exit " + str(process.returncode) + ")")
+            try:
+                return output.decode("utf-8")
+            except UnicodeError:
+                raise Incomplete(operation + " returned invalid encoding") from None
+        except KeyboardInterrupt:
+            raise Interrupted("interrupted; daemon outcome unknown; inventory again") from None
+        finally:
+            if process is not None and not completed:
+                stop_client(process, operation)
+
 
     def docker(arguments, operation):
         return run([DOCKER] + arguments, operation)
@@ -158,6 +190,8 @@ def main():
         return kinds & {"tag", "unknown"}
 
     try:
+        signal.signal(signal.SIGINT, on_termination)
+        signal.signal(signal.SIGTERM, on_termination)
         remaining()
         if args.lock_fd is None:
             lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
@@ -253,6 +287,7 @@ def main():
         log("incomplete removed=" + str(removed) + " skipped=" + str(skipped) + " reason=" + message)
         return 2
     finally:
+        finalizing = True
         if lock_fd is not None and args.lock_fd is None:
             os.close(lock_fd)
 

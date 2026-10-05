@@ -147,8 +147,7 @@ line, so `worker` — which shares those through the `x-app-email` anchor and co
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
@@ -192,25 +191,24 @@ fixed at creation, so a restart re-runs the seeder against the value the contain
 Measured 2026-08-16: the address *had* been changed after step 3 — the plain one was burned by a
 failed registration and the account was re-created under a `+`-alias — so a `restart` would have
 assigned Admin to the wrong account, one that was itself scheduled for deletion. Check before you
-choose:
+choose under the lock:
 
 ```bash
-sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash
+/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status || exit
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
   | grep AdminBootstrap
-```
-
-If that value is the account you registered, `restart` is enough:
-
-```bash
-sudo docker restart jobbliggaren-api
+# If that value is the account registered above, run the restart before leaving this shell.
+# Otherwise exit now and use the re-create block below.
+docker restart jobbliggaren-api
+exit
 ```
 
 If it is not, re-create instead — same command as step 10:
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 This is the sanctioned exception to *"manual applies go through the unit"* —
@@ -227,8 +225,7 @@ never the address.
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 ⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
@@ -262,8 +259,7 @@ that way: this repo is public, and the file carries the K2 credential. It is del
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and

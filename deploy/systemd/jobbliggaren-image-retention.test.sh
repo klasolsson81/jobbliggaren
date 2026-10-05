@@ -8,6 +8,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -312,6 +313,123 @@ class Retention(unittest.TestCase):
         self.s.pop("daemon_remove")
         r = self.invoke("--apply")
         self.assertEqual(r.returncode, 0, r.stdout)
+
+    def start_interrupted_pass(self):
+        (self.root / "state.json").write_text(json.dumps(self.s))
+        (self.root / "pid").unlink(missing_ok=True)
+        process = subprocess.Popen(["bash", str(self.helper), "--apply", "--receipt", str(self.receipt),
+                                    "--compose-file", str(self.root / "compose"), "--budget-seconds", "30"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   start_new_session=True)
+        self.addCleanup(self.cleanup_process, process)
+        return process
+
+    def cleanup_process(self, process):
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=3)
+        pid_file = self.root / "pid"
+        if pid_file.exists() and pid_file.read_text().isdigit():
+            try:
+                os.killpg(int(pid_file.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def wait_for_file(self, name, process, numeric=False):
+        deadline = time.monotonic() + 10
+        path = self.root / name
+        while time.monotonic() < deadline:
+            if path.exists() and (not numeric or path.read_text().isdigit()):
+                return path.read_text()
+            self.assertIsNone(process.poll(), "helper exited before " + name)
+            time.sleep(0.01)
+        self.fail("helper never reached " + name)
+
+    def assert_interrupted(self, process):
+        output, error = process.communicate(timeout=3)
+        self.assertEqual(process.returncode, 2, output + error)
+        self.assertIn("interrupted", output)
+        self.assertIn("daemon outcome unknown", output)
+        self.assertNotIn("SECRET", output + error)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(int((self.root / "pid").read_text()), 0)
+        with self.lock.open("r+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        self.s = json.loads((self.root / "state.json").read_text())
+
+    def test_signals_stop_inventory_client_and_release_lock(self):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(signal=signum):
+                self.s["sleep"] = ["image", "ls"]
+                process = self.start_interrupted_pass()
+                self.wait_for_file("pid", process, numeric=True)
+                process.send_signal(signum)
+                self.assert_interrupted(process)
+                self.assertEqual(self.removed(), [])
+
+    def test_signals_stop_mutation_client_and_next_pass_inventories_again(self):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(signal=signum):
+                self.add(30)
+                self.add(31, ["other/repo@" + image_id(300)])
+                (self.root / "calls").unlink(missing_ok=True)
+                self.s["sleep"] = ["image", "rm"]
+                self.s["daemon_remove"] = image_id(31)
+                process = self.start_interrupted_pass()
+                self.wait_for_file("pid", process, numeric=True)
+                process.send_signal(signum)
+                self.assert_interrupted(process)
+                self.assertEqual(self.removed(), [image_id(31)])
+                self.assertNotIn(image_id(31), self.s["images"])
+                self.s.pop("sleep")
+                self.s.pop("daemon_remove")
+                result = self.invoke("--apply")
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertNotIn(image_id(30), self.s["images"])
+
+    def test_repeated_signal_keeps_lock_until_cleanup_finishes(self):
+        # A scheduling pause in stop_client exposes the actual lock-release boundary.
+        pause = '''        marker = __import__("pathlib").Path(script_dir) / "cleanup-start"
+        marker.touch()
+        pause_deadline = time.monotonic() + 2
+        while not marker.with_name("cleanup-continue").exists() and time.monotonic() < pause_deadline:
+            time.sleep(0.01)
+'''
+        source = self.helper.read_text().replace("    def stop_client(process, operation):\n",
+                                                 "    def stop_client(process, operation):\n" + pause)
+        self.helper.write_text(source)
+        self.s["sleep"] = ["image", "rm"]
+        process = self.start_interrupted_pass()
+        self.wait_for_file("pid", process, numeric=True)
+        process.send_signal(signal.SIGINT)
+        self.wait_for_file("cleanup-start", process)
+        with self.lock.open("r+") as competitor:
+            with self.assertRaises(BlockingIOError):
+                fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        process.send_signal(signal.SIGTERM)
+        (self.root / "cleanup-continue").touch()
+        self.assert_interrupted(process)
+        self.assertEqual(self.removed(), [image_id(31)])
+
+    def test_signal_during_process_registration_reaps_client(self):
+        # Signal delivery inside Popen models the gap before the caller stores its handle.
+        wrapper = '''def spawn_before_registration(*args, **kwargs):
+    process = subprocess.Popen(*args, **kwargs)
+    (__import__("pathlib").Path(sys.argv[1]) / "pid").write_text(str(process.pid))
+    os.kill(os.getpid(), signal.SIGTERM)
+    return process
+
+
+'''
+        source = self.helper.read_text().replace("def main():\n", wrapper + "def main():\n")
+        source = source.replace("process = subprocess.Popen(command,", "process = spawn_before_registration(command,")
+        self.helper.write_text(source)
+        tool = self.root / "jobbliggaren-release-record.sh"
+        tool.write_text("#!/usr/bin/env bash\nexec /usr/bin/sleep 20\n")
+        process = self.start_interrupted_pass()
+        self.wait_for_file("pid", process, numeric=True)
+        self.assert_interrupted(process)
+        self.assertEqual(self.removed(), [])
 
     def test_overlap_no_inventory(self):
         with self.lock.open("w+") as f:

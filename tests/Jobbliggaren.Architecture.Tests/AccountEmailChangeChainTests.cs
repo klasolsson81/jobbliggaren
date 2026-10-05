@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailChange;
@@ -10,6 +11,7 @@ using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -121,6 +123,19 @@ public class AccountEmailChangeChainTests
         }
     }
 
+    [Fact]
+    public void The_administrators_answer_and_body_carry_exactly_their_members()
+    {
+        // ADR 0153 D1: the code reaches only the new inbox, so the 202 the administrator holds must carry none.
+        PublicPropertiesOf(typeof(AccountEmailChangePending)).ShouldBe(["CompletableFrom", "ExpiresAt"]);
+        PublicPropertiesOf(typeof(AdminAccountsEndpoints.AccountEmailChangeRequest)).ShouldBe(["NewEmail", "ReauthGrant"]);
+    }
+
+    private static string[] PublicPropertiesOf(Type type) =>
+        [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name).Order(StringComparer.Ordinal)];
+
+    private const string Receipt = "RedisReceipt";
+
     public static TheoryData<string> PrintedRecords() =>
     [
         nameof(RequestAccountEmailChangeCommand),
@@ -132,6 +147,8 @@ public class AccountEmailChangeChainTests
         nameof(AddressSwapped),
         nameof(CompleteAccountEmailChangeCommand),
         nameof(AuthEndpoints.AccountEmailChangeCompleteRequest),
+        nameof(RedisAccountEmailChangeStore.ChangePayload),
+        Receipt,
     ];
 
     private const string Address = "kansligt.namn@example.se";
@@ -150,6 +167,11 @@ public class AccountEmailChangeChainTests
         nameof(CompleteAccountEmailChangeCommand) => new CompleteAccountEmailChangeCommand(Address, Address, Secret),
         nameof(AuthEndpoints.AccountEmailChangeCompleteRequest) =>
             new AuthEndpoints.AccountEmailChangeCompleteRequest(Address, Address, Secret),
+        nameof(RedisAccountEmailChangeStore.ChangePayload) =>
+            new RedisAccountEmailChangeStore.ChangePayload(Address, Secret, Guid.NewGuid(), Secret, 0, 0),
+        Receipt => Activator.CreateInstance(
+            typeof(RedisAccountEmailChangeStore).GetNestedType(Receipt, BindingFlags.NonPublic)!,
+            Address, Encoding.UTF8.GetBytes(Secret))!,
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 

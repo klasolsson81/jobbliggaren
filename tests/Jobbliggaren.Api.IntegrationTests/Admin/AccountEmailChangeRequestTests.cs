@@ -69,6 +69,21 @@ public sealed class AccountEmailChangeRequestTests(ApiFactory factory)
         }
     }
 
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("DELETE")]
+    [InlineData("GET")]
+    public async Task The_empty_id_is_400_on_all_three_routes(string method)
+    {
+        var admin = await AccountEmailChangeKit.AdminAsync(factory, _token, Ct);
+        using var request = new HttpRequestMessage(new HttpMethod(method), AccountEmailChangeKit.Path(Guid.Empty));
+        if (method == "POST")
+            request.Content = JsonContent.Create(new { newEmail = Address("ny"), reauthGrant = "a-grant" });
+
+        (await admin.Client.SendAsync(request, Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        factory.Emails.Sent.Where(mail => mail.ToEmail == Address("ny")).ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task An_administrator_whose_role_was_removed_is_403_on_the_next_request()
     {
@@ -131,6 +146,7 @@ public sealed class AccountEmailChangeRequestTests(ApiFactory factory)
         response.Headers.CacheControl.ShouldNotBeNull().NoStore.ShouldBeTrue();
         response.Headers.CacheControl.Private.ShouldBeTrue();
         var body = await BodyAsync(response);
+        body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(["completableFrom", "expiresAt"]);
         var completableFrom = body.GetProperty("completableFrom").GetDateTimeOffset();
         var expiresAt = body.GetProperty("expiresAt").GetDateTimeOffset();
         completableFrom.ShouldBe(now + TimeSpan.FromHours(72), TimeSpan.FromMinutes(1));

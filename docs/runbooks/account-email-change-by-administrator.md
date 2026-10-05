@@ -22,10 +22,14 @@ The account stores no name (ADR 0142 D7), so a name proves nothing about who own
 
 1. **Never ask for, accept or store an identity document, a personnummer or anything else the account does not hold.**
    Collecting one is a processing with no purpose here.
-2. What may support a request, never decisive on its own: the requester names the account's current address exactly,
-   or states facts the directory shows without opening any content (when the account was registered, whether it has
-   CVs or applications). Never open a CV or an application to verify.
-3. If you cannot tell, do not start the change.
+2. **The requester names the account's current address themselves.** Compare it as login does, ignoring letter case.
+   Without it, do not start the change; with it, you still need more.
+3. What may support a request beyond that, never decisive on its own: facts the directory shows without opening any
+   content (when the account was registered, whether it has CVs or applications). Never open a CV or an application
+   to verify.
+4. **Never name, confirm, correct or hint at an account's address, and never say whether an address has an account or
+   what kind of account it is.** Word every refusal the same, whatever its reason.
+5. If you cannot tell, do not start the change.
 
 This is the one statement of the rule. Other runbooks point here.
 

@@ -175,6 +175,41 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(recordKey)).ShouldBeTrue();
     }
 
+    // #1975 — the admin-initiated address change, ahead of its store: the record family runs the bound
+    // challenge's verbs and the index SET and GET. Neither is removed with DEL, and only the record may be
+    // unlinked.
+    [Fact]
+    public async Task AccountEmailChanges_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands()
+    {
+        var db = fixture.Challenge.GetDatabase();
+        var record = new RedisKey("jobbliggaren:auth/account-email-change/v1/" + Guid.NewGuid().ToString("N"));
+        var index = new RedisKey("jobbliggaren:auth/account-email-change-by-user/v1/" + Guid.NewGuid().ToString("N"));
+
+        await db.ExecuteAsync("HMSET", record, "p", "sealed", "a", "0");
+        ((string?)await db.ExecuteAsync("HGET", record, "p")).ShouldBe("sealed");
+        ((long)await db.ExecuteAsync("HINCRBY", record, "a", "1")).ShouldBe(1);
+        ((long)await db.ExecuteAsync("EXISTS", record)).ShouldBe(1);
+        ((long)await db.ExecuteAsync("EXPIRE", record, "600")).ShouldBe(1);
+        const string script = "return redis.call('HINCRBY', KEYS[1], 'a', 1)";
+        var sha = ((string?)await db.ExecuteAsync("SCRIPT", "LOAD", script)).ShouldNotBeNull();
+        ((long)await db.ExecuteAsync("EVALSHA", sha, "1", record)).ShouldBe(2);
+        ((long)await db.ExecuteAsync("EVAL", script, "1", record)).ShouldBe(3);
+        (await db.ExecuteAsync("SET", index, record.ToString(), "EX", "600")).ToString().ShouldBe("OK");
+        ((string?)await db.StringGetAsync(index)).ShouldBe(record.ToString());
+
+        await DeniedAsync(() => db.HashGetAllAsync(record));
+        await DeniedAsync(() => db.StringGetAsync(record));
+        await DeniedAsync(() => db.ExecuteAsync("DEL", record));
+        await DeniedAsync(() => db.ExecuteAsync("DEL", index));
+        await DeniedAsync(() => db.KeyDeleteAsync(index));
+        await DeniedAsync(() => db.ExecuteAsync("SETEX", index, "600", record.ToString()));
+        await DeniedAsync(() => db.ExecuteAsync("GETDEL", index));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(index)).ShouldBeTrue();
+
+        ((long)await db.ExecuteAsync("UNLINK", record)).ShouldBe(1);
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(record)).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task Budgets_ApiVolatileIdentity_EnforcesEveryProductionScopeAndTtl()
     {

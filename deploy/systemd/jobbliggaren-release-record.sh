@@ -4,6 +4,7 @@
 # usage:  jobbliggaren-release-record.sh read <release-repo@sha256:digest> [<expected-source-sha>]
 #         jobbliggaren-release-record.sh validate <record-file>
 #         jobbliggaren-release-record.sh receipt <receipt-file>
+#         jobbliggaren-release-record.sh protected-refs <receipt-file>
 #         jobbliggaren-release-record.sh deploy-hash <checkout-root>
 #         jobbliggaren-release-record.sh migrations <checkout-root>
 #         jobbliggaren-release-record.sh emit --source-sha <40-hex> --api <sha256:…> --worker <…>
@@ -268,6 +269,21 @@ cmd_receipt() {
   cat -- "$file"
 }
 
+cmd_protected_refs() {
+  [ "$#" -eq 1 ] || cannot_answer "usage: $0 protected-refs <receipt-file>"
+  local receipt prefix key name
+  receipt=$(cmd_receipt "$1") || exit "$?"
+  prefix="ghcr.io/$(field "$receipt" JBL_RELEASE_REPOSITORY)-"
+  printf '%srelease@%s\n' "$prefix" "$(field "$receipt" JBL_RECEIPT_RECORD_DIGEST)"
+  for key in "${KEYS[@]}"; do
+    case "$key" in
+    JBL_RELEASE_IMAGE_*)
+      name=${key#JBL_RELEASE_IMAGE_}
+      printf '%s%s@%s\n' "$prefix" "${name,,}" "$(field "$receipt" "$key")"
+      ;;
+    esac
+  done
+}
 # One line per EF migration: `APP <id>` or `IDENTITY <id>`, read from the `[Migration("…")]` attribute
 # EF itself reads and the `[DbContext(typeof(…))]` beside it in the same file. Every shape it does not
 # model stops it rather than skipping a file: a migration missed here is a migration the record does
@@ -376,6 +392,7 @@ case "$subcommand" in
 read) cmd_read "$@" ;;
 validate) cmd_validate "$@" ;;
 receipt) cmd_receipt "$@" ;;
+protected-refs) cmd_protected_refs "$@" ;;
 deploy-hash) cmd_deploy_hash "$@" ;;
 migrations) cmd_migrations "$@" ;;
 emit) cmd_emit "$@" ;;

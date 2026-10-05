@@ -25,7 +25,7 @@
 # WHAT MANUAL COMMANDS SEE. compose names our images `ghcr.io/klasolsson81/jobbliggaren-<x>:applied`,
 # a LOCAL tag this script moves only after everything is proven. A hand-typed `docker compose up -d --pull never api` therefore recreates from
 # the last verified release, never from something a refused run pulled. It still takes no lock and runs
-# no verification, which is why the runbook's exceptions first read `--status`.
+# no verification; manual mutations must hold the same reconcile lock (runbook §3d).
 set -euo pipefail
 
 readonly CHECKOUT=/opt/jobbliggaren
@@ -35,6 +35,7 @@ readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 readonly VERIFIER=/opt/jobbliggaren/deploy/systemd/verify-image-attestation.sh
 readonly RECORD_TOOL=/opt/jobbliggaren/deploy/systemd/jobbliggaren-release-record.sh
+readonly RETENTION=/opt/jobbliggaren/deploy/systemd/jobbliggaren-image-retention.sh
 readonly LOCK=/run/jobbliggaren-reconcile.lock
 readonly STAMP=/var/lib/jobbliggaren/last-successful-reconcile
 # What the last successful apply applied: the record's digest, then the record. Written atomically,
@@ -222,6 +223,16 @@ if [ "$mode" = stage ] && [ -e "$RECEIPT" ]; then
   refuse "--stage is for a first boot only, and $RECEIPT exists: this box has applied a release. Run the unit."
 fi
 
+retention_pass() {
+  "$RETENTION" --apply --compose-file "$COMPOSE_FILE" --receipt "$RECEIPT" \
+    --budget-seconds 60 --lock-fd 9
+}
+
+if [ "$mode" = apply ] && [ -e "$RECEIPT" ]; then
+  if ! retention_pass; then
+    log "retention pre-pass incomplete; continuing release verification and repair"
+  fi
+fi
 # --- 1. selection and the compose binding — no network yet ------------------------------------------------
 selection=$(read_selection)
 case "$selection" in
@@ -529,3 +540,7 @@ in_tag_phase=0
 mkdir -p "$(dirname "$STAMP")"
 date -u +%Y-%m-%dT%H:%M:%SZ >"$STAMP"
 log "reconcile complete: release $source_sha applied; receipt $RECEIPT; stamped $STAMP"
+if ! retention_pass; then
+  log "apply succeeded; retention post-pass incomplete; receipt and :applied remain committed"
+  exit 2
+fi

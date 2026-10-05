@@ -199,3 +199,32 @@ publisher on `main`, read from GHCR — dispatching it needs Klas's GO; (ii) Kla
 **Handed to #1961:** an environment-neutral web artifact (R9); per-environment `:applied`, receipt, lock and
 pin (or C2-D); retiring `latest` and re-pointing the rescan; digests for upstream images; the migration-id
 cross-check.
+
+
+## Amendment 2026-10-05 — host image retention (#2016)
+
+Digest pulls followed by `:applied` tag movement leave release images in the
+daemon. The dated inventory and disk evidence are in #2016 and its session log.
+
+Use a separate fail-closed helper under the reconcile lock. Derive the current
+receipt's six protection references through the existing record validator and
+keys, without changing the record format. Protect all container states and
+projects, all actual tags, the complete Compose profile model and receipt
+references. Digest aliases in `RepoTags` are classified separately from tags;
+unknown references are preserved. Validate the complete inventory before
+deletion and refresh candidate tags and container references before removing
+only full IDs with `--no-prune`, without force.
+
+Run bounded passes before pulls and after the receipt, restoration phase and
+apply stamp commit. Before-pass errors must not block a possible repair.
+A complete after pass resolves them; an incomplete after pass exits 2 without
+rolling back the committed apply. Bootstrap runs only the after pass.
+Each automatic pass gets 60 seconds; reviewed one-off passes get 1800 seconds.
+The monotonic deadline includes subprocess termination/reaping. An interrupted
+daemon operation has an unknown outcome, so the next pass inventories afresh.
+
+All host Docker writers must share the lock. Tagged history remains; rollback
+fetches removed digests from GHCR and verifies them through the existing flow.
+The reviewed one-off package uses both committed tools from one HEAD with
+SHA-256 verification in a unique root-owned /run directory. No new unit, timer,
+Compose/Redis binding, ACL or release format is introduced.

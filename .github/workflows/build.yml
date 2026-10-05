@@ -285,8 +285,8 @@ jobs:
           # wrong reason — but it is RAISED when scripts land, or the gate silently stops
           # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 20 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 20."
+          if [ "$n" -lt 22 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 22."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -356,6 +356,9 @@ jobs:
       # utdatavalidering, och att ingenting utom de två talen någonsin når stdout — båda
       # anroparna fångar stdout i en variabel, så en diagnostik där ser inte ut som ett trasigt
       # skript utan som ett id.
+      - name: jobbliggaren-image-retention (fixtures)
+        run: bash deploy/systemd/jobbliggaren-image-retention.test.sh
+
       - name: jobbliggaren-runtime-ids (fixturer)
         run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
 

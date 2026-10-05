@@ -714,6 +714,97 @@ Expect `1`, `0`, the T of the pre-read, and both containers `(healthy)`.
 **The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
 body.
 
+## 3d. Image retention (#2016, ADR 0149)
+
+Reconcile runs `jobbliggaren-image-retention.sh` under its existing lock before
+new pulls when a receipt exists, and after the new receipt, restoration phase
+and apply stamp have committed. Bootstrap has only the after pass.
+`--stage`, `--status` and lock overlap never prune.
+
+Each automatic pass has a 60-second monotonic budget, including subprocess
+termination and reaping. An incomplete before pass is logged and does not
+block release verification or repair. A complete after pass resolves that
+failure. An incomplete after pass exits 2 without restoring the successful
+deploy, its receipt or `:applied`. Ordinary deploy failures retain their
+existing exit and tag restoration. Read both the deploy and retention lines:
+a fresh apply stamp alone does not prove complete retention.
+
+The protection union includes every container image (all states and projects),
+every actual tag, all images in Compose's `--profile '*'` model, and the current
+receipt's record plus five app images. The record tool's read-only
+`protected-refs <receipt>` reuses its receipt validator and format keys.
+Digest references appearing in `RepoTags` are not tags; a tagged digest reference
+is protected. Unknown references are retained. Missing metadata or an
+unresolvable protection reference stops the pass before deletion.
+
+The complete inventory is validated first. Immediately before each deletion,
+tags and all container references are read again. Only explicit full IDs are
+passed to `docker image rm --no-prune`, without force or a fallback. A conflict
+stops the pass. All manual Docker mutations on this host must hold
+`/run/jobbliggaren-reconcile.lock`, including pulls, tag moves, container creation
+and removal, and Compose commands. Fresh checks do not replace this lock:
+an independent writer can otherwise add a tag between inspection and removal.
+
+Standalone use defaults to preview:
+
+```bash
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-image-retention.sh \
+  --dry-run --compose-file /opt/jobbliggaren/deploy/docker-compose.yml \
+  --receipt /var/lib/jobbliggaren/applied-release.env --budget-seconds 1800
+```
+
+`--apply` selects deletion. `--lock-fd 9` is internal: the descriptor must
+already hold the reconcile lock and name its inode. Missing receipts skip
+retention; invalid receipts fail closed. Python runs with `-I`. Full Compose
+configuration, image/container inspect data and subprocess stderr are never
+logged. Candidate `logical_bytes` includes shared layers and is not an estimate
+of reclaimed disk; measure `df -B1 /` and `docker system df` before and after.
+
+### Reviewed one-off cleanup before activation
+
+1. Commit the tested helper and record tool together. Obtain code/security
+   verdicts and CTO approval on that exact HEAD before deletion. Export their
+   committed bytes from the same archive and create a SHA-256 manifest. Record
+   HEAD and hashes in the session evidence.
+2. Stage only those two scripts and the manifest in a unique root-owned
+   `mktemp -d /run/jobbliggaren-image-retention.XXXXXXXX` directory, mode 0700.
+   Verify manifest hashes there; scripts are 0500, manifest 0400. This does not
+   change the live checkout. Pass the live Compose file and receipt explicitly.
+3. Take one outer exclusive reconcile lock on FD 9. Measure disk, Docker
+   storage, all container IDs/images/states, receipt bytes, protected reference
+   resolutions, `:applied` and `--status`. Run the staged preview with
+   `--lock-fd 9 --budget-seconds 1800`. Keep raw metadata in memory; record
+   only the safe projections and hashes.
+4. Probe one existing unprotected digest-only candidate from that preview:
+   recheck its metadata and all container references, then remove its full ID
+   with `docker image rm --no-prune`. A conflict stops further deletion and
+   goes back to the CTO. Do not force, untag or use a digest-reference fallback.
+   On success, run the staged helper's `--apply` under the same lock and budget.
+5. Re-measure and verify all protected resolutions, container identities and
+   states, receipt hash, `:applied`, and `--status = consistent`. Record
+   actual disk delta, completed/partial result, elapsed time and any errors.
+   Remove only the exact verified temporary directory after releasing the lock.
+
+A timeout may leave a Docker daemon operation completed after its client died.
+Exit 2 means an incomplete pass, not proof that no image was deleted.
+The next pass inventories again; never replay an old candidate list.
+
+Historical tagged images remain. Older removed digest images are pulled from
+GHCR and verified during record-based rollback (§3b); local presence is not a
+rollback requirement. Database and log growth are outside this retention
+promise.
+
+After merge, wait for a published verified release containing these scripts,
+then advance the checkout to that record's source commit under the standing GO.
+Recheck #2003 first: if merged, stop for Klas's escrow action before advancing.
+No new unit or timer is installed.
+
+Keep #2016 open and claimed until the journal shows complete retention and two
+real release transitions have been observed, including removal of each previous
+release's unprotected images. Those observations do not block urgent cleanup or
+merge. Arrange an actual follow-up when observation requires later runs; do not
+claim monitoring that has not been scheduled.
+
 ## 3d. External login: activation and deactivation (#1744 Google, #1745 GitHub, #1746 LinkedIn)
 
 A merge makes Google login **possible**; keys on this box make it **live**. Activation is Klas's step,

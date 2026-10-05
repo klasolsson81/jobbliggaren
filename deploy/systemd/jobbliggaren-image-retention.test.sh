@@ -24,6 +24,7 @@ path=root/"state.json"
 s=json.loads(path.read_text())
 a=sys.argv[1:]
 with (root/"calls").open("a") as f: f.write(json.dumps(a)+"\n")
+with (root/"client-pids").open("a") as f: f.write(str(os.getpid())+"\n")
 def save(): path.write_text(json.dumps(s))
 if s.get("sleep") == a[:2]:
     if s.get("daemon_remove"):
@@ -430,6 +431,31 @@ class Retention(unittest.TestCase):
         self.wait_for_file("pid", process, numeric=True)
         self.assert_interrupted(process)
         self.assertEqual(self.removed(), [])
+
+    def test_first_signal_during_terminal_error_reporting_preserves_exit_two(self):
+        source = self.helper.read_text()
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(signal=signum):
+                # The compose-error actor reaches the production incomplete-log boundary.
+                inject = ('    if message.startswith("incomplete "):\n'
+                          '        marker = __import__("pathlib").Path(sys.argv[1]) / "terminal-signal"\n'
+                          '        if not marker.exists():\n'
+                          '            marker.touch()\n'
+                          '            os.kill(os.getpid(), ' + str(int(signum)) + ')\n')
+                self.helper.write_text(source.replace('def log(message):\n', 'def log(message):\n' + inject))
+                (self.root / "terminal-signal").unlink(missing_ok=True)
+                self.s["error"] = ["compose", "-f"]
+                result = self.invoke("--apply")
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("incomplete", result.stdout)
+                self.assertIn("interrupted", result.stdout)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual(self.removed(), [])
+                for pid in (self.root / "client-pids").read_text().splitlines():
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(int(pid), 0)
+                with self.lock.open("r+") as competitor:
+                    fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_overlap_no_inventory(self):
         with self.lock.open("w+") as f:

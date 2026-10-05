@@ -292,5 +292,9 @@ def main():
             os.close(lock_fd)
 
 
-sys.exit(main())
+try:
+    sys.exit(main())
+except (Interrupted, KeyboardInterrupt):
+    log("incomplete reason=interrupted; daemon outcome unknown; inventory again")
+    sys.exit(2)
 PY

@@ -2,6 +2,7 @@
 
 **Date:** 2026-10-05
 **Status:** Accepted
+**Amended:** 2026-10-05 (#1960, the read rule) — see the Amendment at the end.
 **Deciders:** Klas Olsson (decisions (1)–(4) below, 2026-10-05, in #1961's planning session) ·
 `senior-cto-advisor` (the routing: PR order, the scope of the override, the reading of A2;
 `docs/reviews/2026-10-05-1961-plan-cto.md`, local) · `dotnet-architect`
@@ -164,3 +165,24 @@ A second box and #1961's two-environment design are deferred until Klas buys a s
 - **Upgrade the box to RS 2000 G12** (16 GB, €18 a month excl. VAT for the whole plan, irreversible).
   Declined by Klas (1). It also left the shared root as it was.
 - **An environment-neutral web image first.** Deferred (§6): there is no promotion for it to serve.
+
+## Amendment 2026-10-05 — reading the box (#1960)
+
+**Findings:** `security-auditor`, #1961's planning, 2026-10-05 —
+`docs/reviews/2026-10-05-1961-plan-security-auditor.md`, round 1, Del 1, finding 1, whose title §5
+quotes.
+
+**Grounds.** Art. 5(1)(f) and 32(1)(b): root without a password, which every agent process on the
+workstation can take, guards personal data about people other than Klas. A conditional arm —
+Art. 13(1)(e) and 14(1)(e), 28, 30(1)(d) and Chapter V — becomes a breach the moment an agent reads
+such data, because its transcript then leaves the box for a model provider that neither the
+processing register nor the privacy policy names (measured 2026-10-05: the finding above, its
+Motivering (a); `docs/spec-rationale.md` §9.2). That arm is why CLAUDE.md §9.2 carries the read rule.
+
+**Boundary.** The override in §5 covers access, never disclosure (CLAUDE.md §9.2). What any
+processing of user data by an agent would first need is that rule's leg (f).
+
+**The controller's decision.** `senior-cto-advisor` asked: "Är beslut (2) ditt beslut som
+personuppgiftsansvarig enligt Art. 24(1), utanför §9.6:s tre vägar, med ADR 0154 §5 som enda hem?"
+Klas answered on 2026-10-05: "Ja, mitt beslut enligt Art. 24(1)"
+([#1960](https://github.com/klasolsson81/jobbliggaren/issues/1960#issuecomment-5994169157)).

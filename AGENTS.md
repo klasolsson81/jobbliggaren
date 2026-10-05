@@ -4,7 +4,7 @@
 > Budget: ADR 0135. Read `CLAUDE.md` §11 before tooling, pre-commit, compose
 > or fail-fast configuration work.
 
-**Session start (CC and Codex):** before changing files, read `CLAUDE.md`
+**Session start (CC and Codex):** before any work, read `CLAUDE.md`
 §§1.5, 6.5 and 9, then `docs/runbooks/session-protocol.md`. They govern startup,
 worktree isolation and reviews. Codex follows that runbook's tool mapping;
 Claude hooks are not evidence that Codex ran a check.

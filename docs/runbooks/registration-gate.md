@@ -337,8 +337,7 @@ Accounts and logins survive a closed gate; closing it refuses new registrations 
 
 Closed is the default rather than a preference: the gate is
 opened for a visit and not left open between them. Leaving it open is available, but it is a
-deliberate exception with K2 as the only thing in front of it — and K2's plaintext now sits in
-a file whose audience is every future CC session.
+deliberate exception with K2 as the only thing in front of it.
 
 ⚠ **That exception is the shape a visit for other people's registrations has to take.** They do
 not arrive inside a visit's window, so the gate cannot be opened and closed around them; it

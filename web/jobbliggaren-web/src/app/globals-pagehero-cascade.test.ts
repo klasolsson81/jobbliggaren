@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readRules, stripComments } from "@/test/css-rules";
 
 /**
  * #1727 — the `.jp-pagehero` narrow-viewport arm must come AFTER the base rules it overrides.
@@ -28,99 +29,6 @@ import { fileURLToPath } from "node:url";
  * (specificity of a `:not()` list) and `globals-focus-ring.test.ts`.
  */
 const CSS = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "globals.css"), "utf-8");
-
-/**
- * Block comments are stripped before ANY matching. `globals-link-rule.test.ts` learned this from
- * `code-reviewer` in PR #1400: rule text left behind in a comment otherwise stands in for a rule
- * that was deleted, and the guard passes on prose. This block is dense with commented-out-looking
- * CSS, so the hazard is live here.
- */
-const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
-
-type Rule = { selector: string; properties: string[]; start: number; inMedia: string | null };
-
-/**
- * Splits a selector list on TOP-LEVEL commas only. A bare `prelude.split(",")` tears
- * `a:not(.jp-btn, [data-slot="button"])` into three fragments that match nothing and print as
- * nonsense when the sweep reports a failure. `globals.css` carries exactly that selector.
- */
-function splitSelectorList(prelude: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < prelude.length; i++) {
-    const c = prelude[i];
-    if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(prelude.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(prelude.slice(start));
-  return out.map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
-}
-
-/**
- * Flat rule reader: every `selector { ... }`, with the enclosing at-rule prelude when there is one.
- * Deliberately not a full CSS parser — it only needs selector text, property names and byte order,
- * and a parser that understood more could disagree with the browser in ways this guard cannot check.
- *
- * It must nonetheless be fail-CLOSED, because a parser that silently sees no rules makes the sweep
- * below report a clean stylesheet. The one error direction that matters is a `;`-terminated
- * at-statement — `@import "tailwindcss";`, `@custom-variant dark (...);`, both live at the top of
- * this file — whose text would otherwise glue onto the NEXT prelude. When the next block is the
- * `@media` itself, its prelude stops starting with "@media", every rule inside reads as
- * unconditional, and the sweep goes quiet on a stylesheet that does carry a dead declaration.
- */
-function readRules(cssText: string): Rule[] {
-  const src = stripComments(cssText);
-  const rules: Rule[] = [];
-  const atStack: { prelude: string; depth: number }[] = [];
-  let depth = 0;
-  let tokenStart = 0;
-
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    // A `;` outside any block body ends an at-statement; the next prelude starts after it.
-    if (ch === ";" && src.slice(tokenStart, i).trim().startsWith("@")) {
-      tokenStart = i + 1;
-      continue;
-    }
-    if (ch === "{") {
-      const prelude = src.slice(tokenStart, i).trim().replace(/\s+/g, " ");
-      if (prelude.startsWith("@")) {
-        atStack.push({ prelude, depth });
-        depth++;
-        tokenStart = i + 1;
-        continue;
-      }
-      let d = 1;
-      let j = i + 1;
-      for (; j < src.length && d > 0; j++) {
-        if (src[j] === "{") d++;
-        else if (src[j] === "}") d--;
-      }
-      const body = src.slice(i + 1, j - 1);
-      const properties = [...body.matchAll(/(^|;)\s*([-a-zA-Z]+)\s*:/g)]
-        .map((m) => (m[2] ?? "").toLowerCase())
-        .filter((p) => !p.startsWith("--"));
-      const media = atStack.find((a) => a.prelude.startsWith("@media"))?.prelude ?? null;
-      for (const selector of splitSelectorList(prelude)) {
-        rules.push({ selector, properties, start: i, inMedia: media });
-      }
-      i = j - 1;
-      tokenStart = i + 1;
-      continue;
-    }
-    if (ch === "}") {
-      depth--;
-      while (atStack.length && (atStack[atStack.length - 1]?.depth ?? -1) >= depth) atStack.pop();
-      tokenStart = i + 1;
-    }
-  }
-  return rules;
-}
 
 /**
  * A declaration is DEAD when an identical selector declares the same property later at the top

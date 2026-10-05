@@ -146,7 +146,7 @@ function declared(css: string, selector: string, property: string): string[] {
     .filter((m) =>
       ((m[1] ?? "").split(";").at(-1) ?? "")
         .split(",")
-        .map((s) => s.trim())
+        .map((s) => s.trim().replace(/\s+/g, " "))
         .includes(selector)
     )
     .flatMap((m) =>
@@ -252,6 +252,16 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
       );
       expect(late.map((r) => r.selector), `${toPosix(relative(SRC, sheet))} loads after globals.css`).toEqual([]);
     }
+  });
+
+  it("the <=720px arm takes the icon plate out with `display: none`, never a hidden box", () => {
+    // The /sparade plate is a link: a box that is only invisible keeps a focus stop on nothing
+    // (WCAG 2.4.3, 2.4.7). design-reviewer's condition 5 in #1875's form check.
+    const plate = readRules(GLOBALS).filter(
+      (r) => r.selector === ".jp-job--icon > .jp-job__match" && r.inMedia?.includes("max-width: 720px")
+    );
+    expect(plate.map((r) => r.properties)).toEqual([["display"]]);
+    expect(declared(GLOBALS, ".jp-job--icon > .jp-job__match", "display")).toEqual(["none"]);
   });
 
   it("the shared row title wraps a word that does not fit, and only then", () => {

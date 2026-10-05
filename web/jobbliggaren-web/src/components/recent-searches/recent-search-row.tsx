@@ -97,11 +97,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
 
   return (
     <li>
-      <article
-        className="jp-job"
-        style={{ gridTemplateColumns: "auto 1fr auto", cursor: "pointer" }}
-        onClick={handleRowClick}
-      >
+      <article className="jp-job jp-job--icon" onClick={handleRowClick}>
         <div
           className="jp-job__match jp-job__match--neutral"
           aria-hidden="true"

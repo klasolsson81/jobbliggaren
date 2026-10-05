@@ -4,7 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
-import { useRouteModalFocus } from "@/lib/hooks/use-route-modal-focus";
+import { useInformationModalFocus } from "@/components/information/useInformationModalFocus";
 
 /**
  * ApplicationModalShell — modal-chrome (scrim / ESC / scrim-klick /
@@ -44,7 +44,7 @@ export function ApplicationModalShell({
 
   const close = () => router.back();
 
-  useRouteModalFocus(panelRef, closeRef);
+  useInformationModalFocus(panelRef, closeRef);
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -76,7 +76,8 @@ export function ApplicationModalShell({
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
-      if (e.shiftKey && document.activeElement === first) {
+      const headingFocused = document.activeElement === panelRef.current.querySelector('h2[tabindex="-1"]');
+      if (e.shiftKey && (document.activeElement === first || headingFocused)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -104,7 +105,7 @@ export function ApplicationModalShell({
       >
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h2 id={labelId} className="jp-modal__title">
+            <h2 id={labelId} tabIndex={-1} className="jp-modal__title">
               {title}
             </h2>
             <p className="jp-modal__company">{subtitle}</p>

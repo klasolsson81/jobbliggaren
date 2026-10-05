@@ -1,5 +1,7 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
+import { legalSectionId } from "@/components/information/section-ids";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,37 +18,21 @@ type Section = {
   list?: string[];
 };
 
-/**
- * Publik innehållssida: Cookiepolicy (#262). Statisk RSC. Innehållet drivs ur
- * `content-legal` (sv = källa, en speglad, paritetstestad), samma mönster som
- * /integritet. Informativ kakpolicy (LEK 2022:482) utan samtyckesbanner, då
- * endast nödvändiga och funktionella förstaparts-kakor används. Civic-utility:
- * en h1, hög-kontrast text, ingen em-dash.
- */
+
 export default async function CookiesPage() {
   const t = await getTranslations("content-legal");
   const sections = t.raw("cookies.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="cookies-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="cookies-heading" className="jp-pagehero__title">
-              {t("cookies.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("cookies.updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("cookies.title")} lede={t("cookies.updated")} headingId="cookies-heading" sections={sections.map((section, index) => ({ id: legalSectionId("cookies", index), label: section.heading }))}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("cookies.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
-          {sections.map((section) => (
+          {sections.map((section, index) => (
             <div key={section.heading}>
-              <h2 className="text-body-lg font-semibold text-text-primary">
+              <h2 id={legalSectionId("cookies", index)} tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
                 {section.heading}
               </h2>
               {section.paragraphs.map((paragraph, i) => (
@@ -85,7 +71,7 @@ export default async function CookiesPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

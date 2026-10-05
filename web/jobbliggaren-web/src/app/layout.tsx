@@ -5,6 +5,7 @@ import { pickClientMessages } from "@/i18n/client-messages";
 import { documentFontClassName } from "./fonts";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
+import { InformationReturnProvider } from "@/components/information/InformationReturnProvider";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("metadata");
@@ -62,7 +63,7 @@ export default async function RootLayout({
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
         <ThemeScript />
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <InformationReturnProvider><ThemeProvider>{children}</ThemeProvider></InformationReturnProvider>
         </NextIntlClientProvider>
       </body>
     </html>

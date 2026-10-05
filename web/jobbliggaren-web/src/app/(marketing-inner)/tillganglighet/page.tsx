@@ -1,5 +1,7 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
+import { legalSectionId } from "@/components/information/section-ids";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,45 +18,23 @@ type Section = {
   list?: string[];
 };
 
-/**
- * Publik innehållssida: Tillgänglighetsredogörelse (#263). Statisk RSC, samma
- * mönster som /integritet och /cookies (delad SiteHeader/SiteFooter via
- * layouten; eget `<main id="main">` som skip-mål per #284). Innehållet drivs ur
- * `content-legal`-katalogen (sv = källa, en speglad, paritetstestad).
- *
- * Civic tillgänglighetsredogörelse modellerad på DIGG:s struktur (status, kända
- * brister, rapportering, bedömningsmetod) men ÄRLIGT anpassad: Jobbliggaren är
- * ett privat hobbyprojekt och omfattas inte av lagen om tillgänglighet till
- * digital offentlig service (2018:1937) — vi håller WCAG 2.1 AA frivilligt och
- * över-claimar inte (ingen DIGG-tillsynshänvisning, ingen lagbundenhet). En h1,
- * hög-kontrast text (ingen grå brödtext), ingen em-dash, inget utropstecken.
- */
+
 export default async function TillganglighetPage() {
   const t = await getTranslations("content-legal");
   const sections = t.raw("accessibility.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="tillganglighet-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="tillganglighet-heading" className="jp-pagehero__title">
-              {t("accessibility.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("accessibility.updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("accessibility.title")} lede={t("accessibility.updated")} headingId="tillganglighet-heading" sections={sections.map((section, index) => ({ id: legalSectionId("tillganglighet", index), label: section.heading }))}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">
           {t("accessibility.intro")}
         </p>
 
         <div className="mt-10 flex flex-col gap-8">
-          {sections.map((section) => (
+          {sections.map((section, index) => (
             <div key={section.heading}>
-              <h2 className="text-body-lg font-semibold text-text-primary">
+              <h2 id={legalSectionId("tillganglighet", index)} tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
                 {section.heading}
               </h2>
               {section.paragraphs.map((paragraph, i) => (
@@ -93,7 +73,7 @@ export default async function TillganglighetPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

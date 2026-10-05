@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,33 +11,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/**
- * Publik innehållssida: Om Jobbliggaren (#262). Statisk RSC. Återbrukar
- * (marketing-inner)-mönstret (delad SiteHeader/SiteFooter via layouten; eget
- * `<main id="main">` som skip-mål per #284). Innehållet drivs ur `content-legal`
- * (sv = källa, en speglad, paritetstestad). Civic-utility: en h1, hög-kontrast
- * text, ingen em-dash, inget utropstecken. Externa länkar (klasolsson.se,
- * kalaskoll.se) öppnas i samma flik (myndighetston).
- */
+
 export default async function OmPage() {
   const t = await getTranslations("content-legal");
   const whyParagraphs = t.raw("about.whyParagraphs") as string[];
   const values = t.raw("about.values") as string[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="om-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="om-heading" className="jp-pagehero__title">
-              {t("about.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("about.lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("about.title")} lede={t("about.lede")} headingId="om-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("about.intro")}</p>
 
         <h2 className="mt-10 text-body-lg font-semibold text-text-primary">
@@ -84,7 +68,7 @@ export default async function OmPage() {
             {t("about.contactLink")}
           </Link>
         </p>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

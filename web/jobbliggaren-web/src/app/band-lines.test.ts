@@ -68,7 +68,8 @@ describe("one plain-text line under every green band (#1917)", () => {
   it("scans every production band, including shared renderers and loading boundaries", () => {
     const files = sourceFiles(SOURCE_ROOT);
     const bands = files.filter((file) => /className="jp-(pagehero|hero)(?:[ "])/.test(readFileSync(file, "utf8")));
-    expect(bands.length, "the source scan must reach the current band surfaces").toBeGreaterThanOrEqual(36);
+    const framedPages = files.filter((file) => /<InformationPageFrame[\s/>]/.test(readFileSync(file, "utf8")));
+    expect(new Set([...bands, ...framedPages]).size, "the source scan must reach the current band surfaces").toBeGreaterThanOrEqual(36);
     expect(files.flatMap((file) => checkBands(readFileSync(file, "utf8"), relative(SOURCE_ROOT, file)))).toEqual([]);
   });
 

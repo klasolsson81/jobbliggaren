@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,34 +17,15 @@ type Section = {
   list?: string[];
 };
 
-/**
- * Publik innehållssida: Art. 14(5)(b)-notis till kontaktpersoner i annonser
- * (#842 Tier A, ADR 0106). Vi håller ~tiotusentals rekryterares kontaktuppgifter
- * hämtade från Arbetsförmedlingen, inte från dem själva — informationsplikten
- * fullgörs genom att göra informationen offentligt tillgänglig (Art. 14(5)(b);
- * ett massutskick vore en ny behandling av just de uppgifter vi minimerar).
- * Notisen är villkoret för undantaget, inte dekoration. Länkas från
- * annonsdetaljen och integritetspolicyn. Samma statiska RSC-mönster som
- * /integritet (#263): innehåll ur `content-legal`, en h1, hög-kontrast text.
- */
+
 export default async function KontaktpersonIAnnonsPage() {
   const t = await getTranslations("content-legal");
   const sections = t.raw("recruiterNotice.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="kontaktperson-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="kontaktperson-heading" className="jp-pagehero__title">
-              {t("recruiterNotice.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("recruiterNotice.updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("recruiterNotice.title")} lede={t("recruiterNotice.updated")} headingId="kontaktperson-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">
           {t("recruiterNotice.intro")}
         </p>
@@ -85,7 +67,7 @@ export default async function KontaktpersonIAnnonsPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

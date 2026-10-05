@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 import { MatchChip } from "@/components/job-ads/match-chip";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
@@ -16,15 +17,7 @@ type CompareRow = { part: string; what: string; cv: boolean };
 type GradeItem = { grade: MatchGrade; req: string };
 type OrderStep = { rule: string; outcome: string };
 
-/**
- * Publik förklaringssida: Så fungerar matchningen (#365). Statisk RSC.
- * Förklarar den deterministiska, AI-fria matchningsmotorn i klarspråk med
- * tema-säkra visualiseringar byggda på BEFINTLIGA klasser/komponenter (den
- * riktiga `MatchChip` = grad-stegen; `jp-tag` = exempel-chips; `jp-card`/
- * border-tokens = jämför-rutorna). Inga nya globals.css-klasser, inga
- * gradienter/glow utöver hero, ingen hårdkodad hex. Civic-utility: en h1,
- * h2-outline, hög-kontrast text, ingen em-dash, inget procenttal (Goodhart).
- */
+
 export default async function MatchningPage() {
   const t = await getTranslations("content-matchning");
   const youItems = t.raw("deterministic.youItems") as string[];
@@ -39,23 +32,13 @@ export default async function MatchningPage() {
   const missing = t.raw("transparency.missing") as string[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="matchning-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="matchning-heading" className="jp-pagehero__title">
-              {t("title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("title")} lede={t("updated")} headingId="matchning-heading" sections={[{ id: "deterministic", label: t("deterministic.heading") }, { id: "compare", label: t("compare.heading") }, { id: "grades", label: t("grades.heading") }, { id: "order", label: t("order.heading") }, { id: "not-scored", label: t("notScored.heading") }, { id: "transparency", label: t("transparency.heading") }, { id: "cta", label: t("cta.heading") }]}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("intro")}</p>
 
         {/* 1. Deterministic + compare diagram */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="deterministic" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("deterministic.heading")}
         </h2>
         {detParagraphs.map((paragraph, i) => (
@@ -93,7 +76,7 @@ export default async function MatchningPage() {
         </div>
 
         {/* 2. What we compare */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="compare" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("compare.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("compare.intro")}</p>
@@ -117,7 +100,7 @@ export default async function MatchningPage() {
         </ul>
 
         {/* 3. The grades (the ladder = the real chips, Topp -> Grund) */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="grades" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("grades.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("grades.intro")}</p>
@@ -156,7 +139,7 @@ export default async function MatchningPage() {
         </p>
 
         {/* 4. The order of the gates */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="order" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("order.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("order.intro")}</p>
@@ -183,7 +166,7 @@ export default async function MatchningPage() {
         </p>
 
         {/* 5. What we deliberately do not score */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="not-scored" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("notScored.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("notScored.intro")}</p>
@@ -195,7 +178,7 @@ export default async function MatchningPage() {
         <p className="mt-3 text-body text-text-primary">{t("notScored.why")}</p>
 
         {/* 6. Transparency */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="transparency" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("transparency.heading")}
         </h2>
         {transParagraphs.map((paragraph, i) => (
@@ -228,8 +211,8 @@ export default async function MatchningPage() {
 
         {/* 7. CTA */}
         <div className="mt-12 rounded-md border border-border-default bg-surface-secondary p-5">
-          <h2 className="text-body-lg font-semibold text-text-primary">
-            {t("cta.heading")}
+          <h2 id="cta" tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
+          {t("cta.heading")}
           </h2>
           <p className="mt-2 text-body text-text-primary">{t("cta.text")}</p>
           <p className="mt-4">
@@ -238,7 +221,7 @@ export default async function MatchningPage() {
             </Link>
           </p>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

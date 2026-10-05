@@ -1,3 +1,4 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
@@ -9,32 +10,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/**
- * Publik innehållssida: Kontakta oss (#262). Statisk RSC. Återbrukar
- * (marketing-inner)-mönstret. v1 = e-postkontakt (mailto), inget formulär:
- * e-postutskick är prod-gejtat (Scaleway Transactional Email, ADR 0080/0131), så ett formulär kan inte
- * leverera än. Formuläret byggs när e-post slås på. Civic-utility: en h1,
- * hög-kontrast text, ingen em-dash, inget utropstecken.
- */
+
 export default async function KontaktPage() {
   const t = await getTranslations("content-legal");
   const aboutList = t.raw("contact.aboutList") as string[];
   const email = t("contact.email");
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="kontakt-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="kontakt-heading" className="jp-pagehero__title">
-              {t("contact.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("contact.lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("contact.title")} lede={t("contact.lede")} headingId="kontakt-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("contact.intro")}</p>
 
         <p className="mt-4 text-body text-text-primary">
@@ -52,7 +37,7 @@ export default async function KontaktPage() {
             <li key={`contact-${i}`}>{item}</li>
           ))}
         </ul>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // #1975 — the Server Action behind /adressbyte. What it pins: the fields are checked before anything is sent; the
 // request is anonymous (the client's forwarded headers, no cookie read, never cached); one 410 is every refusal and
-// never says which input; a 409 that reads is "not yet"; 429 and 503 are safe to retry; every other answer, a lost
-// one and one that does not read among them, claims nothing. The addresses come back to the form, the code never.
+// never says which input; a 409 that reads is "not yet"; every other answer, a lost one and one that does not read
+// among them, claims nothing. The addresses come back to the form, the code never.
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), cookies: vi.fn(), headers: vi.fn() }));
 

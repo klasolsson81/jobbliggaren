@@ -1,4 +1,5 @@
 """Fixed-operation helper checks in the disposable Linux provisioning fixture."""
+import fcntl
 import json
 import runpy
 from pathlib import Path
@@ -17,6 +18,15 @@ Path('/usr/bin/docker').write_text('''#!/usr/bin/env python3
 import json, pathlib, subprocess, sys
 args = sys.argv[1:]
 mode = pathlib.Path('/tmp/account-mode').read_text()
+with open('/run/jobbliggaren-reconcile.lock', 'r+') as lock:
+    try:
+        __import__('fcntl').flock(lock, __import__('fcntl').LOCK_EX | __import__('fcntl').LOCK_NB)
+    except BlockingIOError:
+        pass
+    else:
+        sys.exit(91)
+with open('/tmp/account-lifecycle', 'a') as log:
+    log.write(args[0] + '\\n')
 if args[0] == 'compose':
     print('a' * 64)
 elif args[0] == 'inspect':
@@ -78,12 +88,26 @@ invalid += [('mark-deleted', account, '--ttl-seconds', ttl) for ttl in ('', '0',
 for args in invalid:
     before = calls()
     checked('invalid input refuses before Redis: ' + repr(args[:1]), run(*args).returncode != 0 and calls() == before)
+with open('/run/jobbliggaren-reconcile.lock', 'r+') as owner:
+    fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    before = calls()
+    lifecycle = Path('/tmp/account-lifecycle')
+    before_lifecycle = lifecycle.read_bytes() if lifecycle.exists() else b''
+    result = run('check-deleted', account)
+    checked('lock conflict refuses before credential or Docker work', result.returncode != 0 and
+            b'no account operation performed' in result.stderr and calls() == before and
+            (lifecycle.read_bytes() if lifecycle.exists() else b'') == before_lifecycle)
 checked('explicit TTL and canonical account reach SET unchanged', run('mark-deleted', account, '--ttl-seconds', '2592000').returncode == 0 and calls()[-2:] == [['SET', key, '1', 'EX', '2592000'], ['EXISTS', key]])
 checked('check reports presence', b'present' in run('check-deleted', account).stdout)
 checked('clear verifies absence', run('clear-deleted', account).returncode == 0 and calls()[-2:] == [['DEL', key], ['EXISTS', key]])
 checked('check reports absence', b'absent' in run('check-deleted', account).stdout)
 checked('delete index constructs account key', run('delete-session-index', account).returncode == 0 and calls()[-1] == ['DEL', key.replace(':deleted', ':sessions')])
 checked('delete exact known session', run('delete-known-session', account, '--session-key', session).returncode == 0 and calls()[-1] == ['DEL', session])
+checked('all Docker preconditions, clients and cleanup run under the lock',
+        Path('/tmp/account-lifecycle').read_text().splitlines()[-4:] == ['compose', 'inspect', 'run', 'rm'])
+with open('/run/jobbliggaren-reconcile.lock', 'r+') as owner:
+    fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+checked('account operation releases the lock after cleanup', True)
 for value in ('auth', 'down', 'misleading', 'missing'):
     mode.write_text(value)
     checked(value + ' refuses without success receipt', run('mark-deleted', account, '--ttl-seconds', '10').returncode != 0)

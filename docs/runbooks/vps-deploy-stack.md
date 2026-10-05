@@ -46,7 +46,7 @@ blind to that channel (#1217) — a green guard would then vouch for a file the 
 not run.
 
 ```bash
-docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
+sudo flock /run/jobbliggaren-reconcile.lock docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
 ```
 
 ---
@@ -152,7 +152,7 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 
 ```bash
 cd /opt/jobbliggaren
-C="docker compose -f deploy/docker-compose.yml"
+C="sudo flock /run/jobbliggaren-reconcile.lock docker compose -f deploy/docker-compose.yml"
 
 # 0. RE-ENTRY IS NOT FIRST BOOT. This block assumes empty certificate storage. On a box that
 #    has already issued anything, list BOTH trees before starting —
@@ -405,12 +405,13 @@ sudo ls -la /root/.sigstore/root/  # the cached root, proving it landed for the 
 sudo git -C /opt/jobbliggaren fetch origin main && sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
 cd /opt/jobbliggaren
 sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
-# FOUR scripts: the wrapper, the verifier, the record tool the wrapper reads releases with
-# (#1238) and the runtime-id helper (#1295). A non-executable helper stops the apply with exit 2
+# FIVE scripts: the wrapper, verifier, record tool, runtime-id helper and image retention.
+# A non-executable helper stops the apply with exit 2
 # rather than failing loudly at install time. (git carries 100755 and CI gates it, so this line
 # is belt-and-braces on a clone that lost it.)
 sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh \
-  deploy/systemd/jobbliggaren-release-record.sh deploy/systemd/jobbliggaren-runtime-ids.sh
+  deploy/systemd/jobbliggaren-release-record.sh deploy/systemd/jobbliggaren-runtime-ids.sh \
+  deploy/systemd/jobbliggaren-image-retention.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-reconcile.timer
 systemctl list-timers jobbliggaren-reconcile            # Expected: one entry, next at :47
@@ -453,8 +454,7 @@ sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
 ```
 
 **Manual applies go through the unit.** `sudo systemctl start jobbliggaren-reconcile.service`,
-never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it: a
-manual apply takes no lock and runs no verification. Compose names our images as the local
+never a hand-typed `docker compose up -d`. Compose names our images as the local
 `:applied` tag with `pull_policy: never`, and only a
 proven run moves that tag, so a hand-typed `up` re-creates from the last verified release — never
 from something a refused run pulled.
@@ -468,7 +468,7 @@ change would depend on what GHCR holds then, and its lock branch reports success
 nothing. So these steps run:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 `--pull never` is not decoration: it says on the command line what `pull_policy: never` says in
@@ -486,10 +486,6 @@ the file, and the wrapper states the same argument at its own `up`.
 
   Anything else — `INCONSISTENT`, `NOT APPLIED`, exit 2 — means repairing through the unit first:
   a gate is not closed by re-creating from a state the unit has not vouched for.
-- **It takes no lock**, the case the wrapper's own header names. The timer fires at `:47` plus up
-  to 180 s of jitter and may run for up to 900 s. Do not run this inside that window; if you must,
-  re-read the gate's own log line afterwards, because a concurrent reconcile can re-create the
-  container underneath you.
 - **It does not run #1295's secrets-ownership gate — and here there is nothing for that gate to
   catch.** It compares the *incoming* image's uid and gid against the injected secrets' ownership,
   against a base-image bump that moves them. These steps re-create from the image already running
@@ -752,8 +748,7 @@ sudo JBL_INJECT_GOOGLE=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-se
 # then set, in deploy/.env:
 #   AUTH_OAUTH_GOOGLE_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__Google__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 Re-create, never `docker restart`: the variables are read at container creation.
@@ -840,9 +835,7 @@ sudo JBL_INJECT_GITHUB=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-se
 # then set, in deploy/.env:
 #   AUTH_OAUTH_GITHUB_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__GitHub__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy
-sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+sudo flock -n /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api'
 ```
 
 **The reading, dated, as a comment on #1732.** Counts, never printouts (CLAUDE.md §9.2's read rule):
@@ -915,9 +908,7 @@ sudo JBL_INJECT_LINKEDIN=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-
 # then set, in deploy/.env:
 #   AUTH_OAUTH_LINKEDIN_CLIENT_ID=<the client id>
 #   AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__LinkedIn__ClientSecret
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-cd /opt/jobbliggaren/deploy
-sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
+sudo flock -n /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api'
 ```
 
 **The reading, dated, as a comment on #1732.** Counts, never printouts (CLAUDE.md §9.2's read rule):
@@ -963,6 +954,100 @@ shows no LinkedIn page, or fails at LinkedIn or at the exchange, (23)'s lapse ap
 
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
 rows can stay: they match only this app's subject ids.
+
+## 3e. Image retention (#2016, ADR 0149)
+
+Reconcile runs `jobbliggaren-image-retention.sh` under its existing lock before
+new pulls when a receipt exists, and after the new receipt, restoration phase
+and apply stamp have committed. Bootstrap has only the after pass.
+`--stage`, `--status` and lock overlap never prune.
+
+Each automatic pass has a 60-second monotonic budget, including subprocess
+termination and reaping. SIGINT or SIGTERM stops the active client group before
+releasing the lock and exits 2; an already submitted daemon operation may have
+completed, so the next pass inventories again. An incomplete before pass is logged and does not
+block release verification or repair. A complete after pass resolves that
+failure. An incomplete after pass exits 2 without restoring the successful
+deploy, its receipt or `:applied`. Ordinary deploy failures retain their
+existing exit and tag restoration. Read both the deploy and retention lines:
+a fresh apply stamp alone does not prove complete retention.
+
+The protection union includes every container image (all states and projects),
+every actual tag, all images in Compose's `--profile '*'` model, and the current
+receipt's record plus five app images. The record tool's read-only
+`protected-refs <receipt>` reuses its receipt validator and format keys.
+Digest references appearing in `RepoTags` are not tags; a tagged digest reference
+is protected. Unknown references are retained. Missing metadata or an
+unresolvable protection reference stops the pass before deletion.
+
+The complete inventory is validated first. Immediately before each deletion,
+tags and all container references are read again. Only explicit full IDs are
+passed to `docker image rm --no-prune`, without force or a fallback. A conflict
+stops the pass. All manual Docker mutations on this host must hold
+`/run/jobbliggaren-reconcile.lock`, including pulls, tag moves, container creation
+and removal, and Compose commands. Fresh checks do not replace this lock:
+an independent writer can otherwise add a tag between inspection and removal.
+
+Standalone use defaults to preview:
+
+```bash
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-image-retention.sh \
+  --dry-run --compose-file /opt/jobbliggaren/deploy/docker-compose.yml \
+  --receipt /var/lib/jobbliggaren/applied-release.env --budget-seconds 1800
+```
+
+`--apply` selects deletion. `--lock-fd 9` is internal: the descriptor must
+already hold the reconcile lock and name its inode. Missing receipts skip
+retention; invalid receipts fail closed. Python runs with `-I`. Full Compose
+configuration, image/container inspect data and subprocess stderr are never
+logged. Candidate `logical_bytes` includes shared layers and is not an estimate
+of reclaimed disk; measure `df -B1 /` and `docker system df` before and after.
+
+### Reviewed one-off cleanup before activation
+
+1. Commit the tested helper and record tool together. Obtain code/security
+   verdicts and CTO approval on that exact HEAD before deletion. Export their
+   committed bytes from the same archive and create a SHA-256 manifest. Record
+   HEAD and hashes in the session evidence.
+2. Stage only those two scripts and the manifest in a unique root-owned
+   `mktemp -d /run/jobbliggaren-image-retention.XXXXXXXX` directory, mode 0700.
+   Verify manifest hashes there; scripts are 0500, manifest 0400. This does not
+   change the live checkout. Invoke staged scripts with /bin/bash because /run
+   is mounted noexec. Pass the live Compose file and receipt explicitly.
+3. Take one outer exclusive reconcile lock on FD 9. Measure disk, Docker
+   storage, all container IDs/images/states, receipt bytes, protected reference
+   resolutions, `:applied` and `--status`. Run the staged preview with
+   `--lock-fd 9 --budget-seconds 1800`. Keep raw metadata in memory; record
+   only the safe projections and hashes.
+4. Probe one existing unprotected digest-only candidate from that preview:
+   recheck its metadata and all container references, then remove its full ID
+   with `docker image rm --no-prune`. A conflict stops further deletion and
+   goes back to the CTO. Do not force, untag or use a digest-reference fallback.
+   On success, run the staged helper's `--apply` under the same lock and budget.
+5. Re-measure and verify all protected resolutions, container identities and
+   states, receipt hash, `:applied`, and `--status = consistent`. Record
+   actual disk delta, completed/partial result, elapsed time and any errors.
+   Remove only the exact verified temporary directory after releasing the lock.
+
+A timeout may leave a Docker daemon operation completed after its client died.
+Exit 2 means an incomplete pass, not proof that no image was deleted.
+The next pass inventories again; never replay an old candidate list.
+
+Historical tagged images remain. Older removed digest images are pulled from
+GHCR and verified during record-based rollback (§3b); local presence is not a
+rollback requirement. Database and log growth are outside this retention
+promise.
+
+After merge, wait for a published verified release containing these scripts,
+then advance the checkout to that record's source commit under the standing GO.
+Recheck #2003 first: if merged, stop for Klas's escrow action before advancing.
+No new unit or timer is installed.
+
+Keep #2016 open and claimed until the journal shows complete retention and two
+real release transitions have been observed, including removal of each previous
+release's unprotected images. Those observations do not block urgent cleanup or
+merge. Arrange an actual follow-up when observation requires later runs; do not
+claim monitoring that has not been scheduled.
 
 ## 4. Host-side prerequisites
 

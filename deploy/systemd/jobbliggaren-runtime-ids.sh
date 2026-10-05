@@ -2,6 +2,7 @@
 # jobbliggaren-runtime-ids — read the runtime uid and gid out of ONE image reference.
 #
 # usage:  jobbliggaren-runtime-ids.sh <image-ref>
+# caller: hold /run/jobbliggaren-reconcile.lock through the measurement
 # stdout: exactly two lines — uid, then gid
 # stderr: every diagnostic
 # exit:   0 on success, non-zero on any failure

@@ -2470,12 +2470,10 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
 ## 4. Efter deploy (verifiering)
 
 > Compose-modell (ADR 0050 `Amendment 2026-08-04`/0122): hela stacken (API + Worker + Postgres +
-> Redis + Caddy + Next.js) kör i Docker Compose på **netcup-lådan (RS 1000 G12)** bakom Caddy. Konkreta
-> service-namn/kommandon finalize:ras med **#196** (Compose-stack + proxy
-> + härdning) — stegen nedan är på modell-altitud tills dess.
+> Redis + Caddy + Next.js) kör i Docker Compose på **netcup-lådan (RS 1000 G12)** bakom Caddy.
 
 - [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
-      visar dem `healthy` (konkret service-namn/compose-fil: #196).
+      visar dem `healthy`.
 - [ ] **En release, hel** — `sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/release-checklist.md"; exit 1; } && sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status`
       → `verdict: consistent`: kvittot, `:applied`, containrarna och checkoutens
       deploy-filer namnger samma release (`vps-deploy-stack.md` §3b).

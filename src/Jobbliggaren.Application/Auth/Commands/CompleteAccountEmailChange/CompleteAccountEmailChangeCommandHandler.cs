@@ -33,7 +33,7 @@ public sealed partial class CompleteAccountEmailChangeCommandHandler(
     public async ValueTask<Result<AccountEmailChangeOutcome>> Handle(
         CompleteAccountEmailChangeCommand command, CancellationToken cancellationToken)
     {
-        // Decided before any input is read, so the 503 cannot vary with what was presented.
+        // Decided by the handler's first statement, before the store is asked.
         if (!emailSender.CanDeliver)
             return Failure(DomainError.Validation(
                 AuthErrorCodes.EmailDeliveryUnavailable, AuthErrorCodes.EmailDeliveryUnavailableMessage));

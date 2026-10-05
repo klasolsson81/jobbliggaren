@@ -167,10 +167,10 @@ public static class AuthEndpoints
         // An address change an administrator started — COMPLETION (#1975, ADR 0153). PUBLIC: the owner presents the
         // account's current address, the new address and the code mailed there, and no session is read or issued.
         // Every refusal is one 410 with one body; a full match before the delay is a 409 carrying the earliest instant;
-        // a sender that cannot deliver is a 503 decided before any input is read. On success every session of the
-        // account is invalidated and the answer is 204. CancellationToken.None: a disconnect must abort neither the
-        // swap nor its teardown, and anything that fails after the swap answers 500, never a 503 that would invite a
-        // retry the refusal then meets.
+        // a sender that cannot deliver is a 503 decided by the handler's first statement, before the store is asked.
+        // On success every session of the account is invalidated and the answer is 204. CancellationToken.None: a
+        // disconnect must abort neither the swap nor its teardown, and anything that fails after the swap answers 500,
+        // never a 503 that would invite a retry the refusal then meets.
         group.MapPost("/account-email-change/complete", async (
             AccountEmailChangeCompleteRequest body,
             IMediator mediator,

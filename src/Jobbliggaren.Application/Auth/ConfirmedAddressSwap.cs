@@ -41,7 +41,7 @@ public sealed partial class ConfirmedAddressSwap(
     }
 
     [LoggerMessage(4002, LogLevel.Warning,
-        "Change-email confirm: old-address notification failed for user {UserId} ({ErrorType}) " +
+        "Address swap: old-address notification failed for user {UserId} ({ErrorType}) " +
         "(change succeeded)")]
     private partial void LogOldAddressNotificationFailed(string errorType, Guid userId);
 }

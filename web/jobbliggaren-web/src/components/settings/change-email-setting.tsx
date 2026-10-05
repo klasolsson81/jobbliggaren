@@ -33,6 +33,7 @@ import type { MessageChannel } from "@/lib/auth/challenge-action-state";
 import { codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { CODE_PHASE_MAX_AGE_SECONDS } from "@/lib/auth/login-flow";
 import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
+import { requestReauthCode } from "@/lib/auth/reauth-actions";
 import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 type ChangeChallenge = { id: string; sentAt: number; address: string };
@@ -428,6 +429,7 @@ export function ChangeEmailSetting({ currentEmail }: { currentEmail: string }) {
                   pendingLabel={tp("auth.passwordless.code.submitting")}
                   cancelLabel={t("account.changeEmail.cancel")}
                   returnPath={MINA_SIDOR_HREF.konto}
+                  requestCode={requestReauthCode}
                   action={(proof) => requestEmailChangeAction(pendingAddress, proof)}
                   onHandOff={onHandOff}
                   focusAfterHandOff={focusAfterHandOff}

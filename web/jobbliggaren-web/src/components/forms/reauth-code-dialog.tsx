@@ -29,14 +29,16 @@ import {
 import type { MessageChannel } from "@/lib/auth/challenge-action-state";
 import { codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { CODE_PHASE_MAX_AGE_SECONDS, RESEND_COOLDOWN_SECONDS } from "@/lib/auth/login-flow";
-import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
-import { requestReauthCode } from "@/lib/auth/reauth-actions";
+import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { useCountdown } from "@/lib/hooks/use-countdown";
 
 // Re-authentication by a code to the account's own address (#1740, ADR 0142 D5), as design-reviewer
 // bound it in the form round: the dialog ONLY re-authenticates (Klas 2026-09-22). It asks for a code,
 // takes the code, and hands the consumer's operation the proof; the operation verifies the code and
 // acts in one Server Action, so the grant between them never reaches the browser.
+//
+// The consumer hands it the code request as well as the operation, so the dialog itself reaches no
+// Server Action: the admin preview renders it over fixtures and may reach none (ADR 0150 D5, #1975).
 //
 // The challenge id is held here, in the component that stays mounted with the card, never inside the
 // dialog content that unmounts on close: a close and a re-open inside the code's lifetime land back on
@@ -84,6 +86,8 @@ type ReAuthCodeDialogProps<T, C> = {
   terminalExtra?: ReactNode;
   /** The page a lapsed session comes back to after logging in again: the one the dialog opened on. */
   returnPath: string;
+  /** Asks for a code to `currentEmail`, for the first send and for every resend. */
+  requestCode: () => Promise<ReauthRequestResult>;
   action: (proof: CodeProof, context: C) => Promise<ReauthOutcome<T>>;
   onHandOff: (handOff: ReauthHandOff<T>) => void;
   /** Moves focus to the consumer's target once a hand-off has closed the dialog. */
@@ -113,6 +117,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   codeHint,
   terminalExtra,
   returnPath,
+  requestCode,
   action,
   onHandOff,
   focusAfterHandOff,
@@ -216,7 +221,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
     }
     setMessage(null);
     startTransition(async () => {
-      const result = await requestReauthCode();
+      const result = await requestCode();
       if (result.ok) {
         const sentAt = nowSeconds();
         setChallenge({ id: result.challengeId, sentAt, context });
@@ -308,7 +313,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
     if (!current) return;
     setResendNotice(null);
     startResend(async () => {
-      const result = await requestReauthCode();
+      const result = await requestCode();
       if (result.ok) {
         // A new code replaces the previous one on the server, so the old id is dead from here on.
         const sentAt = nowSeconds();

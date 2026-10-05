@@ -73,8 +73,8 @@ dotnet test --project tests/Jobbliggaren.Api.IntegrationTests -- --filter-class 
 
 The edge probe also requires a locally available `node:22-alpine` image. Supply a
 locally pulled Caddy digest to repeat a specific image measurement. It prints the
-resolved image IDs and source revision. It mounts the checkout's Caddyfile and
-challenge snippets read-only, uses synthetic Basic Auth and an HTTP-only test site,
+resolved image IDs and source revision. It mounts the checkout's Caddyfile
+read-only, uses synthetic Basic Auth and an HTTP-only test site,
 and substitutes a small upstream that reads the request body. It creates a dedicated
 Docker network and containers, publishes only a dynamic loopback port, and removes
 only its own resources. It has no remote target argument and rejects remote Docker

@@ -147,8 +147,7 @@ line, so `worker` — which shares those through the `x-app-email` anchor and co
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
@@ -192,25 +191,24 @@ fixed at creation, so a restart re-runs the seeder against the value the contain
 Measured 2026-08-16: the address *had* been changed after step 3 — the plain one was burned by a
 failed registration and the account was re-created under a `+`-alias — so a `restart` would have
 assigned Admin to the wrong account, one that was itself scheduled for deletion. Check before you
-choose:
+choose under the lock:
 
 ```bash
-sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash
+/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status || exit
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
   | grep AdminBootstrap
-```
-
-If that value is the account you registered, `restart` is enough:
-
-```bash
-sudo docker restart jobbliggaren-api
+# If that value is the account registered above, run the restart before leaving this shell.
+# Otherwise exit now and use the re-create block below.
+docker restart jobbliggaren-api
+exit
 ```
 
 If it is not, re-create instead — same command as step 10:
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 This is the sanctioned exception to *"manual applies go through the unit"* —
@@ -219,29 +217,26 @@ the wrong instrument here. Its precondition is the `--status` in front of it: th
 only on `verdict: consistent`.
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
-whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
-did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
+whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` while the role has no holder, and
+at step 3 that account did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
 never the address.
 
 **Then blank the knob — and RE-CREATE, not restart.**
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 ⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
 fixed at creation, so `restart` re-runs the process against the value it already had: the address
-stays in container env, the seeder keeps re-asserting the role on every start, and the operator
+stays in container env, and the operator
 believes the knob is blanked because `.env` says so. Only a re-create re-reads `.env`. Measured
 2026-08-16, where the same asymmetry bit in the other direction first — the value had been
 *changed* after step 3's `up`, so the running container still carried the old address and a
 `restart` would have granted Admin to the wrong account.
 
-The seeder re-asserts on **every** start, so a
-standing value is not a bootstrap but a permanent grant: it silently re-grants the role after
-any in-app revocation, and it would hand Admin to a future holder of that address. The role
+The role
 is persisted in the database, so the knob has no further work once the log confirms the
 assignment. Blanking it also takes a real address back out of container environment, where
 `docker inspect` and the container's on-disk config both carry it. Verify with
@@ -264,8 +259,7 @@ that way: this repo is public, and the file carries the K2 credential. It is del
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status &&
-  cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/deploy && /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status && docker compose -f docker-compose.yml up -d --pull never api'
 ```
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
@@ -343,8 +337,7 @@ Accounts and logins survive a closed gate; closing it refuses new registrations 
 
 Closed is the default rather than a preference: the gate is
 opened for a visit and not left open between them. Leaving it open is available, but it is a
-deliberate exception with K2 as the only thing in front of it — and K2's plaintext now sits in
-a file whose audience is every future CC session.
+deliberate exception with K2 as the only thing in front of it.
 
 ⚠ **That exception is the shape a visit for other people's registrations has to take.** They do
 not arrive inside a visit's window, so the gate cannot be opened and closed around them; it

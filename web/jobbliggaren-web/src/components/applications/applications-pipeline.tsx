@@ -22,6 +22,8 @@ import { ApplicationsBoard } from "./applications-board";
 import { ApplicationsTable } from "./applications-table";
 import { StepRail } from "./step-rail";
 import { StatusSection } from "./status-section";
+import type { InformationSnapshots } from "@/components/information/types";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 
 // Sektioner öppna vid sidladdning (design 2a §5): Skickad, Intervju bokad,
 // Erbjudande. Övriga kollapsade — kollaps är navigerings-/skalningsmekanismen.
@@ -76,6 +78,7 @@ export function ApplicationsPipeline({
 }: ApplicationsPipelineProps) {
   const tEnum = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const restored = useInformationSnapshot("applications");
 
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const byStatus = useMemo(
@@ -83,15 +86,16 @@ export function ApplicationsPipeline({
     [groups],
   );
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(restored?.query ?? "");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | null>(
-    null,
+    restored?.statusFilter ?? null,
   );
   // Vy seedas från SSR-propen (D7) → ingen flash. Växlingen är omedelbar ren
   // klient-state; cookien persistas fire-and-forget i en transition (INTE
   // await:ad, INGEN router.refresh) — den är bara till för nästa-paint (D2).
-  const [view, setView] = useState<ApplicationsView>(initialView);
+  const [view, setView] = useState<ApplicationsView>(restored?.view ?? initialView);
   const [, startViewPersist] = useTransition();
+  useInformationAdapter("applications", (): InformationSnapshots["applications"] => ({ query, statusFilter, view }));
 
   const onViewChange = (next: ApplicationsView) => {
     setView(next);

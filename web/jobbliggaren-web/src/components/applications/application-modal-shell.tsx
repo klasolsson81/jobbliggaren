@@ -4,12 +4,13 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
+import { useInformationModalFocus } from "@/components/information/useInformationModalFocus";
 
 /**
  * ApplicationModalShell — modal-chrome (scrim / ESC / scrim-klick /
  * focus-trap / focus-return / body-scroll-lock) runt en server-renderad
  * `ApplicationDetailBody`. Speglar F3 JobAdModalShell exakt (samma
- * useDismissable/focus-trap/ESC/scrim-idiom) — medvetet INGEN
+ * focus-trap/ESC/scrim-idiom) — medvetet INGEN
  * generalisering till delad ModalShell ännu: F3-shellen passar
  * title/company i headern, ansökan-shellen behöver titel + undertitel.
  * En delad abstraktion infördes EJ för att undvika prematur generalisering
@@ -43,12 +44,9 @@ export function ApplicationModalShell({
 
   const close = () => router.back();
 
-  // Fokus in i modalen vid öppning + body-scroll-lock. Fokus-retur till
-  // utlösande element sköts av Next: router.back() återställer föregående
-  // route och DOM-fokus-position i listan (soft-nav-historik). Identiskt
-  // med F3 JobAdModalShell.
+  useInformationModalFocus(panelRef, closeRef);
+
   useEffect(() => {
-    closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -78,7 +76,8 @@ export function ApplicationModalShell({
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
-      if (e.shiftKey && document.activeElement === first) {
+      const headingFocused = document.activeElement === panelRef.current.querySelector('h2[tabindex="-1"]');
+      if (e.shiftKey && (document.activeElement === first || headingFocused)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -106,7 +105,7 @@ export function ApplicationModalShell({
       >
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h2 id={labelId} className="jp-modal__title">
+            <h2 id={labelId} tabIndex={-1} className="jp-modal__title">
               {title}
             </h2>
             <p className="jp-modal__company">{subtitle}</p>

@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 const excerpt = () => (
-  <AdDescriptionExcerpt showFullLabel="Visa hela annonsen" showLessLabel="Visa mindre">
+  <AdDescriptionExcerpt snapshotId="19630000-0000-4000-8000-000000000101" showFullLabel="Visa hela annonsen" showLessLabel="Visa mindre">
     <p>Vi söker en mjukvaruutvecklare.</p>
   </AdDescriptionExcerpt>
 );

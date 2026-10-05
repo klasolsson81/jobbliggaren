@@ -35,7 +35,7 @@ export interface JobDetailData {
 /**
  * Discriminated result. `ok` carries the loaded data bundle; every other kind
  * mirrors `getJobAd`'s `ApiResult` so the callers keep their exhaustive switch
- * (unauthorized → login, notFound → 404, rateLimited → civil box, …).
+ * (unauthorized → login, rateLimited → civil box, …).
  */
 export type JobDetailLoad =
   | ({ kind: "ok" } & JobDetailData)

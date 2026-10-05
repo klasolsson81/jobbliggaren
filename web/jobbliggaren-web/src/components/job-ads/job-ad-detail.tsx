@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InformationLink } from "@/components/information/InformationLink";
 import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
@@ -127,7 +128,7 @@ export function JobAdDetail({
       {!headless && (
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h1 className="jp-modal__title">{jobAd.title}</h1>
+            <h1 tabIndex={-1} className="jp-modal__title">{jobAd.title}</h1>
             <p className="jp-modal__company">{jobAd.companyName}</p>
             <JobAdDetailMeta jobAd={jobAd} />
             {/* #1000 (V1) — INGEN separat BEVAKAR-tagg i modal-headern. Den vore en
@@ -144,6 +145,7 @@ export function JobAdDetail({
 
       <div
         className="jp-modal__body"
+        data-information-scroll={inModal ? "job-modal-body" : undefined}
         tabIndex={inModal ? 0 : undefined}
         role={inModal ? "region" : undefined}
         aria-label={inModal ? tUi("detail.bodyLabel") : undefined}
@@ -180,6 +182,7 @@ export function JobAdDetail({
             {tUi("detail.description")}
           </div>
           <AdDescriptionExcerpt
+            snapshotId={jobAd.id}
             showFullLabel={tUi("detail.showFullAd")}
             showLessLabel={tUi("detail.showLess")}
           >
@@ -193,9 +196,9 @@ export function JobAdDetail({
           <div className="flex flex-col gap-2">
             <RecruiterContactBlock contacts={contacts} variant="card" />
             <p className="jp-recruiter-notice">
-              <Link href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
+              <InformationLink id={`information-job-${jobAd.id}`} href="/kontaktperson-i-annons" className={contactLinkStyles.link}>
                 {tUi("detail.recruiterNoticeLink")}
-              </Link>
+              </InformationLink>
             </p>
           </div>
         )}

@@ -28,6 +28,9 @@ case "$operation" in
   *) fail 'unknown operation';;
 esac
 
+exec 8>/run/jobbliggaren-reconcile.lock
+flock -n 8 || fail 'reconciliation is in progress; no account operation performed'
+
 readonly DEPLOY=/opt/jobbliggaren/deploy
 readonly PASSWORD_FILE=/run/jobbliggaren/redis/operator/persistent-password
 bash "$DEPLOY/systemd/jobbliggaren-redis-secrets.sh" --check >/dev/null 2>&1 || fail 'credential set is not verified'

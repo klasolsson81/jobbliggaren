@@ -6,6 +6,8 @@ import { ChevronDown } from "lucide-react";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { useApplicationPending } from "./application-actions";
 import { ApplicationRow } from "./application-row";
+import type { InformationSnapshots } from "@/components/information/types";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 
 // Synliga rader per ÖPPEN statussektion innan "Visa N till" (design 2a §5). Enkel
 // konstant, ingen config.
@@ -44,13 +46,15 @@ export function StatusSection({
   forceOpen,
 }: StatusSectionProps) {
   const tUi = useTranslations("applications.ui");
+  const restored = useInformationSnapshot(`status:${status}`);
   // Läser pendingIds-Set:et och trådar ett per-rad `pending`-prop ned (d4). Denna
   // sektion re-renderar vid ett statusbyte (billig map), men de memo-lindade
   // raderna skippar utom den vars `pending` faktiskt flippade.
   const pendingIds = useApplicationPending();
-  const [openState, setOpenState] = useState(defaultOpen);
-  const [expanded, setExpanded] = useState(false);
+  const [openState, setOpenState] = useState(restored?.open ?? defaultOpen);
+  const [expanded, setExpanded] = useState(restored?.expanded ?? false);
   const headRef = useRef<HTMLButtonElement>(null);
+  useInformationAdapter(`status:${status}`, (): InformationSnapshots[`status:${ApplicationStatus}`] => ({ open: openState, expanded }));
 
   // forceOpen vinner: en träffgrupp under aktivt filter/sök är alltid öppen.
   // Användarens egen toggle-preferens (openState) bevaras och återtar effekt när

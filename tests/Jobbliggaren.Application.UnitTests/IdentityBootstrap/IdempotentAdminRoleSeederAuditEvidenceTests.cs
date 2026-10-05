@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.UnitTests.IdentityBootstrap;
 ///
 /// <para>
 /// CTO-beslut 2026-05-11 (senior-cto-advisor Alt A): seederns observability
-/// går via ILogger → Serilog → Seq/CloudWatch — INTE via <c>audit_log</c>-
+/// går via ILogger → Seq — INTE via <c>audit_log</c>-
 /// tabellen. ADR 0022 etablerar att DB-audit kräver <c>IAuditableCommand</c>-
 /// marker på Mediator-command. Bootstrap är <see cref="IHostedService"/>
 /// utanför Mediator-pipelinen och har därför ingen <c>AuditLogEntry</c>-rad.
@@ -94,6 +94,28 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
             e => e.EventId.Id == 4 && e.LogLevel == LogLevel.Warning);
     }
 
+    [Fact]
+    public async Task StartAsync_AnotherAccountHoldsTheRole_GrantsNothingAndWarnsByUserIdOnly()
+    {
+        // The configured address now names a second account: its admin moved address through the self-service
+        // change-email flow, and the next account to prove that inbox took it (#2001, security-auditor's probe).
+        var ct = TestContext.Current.CancellationToken;
+        await using var sp = BuildServiceProvider();
+        await CreateUserAsync(sp, "holder@jobbliggaren.test", ct);
+        await PromoteToAdminAsync(sp, "holder@jobbliggaren.test", ct);
+        await CreateUserAsync(sp, AdminEmail, ct);
+        var capturingLogger = new CapturingLogger();
+
+        await BuildSeeder(sp, AdminEmail, capturingLogger).StartAsync(ct);
+
+        (await IsAdminAsync(sp, AdminEmail)).ShouldBeFalse();
+        capturingLogger.Entries.ShouldNotContain(e => e.EventId.Id == 2);
+        var warning = capturingLogger.Entries.Single(e => e.EventId.Id == 6);
+        warning.LogLevel.ShouldBe(LogLevel.Warning);
+        warning.Message.ShouldContain((await UserIdAsync(sp, AdminEmail)).ToString());
+        warning.Message.ShouldNotContain(AdminEmail);
+    }
+
     private static ServiceProvider BuildServiceProvider()
     {
         var dbName = $"identity-tests-{Guid.NewGuid():N}";
@@ -148,6 +170,21 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         var user = await userManager.FindByEmailAsync(email)
             ?? throw new InvalidOperationException($"User {email} saknas — pre-seeda först.");
         (await userManager.AddToRoleAsync(user, Roles.Admin)).Succeeded.ShouldBeTrue();
+    }
+
+    private static async Task<bool> IsAdminAsync(IServiceProvider sp, string email)
+    {
+        using var scope = sp.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(email) ?? throw new InvalidOperationException($"User {email} saknas.");
+        return await userManager.IsInRoleAsync(user, Roles.Admin);
+    }
+
+    private static async Task<Guid> UserIdAsync(IServiceProvider sp, string email)
+    {
+        using var scope = sp.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return (await userManager.FindByEmailAsync(email) ?? throw new InvalidOperationException($"User {email} saknas.")).Id;
     }
 
     private static IdempotentAdminRoleSeeder BuildSeeder(

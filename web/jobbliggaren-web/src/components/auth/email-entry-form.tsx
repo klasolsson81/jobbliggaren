@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef } from "react";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 import { useTranslations } from "next-intl";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { EmailStepState } from "@/lib/auth/challenge-action-state";
 import { requestCode } from "@/lib/auth/challenge-actions";
+import informationStyles from "@/components/information/information.module.css";
 
 // Client because it holds the action's state (`useActionState`) and moves focus when it arrives.
 //
@@ -20,13 +22,15 @@ import { requestCode } from "@/lib/auth/challenge-actions";
 // `björn@…`, which the backend admits (#1781). The Server Action validates instead.
 export function EmailEntryForm({ next }: { next: string }) {
   const t = useTranslations("pages");
+  const restored = useInformationSnapshot("email");
   const [state, formAction, isPending] = useActionState<EmailStepState, FormData>(
     requestCode,
-    null
+    restored?.state ?? null
   );
   const inputRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const errorId = useId();
+  useInformationAdapter("email", (): { email: string; state: EmailStepState } => ({ email: inputRef.current?.value ?? "", state }));
   const fieldInvalid = state?.channel === "field";
 
   useEffect(() => {
@@ -49,7 +53,7 @@ export function EmailEntryForm({ next }: { next: string }) {
           name="email"
           type="email"
           autoComplete="email"
-          defaultValue={state?.values.email ?? ""}
+          defaultValue={state === restored?.state ? restored.email : state?.values.email ?? restored?.email ?? ""}
           required
           aria-required="true"
           aria-invalid={fieldInvalid ? true : undefined}
@@ -59,7 +63,7 @@ export function EmailEntryForm({ next }: { next: string }) {
         <p id="email-privacy" className="text-body-sm text-text-primary">
           {t.rich("auth.passwordless.entry.privacyHint", {
             privacy: (chunks) => (
-              <Link href="/integritet" className="text-brand-700 underline underline-offset-2">
+              <Link id="information-email-privacy" href="/integritet" className={`${informationStyles.entryLink} text-brand-700 underline underline-offset-2`}>
                 {chunks}
               </Link>
             ),

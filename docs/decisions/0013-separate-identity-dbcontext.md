@@ -83,3 +83,9 @@ Varför vi väljer bort det:
 3. **Migrationsrisk.** Döper vi om tabeller måste befintliga databaser migreras om — ett onödigt riskmoment.
 
 Nuvarande state — PascalCase tabellnamn + snake_case kolumner — är godtagbart och stabilt.
+
+**Update 2026-10-04 (ADR 0151, #1974):** point 1 no longer holds. The admin account directory reads the
+Identity tables with raw, parameterised, read-only SQL (`SqlAccountDirectory`): an account's status lives in
+`public.job_seekers`, and filtering and counting every account in bounded statements takes a join in the
+database. The conclusion stands on points 2 and 3. The PascalCase table names are now names the code
+depends on, so the integration tests run every composed branch of that SQL against the migrated schema.

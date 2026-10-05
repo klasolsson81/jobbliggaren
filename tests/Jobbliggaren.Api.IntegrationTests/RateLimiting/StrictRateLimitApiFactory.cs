@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Infrastructure.Identity;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
@@ -30,6 +32,9 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
     private RedisTestEnvironment? _redisEnvironment;
+
+    /// <summary>Every record this host writes, so a test can assert what a rejected request leaves behind.</summary>
+    internal CapturingLoggerProvider Logs { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -54,6 +59,8 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
+
+            services.AddSingleton<ILoggerProvider>(Logs);
 
         });
     }
@@ -81,6 +88,8 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", null);
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).

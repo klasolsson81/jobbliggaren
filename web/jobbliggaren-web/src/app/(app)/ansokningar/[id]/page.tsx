@@ -65,7 +65,7 @@ export default async function AnsokanDetailPage({ params }: Props) {
           <div className="jp-modal jp-modal--page">
             <header className="jp-modal__head">
               <div style={{ flex: 1 }}>
-                <h1 className="jp-modal__title">{title}</h1>
+                <h1 tabIndex={-1} className="jp-modal__title">{title}</h1>
                 <p className="jp-modal__company">{subtitle}</p>
               </div>
             </header>

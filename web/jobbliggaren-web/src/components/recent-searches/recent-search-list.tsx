@@ -21,8 +21,7 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
     () => new Set()
   );
   const [error, setError] = useState<DeleteError | null>(null);
-  // Lat-hämtad träffräknare on mount (B, CTO 2026-06-13) — off-critical-path,
-  // graceful null. Listan visas direkt; talen "poppar in" när de laddats.
+  // Lat-hämtad träffräknare on mount (B, CTO 2026-06-13) — off-critical-path.
   const counts = useRecentSearchCounts(true);
 
   const visibleItems = useMemo(
@@ -68,6 +67,7 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
             key={item.id}
             item={item}
             count={counts?.get(item.id)}
+            countsPending={counts === undefined}
             onDeleted={handleDeleted}
             onDeleteFailed={handleDeleteFailed}
           />

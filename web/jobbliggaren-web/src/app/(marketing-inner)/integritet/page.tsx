@@ -1,5 +1,7 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
+import { legalSectionId } from "@/components/information/section-ids";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,38 +18,23 @@ type Section = {
   list?: string[];
 };
 
-/**
- * Publik innehållssida: Integritetspolicy (#263). Statisk RSC, ingen
- * klient-interaktivitet. Återbrukar (marketing-inner)-mönstret (delad
- * SiteHeader/SiteFooter via layouten; eget `<main id="main">` som skip-mål per
- * #284). Innehållet drivs ur `content-legal`-katalogen (sv = källa, en speglad,
- * paritetstestad). Civic-utility: en h1, hög-kontrast text (ingen grå brödtext),
- * ingen em-dash, inget utropstecken.
- */
-export default async function IntegritetPage() {
+
+export default async function IntegritetPage({ searchParams }: { searchParams?: Promise<{ context?: string }> } = {}) {
   const t = await getTranslations("content-legal");
+  const navigation = await getTranslations("information");
+  const context = (await searchParams)?.context;
   const sections = t.raw("privacy.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="integritet-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="integritet-heading" className="jp-pagehero__title">
-              {t("privacy.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("privacy.updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("privacy.title")} lede={t("privacy.updated")} headingId="integritet-heading" notice={context === "cv-upload" ? navigation("cvTab") : undefined} sections={sections.map((section, index) => ({ id: legalSectionId("integritet", index), label: section.heading }))}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("privacy.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
-          {sections.map((section) => (
+          {sections.map((section, index) => (
             <div key={section.heading}>
-              <h2 className="text-body-lg font-semibold text-text-primary">
+              <h2 id={legalSectionId("integritet", index)} tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
                 {section.heading}
               </h2>
               {section.paragraphs.map((paragraph, i) => (
@@ -91,7 +78,7 @@ export default async function IntegritetPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

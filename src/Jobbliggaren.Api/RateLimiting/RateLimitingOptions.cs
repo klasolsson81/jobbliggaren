@@ -616,6 +616,25 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// The admin account directory's reads (#1974, ADR 0151): the search with its counts, and the account
+    /// detail. One bucket per UserId, apart from <see cref="AdminWrite"/> so typing a search never starves an
+    /// admin command. The numbers are a starting value, derived from both halves of the cost:
+    /// <list type="bullet">
+    /// <item>Request frequency: a search debounced at 300 ms or more settles about 3.3 times a second, and each
+    /// settle is one call, since the counts ride in the search response. A burst of 30 absorbs a fast typist,
+    /// and the refill of 5 tokens per 1.67 s holds about 3 requests a second.</item>
+    /// <item>Backend cost per request: the directory scans the account table sequentially, because a substring
+    /// match cannot use the address index. Re-derive the numbers at ADR 0151 D8's trigger.</item>
+    /// </list>
+    /// security-auditor verifies the numbers as a blocking check, the file's convention.
+    /// </summary>
+    public PolicyOptions AdminRead { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// POST /api/v1/me/company-watches/ad-hits/{jobAdId}/seen (#453 cross-channel follow-dedup) —
     /// partitionerat per UserId (claim "sub"), anonym -> NoLimiter (RequireAuthorization-gated ->
     /// 401 fore endpoint). Egen policy (ej MeWrite-atervanvandning) — least common mechanism

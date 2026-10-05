@@ -40,7 +40,7 @@ export default async function LoggaInPage({ searchParams }: PageProps) {
   if (providers.length === 0) {
     return (
       <div className="flex flex-col gap-8">
-        <h1 className="text-h1 font-bold text-heading-1">{t("auth.passwordless.entry.title")}</h1>
+        <h1 tabIndex={-1} className="text-h1 font-bold text-heading-1">{t("auth.passwordless.entry.title")}</h1>
 
         {notice}
 
@@ -58,7 +58,7 @@ export default async function LoggaInPage({ searchParams }: PageProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-h1 font-bold text-heading-1">{t("auth.passwordless.entry.title")}</h1>
+      <h1 tabIndex={-1} className="text-h1 font-bold text-heading-1">{t("auth.passwordless.entry.title")}</h1>
 
       {notice}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 import { useTranslations } from "next-intl";
 import {
   ACTIVE_PIPELINE_STATUSES,
@@ -157,7 +158,7 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
         </span>
       </div>
 
-      <div className="jp-board__grid">
+      <div className="jp-board__grid" data-information-scroll="applications-board">
         {ACTIVE_PIPELINE_STATUSES.map((status) => (
           <BoardColumn
             key={status}
@@ -232,7 +233,9 @@ function BoardColumn({
   cardProps,
 }: BoardColumnProps) {
   const tUi = useTranslations("applications.ui");
-  const [expanded, setExpanded] = useState(false);
+  const restored = useInformationSnapshot(`board:${status}`);
+  const [expanded, setExpanded] = useState(restored ?? false);
+  useInformationAdapter(`board:${status}`, () => expanded);
 
   const overCap = apps.length > COLUMN_CARD_CAP;
   const visible = expanded ? apps : apps.slice(0, COLUMN_CARD_CAP);
@@ -263,7 +266,7 @@ function BoardColumn({
             (3-vy-konsekvens). */}
         <span className="jp-board-col__count">{apps.length}</span>
       </div>
-      <div className="jp-board-col__list">
+      <div className="jp-board-col__list" data-information-scroll={`board-column-${status}`}>
         {apps.length === 0 ? (
           <p className="jp-board-col__empty">{emptyText}</p>
         ) : (

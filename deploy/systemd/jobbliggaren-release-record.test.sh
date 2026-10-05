@@ -458,6 +458,21 @@ matrix=$(sed -nE 's/^[[:space:]]*- \{ name: ([a-z]+),.*/\1/p' "$repo_root/.githu
 record=$(sed -nE 's/^[[:space:]]*JBL_RELEASE_IMAGE_([A-Z]+)$/\1/p' "$SUT" | tr 'A-Z' 'a-z' | LC_ALL=C sort | paste -sd' ' -)
 check '[ -n "$matrix" ] && [ "$matrix" = "$record" ]' "the record format names exactly the workflow's images (matrix: $matrix · record: $record)"
 
+echo "-- protected references share the receipt validator"
+{ printf 'JBL_RECEIPT_RECORD_DIGEST=%s\n' "$(d 6)"; cat "$TMPROOT/good.env"; } >"$TMPROOT/retention-receipt"
+expect_exit 0 "protected-refs returns the receipt's six references" protected-refs "$TMPROOT/retention-receipt"
+cat >"$TMPROOT/protected-expected" <<EOF
+ghcr.io/klasolsson81/jobbliggaren-release@$(d 6)
+ghcr.io/klasolsson81/jobbliggaren-api@$D_API
+ghcr.io/klasolsson81/jobbliggaren-worker@$D_WORKER
+ghcr.io/klasolsson81/jobbliggaren-migrate@$D_MIGRATE
+ghcr.io/klasolsson81/jobbliggaren-web@$D_WEB
+ghcr.io/klasolsson81/jobbliggaren-caddy@$D_CADDY
+EOF
+check 'cmp -s "$TMPROOT/out" "$TMPROOT/protected-expected"' "exact record and five app references, with no schema change"
+sed -i 's/JBL_RELEASE_SEQUENCE=2/JBL_RELEASE_SEQUENCE=broken/' "$TMPROOT/retention-receipt"
+expect_exit 1 "malformed receipt emits no protection" protected-refs "$TMPROOT/retention-receipt"
+check '[ ! -s "$TMPROOT/out" ]' "no partial stdout before complete validation"
 # THE PROOF THE CANONICAL FORM SHIPS WITH (senior-cto-advisor, 2026-10-03: never ship the canonicalisation
 # without it). The real compose file and its canonical form must resolve to the identical compose model —
 # so stripping full-line comments and blank lines can never hide a configuration change from the hash.

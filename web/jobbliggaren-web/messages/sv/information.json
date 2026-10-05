@@ -1,0 +1,27 @@
+{
+  "contents": "På den här sidan",
+  "top": "Till sidans början",
+  "fallback": "Till startsidan",
+  "return": {
+    "home": "Tillbaka till startsidan",
+    "login": "Tillbaka till inloggningen",
+    "help": "Tillbaka till hjälpcenter",
+    "jobs": "Tillbaka till jobben",
+    "saved": "Tillbaka till sparade jobb",
+    "matches": "Tillbaka till matchningarna",
+    "applications": "Tillbaka till ansökningarna",
+    "cv": "Tillbaka till dina CV",
+    "overview": "Tillbaka till översikten",
+    "searches": "Tillbaka till sökningarna",
+    "settings": "Tillbaka till Mina sidor",
+    "job": "Tillbaka till annonsen",
+    "application": "Tillbaka till ansökan",
+    "guestJobs": "Tillbaka till jobb i demoläget",
+    "guestApplications": "Tillbaka till ansökningar i demoläget",
+    "guestCV": "Tillbaka till CV i demoläget",
+    "guestOverview": "Tillbaka till översikten i demoläget",
+    "guestJob": "Tillbaka till annonsen i demoläget",
+    "guestApplication": "Tillbaka till ansökan i demoläget"
+  },
+  "cvTab": "Fortsätt i fliken där du laddar upp ditt CV"
+}

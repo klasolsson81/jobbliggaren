@@ -1,4 +1,5 @@
 {
+  "privacyNavigationHint": "Integritetspolicyn öppnas i en ny flik. Fortsätt sedan här med ditt val.",
   "createForm": {
     "nameLabel": "Namn på CV",
     "nameHelp": "Till exempel Master-CV eller Backend-utvecklare 2026.",

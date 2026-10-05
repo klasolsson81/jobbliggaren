@@ -4,11 +4,6 @@
 #
 # Run:  bash deploy/systemd/jobbliggaren-inject-secrets.test.sh
 #
-# NEEDS NO DAEMON, NO ROOT AND NO NETWORK. The suite drives `--check`, which by design stats
-# files and nothing else — that is what makes it runnable at boot before dockerd, and it is
-# what makes it testable here. The injection path needs root, a docker daemon and a terminal
-# for `read -rs`, so it is out of reach of CI; the runbook's cutover rows are its proof.
-#
 # WHY --check IS THE THING WORTH PINNING. It is the box's only alarm for a missing key: a
 # crash-looping container never appears in `systemctl --failed`, so if this predicate is wrong
 # an unplanned reboot leaves the API down with nothing on the only surface anyone reads
@@ -1271,6 +1266,86 @@ else
   echo "       cases measure against. They RUN in CI on ubuntu, where JBL_REQUIRE_MODE_CASES"
   echo "       makes a skip an error."
 fi
+
+python3 -I - "$script_dir" "$TMPROOT" <<'PYLOCK'
+import fcntl
+from pathlib import Path
+import subprocess
+import sys
+import time
+import unittest
+
+source, root = map(Path, sys.argv[1:])
+root = root / "measurement"
+root.mkdir()
+lock = root / "lock"
+calls = root / "calls"
+docker = root / "docker"
+docker.write_text('''#!/usr/bin/env bash
+printf '%s\n' "$1" >> "${BASH_SOURCE[0]%/*}/calls"
+if [[ $1 == compose ]]; then printf 'ghcr.io/klasolsson81/jobbliggaren-api:applied\n'; exit 0; fi
+[[ $1 == run ]] || exit 1
+if [[ -e ${BASH_SOURCE[0]%/*}/pause ]]; then
+  touch "${BASH_SOURCE[0]%/*}/running"
+  while [[ ! -e ${BASH_SOURCE[0]%/*}/continue ]]; do sleep 0.01; done
+fi
+printf '1654\n1655\n'
+''')
+docker.chmod(0o700)
+ids = root / "ids"
+ids.write_text((source / "jobbliggaren-runtime-ids.sh").read_text().replace('/usr/bin/docker', str(docker)))
+ids.chmod(0o700)
+sut = (source / 'jobbliggaren-inject-secrets.sh').read_text()
+# Exercise the production resolution actor without the later terminal-input phase.
+function = sut.split('resolve_runtime_ids() (\n', 1)[1].split('\n)\n', 1)[0]
+function = 'resolve_runtime_ids() (\n' + function + '\n)\n'
+function = function.replace('/run/jobbliggaren-reconcile.lock', str(lock))
+script = root / "resolve"
+script.write_text('set -euo pipefail\nPATH=' + str(root) + ':$PATH\nCOMPOSE_FILE=' + str(root / 'compose') +
+                  '\nRUNTIME_IDS=' + str(ids) + '\ndie() { echo "$1" >&2; exit 1; }\n' +
+                  function + 'resolve_runtime_ids\n')
+retention = root / 'retention'
+retention.write_text((source / 'jobbliggaren-image-retention.sh').read_text().replace(
+    'readonly LOCK=/run/jobbliggaren-reconcile.lock', 'readonly LOCK=' + str(lock)))
+
+class MeasurementLock(unittest.TestCase):
+    def test_conflict_refuses_before_compose_or_container_creation(self):
+        with lock.open('w+') as owner:
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = subprocess.run(['bash', str(script)], capture_output=True, text=True, timeout=3)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('reconciliation is in progress', result.stderr)
+            self.assertEqual(result.stdout, '')
+            self.assertFalse(calls.exists())
+
+    def test_measurement_excludes_retention_and_releases_before_secret_input(self):
+        (root / 'pause').touch()
+        process = subprocess.Popen(['bash', str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 5
+            while not (root / 'running').exists() and time.monotonic() < deadline:
+                self.assertIsNone(process.poll())
+                time.sleep(.01)
+            self.assertTrue((root / 'running').exists())
+            result = subprocess.run(['bash', str(retention), '--apply', '--receipt', str(root / 'absent')],
+                                    capture_output=True, text=True, timeout=3)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('lock overlap; skipped', result.stdout)
+            (root / 'continue').touch()
+            output, error = process.communicate(timeout=3)
+            self.assertEqual(process.returncode, 0, error)
+            self.assertEqual(output, '1654\n1655\n')
+            self.assertEqual(calls.read_text().splitlines(), ['compose', 'run'])
+            with lock.open('r+') as competitor:
+                fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            (root / 'continue').touch()
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=3)
+
+unittest.main(argv=['injection-measurement-lock'], verbosity=2)
+PYLOCK
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"

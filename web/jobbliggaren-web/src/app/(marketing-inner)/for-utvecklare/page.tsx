@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,38 +22,15 @@ type Section = {
 // flik (myndighetston), samma idiom som /om.
 const REPO_URL = "https://github.com/klasolsson81/jobbliggaren";
 
-/**
- * Publik innehållssida: För utvecklare (#263). Statisk RSC, samma mönster som
- * /om, /kontakt, /tillganglighet och /hjalpcenter (delad SiteHeader/SiteFooter
- * via layouten; eget `<main id="main">` som skip-mål per #284). Innehållet drivs
- * ur `content-legal`-katalogen (sv = källa, en speglad, paritetstestad).
- *
- * Civic transparens, ÄRLIGT scopad: varje påstående är grundat i fakta. Koden är
- * källtillgänglig under PolyForm Noncommercial 1.0.0 (källan ÄR publik, men det
- * är inte en OSI-tillåtande licens, så framställningen säger "källtillgänglig",
- * inte "öppen källkod" i klassisk mening). Tekniken (.NET/C#, Next.js/TypeScript,
- * PostgreSQL, regelbaserad matchning utan AI per ADR 0071) speglar BUILD.md/
- * CLAUDE.md. Ingen publik API utlovas (appen är auth-gatad i v1). En h1,
- * hög-kontrast text, ingen em-dash, inget utropstecken.
- */
+
 export default async function ForUtvecklarePage() {
   const t = await getTranslations("content-legal");
   const sections = t.raw("developers.sections") as Section[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="for-utvecklare-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="for-utvecklare-heading" className="jp-pagehero__title">
-              {t("developers.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("developers.lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("developers.title")} lede={t("developers.lede")} headingId="for-utvecklare-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("developers.intro")}</p>
 
         <div className="mt-10 flex flex-col gap-8">
@@ -111,7 +89,7 @@ export default async function ForUtvecklarePage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

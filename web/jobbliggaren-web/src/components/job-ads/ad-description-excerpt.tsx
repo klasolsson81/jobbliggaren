@@ -3,6 +3,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import styles from "./ad-description-excerpt.module.css";
+import { useInformationAdapter, useInformationSnapshot } from "@/components/information/useInformationAdapter";
 
 /** The fade's height in ad-description-excerpt.module.css: less hidden text than this is shown in full. */
 const FADE_PX = 96;
@@ -21,10 +22,12 @@ export function AdDescriptionExcerpt({
   children,
   showFullLabel,
   showLessLabel,
+  snapshotId,
 }: {
   children: React.ReactNode;
   showFullLabel: string;
   showLessLabel: string;
+  snapshotId: string;
 }) {
   const id = useId();
   const probeRef = useRef<HTMLDivElement>(null);
@@ -32,7 +35,9 @@ export function AdDescriptionExcerpt({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const wasExpanded = useRef(false);
   const [overflowing, setOverflowing] = useState(true);
-  const [expanded, setExpanded] = useState(false);
+  const restored = useInformationSnapshot(`ad:${snapshotId}`);
+  const [expanded, setExpanded] = useState(restored ?? false);
+  useInformationAdapter(`ad:${snapshotId}`, (): boolean => expanded);
 
   useLayoutEffect(() => {
     if (expanded) return;

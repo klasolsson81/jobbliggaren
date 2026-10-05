@@ -18,6 +18,7 @@ import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminSegment } from "./admin-segment";
 import { ComingSoon } from "./coming-soon";
+import { AdminUnknown } from "./admin-unknown";
 
 type Filter = "all" | AdminFeedbackStatus;
 
@@ -175,7 +176,6 @@ function FeedbackListItem({
 }) {
   const t = useTranslations("admin.feedback");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   return (
     <button
       type="button"
@@ -186,7 +186,7 @@ function FeedbackListItem({
       <span className="jp-adminfeedback__itemhead">
         <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
         <span className="jp-adminfeedback__category">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? dash}</span>
+        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? <AdminUnknown />}</span>
       </span>
       <span className="jp-adminfeedback__excerpt">{excerpt(item.text)}</span>
       <span className="jp-adminfeedback__sender">{item.senderEmail}</span>
@@ -211,7 +211,6 @@ function FeedbackDetail({
 }) {
   const t = useTranslations("admin.feedback");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   const [reply, setReply] = useState("");
   const [status, setStatus] = useState<AdminFeedbackStatus | null>(null);
   const [sent, setSent] = useState(0);
@@ -275,7 +274,7 @@ function FeedbackDetail({
       <div className="jp-adminfeedback__detailhead">
         <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
         <span className="jp-pill jp-pill--neutral">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? dash}</span>
+        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? <AdminUnknown />}</span>
         <span className="jp-adminfeedback__status">
           <label htmlFor={statusId}>{t("detail.statusLabel")}</label>
           <select
@@ -318,7 +317,7 @@ function FeedbackDetail({
         <ol ref={repliesRef} className="jp-adminfeedback__replies">
           {item.replies.map((sentReply) => (
             <li key={sentReply.id} tabIndex={-1}>
-              <span className="jp-adminfeedback__time">{formatDateTime(format, sentReply.sentAt) ?? dash}</span>
+              <span className="jp-adminfeedback__time">{formatDateTime(format, sentReply.sentAt) ?? <AdminUnknown />}</span>
               <p>{sentReply.text}</p>
             </li>
           ))}

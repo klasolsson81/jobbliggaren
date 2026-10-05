@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
+import informationStyles from "@/components/information/information.module.css";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +51,8 @@ export function PersonnummerConsentDialog({
   onDecline,
 }: PersonnummerConsentDialogProps) {
   const t = useTranslations("resumes.consent");
+  const tNavigation = useTranslations("resumes");
+  const hintId = useId();
 
   return (
     <Dialog
@@ -71,10 +75,11 @@ export function PersonnummerConsentDialog({
         <p className="text-body-sm text-text-primary">{t("storeExplainer")}</p>
 
         <p className="text-body-sm">
-          <Link href="/integritet" className="text-brand-600 hover:underline">
+          <Link href="/integritet?context=cv-upload" target="_blank" rel="noopener noreferrer" aria-describedby={hintId} className={`${informationStyles.entryLink} text-brand-600 underline`}>
             {t("privacyLink")}
           </Link>
         </p>
+        <p id={hintId} className="text-body-sm text-text-primary">{tNavigation("privacyNavigationHint")}</p>
 
         <DialogFooter>
           {/* Decline är secondary (inte ghost): security-auditorns valfria härdning +

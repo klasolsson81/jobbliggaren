@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 
@@ -22,16 +23,7 @@ type VerdictItem = {
 };
 type Band = { label: string; tone: PillTone };
 
-/**
- * Publik förklaringssida: Så granskar vi ditt CV (#368). Tvilling till
- * /matchning. Statisk RSC. Förklarar den deterministiska, AI-fria CV-motorn och
- * HUR FÖRBÄTTRINGSFÖRSLAG GES (ärligt: förslagen är read-only vägledning man
- * själv arbetar in, motorn skriver aldrig om i tysthet, hittar aldrig på
- * meriter). Visualiseringarna återanvänder den RIKTIGA `StatusPill` + granska-
- * /förbättra-vyns klasser (`jp-criterion__*`, `jp-improve__*`) så de matchar
- * produkten. Inga nya globals.css-klasser, inga foton, inget procenttal/betyg
- * (Goodhart). Alla exempel är tydligt illustrativa, utan personnummer.
- */
+
 export default async function CvGranskningPage() {
   const t = await getTranslations("content-cv-granskning");
   const detParagraphs = t.raw("deterministic.paragraphs") as string[];
@@ -46,23 +38,13 @@ export default async function CvGranskningPage() {
   const promiseItems = t.raw("promise.items") as string[];
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="cv-granskning-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="cv-granskning-heading" className="jp-pagehero__title">
-              {t("title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("updated")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("title")} lede={t("updated")} headingId="cv-granskning-heading" sections={[{ id: "deterministic", label: t("deterministic.heading") }, { id: "verdicts", label: t("verdicts.heading") }, { id: "no-score", label: t("noScore.heading") }, { id: "assessable", label: t("assessable.heading") }, { id: "personnummer", label: t("personnummer.heading") }, { id: "improvements", label: t("improvements.heading") }, { id: "promise", label: t("promise.heading") }, { id: "links", label: t("links.heading") }]}>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("intro")}</p>
 
         {/* 1. Deterministic + pipeline */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="deterministic" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("deterministic.heading")}
         </h2>
         {detParagraphs.map((paragraph, i) => (
@@ -89,7 +71,7 @@ export default async function CvGranskningPage() {
         </ol>
 
         {/* 2. Four verdicts, each with evidence (reuses StatusPill + jp-criterion) */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="verdicts" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("verdicts.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("verdicts.intro")}</p>
@@ -135,7 +117,7 @@ export default async function CvGranskningPage() {
         </ul>
 
         {/* 3. No opaque score — bands + honest framing */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="no-score" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("noScore.heading")}
         </h2>
         {noScoreParagraphs.map((paragraph, i) => (
@@ -155,7 +137,7 @@ export default async function CvGranskningPage() {
         </div>
 
         {/* 4. What can / cannot be assessed from text */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="assessable" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("assessable.heading")}
         </h2>
         <p className="mt-3 text-body text-text-primary">{t("assessable.intro")}</p>
@@ -183,7 +165,7 @@ export default async function CvGranskningPage() {
         </div>
 
         {/* 5. Personnummer + privacy */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="personnummer" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("personnummer.heading")}
         </h2>
         {pnrParagraphs.map((paragraph, i) => (
@@ -199,7 +181,7 @@ export default async function CvGranskningPage() {
         </div>
 
         {/* 6. How improvements are given (Klas's focus) — reuses jp-improve markup */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="improvements" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("improvements.heading")}
         </h2>
         {improveParagraphs.map((paragraph, i) => (
@@ -237,7 +219,7 @@ export default async function CvGranskningPage() {
         </div>
 
         {/* 7. The promise */}
-        <h2 className="mt-12 text-body-lg font-semibold text-text-primary">
+        <h2 id="promise" tabIndex={-1} className="mt-12 text-body-lg font-semibold text-text-primary">
           {t("promise.heading")}
         </h2>
         <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-body text-text-primary">
@@ -248,8 +230,8 @@ export default async function CvGranskningPage() {
 
         {/* 8. Links */}
         <div className="mt-12 rounded-md border border-border-default bg-surface-secondary p-5">
-          <h2 className="text-body-lg font-semibold text-text-primary">
-            {t("links.heading")}
+          <h2 id="links" tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
+          {t("links.heading")}
           </h2>
           <p className="mt-2 text-body text-text-primary">{t("links.text")}</p>
           <ul className="mt-3 flex flex-col gap-2 text-body">
@@ -265,7 +247,7 @@ export default async function CvGranskningPage() {
             </li>
           </ul>
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

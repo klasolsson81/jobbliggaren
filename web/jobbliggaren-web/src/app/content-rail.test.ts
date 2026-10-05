@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { classTokens, sourceFiles } from "@/test/jsx-class-tokens";
 
 /**
  * Fitness function for the content rail (DESIGN.md's content-width canon:
@@ -104,38 +105,12 @@ function scanElements(file: string, text: string): Element[] {
   );
   const out: Element[] = [];
 
-  const literals = (node: ts.Node, into: Set<string>): void => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      for (const t of node.text.split(/\s+/)) if (t) into.add(t);
-      return;
-    }
-    if (ts.isTemplateExpression(node)) {
-      for (const t of node.head.text.split(/\s+/)) if (t) into.add(t);
-      for (const span of node.templateSpans) {
-        for (const t of span.literal.text.split(/\s+/)) if (t) into.add(t);
-        literals(span.expression, into);
-      }
-      return;
-    }
-    ts.forEachChild(node, (c) => literals(c, into));
-  };
-
-  const classesOf = (attrs: ts.JsxAttributes): Set<string> => {
-    const into = new Set<string>();
-    for (const a of attrs.properties) {
-      if (ts.isJsxAttribute(a) && ts.isIdentifier(a.name) && a.name.text === "className" && a.initializer) {
-        literals(a.initializer, into);
-      }
-    }
-    return into;
-  };
-
   const at = (node: ts.Node) =>
     source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 
   const walk = (node: ts.Node, parent: Set<string> | null): void => {
     if (ts.isJsxElement(node)) {
-      const own = classesOf(node.openingElement.attributes);
+      const own = classTokens(node.openingElement.attributes);
       out.push({ own, parent, line: at(node) });
       for (const child of node.children) walk(child, own);
       // Attribute values may hold JSX of their own; that JSX is not this
@@ -144,7 +119,7 @@ function scanElements(file: string, text: string): Element[] {
       return;
     }
     if (ts.isJsxSelfClosingElement(node)) {
-      const own = classesOf(node.attributes);
+      const own = classTokens(node.attributes);
       out.push({ own, parent, line: at(node) });
       for (const a of node.attributes.properties) walk(a, null);
       return;
@@ -174,15 +149,6 @@ function collapsingContainer(el: Element, centring: Set<string>): string | null 
     (c) => /^w-/.test(c) && !INDEFINITE_WIDTH.has(c)
   );
   return hasDefiniteWidth ? null : container;
-}
-
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const child = resolve(dir, entry.name);
-    if (entry.isDirectory()) sourceFiles(child, acc);
-    else if (/\.tsx$/.test(entry.name) && !/\.(test|spec)\.tsx$/.test(entry.name)) acc.push(child);
-  }
-  return acc;
 }
 
 /** Run the whole rule over one source string — used by the scanner's own controls. */

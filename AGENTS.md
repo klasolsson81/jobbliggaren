@@ -4,7 +4,7 @@
 > Budget: ADR 0135. Read `CLAUDE.md` §11 before tooling, pre-commit, compose
 > or fail-fast configuration work.
 
-**Session start (CC and Codex):** before changing files, read `CLAUDE.md`
+**Session start (CC and Codex):** before any work, read `CLAUDE.md`
 §§1.5, 6.5 and 9, then `docs/runbooks/session-protocol.md`. They govern startup,
 worktree isolation and reviews. Codex follows that runbook's tool mapping;
 Claude hooks are not evidence that Codex ran a check.
@@ -289,7 +289,7 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
 - `main` is protected; **all changes via feature branch + PR** (ADR 0065,
   `enforce_admins: true` — Klas included). Branch: `<type>/<short-slug>`.
   Linear history (squash/rebase — no merge commits). Deploy: `main` → one
-  verified release, hourly, to dev (ADR 0149); no prod path yet (#1961).
+  verified release, live on the one production box (ADR 0154).
 - **Conventional Commits:** `<type>(<scope>): <description>` — types feat/fix/
   docs/refactor/test/chore/perf/build/ci; scopes e.g. applications, resumes,
   ai, infra, web; imperative; English (language policy §1).

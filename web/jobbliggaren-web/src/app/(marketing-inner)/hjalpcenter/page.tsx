@@ -1,5 +1,6 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -58,36 +59,14 @@ const GROUPS: readonly HelpGroup[] = [
   },
 ];
 
-/**
- * Publik innehållssida: Hjälpcenter (#262). Statisk RSC, samma mönster som
- * /om, /kontakt och /tillganglighet (delad SiteHeader/SiteFooter via layouten;
- * eget `<main id="main">` som skip-mål per #284). Innehållet drivs ur
- * `content-legal`-katalogen (sv = källa, en speglad, paritetstestad).
- *
- * Hjälpcenter är en HUBB: den samlar hjälpen på ett ställe och länkar vidare till
- * de befintliga hjälp- och guidesidorna (vanliga frågor, så fungerar matchningen,
- * så granskar vi ditt cv, tips) plus kontakt och tillgänglighet. Den duplicerar
- * inte deras innehåll — varje rad är en länk med en mening som säger vad sidan
- * ger. Civic-utility: en h1, hög-kontrast text (ingen grå brödtext), ingen
- * em-dash, inget utropstecken.
- */
+
 export default async function HjalpcenterPage() {
   const t = await getTranslations("content-legal");
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="hjalpcenter-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="hjalpcenter-heading" className="jp-pagehero__title">
-              {t("help.title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("help.lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("help.title")} lede={t("help.lede")} headingId="hjalpcenter-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <div className="flex flex-col gap-10">
           {GROUPS.map((group) => (
             <div key={group.key}>
@@ -101,6 +80,7 @@ export default async function HjalpcenterPage() {
                 {group.items.map((item) => (
                   <li key={item.key}>
                     <Link
+                      id={`information-help-${item.key}`}
                       href={item.href}
                       className="text-body font-semibold text-text-primary underline"
                     >
@@ -115,7 +95,7 @@ export default async function HjalpcenterPage() {
             </div>
           ))}
         </div>
-      </div>
-    </main>
+      </>
+    </InformationPageFrame>
   );
 }

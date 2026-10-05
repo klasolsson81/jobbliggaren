@@ -50,6 +50,13 @@ under `Application/Resumes/Queries/GetResumeById`, `GetParsedResume` and
 Inspect admin policy paths separately, including
 `src/Jobbliggaren.Api/Authorization/AdminRoleAuthorizationHandler.cs`.
 
+The admin account directory (ADR 0151) reads across every account by design: each
+address, its status and its activity counts. The gate is the Admin HTTP policy,
+which resolves the role on every request, plus `IAdminRequest` in the pipeline, and
+an architecture test pins which handlers may inject `IAccountDirectory`. A hijacked
+admin session can read every address; the `admin-read` rate limit bounds the cost
+of reading, not the exfiltration.
+
 ## Untrusted documents and external text
 
 `web/jobbliggaren-web/src/app/api/cv/import/route.ts` checks same-origin requests
@@ -128,12 +135,18 @@ on a `dev` that does not prove itself. Deleting a package version is Klas's
 decision; `.github/scripts/package-retention-guard.sh` refuses one in
 `.github/workflows` and `.github/scripts`.
 
-Root on the box is the remaining boundary. `/etc/jobbliggaren/release-pin`
+Root on the box is the remaining boundary. Since ADR 0154 the box is production.
+Whoever holds the operator key has root, and every agent process on the workstation can use it —
+CC, Codex and their subagents alike. Root already guards personal data about people other than
+Klas: recruiters in `job_ads`, and sole traders, whose organisation number is their personnummer.
+`security-auditor`'s finding on that stands as recorded, with its remedy (a separate production
+host) withdrawn by Klas. What an agent may read there is CLAUDE.md §9.2's read rule.
+`/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the
 local `:applied` tags are root state. A
 record binds `deploy/docker-compose.yml` and `deploy/redis/healthcheck.sh`, and
 the box refuses one whose files differ from its checkout. Outside the record:
 `deploy/.env` and the secrets, the systemd scripts, and the upstream images,
 which are bound by tag. No record value passes through `source`, `eval` or a
-workflow expression. A box still running the pre-#1238 consumer reads the five
-`latest` tags, which the fan-in moves one after another, not atomically.
+workflow expression. The box has applied records since 2026-10-04; the five
+`latest` tags still move after `dev`, and nothing on the box reads them.

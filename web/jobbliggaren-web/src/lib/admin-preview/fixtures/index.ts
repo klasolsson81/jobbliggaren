@@ -54,29 +54,29 @@ const address = (local: string) => `${local}@${SENTINEL}`;
 /** The administrator the preview's header shows; also an account in the list. */
 export const PREVIEW_ADMIN_EMAIL = address("admin");
 
-/** A deletion scheduled at the fixed clock is permanent no earlier than this. */
-export const PREVIEW_DELETION_EARLIEST = daysAhead(30);
+/** A deletion scheduled at the fixed clock is permanent no earlier than this date. */
+export const PREVIEW_DELETION_EARLIEST = daysAhead(30).slice(0, 10);
 
 function account(row: AdminAccountDetail): AdminAccountDetail {
   return marked(row);
 }
 
 export const PREVIEW_ACCOUNTS: ReadonlyArray<AdminAccountDetail> = [
-  account({ id: id(1), email: PREVIEW_ADMIN_EMAIL, role: "admin", status: "active", registeredAt: daysAgo(150, 7, 12), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(2), email: address("konto.a"), role: "user", status: "active", registeredAt: daysAgo(6, 12, 2), applicationCount: 4, deletionEarliest: null, savedSearchCount: 3, resumeCount: 1 }),
-  account({ id: id(3), email: address("konto.b"), role: "user", status: "active", registeredAt: daysAgo(4, 7, 15), applicationCount: 3, deletionEarliest: null, savedSearchCount: 2, resumeCount: 2 }),
-  account({ id: id(4), email: address("konto.c"), role: "user", status: "suspended", registeredAt: daysAgo(44, 9, 40), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
-  account({ id: id(5), email: address("konto.d"), role: "user", status: "unverified", registeredAt: daysAgo(2, 17, 33), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
-  account({ id: id(6), email: address("konto.e"), role: "user", status: "pendingDeletion", registeredAt: daysAgo(82, 8, 10), applicationCount: 9, deletionEarliest: daysAhead(24), savedSearchCount: 4, resumeCount: 2 }),
-  account({ id: id(7), email: address("konto.f"), role: "user", status: "active", registeredAt: daysAgo(22, 10, 5), applicationCount: 11, deletionEarliest: null, savedSearchCount: 5, resumeCount: 3 }),
-  account({ id: id(8), email: address("konto.g"), role: "user", status: "active", registeredAt: daysAgo(9, 19, 1), applicationCount: 7, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
-  account({ id: id(9), email: address("konto.h"), role: "user", status: "active", registeredAt: daysAgo(1, 13, 47), applicationCount: 1, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(10), email: address("konto.i"), role: "user", status: "unverified", registeredAt: daysAgo(0, 6, 58), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
-  account({ id: id(11), email: address("konto.j"), role: "user", status: "active", registeredAt: daysAgo(27, 11, 22), applicationCount: 6, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
-  account({ id: id(12), email: address("konto.k"), role: "user", status: "active", registeredAt: daysAgo(15, 20, 14), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(13), email: address("konto.l"), role: "user", status: "suspended", registeredAt: daysAgo(61, 15, 3), applicationCount: 3, deletionEarliest: null, savedSearchCount: 1, resumeCount: 2 }),
-  account({ id: id(14), email: address("konto.m"), role: "user", status: "active", registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null }),
-  account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
+  account({ id: id(1), email: PREVIEW_ADMIN_EMAIL, role: "admin", status: "active", emailConfirmed: true, registeredAt: daysAgo(150, 7, 12), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
+  account({ id: id(2), email: address("konto.a"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(6, 12, 2), applicationCount: 4, deletionEarliest: null, savedSearchCount: 3, resumeCount: 1 }),
+  account({ id: id(3), email: address("konto.b"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(4, 7, 15), applicationCount: 3, deletionEarliest: null, savedSearchCount: 2, resumeCount: 2 }),
+  account({ id: id(4), email: address("konto.c"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(44, 9, 40), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
+  account({ id: id(5), email: address("konto.d"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(2, 17, 33), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
+  account({ id: id(6), email: address("konto.e"), role: "user", status: "pendingDeletion", emailConfirmed: true, registeredAt: daysAgo(82, 8, 10), applicationCount: null, deletionEarliest: daysAhead(24).slice(0, 10), savedSearchCount: null, resumeCount: null }),
+  account({ id: id(7), email: address("konto.f"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(22, 10, 5), applicationCount: 11, deletionEarliest: null, savedSearchCount: 5, resumeCount: 3 }),
+  account({ id: id(8), email: address("konto.g"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(9, 19, 1), applicationCount: 7, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
+  account({ id: id(9), email: address("konto.h"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(1, 13, 47), applicationCount: 1, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
+  account({ id: id(10), email: address("konto.i"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(0, 6, 58), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
+  account({ id: id(11), email: address("konto.j"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(27, 11, 22), applicationCount: 6, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
+  account({ id: id(12), email: address("konto.k"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(15, 20, 14), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
+  account({ id: id(13), email: address("konto.l"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(61, 15, 3), applicationCount: 3, deletionEarliest: null, savedSearchCount: 1, resumeCount: 2 }),
+  account({ id: id(14), email: address("konto.m"), role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null }),
+  account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
 ];
 
 function recurringJob(row: RecurringJobStatusDto): RecurringJobStatusDto {

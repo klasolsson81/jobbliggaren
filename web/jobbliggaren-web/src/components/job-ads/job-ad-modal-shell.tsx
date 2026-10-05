@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
+import { useInformationModalFocus } from "@/components/information/useInformationModalFocus";
 
 /**
  * JobAdModalShell — modal-chrome (scrim / ESC / scrim-klick / focus-trap /
@@ -26,44 +27,35 @@ export function JobAdModalShell({
   title,
   company,
   meta,
+  describedBy,
   children,
 }: {
   title: string;
   company: string;
   /**
-   * The header's date line under the company (#1963), or `null` for a branch without an ad (rate
-   * limit, error). Required so no call site can drop the deadline by omission.
+   * The header's date line under the company (#1963), or `null` for a branch without an ad.
+   * Required so no call site can drop the deadline by omission.
    */
   meta: React.ReactNode;
+  /** The id of a branch without an ad's one-line body; an ad's own text never describes the dialog (#1828). */
+  describedBy?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
   const labelId = useId();
 
   const close = () => router.back();
 
+  useInformationModalFocus(panelRef, closeRef);
+
   useEffect(() => {
-    const active = document.activeElement;
-    if (
-      openerRef.current === null &&
-      active instanceof HTMLElement &&
-      active !== document.body &&
-      !panelRef.current?.contains(active)
-    ) {
-      openerRef.current = active;
-    }
-    closeRef.current?.focus();
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevOverflow;
-      if (openerRef.current?.isConnected) {
-        openerRef.current.focus({ preventScroll: true });
-      }
     };
   }, []);
 
@@ -91,7 +83,8 @@ export function JobAdModalShell({
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
-      if (e.shiftKey && document.activeElement === first) {
+      const headingFocused = document.activeElement === panelRef.current.querySelector('h2[tabindex="-1"]');
+      if (e.shiftKey && (document.activeElement === first || headingFocused)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -118,11 +111,12 @@ export function JobAdModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
+        aria-describedby={describedBy}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="jp-modal__head">
           <div style={{ flex: 1 }}>
-            <h2 id={labelId} className="jp-modal__title">
+            <h2 id={labelId} tabIndex={-1} className="jp-modal__title">
               {title}
             </h2>
             <p className="jp-modal__company">{company}</p>

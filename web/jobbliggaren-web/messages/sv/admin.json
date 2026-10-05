@@ -19,7 +19,8 @@
   },
   "unavailable": {
     "comingSoon": "Kommer snart",
-    "unknownValue": "–"
+    "unknownValue": "–",
+    "unknownSpoken": "Uppgift saknas"
   },
   "overview": {
     "meta": {
@@ -124,9 +125,9 @@
       "label": "Visa konton",
       "all": "Alla",
       "active": "Aktiva",
-      "suspended": "Suspenderade",
-      "unverified": "Ej verifierade",
-      "pendingDeletion": "Under radering"
+      "pendingDeletion": "Under radering",
+      "profileMissing": "Ofullständiga",
+      "suspended": "Suspenderade"
     },
     "filterCount": "{label} ({count})",
     "table": {
@@ -139,21 +140,35 @@
       "lastActive": "Senast aktiv",
       "applications": "Ansökningar"
     },
-    "counter": "{shown} av {total} konton",
+    "counter": "{shown} av {total, plural, one {# konto} other {# konton}}",
+    "counterBusy": "Hämtar konton…",
     "role": {
       "user": "Användare",
       "admin": "Admin"
     },
     "status": {
       "active": "Aktiv",
-      "suspended": "Suspenderad",
-      "unverified": "Ej verifierad",
-      "pendingDeletion": "Raderas tidigast {date}"
+      "pendingDeletion": "Under radering",
+      "profileMissing": "Ofullständig",
+      "suspended": "Suspenderad"
+    },
+    "statusLine": {
+      "deletionEarliest": "Slutgiltigt tidigast <nowrap>{date}</nowrap>",
+      "emailUnconfirmed": "E-post ej bekräftad"
     },
     "regions": {
       "empty": "Inga konton matchar sökningen eller filtret.",
       "failed": "Kontona kunde inte hämtas. Försök igen om en stund.",
       "loading": "Hämtar konton"
+    },
+    "errors": {
+      "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "unauthorized": "Du är inte inloggad längre. Logga in och försök igen.",
+      "forbidden": "Din session saknar Admin-rollen.",
+      "detailFailed": "Kontots uppgifter kunde inte hämtas. Försök igen om en stund.",
+      "gone": "Kontot finns inte längre.",
+      "retry": "Försök igen",
+      "signIn": "Logga in"
     },
     "pager": {
       "label": "Sidnavigering",
@@ -165,13 +180,21 @@
       "close": "Stäng",
       "savedSearches": "Sparade sökningar",
       "resumes": "CV:n",
-      "actions": "Åtgärder"
+      "actions": "Åtgärder",
+      "loading": "Hämtar kontots uppgifter…",
+      "deletion": "Raderas slutgiltigt",
+      "deletionEarliest": "Tidigast <nowrap>{date}</nowrap>",
+      "email": "E-post",
+      "emailConfirmed": "Bekräftad",
+      "emailUnconfirmed": "Ej bekräftad",
+      "profileMissing": "Kontot saknar profil och går inte att logga in på. Ett konto som saknar profil en timme efter att det skapades tas bort automatiskt.",
+      "noAddress": "Kontot har ingen e-postadress."
     },
     "actions": {
       "impersonate": "Agera som användaren",
       "changeEmail": "Ändra e-postadress",
       "sendLoginLink": "Skicka inloggningslänk",
-      "markVerified": "Markera e-post som verifierad",
+      "markVerified": "Markera e-post som bekräftad",
       "reinstate": "Häv suspendering",
       "restore": "Ångra radering",
       "suspend": "Suspendera konto",

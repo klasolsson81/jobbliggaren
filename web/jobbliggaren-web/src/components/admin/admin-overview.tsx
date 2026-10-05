@@ -31,6 +31,7 @@ import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminTrendCard } from "./admin-trend-card";
+import { AdminUnknown } from "./admin-unknown";
 
 const EVENT_TONE: Readonly<Record<AdminEventKind, StatusTone>> = {
   accountCreated: "success",
@@ -247,14 +248,13 @@ function ValueCard<T>({
   readonly region: AdminValueRegion<T>;
   readonly render: (data: T) => ShownValue;
 }) {
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
 
   if (region.kind !== "loaded") {
     return (
       <AdminCard id={id} title={title} icon={icon} span={span} aside={aside}>
         <p className="jp-adminkpi">
-          <span className="jp-adminkpi__value">{dash}</span>
+          <span className="jp-adminkpi__value"><AdminUnknown /></span>
         </p>
         <AdminRegionLine quiet kind={region.kind} className="jp-adminkpi__sub" />
       </AdminCard>
@@ -297,7 +297,6 @@ const METERS = ["cpu", "memory", "disk"] as const;
 
 function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerReading> }) {
   const t = useTranslations("admin.overview.server");
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
 
   return (
@@ -313,7 +312,7 @@ function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerR
                 </span>
               </span>
             ) : (
-              dash
+              <AdminUnknown />
             )}
           </Row>
         ))}
@@ -325,17 +324,16 @@ function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerR
 
 function BackupBody({ region }: { readonly region: AdminValueRegion<AdminBackupStatus> }) {
   const t = useTranslations("admin.overview.backup");
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   const format = useFormatter();
   const data = region.kind === "loaded" ? region.data : null;
 
   return (
     <div className="jp-admincard__body">
       <dl className="jp-admindl">
-        <Row label={t("latest")}>{data === null ? dash : (formatDateTime(format, data.latestAt) ?? dash)}</Row>
-        <Row label={t("offsite")}>{data === null ? dash : (formatDateTime(format, data.offsiteAt) ?? dash)}</Row>
-        <Row label={t("next")}>{data === null ? dash : (formatDateTime(format, data.nextAt) ?? dash)}</Row>
-        <Row label={t("retention")}>{data === null ? dash : t("retentionDays", { days: data.retentionDays })}</Row>
+        <Row label={t("latest")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.latestAt) ?? <AdminUnknown />)}</Row>
+        <Row label={t("offsite")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.offsiteAt) ?? <AdminUnknown />)}</Row>
+        <Row label={t("next")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.nextAt) ?? <AdminUnknown />)}</Row>
+        <Row label={t("retention")}>{data === null ? <AdminUnknown /> : t("retentionDays", { days: data.retentionDays })}</Row>
       </dl>
       {region.kind === "loaded" ? null : <AdminRegionLine quiet kind={region.kind} />}
     </div>
@@ -376,14 +374,13 @@ function AttentionBody({
 function EventsBody({ region }: { readonly region: AdminRegion<ReadonlyArray<AdminRecentEvent>> }) {
   const t = useTranslations("admin.overview.events");
   const format = useFormatter();
-  const dash = useTranslations("admin.unavailable")("unknownValue");
   if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
   if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
   return (
     <ol className="jp-adminevents">
       {region.data.map((event) => (
         <li key={event.id}>
-          <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? dash}</time>
+          <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? <AdminUnknown />}</time>
           <span className={`jp-pill jp-pill--${EVENT_TONE[event.kind]}`}>{t(`kind.${event.kind}`)}</span>
           <span className="jp-adminevents__subject">{event.subject}</span>
         </li>

@@ -59,7 +59,7 @@ if ($dest -eq $repoRoot) { throw "Refusing to sync onto the main checkout itself
 # plus its modern siblings id_ed25519 / id_ecdsa (now more common than RSA) — #228
 # security-auditor consistency note.
 # 'test-accounts.local' is the dev box's account file (#734): the standing CC test
-# account's password and the K2 edge credential. It is gitignored and deliberately absent
+# account's address and the K2 edge credential. It is gitignored and deliberately absent
 # from .worktreeinclude, and listing it there is what this entry stops — a listed entry
 # throws here, and a file reached by recursing a listed directory is skipped with a warning.
 # The reason listing it would be the whole failure is downstream and NOT closed here: the

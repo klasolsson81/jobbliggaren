@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkNewAddress, type NewAddressRefusal } from "@/lib/auth/new-address";
-import type { AdminAccountDetail } from "@/lib/admin/view-models";
+import type { AdminAddressedAccount } from "@/lib/admin/view-models";
 import { AdminRolePill } from "./admin-account-status";
 import { AdminBusyLabel } from "./admin-busy-label";
 
@@ -28,7 +28,7 @@ function makeSchema(currentEmail: string, refusal: (reason: NewAddressRefusal) =
 type FormValues = z.input<ReturnType<typeof makeSchema>>;
 
 interface AdminAccountEditFormProps {
-  readonly account: AdminAccountDetail;
+  readonly account: AdminAddressedAccount;
   /** Resolves to a refusal to show under the form, or null when the request went through. */
   readonly onSubmit: (newEmail: string) => Promise<string | null>;
   readonly onCancel: () => void;

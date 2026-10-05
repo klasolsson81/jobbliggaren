@@ -12,7 +12,8 @@ namespace Jobbliggaren.Infrastructure.Identity;
 /// Bootstrap-jobb som körs vid app-startup. Skapar <c>Admin</c>-rollen om den
 /// saknas (krävs för att <c>RequireRole("Admin")</c>-policyn ska kunna
 /// utvärderas över huvud taget), och tilldelar rollen till user med email
-/// <see cref="AdminBootstrapOptions.InitialAdminEmail"/> om matchande user finns.
+/// <see cref="AdminBootstrapOptions.InitialAdminEmail"/> om matchande user finns
+/// och rollen saknar innehavare (#2001).
 ///
 /// Idempotent: säker att köra vid varje startup. Använder
 /// <see cref="RoleManager{TRole}"/> och <see cref="UserManager{TUser}"/> så
@@ -29,10 +30,12 @@ namespace Jobbliggaren.Infrastructure.Identity;
 /// <c>IAuditableCommand</c> (ADR 0022). Bootstrap är en
 /// <see cref="IHostedService"/> utanför Mediator-pipelinen, så dess
 /// role-assignment hör inte hemma i samma tabell utan dedikerad
-/// audit-skrivnings-port. Sådan port är kandidat för Fas 6 admin-
-/// impersonation-ADR — inte aktuellt i Fas 1.
+/// audit-skrivnings-port.
 ///
 /// Audit-evidence verifieras av <c>IdempotentAdminRoleSeederAuditEvidenceTests</c>.
+///
+/// An Admin role holder other than the controller fires ADR 0151 D7's trigger: the admin
+/// account directory writes no audit row for a read only while the controller is the one holder.
 ///
 /// Senior-cto-advisor-beslut 2026-05-11: B1 över B2 — IaC-konsistens med
 /// STEG 13/14 (Terraform + Migrate-task). Twelve-Factor §III/V.
@@ -64,7 +67,7 @@ internal sealed partial class IdempotentAdminRoleSeeder(
         catch (PostgresException ex) when (ex.SqlState == "42P01" && IsSchemaInitGracePeriod(hostEnvironment))
         {
             // 42P01 = undefined_table. Identity-tabellerna finns inte ännu.
-            // I prod-pipeline kör Jobbliggaren.Migrate (en separat ECS-task) DDL
+            // I prod-pipeline kör Jobbliggaren.Migrate DDL
             // FÖRE Api-tasken startar — så detta ska aldrig inträffa där.
             // I integration-test-fixturer triggas host-start innan migrations
             // körs (Migrate-anrop sker via Services-property som SJÄLV triggar
@@ -73,8 +76,7 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             //
             // N-2 hardening (arch-audit 2026-05-11): catch:en är gated på
             // Development/Test-environment. I prod bubblar 42P01 → host start
-            // failer → ECS deployment_circuit_breaker triggar rollback. Detta
-            // är fail-loud (CLAUDE.md §3.4 + §5.1) — Migrate-task-failure
+            // failer. Detta är fail-loud (CLAUDE.md §3.4 + §5.1) — Migrate-task-failure
             // ska larma, inte sluka tyst.
             LogSchemaMissing(logger);
         }
@@ -137,6 +139,14 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             return;
         }
 
+        // The configured address can be given up and claimed by another account, so the role is granted only
+        // while nobody holds it.
+        if ((await userManager.GetUsersInRoleAsync(Roles.Admin)).Count > 0)
+        {
+            LogAddressNamesANonHolder(logger, user.Id);
+            return;
+        }
+
         var result = await userManager.AddToRoleAsync(user, Roles.Admin);
         if (result.Succeeded)
         {
@@ -144,7 +154,7 @@ internal sealed partial class IdempotentAdminRoleSeeder(
             return;
         }
 
-        var errors = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+        var errors = string.Join("; ", result.Errors.Select(e => e.Code));
         throw new InvalidOperationException(
             $"Kunde inte tilldela Admin-rollen till user {user.Id}: {errors}");
     }
@@ -171,4 +181,8 @@ internal sealed partial class IdempotentAdminRoleSeeder(
     [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
         Message = "Admin-bootstrap skippad: Identity-tabellerna finns inte ännu. Kör migrations innan app-start i prod (Jobbliggaren.Migrate-task).")]
     private static partial void LogSchemaMissing(ILogger logger);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
+        Message = "AdminBootstrap.InitialAdminEmail names user {UserId}, who does not hold the Admin role while another account does. Nothing is assigned.")]
+    private static partial void LogAddressNamesANonHolder(ILogger logger, Guid userId);
 }

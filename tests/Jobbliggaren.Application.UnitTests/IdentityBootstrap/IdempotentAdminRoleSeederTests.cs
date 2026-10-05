@@ -8,8 +8,7 @@ namespace Jobbliggaren.Application.UnitTests.IdentityBootstrap;
 /// <summary>
 /// N-2 anti-regression: <c>IdempotentAdminRoleSeeder</c> catchar bara 42P01
 /// (undefined_table) i Development/Test-environment. I prod/staging ska
-/// undefined-table-fel bubbla så ECS deployment_circuit_breaker triggar
-/// rollback (CLAUDE.md §3.4, §5.1 — fail-loud).
+/// undefined-table-fel bubbla (CLAUDE.md §3.4, §5.1 — fail-loud).
 /// </summary>
 public class IdempotentAdminRoleSeederTests
 {

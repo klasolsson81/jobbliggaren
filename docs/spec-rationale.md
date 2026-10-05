@@ -171,6 +171,40 @@ PR rather than a TD; **no owner is assigned**, and it is not closed.
 **The fork exception, as the docs put it:** a fork "skips both filters and receives the
 main conversation's exact tool pool" (same page, same reading).
 
+**Why the release path is the deploy (ADR 0154, 2026-10-05):** the earlier "does not:
+deploy without Klas GO" and AGENTS.md §6's "no prod path yet" predate Klas's decision that
+the one box is production and every merge goes live. Keeping them would make every
+automerge a breach. His A2 answer of 2026-10-04 covered dev only; on 2026-10-05 he
+extended it: "Det gäller direkt och tillsvidare." ADR 0154 §4 reads its scope by its
+criterion (what a merged, recorded release contains).
+
+**Why reading the box has a rule (ADR 0154, #1960, 2026-10-05):** Klas's Claude Code sessions run
+on a consumer plan (Max). Anthropic's DPA (effective 2025-02-24) forms part of the Commercial Terms
+or of an agreement that references it, which the consumer plan is not
+([anthropic.com/legal/data-processing-addendum](https://www.anthropic.com/legal/data-processing-addendum),
+read 2026-10-05). Consumer data is kept for 30 days, or for 5 years where the account allows its use
+for model improvement. Locally, Claude Code keeps transcripts in plaintext under `~/.claude/projects/`
+for 30 days by default, and sessions started or last continued in Claude Desktop are exempt from that
+limit by default ([code.claude.com/docs/en/data-usage](https://code.claude.com/docs/en/data-usage),
+read 2026-10-05). The EEA controller is Anthropic Ireland, Limited, and personal data is transferred
+to servers in the US or other countries outside the EEA
+([anthropic.com/legal/privacy](https://www.anthropic.com/legal/privacy), effective 2026-09-10, read
+2026-10-05). So such a session's read of someone else's personal data is a disclosure to a recipient
+outside any Art. 28 contract, followed by a transfer out of the EEA, and it makes the privacy
+policy's "Ingen spårning och ingen AI" (`messages/sv/content-legal.json`, the page description)
+untrue (Art. 5(1)(a)). Codex is bound the same way: no terms of its provider are measured here, and
+leg (f) is what would change that. The rule is keyed on its criterion rather than a launch date
+because the box already holds such data — recruiters in `job_ads`, and sole traders, whose
+organisation number is their personnummer — and the set widens by itself at the first registration.
+Leg (a) admits the box's own unit journals and the migrate tool's output because their writers log
+operations: ids, digests, SHAs, sizes and results (measured 2026-10-05). Npgsql's error detail stays
+at its redacting default, which `IncludeErrorDetailGuardTests` (#1633) pins. Its message text is not
+redacted: a cast error (SQLSTATE 22P02) names the value, so a migrate run that exited 1, having
+logged its exception (`src/Jobbliggaren.Migrate/Program.cs`), is outside leg (a). The rule imposes no
+GO, so Klas's 2026-08-20 directive that measurement needs none stands. While it holds, root
+capability alone discloses nothing, so no register row, policy line, DPA or DPIA is needed for a
+model provider (`docs/reviews/2026-10-05-1961-plan-security-auditor.md`, round 2).
+
 **Native review evidence (2026-10-03):** Klas reported repeated stalls when a
 completed GitHub bot result was followed by a demand to read a private Security
 Report behind authentication/Cloudflare. He directed sessions to use completed

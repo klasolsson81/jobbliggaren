@@ -190,10 +190,53 @@ architecture decisions. **The driving session MAY edit
 spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
 Mandatory spec-edit agents still apply (dotnet-architect + code-reviewer; plus
 design-reviewer for `DESIGN.md` design-token changes). The driving session does
-**not**: deploy
-without Klas GO; add top-level dependencies without justification or libraries
+**not**: deploy outside the release path without Klas GO; add top-level
+dependencies without justification or libraries
 outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
+
+**The release path is the deploy (ADR 0154).** Every merge reaches the one box, which is
+production; the merge is the approval. Under Klas's standing GO (A2, ADR 0154
+§4) the merging session advances the box's checkout to the release commit the unit names,
+refreshes any unit file that release changes, runs `vps-deploy-stack.md` §3c for the
+Identity migrations it adds, and verifies `--status`. His own GO is still needed for one-off
+box writes, `.env`, pins, manual compose, DNS, providers,
+GHCR/repo settings and an escrow sitting — and no advance passes a Redis-ACL change before
+that sitting.
+
+**Reading the production box.** Every agent session — CC, Codex and their subagents — may read the
+box without a GO, over SSH and on the app's own surfaces alike, under one rule: **nothing that could
+be personal data about anyone but Klas, or a secret.** What an agent reads enters its transcript,
+which leaves the box (`docs/spec-rationale.md` §9.2). The rule wins over every runbook, charter,
+skill and memory: a step that would read what it excludes is run so that it prints only what (a)
+allows, or left to Klas.
+- **(a) Readable:** counts, grouped only by fields that name no person; sizes, schema, health,
+  results and timestamps; the names of configuration keys and secret files; the value of a setting
+  that is neither a secret nor personal data, read by its own key and never by printing `.env` or a
+  container's environment; ids that point at no person — image, container, release and migration
+  ids, image and record digests, commit SHAs; the migrate tool's output, except a run that exited 1;
+  and the journals of the box's own units, `jobbliggaren-*` and the hardening dead-men
+  `nft-deadman`, `sshd-deadman` and `ak-deadman`, read with `-u`.
+- **(b) Never read:** a row from a table that holds personal data — every account and user table,
+  `audit_log`, the `hangfire` schema, `job_ads`, whose recruiters and sole traders are data subjects
+  too, and `company_register`; a Redis key or value (`INFO keyspace` counts instead); a log line from
+  Seq, the shipped log archive, or a container or journal that (a) does not admit, beyond a count; a
+  backup dump. A user id, a hash of a personal value, and a secret or its hash stay inside the
+  command — a secret read from its file — and the command prints only what (a) allows.
+- **(c) Never written down:** no personal data about anyone but Klas in chat, files, memory,
+  commits, issues or PRs. The repository is public.
+- **(d) Never signed in:** no signed-in request to the box — on `dev.jobbliggaren.se` or the apex;
+  page, API or `/admin/*`; with any account, Klas's own included — by browser, `curl` or from inside
+  a container; and no Seq UI.
+- **(e) After an accidental read:** stop, do not repeat it, and tell Klas. He documents a
+  personal-data read (Art. 33(5)), judges whether it must be notified (Art. 33(1)), and rotates a
+  secret that was read.
+- **(f) Lifting the rule** for any processing of user data by an agent needs Klas's decision and,
+  first, commercial terms with a DPA, a row in the processing register, the recipient in the privacy
+  policy and a Chapter V ground — for every model provider, Codex's included.
+
+**The override in ADR 0154 §5 covers access, never disclosure:** a change that has an agent read,
+print or forward such data stays Blocker-class, graded per diff.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +

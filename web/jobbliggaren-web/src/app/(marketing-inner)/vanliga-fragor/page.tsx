@@ -1,3 +1,4 @@
+import { InformationPageFrame } from "@/components/information/InformationPageFrame";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
@@ -23,16 +24,7 @@ const FAQ_KEYS = [
   "radera",
 ] as const;
 
-/**
- * Publik innehållssida: Vanliga frågor (#261). Statisk RSC, ingen
- * klient-interaktivitet. Återbrukar (marketing-inner)-mönstret (delad
- * SiteHeader/SiteFooter via layouten; eget `<main id="main">` som skip-mål per
- * #284). Civic-utility: en h1, hög-kontrast text (ingen grå), ingen em-dash,
- * inget utropstecken.
- *
- * FAQPage JSON-LD (det enda strukturdata-schemat på sajten i v1) byggs från
- * samma `FAQ_KEYS`/i18n-källa som den synliga `<dl>` så de inte kan divergera.
- */
+
 export default async function VanligaFragorPage() {
   const t = await getTranslations("content-faq");
   const items = FAQ_KEYS.map((key) => ({
@@ -54,19 +46,9 @@ export default async function VanligaFragorPage() {
   };
 
   return (
-    <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="faq-heading">
-        <div className="jp-pagehero__inner">
-          <div className="jp-pagehero__main">
-            <h1 id="faq-heading" className="jp-pagehero__title">
-              {t("title")}
-            </h1>
-            <p className="jp-pagehero__lede">{t("lede")}</p>
-          </div>
-        </div>
-      </section>
+    <InformationPageFrame title={t("title")} lede={t("lede")} headingId="faq-heading">
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <>
         <p className="text-body text-text-primary">{t("intro")}</p>
         <dl className="mt-8 flex flex-col gap-8">
           {items.map((item, index) => (
@@ -78,7 +60,7 @@ export default async function VanligaFragorPage() {
             </div>
           ))}
         </dl>
-      </div>
+      </>
 
       {/* FAQPage strukturdata. Egen, betrodd copy (ingen användarinput); JSON
           serialiseras och `<`-tecken escapas defensivt mot script-stängning. */}
@@ -88,6 +70,6 @@ export default async function VanligaFragorPage() {
           __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c"),
         }}
       />
-    </main>
+    </InformationPageFrame>
   );
 }

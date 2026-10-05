@@ -441,7 +441,7 @@ gh run list --workflow=release-images.yml --limit 40 \
 none of them. Every session had watched its own PR to merge and stopped there, which is what this
 section told them to do.
 
-⚠ **Publishing is not deploying, and since ADR 0154 the second half is yours too.** The box's
+⚠ **Publishing is not deploying.** The box's
 `jobbliggaren-reconcile.timer` applies the published release on its own (schedule and jitter live
 in `deploy/systemd/jobbliggaren-reconcile.timer`), so the dispatch is the whole of your part for
 anything that ships *inside* an image — and `deploy/caddy/` is one of the five, its `Dockerfile`

@@ -64,13 +64,6 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 - **EF migrations = the most dangerous hotspot (single-owner).** Only ONE
   session creates or applies migrations at a time; migration order is serial.
   Other sessions wait for a merged migration before touching the schema.
-- **Every migration is a production deploy (ADR 0154)** — unattended, against the only copy
-  of the data. An `AppDbContext` migration is **expand-only**: the release before it must
-  run on the new schema, and a contract step (drop, rename, narrowing) is its own later PR,
-  merged after the box has applied the expanding release. An `AppIdentityDbContext`
-  migration is applied by `vps-deploy-stack.md` §3c, which the unit never runs: its release
-  must run on the schema before it, and the merging session runs §3c under Klas's standing
-  GO once the release is applied.
 - **Shared-Postgres rule.** Only ONE "stack-owner" session runs the local dev
   Postgres (port 5435) + Api/Worker (single-owner: the shared dev DB + port
   5435; the running stack bin-locks only its OWN worktree's `bin/`) — **from its
@@ -203,16 +196,13 @@ outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
 
 **The release path is the deploy (ADR 0154).** Every merge reaches the one box, which is
-production, within ~2 h; the merge is the approval. Under Klas's standing GO (A2, ADR 0154
+production; the merge is the approval. Under Klas's standing GO (A2, ADR 0154
 §4) the merging session advances the box's checkout to the release commit the unit names,
 refreshes any unit file that release changes, runs `vps-deploy-stack.md` §3c for the
 Identity migrations it adds, and verifies `--status`. His own GO is still needed for one-off
-box writes, `.env` values with external effect, pins, manual compose, DNS, providers,
+box writes, `.env`, pins, manual compose, DNS, providers,
 GHCR/repo settings and an escrow sitting — and no advance passes a Redis-ACL change before
-that sitting. **Reading the box** needs no GO and is metadata only: counts, sizes, ids,
-health, timestamps — never row content, log lines beyond counts, `.env` values or secrets,
-over SSH and on the app's own surfaces (`/admin/*`, the Seq UI, signed-in views) alike. The
-criterion is no content whose data subject is not Klas.
+that sitting.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +

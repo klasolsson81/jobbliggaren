@@ -9,8 +9,7 @@ local) · `dotnet-architect` (V1–V6, N1–N8, `docs/reviews/2026-10-03-1238-fo
 local)
 **Related:** [#1238](https://github.com/klasolsson81/jobbliggaren/issues/1238) (this ADR ships in its PR) ·
 [#1960](https://github.com/klasolsson81/jobbliggaren/issues/1960) (the epic) ·
-[#1961](https://github.com/klasolsson81/jobbliggaren/issues/1961) (environment separation and production
-promotion — consumes this record) · [#1901](https://github.com/klasolsson81/jobbliggaren/issues/1901) (the
+[#1961](https://github.com/klasolsson81/jobbliggaren/issues/1961) · [#1901](https://github.com/klasolsson81/jobbliggaren/issues/1901) (the
 deploy specification) · #1236 (the schema-ahead gate) · #1314 (the attest-before-latest order) · #196 (the
 attestation chain) · ADR 0050 (the deploy stack)
 **Measured against:** `main` at `0a100f134`, 2026-10-03/04.
@@ -95,7 +94,7 @@ checkout's deployment files.
   pinned SHA. Record values never pass through `source`, `eval` or `${{ }}`.
 - **R2, content, not tag.** A record is identified by its digest. A tag (`dev`, `sha-<40>`) selects a record
   and vouches for nothing. A record under `sha-<X>` is accepted only if `SOURCE_SHA` = X and it verifies
-  against X. The publisher never rewrites a record, and a pin, like any promotion a second environment
+  against X. The publisher never rewrites a record, and any promotion a second environment
   would bring (deferred, ADR 0154), names the digest.
 - **R3, rollback window.** Every record published since this ADR merged is retained. Nothing deletes package
   versions automatically, and CI guards that; deleting one is Klas's decision. Within the window, the #1236
@@ -148,7 +147,7 @@ checkout's deployment files.
 image is verified as built from it. A delayed or failed cell publishes nothing a consumer follows. A
 published release is never rewritten, and an old run never moves the channel. The manual commands of the
 runbooks recreate from the last verified release instead of whatever a refused pull left behind. The box
-records which release it runs (the receipt), which #1960 needs before any production GO.
+records which release it runs (the receipt).
 
 **Accepted costs.** `jobbliggaren-release` becomes public, irreversibly (it holds public metadata). Delivery
 pauses on a configuration-changing merge until the merging session advances the checkout (A2, §5 C3); 21 of
@@ -162,8 +161,7 @@ an image is a cosign verification. `latest` survives as a transitional tag.
   blocking `verified` turns red first, before the box notices. Fallback: the predicate's
   `resolvedDependencies[0].digest.gitCommit`, which carries the same commit.
 - The migration ids are read from the source tree at the commit, not from the migrate image. The #1236 gate
-  in the image stays authoritative on the box; a cross-check against `GetMigrations()` is #1961's, where the
-  list first gates a promotion.
+  in the image stays authoritative on the box; a cross-check against `GetMigrations()` is #1961's.
 - Upstream images (postgres, redis, seq) are bound by tag through compose, not by digest.
 - `:applied`, the receipt, the lock and the pin file are one per Docker daemon and host; with one box
   (ADR 0154) that is one per environment.
@@ -177,8 +175,7 @@ an image is a cosign verification. `latest` survives as a transitional tag.
 - **Tags or labels inside an existing image repository (C1 c).** Degenerates into five tags again, or into a
   referrers tool the box does not have.
 - **Digest references in compose (C2 D).** The stronger form for two environments; here it would break about
-  twenty operator commands, `inject-secrets.sh:789` and the old reconcile's image parsing. #1961, which
-  rewrites every command per environment anyway, may take it.
+  twenty operator commands, `inject-secrets.sh:789` and the old reconcile's image parsing.
 - **Recording the configuration without enforcing it (C3 b).** Fails the contract's points 3 and 5.
 - **The exact-value override for a configuration mismatch.** Would apply images with a configuration they
   were never released with; R5 covers rollbacks instead.
@@ -198,7 +195,7 @@ registry and Compose v2.40.3.
 **Done; #1238 closed 2026-10-04:** (i) the new publisher's first run on `main`, read from GHCR; (ii) Klas's
 C3 answer, A2 (§5); (iii) activation in `vps-deploy-stack.md` §3b's order, 2026-10-04 20:30–20:36 UTC,
 sequence 1563, after PR #2000 read each service's own image on the box's Compose v5.4.0; (iv) the first
-automatic channel advance, 21:47 UTC the same day, sequence 1564.
+automatic channel advance, sequence 1564.
 
 **Handed to #1961, re-scoped by ADR 0154 to hardening the unattended delivery on the one box:** digests for
 upstream images and the migration-id cross-check. Parked there (not in scope, not verified): retiring

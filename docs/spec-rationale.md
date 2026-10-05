@@ -75,13 +75,6 @@ is what `gh pr update-branch` produces.
 checkout yanked an active branch mid-session; the commit survived only because it was
 already pushed.
 
-**Why every migration is expand-only (ADR 0154, 2026-10-05):** Klas decided on one box and
-one domain, with every merged PR live ("Alla mergade PR går direkt live vid image-byggnad etc
-på jobbliggaren.se"). A migration therefore runs unattended against the only copy of the
-data, with no rehearsal environment and no off-box backup (M-4, #197), while the previous
-release keeps serving until `up` replaces it. Expand-only keeps both releases valid on the
-new schema; the Identity half follows Klas's "Stående GO täcker §3c".
-
 **`next-up`'s retirement:** `next-up` is on zero open issues as of 2026-08-02 and `mvp`
 replaced it in practice.
 
@@ -183,11 +176,7 @@ deploy without Klas GO" and AGENTS.md §6's "no prod path yet" predate Klas's de
 the one box is production and every merge goes live. Keeping them would make every
 automerge a breach. His A2 answer of 2026-10-04 covered dev only; on 2026-10-05 he
 extended it: "Det gäller direkt och tillsvidare." ADR 0154 §4 reads its scope by its
-criterion (what a merged, recorded release contains). The read rule is keyed on its
-criterion rather than on a launch date (senior-cto-advisor, 2026-10-05) because the box
-already holds data whose subject is not Klas — contact fields in job ads and sole-trader
-rows in the company register — and the rule widens by itself at the first registration.
-It imposes no GO, so Klas's 2026-08-20 directive that measurement needs none stands.
+criterion (what a merged, recorded release contains).
 
 **Native review evidence (2026-10-03):** Klas reported repeated stalls when a
 completed GitHub bot result was followed by a demand to read a private Security

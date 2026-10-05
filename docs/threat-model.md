@@ -135,10 +135,9 @@ on a `dev` that does not prove itself. Deleting a package version is Klas's
 decision; `.github/scripts/package-retention-guard.sh` refuses one in
 `.github/workflows` and `.github/scripts`.
 
-Root on the box is the remaining boundary. Since ADR 0154 the box is production: from the first
-registration, root guards real users' data, and the sessions that hold Klas's standing GO hold it.
+Root on the box is the remaining boundary. Since ADR 0154 the box is production.
 `security-auditor`'s finding on that stands as recorded, with its remedy (a separate production
-host) withdrawn by Klas; reads on the box follow CLAUDE.md §9.2's metadata-only rule.
+host) withdrawn by Klas.
 `/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the
 local `:applied` tags are root state. A

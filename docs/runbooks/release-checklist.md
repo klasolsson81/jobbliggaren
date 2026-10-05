@@ -1,7 +1,7 @@
 # Release-checklist (generisk, återkommande)
 
 > Repeterbar release-procedur för JobbPilot. Varje merge till `main` blir en verifierad release som
-> lådan applicerar inom ungefär två timmar (ADR 0149), och lådan är produktion (ADR 0154): mergen är
+> lådan applicerar (ADR 0149), och lådan är produktion (ADR 0154): mergen är
 > godkännandet. Den här runbooken strukturerar verifieringen kring det, och de hårda grindarna i §2.x
 > före första riktiga användare.
 >
@@ -14,10 +14,9 @@
 
 | Händelse | Vad som händer | Vem |
 |---|---|---|
-| Merge till `main` | `release-images.yml` (timme :17) bygger, attesterar och publicerar en release-record och flyttar kanalen `dev`; lådans reconcile-unit (timme :47) applicerar den | Automatiskt |
+| Merge till `main` | `release-images.yml` bygger, attesterar och publicerar en release-record och flyttar kanalen `dev`; lådans reconcile-unit applicerar den | Automatiskt |
 | Merge som ändrar `deploy/docker-compose.yml` eller `deploy/redis/healthcheck.sh` | Lådan vägrar releasen tills checkouten flyttats till dess commit (`vps-deploy-stack.md` §3b) | Den mergande sessionen, Klas stående GO |
 | Merge med en Identity-migrering | Uniten applicerar den inte; `vps-deploy-stack.md` §3c gör det | Den mergande sessionen, Klas stående GO |
-| Merge som ändrar en Redis-ACL-mall | Varje reconcile vägrar tills ACL:en ompublicerats från escrow | Klas |
 | Rollback | En pin i `/etc/jobbliggaren/release-pin` (§5) | Klas GO |
 
 Lådan är den enda miljön; det finns ingen staging och ingen promotion (ADR 0154). Taggmodellen i
@@ -52,7 +51,7 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
       Postgres **kraschar inte** på det: frågorna blir bara tyst fel (rader hittas inte,
       `ORDER BY` ljuger). Detta gäller `en_US.utf8` **redan idag** (collversion 2.41);
       #884 skapade inte exponeringen, det är första gången repot **namnger** den.
-      **Efter varje Postgres-image- eller major-bump, före merge:**
+      **Efter varje Postgres-image- eller major-bump:**
       ```sql
       -- 1. Har någon kollation drivit? (tom output = inget att göra)
       SELECT collname, collversion, pg_collation_actual_version(oid) AS faktisk
@@ -69,14 +68,11 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
       tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
       kollat alls.
 
-      **DEN HÄR GRINDEN LÄSER DEN TAGGADE MILJÖN, OCH DET RÄCKER INTE SEDAN 2026-08-04**
-      (#1197 / PR #1206). Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
+      Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
       bumpas automatiskt i `docker-compose.yml`. Basimagen bär ICU-biblioteket, migration
       `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
       **dev-databasen är den enda som i dag håller riktiga data** (106 071 annonser,
-      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen — den läser miljön
-      vid release-tillfället. **Kör därför steg 1 mot dev-DB:n också efter varje
-      postgres-bump**, inte bara före merge.
+      1 066 938 företagsrader).
       *(Samma PR gjorde **varje** image-bump icke auto-mergebar i
       `dependabot-automerge.yml` — det generella skälet är att ingenting läser den image
       som ändras; att just compose-felmoden är tyst kommer utöver det. En människa läser
@@ -1304,8 +1300,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > ⚠ **Värdraden är den MOTSATTA sortens fall och är AVKLARAD, inte trasig — blanda inte ihop
 > dem:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
 > (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
-> drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
-> skeppad till dev, men det finns ingen prod-deploy — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
+> drift — samma defekt som en förtidig flip, i spegelvänd form. Policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
 > förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
 > providern är `NullCompanyRegistry` och den riktiga adaptern finns inte, så ett
 > presens-påstående skulle hävda en överföring till en myndighet som **bevisligen
@@ -2460,7 +2455,7 @@ overksamt inom en omstart; en halvriven kodbas är inte.
 Det finns inget separat deploysteg. Efter mergen:
 
 1. Följ `release-images`-körningen för merge-commiten till grönt `publish` (`gh run list --workflow
-   release-images --limit 3`); vid behov en `workflow_dispatch` på `main`.
+   release-images --limit 3`); en `workflow_dispatch` på `main`.
 2. Ändrade mergen en bunden deploy-fil, en unit eller ett Identity-schema: gör §1:s steg under Klas
    stående GO (CLAUDE.md §9.2).
 3. Verifiera enligt §4 efter nästa reconcile.

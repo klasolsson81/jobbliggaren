@@ -156,7 +156,7 @@
 ### 3.3 Miljöer
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
-> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är avgjort 2026-08-04**
+> (ADR 0066). **Värdvalet är avgjort 2026-08-04**
 > (Klas-direktiv: Netcup, 8 GB, ingen CDN — ADR 0050 `Amendment 2026-08-04`; ersätter
 > det obeslutade 2026-08-02-läget) — se §3.2:s statusbanner; raderna nedan beskriver den
 > beslutade FORMEN och namnger ännu fel leverantör. De är sizing-bärande och ägs därför av
@@ -169,17 +169,16 @@
 > **avvecklad infra** — den AWS-baserade stacken är **riven** (ADR 0066,
 > 2026-05-26), inte pausad; deploy-workflowsen (`deploy-dev.yml` m.fl.) är
 > bevarade som reversibilitets-/historik-mekanik (ADR 0066 Beslut 1 + ADR
-> 0069 D3) och `deploy-dev.yml`:s auto-trigger är borttagen 2026-06-28. Ny
-> Hetzner-pipeline byggs vid cutover.
+> 0069 D3) och `deploy-dev.yml`:s auto-trigger är borttagen 2026-06-28.
 
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
 | local | Utveckling | Docker Compose | **Aktiv** |
-| production (planerad) | Live | ~~Hetzner CAX31 + Cloudflare~~ → **Netcup RS 1000 G12 (8 GB), ingen CDN** (ADR 0050 `Amendment 2026-08-04`) | Värdvalet avgjort 2026-08-04 (se §3.2); lådan provisionerad + grundhärdad (#1196), inget deployat |
+| production | Live | ~~Hetzner CAX31 + Cloudflare~~ → **Netcup RS 1000 G12 (8 GB), ingen CDN** (ADR 0050 `Amendment 2026-08-04`) | Värdvalet avgjort 2026-08-04 (se §3.2); lådan provisionerad + grundhärdad (#1196) |
 | dev / staging (AWS) | f.d. integration / pre-prod | — | Avvecklad (ADR 0066) |
 
 PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och
-miljö-topologi är fastställd i ADR 0050; pipelinen byggs vid Hetzner-cutover.
+miljö-topologi är fastställd i ADR 0050.
 
 ---
 
@@ -842,7 +841,6 @@ Alla FK-kolumner har index. Utöver det:
 - EF Core migrations i `Jobbliggaren.Infrastructure/Persistence/Migrations/`
 - Namn: `20260418_InitialSchema`, `20260420_AddImpersonationClaim`, etc.
 - Aldrig redigera applied migration — skapa ny
-- Migration körs automatiskt i Api-startup i dev/staging, manuellt i prod
 - Seed-data för reference (SSYK) körs via separat `Seed`-kommando
 
 ---
@@ -1590,9 +1588,7 @@ byggt:
 > (ADR 0066) och AWS lämnas permanent. Permanent deploy-mål — **Hetzner Cloud
 > CAX31 (ARM, 16 GB) all-in-one Docker Compose (**BE + FE**) + Cloudflare
 > (DNS/CDN/proxy)** — är **beslutat i ADR 0050 (Accepted 2026-06-08)** och
-> beskrivs nedan. Faktisk provisionering är framtida Klas-gatat arbete (ADR 0050
-> Sekvensering: Hetzner sist, vid MVP före beta-testare, med samtliga
-> Pre-beta-data-gates lösta + andra security-granskning först).
+> beskrivs nedan.
 >
 > `infra/terraform/` (den tidigare AWS-stacken) + `deploy-dev.yml` refererar **avvecklad infra** —
 > den AWS-baserade dev-stacken (ECS/ECR/RDS/Redis) är **riven** 2026-05-26
@@ -1809,8 +1805,7 @@ Trivy-grindar och attesterar de fem imagesen från en `main`-commit — FE-image
 publicerar den **en verifierad release-record** och flyttar `dev` (och övergångsvis `latest`) till
 den. Lådans reconcile-unit applicerar varje timme den record som `dev`-kanalen eller en pin namnger
 ([`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/vps-deploy-stack.md) §3b).
-**Lådan är den enda miljön och den är produktion (ADR 0154):** varje mergad PR går live inom ungefär
-två timmar, och mergen är godkännandet. En andra miljö med promotion är uppskjuten till en eventuell
+**Lådan är den enda miljön och den är produktion (ADR 0154):** varje mergad PR går live, och mergen är godkännandet. En andra miljö med promotion är uppskjuten till en eventuell
 andra låda.
 
 **Historiskt (deploy — refererar avvecklad AWS-infra):**

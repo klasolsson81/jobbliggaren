@@ -757,8 +757,7 @@ cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d -
 
 Re-create, never `docker restart`: the variables are read at container creation.
 
-**The reading, dated, as a comment on #1732.** Counts, never printouts (lapse trigger 4 (e); the read
-rule in CLAUDE.md §9.2):
+**The reading, dated, as a comment on #1732.** Counts, never printouts (lapse trigger 4 (e)):
 
 - `Auth__RegistrationsOpen` in the running api container;
 - the number of accounts, and whether every one is the controller's;
@@ -845,7 +844,7 @@ cd /opt/jobbliggaren/deploy
 sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
 ```
 
-**The reading, dated, as a comment on #1732.** Counts, never printouts (CLAUDE.md §9.2's read rule):
+**The reading, dated, as a comment on #1732.** Counts, never printouts:
 
 - `Auth__RegistrationsOpen` in the running api container;
 - the number of accounts, and whether every one is the controller's, counted against a hash of each
@@ -920,7 +919,7 @@ cd /opt/jobbliggaren/deploy
 sudo flock -n /run/jobbliggaren-reconcile.lock docker compose -f docker-compose.yml up -d --no-deps --pull never --wait api
 ```
 
-**The reading, dated, as a comment on #1732.** Counts, never printouts (CLAUDE.md §9.2's read rule):
+**The reading, dated, as a comment on #1732.** Counts, never printouts:
 
 - `Auth__RegistrationsOpen` in the running api container;
 - the number of accounts, and whether every one is the controller's, counted as for GitHub;

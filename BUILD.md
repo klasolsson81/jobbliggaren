@@ -1803,14 +1803,15 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.
 
-**Leverans till dev (ADR 0149):** `release-images.yml` (timschema + `workflow_dispatch`) bygger,
+**Leverans (ADR 0149, ADR 0154):** `release-images.yml` (timschema + `workflow_dispatch`) bygger,
 Trivy-grindar och attesterar de fem imagesen från en `main`-commit — FE-imagen byggs i CI
 (`next build`) och skeppas som container, ingen Vercel-build. Först när hela uppsättningen är klar
 publicerar den **en verifierad release-record** och flyttar `dev` (och övergångsvis `latest`) till
-den. Lådans reconcile-unit applicerar varje timme den record som `dev` eller en pin namnger — på
-lådan från och med aktiveringen ([`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/vps-deploy-stack.md)
-§3b; dessförinnan drar den gamla konsumenten `latest`).
-**Produktionspromotion är inte levererad** ([#1961](https://github.com/klasolsson81/jobbliggaren/issues/1961)).
+den. Lådans reconcile-unit applicerar varje timme den record som `dev`-kanalen eller en pin namnger
+([`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/vps-deploy-stack.md) §3b).
+**Lådan är den enda miljön och den är produktion (ADR 0154):** varje mergad PR går live inom ungefär
+två timmar, och mergen är godkännandet. En andra miljö med promotion är uppskjuten till en eventuell
+andra låda.
 
 **Historiskt (deploy — refererar avvecklad AWS-infra):**
 Tag-baserad AWS-deploy (`deploy-dev.yml` m.fl.) refererar den **rivna** AWS-dev-stacken

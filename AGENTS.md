@@ -288,8 +288,8 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
 
 - `main` is protected; **all changes via feature branch + PR** (ADR 0065,
   `enforce_admins: true` — Klas included). Branch: `<type>/<short-slug>`.
-  Linear history (squash/rebase — no merge commits). Deploy: `main` → one
-  verified release, hourly, to dev (ADR 0149); no prod path yet (#1961).
+  Linear history (squash/rebase — no merge commits). Deploy: each merge → one
+  verified release, live on the one production box within ~2 h (ADR 0154).
 - **Conventional Commits:** `<type>(<scope>): <description>` — types feat/fix/
   docs/refactor/test/chore/perf/build/ci; scopes e.g. applications, resumes,
   ai, infra, web; imperative; English (language policy §1).
@@ -410,6 +410,5 @@ auditor-approved security PRs for a manual pre-merge ("§12-gated — Klas
 mergar") is retired. This clarification touches only the security clause — the other §12
 classes (§5 anti-patterns, Clean Architecture boundaries, non-BUILD.md
 libraries, design tokens) remain fully STOPP-blocking, and every applicable
-class must clear independently. Migration-bearing PRs are likewise untouched —
-whether they ride automerge stays a per-case call (EF migrations remain the
-most dangerous hotspot, §6.5).
+class must clear independently. Migration-bearing PRs are likewise untouched; every merge is a
+production deploy, so they follow CLAUDE.md §6.5.

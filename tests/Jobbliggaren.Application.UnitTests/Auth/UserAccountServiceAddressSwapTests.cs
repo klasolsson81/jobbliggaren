@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
@@ -52,8 +53,17 @@ public class UserAccountServiceAddressSwapTests
         _userManager.ChangeEmailAsync(_user, NewEmail, FreshToken).Returns(IdentityResult.Success);
     }
 
-    private Task<Result> SwapAsync(string newEmail = NewEmail) =>
-        _sut.SwapConfirmedAddressAsync(_user.Id, newEmail, TestContext.Current.CancellationToken);
+    private Task<Result<AddressSwapped>> SwapAsync(string newEmail = NewEmail) =>
+        _sut.SwapConfirmedAddressAsync(_user.Id, newEmail, SwapPrecondition.None, TestContext.Current.CancellationToken);
+
+    // #1975 — the precondition an administrator-initiated change carries: the fingerprint of the address it was started
+    // from, by the one normaliser every key uses.
+    private Task<Result<AddressSwapped>> SwapStartedFromAsync(string startedFrom) =>
+        _sut.SwapConfirmedAddressAsync(
+            _user.Id,
+            NewEmail,
+            SwapPrecondition.AdminInitiated(new ExpectedCurrentAddress(SubjectFingerprint.Hex(startedFrom))),
+            TestContext.Current.CancellationToken);
 
     private async Task TheAddressIsNeverWritten() =>
         await _userManager.DidNotReceive().ChangeEmailAsync(
@@ -71,6 +81,60 @@ public class UserAccountServiceAddressSwapTests
             _userManager.GenerateChangeEmailTokenAsync(_user, NewEmail);
             _userManager.ChangeEmailAsync(_user, NewEmail, FreshToken);
         });
+    }
+
+    [Fact]
+    public async Task SwapConfirmedAddressAsync_ShouldAnswerTheAddressItReplaced()
+    {
+        var result = await SwapAsync();
+
+        result.Value.PreviousEmail.ShouldBe(OldEmail);
+    }
+
+    [Fact]
+    public async Task SwapConfirmedAddressAsync_ShouldMoveAnAdministratorInitiatedChange_WhileTheAccountStillFitsIt()
+    {
+        // The address the change was started from, in another spelling the normaliser folds to the same key.
+        var result = await SwapStartedFromAsync(" GAMMAL@example.SE ");
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreviousEmail.ShouldBe(OldEmail);
+        await _userManager.Received(1).IsInRoleAsync(_user, Roles.Admin);
+        await _userManager.Received(1).ChangeEmailAsync(_user, NewEmail, FreshToken);
+    }
+
+    [Fact]
+    public async Task SwapConfirmedAddressAsync_ShouldWriteNothing_WhenTheAccountMovedSinceTheChangeWasStarted()
+    {
+        // The owner's own change landed first: the account no longer holds the address the change was started from.
+        var result = await SwapStartedFromAsync("en.annan.adress@example.se");
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.AccountEmailChangeStale);
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
+        await _userManager.DidNotReceiveWithAnyArgs().SetUserNameAsync(default!, default);
+        await TheAddressIsNeverWritten();
+    }
+
+    [Fact]
+    public async Task SwapConfirmedAddressAsync_ShouldWriteNothing_WhenTheAccountHoldsAdmin()
+    {
+        _userManager.IsInRoleAsync(_user, Roles.Admin).Returns(true);
+
+        var result = await SwapStartedFromAsync(OldEmail);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.AccountEmailChangeStale);
+        await _userManager.DidNotReceiveWithAnyArgs().SetUserNameAsync(default!, default);
+        await TheAddressIsNeverWritten();
+    }
+
+    [Fact]
+    public async Task SwapConfirmedAddressAsync_ShouldReadNoRole_WhenNothingIsExpected()
+    {
+        await SwapAsync();
+
+        await _userManager.DidNotReceiveWithAnyArgs().IsInRoleAsync(default!, default!);
     }
 
     [Fact]

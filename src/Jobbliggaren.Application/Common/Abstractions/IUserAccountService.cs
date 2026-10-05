@@ -12,6 +12,16 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// </summary>
 public sealed record AccountSummary(string? Email, IReadOnlyList<string> Roles);
 
+/// <summary>
+/// A completed address swap: the address the account moved FROM, read in the same unit as the swap so the notice to
+/// the previous owner reaches the address that was actually replaced. Null only where the account held no address
+/// (a broken #822 invariant).
+/// </summary>
+public sealed record AddressSwapped(string? PreviousEmail)
+{
+    public override string ToString() => "AddressSwapped(address redacted)";
+}
+
 public interface IUserAccountService
 {
     Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct);
@@ -44,7 +54,10 @@ public interface IUserAccountService
     /// a taken name (the validator's refusal or the index's) is <c>Auth.EmailTaken</c>, any other refusal
     /// <c>Auth.EmailChangeIncomplete</c>. The address write follows, and its failure is fatal as
     /// <c>Auth.EmailChangeIncomplete</c>, leaving the user name moved and the address kept, a state no one else can
-    /// take and a retry completes. The security stamp rotates with each write.
+    /// take and a retry completes. The security stamp rotates with each write. <paramref name="precondition"/> is checked
+    /// on the account as loaded, before the first write; a failed one is <c>Auth.AccountEmailChangeStale</c> and
+    /// writes nothing.
     /// </summary>
-    Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct);
+    Task<Result<AddressSwapped>> SwapConfirmedAddressAsync(
+        Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct);
 }

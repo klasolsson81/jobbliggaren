@@ -127,6 +127,15 @@ public static class AuthErrorCodes
     public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
 
     /// <summary>
+    /// #1975 — an administrator-initiated change no longer fits the account it was started for: the account's address
+    /// is not the one the change was started from, or the account now holds Admin. The swap writes nothing. The
+    /// completion answers it with its one refusal and never puts this code on the wire. Conflict.
+    /// </summary>
+    public const string AccountEmailChangeStale = "Auth.AccountEmailChangeStale";
+
+    public const string AccountEmailChangeStaleMessage = "Kontot har ändrats sedan adressbytet påbörjades.";
+
+    /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
     /// ADR 0083 Amendment 2026-08-03). Rendered as an endpoint-local 503 by
     /// <c>AuthEndpoints.ToErrorResult</c>, not via the kind-union — see that arm for why.

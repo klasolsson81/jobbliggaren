@@ -14,23 +14,21 @@ public sealed partial class ConfirmedAddressSwap(
     IEmailSender emailSender,
     ILogger<ConfirmedAddressSwap> logger)
 {
-    public async Task<Result> MoveAsync(Guid userId, string newEmail, CancellationToken ct)
+    public async Task<Result> MoveAsync(
+        Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct)
     {
-        // Captured BEFORE the swap so the security notice can reach it (CTO-bind #4).
-        var oldEmail = await userAccountService.GetEmailAsync(userId, ct);
-
-        var swapped = await userAccountService.SwapConfirmedAddressAsync(userId, newEmail, ct);
+        var swapped = await userAccountService.SwapConfirmedAddressAsync(userId, newEmail, precondition, ct);
         if (swapped.IsFailure)
-            return swapped;
+            return Result.Failure(swapped.Error);
 
         // Old-address security notice (CTO-bind #4): "your email was changed", so the previous owner can detect an
         // unauthorized change (OWASP ASVS V2.5 / NIST SP 800-63B). Best-effort, log-and-continue — a send failure
         // must never fail a completed change. No link, and it does not reveal the new address.
-        if (!string.IsNullOrEmpty(oldEmail))
+        if (swapped.Value.PreviousEmail is { Length: > 0 } previousEmail)
         {
             try
             {
-                await emailSender.SendEmailChangedNotificationAsync(oldEmail, ct);
+                await emailSender.SendEmailChangedNotificationAsync(previousEmail, ct);
             }
             catch (Exception ex)
             {

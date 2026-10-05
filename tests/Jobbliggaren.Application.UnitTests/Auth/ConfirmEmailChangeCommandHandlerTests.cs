@@ -12,7 +12,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
 /// The change-email confirm step (#679; a grant since #1739, ADR 0142 D5). The grant is redeemed with an assertion
-/// of this user AND this address, and nothing is moved until it redeems. The old address is read before the swap
+/// of this user AND this address, and nothing is moved until it redeems. The swap answers the address it replaced,
 /// so the "your email was changed" notice reaches the previous owner (CTO-bind #4), and that notice is
 /// best-effort: it never fails a completed change.
 /// </summary>
@@ -38,8 +38,8 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         _currentUser.UserId.Returns(UserId);
         _grants.RedeemAsync(Grant, Expected, Arg.Any<CancellationToken>())
             .Returns(new GrantSubject.ChangeEmail(UserId, NewEmail));
-        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns(OldEmail);
-        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>()).Returns(Result.Success());
+        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, SwapPrecondition.None, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new AddressSwapped(OldEmail)));
     }
 
     private ConfirmEmailChangeCommandHandler Sut() =>
@@ -58,8 +58,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         Received.InOrder(async () =>
         {
             await _grants.RedeemAsync(Grant, Expected, Arg.Any<CancellationToken>());
-            await _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>());
-            await _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
+            await _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, SwapPrecondition.None, Arg.Any<CancellationToken>());
             await _sender.SendEmailChangedNotificationAsync(OldEmail, Arg.Any<CancellationToken>());
         });
         await _sender.DidNotReceive().SendEmailChangedNotificationAsync(NewEmail, Arg.Any<CancellationToken>());
@@ -88,7 +87,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailChangeGrantUnusable);
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
-        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, default!, Ct);
         await _sender.DidNotReceiveWithAnyArgs().SendEmailChangedNotificationAsync(default!, Ct);
     }
 
@@ -96,7 +95,8 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     public async Task A_refused_swap_propagates_its_error_and_notifies_nobody()
     {
         var taken = DomainError.Conflict(AuthErrorCodes.EmailTaken, AuthErrorCodes.EmailTakenMessage);
-        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, Arg.Any<CancellationToken>()).Returns(Result.Failure(taken));
+        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, SwapPrecondition.None, Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<AddressSwapped>(taken));
 
         var result = await Sut().Handle(Command, Ct);
 
@@ -127,7 +127,8 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     [Fact]
     public async Task No_old_address_skips_the_notice()
     {
-        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns((string?)null);
+        _accounts.SwapConfirmedAddressAsync(UserId, NewEmail, SwapPrecondition.None, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new AddressSwapped(null)));
 
         var result = await Sut().Handle(Command, Ct);
 
@@ -145,7 +146,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.NotAuthenticated);
         await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
-        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, default!, Ct);
     }
 
     [Theory]
@@ -160,6 +161,6 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.InvalidInput);
         await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
-        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, default!, Ct);
     }
 }

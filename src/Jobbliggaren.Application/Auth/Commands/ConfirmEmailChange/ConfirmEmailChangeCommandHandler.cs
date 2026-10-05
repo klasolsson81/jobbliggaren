@@ -38,7 +38,7 @@ public sealed class ConfirmEmailChangeCommandHandler(
             return Result.Failure<Guid>(DomainError.Gone(
                 AuthErrorCodes.EmailChangeGrantUnusable, AuthErrorCodes.EmailChangeGrantUnusableMessage));
 
-        var moved = await addressSwap.MoveAsync(userId, command.NewEmail, cancellationToken);
+        var moved = await addressSwap.MoveAsync(userId, command.NewEmail, SwapPrecondition.None, cancellationToken);
         if (moved.IsFailure)
             return Result.Failure<Guid>(moved.Error);
 

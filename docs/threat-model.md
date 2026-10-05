@@ -136,8 +136,11 @@ decision; `.github/scripts/package-retention-guard.sh` refuses one in
 `.github/workflows` and `.github/scripts`.
 
 Root on the box is the remaining boundary. Since ADR 0154 the box is production.
+Whoever holds the operator key has root, and every agent process on the workstation can use it —
+CC, Codex and their subagents alike. Root already guards personal data about people other than
+Klas: recruiters in `job_ads`, and sole traders, whose organisation number is their personnummer.
 `security-auditor`'s finding on that stands as recorded, with its remedy (a separate production
-host) withdrawn by Klas.
+host) withdrawn by Klas. What an agent may read there is CLAUDE.md §9.2's read rule.
 `/etc/jobbliggaren/release-pin`
 overrides the channel and is an operator act; the receipt, the lock and the
 local `:applied` tags are root state. A

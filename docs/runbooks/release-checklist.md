@@ -1,6 +1,6 @@
 # Release-checklist (generisk, återkommande)
 
-> Repeterbar release-procedur för JobbPilot. Varje merge till `main` blir en verifierad release som
+> Repeterbar release-procedur för JobbPilot. `main` blir en verifierad release som
 > lådan applicerar (ADR 0149), och lådan är produktion (ADR 0154): mergen är
 > godkännandet. Den här runbooken strukturerar verifieringen kring det, och de hårda grindarna i §2.x
 > före första riktiga användare.
@@ -2458,7 +2458,7 @@ Det finns inget separat deploysteg. Efter mergen:
    release-images --limit 3`); en `workflow_dispatch` på `main`.
 2. Ändrade mergen en bunden deploy-fil, en unit eller ett Identity-schema: gör §1:s steg under Klas
    stående GO (CLAUDE.md §9.2).
-3. Verifiera enligt §4 efter nästa reconcile.
+3. Verifiera enligt §4 efter nästa reconcile (CLAUDE.md §9.2:s läsregel).
 
 **Utrullningsordning för policyversionen (ADR 0142 D6, #1736):** `TermsAcceptance.CurrentPrivacyPolicyVersion`
 i API-imagen och `privacy.updated` i web-imagen är samma datum — pinnat i ett träd, inte vid deploy.
@@ -2483,17 +2483,17 @@ bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullni
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
 - [ ] **Hangfire-jobben** kör enligt schema om release rör Worker
-      (`*/10`-cron etc.) — verifiera på `/admin/jobb` (read-side, ADR 0082) och i
-      den strukturerade loggen. Den inbyggda Hangfire-dashboarden exponeras inte.
+      (`*/10`-cron etc.) — verifiera som antal per tillstånd och senaste körning i
+      `hangfire`-schemat sedan worker-containerns `StartedAt`; `/admin/jobb` (read-side, ADR 0082)
+      och loggen läser Klas. Den inbyggda Hangfire-dashboarden exponeras inte.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
-      INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
-      prod-sink = #1175) + direkt `audit_log`-query (ADR 0035).
-- [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
-      — detektionen är heartbeat-timern och dess dead-man (ADR 0126; UptimeRobot och BetterStack
-      avvisades där); jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
-      Konkret alerting-konfig: #196 (box) + #1175 (sink).
+      INSERT som antal `audit_log`-rader per `event_type` sedan `StartedAt` för containern som
+      skriver flödet (api eller worker; ADR 0035); Seq läser Klas.
+- [ ] **Ops-signaler granskade** — health-checks
+      — detektionen är heartbeat-timern och dess dead-man, som Klas läser vid expectern (ADR 0126;
+      UptimeRobot och BetterStack avvisades där).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
-      ADR 0045-budgetar; manuell rök-test av kritiska flöden.
+      ADR 0045-budgetar, på utloggade sidor; inloggade flöden rök-testar Klas.
 - [ ] **Rollback känd** — pinna föregående release i `/etc/jobbliggaren/release-pin`
       och kör reconcile-uniten (se §5); över en migrationsgräns vägrar `migrate` i
       stället (#1236, `vps-deploy-stack.md` §3a).
@@ -2549,7 +2549,7 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
   tag-semantik), ADR 0033/0034 (migrations/DB-roller),
   ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
   rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
-  ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
+  ADR 0050:s health-check-modell), ADR 0044 (coverage-gate),
   ADR 0045 (perf observe-only-signaler); #196 (Compose-stack) / #1175 (prod-sink)
   (logg-sink/observability)
 - AGENTS.md §6 (granskningsspärrar), §8 (DoD); CLAUDE.md §9.2 (release-vägen under stående GO)

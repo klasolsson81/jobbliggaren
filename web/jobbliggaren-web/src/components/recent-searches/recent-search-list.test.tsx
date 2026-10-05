@@ -4,11 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { RecentSearchList } from "./recent-search-list";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { queryLabel } from "@/test/recent-search-label";
+import type { RecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 
 const deleteActionMock = vi.fn();
-const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
-  () => null,
-);
+const countsMock = vi.fn<() => RecentSearchCounts>(() => null);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -94,6 +93,20 @@ describe("RecentSearchList", () => {
     // → ingen siffra (aldrig falsk "(0)"). Anchored så bara <b>-talet matchas.
     expect(screen.getByText(/^1\s?234$/)).toBeInTheDocument();
     expect(screen.getByText(/träffar/)).toBeInTheDocument();
+  });
+
+  it("reserves every row's count line while the counts are pending", () => {
+    countsMock.mockReturnValue(undefined);
+    const { container } = render(
+      <RecentSearchList
+        items={[
+          makeDto("a1", "backend Stockholm"),
+          makeDto("a2", "designer Göteborg"),
+        ]}
+      />,
+    );
+    expect(container.querySelectorAll(".jp-job__meta--search-count[aria-hidden='true']")).toHaveLength(2);
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
   });
 
   it("optimistically removes a row after a successful delete-action", async () => {

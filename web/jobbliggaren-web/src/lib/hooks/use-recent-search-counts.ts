@@ -5,9 +5,7 @@ import { z } from "zod";
 
 /**
  * B (CTO-beslut 2026-06-13) — lat klient-hämtning av per-sökning-träffräknaren
- * för recent-search-ytorna. Speglar `useFacetCounts`-mönstret: on-demand fetch
- * + AbortController + graceful `null` (counts är en hint, aldrig en
- * förutsättning). Ingen debounce — engångshämtning när `enabled` flippar true
+ * för recent-search-ytorna. Ingen debounce — engångshämtning när `enabled` flippar true
  * (hero-chip när dropdownen öppnas / `/sokningar` on mount), aldrig blockerande
  * sidladdning.
  *
@@ -16,14 +14,17 @@ import { z } from "zod";
  * N+1-COUNT:en, TD-94, sker off-critical-path). Vid timeout/fel → `null` →
  * konsumenten visar inga tal (samma slutläge som interim #77, ALDRIG falsk
  * "(0)").
- *
- * Returnerar en `Map<recentSearchId, {currentCount, newCount}>` — konsumenten
- * slår upp sin egen rad och renderar talet bara när det finns.
  */
 export interface RecentSearchCount {
   currentCount: number;
   newCount: number;
 }
+
+/**
+ * `undefined`: an enabled hook's first fetch has not answered yet. `null`: the fetch failed, or the
+ * hook has not fetched. A map: the counts by recent-search id.
+ */
+export type RecentSearchCounts = ReadonlyMap<string, RecentSearchCount> | null | undefined;
 
 const countsResponseSchema = z.array(
   z.object({
@@ -33,13 +34,8 @@ const countsResponseSchema = z.array(
   }),
 );
 
-export function useRecentSearchCounts(
-  enabled: boolean,
-): ReadonlyMap<string, RecentSearchCount> | null {
-  const [counts, setCounts] = useState<ReadonlyMap<
-    string,
-    RecentSearchCount
-  > | null>(null);
+export function useRecentSearchCounts(enabled: boolean): RecentSearchCounts {
+  const [counts, setCounts] = useState<RecentSearchCounts>(enabled ? undefined : null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {

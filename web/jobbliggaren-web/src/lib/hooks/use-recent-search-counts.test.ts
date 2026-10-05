@@ -24,6 +24,12 @@ describe("useRecentSearchCounts", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("väntar (undefined) från första renderingen tills hämtningen svarat", () => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise<Response>(() => {}));
+    const { result } = renderHook(() => useRecentSearchCounts(true));
+    expect(result.current).toBeUndefined();
+  });
+
   it("bygger en id→count-map vid 200 + giltigt svar", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse([
@@ -32,7 +38,7 @@ describe("useRecentSearchCounts", () => {
       ]),
     );
     const { result } = renderHook(() => useRecentSearchCounts(true));
-    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(result.current).toBeInstanceOf(Map));
     expect(result.current?.get("a1")).toEqual({ currentCount: 42, newCount: 0 });
     expect(result.current?.get("a2")).toEqual({ currentCount: 8, newCount: 3 });
   });
@@ -40,14 +46,12 @@ describe("useRecentSearchCounts", () => {
   it("degraderar till null vid non-2xx (aldrig falsk (0))", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({}, 502));
     const { result } = renderHook(() => useRecentSearchCounts(true));
-    // Ge effekten en tick att köra; resultatet ska förbli null.
-    await waitFor(() =>
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        "/api/me/recent-searches/counts",
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      ),
+    expect(result.current).toBeUndefined();
+    await waitFor(() => expect(result.current).toBeNull());
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/me/recent-searches/counts",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(result.current).toBeNull();
   });
 
   it("degraderar till null vid shape-mismatch", async () => {
@@ -55,7 +59,7 @@ describe("useRecentSearchCounts", () => {
       jsonResponse([{ id: "a1", currentCount: -1, newCount: 0 }]),
     );
     const { result } = renderHook(() => useRecentSearchCounts(true));
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
-    expect(result.current).toBeNull();
+    expect(result.current).toBeUndefined();
+    await waitFor(() => expect(result.current).toBeNull());
   });
 });

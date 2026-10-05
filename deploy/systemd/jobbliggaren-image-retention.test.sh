@@ -207,6 +207,23 @@ class Retention(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertEqual(self.removed(), [])
 
+    def test_record_tool_is_read_by_bash_on_noexec_staging(self):
+        (self.root / "jobbliggaren-release-record.sh").chmod(0o600)
+        r = self.invoke("--apply")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(self.removed(), [image_id(31), image_id(30)])
+    def test_missing_record_tool_fails_closed(self):
+        (self.root / "jobbliggaren-release-record.sh").unlink()
+        r = self.invoke("--apply")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(self.removed(), [])
+
+    def test_unreadable_record_tool_fails_closed(self):
+        # Broken staging is an invariant break; assert only safe refusal.
+        (self.root / "jobbliggaren-release-record.sh").chmod(0o000)
+        r = self.invoke("--apply")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(self.removed(), [])
     def test_invalid_receipt_aborts(self):
         self.receipt.write_text(self.receipt.read_text().replace("SEQUENCE=10", "SEQUENCE=zero"))
         r = self.invoke("--apply")

@@ -1011,7 +1011,8 @@ of reclaimed disk; measure `df -B1 /` and `docker system df` before and after.
 2. Stage only those two scripts and the manifest in a unique root-owned
    `mktemp -d /run/jobbliggaren-image-retention.XXXXXXXX` directory, mode 0700.
    Verify manifest hashes there; scripts are 0500, manifest 0400. This does not
-   change the live checkout. Pass the live Compose file and receipt explicitly.
+   change the live checkout. Invoke staged scripts with /bin/bash because /run
+   is mounted noexec. Pass the live Compose file and receipt explicitly.
 3. Take one outer exclusive reconcile lock on FD 9. Measure disk, Docker
    storage, all container IDs/images/states, receipt bytes, protected reference
    resolutions, `:applied` and `--status`. Run the staged preview with

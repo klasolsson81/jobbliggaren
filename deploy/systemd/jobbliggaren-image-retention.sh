@@ -190,7 +190,7 @@ def main():
         except FileNotFoundError:
             log("no receipt; skipped")
             return 0
-        refs = run([os.path.join(script_dir, "jobbliggaren-release-record.sh"),
+        refs = run(["/bin/bash", os.path.join(script_dir, "jobbliggaren-release-record.sh"),
                     "protected-refs", args.receipt], "receipt validation").splitlines()
         if len(refs) != 6 or any(reference_kind(ref) != "digest" for ref in refs):
             raise Incomplete("record tool returned incomplete protection")

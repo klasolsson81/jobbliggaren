@@ -2,15 +2,18 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -57,6 +60,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>ADR 0146 — holds one user's job_seekers write until a second request has committed.</summary>
     internal JobSeekerSaveRace JobSeekerSaveRace => _jobSeekerSaveRace;
+
+    // #1975 — disarmed unless a test arms them for one account: the address change's teardown and its audit row.
+    private readonly SessionTeardownFaults _sessionTeardownFaults = new();
+    private readonly AuditRowSaveFailure _auditRowSaveFailure = new();
+
+    /// <summary>#1975 — fails the session store's invalidation of one account, so the completion's teardown fails.</summary>
+    internal SessionTeardownFaults SessionTeardownFaults => _sessionTeardownFaults;
+
+    /// <summary>#1975 — refuses the save carrying one account's audit row of one event type.</summary>
+    internal AuditRowSaveFailure AuditRowSaveFailure => _auditRowSaveFailure;
 
     // #1744 — Google's two server-side endpoints, scripted. The only thing the external-login path stubs.
     private readonly ScriptedGoogle _google = new();
@@ -200,6 +213,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(
                         _jobSeekerSaveRace,
+                        _auditRowSaveFailure,
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor>(),
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldDecryptionMaterializationInterceptor>()));
 
@@ -264,6 +278,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<IOAuthStateStore>();
             services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
                 ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), _loginChallengeFaults));
+            services.RemoveAll<IAccountEmailChangeStore>();
+            services.AddSingleton<IAccountEmailChangeStore>(sp => new FaultableAccountEmailChangeStore(
+                ActivatorUtilities.CreateInstance<RedisAccountEmailChangeStore>(sp), _loginChallengeFaults));
+
+            // #1975 — the session store as production composes it, with one account's invalidation failable.
+            services.RemoveAll<ISessionStore>();
+            services.AddScoped<ISessionStore>(sp => new FaultableSessionStore(
+                new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()),
+                _sessionTeardownFaults));
 
             // #1744 — the REAL Google adapter over ScriptedGoogle, handed to the handlers through RegisteredProviders
             // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test

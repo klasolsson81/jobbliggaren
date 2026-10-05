@@ -75,6 +75,30 @@ internal sealed class RecordingEmailSender : IEmailSender
         public void Dispose() => owner._canDeliver = true;
     }
 
+    private volatile object? _refused;
+
+    /// <summary>
+    /// #1975 — the provider refuses every send of one kind for the duration of the scope, the way the transactional
+    /// arm fails: an <see cref="Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException"/> carrying the
+    /// kind, and nothing recorded. A scope for the reason <see cref="Incapable"/> gives.
+    /// </summary>
+    internal IDisposable Refusing(RecordedEmailKind kind)
+    {
+        _refused = kind;
+        return new RefusalScope(this);
+    }
+
+    private void ThrowIfRefused(RecordedEmailKind kind)
+    {
+        if (_refused is RecordedEmailKind refused && refused == kind)
+            throw new Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException(kind.ToString(), "HttpRequestException");
+    }
+
+    private sealed class RefusalScope(RecordingEmailSender owner) : IDisposable
+    {
+        public void Dispose() => owner._refused = null;
+    }
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
@@ -107,6 +131,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
+        ThrowIfRefused(RecordedEmailKind.AccountEmailChangeRequestedNotification);
         _accountEmailChangeNotices.Enqueue(new RecordedAccountEmailChangeNotice(toEmail, completableFrom, expiresAt));
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountEmailChangeRequestedNotification, toEmail));
         return Task.CompletedTask;
@@ -117,6 +142,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         LoginChallengeEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfRefused(RecordedEmailKind.LoginChallenge);
         _loginChallenges.Enqueue(new RecordedLoginChallenge(toEmail, content));
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.LoginChallenge, toEmail));
         return Task.CompletedTask;

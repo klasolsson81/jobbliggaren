@@ -540,4 +540,47 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     await waitFor(() => expect(within(panel).queryByText("Adressbyte")).toBeNull());
     expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
   });
+
+  it.each([
+    ["nothing is pending", NOTHING_PENDING, "Ändra e-postadress"],
+    ["a change is pending", () => json(PENDING_READ), "Avbryt adressbytet"],
+  ] as const)(
+    "reads the change again at the reader's request when its read failed, and moves focus to the action the answer leaves (%s)",
+    async (_label, again, action) => {
+      serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [() => json({ error: "error" }, 502), again] });
+      render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+      const panel = await openA();
+      expect(actionNames(panel)).not.toContain("Ändra e-postadress");
+      const retry = within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("button", {
+        name: "Försök igen",
+      });
+      expect(retry).toHaveAccessibleDescription("Det går inte att se om ett adressbyte väntar.");
+      await userEvent.click(retry);
+
+      await waitFor(() => expect(within(panel).getByRole("button", { name: action })).toHaveFocus());
+      expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+    },
+  );
+
+  it("moves focus to what a cancel with an unknown outcome says, and offers neither a request nor a cancel", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json(PENDING_READ) });
+    cancelActionMock.mockResolvedValue({ kind: "unknown" });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(within(panel).getByRole("button", { name: "Avbryt adressbytet" }));
+
+    const status = await within(panel).findByText(
+      "Vi kan inte se om adressbytet avbröts. Öppna kontot igen för att se om det väntar.",
+    );
+    expect(status).toHaveAttribute("role", "status");
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(within(panel).getByText("Adressbyte").nextElementSibling?.querySelector(".sr-only")).toHaveTextContent(
+      "Uppgift saknas",
+    );
+    expect(actionNames(panel)).not.toContain("Ändra e-postadress");
+    expect(actionNames(panel)).not.toContain("Avbryt adressbytet");
+    expect(within(panel).getByText("Det går inte att se om ett adressbyte väntar.")).toBeInTheDocument();
+  });
 });

@@ -192,6 +192,7 @@
       "emailChange": "Adressbyte",
       "emailChangePending": "Väntar på kontoägaren. Koden kan användas från <nowrap>{from}</nowrap> till <nowrap>{until}</nowrap>.",
       "emailChangeBurned": "Koden har skrivits fel för många gånger och kan inte användas. Bytet upphör <nowrap>{until}</nowrap>.",
+      "emailChangeUnknown": "Det går inte att se om ett adressbyte väntar.",
       "adminAddress": "Adressen på ett administratörskonto byts inte här.",
       "adminAddressOwn": "Byt din på Mina sidor."
     },

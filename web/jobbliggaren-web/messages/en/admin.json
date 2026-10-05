@@ -192,6 +192,7 @@
       "emailChange": "Address change",
       "emailChangePending": "Waiting for the account owner. The code can be used from <nowrap>{from}</nowrap> until <nowrap>{until}</nowrap>.",
       "emailChangeBurned": "The code has been entered wrongly too many times and cannot be used. The change lapses <nowrap>{until}</nowrap>.",
+      "emailChangeUnknown": "It is not possible to see whether an address change is pending.",
       "adminAddress": "The address of an administrator account is not changed here.",
       "adminAddressOwn": "Change yours on My pages."
     },

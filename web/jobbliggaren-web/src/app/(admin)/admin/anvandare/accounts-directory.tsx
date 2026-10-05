@@ -348,6 +348,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         self={self}
         emailChange={emailChange}
         onRetry={open === null ? undefined : () => readAccount(open.id)}
+        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {
           detailRequest.current?.abort();

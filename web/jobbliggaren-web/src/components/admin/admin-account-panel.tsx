@@ -1,7 +1,7 @@
 "use client";
 
 // "use client": the panel holds its account's mode, the running command and what came of it.
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Dialog } from "radix-ui";
 import { useFormatter, useTranslations } from "next-intl";
@@ -125,6 +125,8 @@ interface AdminAccountPanelProps {
   readonly emailChange?: AdminEmailChangeState;
   /** Reads the details again, for a failure whose recovery is a retry. */
   readonly onRetry?: () => void;
+  /** Reads the pending address change again, for a read that failed. */
+  readonly onRetryEmailChange?: () => void;
   /** Where focus goes on close when the row that opened the panel is gone. */
   readonly fallbackFocus?: () => HTMLElement | null;
 }
@@ -153,8 +155,11 @@ function isDirect(action: AdminLiveAction): action is DirectAction {
   return action === "reinstate" || action === "cancelEmailChange";
 }
 
-/** The note that stands where an administrator account's address change would. */
-type ActionSlot = AdminAccountAction | "addressNote";
+/**
+ * The note that stands where an administrator account's address change would, and the note and retry that stand
+ * where the address change or its cancel would while the pending change cannot be read.
+ */
+type ActionSlot = AdminAccountAction | "addressNote" | "emailChangeUnknown";
 
 /** The handoff's order, narrowed by the state the account is in. */
 function actionsFor(
@@ -165,6 +170,7 @@ function actionsFor(
   const general: ActionSlot[] = ["impersonate"];
   // A pending change is cancelled, never requested again: a second request would displace the code its owner holds.
   if (emailChange.kind === "pending") general.push("cancelEmailChange");
+  else if (emailChange.kind === "unknown") general.push("emailChangeUnknown");
   else if (status !== "pendingDeletion") general.push(administrator ? "addressNote" : "changeEmail");
   if (status === "active") general.push("sendLoginLink");
   if (status === "active" && !emailConfirmed) general.push("markVerified");
@@ -198,6 +204,7 @@ export function AdminAccountPanel({
   self,
   emailChange = NO_EMAIL_CHANGE,
   onRetry,
+  onRetryEmailChange,
   fallbackFocus,
 }: AdminAccountPanelProps) {
   const open = account !== null;
@@ -229,6 +236,7 @@ export function AdminAccountPanel({
             self={self}
             emailChange={emailChange}
             onRetry={onRetry}
+            onRetryEmailChange={onRetryEmailChange}
             onCloseAutoFocus={onCloseAutoFocus}
           />
         )}
@@ -244,6 +252,7 @@ function PanelContent({
   self,
   emailChange,
   onRetry,
+  onRetryEmailChange,
   onCloseAutoFocus,
 }: {
   readonly row: AdminAccountRow;
@@ -252,6 +261,7 @@ function PanelContent({
   readonly self: AdminSelf | undefined;
   readonly emailChange: AdminEmailChangeState;
   readonly onRetry: (() => void) | undefined;
+  readonly onRetryEmailChange: (() => void) | undefined;
   readonly onCloseAutoFocus: (event: Event) => void;
 }) {
   const t = useTranslations("admin.users");
@@ -281,6 +291,8 @@ function PanelContent({
   const leftEdit = useRef(false);
   const pendingFocus = useRef<FocusTarget | null>(null);
   const exitFocus = useRef<FocusTarget | null>(null);
+  const retryingEmailChange = useRef(false);
+  const unknownNoteId = useId();
 
   // A receipt published while the panel holds focus waits for the panel to close (WCAG 2.2.1).
   useEffect(() => holdAdminToasts(), []);
@@ -298,9 +310,20 @@ function PanelContent({
   useEffect(() => {
     const target = pendingFocus.current;
     if (target === null) return;
+    const element = (target === "title" ? titleRef : noticeRef).current;
+    if (element === null) return;
     pendingFocus.current = null;
-    focusOn(target);
+    element.focus();
   });
+
+  // A change read again moves focus to what now stands in its place: its action, or the title where none does.
+  useEffect(() => {
+    if (!retryingEmailChange.current || emailChange.kind === "unknown") return;
+    retryingEmailChange.current = false;
+    const action =
+      emailChange.kind === "pending" ? actionRefs.current.cancelEmailChange : actionRefs.current.changeEmail;
+    (action ?? titleRef.current)?.focus();
+  }, [emailChange]);
 
   function focusOn(target: FocusTarget) {
     (target === "title" ? titleRef : noticeRef).current?.focus();
@@ -497,6 +520,29 @@ function PanelContent({
     );
   }
 
+  function emailChangeUnknown() {
+    return (
+      <li key="emailChangeUnknown" className="jp-adminpanel__failure">
+        <p id={unknownNoteId} className="jp-adminpanel__note">
+          {t("panel.emailChangeUnknown")}
+        </p>
+        {onRetryEmailChange === undefined ? null : (
+          <button
+            type="button"
+            className="jp-btn jp-btn--secondary jp-btn--sm"
+            aria-describedby={unknownNoteId}
+            onClick={() => {
+              retryingEmailChange.current = true;
+              onRetryEmailChange();
+            }}
+          >
+            {t("errors.retry")}
+          </button>
+        )}
+      </li>
+    );
+  }
+
   function pendingLine(change: AdminPendingEmailChange) {
     const until = formatDateTime(format, change.expiresAt) ?? unknown;
     if (change.state === "codeBurned") return t.rich("panel.emailChangeBurned", { until, nowrap: unbroken });
@@ -557,7 +603,11 @@ function PanelContent({
     return (
       <section className="jp-adminpanel__actions" aria-label={t("panel.actions")}>
         <ul className="jp-adminpanel__list">
-          {general.map((slot) => (slot === "addressNote" ? addressNote() : actionButton(target, slot, false)))}
+          {general.map((slot) => {
+            if (slot === "addressNote") return addressNote();
+            if (slot === "emailChangeUnknown") return emailChangeUnknown();
+            return actionButton(target, slot, false);
+          })}
         </ul>
         <hr className="jp-adminpanel__rule" />
         <ul className="jp-adminpanel__list">{destructive.map((action) => actionButton(target, action, true))}</ul>

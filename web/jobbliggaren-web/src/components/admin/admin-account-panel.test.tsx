@@ -614,12 +614,60 @@ describe("AdminAccountPanel — a pending address change (#1975, design-reviewer
     expect(actionNames()).toContain("Avbryt adressbytet");
   });
 
-  it("says it cannot tell whether a change is pending when the read failed, and offers the request", () => {
-    renderPanel(ACTIVE, undefined, ALL_LIVE, { kind: "unknown" });
+  it("says it cannot tell whether a change is pending when the read failed, and offers a retry in place of the request and the cancel", async () => {
+    const retry = vi.fn();
+    render(
+      <AdminAccountPanel
+        account={ACTIVE}
+        details={loaded(ACTIVE)}
+        onClose={() => {}}
+        commands={commands()}
+        self={SELF}
+        emailChange={{ kind: "unknown" }}
+        onRetryEmailChange={retry}
+      />,
+    );
 
     const row = screen.getByText("Adressbyte").nextElementSibling;
     expect(row?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
-    expect(actionNames()).toContain("Ändra e-postadress");
+    expect(actionNames()).not.toContain("Ändra e-postadress");
+    expect(actionNames()).not.toContain("Avbryt adressbytet");
+    const region = screen.getByRole("region", { name: "Åtgärder" });
+    expect(within(region).getByText("Det går inte att se om ett adressbyte väntar.")).toHaveClass("jp-adminpanel__note");
+    const again = within(region).getByRole("button", { name: "Försök igen" });
+    expect(again).toHaveClass("jp-btn", "jp-btn--secondary", "jp-btn--sm");
+    expect(again).toHaveAccessibleDescription("Det går inte att se om ett adressbyte väntar.");
+
+    await userEvent.click(again);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["the cancel, when the change reads as pending", ACTIVE, { kind: "pending", change: CHANGE }, "Avbryt adressbytet"],
+    ["the request, when nothing is pending", ACTIVE, { kind: "none" }, "Ändra e-postadress"],
+  ] as const)("moves focus to %s once the change reads again", async (_label, account, answer, action) => {
+    const props = { account, details: loaded(account), onClose: () => {}, commands: commands(), self: SELF };
+    const { rerender } = render(
+      <AdminAccountPanel {...props} emailChange={{ kind: "unknown" }} onRetryEmailChange={() => {}} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Försök igen" }));
+    rerender(<AdminAccountPanel {...props} emailChange={answer} onRetryEmailChange={() => {}} />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: action })).toHaveFocus());
+  });
+
+  it("moves focus to the title once the change reads again where no action takes its place", async () => {
+    const props = { account: PENDING, details: loaded(PENDING), onClose: () => {}, commands: commands(), self: SELF };
+    const { rerender } = render(
+      <AdminAccountPanel {...props} emailChange={{ kind: "unknown" }} onRetryEmailChange={() => {}} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Försök igen" }));
+    rerender(<AdminAccountPanel {...props} emailChange={{ kind: "none" }} onRetryEmailChange={() => {}} />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Försök igen" })).toBeNull();
   });
 
   it("cancels at a press without asking first, names the cancel while it runs, then confirms with a receipt", async () => {

@@ -584,7 +584,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | M-3 | Körbar idempotent master-nyckel-re-wrap-rotation + kadens (minst årlig + händelse-driven vid box-kompromiss/offboarding) | Major | ADR 0049 `Amendment 2026-08-09` — **#198 STÄNGD 2026-09-06** (Klas-beslut); förfarandet + kadensen `master-key-ops.md` §4, mätrad `vps-deploy-stack.md` §5 rad 27 |
 | M-4 | pg_dump klient-side-krypterad + backup-retention/rotation definierad + EU-jurisdiktion (+ två krav 2026-08-04, se `Amendment 2026-08-04` §7) | Major | [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (f.d. TD-107) |
 | M-5 | ~~Cloudflare "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS~~ | Major | **SUPERSEDED 2026-08-04 → M-5a + M-5b** (se `Amendment 2026-08-04`) |
-| **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01 **eller** TLS-ALPN-01 — se §5), **HSTS emitteras faktiskt i Production på BÅDA svarsvägarna** (Caddy och Next — de täcker olika svar), ingen klartextsträcka. **Bevisas på det OAUTENTISERADE 401-svaret, inte bara på ett autentiserat 200 — och aldrig på konfigen** (se §5) | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01 **eller** TLS-ALPN-01 — se §5), **HSTS emitteras faktiskt i Production på BÅDA svarsvägarna** (Caddy och Next — de täcker olika svar), ingen klartextsträcka. **Bevisas på det OAUTENTISERADE 401-svaret, inte bara på ett autentiserat 200 — och aldrig på konfigen** (se §5; med öppen admission på Caddys egna svar, §5 Amendment 2026-10-06) | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **Major** (satt av security-auditor 2026-08-04 vid granskningen av PR #1200) — bär tre villkor, se `Amendment 2026-08-04` §5 | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, ~~fail2ban~~, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) · **baseline i övrigt mätt grön** ([#1196](https://github.com/klasolsson81/jobbliggaren/pull/1196)) · **fail2ban-klausulen: avvikelse REGISTRERAD, ratificering väntar på Klas GO** (`Amendment 2026-08-04`) |
 | **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns ⛔ **DOM 2026-08-17 (`security-auditor`, hennes att sätta): M-7 KONVERTERAR** vid första riktiga användardata — `unmitigated` är mätt sann, och beviljandet 2026-08-16 täcker bara tillståndet UTAN riktig användardata medan M-7 utvärderas VID den. **Att bygga mitigeringarna räcker inte:** det krävs också ett NYTT beviljande som täcker det tillståndet, plus båda M-7-benen levererade och verifierade på `host-detection.md`:s verifikationsrader. Härled inte disjunktionen själv — läs domen. | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **båda mekanismhalvorna hos [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — se daterad not nedan** |
@@ -979,6 +979,14 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > grinden. *(Husprecedens: `Program.cs` ~344 stämplar via `OnStarting` uttryckligen "on
 > EVERY response — the 200, the 404, the 401 auth challenge, and a 405 — not only the
 > happy path".)*
+>
+> **Amendment 2026-10-06 ([#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768), ADR 0154 §5
+> C6):** med `SITE_ADMISSION=open` finns ingen 401. Det oautentiserade beviset läses då på Caddys
+> egna svar, som inte heller når Next: ACME-prefixets 404, `www`:s 308, `dev.`:s 302 och en 503 när
+> `web` är nere. 503:an induceras inte live; `deploy/caddy/edge-modes.test.sh` bevisar den på imagen,
+> för samma källa och caddy v2.11.4 — en caddy-bump öppnar frågan igen. Instrumentet är
+> `vps-deploy-stack.md` §3f. Redirecten `http://` → `https://` bär ingen HSTS och ska inte göra det
+> (RFC 6797 §8.1).
 >
 > **CAA + Strato (klausul under M-5a).** Utan CDN är "origin-TLS är hela TLS-historien"
 > bokstavligt sann: den som tar Strato-kontot får giltiga certifikat och total MITM.
@@ -1490,7 +1498,7 @@ alltså **ingen query-data alls**, med `headers`-nyckeln helt frånvarande — p
 direkt till `tls`. Poster utan `request`-objekt kom ut byte-identiska mellan armarna, så filtret
 är inert snarare än lossy där fälten saknas.
 
-**Regenerera:** bygg en image med denna Caddyfile plus `challenge/`, kör den med
+**Regenerera:** bygg en image med denna Caddyfile, kör den med
 `SITE_HOST=localhost` och giltig basic-auth, och begär `/bekrafta-epost?uid=&email=&token=` med en
 `Referer` som bär samma URL — upstream `web:3000` saknas, svaret blir 5xx och posten hamnar i
 containerloggen. ⚠ Ett recept som utgår från `caddy:2.11.4-alpine` reproducerar **upstreams**
@@ -1533,8 +1541,7 @@ parametrar som Caddyfilen gör, och ingen av de två filerna kan se den andra.
 `CaddyfileTokenScrubbingPinTests` (i `Jobbliggaren.Architecture.Tests`) härleder namnen ur de riktiga `EmailTemplates`-metoderna och kräver att
 var och en antingen filtreras eller är namngiven som avsiktligt behållen. Den binder dessutom
 **placeringen**: fakta läser enbart det globala options-blocket, och ett femte faktum håller
-`deploy/caddy/` till exakt **ett** `log`-direktiv över Caddyfilen och de importerade
-`challenge/*.caddy`. Utan den bindningen kunde blocket flyttas in i site-blocket — vilket gör
+`deploy/caddy/Caddyfile` till exakt **ett** `log`-direktiv. Utan den bindningen kunde blocket flyttas in i site-blocket — vilket gör
 default-loggern okonfigurerad igen och lägger till en accesslogg över *varje* request — med allt
 grönt. Mutationsverifierat: flytten fäller fyra av fem fakta, ett andra `log`-direktiv det femte,
 skiftlägesbytet två, en struken `request>headers delete` ett, en struken `delete uid` ett, och en

@@ -878,6 +878,11 @@ grindad med basic auth i Caddy · **K3** Let's Encrypt direkt, ingen CDN · **K4
 backup-/PITR-retention **30 dagar**. K4 besvarar STOPP-4 — fönstret två ADR:er
 uttryckligen förbjuder CC att uppfinna — och ger #197:s restore-drill ett tal.
 
+> **Amendment 2026-10-05 ([ADR 0154](./0154-one-box-one-domain-every-merged-release-goes-live-on-jobbliggaren-se.md)):**
+> K1 är ersatt. Lådan flyttar till apex `jobbliggaren.se` (`www` 308, `dev.` 302) och är produktion, och
+> varje mergad release går live där. K2:s basic auth tas bort vid domänflytten (Klas: "Ta bort vid
+> domänflytten"). K3 och K4 står.
+
 ### 5. Gate M-5 pensioneras på plats → **M-5a + M-5b**
 
 M-5 var inte en grind utan tre klausuler med tre öden: "Full (strict)" är **uppfylld by

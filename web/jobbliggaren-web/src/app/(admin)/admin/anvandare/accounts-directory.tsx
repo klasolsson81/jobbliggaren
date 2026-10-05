@@ -15,7 +15,7 @@ import {
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
 import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction } from "@/lib/actions/admin-accounts";
-import type { AdminEmailChangeState } from "@/lib/admin/account-email-change";
+import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
 import {
   ACCOUNTS_PAGE_SIZE,
   FIRST_SORT,
@@ -117,6 +117,8 @@ const parseEmailChange = (json: unknown): AdminEmailChangeState | null => {
 
 const UNKNOWN_EMAIL_CHANGE: AdminEmailChangeState = { kind: "unknown" };
 
+const GONE: AdminEmailChangeReread = { kind: "gone" };
+
 /**
  * `/admin/anvandare`'s list after its first page (#1974, ADR 0151): a search that waits for typing to
  * pause, the status filter, the sort and the pages, each read through the BFF with the newest request
@@ -206,30 +208,32 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
    * Reads one account's details and its pending address change, side by side, and shows them together. Again,
    * after a command, it keeps what the panel shows until the answers arrive, and a failed read changes nothing.
    */
-  function readAccount(id: string, again = false) {
+  function readAccount(id: string, again = false): Promise<AdminEmailChangeReread> {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
     if (!again) setDetails({ kind: "loading" });
     const detail = post("/api/admin/konton/detalj", { id }, parseDetail, controller.signal);
     const change = post("/api/admin/konton/adressbyte", { id }, parseEmailChange, controller.signal);
-    void Promise.all([detail, change]).then(([answer, pending]) => {
-      if (controller.signal.aborted) return;
-      if (pending.ok || !again) setEmailChange(pending.ok ? pending.data : UNKNOWN_EMAIL_CHANGE);
+    return Promise.all([detail, change]).then(([answer, pending]): AdminEmailChangeReread => {
+      if (controller.signal.aborted) return UNKNOWN_EMAIL_CHANGE;
+      const read = pending.ok ? pending.data : UNKNOWN_EMAIL_CHANGE;
+      if (pending.ok || !again) setEmailChange(read);
       if (answer.ok) {
         setDetails({ kind: "loaded", data: answer.data });
-        return;
+        return read;
       }
       if (answer.gone) {
         markGone();
-        return;
+        return GONE;
       }
-      if (again) return;
+      if (again) return read;
       setDetails({
         kind: "failed",
         message: failureText(answer.failure, t("errors.detailFailed")),
         recovery: recoveryOf(answer.failure),
       });
+      return read;
     });
   }
 
@@ -239,7 +243,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
     openId.current = row.id;
     setOpen(row);
     setEmailChange({ kind: "none" });
-    readAccount(row.id);
+    void readAccount(row.id);
   }
 
   /** A command's answer for the account still open; one for an account since closed is dropped. */
@@ -259,7 +263,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         if (outcome.ok) setEmailChange({ kind: "pending", change: outcome.value });
         else if (outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
         if (outcome.after === "gone") markGone();
-        else if (outcome.after !== undefined) readAccount(account.id, true);
+        else if (outcome.after !== undefined) void readAccount(account.id, true);
         return outcome;
       },
       cancel: async (account) => {
@@ -267,7 +271,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         if (!stillOpen(account.id)) return outcome;
         if (outcome.kind === "cancelled") setEmailChange({ kind: "none" });
         else if (outcome.kind === "unknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
-        else if (outcome.kind === "nothingPending") readAccount(account.id, true);
+        else if (outcome.kind === "nothingPending") void readAccount(account.id, true);
         return outcome;
       },
       returnPath: RETURN_PATH,
@@ -347,7 +351,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         commands={commands}
         self={self}
         emailChange={emailChange}
-        onRetry={open === null ? undefined : () => readAccount(open.id)}
+        onRetry={open === null ? undefined : () => void readAccount(open.id)}
         onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {

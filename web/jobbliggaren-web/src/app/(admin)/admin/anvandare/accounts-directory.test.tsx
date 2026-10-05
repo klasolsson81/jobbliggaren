@@ -541,27 +541,109 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
   });
 
+  const READ_FAILED = () => json({ error: "error" }, 502);
+  const UNREADABLE = "Det går inte att se om ett adressbyte väntar.";
+  const CANCEL_UNKNOWN = "Vi kan inte se om adressbytet avbröts. Öppna kontot igen för att se om det väntar.";
+
+  function retryIn(panel: HTMLElement) {
+    return within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("button", { name: "Försök igen" });
+  }
+
+  it("reads the change again at the reader's request when its read failed, and moves focus to the request when nothing is pending", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [READ_FAILED, NOTHING_PENDING] });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    expect(actionNames(panel)).not.toContain("Ändra e-postadress");
+    const retry = retryIn(panel);
+    expect(retry).toHaveAccessibleDescription(UNREADABLE);
+    await userEvent.click(retry);
+
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Ändra e-postadress" })).toHaveFocus());
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+  });
+
+  it("moves focus to the pending change's value when the read again finds one, never to its cancel", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [READ_FAILED, () => json(PENDING_READ)] });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(retryIn(panel));
+
+    const value = within(panel).getByText("Adressbyte").nextElementSibling;
+    await waitFor(() => expect(value).toHaveTextContent(PENDING_LINE));
+    await waitFor(() => expect(value).toHaveFocus());
+    expect(within(panel).getByRole("button", { name: "Avbryt adressbytet" })).not.toHaveFocus();
+  });
+
+  it("reads the change once however often Försök igen is pressed while the read runs", async () => {
+    serve({
+      [DETAIL_ROUTE]: () => json(DETAIL),
+      [EMAIL_CHANGE_ROUTE]: [READ_FAILED, () => new Promise<Response>(() => {})],
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    const retry = retryIn(panel);
+    await userEvent.click(retry);
+    expect(retry).toHaveAccessibleName("Hämtar…");
+    await userEvent.click(retry);
+    await userEvent.keyboard("{Enter}");
+
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+  });
+
   it.each([
-    ["nothing is pending", NOTHING_PENDING, "Ändra e-postadress"],
-    ["a change is pending", () => json(PENDING_READ), "Avbryt adressbytet"],
+    ["nothing is pending", NOTHING_PENDING, (panel: HTMLElement) => within(panel).getByRole("button", { name: "Ändra e-postadress" })],
+    ["a change is pending", () => json(PENDING_READ), (panel: HTMLElement) => within(panel).getByText("Adressbyte").nextElementSibling],
   ] as const)(
-    "reads the change again at the reader's request when its read failed, and moves focus to the action the answer leaves (%s)",
-    async (_label, again, action) => {
-      serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [() => json({ error: "error" }, 502), again] });
+    "drops what a cancel with an unknown outcome said once Försök igen reads the change (%s)",
+    async (_label, again, focused) => {
+      serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [() => json(PENDING_READ), again] });
+      cancelActionMock.mockResolvedValue({ kind: "unknown" });
       render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
       const panel = await openA();
-      expect(actionNames(panel)).not.toContain("Ändra e-postadress");
-      const retry = within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("button", {
-        name: "Försök igen",
-      });
-      expect(retry).toHaveAccessibleDescription("Det går inte att se om ett adressbyte väntar.");
-      await userEvent.click(retry);
+      await userEvent.click(within(panel).getByRole("button", { name: "Avbryt adressbytet" }));
+      const status = await within(panel).findByText(CANCEL_UNKNOWN);
+      await waitFor(() => expect(status).toHaveFocus());
+      await userEvent.click(retryIn(panel));
 
-      await waitFor(() => expect(within(panel).getByRole("button", { name: action })).toHaveFocus());
-      expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+      await waitFor(() => expect(within(panel).queryByText(CANCEL_UNKNOWN)).toBeNull());
+      await waitFor(() => expect(focused(panel)).toHaveFocus());
     },
   );
+
+  it("keeps what a cancel with an unknown outcome said, and moves focus back to Försök igen, when the read fails again", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: [() => json(PENDING_READ), READ_FAILED] });
+    cancelActionMock.mockResolvedValue({ kind: "unknown" });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(within(panel).getByRole("button", { name: "Avbryt adressbytet" }));
+    await within(panel).findByText(CANCEL_UNKNOWN);
+    await userEvent.click(retryIn(panel));
+
+    await waitFor(() => expect(retryIn(panel)).toHaveFocus());
+    expect(retryIn(panel)).toHaveAccessibleDescription(UNREADABLE);
+    expect(within(panel).getByText(CANCEL_UNKNOWN)).toBeInTheDocument();
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
+  });
+
+  it("moves focus to the title when Försök igen finds the account gone", async () => {
+    serve({
+      [DETAIL_ROUTE]: [() => json(DETAIL), () => json({ error: "notFound" }, 404)],
+      [EMAIL_CHANGE_ROUTE]: [READ_FAILED, () => json({ error: "notFound" }, 404)],
+      [LIST]: () => json(answer([B, C])),
+    });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    const panel = await openA();
+    await userEvent.click(retryIn(panel));
+
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Kontot finns inte längre.");
+    await waitFor(() => expect(within(panel).getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
+  });
 
   it("moves focus to what a cancel with an unknown outcome says, and offers neither a request nor a cancel", async () => {
     serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json(PENDING_READ) });

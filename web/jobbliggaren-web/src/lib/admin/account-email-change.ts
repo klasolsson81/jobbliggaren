@@ -26,6 +26,8 @@ export type AdminEmailChangeState =
   | { readonly kind: "pending"; readonly change: AdminPendingEmailChange }
   | { readonly kind: "unknown" };
 
+export type AdminEmailChangeReread = AdminEmailChangeState | { readonly kind: "gone" };
+
 /**
  * A request's outcome: what the re-authentication dialog shows or hands over, and what then becomes of the
  * account. `changed` and `gone` follow a refusal that says the account is no longer the one the panel shows;

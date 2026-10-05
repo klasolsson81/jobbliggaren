@@ -265,7 +265,8 @@
       "suspend": "Suspenderar…",
       "reinstate": "Häver…",
       "scheduleDeletion": "Raderar…",
-      "cancelEmailChange": "Avbryter…"
+      "cancelEmailChange": "Avbryter…",
+      "retry": "Hämtar…"
     }
   },
   "feedback": {

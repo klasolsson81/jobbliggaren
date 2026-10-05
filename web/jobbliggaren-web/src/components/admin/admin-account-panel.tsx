@@ -1,7 +1,7 @@
 "use client";
 
 // "use client": the panel holds its account's mode, the running command and what came of it.
-import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Dialog } from "radix-ui";
 import { useFormatter, useTranslations } from "next-intl";
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type {
   AdminEmailChangeCancelOutcome,
+  AdminEmailChangeReread,
   AdminEmailChangeRequestOutcome,
   AdminEmailChangeState,
   AdminPendingEmailChange,
@@ -110,6 +111,8 @@ interface Notice {
 
 type FocusTarget = "title" | "notice";
 
+type RereadFocus = "title" | "retry" | "emailChangeValue" | "emailChangeAction";
+
 interface AdminAccountPanelProps {
   /** The row that opened the panel, or null while it is closed. The head shows it until the facts arrive. */
   readonly account: AdminAccountRow | null;
@@ -126,7 +129,7 @@ interface AdminAccountPanelProps {
   /** Reads the details again, for a failure whose recovery is a retry. */
   readonly onRetry?: () => void;
   /** Reads the pending address change again, for a read that failed. */
-  readonly onRetryEmailChange?: () => void;
+  readonly onRetryEmailChange?: () => Promise<AdminEmailChangeReread>;
   /** Where focus goes on close when the row that opened the panel is gone. */
   readonly fallbackFocus?: () => HTMLElement | null;
 }
@@ -261,7 +264,7 @@ function PanelContent({
   readonly self: AdminSelf | undefined;
   readonly emailChange: AdminEmailChangeState;
   readonly onRetry: (() => void) | undefined;
-  readonly onRetryEmailChange: (() => void) | undefined;
+  readonly onRetryEmailChange: (() => Promise<AdminEmailChangeReread>) | undefined;
   readonly onCloseAutoFocus: (event: Event) => void;
 }) {
   const t = useTranslations("admin.users");
@@ -291,7 +294,11 @@ function PanelContent({
   const leftEdit = useRef(false);
   const pendingFocus = useRef<FocusTarget | null>(null);
   const exitFocus = useRef<FocusTarget | null>(null);
-  const retryingEmailChange = useRef(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  const emailChangeValueRef = useRef<HTMLElement>(null);
+  const rereadFocus = useRef<RereadFocus | null>(null);
   const unknownNoteId = useId();
 
   // A receipt published while the panel holds focus waits for the panel to close (WCAG 2.2.1).
@@ -316,17 +323,55 @@ function PanelContent({
     element.focus();
   });
 
-  // A change read again moves focus to what now stands in its place: its action, or the title where none does.
-  useEffect(() => {
-    if (!retryingEmailChange.current || emailChange.kind === "unknown") return;
-    retryingEmailChange.current = false;
-    const action =
-      emailChange.kind === "pending" ? actionRefs.current.cancelEmailChange : actionRefs.current.changeEmail;
-    (action ?? titleRef.current)?.focus();
-  }, [emailChange]);
+  function rereadElement(target: RereadFocus): HTMLElement | null {
+    switch (target) {
+      case "title":
+        return titleRef.current;
+      case "retry":
+        return retryRef.current;
+      case "emailChangeValue":
+        return emailChangeValueRef.current;
+      case "emailChangeAction":
+        return actionRefs.current.changeEmail ?? titleRef.current;
+    }
+  }
+
+  useLayoutEffect(() => {
+    const target = rereadFocus.current;
+    if (target === null) return;
+    const element = rereadElement(target);
+    if (element === null) return;
+    rereadFocus.current = null;
+    element.focus();
+  });
 
   function focusOn(target: FocusTarget) {
     (target === "title" ? titleRef : noticeRef).current?.focus();
+  }
+
+  function rereadEmailChange(reread: () => Promise<AdminEmailChangeReread>) {
+    if (retrying) return;
+    setRetrying(true);
+    void reread().then((answer) => {
+      setRetrying(false);
+      switch (answer.kind) {
+        case "gone":
+          rereadFocus.current = "title";
+          return;
+        case "unknown":
+          setRetryAttempt((attempt) => attempt + 1);
+          rereadFocus.current = "retry";
+          return;
+        case "pending":
+          setNotice(null);
+          rereadFocus.current = "emailChangeValue";
+          return;
+        case "none":
+          setNotice(null);
+          rereadFocus.current = "emailChangeAction";
+          return;
+      }
+    });
   }
 
   function isLive(action: AdminAccountAction): action is AdminLiveAction {
@@ -534,15 +579,15 @@ function PanelContent({
         </p>
         {onRetryEmailChange === undefined ? null : (
           <button
+            key={retryAttempt}
+            ref={retryRef}
             type="button"
             className="jp-btn jp-btn--secondary jp-btn--sm"
             aria-describedby={unknownNoteId}
-            onClick={() => {
-              retryingEmailChange.current = true;
-              onRetryEmailChange();
-            }}
+            aria-disabled={retrying || undefined}
+            onClick={() => rereadEmailChange(onRetryEmailChange)}
           >
-            {t("errors.retry")}
+            <AdminBusyLabel busy={retrying} label={t("errors.retry")} busyLabel={t("busy.retry")} />
           </button>
         )}
       </li>
@@ -594,7 +639,9 @@ function PanelContent({
         {emailChange.kind === "none" ? null : (
           <>
             <dt>{t("panel.emailChange")}</dt>
-            <dd>{emailChange.kind === "pending" ? pendingLine(emailChange.change) : <AdminUnknown />}</dd>
+            <dd ref={emailChangeValueRef} tabIndex={-1}>
+              {emailChange.kind === "pending" ? pendingLine(emailChange.change) : <AdminUnknown />}
+            </dd>
           </>
         )}
         {count(t("table.applications"), detail.applicationCount)}

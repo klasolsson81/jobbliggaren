@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { AdminAccountDetail, AdminAddressedAccount, AdminSelf } from "@/lib/admin/view-models";
 import type {
   AdminEmailChangeCancelOutcome,
+  AdminEmailChangeReread,
   AdminEmailChangeRequestOutcome,
   AdminEmailChangeState,
   AdminPendingEmailChange,
@@ -628,7 +629,7 @@ describe("AdminAccountPanel — a pending address change (#1975, design-reviewer
   });
 
   it("says it cannot tell whether a change is pending when the read failed, and offers a retry in place of the request and the cancel", async () => {
-    const retry = vi.fn();
+    const retry = vi.fn(() => new Promise<AdminEmailChangeReread>(() => {}));
     render(
       <AdminAccountPanel
         account={ACTIVE}
@@ -655,32 +656,92 @@ describe("AdminAccountPanel — a pending address change (#1975, design-reviewer
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["the cancel, when the change reads as pending", ACTIVE, { kind: "pending", change: CHANGE }, "Avbryt adressbytet"],
-    ["the request, when nothing is pending", ACTIVE, { kind: "none" }, "Ändra e-postadress"],
-  ] as const)("moves focus to %s once the change reads again", async (_label, account, answer, action) => {
-    const props = { account, details: loaded(account), onClose: () => {}, commands: commands(), self: SELF };
-    const { rerender } = render(
-      <AdminAccountPanel {...props} emailChange={{ kind: "unknown" }} onRetryEmailChange={() => {}} />,
+  it("names the read while it runs, keeps focus on it, and reads once however often it is pressed", async () => {
+    const retry = vi.fn(() => new Promise<AdminEmailChangeReread>(() => {}));
+    render(
+      <AdminAccountPanel
+        account={ACTIVE}
+        details={loaded(ACTIVE)}
+        onClose={() => {}}
+        commands={commands()}
+        self={SELF}
+        emailChange={{ kind: "unknown" }}
+        onRetryEmailChange={retry}
+      />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Försök igen" }));
-    rerender(<AdminAccountPanel {...props} emailChange={answer} onRetryEmailChange={() => {}} />);
+    const again = screen.getByRole("button", { name: "Försök igen" });
+    await userEvent.click(again);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: action })).toHaveFocus());
+    expect(again).toHaveAccessibleName("Hämtar…");
+    expect(again).toHaveAttribute("aria-disabled", "true");
+    expect(again).toHaveFocus();
+    await userEvent.click(again);
+    await userEvent.keyboard("{Enter}");
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  async function rereadAnswering(account: AdminAccountDetail, answer: AdminEmailChangeReread) {
+    let settle: (answer: AdminEmailChangeReread) => void = () => {};
+    const props = {
+      account,
+      onClose: () => {},
+      commands: commands(),
+      self: SELF,
+      onRetryEmailChange: () => new Promise<AdminEmailChangeReread>((resolve) => (settle = resolve)),
+    };
+    const { rerender } = render(
+      <AdminAccountPanel {...props} details={loaded(account)} emailChange={{ kind: "unknown" }} />,
+    );
+    const before = screen.getByRole("button", { name: "Försök igen" });
+    await userEvent.click(before);
+    rerender(
+      <AdminAccountPanel
+        {...props}
+        details={answer.kind === "gone" ? { kind: "gone" } : loaded(account)}
+        emailChange={answer.kind === "gone" ? { kind: "unknown" } : answer}
+      />,
+    );
+    await act(async () => settle(answer));
+    return before;
+  }
+
+  it("moves focus to the pending change's value once the change reads as pending, never to its cancel", async () => {
+    await rereadAnswering(ACTIVE, { kind: "pending", change: CHANGE });
+
+    const value = screen.getByText("Adressbyte").nextElementSibling;
+    await waitFor(() => expect(value).toHaveFocus());
+    expect(value).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("button", { name: "Avbryt adressbytet" })).not.toHaveFocus();
+  });
+
+  it("moves focus to the request once the change reads as none", async () => {
+    await rereadAnswering(ACTIVE, { kind: "none" });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ändra e-postadress" })).toHaveFocus());
   });
 
   it("moves focus to the title once the change reads again where no action takes its place", async () => {
-    const props = { account: PENDING, details: loaded(PENDING), onClose: () => {}, commands: commands(), self: SELF };
-    const { rerender } = render(
-      <AdminAccountPanel {...props} emailChange={{ kind: "unknown" }} onRetryEmailChange={() => {}} />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "Försök igen" }));
-    rerender(<AdminAccountPanel {...props} emailChange={{ kind: "none" }} onRetryEmailChange={() => {}} />);
+    await rereadAnswering(PENDING, { kind: "none" });
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
     expect(screen.queryByRole("button", { name: "Försök igen" })).toBeNull();
+  });
+
+  it("moves focus to the title when the read finds the account gone", async () => {
+    await rereadAnswering(ACTIVE, { kind: "gone" });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
+  });
+
+  it("moves focus back to Försök igen anew when the read fails again, so its description is read again", async () => {
+    const before = await rereadAnswering(ACTIVE, { kind: "unknown" });
+
+    const again = screen.getByRole("button", { name: "Försök igen" });
+    await waitFor(() => expect(again).toHaveFocus());
+    expect(again).not.toBe(before);
+    expect(again).not.toHaveAttribute("aria-disabled");
+    expect(again).toHaveAccessibleDescription("Det går inte att se om ett adressbyte väntar.");
   });
 
   it("cancels at a press without asking first, names the cancel while it runs, then confirms with a receipt", async () => {

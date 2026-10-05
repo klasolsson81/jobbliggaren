@@ -688,6 +688,34 @@
         "unavailable": "Det går inte att logga in just nu. Försök igen om några minuter.",
         "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
       }
+    },
+    "addressChange": {
+      "meta": {
+        "title": "Bekräfta ny e-postadress"
+      },
+      "title": "Bekräfta ny e-postadress",
+      "currentEmailLabel": "Kontots nuvarande e-postadress",
+      "currentEmailHint": "Adressen du byter från.",
+      "newEmailLabel": "Ny e-postadress",
+      "newEmailHint": "Adressen som koden skickades till.",
+      "loggedOut": "När adressen är bytt loggas du ut på alla enheter.",
+      "submit": "Byt adress",
+      "submitting": "Byter…",
+      "errors": {
+        "currentRequired": "Skriv in kontots nuvarande e-postadress.",
+        "newRequired": "Skriv in den nya e-postadressen.",
+        "same": "Den nya adressen är samma som den nuvarande. Kontrollera adresserna.",
+        "codeRequired": "Skriv in koden från mejlet."
+      },
+      "refused": "Adressbytet gick inte att genomföra. Kontrollera båda adresserna och koden och försök igen. Koden slutar gälla efter {attempts, plural, =1 {ett felaktigt försök} =2 {två felaktiga försök} =3 {tre felaktiga försök} other {# felaktiga försök}} eller när tiden i mejlet har gått ut. Skriv då till <mail>kontakt@jobbliggaren.se</mail>.",
+      "notYet": "Adressen kan bytas tidigast {date} kl {time}. Försök igen då med samma kod.",
+      "unavailable": "Det går inte att byta adress just nu. Försök igen om några minuter.",
+      "unknown": "Vi kan inte se om adressen byttes. Skriv till <mail>kontakt@jobbliggaren.se</mail> så tar vi reda på det.",
+      "done": {
+        "title": "Adressen är bytt",
+        "body": "Du är utloggad på alla enheter. Logga in med den nya adressen.",
+        "login": "Logga in"
+      }
     }
   }
 }

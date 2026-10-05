@@ -32,6 +32,13 @@ export const NOTICE_PHASE_MAX_AGE_SECONDS = 120;
  */
 export const RESEND_COOLDOWN_SECONDS = 60;
 
+/**
+ * How many wrong codes end a code: the login's, the re-authentication's, and the address change an
+ * administrator starts (#1975), which takes the same count. MIRROR of the backend
+ * `LoginChallengePolicy.MaxAttempts`; `/adressbyte` states it in its one refusal.
+ */
+export const CODE_MAX_ATTEMPTS = 3;
+
 const MAX_NEXT_LENGTH = 512;
 
 /**

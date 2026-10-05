@@ -26,4 +26,6 @@ export const AUTH_ERROR_CODES = {
   AccountEmailChangeInactiveTarget: "Auth.AccountEmailChangeInactiveTarget",
   AccountEmailChangePendingForAnotherAccount: "Auth.AccountEmailChangePendingForAnotherAccount",
   AccountEmailChangeNothingPending: "Auth.AccountEmailChangeNothingPending",
+  AccountEmailChangeUnusable: "Auth.AccountEmailChangeUnusable",
+  AccountEmailChangeNotYet: "Auth.AccountEmailChangeNotYet",
 } as const;

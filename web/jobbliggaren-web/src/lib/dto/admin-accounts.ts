@@ -5,7 +5,7 @@ import type {
   AdminAccountRow,
   AdminAccountStatus,
 } from "@/lib/admin/view-models";
-import { pagedResultWithTotalPages } from "./_helpers";
+import { pagedResultWithTotalPages, readableInstantSchema as instant } from "./_helpers";
 
 /**
  * The admin account directory's wire shapes (#1974, ADR 0151). The backend names its enums the .NET way;
@@ -100,9 +100,6 @@ export interface AccountsPage {
   readonly totalPages: number;
   readonly counts: Readonly<Record<AccountCountKey, number>>;
 }
-
-/** An instant the page can show: a string the backend wrote that also reads as a date here. */
-const instant = z.string().refine((value) => !Number.isNaN(Date.parse(value)));
 
 /**
  * `GET /api/v1/admin/accounts/{id}/email-change` → 200 (#1975, ADR 0153); a 204 means nothing is pending.

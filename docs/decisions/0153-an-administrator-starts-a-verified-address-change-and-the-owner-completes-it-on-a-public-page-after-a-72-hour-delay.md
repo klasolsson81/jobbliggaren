@@ -230,8 +230,8 @@ also by an older not-before. The delivered store guards it by the owner marker o
 interleaving of two puts leaves the newest record orphaned: when the two puts' index swaps cross, the index names the
 older record, and the older put, which swapped last, declines to delete the newer one because the newer one's not-before
 is not older than its own. Without the extra guard, every interleaving ends with exactly one live record, the one the
-index names, and the consume-side index check keeps any orphan, left by a Redis fault between the index swap and the
-displaced delete, from completing.
+index names, and the consume-side index check keeps any orphan, left by a fault or a lost reply anywhere inside a put,
+from completing.
 
 ### D5 — The request: gates cheapest first, two budgets keyed by the new address, and both mails awaited
 
@@ -447,7 +447,7 @@ built at the PR). Five of its points are decisions of this ADR, because they rea
   the completion's order (D4, D7).
 - **The endpoint-graph policy pins** (`AdminAccountsRateLimitWiringTests`): the two writes carry `AdminWrite` and the read
   `AdminRead`, each with the Admin policy. The completion's `AuthWrite` is pinned in `AccountEmailChangeCompletionTests`.
-  **`BuildMdAuthRoutesTests`** holds BUILD.md's route list to the endpoints.
+  **`BuildMdAuthRoutesTests`** holds BUILD.md's Auth route list to the endpoints.
 - **The mails** (`EmailTemplatesLoginChallengeTests`, `EmailTemplatesAccountEmailChangeRequestedNotificationTests`,
   `ConsoleEmailSenderReservedRecipientTests`): each variant's blocks, and the port's arity (D10).
 
@@ -472,12 +472,14 @@ Each is a residual the design leaves, declared so that it is not discovered late
   `ConfirmedAddressSwap` awaits it before the endpoint's teardown runs. After a process crash between the commit and the
   teardown no teardown runs at all, and the sessions live until they expire. Self-service's confirm has the same shape.
 - **A live change can have no request row.** If the pipeline's own save of the request row fails after both mails were
-  accepted, or if the removal of the record after a refused mail itself fails (logged at Error, event 4004; the mail's
-  failure is the answer), a change the administrator may not know of stays live until it expires or is cancelled. The
-  runbook's remedy is to cancel it and start again.
-- **An orphan record holds its address.** A Redis fault between a put's index swap and its removal of the record it
-  displaced leaves a record the index no longer names. It cannot complete, because the consume checks the index, but it
-  holds its address against other accounts until its TTL, and cancel does not reach it.
+  accepted, if the removal of the record after a refused mail itself fails (logged at Error, event 4004; the mail's
+  failure is the answer), or if a put's reply is lost after its index swap, so that no mail goes out, a change the
+  administrator may not know of stays live until it expires or is cancelled. The runbook's remedy is to cancel it and
+  start again.
+- **An orphan record holds its address.** A fault or a lost reply inside a put can leave a record the index does not
+  name: the displaced record, between the index swap and its removal, or the new one, before the index swap. It cannot
+  complete, because the consume checks the index, but it holds its address against other accounts until its TTL, and
+  cancel does not reach it.
 - **A hostile holder of a recycled current inbox is not beatable here.** The holder can change the address first, in which
   case the compare-and-swap refuses the administrator's change, or object during the delay, and an address is what enters
   an account (ADR 0142 D10). Contested accounts go to the controller, never decided by who is more persuasive.

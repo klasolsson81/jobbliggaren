@@ -354,8 +354,8 @@ internal static partial class EmailTemplates
                 En administratör på Jobbliggaren har begärt att e-postadressen för ditt
                 konto byts.
 
-                Bytet kan göras tidigast {from}, och bara med koden som har skickats till
-                den nya adressen. Koden gäller till {until}.
+                Bytet kan göras tidigast {from}, och bara med koden som har
+                skickats till den nya adressen. Koden gäller till {until}.
 
                 Om du har bett oss om bytet behöver du inte göra något.
 

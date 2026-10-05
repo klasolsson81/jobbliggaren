@@ -99,6 +99,10 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         var recordsSpelling = $"Ny.Adress-{_token}@Example.se";
         var change = await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(
             factory, owner.UserId, recordsSpelling, owner.Current, Ct);
+        await using (var redis = await ConnectionMultiplexer.ConnectAsync(factory.DurableRedisConnectionString))
+        {
+            (await redis.GetDatabase().SetLengthAsync($"jobbliggaren:user:{owner.UserId}:sessions")).ShouldBe(2);
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, AccountEmailChangeKit.CompletePath)
         {
@@ -356,6 +360,23 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
             refused = await CompleteAsync(owner.Current, newEmail, change.Code.Reveal());
 
         refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await CompleteAsync(owner.Current, newEmail, change.Code.Reveal())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task The_volatile_instance_out_of_reach_is_503_and_the_change_still_completes_after()
+    {
+        var owner = await OwnerAsync();
+        var newEmail = Address("ny");
+        var change = await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(factory, owner.UserId, newEmail, owner.Current, Ct);
+
+        using (factory.LoginChallengeFaults.Unavailable())
+        {
+            (await CompleteAsync(owner.Current, newEmail, change.Code.Reveal())).StatusCode
+                .ShouldBe(HttpStatusCode.ServiceUnavailable);
+        }
+
+        (await AccountAsync(owner.UserId)).Email.ShouldBe(owner.Current);
         (await CompleteAsync(owner.Current, newEmail, change.Code.Reveal())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 

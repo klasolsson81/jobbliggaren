@@ -102,12 +102,11 @@ function scan(file: string, text: string): { chassis: number; rows: number; find
   return { chassis, rows, findings };
 }
 
-/** Every stylesheet under `dir` that is not a CSS module: the ones that can reach a `.jp-job` row. */
-function globalSheets(dir: string, acc: string[] = []): string[] {
+function stylesheets(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const child = resolve(dir, entry.name);
-    if (entry.isDirectory()) globalSheets(child, acc);
-    else if (entry.name.endsWith(".css") && !entry.name.endsWith(".module.css")) acc.push(child);
+    if (entry.isDirectory()) stylesheets(child, acc);
+    else if (entry.name.endsWith(".css")) acc.push(child);
   }
   return acc;
 }
@@ -134,8 +133,7 @@ const inNarrowArm = (r: Rule) => r.inMedia === "@media (max-width: 720px)";
 
 /**
  * Every rule that can keep a `.jp-job` row's columns below 720px: it sets a grid property on a
- * `.jp-job` row or part outside a `max-width: 720px` block, and it is not a single-class
- * `.jp-job`/`.jp-job--*` rule above the arm in `globals.css`.
+ * `.jp-job` row or part outside a `max-width: 720px` block.
  */
 function rulesThatBeatTheArm(globals: string, later: { name: string; css: string }[]): string[] {
   const rules = readRules(globals);
@@ -144,8 +142,10 @@ function rulesThatBeatTheArm(globals: string, later: { name: string; css: string
   );
   if (!arm) return ["globals.css: no <=720px `.jp-job` arm"];
   const setsGrid = (r: Rule) => subjectIsJob(r.selector) && r.properties.some(isGridKey) && !inNarrowArm(r);
+  const important = (r: Rule) =>
+    r.declarations.some((d) => isGridKey(d.property) && /!\s*important$/i.test(d.value));
   const aboveTheArm = (r: Rule) =>
-    r.inMedia === null && /^\.jp-job(--[a-z0-9-]+)?$/.test(r.selector) && r.start < arm.start;
+    r.inMedia === null && /^\.jp-job(--[a-z0-9-]+)?$/.test(r.selector) && r.start < arm.start && !important(r);
   const out = rules
     .filter((r) => setsGrid(r) && !aboveTheArm(r))
     .map((r) => `globals.css: ${r.selector}${r.inMedia ? ` in ${r.inMedia}` : ""}`);
@@ -272,6 +272,7 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
       rulesThatBeatTheArm(css, later.map((c, i) => ({ name: `later${i}.css`, css: c })));
 
     expect(check(base + rule(".jp-job--probe") + arm)).toEqual([]);
+    expect(check(base + ".jp-job--probe { grid-template-columns: auto 1fr auto; cursor: pointer !important; }\n" + arm)).toEqual([]);
     expect(check(base + arm + media("(max-width: 720px)", ".jp-job--probe"))).toEqual([]);
     expect(check(base + arm + rule(".jp-jobs"))).toEqual([]);
 
@@ -282,15 +283,22 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
     expect(check(base + rule(".jp-job.jp-job--probe") + arm)).toEqual(["globals.css: .jp-job.jp-job--probe"]);
     expect(check(base + arm + rule(".jp-jobs > .jp-job--probe"))).toEqual(["globals.css: .jp-jobs > .jp-job--probe"]);
     expect(check(base + ".jp-job__actions { grid-column: 2; }\n" + arm)).toEqual(["globals.css: .jp-job__actions"]);
+    expect(check(base + ".jp-job--probe { grid-template-columns: auto 1fr auto !important; }\n" + arm)).toEqual([
+      "globals.css: .jp-job--probe",
+    ]);
     expect(check(base + arm, [rule(".jp-job--probe")])).toEqual(["later0.css: .jp-job--probe"]);
+    expect(check(base + arm, [rule(".card :global(.jp-job--probe)")])).toEqual(["later0.css: .card :global(.jp-job--probe)"]);
     expect(check(base)).toEqual(["globals.css: no <=720px `.jp-job` arm"]);
   });
 
   it("no rule in any stylesheet can keep a `.jp-job` row's columns below 720px", () => {
-    const later = globalSheets(SRC).filter((f) => f !== GLOBALS_PATH);
+    const later = stylesheets(SRC).filter((f) => f !== GLOBALS_PATH);
     const names = later.map((f) => toPosix(relative(SRC, f)));
     expect(names, "the walk no longer reaches the stylesheets that load after globals.css").toEqual(
       expect.arrayContaining(["app/(app)/app.css", "app/(admin)/admin.css"])
+    );
+    expect(names, "the walk no longer reaches the CSS modules").toEqual(
+      expect.arrayContaining(["components/job-ads/recruiter-contact-card.module.css"])
     );
     expect(
       rulesThatBeatTheArm(

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readRules, stripComments } from "@/test/css-rules";
+import { readRules, stripCssComments } from "@/test/css-rules";
 
 /**
  * #1727 — the `.jp-pagehero` narrow-viewport arm must come AFTER the base rules it overrides.
@@ -111,7 +111,7 @@ describe("globals.css — the .jp-pagehero narrow-viewport arm (#1727)", () => {
     // file declares three and the first one follows `@custom-variant`, which is exactly the
     // position that used to swallow it.
     const roots = readRules(CSS).filter((r) => r.selector === ":root");
-    const declared = [...stripComments(CSS).matchAll(/(^|\n)\s*:root\s*\{/g)].length;
+    const declared = [...stripCssComments(CSS).matchAll(/(^|\n)\s*:root\s*\{/g)].length;
     expect(roots).toHaveLength(declared);
   });
 

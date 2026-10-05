@@ -20,8 +20,8 @@ interface SavedJobAdRowProps {
  * fallback "Annonsen är borttagen".
  *
  * #805-3 sanningssynk: den tidigare utsagan ("när annonsen soft-deletats eller
- * borttagits från Platsbanken") var falsk. `JobAd.DeletedAt` saknar writer (#821),
- * och en annons som försvinner ur Platsbankens flöde ARKIVERAS
+ * borttagits från Platsbanken") var falsk. En annons som försvinner ur
+ * Platsbankens flöde ARKIVERAS
  * (`Status = "Archived"`) — den joinar fortfarande och renderas som en vanlig rad.
  * Den sanningsenliga signalen är `item.jobAd.status`, som DTO:n numera bär. Att
  * surfa "aktiv/inte längre aktiv" på den här raden är **#817**.

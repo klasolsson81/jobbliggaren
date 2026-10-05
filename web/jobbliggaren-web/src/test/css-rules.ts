@@ -9,17 +9,22 @@
 /**
  * Block comments are stripped before ANY matching. `globals-link-rule.test.ts` learned this from
  * `code-reviewer` in PR #1400: rule text left behind in a comment otherwise stands in for a rule
- * that was deleted, and the guard passes on prose. This block is dense with commented-out-looking
- * CSS, so the hazard is live here.
+ * that was deleted, and the guard passes on prose.
  */
-export const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+export const stripCssComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
 
-export type Rule = { selector: string; properties: string[]; start: number; inMedia: string | null };
+export type Rule = {
+  selector: string;
+  properties: string[];
+  declarations: { property: string; value: string }[];
+  start: number;
+  inMedia: string | null;
+};
 
 /**
  * Splits a selector list on TOP-LEVEL commas only. A bare `prelude.split(",")` tears
- * `a:not(.jp-btn, [data-slot="button"])` into three fragments that match nothing and print as
- * nonsense when the sweep reports a failure. `globals.css` carries exactly that selector.
+ * `a:not(.jp-btn, [data-slot="button"])` into three fragments that match nothing.
+ * `globals.css` carries exactly that selector.
  */
 export function splitSelectorList(prelude: string): string[] {
   const out: string[] = [];
@@ -41,17 +46,17 @@ export function splitSelectorList(prelude: string): string[] {
 /**
  * Flat rule reader: every `selector { ... }`, with the enclosing at-rule prelude when there is one.
  * Deliberately not a full CSS parser — it only needs selector text, property names and byte order,
- * and a parser that understood more could disagree with the browser in ways this guard cannot check.
+ * and a parser that understood more could disagree with the browser.
  *
- * It must nonetheless be fail-CLOSED, because a parser that silently sees no rules makes the sweep
- * below report a clean stylesheet. The one error direction that matters is a `;`-terminated
+ * It must nonetheless be fail-CLOSED, because a parser that silently sees no rules makes a
+ * consumer's sweep report a clean stylesheet. The one error direction that matters is a `;`-terminated
  * at-statement — `@import "tailwindcss";`, `@custom-variant dark (...);`, both live at the top of
- * this file — whose text would otherwise glue onto the NEXT prelude. When the next block is the
- * `@media` itself, its prelude stops starting with "@media", every rule inside reads as
- * unconditional, and the sweep goes quiet on a stylesheet that does carry a dead declaration.
+ * `globals.css` — whose text would otherwise glue onto the NEXT prelude. When the next block is the
+ * `@media` itself, its prelude stops starting with "@media", and every rule inside reads as
+ * unconditional.
  */
 export function readRules(cssText: string): Rule[] {
-  const src = stripComments(cssText);
+  const src = stripCssComments(cssText);
   const rules: Rule[] = [];
   const atStack: { prelude: string; depth: number }[] = [];
   let depth = 0;
@@ -82,9 +87,12 @@ export function readRules(cssText: string): Rule[] {
       const properties = [...body.matchAll(/(^|;)\s*([-a-zA-Z]+)\s*:/g)]
         .map((m) => (m[2] ?? "").toLowerCase())
         .filter((p) => !p.startsWith("--"));
+      const declarations = [...body.matchAll(/(?:^|;)\s*([-a-zA-Z]+)\s*:([^;]*)/g)]
+        .map((m) => ({ property: (m[1] ?? "").toLowerCase(), value: (m[2] ?? "").trim() }))
+        .filter((d) => !d.property.startsWith("--"));
       const media = atStack.find((a) => a.prelude.startsWith("@media"))?.prelude ?? null;
       for (const selector of splitSelectorList(prelude)) {
-        rules.push({ selector, properties, start: i, inMedia: media });
+        rules.push({ selector, properties, declarations, start: i, inMedia: media });
       }
       i = j - 1;
       tokenStart = i + 1;

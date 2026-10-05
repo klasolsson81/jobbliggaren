@@ -388,10 +388,7 @@ public static class AuthEndpoints
         //     LoginChallengeAdmission's first statement and reads no input, so this 503 is decided
         //     before the submitted address is looked at and cannot vary with it. Move that check
         //     after the account lookup and this arm becomes an enumeration oracle.
-        AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
-            detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
-            title: AuthErrorCodes.EmailDeliveryUnavailable,
-            statusCode: StatusCodes.Status503ServiceUnavailable),
+        AuthErrorCodes.EmailDeliveryUnavailable => AuthProblem.EmailDeliveryUnavailable(),
 
         // #1744 — the external-login start budget is spent: the same availability axis. No Retry-After: the web's
         // start does not read it.

@@ -49,6 +49,9 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <item><c>ChangeEmailCommandHandler</c> — the address is swapped only when the emailed link is
 /// opened, so a dropped send is an unfinishable request. It now consults
 /// <see cref="CanDeliver"/> and refuses (503).</item>
+/// <item><c>RequestAccountEmailChangeCommandHandler</c> (#1975) — both of its mails are the change: the
+/// code reaches the new address and the notice is what lets the current address object. It consults
+/// <see cref="CanDeliver"/> first and refuses (503).</item>
 /// <item><c>ConfirmEmailChangeCommandHandler</c>'s old-address notice — an OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control. Deliberately NOT refused (that would fail a completed,
 /// legitimate change), so with this sender the control is silently off. <b>security-auditor ruled

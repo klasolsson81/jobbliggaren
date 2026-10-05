@@ -136,6 +136,40 @@ public static class AuthErrorCodes
     public const string AccountEmailChangeStaleMessage = "Kontot har ändrats sedan adressbytet påbörjades.";
 
     /// <summary>
+    /// #1975 — an administrator asked to change the address of an account that holds Admin, their own included. An
+    /// administrator's address changes on Mina sidor, which proves both inboxes. Conflict → 409.
+    /// </summary>
+    public const string AccountEmailChangeAdministratorTarget = "Auth.AccountEmailChangeAdministratorTarget";
+
+    public const string AccountEmailChangeAdministratorTargetMessage =
+        "Kontot är ett administratörskonto, så adressen kan inte bytas här.";
+
+    /// <summary>
+    /// #1975 — an administrator asked to change the address of an account that is not active, or holds no address.
+    /// Conflict → 409.
+    /// </summary>
+    public const string AccountEmailChangeInactiveTarget = "Auth.AccountEmailChangeInactiveTarget";
+
+    public const string AccountEmailChangeInactiveTargetMessage = "Kontot är inte aktivt, så adressen kan inte bytas.";
+
+    /// <summary>
+    /// #1975 — another account's pending change already holds the new address; nothing was written and that change is
+    /// untouched. Conflict → 409.
+    /// </summary>
+    public const string AccountEmailChangePendingForAnotherAccount = "Auth.AccountEmailChangePendingForAnotherAccount";
+
+    public const string AccountEmailChangePendingForAnotherAccountMessage =
+        "Ett annat konto väntar redan på att få den adressen.";
+
+    /// <summary>
+    /// #1975 — a cancel found no pending change: it expired, was completed or was already cancelled. Gone → 410, and,
+    /// as a failure, no audit row.
+    /// </summary>
+    public const string AccountEmailChangeNothingPending = "Auth.AccountEmailChangeNothingPending";
+
+    public const string AccountEmailChangeNothingPendingMessage = "Det finns inget adressbyte att avbryta.";
+
+    /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
     /// ADR 0083 Amendment 2026-08-03). Rendered as an endpoint-local 503 by
     /// <c>AuthEndpoints.ToErrorResult</c>, not via the kind-union — see that arm for why.

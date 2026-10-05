@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 
@@ -79,6 +80,7 @@ public abstract record AccountEmailChangeVerdict
 }
 
 /// <summary>Whether a pending change can still be completed with its code.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PendingAccountEmailChangeState>))]
 public enum PendingAccountEmailChangeState
 {
     Pending,

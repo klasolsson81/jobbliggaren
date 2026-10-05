@@ -16,4 +16,14 @@ public static class AuthProblem
         detail: AuthErrorCodes.InvalidCredentialsMessage,
         title: AuthErrorCodes.InvalidCredentials,
         statusCode: StatusCodes.Status401Unauthorized);
+
+    /// <summary>
+    /// #1087 — a flow whose success is its mail refuses while no transactional provider is configured: the 503
+    /// availability axis, not the kind-union's 400. One home for every route that answers it, auth's and the
+    /// administrator's address change (#1975) alike; the reasoning is on <c>AuthEndpoints.ToErrorResult</c>'s arm.
+    /// </summary>
+    public static IResult EmailDeliveryUnavailable() => Results.Problem(
+        detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
+        title: AuthErrorCodes.EmailDeliveryUnavailable,
+        statusCode: StatusCodes.Status503ServiceUnavailable);
 }

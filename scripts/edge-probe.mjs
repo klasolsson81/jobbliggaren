@@ -75,8 +75,7 @@ try {
   console.log(JSON.stringify({imageId:imageInfo.Id, nodeImage, sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()}));
   const passwordHash = docker('start','-a',createContainer('--network','none',imageInfo.Id,'caddy','hash-password','--plaintext','synthetic-only'));
   const env = ['-e','SITE_HOST=http://:8080','-e','ACME_EMAIL=probe@example.com','-e','ACME_CA=https://acme.invalid/directory','-e','BASIC_AUTH_USER=probe','-e',`BASIC_AUTH_HASH=${passwordHash}`];
-  const mount = ['--mount',`type=bind,source=${path.join(root,'deploy/caddy/Caddyfile')},target=/etc/caddy/Caddyfile,readonly`,
-    '--mount',`type=bind,source=${path.join(root,'deploy/caddy/challenge')},target=/etc/caddy/challenge,readonly`];
+  const mount = ['--mount',`type=bind,source=${path.join(root,'deploy/caddy/Caddyfile')},target=/etc/caddy/Caddyfile,readonly`];
   const config = JSON.parse(docker('start','-a',createContainer('--network','none',...mount,...env,imageInfo.Id,'caddy','adapt','--config','/etc/caddy/Caddyfile')));
   const server = Object.values(config.apps.http.servers)[0];
   const handlers = [];

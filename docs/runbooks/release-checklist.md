@@ -903,12 +903,25 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            operatören väljer adresserna och en pekare hade varit oläsbar i det ögonblicket —
            samma avvägning som credentialens två ytor nedan. **Förfinas egenskapen här ska BÅDA
            ställena i den filen ändras**; ingenting länkar dem;
-           (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
-           `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
+           (c) copyn blir publikt läsbar — `SITE_ADMISSION=open` vid domänflytten
+           (`vps-deploy-stack.md` §3f), eller Basic-auth borttagen eller kringgången på ett värdnamn
+           som servar copyn — **samma händelse som §2.6:s publika ögonblick**; (d) första utskick
+           till annan mottagare än Klas.
+           ⚠ **Klas-beslut om (c) och (d) vid domänflytten:** 2026-10-05 om (c), *"Ja, står kvar som
+           mitt beslut"*, och 2026-10-06 om (d), *"Ja, står kvar (Rek.)"* — ADR 0133:s ben (b) och (c)
+           och invändningsrätten i Art. 7.4 står kvar som hans beslut som personuppgiftsansvarig
+           (Art. 24(1)) när (c) eller (d) fyrar. Inte en §9.6-acceptans, och det bär ingen signatur av
+           `security-auditor`. Vid (a) eller (b) förfaller besluten som skrivet. Källor:
+           [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-5993888584) (c),
+           [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-6009264278) (d);
+           härledning: ADR 0133, Amendment 2026-10-05 och 2026-10-06
+           (lokala).
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
            ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
-           GRADERINGEN av den.** (1) Tas den bort för en demo fyrar trigger (c) ovan i samma
-           ögonblick, och ingenting varnar.
+           GRADERINGEN av den.** (1) Sätts `SITE_ADMISSION=open` — eller tas direktivet bort eller
+           kringgås — fyrar trigger (c) ovan i samma ögonblick, och ingenting varnar; en återgång
+           av-fyrar den inte. Blockern återkommer bara om förutsättningen inte håller när den
+           ommäts i det ögonblicket, och därför går vägen till `open` genom `vps-deploy-stack.md` §3f.
            ⚠ ~~(2) Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som
            falska, om en levande behandling (ADR 0090 D3).~~ **SLUTSATS (2) ÄR UTSLÄCKT 2026-08-16
            (#183 FU-2b) — struken som proveniens, inte raderad.** Den tillkom 2026-08-16 (#183 E5)
@@ -920,9 +933,8 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            **Slutsats (1) är oförändrad och är den som gäller.**
            ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
            Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
-           `deploy/caddy/Caddyfile` bär **slutsatserna i sin helhet**, därför att det är där
-           operatören står i det ögonblick handlingen utförs; en pekare där hade varit oläsbar för
-           den som är på väg att kommentera bort blocket. **Tillkommer — eller upphör — en slutsats
+           `deploy/caddy/Caddyfile` bär **slutsatserna i sin helhet**, för den som ändrar kanten i
+           kod. Växlingen görs i `.env`: `vps-deploy-stack.md` §3f bär **steget** och pekar hit. **Tillkommer — eller upphör — en slutsats
            ska BÅDA ytorna ändras** — det är priset för att direktivet är operativt, och det är
            billigare än en varning operatören aldrig möter. ⚠ **Kopplingen gäller i BÅDA
            riktningarna, och det mättes 2026-08-16:** när slutsats (2) släcktes hade en fix på bara
@@ -1071,7 +1083,7 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
       efterföljande session att resonera från en falsk premiss om en **levande**
       tredjelandsöverföring. **Hör här på TRIGGERN, inte på sektionskaraktären** — §2.6 kallar
       sig själv också en aktiveringshändelse. Raderna blir falska när `Email:Provider` flippas
-      (§2.5), inte vid första `v*`-taggen (§2.6).
+      (§2.5), inte vid §2.6:s publika ögonblick.
       Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
       ⚠ **VERKSTÄLLD I EFTERHAND 2026-08-16 — OCH RUTAN BOCKAS INTE.** Flippen skedde 2026-08-16
       utan att den här punkten kördes, så raderna stod mätt falska i den fil varje CC-invokation
@@ -1137,30 +1149,26 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 
 ## 2.6 GRIND (mänsklig, interim): integritetspolicyns "planerat"-formuleringar (#852)
 
-> **Detta är en MÄNSKLIG grind, inte en mekanisk.** Ingenting hindrar
-> `git tag v1.0.0 && git push --tags` från att gå igenom med policyn oflippad —
-> en människa måste läsa den här sektionen före taggen. Rubriken säger därför
+> **Detta är en MÄNSKLIG grind, inte en mekanisk.** Ingenting hindrar en merge — som är
+> en deploy (ADR 0154) — eller `SITE_ADMISSION=open` från att gå igenom med policyn
+> oflippad; en människa måste läsa den här sektionen före den mergen och före den växlingen. Rubriken säger därför
 > inte "HÅRD": ordet hade hävdat en egenskap instrumentet inte har, och husets
 > egen lärdom (#861, samma epik-uppsättning: en CI-defekt besvaras inte med en
 > mänsklig regel; *fail loud over fail silent*) gäller lika här.
 >
-> **En mekanisk grind är skyldig, och skyldigheten är placerad:** epik #1034
-> (`make the flow's gates mechanically enforced, not remembered`). Den byggs
-> tillsammans med prod-pipelinen (Hetzner-cutover, ADR 0050) — det finns idag
-> **inget tagg-triggat workflow alls** att hänga en grind på (`deploy-dev.yml`:s
-> `push: tags`-trigger är borttagen). Därför är checklistan det rätta
+> **En mekanisk grind är skyldig.** Därför är checklistan det rätta
 > *interim*-instrumentet, inte sluttillståndet.
 >
-> **Den mekaniska grinden ska levereras före eller med den första `v*`-taggen.**
+> **Den mekaniska grinden ska levereras före den första merge efter det publika ögonblicket
+> vars release aktiverar en behandling policyn ännu beskriver som planerad.** Den är inget
+> villkor för domänflytten.
 > Den mänskliga grinden får inte vara det enda instrumentet i det ögonblick den
 > först bär verklig risk. Att dokumentera ett gap skapar en skyldighet att stänga
 > det: ett känt gap som överlever sin egen relevans är sämre än ett odokumenterat,
 > eftersom det bevisar kännedom (Art. 5(2)/24(1)).
 > ⚠ **EXPONERINGSFÖNSTRET ÄR INTE LÄNGRE TOMT, OCH DET ÄR TVÅ SKYLDIGHETER SOM INTE
 > LÖSER UT VARANDRA** (2026-08-16, #183 E5). Den **mekaniska** grinden behövs alltjämt
-> inte före en prod-deploy, och #1034:s mekanism rider samma prod-pipeline — den
-> halvan av det som stod här är oförändrad, och tidplanen är fortfarande en
-> tillfällighet tills den skrivs ut, vilket den härmed är. Men **markörernas
+> inte före det publika ögonblicket. Men **markörernas
 > sanningshalt är en egen skyldighet som redan har fallit ut:** e-postarmen
 > aktiverades 2026-08-16 medan §2.5 punkt 1 bar KVAR, och punkt 1 nedan namnger
 > vilka rader som därmed är falska i dag och vilken som inte är det. **Läs den
@@ -1168,7 +1176,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > **inte** grunden att låta dem stå — punkt 1 mäter varför.
 >
 > **Grinden bär redan sitt eget maskinläsbara predikat:** punkt 2:s
-> inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll taggen
+> inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll en PR
 > om någon `planerat` återstår" — planerat-påståenden får legitimt kvarstå för
 > icke-aktiverade behandlingar, så den kontrollen skulle tvinga fram förtidiga
 > flippar, dvs. exakt den skada sektionen finns för att förhindra. Två
@@ -1177,12 +1185,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > radmängden (fångar mekaniskt det mest sannolika felet — att flippa ett språk;
 > mängderna är idag radidentiska), och **(b) `privacy.updated`-datumparitet**
 > mellan språken. Full form: ett trackat aktiveringstillstånds-manifest per
-> behandling + en CI-assertion på `v*`-ref:en att manifestet matchar policyns
+> behandling + en CI-assertion i `ci` på varje PR mot `main` att manifestet matchar policyns
 > planerat-mängd — det inverterar kontrollen rätt (kräver inte en flip, kräver
 > att publicerad copy matchar ett deklarerat tillstånd).
 >
-> Gäller **den första `v*`-taggen till prod** och varje senare release som
-> aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
+> Gäller **det publika ögonblicket** — när copyn blir publikt läsbar, under ADR 0154
+> `SITE_ADMISSION=open` vid domänflytten (`vps-deploy-stack.md` §3f) — och varje release
+> lådan applicerar som aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
 > **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
 > en PR.
 >
@@ -1191,14 +1200,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > kontakt (Art. 13(1)(b)), som Art. 15–22-väg och som vägen till en SCC-kopia (Art. 13(1)(f)).
 > **Den copyn går live med webb-deployen och är inte grindad av `Email:Provider`** — så en rad
 > enbart i §2.5 hade inte fallit ut på den release som faktiskt publicerar kontaktuppgiften.
-> Verifiera därför här att brevlådan finns och tar emot innan copyn deployas. Art. 12(2) kräver
+> Verifiera därför här att brevlådan finns och tar emot före det publika ögonblicket. Art. 12(2) kräver
 > att den ansvarige *underlättar* utövandet av rättigheterna; en publicerad rättighetskanal som
 > studsar gör motsatsen. `security-auditor` 2026-08-12, som graderade det Major uttryckligen
 > **med** eskaleringsvillkoret "blir Blocker vid första prod-deploy av copyn ELLER vid flippen,
 > vilket som kommer först".
 > ⚠ **DEN ANDRA HALVAN AV DET VILLKORET ÄR FÖRBRUKAD** (`security-auditor` 2026-08-16, #183 E5):
 > **flippen är inte längre en utlösande händelse** — den skedde 2026-08-16 och domen är INGEN
-> Blocker. Prod-deploy-halvan står oförändrad och är §2.6:s egen trigger. **Schemat har ett enda
+> Blocker. **Schemat har ett enda
 > hem — §2.5 punkt 1 led (e) förutsättning 5 — och den här raden citerar det, den bär det inte.**
 >
 > ⚠ **OCH BREVLÅDAN GÖR STRATO TILL BITRÄDE I EN ANDRA FUNKTION.** Registrets bestämning
@@ -1483,7 +1492,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         punkt 1:s grepp namnger den, inte därför att någon svit krävde det — sviten var grön med
         rad 47 oflippad. Nästa flipp (notiserna) möter samma lucka.
         **Aktiveras INTE av en
-        `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
+        release.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
         API (~sept 2026) och dess **första verkliga överföring är hårt grindad på
@@ -1516,8 +1525,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         i dag klassens enda medlem. **Aktiveringshändelsen är att apex-MX flyttas i STRATO:s
         kontrollpanel** — ingen release, ingen tagg, ingen konfigurationsnyckel i repot, ingen
         deploy, alltså inget repo-event att haka i. Varken §2.5:s predikat (*en providerarm
-        som når en extern processor*) eller §2.6:s egen trigger (*första `v*`, eller en release
-        som aktiverar en behandling copyn kallar planerad*) fyrar på den. Stycket landade
+        som når en extern processor*) eller §2.6:s egen trigger (*det publika ögonblicket, eller en
+        release som aktiverar en behandling copyn kallar planerad*) fyrar på den. Stycket landade
         2026-08-28 och blev **tyst oklassat**.
         ⚠ **Klassen bockas därför ALDRIG av att releasen inte aktiverar något** — dess händelse
         är inte en release, så punkt 2:s vanliga utfall (*bocka hela sektionen och sluta*) är
@@ -1951,9 +1960,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         garanti**: count-only 2026-09-06 bär **71 054 av 71 054** annonser en `url` — noll fall utan
         länk i dagens korpus.
       - **Att öppna en sökväg i basic_auth skulle riva den 401-mätning Art. 12-omgraderingen vilar
-        på.** `deploy/caddy/Caddyfile`s eget block säger det: *"one of the measurements is that this
-        site answers 401 on every path. Remove or bypass this block — even briefly, even for a demo —
-        and that fires the checklist's trigger (c)."* Rutt (b) i förtid kostar alltså en trigger,
+        på.** Rutt (b) i förtid kostar alltså en trigger,
         inte bara en konfigrad. ⚠ **Men kostnaden undviks inte av rutt (c) — den skjuts upp och
         VIDGAS:** vid lansering tas blocket bort **helt, för varje sökväg**, så trigger (c) fyrar
         bredare då än rutt (b) hade gjort nu. §2.5 förutsättning 5:s E5-dom vilar på just
@@ -2303,7 +2310,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         under det fönstret.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
-      - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
+      - **(a) Inga registrerade utöver Klas:** flippen landar i **samma release** som
         aktiveringen. Förhandsinformation är då varken möjlig eller krävd — men läs (b) nedan
         först: finns registrerade konton redan, är det (b) som gäller, inte den här punkten.
       - **(b) Senare release med befintliga registrerade:** informationen
@@ -2325,7 +2332,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       stycken i mottagaravsnittet — *"Överföring till tredje land" räknades med till 2026-08-15
       och gör det inte längre; talet speglas av `content-legal-parity.test.ts`, vars golv står på
       samma tre*) —
-      och e-postflippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
+      och e-postflippen styrs av **§2.5**, inte av en release, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter

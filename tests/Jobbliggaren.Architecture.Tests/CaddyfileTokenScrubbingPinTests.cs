@@ -324,14 +324,11 @@ public class CaddyfileTokenScrubbingPinTests
     public void TheCaddyfile_CarriesExactlyOneLogDirective()
     {
         // A second `log` block beside the global one is valid Caddy and would be invisible to a
-        // parser that stops at the first. The challenge snippets are imported INTO the site block,
-        // so they can carry one too.
-        var everyLine = CaddyfileLines()
-            .Concat(ChallengeFiles().SelectMany(File.ReadAllLines));
-
-        everyLine.Count(line => LogDirective.IsMatch(line.Trim())).ShouldBe(
+        // parser that stops at the first. Every snippet a site imports is defined in this file
+        // since #1768, so one file is the whole edge configuration.
+        CaddyfileLines().Count(line => LogDirective.IsMatch(line.Trim())).ShouldBe(
             1,
-            "deploy/caddy/ must carry exactly one `log` directive. A second one is a separate "
+            "deploy/caddy/Caddyfile must carry exactly one `log` directive. A second one is a separate "
             + "logger that inherits none of the global block's filters, and gate N-1 reopens.");
     }
 
@@ -392,25 +389,22 @@ public class CaddyfileTokenScrubbingPinTests
     }
 
     /// <summary>
-    /// The Caddyfile's global options block — everything before the site block opens. A filter
-    /// found below that line configures a different logger and does not close gate N-1.
+    /// The Caddyfile's global options block — the file's first block, up to its closing brace in
+    /// column 0. A filter found after it configures a different logger and does not close gate N-1;
+    /// snippets defined between it and the site block are outside it on purpose.
     /// </summary>
     private static string[] GlobalOptionsLines()
         => CaddyfileLines()
-            .TakeWhile(line => !line.TrimStart().StartsWith("{$SITE_HOST}", StringComparison.Ordinal))
+            .TakeWhile(line => line != "}")
             .ToArray();
 
     private static string[] CaddyfileLines() => File.ReadAllLines(CaddyfilePath());
-
-    private static string[] ChallengeFiles()
-        => Directory.GetFiles(
-            Path.Combine(Path.GetDirectoryName(CaddyfilePath())!, "challenge"), "*.caddy");
 
     /// <summary>
     /// Walks up from the test binary until the repo root is found, so the test project's own depth
     /// is not hardcoded. Fails loud and names the path it looked for.
     /// </summary>
-    private static string CaddyfilePath()
+    internal static string CaddyfilePath()
     {
         var relative = Path.Combine("deploy", "caddy", "Caddyfile");
 

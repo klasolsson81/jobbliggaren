@@ -90,7 +90,8 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
  * The edge half is owed by the reverse proxy under #196 and nothing here can
  * stand in for it.
  *
- * The value is the one ADR 0050 §5 prescribes. Nothing enforces that the two
+ * The value is the one ADR 0050 §5 prescribes, host-only: no `includeSubDomains`,
+ * no `preload` (Amendment 2026-10-06). Nothing enforces that the two
  * emitters agree — the gate is read off `curl -sI` against both paths at
  * cutover, never off either configuration.
  *
@@ -98,7 +99,7 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
  * header there pins the browser to https for `max-age` against a host that has
  * no certificate.
  */
-export const STRICT_TRANSPORT_SECURITY = "max-age=31536000; includeSubDomains";
+export const STRICT_TRANSPORT_SECURITY = "max-age=31536000";
 
 export interface HttpHeader {
   readonly key: string;

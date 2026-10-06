@@ -174,9 +174,9 @@
 }
 
 # Gate M-5a: one literal for every site below, byte-identical to the STRICT_TRANSPORT_SECURITY
-# constant in the web app.
+# constant in the web app. Host-only on purpose: no includeSubDomains, no preload (ADR 0050 M-5a).
 (hsts) {
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header Strict-Transport-Security "max-age=31536000"
 }
 
 {$SITE_HOST} {

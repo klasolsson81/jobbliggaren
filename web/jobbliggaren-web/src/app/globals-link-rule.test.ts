@@ -72,6 +72,30 @@ describe("globals.css — the global link colour rule (#1352)", () => {
     }
   });
 
+  // #2012: a job card's title link keeps its own ink, hover included, and the card carries the
+  // click cue (DESIGN.md §4).
+  it("exempts the job card's row link", () => {
+    for (const rule of LINK_RULES) {
+      expect(
+        rule,
+        `${rule.slice(0, rule.indexOf("{")).trim()} — the row link's \`color: inherit\` is (0,1,0); ` +
+          `without the exemption every job card title turns accent-green.`,
+      ).toContain(".jp-job__rowlink");
+    }
+  });
+
+  // #2012: an icon button's ink (ink-2, ink-1 on hover) is its state, whether it is an <a> or a
+  // <button>.
+  it("exempts the icon button", () => {
+    for (const rule of LINK_RULES) {
+      expect(
+        rule,
+        `${rule.slice(0, rule.indexOf("{")).trim()} — \`.jp-icon-btn\` is (0,1,0); without the ` +
+          `exemption an <a> icon button turns accent-green beside its <button> siblings.`,
+      ).toContain(".jp-icon-btn");
+    }
+  });
+
   it("carries the exemption in ONE :not(), never two chained", () => {
     for (const rule of LINK_RULES) {
       const selector = rule.slice(0, rule.indexOf("{"));

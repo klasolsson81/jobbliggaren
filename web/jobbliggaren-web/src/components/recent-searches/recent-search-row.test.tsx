@@ -203,7 +203,22 @@ describe("RecentSearchRow", () => {
     expect(screen.queryByText(/^Nya$/)).not.toBeInTheDocument();
   });
 
-  it("has 'Kör igen' primary action linking to a /jobb-URL built from the filter", () => {
+  // #2011 — a solid primary per row is one solid fill per row on one screen. DESIGN.md §6: one
+  // --primary per screen, and a row action takes the non-solid emphasis level.
+  it("gives 'Kör igen' the emphasis level, never a solid primary", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const link = screen.getByRole("link", { name: /Kör igen/ });
+    expect(link).toHaveClass("jp-btn jp-btn--sm jp-btn--emphasis", { exact: true });
+    expect(link).not.toHaveClass("jp-btn--primary");
+  });
+
+  it("has a 'Kör igen' action linking to a /jobb-URL built from the filter", () => {
     render(
       <RecentSearchRow
         item={makeDto()}

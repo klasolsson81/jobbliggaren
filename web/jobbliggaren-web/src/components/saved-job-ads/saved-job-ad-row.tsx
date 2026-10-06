@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import { unsaveJobAdAction } from "@/lib/actions/saved-job-ads";
@@ -53,13 +53,7 @@ export function SavedJobAdRow({
   if (item.jobAd === null) {
     return (
       <li>
-        <article className="jp-job jp-job--icon" style={{ opacity: 0.7 }}>
-          <div
-            className="jp-job__match jp-job__match--neutral"
-            aria-hidden="true"
-          >
-            <Bookmark size={20} />
-          </div>
+        <article className="jp-job jp-job--static" style={{ opacity: 0.7 }}>
           <div className="jp-job__body">
             <h3 className="jp-job__title">{t("removed")}</h3>
             <div className="jp-job__meta" style={{ marginTop: 8 }}>
@@ -87,37 +81,46 @@ export function SavedJobAdRow({
   // JobAd finns — normal rad.
   const publishedAt = formatDate(format, item.jobAd.publishedAt);
   const expiresAt = formatDate(format, item.jobAd.expiresAt);
+  // The ad id is unique within the list, so it keys the description's IDREFs.
+  const idBase = `saved-${item.jobAdId}`;
 
   return (
     <li>
-      <article className="jp-job jp-job--icon">
-        <Link
-          href={`/jobb/${item.jobAdId}`}
-          className="jp-job__match jp-job__match--neutral"
-          aria-label={t("openAd", { title: item.jobAd.title })}
-        >
-          <Bookmark size={20} aria-hidden="true" />
-        </Link>
+      <article className="jp-job">
         <div className="jp-job__body">
           <h3 className="jp-job__title">
-            <Link href={`/jobb/${item.jobAdId}`} className="text-inherit no-underline">
+            {/* The row's one link, stretched over the card; the controls sit above it. No
+                aria-label: the modal's focus return re-finds a restored opener by its href and
+                whether it has one (useInformationModalFocus). */}
+            <Link
+              href={`/jobb/${item.jobAdId}`}
+              className="jp-job__rowlink"
+              aria-describedby={`${idBase}-company ${idBase}-meta`}
+            >
               {item.jobAd.title}
             </Link>
           </h3>
-          <div className="jp-job__company">{item.jobAd.company}</div>
-          <div className="jp-job__meta">
+          <div id={`${idBase}-company`} className="jp-job__company">
+            {item.jobAd.company}
+          </div>
+          {/* Label and space in ONE text node: Chrome drops a whitespace-only node from the
+              link's computed description. */}
+          <div id={`${idBase}-meta`} className="jp-job__meta">
             {publishedAt && (
               <span>
-                {t("published")} <b>{publishedAt}</b>
+                {`${t("published")} `}
+                <b>{publishedAt}</b>
               </span>
             )}
             {expiresAt && (
               <span>
-                {t("lastApplication")} <b>{expiresAt}</b>
+                {`${t("lastApplication")} `}
+                <b>{expiresAt}</b>
               </span>
             )}
             <span>
-              {t("saved")} <b>{savedAt}</b>
+              {`${t("saved")} `}
+              <b>{savedAt}</b>
             </span>
           </div>
         </div>

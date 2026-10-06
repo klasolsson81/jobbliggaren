@@ -1,9 +1,6 @@
 /**
  * Reading `globals.css` as rules, for the fitness functions that pin a cascade fact from source
- * text: `app/globals-pagehero-cascade.test.ts` (a narrow-viewport arm must follow its base rule) and
- * `app/job-row-grid.test.ts` (a row modifier's grid template must precede the <=720px arm). jsdom
- * applies no stylesheet, so a rendered vitest test cannot see either; both ask their own question of
- * the same reader, so it is written once.
+ * text. jsdom applies no stylesheet, so a rendered vitest test cannot see one.
  */
 
 /**

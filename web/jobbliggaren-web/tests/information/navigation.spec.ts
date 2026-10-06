@@ -282,10 +282,10 @@ for (const mode of ["full", "modal"] as const) test(`job ${mode}: expanded text,
   }
 });
 
-for (const entry of ["bookmark", "filtered-title"] as const) test(`job modal ${entry}: the exact opener and source query survive an information excursion (${rowInput})`, async ({ page, context, browserName }) => {
+for (const entry of ["saved", "filtered-title"] as const) test(`job modal ${entry}: the exact opener and source query survive an information excursion (${rowInput})`, async ({ page, context, browserName }) => {
   await signIn(context);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(entry === "bookmark" ? "/sparade" : "/jobb");
+  await page.goto(entry === "saved" ? "/sparade" : "/jobb");
   if (entry === "filtered-title") {
     const search = page.locator("#jobb-q");
     await expect(search).toHaveAttribute("role", "combobox");
@@ -293,8 +293,8 @@ for (const entry of ["bookmark", "filtered-title"] as const) test(`job modal ${e
     await search.press("Enter");
     await expect(page).toHaveURL(url => url.pathname === "/jobb" && url.searchParams.get("q") === "Testledare");
   }
-  const opener = entry === "bookmark"
-    ? page.locator(`a[href="/jobb/${ADS.saved.id}"][aria-label]`)
+  const opener = entry === "saved"
+    ? page.locator(`a.jp-job__rowlink[href="/jobb/${ADS.saved.id}"]`)
     : page.locator(`a.jp-job__rowlink[href^="/jobb/${ADS.saved.id}?"]`).filter({ hasText: ADS.saved.title });
   await expect(opener).toHaveCount(1);
   const href = await opener.getAttribute("href");

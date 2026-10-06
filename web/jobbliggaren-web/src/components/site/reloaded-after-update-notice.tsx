@@ -65,8 +65,7 @@ export function ReloadedAfterUpdateNotice({ placement }: { placement: ReloadedAf
     // Chromium restores a reloaded page's scroll position at the first layout after the
     // load, anchored to the content: a line committed before that layout pushes the anchor
     // down, and the restore scrolls the page by the line's height, under the sticky header
-    // (#1988). So the line waits for the load and then one frame: a frame callback runs
-    // before that layout, a timer after it.
+    // (#1988).
     const reveal = () => {
       frame = requestAnimationFrame(() => {
         show = setTimeout(() => setLine({ kind: "shown", on: pathname }), 0);

@@ -57,15 +57,20 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
   // #2012 — the card's pointer and hover border promise a click, so the card is the target: the
   // title is the row's one link to the ad, stretched over the card.
   it("makes each title the card's one link to the ad, with no aria-label and no control inside it", () => {
-    render(<MatchList items={[baseItem]} />);
+    const { container } = render(<MatchList items={[baseItem]} />);
+    expect(container.querySelectorAll('a[href^="/jobb/"]')).toHaveLength(1);
     const link = screen.getByRole("link", { name: "Systemutvecklare" });
     expect(link).toHaveClass("jp-job__rowlink", { exact: true });
     // The modal's focus return re-finds a restored opener by its href and whether it has an
     // aria-label (useInformationModalFocus).
     expect(link).not.toHaveAttribute("aria-label");
     expect(link.querySelector("a, button")).toBeNull();
-    expect(link.contains(screen.getByRole("link", { name: /Öppna annonsen på externa/ }))).toBe(false);
+    const external = screen.getByRole("link", { name: /Öppna annonsen på externa/ });
+    expect(link.contains(external)).toBe(false);
     expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
+    // The lift above the row link's overlay selects a control only in this shape (globals.css).
+    expect(external.parentElement).toHaveClass("jp-job__actions");
+    expect(external.parentElement?.parentElement).toBe(screen.getByRole("article"));
   });
 
   it("describes the link with the new tag, the grade, the company and the date, in that order", () => {

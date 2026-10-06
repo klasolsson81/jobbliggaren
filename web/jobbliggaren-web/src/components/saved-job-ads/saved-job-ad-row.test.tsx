@@ -74,7 +74,7 @@ describe("SavedJobAdRow", () => {
     }
   });
 
-  it("keeps the controls outside the link, and renders no plate", () => {
+  it("keeps each control outside the link, as a direct child of the card's actions, and renders no plate", () => {
     const { container } = renderRow(makeDto());
     expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
     expect(container.querySelector(".jp-job__match")).toBeNull();
@@ -83,6 +83,11 @@ describe("SavedJobAdRow", () => {
     const external = screen.getByRole("link", { name: "Öppna annonsen på externa webbplatsen" });
     const remove = screen.getByRole("button", { name: "Ta bort bokmärke för Testledare inom e-handel" });
     expect(link.contains(external) || link.contains(remove)).toBe(false);
+    // The lift above the row link's overlay selects a control only in this shape (globals.css).
+    for (const control of [external, remove]) {
+      expect(control.parentElement).toHaveClass("jp-job__actions");
+      expect(control.parentElement?.parentElement).toBe(screen.getByRole("article"));
+    }
   });
 
   it("renders an erased ad as a static row, with no link and no plate", () => {

@@ -207,8 +207,8 @@ If error detected and suggestion known, suggestion provided.
 **3.3.4 Error Prevention (Legal, Financial, Data) (AA)**
 For pages that cause legal commitments or financial transactions, that modify or delete user-controllable data in data storage systems, or that submit user test responses: the submission is reversible, checked, or confirmed.
 - Deleting a CV, a draft, an application, an industry watch or the account is confirmed in a dialog (`jobbpilot-design-copy` §6); "Radera CV" opens one saying the CV is deleted permanently and cannot be undone.
-- Removing the bookmark of an ad that still exists, unfollowing a company without a filter and removing a recent search are reversible and run without a dialog: Spara on the ad, Bevaka on the company or running the same search again puts the item back (`jobbpilot-design-components`, Button, Rules).
-- Removing the bookmark of an ad that no longer exists runs without a dialog: the ad is already gone, and the row holds only the date it was saved, which the three reversible removals do not bring back either.
+- Removing the bookmark of an ad and unfollowing a company without a filter are reversible and run without a dialog as long as the ad or the company can be found by searching: Spara on the ad or Bevaka on the company puts the item back (`jobbpilot-design-components`, Button, Rules).
+- Removing the bookmark of an ad that no longer exists runs without a dialog: the ad is already gone, and the row holds only the date it was saved, which the two reversible removals do not bring back either.
 - Unfollowing a company whose watch has a filter is confirmed: Bevaka brings the watch back without its filter.
 
 ---

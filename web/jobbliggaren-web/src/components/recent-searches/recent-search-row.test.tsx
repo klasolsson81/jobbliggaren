@@ -218,6 +218,20 @@ describe("RecentSearchRow", () => {
     expect(link).not.toHaveClass("jp-btn--primary");
   });
 
+  // #2029: "Kör igen" is where focus lands when the row above it is removed, and its name alone
+  // does not say which search it runs.
+  it("describes 'Kör igen' with the row's label, keeping the visible name", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Kör igen" });
+    expect(link).toHaveAccessibleDescription("backend");
+  });
+
   it("has a 'Kör igen' action linking to a /jobb-URL built from the filter", () => {
     render(
       <RecentSearchRow
@@ -280,6 +294,7 @@ describe("RecentSearchRow", () => {
     );
     expect(onDeleted).toHaveBeenCalledWith(
       "11111111-1111-1111-1111-111111111111",
+      "Sökningen har tagits bort: backend",
     );
   });
 

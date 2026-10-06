@@ -97,4 +97,13 @@ describe("SavedJobAdRow", () => {
     expect(container.querySelector(".jp-job__match")).toBeNull();
     expect(screen.getByRole("button", { name: "Ta bort bokmärke" })).toBeInTheDocument();
   });
+
+  // #2029: this button is where focus lands when the row above it is removed, and its name alone
+  // does not say which row it belongs to.
+  it("describes an erased ad's remove button with its row's heading", () => {
+    renderRow(makeDto(false));
+    expect(screen.getByRole("button", { name: "Ta bort bokmärke" })).toHaveAccessibleDescription(
+      "Annonsen är borttagen",
+    );
+  });
 });

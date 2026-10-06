@@ -91,7 +91,7 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
  * stand in for it.
  *
  * The value is the one ADR 0050 §5 prescribes, host-only: no `includeSubDomains`,
- * no `preload` (Amendment 2026-10-06). Nothing enforces that the two
+ * no `preload` (ADR 0050 M-5a). Nothing enforces that the two
  * emitters agree — the gate is read off `curl -sI` against both paths at
  * cutover, never off either configuration.
  *

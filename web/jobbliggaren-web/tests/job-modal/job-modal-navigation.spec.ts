@@ -115,6 +115,26 @@ test("a row in /matchningar opens the ad in the modal over an unmoved page, and 
   await expectPageKeptBehindModal(page, "/matchningar", ADS.open);
 });
 
+// The card is the target its pointer and hover border promise (#2012): a click off the title, on the company line,
+// opens the ad, and the external link beside it still leaves for its own page. A click at a point, not a locator
+// click, because the row link's overlay covers the company line by design.
+for (const [list, ad] of [["/sparade", ADS.saved], ["/matchningar", ADS.open]] as const) {
+  test(`a click on a ${list} card off its title opens the ad in the modal, and its external link still opens its own tab`, async ({ page, context }) => {
+    await page.goto(list);
+    const card = page.locator("article.jp-job").filter({ hasText: ad.title });
+    const external = card.getByRole("link", { name: "Öppna annonsen på externa webbplatsen" });
+    const popup = context.waitForEvent("page");
+    await external.click();
+    await popup;
+    await expect(page).toHaveURL(list);
+    const company = await card.locator(".jp-job__company").boundingBox();
+    if (!company) throw new Error(`${list}: the card has no company line`);
+    await page.mouse.click(company.x + 4, company.y + company.height / 2);
+    await expect(page).toHaveURL(`/jobb/${ad.id}`);
+    await expect(jobModal(page, ad)).toContainText("Öppna annonsen");
+  });
+}
+
 // A listed record that is gone stays inside the signed-in shell (#1987): the modal says so over the unmoved list,
 // where the slot's notFound() used to swap the whole shell for the public 404 frame. The heading's position and the
 // opener's node tell a soft navigation from a hard one, which would keep the shell too.

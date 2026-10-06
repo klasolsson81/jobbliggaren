@@ -311,8 +311,8 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
   });
 
   it("the <=720px arm takes the icon plate out with `display: none`, never a hidden box", () => {
-    // The /sparade plate is a link: a box that is only invisible keeps a focus stop on nothing
-    // (WCAG 2.4.3, 2.4.7). design-reviewer's condition 5 in #1875's form check.
+    // A box that is only invisible keeps its grid track and gap below 720px. design-reviewer's
+    // condition 5 in #1875's form check.
     const plate = readRules(GLOBALS).filter(
       (r) => r.selector === ".jp-job--icon > .jp-job__match" && inNarrowArm(r)
     );

@@ -35,9 +35,10 @@ type Line = { kind: "unread" } | { kind: "shown"; on: string } | { kind: "spent"
  * to tell them why their click did nothing and their input is gone. This line
  * says so, once: the reload left a stamp in `sessionStorage`
  * (`STALE_BUILD_RELOADED_NOTICE_KEY`), the line reads it once after mount,
- * removes it, and shows the text on the page it was read on. The first
- * navigation to another path retires it for good — a return to that page shows
- * no line, because the line is about THIS page's reload (ADR 0047).
+ * removes it, and shows the text on the page it was read on once the document
+ * has loaded. The first navigation to another path retires it for good — a
+ * return to that page shows no line, because the line is about THIS page's
+ * reload (ADR 0047).
  *
  * The live region's container is in the DOM from the first paint and is
  * filled after the storage read, so assistive technology announces the
@@ -59,12 +60,24 @@ export function ReloadedAfterUpdateNotice({ placement }: { placement: ReloadedAf
 
   useEffect(() => {
     if (line.kind !== "unread") return;
-    // The whole read — get, remove, show — runs in the scheduled step and nothing in
-    // the set-up. Under StrictMode (on in `next dev`) the set-up runs twice with the
-    // clean-up between: a stamp consumed by a set-up whose scheduled show was then
-    // cancelled is a line that never appears. The scheduled step is also the house
-    // form for a state change an effect must make (react-hooks/set-state-in-effect).
-    const id = setTimeout(() => {
+    let frame = 0;
+    let show: ReturnType<typeof setTimeout> | undefined;
+    // Chromium restores a reloaded page's scroll position at the first layout after the
+    // load, anchored to the content: a line committed before that layout pushes the anchor
+    // down, and the restore scrolls the page by the line's height, under the sticky header
+    // (#1988). So the line waits for the load and then one frame: a frame callback runs
+    // before that layout, a timer after it.
+    const reveal = () => {
+      frame = requestAnimationFrame(() => {
+        show = setTimeout(() => setLine({ kind: "shown", on: pathname }), 0);
+      });
+    };
+    // The read — get, remove — runs in the scheduled step and nothing in the set-up.
+    // Under StrictMode (on in `next dev`) the set-up runs twice with the clean-up
+    // between: a stamp consumed by a set-up whose scheduled show was then cancelled is a
+    // line that never appears. The scheduled step is also the house form for a state
+    // change an effect must make (react-hooks/set-state-in-effect).
+    const read = setTimeout(() => {
       let stamp: string | null = null;
       try {
         stamp = window.sessionStorage.getItem(STALE_BUILD_RELOADED_NOTICE_KEY);
@@ -72,9 +85,16 @@ export function ReloadedAfterUpdateNotice({ placement }: { placement: ReloadedAf
       } catch {
         stamp = null;
       }
-      setLine(stamp === null ? { kind: "spent" } : { kind: "shown", on: pathname });
+      if (stamp === null) setLine({ kind: "spent" });
+      else if (document.readyState === "complete") reveal();
+      else window.addEventListener("load", reveal, { once: true });
     }, 0);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(read);
+      cancelAnimationFrame(frame);
+      clearTimeout(show);
+      window.removeEventListener("load", reveal);
+    };
   }, [line.kind, pathname]);
 
   const visible = line.kind === "shown";

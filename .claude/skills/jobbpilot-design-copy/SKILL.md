@@ -274,7 +274,7 @@ Specifik knapp-text. Konkret konsekvens.
 | Situation | ✅ Ja | ❌ Nej |
 |---|---|---|
 | Radera CV-knapp | "Radera CV" | "Bekräfta" eller "OK" |
-| Dialog-text | "Radera Klas-CV-v3? Detta kan inte ångras efter 30 dagar." | "Är du säker?" |
+| Dialog-text | "Radera Klas-CV-v3? Du är på väg att radera Klas-CV-v3 permanent, inklusive en eventuell sparad originalfil. Det går inte att ångra." | "Är du säker?" |
 | Frånkoppla Gmail | "Koppla bort Gmail? JobbPilot kommer inte längre läsa inkorgen." | "Vill du verkligen?" |
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 

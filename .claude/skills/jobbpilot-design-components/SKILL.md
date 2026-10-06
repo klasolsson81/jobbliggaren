@@ -79,9 +79,10 @@ Variants:
 
 Rules:
 - One primary button per form — never two side-by-side
-- Destructive actions require a confirmation dialog before executing
+- Destructive actions require a confirmation dialog before executing, with four exceptions that run at once. The user can undo three of them where the item came from (WCAG 3.3.4): removing the bookmark of an ad that still exists (Spara on the ad), unfollowing a company without a filter (Bevaka) and removing a recent search (running the same search again). The fourth is removing the bookmark of an ad that no longer exists: the ad is already gone, and the row holds only the date it was saved, which the other three do not bring back either. Unfollowing a company whose watch has a filter is confirmed, because Bevaka brings the watch back without its filter.
+- Removal from a list: if focus is lost when a row or a card is removed, it goes to the next row's or card's first stop, else the previous one's, else the page h1 (`tabIndex={-1}`). The list's own `role="status"` stays when the list empties and says what was removed, outcome first and the name after a colon ("Bokmärket har tagits bort: Undersköterska, natt"); `useRowRemoval` and `RemovalStatus` implement both. The chips in Matchning (#1918) follow the same order, but after the last chip focus goes to the owner's control for adding or choosing (`useChipRemovalFocus`).
 - Icon-only buttons require `aria-label`
-- Loading state: replace label with "Sparar…" and set `disabled`; keep width
+- Loading state: replace label with "Sparar…" and set `disabled`; keep width. A control that has focus while its action runs may instead carry `aria-disabled` and a guard in its handler, because a `disabled` control that has focus drops it to `<body>` (#1391). A remove button on a row or a card in a list always takes that form. The Spara and Bevaka toggles are never `disabled` or `aria-disabled` while they wait (Klas, 2026-05-23).
 - An action that is not built yet: DESIGN.md §6 (ADR 0150 D2)
 
 ### Card
@@ -217,7 +218,7 @@ Every Dialog must:
 - Have an explicit close button (ghost variant, top-right)
 - Close on Escape key
 - Trap focus inside while open
-- Return focus to the trigger element on close
+- Return focus to the trigger element on close; when the confirmed action removed the trigger's row or card, focus follows "Removal from a list" (Button, Rules) instead
 
 ```tsx
 <Dialog>
@@ -227,7 +228,7 @@ Every Dialog must:
   <DialogContent>
     <DialogTitle>Radera CV-v3?</DialogTitle>
     <DialogDescription>
-      Detta kan inte ångras efter 30 dagar.
+      Du är på väg att radera CV-v3 permanent, inklusive en eventuell sparad originalfil. Det går inte att ångra.
     </DialogDescription>
     <DialogFooter>
       <Button variant="ghost">Avbryt</Button>

@@ -11,8 +11,13 @@ const LINE = "Jobbliggaren har uppdaterats och sidan laddades om. Gör om det du
 // The stamp is what `stampAndReload` (the core) writes right before the
 // document is replaced: a timestamp under the notice key.
 const stamp = () => sessionStorage.setItem(STALE_BUILD_RELOADED_NOTICE_KEY, String(Date.now()));
-// Longer than two frames: a line that should not show would arrive a frame after the read.
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+// A line that should not show would arrive a frame and a timer after the read; three frames
+// and a timer outlast that whichever frame the read lands in, however long jsdom's frames take.
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+const settle = async () => {
+  for (let i = 0; i < 3; i++) await nextFrame();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 describe("ReloadedAfterUpdateNotice (ADR 0148 D7)", () => {
   beforeEach(() => {

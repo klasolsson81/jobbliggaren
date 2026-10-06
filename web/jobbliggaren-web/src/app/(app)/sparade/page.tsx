@@ -13,6 +13,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
+const HEADING_ID = "sparade-heading";
+
 /**
  * F6 P5 Punkt 2 Del A — `/sparade`-sidan. Listar inloggad användares
  * bokmärkta annonser. Paritet `/sokningar` (ADR 0060 FE-arbetet).
@@ -37,7 +39,9 @@ export default async function SparadePage() {
   return (
     <div className="jp-container jp-page flex flex-col">
       <div>
-        <h1 className="jp-h1">{t("sparade.title")}</h1>
+        <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
+          {t("sparade.title")}
+        </h1>
       </div>
 
       <div className="mt-7">{renderResult(result, t)}</div>
@@ -51,7 +55,7 @@ function renderResult(
 ) {
   switch (result.kind) {
     case "ok":
-      return <SavedJobAdList items={result.data} />;
+      return <SavedJobAdList items={result.data} headingId={HEADING_ID} />;
     case "unauthorized":
       redirect("/logga-in");
     case "rateLimited":

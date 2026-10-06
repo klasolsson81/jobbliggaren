@@ -228,7 +228,7 @@ Every `<Dialog>` must have:
   a lede; a dialog without one (DESIGN.md §8 rule 2) renders no
   `<DialogDescription>`, and Radix then sets no `aria-describedby`
 - Focus trapped inside while open (shadcn handles)
-- Focus returns to trigger element on close (shadcn handles)
+- Focus returns to trigger element on close (shadcn handles); when the confirmed action removed the trigger's row or card, focus follows "Removal from a list" in `jobbpilot-design-components` (Button, Rules) instead
 - Escape key closes (shadcn handles)
 
 ### Skip link

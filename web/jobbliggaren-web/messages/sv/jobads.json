@@ -10,6 +10,8 @@
     "removeBookmark": "Ta bort bokmärke",
     "openExternal": "Öppna annonsen på externa webbplatsen",
     "removeBookmarkFor": "Ta bort bokmärke för {title}",
+    "bookmarkRemoved": "Bokmärket har tagits bort.",
+    "bookmarkRemovedFor": "Bokmärket har tagits bort: {title}",
     "toggle": {
       "saved": "Sparad",
       "save": "Spara",
@@ -96,6 +98,7 @@
     "hits": "{currentCount, plural, one {<b>#</b> träff} other {<b>#</b> träffar}}",
     "runAgain": "Kör igen",
     "removeSearch": "Ta bort sökningen: {label}",
+    "searchRemoved": "Sökningen har tagits bort: {label}",
     "label": {
       "all": "Alla annonser",
       "remoteLeading": "Distans",

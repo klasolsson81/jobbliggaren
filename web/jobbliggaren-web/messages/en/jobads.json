@@ -10,6 +10,8 @@
     "removeBookmark": "Remove bookmark",
     "openExternal": "Open the ad on the external website",
     "removeBookmarkFor": "Remove bookmark for {title}",
+    "bookmarkRemoved": "The bookmark has been removed.",
+    "bookmarkRemovedFor": "The bookmark has been removed: {title}",
     "toggle": {
       "saved": "Saved",
       "save": "Save",
@@ -96,6 +98,7 @@
     "hits": "{currentCount, plural, one {<b>#</b> hit} other {<b>#</b> hits}}",
     "runAgain": "Run again",
     "removeSearch": "Remove the search: {label}",
+    "searchRemoved": "The search has been removed: {label}",
     "label": {
       "all": "All job ads",
       "remoteLeading": "Remote",

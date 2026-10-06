@@ -27,7 +27,7 @@ export interface RowRemoval {
  * with it and the browser drops focus to `<body>`.
  *
  * The trigger is the commit in which a started row's id is no longer rendered, whichever update removed
- * it: the owner's optimistic state or the refreshed server payload, which commit in no fixed order. Commits
+ * it: the owner's optimistic state or the refreshed server payload. Commits
  * that still render the id do nothing, which is why `useFocusAfterCommit` (resolved on the next commit)
  * cannot carry this. Focus then goes to the next row's first stop, else the previous row's, else
  * `fallback()`, and only when it was lost: a user who has moved on keeps their place.

@@ -907,12 +907,15 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            (`vps-deploy-stack.md` §3f), eller Basic-auth borttagen eller kringgången på ett värdnamn
            som servar copyn — **samma händelse som §2.6:s publika ögonblick**; (d) första utskick
            till annan mottagare än Klas.
-           ⚠ **Klas-beslut 2026-10-05 om (c) vid domänflytten:** *"Ja, står kvar som mitt beslut"* —
-           ADR 0133:s ben (b) och (c) och invändningsrätten i Art. 7.4 står efter flytten som hans
-           beslut som personuppgiftsansvarig (Art. 24(1)). Inte en §9.6-acceptans, och det bär
-           ingen signatur av `security-auditor`. Det gäller (c) ensamt; (a), (b) och (d) förfaller
-           som skrivet. Källa: [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-5993888584);
-           härledning: ADR 0133 `Amendment 2026-10-05` (lokal).
+           ⚠ **Klas-beslut om (c) och (d) vid domänflytten:** 2026-10-05 om (c), *"Ja, står kvar som
+           mitt beslut"*, och 2026-10-06 om (d), *"Ja, står kvar (Rek.)"* — ADR 0133:s ben (b) och (c)
+           och invändningsrätten i Art. 7.4 står kvar som hans beslut som personuppgiftsansvarig
+           (Art. 24(1)) när (c) eller (d) fyrar. Inte en §9.6-acceptans, och det bär ingen signatur av
+           `security-auditor`. Vid (a) eller (b) förfaller besluten som skrivet. Källor:
+           [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-5993888584) (c),
+           [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-6009264278) (d);
+           härledning: ADR 0133, Amendment 2026-10-05 och 2026-10-06
+           (lokala).
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
            ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
            GRADERINGEN av den.** (1) Sätts `SITE_ADMISSION=open` — eller tas direktivet bort eller
@@ -1153,11 +1156,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > egen lärdom (#861, samma epik-uppsättning: en CI-defekt besvaras inte med en
 > mänsklig regel; *fail loud over fail silent*) gäller lika här.
 >
-> **En mekanisk grind är skyldig, och skyldigheten är placerad:** epik #1034
-> (`make the flow's gates mechanically enforced, not remembered`). Den byggs
-> tillsammans med prod-pipelinen (Hetzner-cutover, ADR 0050) — det finns idag
-> **inget tagg-triggat workflow alls** att hänga en grind på (`deploy-dev.yml`:s
-> `push: tags`-trigger är borttagen). Därför är checklistan det rätta
+> **En mekanisk grind är skyldig.** Därför är checklistan det rätta
 > *interim*-instrumentet, inte sluttillståndet.
 >
 > **Den mekaniska grinden ska levereras före den första merge efter det publika ögonblicket
@@ -1169,9 +1168,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > eftersom det bevisar kännedom (Art. 5(2)/24(1)).
 > ⚠ **EXPONERINGSFÖNSTRET ÄR INTE LÄNGRE TOMT, OCH DET ÄR TVÅ SKYLDIGHETER SOM INTE
 > LÖSER UT VARANDRA** (2026-08-16, #183 E5). Den **mekaniska** grinden behövs alltjämt
-> inte före en prod-deploy, och #1034:s mekanism rider samma prod-pipeline — den
-> halvan av det som stod här är oförändrad, och tidplanen är fortfarande en
-> tillfällighet tills den skrivs ut, vilket den härmed är. Men **markörernas
+> inte före det publika ögonblicket. Men **markörernas
 > sanningshalt är en egen skyldighet som redan har fallit ut:** e-postarmen
 > aktiverades 2026-08-16 medan §2.5 punkt 1 bar KVAR, och punkt 1 nedan namnger
 > vilka rader som därmed är falska i dag och vilken som inte är det. **Läs den
@@ -1210,7 +1207,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > vilket som kommer först".
 > ⚠ **DEN ANDRA HALVAN AV DET VILLKORET ÄR FÖRBRUKAD** (`security-auditor` 2026-08-16, #183 E5):
 > **flippen är inte längre en utlösande händelse** — den skedde 2026-08-16 och domen är INGEN
-> Blocker. Prod-deploy-halvan står oförändrad och är §2.6:s egen trigger. **Schemat har ett enda
+> Blocker. **Schemat har ett enda
 > hem — §2.5 punkt 1 led (e) förutsättning 5 — och den här raden citerar det, den bär det inte.**
 >
 > ⚠ **OCH BREVLÅDAN GÖR STRATO TILL BITRÄDE I EN ANDRA FUNKTION.** Registrets bestämning
@@ -1963,9 +1960,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         garanti**: count-only 2026-09-06 bär **71 054 av 71 054** annonser en `url` — noll fall utan
         länk i dagens korpus.
       - **Att öppna en sökväg i basic_auth skulle riva den 401-mätning Art. 12-omgraderingen vilar
-        på.** `deploy/caddy/Caddyfile`s eget block säger det: *"one of the measurements is that this
-        site answers 401 on every path. Remove or bypass this block — even briefly, even for a demo —
-        and that fires the checklist's trigger (c)."* Rutt (b) i förtid kostar alltså en trigger,
+        på.** Rutt (b) i förtid kostar alltså en trigger,
         inte bara en konfigrad. ⚠ **Men kostnaden undviks inte av rutt (c) — den skjuts upp och
         VIDGAS:** vid lansering tas blocket bort **helt, för varje sökväg**, så trigger (c) fyrar
         bredare då än rutt (b) hade gjort nu. §2.5 förutsättning 5:s E5-dom vilar på just
@@ -2315,7 +2310,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         under det fönstret.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
-      - **(a) Det publika ögonblicket:** flippen deployas **samtidigt** med
+      - **(a) Inga registrerade utöver Klas:** flippen landar i **samma release** som
         aktiveringen. Förhandsinformation är då varken möjlig eller krävd — men läs (b) nedan
         först: finns registrerade konton redan, är det (b) som gäller, inte den här punkten.
       - **(b) Senare release med befintliga registrerade:** informationen

@@ -231,11 +231,9 @@ ca=$($C exec -T caddy printenv ACME_CA) || { echo "REFUSING: printenv failed"; e
   { echo "REFUSING: running CA is [$ca], not production"; exit 1; }
 
 # 3b. THE END STATE IS ITS OWN MEASUREMENT (verification-log row 6b). Rows 5 and 6 prove the
-#     PROOF modes; nothing above proves the box was LEFT with both challenges live. Two ways to
-#     fail that no certificate reveals: a left-over mode, and a glob value —
-#     ACME_CHALLENGE_MODE=* imports all three snippets and adapts exit 0 with BOTH challenges
-#     disabled (measured). Every plain typo fail-closes; the glob does not. Both issue fine at
-#     cutover and kill the RENEWAL about 60 days later.
+#     PROOF modes; nothing above proves the box was LEFT with both challenges live. A left-over
+#     mode fails in a way no certificate reveals: it issues fine at cutover and kills the
+#     RENEWAL about 60 days later.
 #
 #     CAPTURE, THEN JUDGE — never `adapt | grep && refuse || ok`. A pipeline's exit code is
 #     grep's, not adapt's: with the container down or the config broken, stdout is empty, grep
@@ -1077,8 +1075,8 @@ preflight() {  # the edge must load the .env as it now stands; adapt's output ho
     || { echo "REFUSING: the edge does not load this .env"; return 1; }
   sudo grep -E '^(SITE_HOST|SITE_ALIASES|SITE_ADMISSION)=' "$E"
 }
-apply() { sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager \
-  && sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status; }
+apply() { sudo systemctl start jobbliggaren-reconcile.service; journalctl -u jobbliggaren-reconcile -n 40 --no-pager; \
+  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status; }
 heads() { curl -sSI "$@" | grep -iE '^(HTTP|strict-transport-security|location|server)'; }  # operator's machine
 ```
 
@@ -1092,7 +1090,7 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 |---|---|---|---|---|
 | 1 | Session | The release carrying the seams is applied (A2, *Advancing the checkout*); `--status`; `heads https://dev.jobbliggaren.se/` | `verdict: consistent`; `401` with one HSTS line — the edge as before | Stop; the visit waits |
 | 2 | Session | DNS baseline, the rollback values: `dig +short A jobbliggaren.se @shades02.rzone.de`, the same for `AAAA`, `www` and `dev.`, and again `@docks15.rzone.de` | Recorded in the session log (public DNS data) | — |
-| 3 | Session + `security-auditor` | ADR 0050 §8's second review against the production configuration, basic auth still up, on the M-5b set below (column *before*) | No open Blocker | A Blocker stops the visit (STOPP to Klas) |
+| 3 | Session + `security-auditor` | ADR 0050 §8's second review against the production configuration, basic auth still up, on the M-5b set below (column *before*) | No open Blocker | A Blocker stops the visit (STOPP to Klas); a new Major goes to Klas before step 11 |
 
 **At the visit — before anything opens**
 
@@ -1106,27 +1104,27 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 
 | # | Who | Action | Expected | On failure |
 |---|---|---|---|---|
-| 7 | Session | `setkey SITE_HOST jobbliggaren.se; setkey SITE_ALIASES apex; sudo grep -qx 'SITE_ALIASES=apex' "$E" && preflight && apply` | The three keys print as set; `reconcile complete`; `verdict: consistent` | A refusing preflight leaves the running edge as it was: correct the key, never `apply` past it |
-| 8 | Session, operator's machine | `heads https://jobbliggaren.se/`; `echo \| openssl s_client -connect jobbliggaren.se:443 -servername jobbliggaren.se`, and the same for `www`; `heads 'https://www.jobbliggaren.se/p?q=1'` and `heads 'https://dev.jobbliggaren.se/p?q=1'`; `heads http://jobbliggaren.se/`; a name the edge does not serve, against the box's address (`--resolve unknown.invalid:443:<IPv4>`) | Apex `401` with one HSTS line; `Verify return code: 0 (ok)` for both names (issuance can take a minute); `www` `308` and `dev.` `302`, each with `location: https://jobbliggaren.se/p?q=1` and one HSTS line; `http://` redirects to `https://` **without** HSTS, as RFC 6797 §8.1 requires — do not "fix" it; the unknown name gets no certificate | R2 |
+| 7 | Session | `setkey SITE_HOST jobbliggaren.se; setkey SITE_ALIASES apex; sudo grep -qx 'SITE_ALIASES=apex' "$E" && preflight && apply` | The three keys print as set; `reconcile complete`; `verdict: consistent` | A refused key stays in `.env`, and the hourly reconcile applies it without a preflight: run R2's three `setkey` and `preflight` at once |
+| 8 | Session, operator's machine | `heads https://jobbliggaren.se/`; `echo \| openssl s_client -connect jobbliggaren.se:443 -servername jobbliggaren.se`, and the same for `www`; `heads 'https://www.jobbliggaren.se/p?q=1'` and `heads 'https://dev.jobbliggaren.se/p?q=1'`; `heads http://jobbliggaren.se/`; a name the edge does not serve, against the box's address (`--resolve unknown.invalid:443:<IPv4>`) | Apex `401` with one HSTS line; `Verify return code: 0 (ok)` for both names (issuance can take a minute); `www` `308` and `dev.` `302`, each with `location: https://jobbliggaren.se/p?q=1` and one HSTS line; `http://` redirects to `https://` **without** HSTS, as RFC 6797 §7.2 requires — do not "fix" it; the unknown name gets no certificate | R2 |
 
 **Before Switch 2 — what the public moment rests on**
 
 | # | Who | Action | Expected | On failure |
 |---|---|---|---|---|
 | 9 | Session + Klas | Re-read `vps-deploy-stack.md` row 36's five legs (step 6 edited the zone, and MX has been overwritten silently before); Klas sends to `kontakt@jobbliggaren.se` from an outside address and confirms receipt | All five legs as row 36 records them; the mail arrives | Switch 2 waits: precondition 5 does not hold |
-| 10 | Session | `release-checklist.md` §2.6 point 2, then point 1, against the box as it runs; and the consent-gated notifications are still dark: `sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc 'select (select count(*) from user_job_ad_matches where sent_at is not null), (select count(*) from followed_company_ad_hits where sent_at is not null);'` | Every "planerat" row is still true; `0\|0` | Switch 2 waits: a false row would be published (ADR 0090 D3) |
-| — | Klas | Switch 2 lets anyone fire ADR 0133 trigger (d): the login form mails an address that has no account. Klas's decision on (d) is written in ADR 0133 before step 11 | Recorded | Switch 2 waits |
+| 10 | Session | Note `--status`'s `source`; `release-checklist.md` §2.6 point 2, then point 1, against that release; and the consent-gated notifications are still dark: `sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc 'select (select count(*) from user_job_ad_matches where sent_at is not null), (select count(*) from followed_company_ad_hits where sent_at is not null);'` | Every "planerat" row is still true; `0\|0` | Switch 2 waits: a false row would be published (ADR 0090 D3) |
+| — | Klas | Switch 2 lets anyone fire ADR 0133 trigger (d): the login form mails an address that has no account | Klas's 2026-10-06 decision stands beside trigger (d) in `release-checklist.md` §2.5 point 1 precondition 5 | Switch 2 waits |
 
 **Switch 2 — admission opens (the public moment)**
 
 | # | Who | Action | Expected | On failure |
 |---|---|---|---|---|
-| 11 | Session | `setkey SITE_ADMISSION open; sudo grep -qx 'SITE_ADMISSION=open' "$E" && preflight && apply` | `reconcile complete`; `verdict: consistent` | R1 |
+| 11 | Session | `setkey SITE_ADMISSION open; sudo grep -qx 'SITE_ADMISSION=open' "$E" && preflight && apply` | `reconcile complete`; `verdict: consistent` on step 10's `source` | R1, then step 10 again: a release that landed in between opened on copy step 10 never read |
 | 12 | Session, operator's machine | `curl -s -o /dev/null -w '%{http_code}\n'` on `https://jobbliggaren.se/` and `/kontaktperson-i-annons`, no credentials | `200` on both — M1's anonymous 200. **Only a 200 proves the switch:** a mistyped value keeps the gate, and its 401 is indistinguishable from never having switched | R1 if anything else |
 | 13 | Session, operator's machine | Gate M-5a with admission open, on Caddy's own responses (C6): `heads` on the apex `/`, on `/.well-known/acme-challenge/probe`, on step 8's two redirects, and on a protected deep link (`/oversikt`) | `200` with two HSTS lines; the ACME `404` with one HSTS line and `server: Caddy` (no Next headers); `308` and `302` with path and query kept and one HSTS line; the deep link `3xx` to `/logga-in`. A `503` while `web` is down is not induced live: `deploy/caddy/edge-modes.test.sh` proves it on the image, for this source and caddy v2.11.4 | R1 |
 | 14 | Session, operator's machine | For `google`, `github` and `linkedin`: `curl -s -D - -o /dev/null https://jobbliggaren.se/api/auth/oauth/<p>/start \| grep -i '^location' \| grep -o 'redirect_uri=[^&]*'` — the parameter alone | `redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2F<p>%2Fcallback` (`SITE_HOST` → `Email__BaseUrl` → every `redirect_uri`) | R1, then step 5's console |
 | 15 | Session | `registration-gate.md`'s refused-registration probe with its baseline counts; the same account count before and after Klas's step 17 | `HTTP 503`, `Auth.RegistrationsClosed`; counts identical | R1 and STOPP: the closed registration this move relies on is not closed |
-| 16 | Session + `security-auditor` | Re-grade gate M-5b on the set below (column *after*) and N-1 arm (2) on its instrument below | No open Blocker. ADR 0050 §8's second review is not closed until this re-grade is recorded | R1 and STOPP to Klas: a Blocker has no §9.6 route |
+| 16 | Session + `security-auditor` | Re-grade gate M-5b on the set below (column *after*) and N-1 arm (2) on its instrument below | No open Blocker. ADR 0050 §8's second review is not closed until this re-grade is recorded | A Blocker: R1 and STOPP to Klas, since it has no §9.6 route. A new Major: R1, and Klas decides |
 | 17 | Klas | Sign in on the apex with each provider and cancel each once (#734 row 12); try one email code and one OAuth identity that is not linked, both with addresses he holds — any other address fires (d) | Signed in on `jobbliggaren.se`; cancel lands on the apex; the two unknown identities create no account (step 15's count) | R1, then the provider's console |
 
 **M-5b's measurement set** (ADR 0050 §5; statuses and counts only, never a body):
@@ -1137,7 +1135,7 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 | 2 Option B + app auth | From `docker exec jobbliggaren-caddy` against `web:3000`: `/api/v1/{dev,admin,auth}/*` → `404`; BFF handlers `401`/`403`/`405` (`200` only for health, landing stats and OAuth start); protected prefixes and `/admin` → `3xx` | The same matrix, anonymously against the apex |
 | 3 Per IP | Klas, with his credential: `429`/`503` from two networks differ; `count(distinct <ip column>)` in `audit_log` for his own events since t0 ≥ 2, the user id kept inside the command | The same two measurements |
 | 4 forward/IPv6 | `nft` counts: forward `policy drop` ≥ 1, `policy accept` 0; Docker networks' `EnableIPv6`; v6 listeners | — |
-| 5 Credential | `git grep -cE '\$2[aby]\$' -- deploy` = 0; `sudo grep -c '^BASIC_AUTH_HASH=.' "$E"` = 1, the value never read | The same (R1 needs it) |
+| 5 Credential | `git grep -nE '^[^#]*\$2[aby]\$' -- deploy \| wc -l` = 0; `sudo grep -c '^BASIC_AUTH_HASH=.' "$E"` = 1, the value never read | The same (R1 needs it) |
 | 6 `0.0.0.0` | From outside, to 5432, 6379, Seq, 8080, 3000 and 2019: connection refused; `docker ps` ports | — |
 | 7 Caps and timeouts | `edge-modes.test.sh` and `scripts/edge-probe.mjs` on the image; caddy's memory limit read (metadata) for the `lb_try_duration` amplification with the gate open | Optionally live: an oversized body → `413` |
 
@@ -1172,9 +1170,10 @@ gate's hash. Never read `/config/apps`, and never pipe `caddy adapt` to a filter
   names the apex.
 - The next PR syncs what the move made stale: this runbook's rows 6c, 8 and 9, `registration-gate.md`'s
   `dev.` host and K2 lines, and `.env.example`'s `SITE_HOST` value.
+- Klas removes the `dev.` callbacks at the providers once R2 is no longer needed, and before `dev.` points anywhere else.
 - #1768 closes with a dated, sanitised summary.
 - Unchanged by the move, before the first user who is not Klas: #734, #197, `release-checklist.md` §2.7,
-  #734 row 10, M-7, and ADR 0132/0133 triggers (a) and (b).
+  #734 row 10, and ADR 0132/0133 triggers (a) and (b).
 
 ## 4. Host-side prerequisites
 
@@ -1318,7 +1317,7 @@ that came from the older one.
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | `shared_buffers 640MB` · `effective_cache_size 1536MB` · `work_mem 8MB` · `maintenance_work_mem 192MB` · `autovacuum_work_mem 64MB` · `max_connections 60` · `max_wal_size 4GB` — every value explicit, none a default | 2026-08-06 |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}` **on the policy whose `subjects` contain `SITE_HOST`** — the adapted config carries two automation policies and a bare substring match would be satisfied by either). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | **Half A:** `"msg":"trying to solve challenge","challenge_type":"http-01"`, then **five** `"served key authentication","challenge":"http-01"` lines from five Let's Encrypt validation nodes (66.133.109.36, 51.20.52.251, 3.19.55.58, 54.185.127.228, 13.229.69.141), then `certificate obtained successfully`. Those five lines are also the strongest form of the M-5a gate: **the K2 basic-auth gate does not shadow the challenge path**, proven by external validators fetching through it, not by reading the Caddyfile. **Half B:** the adapted config carries **two** automation policies; the one whose `subjects` are `["dev.jobbliggaren.se"]` carries `{"tls-alpn":{"disabled":true}}` and the other carries no `challenges` key at all — which is precisely why this instrument names the SITE_HOST policy instead of substring-matching the document | 2026-08-08 |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | **Half A:** `"challenge_type":"tls-alpn-01"`, then five `"served key authentication certificate","challenge":"tls-alpn-01"` lines from five validation nodes, then `certificate obtained successfully`. **Half B:** the SITE_HOST policy carries `{"http":{"disabled":true}}` — the exact mirror of row 5 | 2026-08-08 |
-| 6b | The box was LEFT with both challenges live | `caddy adapt` **inside the running container** shows no `"challenges"` key at all. Rows 5 and 6 measure the PROOF modes; this measures the END state, and nothing else does — a left-over mode or a glob value — plus a pre-seam image, which the gate detects separately by asserting the snippet exists, (`ACME_CHALLENGE_MODE=*` imports all three snippets and disables BOTH, exit 0, measured) all issue a valid certificate at cutover and kill the RENEWAL ~60 days later | All four gates passed on the end state: `adapt` captured (1 542 bytes, exit 0 — judged after capture, never through a pipe); `/etc/caddy/challenge/both.caddy` present, so the running image is post-seam; **no `"challenges"` key anywhere in the adapted config**, so neither challenge is disabled; `adapt` additionally warns `Import file is empty` for `both.caddy`, which is the empty-snippet invariant announcing itself. `.env` left with both keys commented (`#ACME_CHALLENGE_MODE=both`, `#ACME_CA=`) | 2026-08-08 |
+| 6b | The box was LEFT with both challenges live | `caddy adapt` **inside the running container** shows no `"challenges"` key at all. Rows 5 and 6 measure the PROOF modes; this measures the END state, and nothing else does — a left-over mode — plus a pre-seam image, which the gate detects separately by asserting the snippet exists, all issue a valid certificate at cutover and kill the RENEWAL ~60 days later | All four gates passed on the end state: `adapt` captured (1 542 bytes, exit 0 — judged after capture, never through a pipe); `/etc/caddy/challenge/both.caddy` present, so the running image is post-seam; **no `"challenges"` key anywhere in the adapted config**, so neither challenge is disabled; `adapt` additionally warns `Import file is empty` for `both.caddy`, which is the empty-snippet invariant announcing itself. `.env` left with both keys commented (`#ACME_CHALLENGE_MODE=both`, `#ACME_CA=`) | 2026-08-08 |
 | 6c | The PRODUCTION certificate is trusted by a client that was told nothing — the cutover's actual end goal, and the only row a browser would agree with | `curl -sSI https://dev.jobbliggaren.se` **without `-k`** plus `openssl s_client` **from the operator's machine, not the box** — a box-side curl shares the box's trust store and its own resolver, so it cannot speak for a browser | `HTTP/1.1 401` with no TLS error, and the chain verifies to a public root: `depth=0 CN=dev.jobbliggaren.se` ← `depth=1 C=US, O=Let's Encrypt, CN=YE2` ← `depth=2 O=ISRG, CN=Root YE` ← `depth=3 ISRG Root X2`, `Verification: OK`, **`Verify return code: 0 (ok)`**. Issuance was `challenge_type: tls-alpn-01` against `https://acme-v02.api.letsencrypt.org/directory` on a newly created production account, spending **one** of the five weekly duplicate slots. The staging tree remains beside it — storage is CA-scoped, so it is inert | 2026-08-08 |
 | 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | `404` **and `Server: Caddy`** on `/.well-known/acme-challenge/nonexistent`; no `Via`, no upstream `Server`. The edge answers, nothing proxies | 2026-08-06 |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI https://dev.jobbliggaren.se/` — over **HTTPS**, which is the only scheme the header is emitted on and the only one a browser would honour it from | `HTTP/1.1 401` + `Strict-Transport-Security: max-age=31536000; includeSubDomains` + `Server: Caddy`. The header is on the FIRST response a browser meets, before Next is reached | 2026-08-06 |

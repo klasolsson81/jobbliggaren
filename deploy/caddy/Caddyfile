@@ -57,7 +57,7 @@
 	#
 	# A `log` DIRECTIVE ADDED TO THE SITE BELOW WOULD BE A SEPARATE LOGGER that inherits
 	# none of this and logs EVERY request rather than only 5xx. The pin holds this file
-	# and `challenge/*.caddy` to exactly one `log` directive, inside these global options.
+	# to exactly one `log` directive, inside these global options.
 	log {
 		format filter {
 			wrap json
@@ -218,6 +218,15 @@
 	}
 
 	handle {
+		# ADMISSION (#1768, ADR 0154). The gate stands unless SITE_ADMISSION is exactly `open`.
+		# `{env.…}` is read per request as DATA; a parse-time `{$…}` would splice the value into the
+		# expression as CODE (a quote in it changed the expression). Unset reads as "" and is
+		# gated. If evaluation errors, Caddy aborts the request rather than skipping the gate.
+		# Measured 2026-10-06 on 2.11.4: `Open`, ` open`, `o*`, `open x`, empty and quote-bearing
+		# values all gate and the edge keeps running. edge-modes.test.sh re-runs that matrix on every
+		# image build; CaddyfileAdmissionPinTests holds this exact text.
+		@gated `{env.SITE_ADMISSION} != "open"`
+
 		# THIS DIRECTIVE NOW CARRIES A GDPR CONCLUSION, NOT ONLY ACCESS CONTROL (#734).
 		# While it stands — SITE_ADMISSION anything but exactly `open` — the site answers 401 on
 		# every path but the ACME prefix, and that 401 is the readability measurement trigger (c)
@@ -254,14 +263,6 @@
 		# returns zero on the English file:
 		#   grep -n "Notiserna planeras att skickas med e-post" web/jobbliggaren-web/messages/sv/content-legal.json
 		#   grep -n "The notifications are planned to be sent by email" web/jobbliggaren-web/messages/en/content-legal.json
-		# ADMISSION (#1768, ADR 0154). The gate stands unless SITE_ADMISSION is exactly `open`.
-		# `{env.…}` is read per request as DATA; a parse-time `{$…}` would splice the value into the
-		# expression as CODE (a quote in it changed the expression). Unset reads as "" and is
-		# gated. If evaluation errors, Caddy aborts the request rather than skipping the gate.
-		# Measured 2026-10-06 on 2.11.4: `Open`, ` open`, `o*`, `open x`, empty and quote-bearing
-		# values all gate and the edge keeps running. edge-modes.test.sh re-runs that matrix on every
-		# image build; CaddyfileAdmissionPinTests holds this exact text.
-		@gated `{env.SITE_ADMISSION} != "open"`
 		basic_auth @gated {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}

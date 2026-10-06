@@ -18,6 +18,9 @@ src/Jobbliggaren.Infrastructure/TextAnalysis/english.stop -text
 # (issue #673) — pin them so checkout never converts to CRLF.
 .claude/hooks/*.sh text eol=lf
 
+# The edge test runs under bash in CI and on a Windows workstation alike (#1768).
+deploy/caddy/*.sh text eol=lf
+
 # Same rule, and the same failure, for the scripts CI runs on ubuntu:
 # `is-pure-base-merge.sh` decides in `case` arms whether a push may keep a PR's
 # review gate armed, and a trailing `\r` would make every arm miss. It is

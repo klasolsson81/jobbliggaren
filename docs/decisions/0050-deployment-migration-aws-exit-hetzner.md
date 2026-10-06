@@ -986,7 +986,7 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > `web` är nere. 503:an induceras inte live; `deploy/caddy/edge-modes.test.sh` bevisar den på imagen,
 > för samma källa och caddy v2.11.4 — en caddy-bump öppnar frågan igen. Instrumentet är
 > `vps-deploy-stack.md` §3f. Redirecten `http://` → `https://` bär ingen HSTS och ska inte göra det
-> (RFC 6797 §8.1).
+> (RFC 6797 §7.2).
 >
 > **CAA + Strato (klausul under M-5a).** Utan CDN är "origin-TLS är hela TLS-historien"
 > bokstavligt sann: den som tar Strato-kontot får giltiga certifikat och total MITM.

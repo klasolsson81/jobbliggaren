@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -47,16 +48,32 @@ public class CaddyfileAdmissionPinTests
                 + "source. Read it with `{env.SITE_ADMISSION}`.");
 
     [Fact]
-    public void AnEnvironmentSelectedImport_NamesASnippet_NeverAPath()
+    public void EveryImport_NamesASnippetThisFileDefines()
     {
-        var selected = Lines()
-            .Where(line => line.StartsWith("import ", StringComparison.Ordinal) && line.Contains("{$"))
+        var lines = Lines();
+        var snippets = lines
+            .Select(line => SnippetDefinition.Match(line))
+            .Where(match => match.Success)
+            .Select(match => match.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var targets = lines
+            .Where(line => line.StartsWith("import ", StringComparison.Ordinal))
+            .Select(line => line["import ".Length..].Trim())
             .ToList();
 
-        selected.ShouldNotBeEmpty();
-        selected.ShouldAllBe(
-            line => !line.Contains('/'),
-            "an `import` whose argument comes from the environment must name a snippet: a path is "
-            + "a glob, so a value like `a*` selects whatever file it matches.");
+        targets.ShouldContain(target => target.Contains("{$"));
+        foreach (var target in targets)
+        {
+            // An environment-selected name resolves by its default when the variable is unset.
+            snippets.ShouldContain(
+                EnvironmentDefault.Replace(target, match => match.Groups["default"].Value),
+                $"`import {target}` must name a snippet defined in deploy/caddy/Caddyfile. A path is "
+                + "a glob, so an environment value selects whatever file it matches, and a file outside "
+                + "this one escapes every pin that reads it.");
+        }
     }
+
+    private static readonly Regex SnippetDefinition = new(@"^\((?<name>[a-z0-9_-]+)\) \{$");
+
+    private static readonly Regex EnvironmentDefault = new(@"\{\$[A-Z_]+:(?<default>[a-z0-9_]+)\}");
 }

@@ -1030,7 +1030,7 @@ jobs:
             NEXT_PUBLIC_SITE_URL=https://ci.invalid
 
       # The edge's two environment seams on the image just built (#1768): the gate stands unless
-      # SITE_ADMISSION is exactly `open`, and only SITE_ALIASES=apex adds the www/dev. redirects.
+      # SITE_ADMISSION is exactly `open`, and SITE_ALIASES=apex adds the www/dev. redirects.
       # The shipped config runs with its TLS issuer swapped to Caddy's internal CA; nothing leaves
       # the runner.
       - name: Edge modes (caddy)

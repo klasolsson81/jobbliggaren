@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import type { RefCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Clock, Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
@@ -24,7 +25,11 @@ interface RecentSearchRowProps {
    */
   count?: RecentSearchCount;
   countsPending?: boolean;
-  onDeleted: (id: string) => void;
+  /** The row's first focus stop, "Kör igen". */
+  firstStopRef?: RefCallback<HTMLElement>;
+  onDeleteStart?: (id: string) => void;
+  /** `receipt` is the sentence the list announces once the row is gone. */
+  onDeleted: (id: string, receipt: string) => void;
   onDeleteFailed: (id: string, error: string) => void;
 }
 
@@ -73,6 +78,8 @@ export function RecentSearchRow({
   item,
   count,
   countsPending = false,
+  firstStopRef,
+  onDeleteStart,
   onDeleted,
   onDeleteFailed,
 }: RecentSearchRowProps) {
@@ -81,10 +88,12 @@ export function RecentSearchRow({
   const coded = useCodedTaxonomyName();
   const [isPending, startTransition] = useTransition();
   const href = buildRecentSearchHref(item);
-  // One const, read by BOTH the heading and the remove button's accessible name. Two
-  // renderings of the same label would diverge, and WCAG 2.5.3 Label in Name is exactly
-  // that divergence (design-reviewer, PR #1533).
+  // One const, read by the heading, the remove button's accessible name and the removal
+  // receipt. Two renderings of the same label would diverge, and WCAG 2.5.3 Label in Name
+  // is exactly that divergence (design-reviewer, PR #1533).
   const label = buildRecentSearchLabel(item.label, recentSearchLabelCopy(t, coded));
+  // The search id is unique within the list, so it keys the description's IDREF.
+  const labelId = `recent-${item.id}-label`;
 
   function handleRowClick(e: React.MouseEvent<HTMLElement>) {
     // Skippa när klick var på en knapp/länk inuti raden — de bär egna handlers.
@@ -93,11 +102,17 @@ export function RecentSearchRow({
     router.push(href);
   }
 
+  // The remove button stays enabled while the action runs: a `disabled` button that has focus drops it
+  // to <body> (the focus fixup rule; measured for the language switcher in #1391). This guard is what
+  // prevents a second delete, which the backend would answer with NotFound.
   function handleDelete() {
+    if (isPending) return;
+    onDeleteStart?.(item.id);
+    const receipt = t("searchRemoved", { label });
     startTransition(async () => {
       const result = await deleteRecentSearchAction(item.id);
       if (result.success) {
-        onDeleted(item.id);
+        onDeleted(item.id, receipt);
       } else {
         onDeleteFailed(item.id, result.error);
       }
@@ -114,11 +129,18 @@ export function RecentSearchRow({
           <Clock size={20} />
         </div>
         <div className="jp-job__body">
-          <h3 className="jp-job__title">{label}</h3>
+          <h3 id={labelId} className="jp-job__title">
+            {label}
+          </h3>
           <CountMeta count={count} pending={countsPending} t={t} />
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
-          <Link href={href} className="jp-btn jp-btn--sm jp-btn--emphasis">
+          <Link
+            ref={firstStopRef}
+            href={href}
+            className="jp-btn jp-btn--sm jp-btn--emphasis"
+            aria-describedby={labelId}
+          >
             <Search size={14} aria-hidden="true" /> {t("runAgain")}
           </Link>
           <button
@@ -126,7 +148,7 @@ export function RecentSearchRow({
             className="jp-icon-btn"
             aria-label={t("removeSearch", { label })}
             onClick={handleDelete}
-            disabled={isPending}
+            aria-disabled={isPending || undefined}
           >
             <Trash2 size={16} aria-hidden="true" />
           </button>

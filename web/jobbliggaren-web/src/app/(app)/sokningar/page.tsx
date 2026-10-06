@@ -13,6 +13,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
+const HEADING_ID = "sokningar-heading";
+
 /**
  * ADR 0060 — Senaste sökningar (auto-fångade). Tidigare SavedSearch-listrender
  * (ADR 0039) ersatt här; backend-domänen behålls dolt per amendment 2026-05-20.
@@ -33,7 +35,9 @@ export default async function SokningarPage() {
   return (
     <div className="jp-container jp-page flex flex-col">
       <div>
-        <h1 className="jp-h1">{t("sokningar.title")}</h1>
+        <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
+          {t("sokningar.title")}
+        </h1>
         <p className="jp-lede">{t("sokningar.lede")}</p>
       </div>
 
@@ -48,7 +52,7 @@ function renderResult(
 ) {
   switch (result.kind) {
     case "ok":
-      return <RecentSearchList items={result.data} />;
+      return <RecentSearchList items={result.data} headingId={HEADING_ID} />;
     case "unauthorized":
       redirect("/logga-in");
     case "rateLimited":

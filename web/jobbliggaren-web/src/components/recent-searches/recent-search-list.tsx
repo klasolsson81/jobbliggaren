@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
+import { RemovalStatus, useRowRemoval } from "@/components/common/row-removal";
 import { RecentSearchRow } from "./recent-search-row";
 
 interface RecentSearchListProps {
   items: ReadonlyArray<RecentJobSearchDto>;
+  /** The page's h1, which takes focus when the last row is removed. It carries `tabIndex={-1}`. */
+  headingId: string;
 }
 
 interface DeleteError {
@@ -15,7 +18,7 @@ interface DeleteError {
   message: string;
 }
 
-export function RecentSearchList({ items }: RecentSearchListProps) {
+export function RecentSearchList({ items, headingId }: RecentSearchListProps) {
   const t = useTranslations("jobads.recent");
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(
     () => new Set()
@@ -28,9 +31,14 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
     () => items.filter((it) => !optimisticDeletedIds.has(it.id)),
     [items, optimisticDeletedIds]
   );
+  const removal = useRowRemoval(
+    visibleItems.map((it) => it.id),
+    () => document.getElementById(headingId)
+  );
 
-  function handleDeleted(id: string) {
+  function handleDeleted(id: string, receipt: string) {
     setError(null);
+    removal.announce(receipt);
     setOptimisticDeletedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -39,40 +47,44 @@ export function RecentSearchList({ items }: RecentSearchListProps) {
   }
 
   function handleDeleteFailed(id: string, message: string) {
+    removal.failed(id);
     setError({ id, message });
-  }
-
-  if (visibleItems.length === 0) {
-    return (
-      <div className="jp-empty">
-        <div className="jp-empty__title">{t("emptyTitle")}</div>
-        <p className="jp-empty__body">{t("emptyBody")}</p>
-      </div>
-    );
   }
 
   return (
     <>
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-danger-600/30 bg-danger-50 px-4 py-3 mb-3 text-danger-700 text-body-sm"
-        >
-          {error.message}
+      <RemovalStatus receipt={removal.receipt} />
+      {visibleItems.length === 0 ? (
+        <div className="jp-empty">
+          <div className="jp-empty__title">{t("emptyTitle")}</div>
+          <p className="jp-empty__body">{t("emptyBody")}</p>
         </div>
+      ) : (
+        <>
+          {error && (
+            <div
+              role="alert"
+              className="rounded-md border border-danger-600/30 bg-danger-50 px-4 py-3 mb-3 text-danger-700 text-body-sm"
+            >
+              {error.message}
+            </div>
+          )}
+          <ul className="jp-jobs" aria-label={t("listLabel")}>
+            {visibleItems.map((item) => (
+              <RecentSearchRow
+                key={item.id}
+                item={item}
+                count={counts?.get(item.id)}
+                countsPending={counts === undefined}
+                firstStopRef={removal.firstStopRef(item.id)}
+                onDeleteStart={removal.started}
+                onDeleted={handleDeleted}
+                onDeleteFailed={handleDeleteFailed}
+              />
+            ))}
+          </ul>
+        </>
       )}
-      <ul className="jp-jobs" aria-label={t("listLabel")}>
-        {visibleItems.map((item) => (
-          <RecentSearchRow
-            key={item.id}
-            item={item}
-            count={counts?.get(item.id)}
-            countsPending={counts === undefined}
-            onDeleted={handleDeleted}
-            onDeleteFailed={handleDeleteFailed}
-          />
-        ))}
-      </ul>
     </>
   );
 }

@@ -118,7 +118,7 @@ export function RecentSearchRow({
           <CountMeta count={count} pending={countsPending} t={t} />
         </div>
         <div className="jp-job__actions" style={{ flexDirection: "row" }}>
-          <Link href={href} className="jp-btn jp-btn--primary jp-btn--sm">
+          <Link href={href} className="jp-btn jp-btn--sm jp-btn--emphasis">
             <Search size={14} aria-hidden="true" /> {t("runAgain")}
           </Link>
           <button

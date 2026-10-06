@@ -637,7 +637,7 @@ Jobbliggaren är byggd för svensk arbetsmarknad och är därför **GDPR-säker 
 
 - **Dataminimering:** PII och fält-data minimeras; ingen tredjelandsöverföring av användardata — all behandling sker inom den egna stacken
 - **Encryption at rest:** PII-fält + OAuth-tokens via per-användar-DEK envelope (`IDataKeyProvider`: Local AES-256-GCM, ADR 0066/0049); managed databas-/storage-kryptering på permanent host (TBD, ADR 0050)
-- **Encryption in transit:** TLS 1.3 ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar + includeSubDomains
+- **Encryption in transit:** TLS 1.3 ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar per värd
 - **Audit-trail:** alla state-transitioner i `Application`-aggregatet raisar domain events som lagras i `audit_log`. Impersonation dubbel-taggas
 - **Art. 17 cascade:** soft-delete på primära aggregates triggar 30-dagars anonymisering ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md))
 - **IP-anonymisering:** IPv4 /24 + IPv6 /48 i alla loggar

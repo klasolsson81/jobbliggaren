@@ -1096,9 +1096,9 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 
 | # | Who | Action | Expected | On failure |
 |---|---|---|---|---|
-| 4 | Klas | Strato: 2FA on; read the zone in the panel (C6, ADR 0154 §5). Before Switch 1, because the apex's 401 already sends `includeSubDomains` | Every name under `jobbliggaren.se` that answers HTTP also answers HTTPS | Stop: an HTTP-only name is an HSTS decision for Klas, not a step |
+| 4 | Klas | Strato: 2FA on; read the zone in the panel (C6, ADR 0154 §5). The apex sends host-only HSTS from its first 401 — no `includeSubDomains`, no `preload` (Klas 2026-10-06, #1768) — so no other name's HTTPS is at stake | The zone holds the apex, `www`, `dev.`, the mail records and Strato's own `autoconfig`, and no other name | Stop: another name is a finding for Klas. `includeSubDomains` or `preload` first needs every name under `jobbliggaren.se` verified on HTTPS, and is his decision |
 | 5 | Klas | Providers: add `https://jobbliggaren.se/api/auth/oauth/google/callback` (Google) and `…/linkedin/callback` (LinkedIn); GitHub's callback reads the apex and wildcard matching is unchecked; read Google's consent-screen publishing status. Keep the `dev.` callbacks until step 17 | Saved in each console | Stop |
-| 6 | Klas | Strato: apex `A` → the box's IPv4 (the address `dev.` resolves to); apex `AAAA` deleted; `www` (a CNAME to the apex), `dev.`, MX and TXT untouched. Then "kör" | Both authoritative servers answer the box for `A` and nothing for `AAAA`; after ≥300 s (TTL 150 s, measured 2026-10-05) `8.8.8.8` and `1.1.1.1` agree, and `www` resolves to the box with no `AAAA` | Wait and re-read; never switch on a partial answer — a `www` still at Strato is a hard certificate error in any browser holding the apex's HSTS |
+| 6 | Klas | Strato: apex `A` → the box's IPv4 (the address `dev.` resolves to); apex `AAAA` deleted; `www` (a CNAME to the apex), `dev.`, MX and TXT untouched. Then "kör" | Both authoritative servers answer the box for `A` and nothing for `AAAA`; after ≥300 s (TTL 150 s, measured 2026-10-05) `8.8.8.8` and `1.1.1.1` agree, and `www` resolves to the box with no `AAAA` | Wait and re-read; never switch on a partial answer |
 
 **Switch 1 — the name moves, the gate stays up**
 
@@ -1135,7 +1135,7 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 | 2 Option B + app auth | From `docker exec jobbliggaren-caddy` against `web:3000`: `/api/v1/{dev,admin,auth}/*` → `404`; BFF handlers `401`/`403`/`405` (`200` only for health, landing stats and OAuth start); protected prefixes and `/admin` → `3xx` | The same matrix, anonymously against the apex |
 | 3 Per IP | Klas, with his credential: `429`/`503` from two networks differ; `count(distinct <ip column>)` in `audit_log` for his own events since t0 ≥ 2, the user id kept inside the command | The same two measurements |
 | 4 forward/IPv6 | `nft` counts: forward `policy drop` ≥ 1, `policy accept` 0; Docker networks' `EnableIPv6`; v6 listeners | — |
-| 5 Credential | `git grep -nE '^[^#]*\$2[aby]\$' -- deploy \| wc -l` = 0; `sudo grep -c '^BASIC_AUTH_HASH=.' "$E"` = 1, the value never read | The same (R1 needs it) |
+| 5 Credential | `git grep -nE '\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}' -- deploy \| grep -vc 'Yq74328Mrsj/hVw45XkEi'` = 0 (the exclusion is `.env.example`'s declared synthetic example); `sudo grep -c '^BASIC_AUTH_HASH=.' "$E"` = 1, the value never read | The same (R1 needs it) |
 | 6 `0.0.0.0` | From outside, to 5432, 6379, Seq, 8080, 3000 and 2019: connection refused; `docker ps` ports | — |
 | 7 Caps and timeouts | `edge-modes.test.sh` and `scripts/edge-probe.mjs` on the image; caddy's memory limit read (metadata) for the `lb_try_duration` amplification with the gate open | Optionally live: an oversized body → `413` |
 

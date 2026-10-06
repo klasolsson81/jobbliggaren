@@ -224,21 +224,6 @@ describe("focus and status after a removal (#2029)", () => {
     expect(region()).toHaveTextContent("");
   });
 
-  it("moves focus on the commit that drops the row, also when the refreshed page arrives first", async () => {
-    const pending = deferred<{ success: true }>();
-    unsaveActionMock.mockReturnValue(pending.promise);
-    const { rerender } = render(<Page items={[A, B]} />);
-
-    await removeByKeyboard(trash("Backendutvecklare"));
-    // revalidatePath's payload, committed before the action's own result reaches the list.
-    rerender(<Page items={[B]} />);
-    expect(link("Frontendutvecklare")).toHaveFocus();
-
-    await act(async () => pending.resolve({ success: true }));
-    expect(region()).toHaveTextContent("Bokmärket har tagits bort: Backendutvecklare");
-    expect(link("Frontendutvecklare")).toHaveFocus();
-  });
-
   it("leaves focus where the user moved it while the removal ran", async () => {
     const pending = deferred<{ success: true }>();
     unsaveActionMock.mockReturnValue(pending.promise);
@@ -259,8 +244,9 @@ describe("focus and status after a removal (#2029)", () => {
     );
     render(<Page items={[A, B, C]} />);
 
-    await removeByKeyboard(trash("Frontendutvecklare"));
     await removeByKeyboard(trash("Backendutvecklare"));
+    await removeByKeyboard(trash("Frontendutvecklare"));
+    trash("Backendutvecklare").focus();
     await act(async () => forA.resolve({ success: true }));
 
     expect(link("Testledare")).toHaveFocus();

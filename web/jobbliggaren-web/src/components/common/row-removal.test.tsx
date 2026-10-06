@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import { RemovalStatus } from "@/components/common/row-removal";
 
-// The focus half of useRowRemoval is pinned through its two owners' lists, where the commits that
-// drop a row are real (saved-job-ad-list.test.tsx, recent-search-list.test.tsx).
 const region = (c: HTMLElement) => c.querySelector('p[role="status"]');
 
 describe("RemovalStatus — the receipt's own region (#2029)", () => {

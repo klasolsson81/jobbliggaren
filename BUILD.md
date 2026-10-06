@@ -1292,7 +1292,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **In transit:**
 - TLS 1.3 överallt
-- HSTS + preload
+- HSTS per värd, utan includeSubDomains och preload (ADR 0050 M-5a)
 - Certificate pinning i mobilklient (framtida)
 
 **Secrets-hantering per miljö:**

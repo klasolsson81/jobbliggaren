@@ -33,7 +33,7 @@ fail() { echo "FAIL: $*" >&2; failures=$((failures + 1)); }
 pass() { echo "ok: $*"; }
 
 SITE=edge.test
-HSTS='strict-transport-security: max-age=31536000; includeSubDomains'
+HSTS='strict-transport-security: max-age=31536000'
 MARKER='x-edge-stub: upstream'
 USER_NAME=probe
 PASSWORD=synthetic-only

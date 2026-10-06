@@ -26,8 +26,7 @@ namespace Jobbliggaren.Api.Configuration;
 /// <para>
 /// <c>Preload</c>-flaggan default false. Aktivering kräver submission till
 /// <see href="https://hstspreload.org"/> post-prod-launch och är effektivt
-/// oåterkalleligt (browsern hardcodar; unsubmit tar 18+ månader). Lyfts till
-/// prod-launch-checklistan, inte Fas 0.
+/// oåterkalleligt (browsern hardcodar; unsubmit tar 18+ månader).
 /// </para>
 /// </summary>
 public sealed class HstsOptions

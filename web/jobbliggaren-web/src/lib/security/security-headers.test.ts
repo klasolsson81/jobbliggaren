@@ -139,12 +139,12 @@ describe("buildSecurityHeaders", () => {
     );
   });
 
-  it("emits HSTS in production with the max-age ADR 0050 prescribes", () => {
+  it("emits HSTS in production, host-only, with the max-age ADR 0050 prescribes", () => {
     // Asserted against the literal rather than against the exported constant: a
     // test that compares the module to itself passes whatever the value drifts to,
     // and this value is half of a two-emitter contract.
     expect(byKey["Strict-Transport-Security"]).toBe(
-      "max-age=31536000; includeSubDomains"
+      "max-age=31536000"
     );
     expect(STRICT_TRANSPORT_SECURITY).toBe(byKey["Strict-Transport-Security"]);
   });

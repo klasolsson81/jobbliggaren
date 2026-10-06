@@ -924,7 +924,7 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 >
 > **Nettot: i dag finns ingen komponent i stacken som kan emittera browser-synlig
 > HSTS.** Grinden ägs därför av **Caddyfilen i #196**
-> (`header Strict-Transport-Security "max-age=31536000; includeSubDomains"`) och, **för
+> (`header Strict-Transport-Security "max-age=31536000"` — värdbundet sedan Amendment 2026-10-06, HSTS-värdets omfattning) och, **för
 > Next-vägen**, av `buildSecurityHeaders` — den har redan ett kontraktstest som fryser
 > mängden och ger grinden en regressionsspärr en Caddyfil saknar. Next-vägen är ett
 > **komplement, aldrig ett substitut**: se 401-klausulen nedan. Valet av *hur* är #196:s;
@@ -987,6 +987,17 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > för samma källa och caddy v2.11.4 — en caddy-bump öppnar frågan igen. Instrumentet är
 > `vps-deploy-stack.md` §3f. Redirecten `http://` → `https://` bär ingen HSTS och ska inte göra det
 > (RFC 6797 §7.2).
+>
+> **Amendment 2026-10-06, HSTS-värdets omfattning ([#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768),
+> Klas, [kommentar](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-6010359803)):** värdet är
+> `max-age=31536000` (ersätter `max-age=31536000; includeSubDomains`), **värdbundet**: utan `includeSubDomains` och
+> utan `preload`. Apex, `www` och `dev.` behåller HTTPS och var sin HSTS; e-postens DNS rörs inte. Grunden är mätt
+> 2026-10-06, anonymt och skrivskyddat, mot publik DNS, TLS, hstspreload.orgs status-API och CT-loggarna: Stratos
+> `autoconfig.jobbliggaren.se` presenterar `CN=*.strato.de` (`Verify return code: 62`), så HTTPS är inte giltigt för
+> det namnet; HTTPS mot apex och `www` bryts i handskakningen (Stratos SSL är av) och inget certifikat har någonsin
+> loggats för något av dem (crt.sh, security-auditor), så ingen policy kan ha sparats därifrån; varken apex eller
+> `dev.` är preloadade. `includeSubDomains` eller `preload` kräver att HTTPS är verifierat för varje namn under
+> domänen och är Klas beslut.
 >
 > **CAA + Strato (klausul under M-5a).** Utan CDN är "origin-TLS är hela TLS-historien"
 > bokstavligt sann: den som tar Strato-kontot får giltiga certifikat och total MITM.

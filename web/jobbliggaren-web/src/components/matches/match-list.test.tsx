@@ -54,6 +54,52 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     expect(screen.getByText("14 jun 2026")).toBeInTheDocument();
   });
 
+  // #2012 — the card's pointer and hover border promise a click, so the card is the target: the
+  // title is the row's one link to the ad, stretched over the card.
+  it("makes each title the card's one link to the ad, with no aria-label and no control inside it", () => {
+    render(<MatchList items={[baseItem]} />);
+    const link = screen.getByRole("link", { name: "Systemutvecklare" });
+    expect(link).toHaveClass("jp-job__rowlink", { exact: true });
+    // The modal's focus return re-finds a restored opener by its href and whether it has an
+    // aria-label (useInformationModalFocus).
+    expect(link).not.toHaveAttribute("aria-label");
+    expect(link.querySelector("a, button")).toBeNull();
+    expect(link.contains(screen.getByRole("link", { name: /Öppna annonsen på externa/ }))).toBe(false);
+    expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
+  });
+
+  it("describes the link with the new tag, the grade, the company and the date, in that order", () => {
+    const { rerender } = render(<MatchList items={[{ ...baseItem, isNew: true }]} />);
+    const described = () =>
+      (screen.getByRole("link", { name: "Systemutvecklare" }).getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id));
+
+    const withNew = described();
+    expect(withNew).toHaveLength(4);
+    expect(withNew[0]).toHaveAttribute("data-tag", "new");
+    expect(withNew[1]).toHaveTextContent("Stark match");
+    expect(withNew[2]).toHaveTextContent("Skatteverket");
+    expect(withNew[3]).toHaveClass("jp-job__meta");
+
+    rerender(<MatchList items={[baseItem]} />);
+    expect(described().map((part) => part?.textContent)).toEqual([
+      "Stark match",
+      "Skatteverket",
+      "Matchad 14 jun 2026",
+    ]);
+  });
+
+  it("keeps the date's label and its space in one text node", () => {
+    // Chrome drops a whitespace-only node from a computed description ("Matchad14 jun 2026").
+    const { container } = render(<MatchList items={[baseItem]} />);
+    const span = container.querySelector(".jp-job__meta > span");
+    expect(span?.childNodes).toHaveLength(2);
+    expect(span?.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(span?.firstChild?.textContent).toMatch(/\S $/);
+    expect(span?.lastChild?.nodeName).toBe("B");
+  });
+
   it("isNew=true → 'Ny'-indikator med text (aldrig färg-ensam) + sr-only-kontext, ingen aria-label", () => {
     render(<MatchList items={[{ ...baseItem, isNew: true }]} />);
 

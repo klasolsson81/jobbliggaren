@@ -58,9 +58,10 @@ public sealed partial class FeedbackNotificationDispatchJob(
                 .FirstOrDefaultAsync(cancellationToken);
             if (submission is null)
             {
-                // Retention or an account deletion took the submission between the two reads.
+                // Retention or an account deletion took the submission between the two reads, and
+                // usually the notice with it.
                 db.FeedbackNotifications.Remove(notification);
-                await db.SaveChangesAsync(CancellationToken.None);
+                await TrySaveAsync(CancellationToken.None);
                 db.ClearTracking();
                 continue;
             }
@@ -68,20 +69,15 @@ public sealed partial class FeedbackNotificationDispatchJob(
             if (notification.Claim(now).IsFailure)
                 return;
 
-            try
+            if (!await TrySaveAsync(cancellationToken))
             {
-                await db.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // An administrator's requeue moved the row first; the next run takes it as it now is.
                 db.ClearTracking();
                 return;
             }
 
             var accepted = await SendAsync(recipient, notification, submission.Page, submission.Rating,
                 submission.SubmittedAt, cancellationToken);
-            await db.SaveChangesAsync(CancellationToken.None);
+            await TrySaveAsync(CancellationToken.None);
             db.ClearTracking();
 
             if (!accepted)
@@ -133,9 +129,29 @@ public sealed partial class FeedbackNotificationDispatchJob(
         foreach (var notification in stale)
             notification.ExpireIfStale(now);
 
-        await db.SaveChangesAsync(CancellationToken.None);
+        var saved = await TrySaveAsync(CancellationToken.None);
         db.ClearTracking();
-        LogExpired(stale.Count);
+        if (saved)
+            LogExpired(stale.Count);
+    }
+
+    /// <summary>
+    /// Saves the tracked notices, or returns false when a row was deleted or changed after it was
+    /// read. Retention and an account deletion delete notices while a run holds them; the next run
+    /// reads what is left.
+    /// </summary>
+    private async Task<bool> TrySaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogNoticeChangedDuringRun();
+            return false;
+        }
     }
 
     [LoggerMessage(3101, LogLevel.Warning,
@@ -153,4 +169,8 @@ public sealed partial class FeedbackNotificationDispatchJob(
     [LoggerMessage(3104, LogLevel.Error,
         "[FeedbackNotificationDispatch] {Count} notices were left sending past their window and are now unknown")]
     private partial void LogExpired(int count);
+
+    [LoggerMessage(3106, LogLevel.Information,
+        "[FeedbackNotificationDispatch] A notice was deleted or changed while the run held it; the next run reads what is left")]
+    private partial void LogNoticeChangedDuringRun();
 }

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
@@ -26,7 +27,8 @@ public sealed class SubmitFeedbackCommandHandler(
         SubmitFeedbackCommand command, CancellationToken cancellationToken)
     {
         if (currentUser.UserId is not { } userId)
-            return Result.Failure<FeedbackSubmitted>(DomainError.NotFound("JobSeeker", "current"));
+            return Result.Failure<FeedbackSubmitted>(DomainError.Validation(
+                AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att skicka feedback."));
 
         var jobSeekerId = await db.JobSeekers
             .Where(js => js.UserId == userId)

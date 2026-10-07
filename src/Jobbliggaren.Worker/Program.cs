@@ -142,6 +142,11 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker
 // Wrapper + job in the same commit (TD-103: Worker ValidateOnBuild=false).
 builder.Services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
+// #1979 — the feedback notice dispatch and the 90-day feedback retention.
+builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.DispatchFeedbackNotifications.FeedbackNotificationDispatchJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackNotificationDispatchWorker>();
+builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
 // TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
 // fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();

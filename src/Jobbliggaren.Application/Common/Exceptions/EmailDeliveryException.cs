@@ -1,9 +1,25 @@
 namespace Jobbliggaren.Application.Common.Exceptions;
 
 /// <summary>
+/// What a failed send says about whether the provider took the message (#1979). A caller that may
+/// retry needs exactly this one bit; every caller written before it ignores it.
+/// </summary>
+public enum EmailDeliveryDisposition
+{
+    /// <summary>
+    /// The provider may have accepted the message — a timeout, a 5xx or an interrupted response.
+    /// Resending can deliver it twice. The default, so an unclassified failure is never retried.
+    /// </summary>
+    Unknown = 0,
+
+    /// <summary>The provider demonstrably did not accept it, so a resend cannot duplicate it.</summary>
+    NotAccepted,
+}
+
+/// <summary>
 /// Thrown by an <see cref="Abstractions.IEmailSender"/> implementation when a send fails. Carries
-/// the email KIND and the underlying exception's TYPE NAME, and deliberately nothing else
-/// (ADR 0124; senior-cto-advisor bind 4, 2026-08-08, on a security-auditor Major).
+/// the email KIND, the underlying exception's TYPE NAME and the <see cref="Disposition"/>, and
+/// deliberately nothing else (ADR 0124; senior-cto-advisor bind 4, 2026-08-08, on a security-auditor Major).
 ///
 /// <para>
 /// <b>Why the provider's own exception must not escape the adapter.</b> A rejection names the
@@ -29,7 +45,10 @@ namespace Jobbliggaren.Application.Common.Exceptions;
 /// inside it, and <c>LoggingBehavior</c> logs the exception object.
 /// </para>
 /// </summary>
-public sealed class EmailDeliveryException(string emailKind, string underlyingErrorType)
+public sealed class EmailDeliveryException(
+    string emailKind,
+    string underlyingErrorType,
+    EmailDeliveryDisposition disposition = EmailDeliveryDisposition.Unknown)
     : Exception($"Email delivery failed for '{emailKind}' ({underlyingErrorType}).")
 {
     /// <summary>The kebab-case email kind, e.g. <c>email-confirmation</c>. Never PII.</summary>
@@ -39,4 +58,7 @@ public sealed class EmailDeliveryException(string emailKind, string underlyingEr
     /// The underlying exception's <see cref="Type.Name"/> — the type ONLY, never its message.
     /// </summary>
     public string UnderlyingErrorType { get; } = underlyingErrorType;
+
+    /// <summary>Whether the provider can have taken the message. Never PII.</summary>
+    public EmailDeliveryDisposition Disposition { get; } = disposition;
 }

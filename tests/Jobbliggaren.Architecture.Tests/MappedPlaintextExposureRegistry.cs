@@ -185,6 +185,18 @@ internal static class MappedPlaintextExposureRegistry
                 + "Art. 17 registry classifies payload Pseudonymised for its own axis; for a restore "
                 + "it is exposed.",
 
+            // #1979. The three feedback tables join the accepted restore-exposure list (ADR 0125
+            // Case 2) by Klas's grant of 2026-10-07 — "Det handlar om feedback, inga hemligheter" —
+            // recorded in the feedback ADR under "Klas beviljanden", which is where the decision lives.
+            ["feedback_submissions"] = "Feedback she sent about a page (JobSeekerId). comment is free "
+                + "text she wrote, stored in plaintext by Klas's decision; page_key, rating, status, "
+                + "app_version and the reported viewport, screen, theme and device families are on her "
+                + "row. Deleted after 90 days and at account deletion.",
+            ["feedback_notifications"] = "The operator notice about her submission (JobSeekerId). "
+                + "state and the timestamps are delivery bookkeeping, but the row is attributable to her.",
+            ["feedback_prompt_suppressions"] = "That she gave feedback on a page (JobSeekerId), kept "
+                + "so the prompt stays hidden for her. page_key is a closed set; the row is hers.",
+
             // ── The CV lane: her file and everything derived from it. ─────────────────────────
             ["resumes"] = "Her CVs (JobSeekerId). name, latest_role and top_skills are the DEK-FREE "
                 + "denormalised projections #1285 is named for — they exist PRECISELY BECAUSE the "

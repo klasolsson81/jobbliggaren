@@ -93,6 +93,29 @@ describe("AdminConfirmDialog (DESIGN.md §6)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Suspendera konto" })).toBeEnabled());
   });
 
+  it("confirms in danger by default, and in the one primary button when the action destroys nothing", () => {
+    const { unmount } = render(dialog(async () => null));
+    expect(screen.getByRole("button", { name: "Suspendera konto" })).toHaveClass("jp-btn--danger");
+    unmount();
+
+    render(
+      <AdminConfirmDialog
+        open
+        tone="neutral"
+        title="Skicka aviseringen igen?"
+        body="Aviseringen kan redan ha kommit fram. Ett nytt utskick kan ge en dubblett."
+        confirmLabel="Skicka avisering igen"
+        busyLabel="Köar…"
+        onConfirm={async () => null}
+        onCancel={vi.fn()}
+      />,
+    );
+    const confirm = screen.getByRole("button", { name: "Skicka avisering igen" });
+    expect(confirm).toHaveClass("jp-btn--primary");
+    expect(confirm).not.toHaveClass("jp-btn--danger");
+    expect(screen.getByRole("alertdialog").querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+  });
+
   it("hands a command that throws to the nearest error boundary instead of holding the dialog open", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     render(<Boundary>{dialog(async () => Promise.reject(new Error("network")))}</Boundary>);

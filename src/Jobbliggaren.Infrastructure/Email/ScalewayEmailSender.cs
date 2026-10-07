@@ -134,6 +134,14 @@ public sealed partial class ScalewayEmailSender(
             "login-challenge",
             cancellationToken);
 
+    public Task SendFeedbackReceivedNotificationAsync(
+        string toEmail, FeedbackReceivedNotificationEmail content, CancellationToken cancellationToken) =>
+        SendAsync(
+            toEmail,
+            EmailTemplates.FeedbackReceivedNotification(_options.BaseUrl, content),
+            "feedback-received-notification",
+            cancellationToken);
+
     private async Task SendAsync(
         string toEmail,
         EmailTemplates.EmailContent body,
@@ -253,9 +261,30 @@ public sealed partial class ScalewayEmailSender(
             // The provider's exception does not leave this adapter. `ex` becomes a TYPE NAME, never
             // an InnerException. Why containment rather than patching the log sites, and why the
             // port declares this contract: ADR 0124.
-            throw new EmailDeliveryException(emailKind, ex.GetType().Name);
+            throw new EmailDeliveryException(emailKind, ex.GetType().Name, DispositionOf(ex));
         }
     }
+
+    /// <summary>
+    /// Whether the failure proves the provider did not take the message (#1979). A 4xx is a refusal.
+    /// With no response at all, only a failure before the request could leave — resolving the name,
+    /// connecting, the TLS handshake, the proxy tunnel — is proof; a timeout, a 5xx or a response that
+    /// ended early may follow an accepted message, so those stay <see cref="EmailDeliveryDisposition.Unknown"/>.
+    /// </summary>
+    private static EmailDeliveryDisposition DispositionOf(Exception ex) => ex switch
+    {
+        HttpRequestException { StatusCode: { } status } when (int)status is >= 400 and < 500
+            => EmailDeliveryDisposition.NotAccepted,
+        HttpRequestException
+        {
+            StatusCode: null,
+            HttpRequestError: HttpRequestError.NameResolutionError
+                or HttpRequestError.ConnectionError
+                or HttpRequestError.SecureConnectionError
+                or HttpRequestError.ProxyTunnelError,
+        } => EmailDeliveryDisposition.NotAccepted,
+        _ => EmailDeliveryDisposition.Unknown,
+    };
 
     /// <summary>
     /// The status the failure carried, or <see cref="NoHttpStatus"/> when it never reached one.

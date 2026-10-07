@@ -103,4 +103,7 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
         string toEmail, DateTimeOffset completableFrom, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
         inner.SendAccountEmailChangeRequestedNotificationAsync(toEmail, completableFrom, expiresAt, cancellationToken);
 
+    public Task SendFeedbackReceivedNotificationAsync(
+        string toEmail, FeedbackReceivedNotificationEmail content, CancellationToken cancellationToken) =>
+        inner.SendFeedbackReceivedNotificationAsync(toEmail, content, cancellationToken);
 }

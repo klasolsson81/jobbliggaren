@@ -147,6 +147,16 @@ internal sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.LoginChallenge, toEmail));
         return Task.CompletedTask;
     }
+
+    public Task SendFeedbackReceivedNotificationAsync(
+        string toEmail,
+        FeedbackReceivedNotificationEmail content,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfRefused(RecordedEmailKind.FeedbackReceivedNotification);
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.FeedbackReceivedNotification, toEmail));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
@@ -157,6 +167,7 @@ internal enum RecordedEmailKind
     EmailChangedNotification,
     AccountEmailChangeRequestedNotification,
     LoginChallenge,
+    FeedbackReceivedNotification,
 }
 
 /// <summary>A single email queued through <see cref="RecordingEmailSender"/> (kind + recipient only).</summary>

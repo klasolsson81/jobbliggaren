@@ -227,28 +227,115 @@ export const ADMIN_OVERVIEW_UNAVAILABLE: AdminOverviewRegions = {
 
 // ── Feedback (#1979) ────────────────────────────────────────────────────────────────────────
 
-export type AdminFeedbackStatus = "new" | "inProgress" | "resolved" | "skipped";
-export type AdminFeedbackCategory = "bug" | "suggestion" | "question";
+/** Where the operator is with a submission: Ny, Pågår, Åtgärdad or Avstår. */
+export type AdminFeedbackStatus = "new" | "inProgress" | "resolved" | "declined";
 
-export interface AdminFeedbackReply {
+/** The notice mail's delivery state. `accepted` is the provider's acceptance, never a claim of arrival. */
+export type AdminFeedbackNoticeState = "queued" | "sending" | "accepted" | "failed" | "unknown";
+
+/** Why feedback is open or closed (the backend's gate). */
+export type AdminFeedbackAvailability = "open" | "disabled" | "noRecipient" | "cannotDeliver";
+
+/** The summary's window in days. */
+export type AdminFeedbackWindow = 7 | 30 | 90;
+
+/**
+ * One submission in the list. It carries an excerpt and never the reporter's address: an address is
+ * read one submission at a time, in the detail.
+ */
+export interface AdminFeedbackListItem {
   readonly id: string;
-  readonly sentAt: string;
-  readonly text: string;
+  /** The page's key; a key this web does not know yet is shown as it came. */
+  readonly page: string;
+  /** 1–5, or null when the reporter gave no rating. */
+  readonly rating: number | null;
+  /** Null when the reporter wrote no text. */
+  readonly excerpt: string | null;
+  readonly status: AdminFeedbackStatus;
+  readonly submittedAt: string;
+  /** Null when the submission has no notice. */
+  readonly notice: AdminFeedbackNoticeState | null;
 }
 
+export interface AdminFeedbackCounts {
+  readonly all: number;
+  readonly new: number;
+  readonly inProgress: number;
+  readonly resolved: number;
+  readonly declined: number;
+}
+
+/** One answered list read: its page of submissions and the counts per status inside the page filter. */
+export interface AdminFeedbackListPage {
+  readonly items: ReadonlyArray<AdminFeedbackListItem>;
+  readonly page: number;
+  readonly totalPages: number;
+  readonly totalCount: number;
+  readonly counts: AdminFeedbackCounts;
+}
+
+export type AdminFeedbackTheme = "light" | "dark";
+export type AdminFeedbackDeviceClass = "mobile" | "tablet" | "desktop";
+export type AdminFeedbackOs = "windows" | "macOs" | "ios" | "android" | "linux" | "chromeOs" | "other";
+export type AdminFeedbackBrowser =
+  | "chrome"
+  | "edge"
+  | "firefox"
+  | "safari"
+  | "samsungInternet"
+  | "opera"
+  | "other";
+
+/** What the browser reported about itself, as reported and never verified. Each value is null when unknown. */
+export interface AdminFeedbackClient {
+  readonly viewportWidth: number | null;
+  readonly viewportHeight: number | null;
+  readonly screenWidth: number | null;
+  readonly screenHeight: number | null;
+  readonly pixelRatio: number | null;
+  readonly theme: AdminFeedbackTheme | null;
+  readonly deviceClass: AdminFeedbackDeviceClass | null;
+  readonly os: AdminFeedbackOs | null;
+  readonly browser: AdminFeedbackBrowser | null;
+}
+
+export interface AdminFeedbackNotice {
+  readonly state: AdminFeedbackNoticeState;
+  readonly attempts: number;
+  /** When the next attempt is due; it says something only while the notice is queued. */
+  readonly nextAttemptAt: string;
+}
+
+/** One submission as the detail shows it. */
 export interface AdminFeedbackItem {
   readonly id: string;
-  readonly status: AdminFeedbackStatus;
-  readonly category: AdminFeedbackCategory;
-  readonly receivedAt: string;
-  readonly text: string;
-  readonly senderEmail: string;
-  /** The app path the report was sent from. */
   readonly page: string;
-  readonly screen: string;
-  readonly device: string;
-  readonly version: string;
-  readonly replies: ReadonlyArray<AdminFeedbackReply>;
+  readonly rating: number | null;
+  /** The whole text, or null when the reporter wrote none. */
+  readonly comment: string | null;
+  readonly status: AdminFeedbackStatus;
+  readonly submittedAt: string;
+  /** Null until the status is first changed. */
+  readonly statusChangedAt: string | null;
+  /** The reporter's address, or null when it cannot be read. */
+  readonly reporterEmail: string | null;
+  readonly client: AdminFeedbackClient;
+  /** The commit the web build came from, or null. */
+  readonly appVersion: string | null;
+  /** Null when the submission has no notice. */
+  readonly notice: AdminFeedbackNotice | null;
+}
+
+/** One page's ratings over the window: each user's latest rating counts once. */
+export interface AdminFeedbackPageSummary {
+  readonly page: string;
+  /** Every submission in the window, rated or not. */
+  readonly submissions: number;
+  readonly raters: number;
+  /** How many latest ratings were 1, 2, 3, 4 and 5, in that order. */
+  readonly ratings: readonly [number, number, number, number, number];
+  /** Null when nobody rated the page in the window. */
+  readonly mean: number | null;
 }
 
 // ── Logs (#1980) ────────────────────────────────────────────────────────────────────────────

@@ -409,25 +409,39 @@ test("the overview shows its regions with fixtures, and fails, loads and goes un
   await expect(card("Användare totalt")).toContainText("–Uppgift saknasKommer snart");
 });
 
-test("feedback opens a report, sends a reply as a receipt and moves a new report to Pågår", async ({ page }) => {
-  await page.goto(`${ROOT}/feedback`);
-  const list = page.getByRole("region", { name: "Rapporter" });
-  const detail = page.getByRole("region", { name: "Vald rapport" });
+/** A preview submission's id, as the fixtures number them. */
+const submission = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-  await expect(page.getByRole("radio", { name: "Nya (2)" })).toBeVisible();
-  await expect(list.getByRole("button").first()).toHaveAttribute("aria-current", "true");
-  await list.getByRole("button", { name: /Hur länge sparas/ }).click();
+test("feedback opens a submission by its link, saves a status with a receipt, and asks before resending an unknown notice", async ({ page }) => {
+  await page.goto(`${ROOT}/feedback`);
+  const list = page.getByRole("region", { name: "Inskick", exact: true });
+  const detail = page.getByRole("region", { name: "Valt inskick", exact: true });
+  const filter = page.getByRole("navigation", { name: "Filtrera på status" });
+
+  await expect(filter.getByRole("link", { name: "Ny (4)" })).toBeVisible();
+  await expect(detail).toHaveCount(0);
+  await list.getByRole("link", { name: /Hur länge sparas/ }).click();
+  await expect(page).toHaveURL(`${ROOT}/feedback?id=${submission(503)}`);
   await expect(detail).toContainText(mail("konto.g"));
   await expect(detail).toBeFocused();
+  await expect(list.getByRole("link", { name: /Hur länge sparas/ })).toHaveAttribute("aria-current", "true");
 
-  await detail.getByRole("textbox", { name: "Svar" }).fill("I tolv månader efter senaste inloggningen.");
-  await detail.getByRole("button", { name: "Skicka svar" }).click();
-  await expect(toast(page)).toContainText(`Svaret skickades till ${mail("konto.g")}.`);
-  await expect(detail.getByRole("listitem").filter({ hasText: "I tolv månader efter senaste inloggningen." })).toBeFocused();
-  await expect(page.getByRole("radio", { name: "Pågår (2)" })).toBeVisible();
+  await detail.getByRole("combobox", { name: "Status" }).selectOption({ label: "Pågår" });
+  await detail.getByRole("button", { name: "Spara status" }).click();
+  await expect(toast(page)).toContainText("Statusen är ändrad till Pågår.");
+  await expect(filter.getByRole("link", { name: "Pågår (3)" })).toBeVisible();
+  await expect(filter.getByRole("link", { name: "Ny (3)" })).toBeVisible();
+
+  await page.goto(`${ROOT}/feedback?id=${submission(504)}`);
+  await detail.getByRole("button", { name: "Skicka avisering igen" }).click();
+  await expect(confirmation(page)).toContainText("Aviseringen kan redan ha kommit fram. Ett nytt utskick kan ge en dubblett.");
+  await confirmation(page).getByRole("button", { name: "Skicka avisering igen" }).click();
+  await expect(toast(page)).toContainText("Aviseringen är köad igen.");
+  await expect(detail.getByRole("heading", { name: "Avisering", exact: true })).toBeFocused();
 
   await state(page, "Tom");
-  await expect(list).toContainText("Inga rapporter.");
+  await expect(list).toContainText("Inga inskick.");
+  await expect(detail).toContainText("Inskicket finns inte.");
 });
 
 test("the three log views show their rows and every view's count", async ({ page }) => {

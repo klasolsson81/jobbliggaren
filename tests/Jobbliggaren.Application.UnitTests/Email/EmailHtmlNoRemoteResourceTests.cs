@@ -147,6 +147,13 @@ public class EmailHtmlNoRemoteResourceTests
         // #1975: the notice to the current address when an administrator starts a change of it.
         ("AccountEmailChangeRequestedNotification", EmailTemplates.AccountEmailChangeRequestedNotification(
             SampleCompletableFrom, SampleCompletableFrom.AddHours(24))),
+
+        // #1979: the operator's notice that feedback was saved, as the dispatch job renders it.
+        ("FeedbackReceivedNotification", EmailTemplates.FeedbackReceivedNotification(
+            BaseUrl,
+            new FeedbackReceivedNotificationEmail(
+                Jobbliggaren.Domain.Feedback.FeedbackPage.JobAd, 4, SampleCompletableFrom,
+                Guid.Parse("7d1c2a3b-0000-4000-8000-000000001979")))),
     ];
 
     private static readonly DateTimeOffset SampleCompletableFrom = new(2026, 10, 8, 12, 30, 0, TimeSpan.Zero);

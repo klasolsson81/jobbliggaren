@@ -36,12 +36,14 @@ public class RecurringJobIdsTests
         RecurringJobIds.MaterialiseCompanyWatchCriteria,
         RecurringJobIds.SweepChangedCompanyWatchCriteria,
         RecurringJobIds.BuildOccupationDivisionProfile,
+        RecurringJobIds.DispatchFeedbackNotifications,
+        RecurringJobIds.FeedbackRetention,
     ];
 
     [Fact]
-    public void All_HasExactlyNineteenMembers()
+    public void All_HasExactlyTwentyOneMembers()
     {
-        RecurringJobIds.All.Count.ShouldBe(19);
+        RecurringJobIds.All.Count.ShouldBe(21);
     }
 
     [Fact]
@@ -49,8 +51,8 @@ public class RecurringJobIdsTests
     {
         // FrozenSet dedups silently; assert against the raw constant list so a duplicated
         // const value (copy-paste slip) is caught rather than absorbed by the set.
-        ExpectedIds.Length.ShouldBe(19);
-        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(19);
+        ExpectedIds.Length.ShouldBe(21);
+        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(21);
     }
 
     [Fact]

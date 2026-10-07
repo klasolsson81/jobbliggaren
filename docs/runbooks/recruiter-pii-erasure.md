@@ -161,6 +161,7 @@ exact org.nr, per array element — shape-validated, never taxonomy-resolved, #1
 `Language` the model reports as a second key over the same bytes), the CV's
 plaintext metadata (`parsed_resumes.source_file_name`, `resume_files.file_name`,
 `resumes.name` / `latest_role` / `top_skills` — reported as `resumeMetadata`),
+`feedback_submissions.comment` (reported as `feedbackComments`, #1979),
 and — structurally, by foreign key — `applications.job_ad_id`. The full
 column-by-column map is `ErasureCascadeRegistry.Channels`; this list is written
 FROM it, and the build breaks if a searched column has no channel.
@@ -224,18 +225,19 @@ stale:
   //  NoMatchInSearchableSurfaces.)
   "outcome": "DryRun",
   "dryRun": true,
-  "matched": {                   // ELEVEN surfaces — one per ErasureChannel
+  "matched": {                   // TWELVE surfaces — one per ErasureChannel
     "jobAds": 3, "recentJobSearches": 1, "savedSearches": 2,
     "applicationSnapshots": 4, "applicationSnapshotContacts": 1,
     "manualAdEntries": 1, "companyWatchCriteria": 0, "companyWatchFollows": 1,
     "jobSeekerProfiles": 0,
-    "resumeMetadata": 1, "applicationsReferencingMatchedAds": 2
+    "resumeMetadata": 1, "feedbackComments": 0, "applicationsReferencingMatchedAds": 2
   },
   "erased": { "jobAds": 0, "recentJobSearches": 0, "savedSearches": 0,
               "applicationSnapshots": 0, "applicationSnapshotContacts": 0,
               "manualAdEntries": 0, "companyWatchCriteria": 0, "companyWatchFollows": 0,
               "jobSeekerProfiles": 0,
-              "resumeMetadata": 0, "applicationsReferencingMatchedAds": 0 },
+              "resumeMetadata": 0, "feedbackComments": 0,
+              "applicationsReferencingMatchedAds": 0 },
   "couldNotSearch": {            // ALWAYS present, on every outcome
     "reason": "Encrypted at rest under a per-user key envelope (… Form A in-place text: the application notes, follow-up notes, cover letters and the raw CV text; Form B encrypted shadows: the structured CV content; Form C sealed binary: the uploaded CV FILE itself) …",
     "columns": [
@@ -371,11 +373,13 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.snapshot_contacts` (the frozen recruiter contact block, #842 Tier A) | ✅ **Yes**, surgically | ITS OWN surface (`ApplicationSnapshotContacts`), never folded into the body columns below — one surface, one disposition, one honest Matched−Erased meaning (T2 CTO 2026-07-16). The contact block is HER data whose follow-up purpose is spent at the erasure request; 17(3)(e) retains the applicant's aktivitetsrapport spine, not the recruiter's phone number. `Application.EraseAdSnapshotContacts()` removes ONLY the contacts and leaves the applicant's record intact — durable by construction, the funnel never rewrites a snapshot. |
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
 | CV metadata: `parsed_resumes.source_file_name`, `resume_files.file_name`, `resumes.name` / `latest_role` / `top_skills` (`resumeMetadata`) | ⚠️ **Not automatically — a HUMAN erases it, with the CV's owner in the loop** | The PLAINTEXT text around a user's CV: the uploaded file's name (twice — two tables, same file), the CV's own name (typed via rename), and the denormalised role/skill projections. "Ansokan_Magnus_Fagerberg.pdf" is not exotic — the repo already masks personnummer out of file names (#465) precisely because users type arbitrary text there. Searched and reported; a job does not silently rename a user's own files. The CV BODY is `couldNotSearch`, not this row. |
+| `feedback_submissions.comment` (feedback a user sent about a page, #1979) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | Free text a user wrote to the operator, plaintext by Klas's decision (2026-10-07). A user describing an ad can name its recruiter. Searched and reported as `feedbackComments`; a human deletes the submission (and its notice), which is the operator's own correspondence and nothing else depends on. The 90-day retention removes it regardless. |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
 `matched.companyWatchFollows > 0`, `matched.manualAdEntries > 0`,
-`matched.resumeMetadata > 0` OR `matched.jobSeekerProfiles > 0`, the reply must disclose it — template B2.
+`matched.resumeMetadata > 0`, `matched.feedbackComments > 0` OR `matched.jobSeekerProfiles > 0`,
+the reply must disclose it — template B2.
 If `matched.applicationSnapshots > 0`, the reply must
 disclose the Art. 17(3)(e) retention — template B3.** A matched surface the reply
 never mentions is a search whose result never reached her; the gate lists every
@@ -426,11 +430,13 @@ outcome, so every reply names what we could not look at):
 **B2. Addition — any human-handled surface matched
 (`matched.savedSearches > 0` OR `matched.manualAdEntries > 0` OR
 `matched.companyWatchCriteria > 0` OR `matched.companyWatchFollows > 0` OR
-`matched.resumeMetadata > 0` OR `matched.jobSeekerProfiles > 0`).** Append:
+`matched.resumeMetadata > 0` OR `matched.feedbackComments > 0` OR
+`matched.jobSeekerProfiles > 0`).** Append:
 
 > Dina uppgifter förekommer också i innehåll som användare själva har skrivit
 > eller valt, till exempel en sparad sökning, en bevakning av ett företag, en
-> egen anteckning om en ansökan eller ett CV:s namn eller filnamn. Din rätt till radering gäller även där. De uppgifterna
+> egen anteckning om en ansökan, ett CV:s namn eller filnamn eller synpunkter som en
+> användare har skickat till oss. Din rätt till radering gäller även där. De uppgifterna
 > tas bort manuellt, tillsammans med den användare det gäller, inom en månad från
 > det att din begäran kom in. Vi hör av oss när det är klart.
 

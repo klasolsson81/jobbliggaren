@@ -170,7 +170,7 @@ public class CaddyfileTokenScrubbingPinTests
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters =
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix",
-         "code", "state", "hd", "error_description"];
+         "code", "state", "hd", "error_description", "id"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/logga-in/lank\?\S+",

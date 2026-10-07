@@ -285,8 +285,8 @@ jobs:
           # wrong reason — but it is RAISED when scripts land, or the gate silently stops
           # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 20 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 20."
+          if [ "$n" -lt 22 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 22."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -356,6 +356,9 @@ jobs:
       # utdatavalidering, och att ingenting utom de två talen någonsin når stdout — båda
       # anroparna fångar stdout i en variabel, så en diagnostik där ser inte ut som ett trasigt
       # skript utan som ett id.
+      - name: jobbliggaren-image-retention (fixtures)
+        run: bash deploy/systemd/jobbliggaren-image-retention.test.sh
+
       - name: jobbliggaren-runtime-ids (fixturer)
         run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
 
@@ -1025,6 +1028,14 @@ jobs:
           # vad som publiceras. Release-workflowen skickar sitt eget.
           build-args: |
             NEXT_PUBLIC_SITE_URL=https://ci.invalid
+
+      # The edge's two environment seams on the image just built (#1768): the gate stands unless
+      # SITE_ADMISSION is exactly `open`, and SITE_ALIASES=apex adds the www/dev. redirects.
+      # The shipped config runs with its TLS issuer swapped to Caddy's internal CA; nothing leaves
+      # the runner.
+      - name: Edge modes (caddy)
+        if: matrix.name == 'caddy'
+        run: bash deploy/caddy/edge-modes.test.sh jobbliggaren-caddy:ci
 
       - name: Trivy ${{ matrix.name }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

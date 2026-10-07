@@ -10,6 +10,16 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")
 export const ADMIN = { userId: id(901), email: "admin@example.test", roles: ["Admin"] };
 export const MEMBER = { userId: id(902), email: "medlem@example.test", roles: [] };
 
+/** The administrator's own step-up (#1975): the challenge the code answers, and the grant it buys. */
+export const STEP_UP_CHALLENGE = "admin-harness-step-up";
+export const STEP_UP_GRANT = "admin-harness-grant";
+
+/** A pending address change's two instants, as the request answers them and the read reports them. */
+export const EMAIL_CHANGE_INSTANTS = {
+  completableFrom: "2026-10-08T12:00:00+00:00",
+  expiresAt: "2026-10-09T12:00:00+00:00",
+};
+
 export const AUDIT_PAGE = {
   items: [
     {

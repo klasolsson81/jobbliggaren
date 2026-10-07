@@ -4,10 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { RecentSearchesHeroChip } from "./recent-searches-hero-chip";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { queryLabel } from "@/test/recent-search-label";
+import type { RecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 
-const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
-  () => null,
-);
+const countsMock = vi.fn<() => RecentSearchCounts>(() => null);
 
 vi.mock("@/lib/hooks/use-recent-search-counts", () => ({
   useRecentSearchCounts: () => countsMock(),
@@ -57,9 +56,12 @@ describe("RecentSearchesHeroChip", () => {
     expect(screen.getByText("(2)")).toBeInTheDocument();
   });
 
-  it("dropdown-rad visar INGEN träffräknare när hooken ännu inte laddat (graceful null — aldrig falsk (0))", async () => {
+  it.each([
+    ["ännu inte svarat", undefined],
+    ["misslyckats", null],
+  ] as const)("dropdown-rad visar INGEN träffräknare när hooken %s (aldrig falsk (0))", async (_state, counts) => {
     const user = userEvent.setup();
-    countsMock.mockReturnValue(null);
+    countsMock.mockReturnValue(counts);
     render(
       <RecentSearchesHeroChip
         items={[

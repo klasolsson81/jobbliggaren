@@ -43,10 +43,7 @@ export function ApplicationHistoryEmployerCard({
           ingen interaktion alls, så pekaren + hover-accentkanten lovar något som inte finns. Samma
           modifier som bevakningsraden ovanför — /foretag får inte ha två listor med motsatt
           hover-beteende (design-review F4b). /jobb rörs inte. */}
-      <article
-        className="jp-job jp-job--static"
-        style={{ gridTemplateColumns: "1fr" }}
-      >
+      <article className="jp-job jp-job--static jp-job--single">
         <div className="jp-job__body">
           <h2 className="jp-job__title">{displayName}</h2>
           {/* Per-employer historik-räknare (#444). High-contrast primary ink + tabular-nums, parity the

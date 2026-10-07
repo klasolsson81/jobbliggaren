@@ -102,6 +102,30 @@ public sealed class DevLoginCodeCaptureTests
     }
 
     [Fact]
+    public async Task An_administrator_started_changes_code_is_forwarded_and_never_held()
+    {
+        // #1975 — it works only after a delay of days, so a hold that lapses with a login challenge serves nothing.
+        var mail = new LoginChallengeEmail.AccountEmailChangeCode(
+            LoginCode.FromRaw("173205"), _clock.UtcNow.AddHours(72), _clock.UtcNow.AddHours(96));
+
+        await _sender.SendLoginChallengeAsync(Reserved, mail, Ct);
+
+        await _inner.Received(1).SendLoginChallengeAsync(Reserved, mail, Ct);
+        _capture.TakeCode(Reserved).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task The_notice_to_the_current_address_is_forwarded_unchanged()
+    {
+        var from = _clock.UtcNow.AddHours(72);
+        var until = _clock.UtcNow.AddHours(96);
+
+        await _sender.SendAccountEmailChangeRequestedNotificationAsync(Reserved, from, until, Ct);
+
+        await _inner.Received(1).SendAccountEmailChangeRequestedNotificationAsync(Reserved, from, until, Ct);
+    }
+
+    [Fact]
     public async Task Mails_without_a_code_are_forwarded_and_hold_nothing()
     {
         LoginChallengeEmail[] mails =

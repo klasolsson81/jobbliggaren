@@ -30,13 +30,11 @@ function assertSafeBaseURL(url: string): void {
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "staging.jobbliggaren.se" ||
-    host === "dev.jobbliggaren.se" ||
-    host.endsWith(".staging.jobbliggaren.se") ||
-    host.endsWith(".dev.jobbliggaren.se");
+    host.endsWith(".staging.jobbliggaren.se");
   if (!allowed) {
     throw new Error(
       `E2E-helper avbruten: misstänkt produktions-host "${host}" (URL: ${url}). ` +
-        `Tillåtna hostnamn: localhost, 127.0.0.1, *.staging.jobbliggaren.se, *.dev.jobbliggaren.se. ` +
+        `Tillåtna hostnamn: localhost, 127.0.0.1, *.staging.jobbliggaren.se. ` +
         `Se TD-11.`
     );
   }

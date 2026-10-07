@@ -65,9 +65,9 @@ const MORE_MATCHES_HREF = buildJobbHref({
  *   (avsiktligt tvär-yta per CTO). TEXTEN "Ny" bär betydelsen → färg är aldrig
  *   ensam signal (WCAG 1.4.1); en `sr-only`-text ger skärmläsaren full kontext
  *   (`aria-label` är ogiltig på en generisk span / role=generic).
- * - Titeln länkar till den interna annonsdetaljen (`/jobb/{id}`, paritet
- *   `/sparade`); den externa annons-URL:en yttas som sekundär `ExternalLink`-
- *   action ENBART när den finns.
+ * - Titeln är radens enda länk till den interna annonsdetaljen (`/jobb/{id}`),
+ *   sträckt över kortet (`.jp-job__rowlink`, paritet `/sparade`); den externa
+ *   annons-URL:en yttas som sekundär `ExternalLink`-action ENBART när den finns.
  */
 export function MatchList({ items }: MatchListProps) {
   const t = useTranslations("pages.matchningar");
@@ -105,52 +105,72 @@ export function MatchList({ items }: MatchListProps) {
   return (
     <>
       <ul className="jp-jobs" aria-label={t("listLabel")}>
-        {items.map((item) => (
-          <li key={item.jobAdId}>
-            <article
-              className="jp-job"
-              style={{ gridTemplateColumns: "1fr auto" }}
-            >
-              <div className="jp-job__body">
-                <h3 className="jp-job__title">
-                  <Link href={`/jobb/${item.jobAdId}`} className="text-inherit no-underline">
-                    {item.title}
-                  </Link>
-                  {item.isNew && (
-                    <span className="jp-tag jp-tag--accent" data-tag="new">
-                      {t("newBadge")}
-                      <span className="sr-only">{t("newBadgeAriaLabel")}</span>
+        {items.map((item) => {
+          // The ad id is unique within the list, so it keys the description's IDREFs.
+          const idBase = `match-${item.jobAdId}`;
+          const describedBy = [
+            item.isNew ? `${idBase}-new` : null,
+            `${idBase}-grade`,
+            `${idBase}-company`,
+            `${idBase}-meta`,
+          ]
+            .filter((ref): ref is string => ref !== null)
+            .join(" ");
+          return (
+            <li key={item.jobAdId}>
+              <article className="jp-job">
+                <div className="jp-job__body">
+                  <h3 className="jp-job__title">
+                    {/* The row's one link, stretched over the card; the controls sit above it. No
+                        aria-label: the modal's focus return re-finds a restored opener by its href
+                        and whether it has one (useInformationModalFocus). */}
+                    <Link
+                      href={`/jobb/${item.jobAdId}`}
+                      className="jp-job__rowlink"
+                      aria-describedby={describedBy}
+                    >
+                      {item.title}
+                    </Link>
+                    {item.isNew && (
+                      <span id={`${idBase}-new`} className="jp-tag jp-tag--accent" data-tag="new">
+                        {t("newBadge")}
+                        <span className="sr-only">{t("newBadgeAriaLabel")}</span>
+                      </span>
+                    )}
+                  </h3>
+                  <div id={`${idBase}-company`} className="jp-job__company">
+                    {item.company}
+                  </div>
+                  {/* Label and space in ONE text node: Chrome drops a whitespace-only node from the
+                      link's computed description. */}
+                  <div id={`${idBase}-meta`} className="jp-job__meta">
+                    <span>
+                      {`${t("matchedAt")} `}
+                      <b>{formatSwedishShortDateWithYear(item.createdAt)}</b>
                     </span>
-                  )}
-                </h3>
-                <div className="jp-job__company">{item.company}</div>
-                <div className="jp-job__meta">
-                  <span>
-                    {t("matchedAt")}{" "}
-                    <b>{formatSwedishShortDateWithYear(item.createdAt)}</b>
-                  </span>
+                  </div>
                 </div>
-              </div>
-              <div
-                className="jp-job__actions"
-                style={{ flexDirection: "row", alignItems: "center" }}
-              >
-                <MatchChip grade={item.grade} />
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="jp-icon-btn"
-                    aria-label={tJobads("openExternal")}
-                  >
-                    <ExternalLink size={16} aria-hidden="true" />
-                  </a>
-                )}
-              </div>
-            </article>
-          </li>
-        ))}
+                <div
+                  className="jp-job__actions"
+                  style={{ flexDirection: "row", alignItems: "center" }}
+                >
+                  <MatchChip id={`${idBase}-grade`} grade={item.grade} />
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="jp-icon-btn"
+                      aria-label={tJobads("openExternal")}
+                    >
+                      <ExternalLink size={16} aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </article>
+            </li>
+          );
+        })}
       </ul>
       {atCap && (
         <p className="jp-matchsort-note">

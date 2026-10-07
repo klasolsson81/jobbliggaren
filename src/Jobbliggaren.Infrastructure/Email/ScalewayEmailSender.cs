@@ -118,6 +118,14 @@ public sealed partial class ScalewayEmailSender(
             "email-changed-notification",
             cancellationToken);
 
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail, DateTimeOffset completableFrom, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
+        SendAsync(
+            toEmail,
+            EmailTemplates.AccountEmailChangeRequestedNotification(completableFrom, expiresAt),
+            "account-email-change-requested-notification",
+            cancellationToken);
+
     public Task SendLoginChallengeAsync(
         string toEmail, LoginChallengeEmail content, CancellationToken cancellationToken) =>
         SendAsync(

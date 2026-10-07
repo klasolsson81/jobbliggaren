@@ -247,13 +247,19 @@ services:
       SITE_HOST: ${SITE_HOST:?}
       ACME_EMAIL: ${ACME_EMAIL:?}
       ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
-      # Selects one of three snippets baked into the image. Default `both` is an EMPTY file,
+      # Selects one of three snippets in the image's Caddyfile. Default `both` is EMPTY,
       # so the running configuration is unchanged; `http01` and `alpn01` each disable the other
       # challenge so issuance can be proven per path. Never a running value (#196).
       ACME_CHALLENGE_MODE: ${ACME_CHALLENGE_MODE:-both}
+      # The domain move (#1768, ADR 0154, runbook vps-deploy-stack.md §3f). Unset, both give the
+      # gated edge with no aliases. `apex` adds the `www` 308 and `dev.` 302 sites; only the exact value `open`
+      # lifts the basic-auth gate. DeployComposeEdgeAdmissionTests pins both defaults.
+      SITE_ALIASES: ${SITE_ALIASES:-none}
+      SITE_ADMISSION: ${SITE_ADMISSION:-basic_auth}
+      # Still required with admission open, so that putting the gate back is one key.
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:?}
       # bcrypt hash from `caddy hash-password`. Never committed: this repo is public
-      # and K2 is the whole admission control, so a committed hash is offline-crackable
+      # and while the gate stands K2 is the whole admission control, so a committed hash is offline-crackable
       # (ADR 0050 Amendment 2026-08-04 §5, M-5b point 5).
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?}
     volumes:

@@ -49,6 +49,13 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <item><c>ChangeEmailCommandHandler</c> — the address is swapped only when the emailed link is
 /// opened, so a dropped send is an unfinishable request. It now consults
 /// <see cref="CanDeliver"/> and refuses (503).</item>
+/// <item><c>RequestAccountEmailChangeCommandHandler</c> (#1975) — both of its mails are the change: the
+/// code reaches the new address and the notice is what lets the current address object. It consults
+/// <see cref="CanDeliver"/> first and refuses (503).</item>
+/// <item><c>CompleteAccountEmailChangeCommandHandler</c> (#1975) — its old-address notice is the
+/// same detection control as the confirm step's, but a pending change lives for days and can outlive
+/// a provider change, so the trigger-unreachability ruling below does not carry over. It consults
+/// <see cref="CanDeliver"/> first and refuses (503).</item>
 /// <item><c>ConfirmEmailChangeCommandHandler</c>'s old-address notice — an OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control. Deliberately NOT refused (that would fail a completed,
 /// legitimate change), so with this sender the control is silently off. <b>security-auditor ruled
@@ -100,6 +107,16 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedConsequential("email-changed-notification");
+        return Task.CompletedTask;
+    }
+
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail,
+        DateTimeOffset completableFrom,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("account-email-change-requested-notification");
         return Task.CompletedTask;
     }
 

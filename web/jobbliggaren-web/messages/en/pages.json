@@ -688,6 +688,34 @@
         "unavailable": "Logging in is not possible right now. Try again in a few minutes.",
         "tooManyAttempts": "Too many attempts. Wait a moment and try again."
       }
+    },
+    "addressChange": {
+      "meta": {
+        "title": "Confirm new email address"
+      },
+      "title": "Confirm new email address",
+      "currentEmailLabel": "The account's current email address",
+      "currentEmailHint": "The address you are changing from.",
+      "newEmailLabel": "New email address",
+      "newEmailHint": "The address the code was sent to.",
+      "loggedOut": "Once the address has changed, you are logged out on all devices.",
+      "submit": "Change address",
+      "submitting": "Changing…",
+      "errors": {
+        "currentRequired": "Enter the account's current email address.",
+        "newRequired": "Enter the new email address.",
+        "same": "The new address is the same as the current one. Check the addresses.",
+        "codeRequired": "Enter the code from the email."
+      },
+      "refused": "The address could not be changed. Check both addresses and the code and try again. The code stops working after {attempts, plural, =1 {one wrong attempt} =2 {two wrong attempts} =3 {three wrong attempts} other {# wrong attempts}} or when the time in the email has passed. Then write to <mail>kontakt@jobbliggaren.se</mail>.",
+      "notYet": "The address can be changed no earlier than {date} at {time}. Try again then with the same code.",
+      "unavailable": "The address cannot be changed right now. Try again in a few minutes.",
+      "unknown": "We cannot tell whether the address was changed. Write to <mail>kontakt@jobbliggaren.se</mail> and we will find out.",
+      "done": {
+        "title": "The address is changed",
+        "body": "You are logged out on all devices. Log in with the new address.",
+        "login": "Log in"
+      }
     }
   }
 }

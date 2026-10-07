@@ -1,6 +1,10 @@
 using System.Reflection;
+using Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Queries.GetPendingAccountEmailChange;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
+using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
@@ -98,6 +102,12 @@ public sealed class ReauthenticationChainTests
             typeof(ChangeEmailCommandHandler),
             typeof(VerifyEmailChangeChallengeCommandHandler),
             typeof(ConfirmEmailChangeCommandHandler),
+
+            // #1975 — an administrator's request, cancel and read of an address change, and its owner's completion.
+            typeof(RequestAccountEmailChangeCommandHandler),
+            typeof(CancelAccountEmailChangeCommandHandler),
+            typeof(GetPendingAccountEmailChangeQueryHandler),
+            typeof(CompleteAccountEmailChangeCommandHandler),
         ]);
         while (pending.TryPop(out var type))
         {

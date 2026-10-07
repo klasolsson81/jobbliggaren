@@ -188,11 +188,18 @@
       "emailConfirmed": "Confirmed",
       "emailUnconfirmed": "Not confirmed",
       "profileMissing": "The account has no profile and cannot be signed in to. An account that still has no profile an hour after it was created is removed automatically.",
-      "noAddress": "The account has no email address."
+      "noAddress": "The account has no email address.",
+      "emailChange": "Address change",
+      "emailChangePending": "Waiting for the account owner. The code can be used from <nowrap>{from}</nowrap> until <nowrap>{until}</nowrap>.",
+      "emailChangeBurned": "The code has been entered wrongly too many times and cannot be used. The change lapses <nowrap>{until}</nowrap>.",
+      "emailChangeUnknown": "It is not possible to see whether an address change is pending.",
+      "adminAddress": "The address of an administrator account is not changed here.",
+      "adminAddressOwn": "Change yours on My pages."
     },
     "actions": {
       "impersonate": "Act as the user",
       "changeEmail": "Change email address",
+      "cancelEmailChange": "Cancel the address change",
       "sendLoginLink": "Send login link",
       "markVerified": "Mark email as confirmed",
       "reinstate": "Lift suspension",
@@ -205,16 +212,26 @@
       "heading": "Change email address",
       "current": "Current address",
       "newEmail": "New email address",
-      "hint": "The new address applies only once the account owner has confirmed it.",
+      "hint": "The address changes when the account owner has used the code sent there.",
       "role": "Role",
-      "submit": "Send confirmation",
+      "submit": "Continue",
       "cancel": "Cancel",
+      "dialogDescription": "A code is sent to {newEmail} and a notice to {currentEmail}.",
       "refusal": {
         "required": "Enter the new email address.",
         "invalid": "Enter the new email address in the right format, for example name@example.com.",
         "same": "The new address is the same as the account's current one. Enter another address."
-      },
-      "busy": "Sending…"
+      }
+    },
+    "emailChange": {
+      "administratorTarget": "The account is an administrator account, so its address cannot be changed here.",
+      "changed": "The account has changed since you opened it. Its details are now shown as they are.",
+      "pendingElsewhere": "Another account is already waiting to get that address.",
+      "notConfirmed": "We could not confirm that it is you.",
+      "deliveryUnavailable": "Email sending is not enabled right now, so no code can be sent. The account's address is unchanged. Try again later.",
+      "unknown": "We cannot tell whether the code was sent. Open the account again to see whether an address change is pending.",
+      "nothingToCancel": "There is no address change left to cancel.",
+      "cancelUnknown": "We cannot tell whether the address change was cancelled. Open the account again to see whether it is pending."
     },
     "confirm": {
       "cancel": "Cancel",
@@ -234,21 +251,22 @@
       "suspended": "The account {email} is suspended.",
       "reinstated": "The suspension of {email} is lifted.",
       "deletionScheduled": "The account {email} will be permanently deleted no earlier than {date}.",
-      "emailChangeRequested": "A confirmation has been sent to {email}. The address changes once the owner has confirmed."
+      "emailChangeRequested": "A code has been sent to {email}. The address changes when the account owner has used the code, no earlier than <nowrap>{from}</nowrap>.",
+      "emailChangeCancelled": "The address change is cancelled. The code to the new address no longer works."
     },
     "refusal": {
       "ownAccount": {
-        "changeEmail": "You cannot change the address of your own account here. Change it on My pages.",
         "suspend": "You cannot suspend your own account.",
         "reinstate": "You cannot reinstate your own account.",
         "scheduleDeletion": "You cannot delete your own account here. Delete it on My pages."
       }
     },
     "busy": {
-      "changeEmail": "Sending…",
       "suspend": "Suspending…",
       "reinstate": "Reinstating…",
-      "scheduleDeletion": "Deleting…"
+      "scheduleDeletion": "Deleting…",
+      "cancelEmailChange": "Cancelling…",
+      "retry": "Fetching…"
     }
   },
   "feedback": {

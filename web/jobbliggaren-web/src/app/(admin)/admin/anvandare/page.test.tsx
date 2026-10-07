@@ -14,6 +14,23 @@ vi.mock("next-intl/server", () => ({
 const searchAccounts = vi.hoisted(() => vi.fn<() => Promise<ApiResult<AccountSearchResponse>>>());
 vi.mock("@/lib/api/admin-accounts", () => ({ searchAccounts }));
 
+type Session = { userId: string; email: string; roles: string[] } | null;
+const getServerSession = vi.hoisted(() => vi.fn<() => Promise<Session>>());
+vi.mock("@/lib/auth/session", () => ({ getServerSession }));
+vi.mock("next/navigation", () => ({
+  redirect: (path: string) => {
+    throw new Error(`REDIRECT:${path}`);
+  },
+}));
+// The island's commands; the page itself runs none of them.
+vi.mock("@/lib/actions/admin-accounts", () => ({
+  requestAccountEmailChangeAction: vi.fn(),
+  cancelAccountEmailChangeAction: vi.fn(),
+}));
+vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: vi.fn() }));
+
+const ADMIN: Session = { userId: "00000000-0000-4000-8000-000000000999", email: "admin@example.test", roles: ["Admin"] };
+
 const RESPONSE: AccountSearchResponse = {
   accounts: {
     items: [
@@ -62,6 +79,8 @@ async function renderPage() {
 
 beforeEach(() => {
   searchAccounts.mockReset();
+  getServerSession.mockReset();
+  getServerSession.mockResolvedValue(ADMIN);
 });
 
 describe("/admin/anvandare — every account, searchable by address (#1974, ADR 0151)", () => {
@@ -133,5 +152,15 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
     await renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent(sentence);
+  });
+
+  it("reads the signed-in administrator from the session, and sends a visitor without one to the login page", async () => {
+    // The layout's redirect comes first; the page holds its own, since it needs the administrator's id (#1975).
+    searchAccounts.mockResolvedValue({ kind: "ok", data: RESPONSE });
+    await renderPage();
+    expect(getServerSession).toHaveBeenCalled();
+
+    getServerSession.mockResolvedValue(null);
+    await expect(AdminUsersPage()).rejects.toThrow(/^REDIRECT:\/logga-in$/);
   });
 });

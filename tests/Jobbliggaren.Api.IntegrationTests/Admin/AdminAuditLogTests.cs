@@ -149,6 +149,7 @@ public class AdminAuditLogTests(ApiFactory factory)
         var beforeRevoke = await client.GetAsync("/api/v1/admin/audit-log?pageSize=1", ct);
         beforeRevoke.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        // Unreachable today: nothing in src/ removes the role. Asserted only as the read side's safe degradation.
         await DemoteFromAdminAsync(userId, ct);
 
         var afterRevoke = await client.GetAsync("/api/v1/admin/audit-log?pageSize=1", ct);

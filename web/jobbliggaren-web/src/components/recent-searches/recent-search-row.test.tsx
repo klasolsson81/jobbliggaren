@@ -80,7 +80,7 @@ describe("RecentSearchRow", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders NO match-count meta when count prop is absent (lazy — not yet fetched / timeout / error)", () => {
+  it("renders NO match-count meta when the counts failed (timeout / error) or the row has no entry", () => {
     render(
       <RecentSearchRow
         item={makeDto({ currentCount: 42, newCount: 0 })}
@@ -94,6 +94,21 @@ describe("RecentSearchRow", () => {
     // currentCount on the DTO is ignored — no count prop → no meta, never "(0)".
     expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+  });
+
+  it("reserves the count line, with no number in it, while the counts are pending", () => {
+    const { container } = render(
+      <RecentSearchRow
+        item={makeDto({ currentCount: 42, newCount: 0 })}
+        countsPending
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const line = container.querySelector(".jp-job__meta--search-count");
+    expect(line).toHaveAttribute("aria-hidden", "true");
+    expect(line?.textContent?.trim()).toBe("");
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
   });
 
   it("renders '(N) träffar' from the lazy count prop when newCount === 0", () => {
@@ -188,7 +203,56 @@ describe("RecentSearchRow", () => {
     expect(screen.queryByText(/^Nya$/)).not.toBeInTheDocument();
   });
 
-  it("has 'Kör igen' primary action linking to a /jobb-URL built from the filter", () => {
+  // #2011 — a solid primary per row is one solid fill per row on one screen. DESIGN.md §6: one
+  // --primary per screen, and a row action takes the non-solid emphasis level.
+  it("gives 'Kör igen' the emphasis level, never a solid primary", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const link = screen.getByRole("link", { name: /Kör igen/ });
+    expect(link).toHaveClass("jp-btn jp-btn--sm jp-btn--emphasis", { exact: true });
+    expect(link).not.toHaveClass("jp-btn--primary");
+  });
+
+  // #2030 — the Clock plate repeated the page heading on every row.
+  it("renders no plate, and every icon on the row sits on an action", () => {
+    const { container } = render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
+    expect(container.querySelector(".jp-job__match")).toBeNull();
+    const icons = [...container.querySelectorAll("svg")];
+    expect(icons.length, "the row renders no icon at all, so the check below is vacuous").toBeGreaterThan(0);
+    expect(
+      icons.filter((icon) => !icon.closest("a, button")),
+      "jobbpilot-design-principles rule 3: an icon on a data row signals an action, and one outside a " +
+        "link or button only decorates the row",
+    ).toEqual([]);
+  });
+
+  // #2029: "Kör igen" is where focus lands when the row above it is removed, and its name alone
+  // does not say which search it runs.
+  it("describes 'Kör igen' with the row's label, keeping the visible name", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Kör igen" });
+    expect(link).toHaveAccessibleDescription("backend");
+  });
+
+  it("has a 'Kör igen' action linking to a /jobb-URL built from the filter", () => {
     render(
       <RecentSearchRow
         item={makeDto()}
@@ -250,6 +314,7 @@ describe("RecentSearchRow", () => {
     );
     expect(onDeleted).toHaveBeenCalledWith(
       "11111111-1111-1111-1111-111111111111",
+      "Sökningen har tagits bort: backend",
     );
   });
 

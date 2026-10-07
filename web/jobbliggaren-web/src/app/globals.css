@@ -541,16 +541,17 @@ body {
    at (0,1,0) its `color` loses to this rule's (0,1,1). Exempting it here keeps
    that declaration true instead of answering with a louder one, and covers the
    :hover twin — which the row has no color rule of its own to answer at all.
-   `.jp-job__rowlink` (the /jobb card's title, #1828) is the fourth for the same
+   `.jp-job__rowlink` (a job card's title link, #1828) is the fourth for the same
    reason: its `color: inherit` keeps the title ink (E2f), hover included.
    `.jp-app__rowlink`, `.jp-board-card__link` and `.jp-apptable__rowlink` (the
    /ansokningar titles in the queue and Lista, on the Tavla card and in the Tabell)
    are the same exemption again, by Klas's answer "Bläck" (#1827 K1): each title keeps
    its own ink, hover included, and the row, card or table row carries the click cue.
    `.jp-settingsnav__item` (the /mina-sidor section menu, #1916) is menu chrome like the
-   popover row. */
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item):hover { color: var(--jp-accent-600); }
+   popover row. `.jp-icon-btn` (#2012) carries its own ink as its state, ink-2 at rest and
+   ink-1 on hover, whether it is an <a> or a <button>. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item, .jp-icon-btn) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink, .jp-app__rowlink, .jp-board-card__link, .jp-apptable__rowlink, .jp-settingsnav__item, .jp-icon-btn):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
@@ -2155,9 +2156,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--field { height: 48px; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
-   Gäller både :disabled och aria-disabled (för länk-knappar). */
+   Gäller både :disabled och aria-disabled (för länk-knappar, och för en ikonknapp som väntar på
+   sin handling men behåller fokus, #2029). */
 .jp-btn:disabled,
-.jp-btn[aria-disabled="true"] {
+.jp-btn[aria-disabled="true"],
+.jp-icon-btn[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -2594,6 +2597,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  /* `anywhere`, not `break-word`: this is a flex container, and only `anywhere` lowers its items'
+     min-content, so a word wider than the card wraps inside it (#1875). */
+  overflow-wrap: anywhere;
 }
 .jp-job__company,
 .jp-app__company {
@@ -2628,6 +2634,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: flex-end;
   gap: 8px;
 }
+/* A row template beside the chassis' `1fr auto`. It stays above the <=720px arm below, which has to
+   win at narrow widths: a media query adds no specificity, so source order decides (#1875). */
+.jp-job--single { grid-template-columns: 1fr; }
 
 /* Dark mode: job- och application-titel byter till fet vit */
 [data-theme="dark"] .jp-job__title,
@@ -2643,6 +2652,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-job__actions {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+  /* A first icon button under the text puts its 16px glyph on the text rail; the hit area stays the
+     44px touch floor. Same idea as .jp-btn--flush. */
+  .jp-job__actions > .jp-icon-btn:first-child {
+    margin-inline-start: calc((16px - 44px) / 2);
   }
 }
 
@@ -3916,7 +3930,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* Länk-overlay (CTO-bind 6, a11y): titeln är radens ENDA <a>, sträckt över
    raden via ::after — handlingszonen lyfts ovanpå med z-index så interaktiva
-   element aldrig nästlas i ankaret (ogiltig HTML). /jobb-kortet bär samma
+   element aldrig nästlas i ankaret (ogiltig HTML). Jobbkortet bär samma
    overlay (`.jp-job__rowlink`, #1828). */
 .jp-app__rowlink,
 .jp-job__rowlink {
@@ -3938,6 +3952,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-job__rowlink:focus-visible::after {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: -2px;
+}
+/* A job card that also carries controls (#2012): each control sits above the row link's overlay,
+   or a click meant for it opens the ad. The controls, never the actions zone: the match chip and
+   the gaps stay part of the card's target. */
+.jp-job:has(.jp-job__rowlink) > .jp-job__actions > a,
+.jp-job:has(.jp-job__rowlink) > .jp-job__actions > button {
+  position: relative;
+  z-index: 1;
 }
 /* Meta-raden (#780 PR-4): bråttom-tagg + statustagg + dagar-i-steget, staplad
    under roll/företag i body-kolumnen. */
@@ -7132,10 +7154,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 0;
 }
 
-/* Bevakning F4b — rad-chassit .jp-job/.jp-app delas med /jobb, där HELA kortet är klickbart. På /foretag
-   (och i ansökningshistoriken) är bara knapparna klickbara, så pekaren + hover-accentkanten lovar en
-   interaktion som inte finns. Med en andra knapp i raden blir den falska affordansen aktivt vilseledande.
-   Modifiern tar bort löftet utan att röra /jobb. */
+/* Bevakning F4b — the shared .jp-job/.jp-app chassis promises that the whole card is clickable: the
+   pointer and the accent hover border. A row with no card target of its own (only its buttons act, or
+   nothing links at all, as on an erased saved ad) takes the promise back with this modifier. */
 .jp-job--static {
   cursor: default;
 }
@@ -7213,16 +7234,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Labelns radbox, inte sin egen font-size: under flex-start toppjusteras
      BOXARNA, så counten linjerar med rad 1 bara när boxhöjderna är lika. */
   line-height: calc(var(--text-ui) * 1.3);
-}
-
-/* Neutral ikon-platta på rad (Bookmark/Clock) — var 3 inline-kopior
-   (saved-job-ad-row x2, recent-search-row). Link-varianten behöver
-   text-decoration none. */
-.jp-job__match--neutral {
-  background: var(--jp-surface-3);
-  border-color: var(--jp-border);
-  color: var(--jp-ink-2);
-  text-decoration: none;
 }
 
 /* Hero-sökhint (guest-jobb-page) — mjuk vit på gradientplattan. */

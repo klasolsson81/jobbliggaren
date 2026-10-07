@@ -314,7 +314,7 @@ public class HttpsRedirectionGateEnabledTests(HttpsRedirectionEnabledProductionF
         hstsValue.ShouldContain("includeSubDomains",
             customMessage: "IncludeSubDomains=true skyddar alla *.jobbliggaren.se-subdomäner.");
         hstsValue.ShouldNotContain("preload",
-            customMessage: "Preload=false initialt — submit till hstspreload.org är prod-launch-step (HstsOptions.Preload-doccen).");
+            customMessage: "Preload=false (HstsOptions.Preload).");
     }
 }
 

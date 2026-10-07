@@ -3,12 +3,14 @@ using System.Security.Cryptography;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Landing.Common;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
@@ -173,6 +175,41 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         await DeniedAsync(() => db.StringGetAsync(indexKey));
         await DeniedAsync(() => db.KeyDeleteAsync(indexKey));
         (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(recordKey)).ShouldBeTrue();
+    }
+
+    // #1975 — the admin-initiated address change, ahead of its store: the record family runs the bound
+    // challenge's verbs and the index SET and GET. Neither is removed with DEL, and only the record may be
+    // unlinked.
+    [Fact]
+    public async Task AccountEmailChanges_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands()
+    {
+        var db = fixture.Challenge.GetDatabase();
+        var record = new RedisKey("jobbliggaren:auth/account-email-change/v1/" + Guid.NewGuid().ToString("N"));
+        var index = new RedisKey("jobbliggaren:auth/account-email-change-by-user/v1/" + Guid.NewGuid().ToString("N"));
+
+        await db.ExecuteAsync("HMSET", record, "p", "sealed", "a", "0");
+        ((string?)await db.ExecuteAsync("HGET", record, "p")).ShouldBe("sealed");
+        ((long)await db.ExecuteAsync("HINCRBY", record, "a", "1")).ShouldBe(1);
+        ((long)await db.ExecuteAsync("EXISTS", record)).ShouldBe(1);
+        ((long)await db.ExecuteAsync("EXPIRE", record, "600")).ShouldBe(1);
+        const string script = "return redis.call('HINCRBY', KEYS[1], 'a', 1)";
+        var sha = ((string?)await db.ExecuteAsync("SCRIPT", "LOAD", script)).ShouldNotBeNull();
+        ((long)await db.ExecuteAsync("EVALSHA", sha, "1", record)).ShouldBe(2);
+        ((long)await db.ExecuteAsync("EVAL", script, "1", record)).ShouldBe(3);
+        (await db.ExecuteAsync("SET", index, record.ToString(), "EX", "600")).ToString().ShouldBe("OK");
+        ((string?)await db.StringGetAsync(index)).ShouldBe(record.ToString());
+
+        await DeniedAsync(() => db.HashGetAllAsync(record));
+        await DeniedAsync(() => db.StringGetAsync(record));
+        await DeniedAsync(() => db.ExecuteAsync("DEL", record));
+        await DeniedAsync(() => db.ExecuteAsync("DEL", index));
+        await DeniedAsync(() => db.KeyDeleteAsync(index));
+        await DeniedAsync(() => db.ExecuteAsync("SETEX", index, "600", record.ToString()));
+        await DeniedAsync(() => db.ExecuteAsync("GETDEL", index));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(index)).ShouldBeTrue();
+
+        ((long)await db.ExecuteAsync("UNLINK", record)).ShouldBe(1);
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(record)).ShouldBeFalse();
     }
 
     [Fact]
@@ -402,6 +439,60 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         await control.GetDatabase().PingAsync();
         await Should.ThrowAsync<RedisConnectionException>(() => isolated.ConnectAsync(isolated.Persistent, RedisBoundaryFixture.WorkerPersistent));
         await Should.ThrowAsync<RedisConnectionException>(() => isolated.ConnectAsync(isolated.Persistent, RedisBoundaryFixture.WorkerPersistent, replacement));
+    }
+
+    // #1975 — ADR 0143's real-adapter rule for the address change's two families: the store's own put, consume, cancel
+    // and read run as api-volatile, a SCRIPT FLUSH sends the next script through its reload, both keys carry a TTL, and
+    // then the commands the adapter never sends are refused on the keys it built.
+    [Fact]
+    public async Task AccountEmailChanges_ApiVolatileIdentity_PutConsumeCancelAndReadThroughTheAdapter()
+    {
+        var clock = new MutableFakeDateTimeProvider { UtcNow = FakeDateTimeProvider.Now.UtcNow };
+        var store = new RedisAccountEmailChangeStore(fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(),
+            clock, NullLogger<RedisAccountEmailChangeStore>.Instance);
+        var admin = fixture.VolatileAdmin.GetDatabase();
+        var userId = Guid.NewGuid();
+        var current = Guid.NewGuid() + "@example.com";
+        var first = Guid.NewGuid() + "@example.com";
+        var second = Guid.NewGuid() + "@example.com";
+        var firstKey = RedisAccountEmailChangeStore.RecordKey(RedisAccountEmailChangeStore.RecordSegment(first));
+        var secondKey = RedisAccountEmailChangeStore.RecordKey(RedisAccountEmailChangeStore.RecordSegment(second));
+        var indexKey = RedisAccountEmailChangeStore.IndexKey(userId);
+
+        await store.PutAsync(new NewAccountEmailChange(userId, first, current), Ct);
+        var written = (await store.PutAsync(new NewAccountEmailChange(userId, second, current), Ct))
+            .ShouldBeOfType<AccountEmailChangePut.Written>();
+        (await admin.KeyExistsAsync(firstKey)).ShouldBeFalse();
+        foreach (var key in new[] { secondKey, indexKey })
+            (await admin.KeyTimeToLiveAsync(key)).ShouldNotBeNull().ShouldBeGreaterThan(TimeSpan.FromHours(95));
+        (await store.FindPendingAsync(userId, Ct)).ShouldNotBeNull().State.ShouldBe(PendingAccountEmailChangeState.Pending);
+
+        await admin.ExecuteAsync("SCRIPT", "FLUSH");
+        (await store.ConsumeAsync(second, current, written.Code, Ct)).ShouldBeOfType<AccountEmailChangeVerdict.NotYet>();
+        clock.UtcNow += AccountEmailChangePolicy.Delay;
+        var wrong = LoginCode.FromRaw(written.Code.Reveal() == "000000" ? "111111" : "000000");
+        (await store.ConsumeAsync(second, current, wrong, Ct)).ShouldBe(AccountEmailChangeVerdict.Unusable.Instance);
+        (await store.ConsumeAsync(second, current, written.Code, Ct)).ShouldBeOfType<AccountEmailChangeVerdict.Verified>();
+
+        var revoked = (await store.PutAsync(new NewAccountEmailChange(userId, first, current), Ct))
+            .ShouldBeOfType<AccountEmailChangePut.Written>();
+        await store.RevokeAsync(revoked.Receipt, Ct);
+        (await admin.KeyExistsAsync(firstKey)).ShouldBeFalse();
+        await store.PutAsync(new NewAccountEmailChange(userId, first, current), Ct);
+        (await store.CancelAsync(userId, Ct)).ShouldBeTrue();
+        (await store.FindPendingAsync(userId, Ct)).ShouldBeNull();
+
+        await store.PutAsync(new NewAccountEmailChange(userId, second, current), Ct);
+        var db = fixture.Challenge.GetDatabase();
+        await DeniedAsync(() => db.HashGetAllAsync(secondKey));
+        await DeniedAsync(() => db.HashGetAsync(secondKey, ["p", "a"]));
+        await DeniedAsync(() => db.HashSetAsync(secondKey, "a", 0));
+        await DeniedAsync(() => db.KeyTimeToLiveAsync(secondKey));
+        await DeniedAsync(() => db.StringGetAsync(secondKey));
+        await DeniedAsync(() => db.KeyDeleteAsync(indexKey));
+        await DeniedAsync(() => db.KeyExpireAsync(indexKey, TimeSpan.FromHours(1)));
+        (await admin.KeyExistsAsync(secondKey)).ShouldBeTrue();
+        (await admin.KeyExistsAsync(indexKey)).ShouldBeTrue();
     }
 
     private static string SessionKey(SessionId id) =>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { accountSearchResponseSchema, toAccountsPage } from "./admin-accounts";
+import {
+  accountSearchResponseSchema,
+  pendingEmailChangeReadSchema,
+  toAccountsPage,
+  toPendingEmailChange,
+} from "./admin-accounts";
 
 const ITEM = {
   id: "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
@@ -40,5 +45,18 @@ describe("the account directory's wire shapes (#1974, ADR 0151)", () => {
     const outside = { ...ITEM, id: "00000000-0000-0000-0000-000000000001" };
 
     expect(accountSearchResponseSchema.safeParse(answer([outside, ITEM])).success).toBe(true);
+  });
+});
+
+describe("the pending address change's wire shape (#1975, ADR 0153)", () => {
+  const INSTANTS = { completableFrom: "2026-10-08T12:00:00+00:00", expiresAt: "2026-10-09T12:00:00+00:00" };
+
+  it.each([
+    ["CodeBurned", "codeBurned"],
+    ["Pending", "pending"],
+  ] as const)("reads the state %s as %s, with both instants as sent", (wire, state) => {
+    const read = pendingEmailChangeReadSchema.parse({ pending: { state: wire, ...INSTANTS } });
+
+    expect(read.pending === null ? null : toPendingEmailChange(read.pending)).toEqual({ state, ...INSTANTS });
   });
 });

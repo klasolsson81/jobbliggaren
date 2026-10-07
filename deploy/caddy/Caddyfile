@@ -9,8 +9,8 @@
 # That constant owns the rule and the measurement; this is a pointer, not a second copy.
 #
 # Values arrive as container environment (deploy/docker-compose.yml, from the box's
-# deploy/.env). No credential is committed: this repo is public, and the basic-auth
-# gate is the whole of admission control (gate M-5b point 5).
+# deploy/.env). No credential is committed: this repo is public, and while the basic-auth
+# gate stands it is the whole of admission control (gate M-5b point 5).
 {
 	email {$ACME_EMAIL}
 	# Let's Encrypt production by default; point ACME_CA at the staging directory to
@@ -57,7 +57,7 @@
 	#
 	# A `log` DIRECTIVE ADDED TO THE SITE BELOW WOULD BE A SEPARATE LOGGER that inherits
 	# none of this and logs EVERY request rather than only 5xx. The pin holds this file
-	# and `challenge/*.caddy` to exactly one `log` directive, inside these global options.
+	# to exactly one `log` directive, inside these global options.
 	log {
 		format filter {
 			wrap json
@@ -126,37 +126,73 @@
 	}
 }
 
+# AN ENVIRONMENT VALUE SELECTS A SNIPPET BY ITS EXACT NAME, NEVER A FILE (#1768). A file path in
+# `import` is a glob: measured 2026-10-06 on 2.11.4, a file seam `admission/<value>.caddy`
+# opened the site for `o*` and `?pen`. A snippet resolves only by its exact name; a value naming none
+# falls back to a file glob that matches nothing in this image (imports nothing), and a plain
+# unknown name is "File to import not found" and exit 1. The admission gate below takes no import
+# at all, for the reason written beside it.
+
+# CHALLENGE-TYPE SEAM (#196). Default `both` is EMPTY, so the running configuration is Caddy's
+# default automation policy: both challenges enabled, adaptive fallback.
+#
+# The other two values exist because verification-log rows 5 and 6 cannot be taken without them.
+# Caddy picks between HTTP-01 and TLS-ALPN-01 and falls back SILENTLY, so one certificate proves
+# nothing about which path carried it — and a renewal path that was never proven dies quietly about
+# 60 days after cutover. Disabling one is how you PROVE the other, never how you run.
+#
+# The key is PERMANENT (CTO 2026-08-05). The certificate renews forever and the renewal path can be
+# broken later by a firewall change, a Caddy upgrade or a DNS move; this is a diagnostic
+# instrument, not cutover scaffolding.
+#
+# `dir` and `email` are restated rather than inherited: the global block sets them for the DEFAULT
+# automation policy, an explicitly declared issuer is a different policy, and whether the adapter
+# back-fills the globals into it is unmeasured — paid for in Let's Encrypt rate limit if wrong.
+# `dir` is the Caddyfile property; `ca` is only its JSON name and fails here as "unrecognized ACME
+# issuer property". Runbook §5: never configure TLS-ALPN-01 away without having proven HTTP-01.
+(challenge-both) {
+}
+
+(challenge-http01) {
+	tls {
+		issuer acme {
+			dir {$ACME_CA}
+			email {$ACME_EMAIL}
+			disable_tlsalpn_challenge
+		}
+	}
+}
+
+(challenge-alpn01) {
+	tls {
+		issuer acme {
+			dir {$ACME_CA}
+			email {$ACME_EMAIL}
+			disable_http_challenge
+		}
+	}
+}
+
+# Gate M-5a: one literal for every site below, byte-identical to the STRICT_TRANSPORT_SECURITY
+# constant in the web app. Host-only on purpose: no includeSubDomains, no preload (ADR 0050 M-5a).
+(hsts) {
+	header Strict-Transport-Security "max-age=31536000"
+}
+
 {$SITE_HOST} {
-	# CHALLENGE-TYPE SEAM (#196). Default `both` resolves to an EMPTY file, so the running
-	# configuration is byte-for-byte what it was before this line existed — Caddy's default
-	# automation policy, both challenges enabled, adaptive fallback.
-	#
-	# The other two values exist because verification-log rows 5 and 6 cannot be taken without
-	# them. Caddy picks between HTTP-01 and TLS-ALPN-01 and falls back SILENTLY, so one
-	# certificate proves nothing about which path carried it — and a renewal path that was
-	# never proven dies quietly about 60 days after cutover. Disabling one is how you PROVE
-	# the other, never how you run.
-	#
-	# The key is PERMANENT (CTO 2026-08-05). The certificate renews forever and the renewal
-	# path can be broken later by a firewall change, a Caddy upgrade or a DNS move; this is a
-	# diagnostic instrument, not cutover scaffolding. Removing it would mean re-deriving and
-	# re-deploying the mechanism on a box that is, at that moment, down.
-	#
-	# SINGLE COLON, not `:-`. Caddy splits env substitution on the FIRST colon, so `:-both`
-	# makes the default the literal string `-both` and the import fails on `-both.caddy`.
-	# Compose uses `:-` for the same job one layer out, and that IS correct there — the two
-	# syntaxes look alike and are not. Measured: with the variable unset, `:-` gives
-	# "File to import not found: /etc/caddy/challenge/-both.caddy" and exit 1, which behind
+	# SINGLE COLON, not `:-`. Caddy splits env substitution on the FIRST colon, so `:-both` makes
+	# the default the literal string `-both`. Compose uses `:-` for the same job one layer out, and
+	# that IS correct there — the two syntaxes look alike and are not. Measured: `:-` gives
+	# "File to import not found: challenge--both" and exit 1, which behind
 	# `restart: unless-stopped` is a crash-loop on the only service that publishes 80/443.
-	import /etc/caddy/challenge/{$ACME_CHALLENGE_MODE:both}.caddy
+	import challenge-{$ACME_CHALLENGE_MODE:both}
 
 	encode zstd gzip
 
-	# Gate M-5a. This is the load-bearing half: the 401 below is answered here and
-	# never reaches Next, so a header set only by buildSecurityHeaders would be absent
-	# from the first response a browser sees. The value is byte-identical to the
-	# STRICT_TRANSPORT_SECURITY constant in the web app.
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	# Gate M-5a. This is the load-bearing half: Caddy's own responses — the 401 below, the
+	# ACME 404, a 503 while web is down, the alias sites' 308/302 — never reach Next, so a
+	# header set only by buildSecurityHeaders would be absent from them.
+	import hsts
 
 	request_body {
 		max_size 20MB
@@ -172,7 +208,7 @@
 	# application content with no credentials, carrying the upstream's own `Server`
 	# header — proof the request was proxied rather than answered at the edge. Under
 	# Option B that is Next running middleware, routing and i18n on unauthenticated
-	# input, and K2 is the whole of admission control (gate M-5b point 5).
+	# input, while the gate below stands as the whole of admission control (gate M-5b point 5).
 	#
 	# The earlier form reasoned correctly about being wrong in one direction (a renewal
 	# that dies silently about 60 days after cutover) and never considered the other,
@@ -182,14 +218,24 @@
 	}
 
 	handle {
+		# ADMISSION (#1768, ADR 0154). The gate stands unless SITE_ADMISSION is exactly `open`.
+		# `{env.…}` is read per request as DATA; a parse-time `{$…}` would splice the value into the
+		# expression as CODE (a quote in it changed the expression). Unset reads as "" and is
+		# gated. If evaluation errors, Caddy aborts the request rather than skipping the gate.
+		# Measured 2026-10-06 on 2.11.4: `Open`, ` open`, `o*`, `open x`, empty and quote-bearing
+		# values all gate and the edge keeps running. edge-modes.test.sh re-runs that matrix on every
+		# image build; CaddyfileAdmissionPinTests holds this exact text.
+		@gated `{env.SITE_ADMISSION} != "open"`
+
 		# THIS DIRECTIVE NOW CARRIES A GDPR CONCLUSION, NOT ONLY ACCESS CONTROL (#734).
-		# release-checklist.md re-graded the dead Art. 12 rights channel on 2026-08-16
-		# against a measured operating state, and one of the measurements is that this site
-		# answers 401 on every path. Remove or bypass this block — even briefly, even for a
-		# demo — and that fires the checklist's trigger (c), so the finding becomes blocking in
-		# that same moment, with nothing to warn: it is filed against a state that stopped
-		# being true.
-		# The published channel gets a reader before this comes off, not after.
+		# While it stands — SITE_ADMISSION anything but exactly `open` — the site answers 401 on
+		# every path but the ACME prefix, and that 401 is the readability measurement trigger (c)
+		# rests on: release-checklist.md §2.5 point 1 precondition 5, and the ADR 0132/0133
+		# lapse. `open`, or removing or bypassing this block, fires (c) in that same moment with
+		# nothing to warn, and putting the gate back does not un-fire it. The finding turns
+		# blocking only if the precondition fails when it is re-measured then, which is why the
+		# way to `open` is vps-deploy-stack.md §3f and nothing else. Opening also lets anyone fire
+		# trigger (d): the login form mails an address that has no account.
 		#
 		# A SECOND GDPR CONCLUSION LIVED HERE FOR ONE DAY AND IS NOW SPENT (#183 E5 →
 		# FU-2b, both 2026-08-16). It read: the email arm went live before the site did, so
@@ -217,7 +263,7 @@
 		# returns zero on the English file:
 		#   grep -n "Notiserna planeras att skickas med e-post" web/jobbliggaren-web/messages/sv/content-legal.json
 		#   grep -n "The notifications are planned to be sent by email" web/jobbliggaren-web/messages/en/content-legal.json
-		basic_auth {
+		basic_auth @gated {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}
 
@@ -239,9 +285,10 @@
 		#
 		# AND THE TRADE IS REAL IN THE OTHER DIRECTION: during a genuine web outage every
 		# request now blocks for up to 10 s instead of failing fast, so caddy holds roughly
-		# rate x 10s concurrent connections where it held none. Bounded here because
-		# basic_auth runs BEFORE the proxy in this same handle block, so an unauthenticated
-		# flood gets 401 and never reaches the retry loop.
+		# rate x 10s concurrent connections where it held none. Bounded here only while the gate
+		# stands: basic_auth runs BEFORE the proxy in this same handle block, so an unauthenticated
+		# flood gets 401 and never reaches the retry loop. With SITE_ADMISSION=open nothing here
+		# bounds it; that is gate M-5b point 7, re-graded live at the domain move (runbook §3f).
 		#
 		# Retrying is safe for non-idempotent methods by Caddy's default and not by luck: a
 		# retry after the connection itself failed sends nothing upstream, and the case
@@ -273,3 +320,24 @@
 		}
 	}
 }
+
+# ALIAS SEAM (#1768, ADR 0154 §2). `none` serves SITE_HOST alone. `apex` adds the two names the
+# domain move redirects to it, keeping path and query; `dev.` is a 302 on purpose, so a future dev
+# box can take the name back. Set `apex` only once DNS points both names at this box: each name gets
+# its own certificate, and a failed validation spends Let's Encrypt's failed-validation limit.
+(hosts-none) {
+}
+
+(hosts-apex) {
+	www.{$SITE_HOST} {
+		import hsts
+		redir https://{$SITE_HOST}{uri} 308
+	}
+
+	dev.{$SITE_HOST} {
+		import hsts
+		redir https://{$SITE_HOST}{uri} 302
+	}
+}
+
+import hosts-{$SITE_ALIASES:none}

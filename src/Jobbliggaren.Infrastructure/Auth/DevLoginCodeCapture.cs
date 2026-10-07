@@ -74,6 +74,9 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
             LoginChallengeEmail.NewAccountCode newAccount => newAccount.Code,
             LoginChallengeEmail.ReauthenticationCode reauthentication => reauthentication.Code,
             LoginChallengeEmail.AddressChangeCode addressChange => addressChange.Code,
+
+            // Usable only after a delay of days, so a hold that lapses with a login challenge would serve nothing.
+            LoginChallengeEmail.AccountEmailChangeCode => null,
             LoginChallengeEmail.LinkOnly
                 or LoginChallengeEmail.RegistrationClosed
                 or LoginChallengeEmail.PendingDeletion
@@ -95,5 +98,9 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
 
     public Task SendEmailChangedNotificationAsync(string toEmail, CancellationToken cancellationToken) =>
         inner.SendEmailChangedNotificationAsync(toEmail, cancellationToken);
+
+    public Task SendAccountEmailChangeRequestedNotificationAsync(
+        string toEmail, DateTimeOffset completableFrom, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
+        inner.SendAccountEmailChangeRequestedNotificationAsync(toEmail, completableFrom, expiresAt, cancellationToken);
 
 }

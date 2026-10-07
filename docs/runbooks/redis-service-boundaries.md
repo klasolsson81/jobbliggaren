@@ -33,7 +33,7 @@ Change the contract and its tests together when adding a consumer.
 | migrate-rewrap | PostgreSQL | Key maintenance |
 | API | persistent Redis | Sessions, company cache and statistics reads |
 | Worker | persistent Redis | Statistics publication |
-| API | volatile Redis | Login challenges, grants, registration claims, OAuth state and budgets |
+| API | volatile Redis | Login challenges, grants, registration claims, OAuth state, account email changes and budgets |
 | API | Seq | Application logs |
 | Worker | Seq | Job logs |
 
@@ -83,6 +83,8 @@ boundary.
 | Challenge address index / API volatile | `auth/challenge-by-address/v1/*` | SET with GET and expiry |
 | RedisLoginChallengeStore, bound challenges / API volatile | `auth/challenge-bound/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Bound challenge index / API volatile | `auth/challenge-by-user/v1/*` | SET with GET and expiry |
+| Admin-initiated account email change (#1975) / API volatile | `auth/account-email-change/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
+| Account email change index (#1975) / API volatile | `auth/account-email-change-by-user/v1/*` | SET with GET and expiry, GET |
 | RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
 | RedisOAuthStateStore / API volatile | `auth/oauth-state/v1/*` | SET with NX and expiry, GETDEL |
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
@@ -103,6 +105,15 @@ The volatile budget scopes are `login-challenge-cooldown`,
 Each is enumerated in the template; unknown scopes are refused.
 `VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
 application declares differ.
+
+Both #1975 families are `RedisAccountEmailChangeStore`'s. On the record it sends
+one-key scripts only: the put (HGET, HMSET and EXPIRE in one), the owner-guarded and
+payload-guarded deletes (UNLINK), the guarded refund (HINCRBY), the owner-checked
+read (HGET), and the shared consume script with EXISTS before HINCRBY. On the index
+it sends SET with GET and EX on a put, and GET on a consume, a cancel and a read.
+It sends no `Condition` (WATCH), no PEXPIRE, HSET, HMGET or PTTL.
+`RedisAclContractTests.AccountEmailChanges_ApiVolatileIdentity_PutConsumeCancelAndReadThroughTheAdapter`
+runs those calls as `api-volatile`.
 
 A missing selector fails closed and does not look like what it is: the API is
 healthy and `/api/ready` is green, because both volatile identities may `PING`,
@@ -272,6 +283,10 @@ Example dry-run cases (all keys are synthetic names, and no writes execute):
 | api-volatile / volatile | `INCR jobbliggaren:budget/unregistered/v1/probe` | Refused |
 | api-volatile / volatile | `GETDEL jobbliggaren:auth/grant/v1/probe` | OK |
 | api-volatile / volatile | `GET jobbliggaren:auth/grant/v1/probe` | Refused |
+| api-volatile / volatile | `HINCRBY jobbliggaren:auth/account-email-change/v1/probe a 1` | OK |
+| api-volatile / volatile | `HGETALL jobbliggaren:auth/account-email-change/v1/probe` | Refused |
+| api-volatile / volatile | `GET jobbliggaren:auth/account-email-change-by-user/v1/probe` | OK |
+| api-volatile / volatile | `DEL jobbliggaren:auth/account-email-change-by-user/v1/probe` | Refused |
 | Each application user / its store | `ACL LIST`, `FLUSHALL`, `KEYS *` | Refused |
 | Each health user / its store | `PING` | OK |
 | Each health user / its store | `HMGET jobbliggaren:landing:stats:v1 data` | Refused |

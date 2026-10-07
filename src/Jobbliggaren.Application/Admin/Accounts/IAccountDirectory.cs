@@ -6,7 +6,8 @@ namespace Jobbliggaren.Application.Admin.Accounts;
 /// <summary>
 /// Every account Identity holds, with the profile facts that set its status (ADR 0151). Answering it takes
 /// one bounded statement across the identity and app schemas, so it lives in Infrastructure behind this
-/// port. Only the three admin account queries consume it; an architecture test pins that.
+/// port. Only the three admin account queries and the request of an address change (#1975) consume it; an
+/// architecture test pins that.
 /// </summary>
 public interface IAccountDirectory
 {

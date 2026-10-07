@@ -549,7 +549,9 @@
   flex-direction: column;
   gap: 10px;
 }
-.jp-adminpanel__note {
+/* A note, and a status a command left: plain text, never the danger colour. */
+.jp-adminpanel__note,
+.jp-adminpanel__status {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
@@ -671,11 +673,19 @@
   flex-direction: column;
   gap: 6px;
 }
-.jp-admineditform__hint {
+.jp-admineditform__hint,
+.jp-admineditform__status {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+
+/* ── The step-up dialog the edit form opens (#1975): above the panel, as the confirmation is ───
+   The shared dialog's overlay and content and the panel all sit at 110, which leaves their order to
+   the portals. Lifted here to the confirmation's 119/120, so the shared component is unchanged
+   everywhere else; its overlay is the sibling portalled directly before the content. */
+.jp-adminstepup { z-index: 120; }
+[data-slot="dialog-overlay"]:has(+ .jp-adminstepup) { z-index: 119; }
 .jp-admineditform__actions {
   display: flex;
   flex-wrap: wrap;
@@ -688,6 +698,29 @@
   pointer-events: auto;
 }
 .jp-admintoasthost .jp-toast__msg { overflow-wrap: break-word; }
+/* Beside an open panel's 460 px, a receipt is centred in the page to the panel's left: by its insets rather than the
+   house toast's translate, which its rise animation replaces while it runs. */
+@media (min-width: 769px) {
+  :root:has(.jp-adminpanel) .jp-admintoasthost .jp-toast {
+    left: 16px;
+    right: calc(460px + 16px);
+    width: fit-content;
+    max-width: 560px;
+    margin-inline: auto;
+    transform: none;
+  }
+}
+/* Where the panel is the full width, its body ends in room for the receipt, and focus scrolls clear of it: the
+   toast's offset from the bottom, its padding and six lines of its text. */
+@media (max-width: 768px) {
+  .jp-adminpanel { width: 100%; }
+  :root:has(.jp-admintoasthost .jp-toast) .jp-adminpanel {
+    scroll-padding-bottom: calc(28px + 24px + 6 * 1.55 * var(--text-ui));
+  }
+  :root:has(.jp-admintoasthost .jp-toast) .jp-adminpanel__body {
+    padding-bottom: calc(28px + 24px + 6 * 1.55 * var(--text-ui));
+  }
+}
 
 /* ── Impersonation banner (handoff 13) ──────────────────────────────────────────────────── */
 .jp-adminbanner {

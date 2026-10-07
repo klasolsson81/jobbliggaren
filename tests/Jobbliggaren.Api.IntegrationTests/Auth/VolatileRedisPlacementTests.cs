@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Admin;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Shouldly;
 using StackExchange.Redis;
@@ -33,6 +35,7 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
     private const string GrantPrefix = "jobbliggaren:auth/grant/v1/";
     private const string RegistrationClaimPrefix = "jobbliggaren:auth/registration-claim/v1/";
     private const string OAuthStatePrefix = "jobbliggaren:auth/oauth-state/v1/";
+    private const string AccountEmailChangePrefix = "jobbliggaren:auth/account-email-change/v1/";
     private const string SessionPrefix = "jobbliggaren:session:";
 
     private readonly ApiFactory _factory = factory;
@@ -145,6 +148,29 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
         durableKeys.ShouldNotContain(k => k.Contains("auth/oauth-state", StringComparison.Ordinal));
 
         // The control: the account's session is on the durable instance, so the durable scan sees keys.
+        durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task An_administrators_address_change_writes_its_record_and_index_to_the_volatile_instance_only()
+    {
+        // #1975 — the record holds the new address protected for the change's whole life, and the index names it, so
+        // both belong where an expired key is gone.
+        var token = AdminAccountsKit.NewToken();
+        var admin = await AccountEmailChangeKit.AdminAsync(_factory, token, Ct);
+        var target = await AdminAccountsKit.OpenActiveAsync(_factory, AdminAccountsKit.Address(token, "agare"), Ct);
+
+        (await AccountEmailChangeKit.RequestAsync(_factory, admin, target, AdminAccountsKit.Address(token, "ny"), Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var volatileKeys = await KeysAsync(_factory.VolatileRedisConnectionString);
+        var durableKeys = await KeysAsync(_factory.DurableRedisConnectionString);
+
+        volatileKeys.ShouldContain(k => k.StartsWith(AccountEmailChangePrefix, StringComparison.Ordinal));
+        volatileKeys.ShouldContain(RedisAccountEmailChangeStore.IndexKey(target));
+        durableKeys.ShouldNotContain(k => k.Contains("auth/account-email-change", StringComparison.Ordinal));
+
+        // The control: the administrator's session is on the durable instance, so the durable scan sees keys.
         durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
     }
 }

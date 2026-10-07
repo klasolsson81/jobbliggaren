@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -9,8 +10,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
 /// #1739 — the one grant rule, applied by every <see cref="IReauthenticatingRequest"/> implementer. The
-/// tripwire pins that a validator EXISTS; this pins what the three validators say about the grant, so the
-/// three cannot drift: empty is refused, a grant over the bound is refused, and nothing in between is.
+/// tripwire pins that a validator EXISTS; this pins what every validator says about the grant, so they cannot
+/// drift: empty is refused, a grant over the bound is refused, and nothing in between is.
 /// </summary>
 public sealed class ReauthGrantRulesTests
 {
@@ -20,6 +21,11 @@ public sealed class ReauthGrantRulesTests
     {
         { nameof(DeleteAccountCommand), grant => new DeleteAccountCommand(grant), () => new DeleteAccountCommandValidator() },
         { nameof(ChangeEmailCommand), grant => new ChangeEmailCommand(grant, "ny@example.se"), () => new ChangeEmailCommandValidator() },
+        {
+            nameof(RequestAccountEmailChangeCommand),
+            grant => new RequestAccountEmailChangeCommand(Guid.NewGuid(), "ny@example.se", grant),
+            () => new RequestAccountEmailChangeCommandValidator()
+        },
     };
 
     private static FluentValidation.Results.ValidationResult Validate(IValidator validator, object command) =>
@@ -60,16 +66,16 @@ public sealed class ReauthGrantRulesTests
     }
 
     [Fact]
-    public void The_three_implementers_are_the_whole_set()
+    public void The_implementers_are_the_whole_set()
     {
-        // The tripwire pins that every implementer HAS a validator; the theories above pin what three validators
-        // say. A fourth implementer would pass the tripwire with any validator and reach none of the theories, so
-        // the set is pinned here: adding one means adding its row.
+        // The tripwire pins that every implementer HAS a validator; the theories above pin what the validators say.
+        // One more implementer would pass the tripwire with any validator and reach none of the theories, so the set
+        // is pinned here: adding one means adding its row.
         typeof(IReauthenticatingRequest).Assembly.GetTypes()
             .Where(t => t is { IsInterface: false, IsAbstract: false } && typeof(IReauthenticatingRequest).IsAssignableFrom(t))
             .Select(t => t.Name)
             .Order(StringComparer.Ordinal)
-            .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand)]);
+            .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand), nameof(RequestAccountEmailChangeCommand)]);
     }
 
     [Fact]

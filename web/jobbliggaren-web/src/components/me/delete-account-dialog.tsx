@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteAccountAction } from "@/lib/actions/me";
 import { comparableAddress } from "@/lib/auth/comparable-address";
+import { requestReauthCode } from "@/lib/auth/reauth-actions";
 import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 export function DeleteAccountDialog({
@@ -94,6 +95,7 @@ export function DeleteAccountDialog({
       onBeforeRequest={confirm}
       codeHint={ts.rich("account.delete.contactRoute", { mail: mailText })}
       terminalExtra={ts.rich("account.delete.contactRoute", { mail: mailLink })}
+      requestCode={requestReauthCode}
       action={(proof, confirmed) => deleteAccountAction(confirmed, proof)}
       onHandOff={onHandOff}
       focusAfterHandOff={() => handOffTarget.current?.focus()}

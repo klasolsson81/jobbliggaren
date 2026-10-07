@@ -242,9 +242,12 @@ scans keys nor reads the session index or session contents.
 
 **Fas 6 admin-yta saknas tills vidare** — restore sker manuellt via SQL.
 
-Användare kontaktar support inom 30 dagar. Support verifierar identitet
-out-of-band (fysisk legitimation, eller verifierings-email till
-alternative address). Sedan:
+Användare kontaktar support inom 30 dagar. Återställ först när du har fått
+svar på ett nytt meddelande som du själv skickar till den adress kontot har i
+katalogen, aldrig på begärans avsändarrad eller på ett svar i begärandens tråd.
+Be aldrig om något annat än det kontot har
+([regeln för att verifiera en begäran](account-email-change-by-administrator.md#verifying-a-requester)).
+Sedan:
 
 ```sql
 BEGIN;

@@ -188,11 +188,18 @@
       "emailConfirmed": "Bekräftad",
       "emailUnconfirmed": "Ej bekräftad",
       "profileMissing": "Kontot saknar profil och går inte att logga in på. Ett konto som saknar profil en timme efter att det skapades tas bort automatiskt.",
-      "noAddress": "Kontot har ingen e-postadress."
+      "noAddress": "Kontot har ingen e-postadress.",
+      "emailChange": "Adressbyte",
+      "emailChangePending": "Väntar på kontoägaren. Koden kan användas från <nowrap>{from}</nowrap> till <nowrap>{until}</nowrap>.",
+      "emailChangeBurned": "Koden har skrivits fel för många gånger och kan inte användas. Bytet upphör <nowrap>{until}</nowrap>.",
+      "emailChangeUnknown": "Det går inte att se om ett adressbyte väntar.",
+      "adminAddress": "Adressen på ett administratörskonto byts inte här.",
+      "adminAddressOwn": "Byt din på Mina sidor."
     },
     "actions": {
       "impersonate": "Agera som användaren",
       "changeEmail": "Ändra e-postadress",
+      "cancelEmailChange": "Avbryt adressbytet",
       "sendLoginLink": "Skicka inloggningslänk",
       "markVerified": "Markera e-post som bekräftad",
       "reinstate": "Häv suspendering",
@@ -205,16 +212,26 @@
       "heading": "Ändra e-postadress",
       "current": "Nuvarande adress",
       "newEmail": "Ny e-postadress",
-      "hint": "Den nya adressen gäller först när kontoägaren har bekräftat den.",
+      "hint": "Adressen byts när kontoägaren har använt koden som skickas dit.",
       "role": "Roll",
-      "submit": "Skicka bekräftelse",
+      "submit": "Fortsätt",
       "cancel": "Avbryt",
+      "dialogDescription": "En kod skickas till {newEmail} och ett meddelande till {currentEmail}.",
       "refusal": {
         "required": "Skriv in den nya e-postadressen.",
         "invalid": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
         "same": "Den nya adressen är samma som kontots nuvarande. Skriv in en annan adress."
-      },
-      "busy": "Skickar…"
+      }
+    },
+    "emailChange": {
+      "administratorTarget": "Kontot är ett administratörskonto, så adressen kan inte bytas här.",
+      "changed": "Kontot har ändrats sedan du öppnade det. Uppgifterna visas nu som de är.",
+      "pendingElsewhere": "Ett annat konto väntar redan på att få den adressen.",
+      "notConfirmed": "Det gick inte att bekräfta att det är du.",
+      "deliveryUnavailable": "E-postutskick är inte aktiverat just nu, så ingen kod kan skickas. Kontots adress är oförändrad. Försök igen senare.",
+      "unknown": "Vi kan inte se om koden skickades. Öppna kontot igen för att se om ett adressbyte väntar.",
+      "nothingToCancel": "Det finns inget adressbyte att avbryta längre.",
+      "cancelUnknown": "Vi kan inte se om adressbytet avbröts. Öppna kontot igen för att se om det väntar."
     },
     "confirm": {
       "cancel": "Avbryt",
@@ -234,21 +251,22 @@
       "suspended": "Kontot {email} är suspenderat.",
       "reinstated": "Suspenderingen av {email} är hävd.",
       "deletionScheduled": "Kontot {email} raderas slutgiltigt tidigast {date}.",
-      "emailChangeRequested": "En bekräftelse har skickats till {email}. Adressen byts när kontoägaren har bekräftat."
+      "emailChangeRequested": "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden, tidigast <nowrap>{from}</nowrap>.",
+      "emailChangeCancelled": "Adressbytet är avbrutet. Koden till den nya adressen gäller inte längre."
     },
     "refusal": {
       "ownAccount": {
-        "changeEmail": "Du kan inte byta adress på ditt eget konto här. Byt den på Mina sidor.",
         "suspend": "Du kan inte suspendera ditt eget konto.",
         "reinstate": "Du kan inte häva suspenderingen av ditt eget konto.",
         "scheduleDeletion": "Du kan inte radera ditt eget konto här. Radera det på Mina sidor."
       }
     },
     "busy": {
-      "changeEmail": "Skickar…",
       "suspend": "Suspenderar…",
       "reinstate": "Häver…",
-      "scheduleDeletion": "Raderar…"
+      "scheduleDeletion": "Raderar…",
+      "cancelEmailChange": "Avbryter…",
+      "retry": "Hämtar…"
     }
   },
   "feedback": {

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Jobbliggaren.Application.Admin.Accounts;
+using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
 using Jobbliggaren.Application.Admin.Accounts.Queries.CountAccountsByStatus;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
 using Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
@@ -12,7 +13,9 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// #1974 (ADR 0151) — the admin surface's messages carry the admin gate, and the account directory reaches
-/// only the three admin queries. The directory can list every account's address, so it is the tool that
+/// only the three admin queries and, since #1975, the request of an address change, which reads the account's role,
+/// status and address fresh by the same rule the panel shows. The directory can list every account's address, so it
+/// is the tool that
 /// would reopen the account-existence oracle the login page closes; the gate sits on the message, not on
 /// the port, which is why the port's consumers are pinned here.
 /// </summary>
@@ -58,7 +61,7 @@ public class AdminAccountDirectoryTests
     }
 
     [Fact]
-    public void The_account_directory_is_injected_only_into_the_three_admin_account_queries()
+    public void The_account_directory_is_injected_only_into_the_admin_account_queries_and_the_address_change_request()
     {
         var consumers = OwnedAssemblies
             .SelectMany(assembly => assembly.GetTypes())
@@ -75,6 +78,7 @@ public class AdminAccountDirectoryTests
                 typeof(CountAccountsByStatusQueryHandler).FullName!,
                 typeof(GetAccountDetailsQueryHandler).FullName!,
                 typeof(SearchAccountsQueryHandler).FullName!,
+                typeof(RequestAccountEmailChangeCommandHandler).FullName!,
             }.OrderBy(name => name, StringComparer.Ordinal).ToList(),
             "A new consumer of the account directory reads every account's address; it needs the admin gate "
             + "and ADR 0151's review first. Found: " + string.Join(", ", consumers));

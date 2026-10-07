@@ -184,16 +184,52 @@ public class JobAdTests
         var newExpiresAt = publishedAt.AddDays(14);
         var result = jobAd.UpdateFromSource(
             "Updated title", "Updated description",
-            "https://jobs.klarna.com/job/123-updated", "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], newExpiresAt, extractTerms: TestKeywordExtraction.None);
+            "https://jobs.klarna.com/job/123-updated", "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], publishedAt, newExpiresAt, extractTerms: TestKeywordExtraction.None);
 
         result.IsSuccess.ShouldBeTrue();
         jobAd.Title.ShouldBe("Updated title");
         jobAd.Description.ShouldBe("Updated description");
         jobAd.Url.ShouldBe("https://jobs.klarna.com/job/123-updated");
+        jobAd.PublishedAt.ShouldBe(publishedAt);
         jobAd.ExpiresAt.ShouldBe(newExpiresAt);
         jobAd.RawPayload.ShouldBe("{\"v\":2}");
         // ADR 0032 §4 — UpdateFromSource raisar inga events (sync auditeras aggregerat)
         jobAd.DomainEvents.ShouldBeEmpty();
+    }
+
+    // Rader importerade före JobTechSwedishDateTimeConverter bär svensk väggklocka stämplad som
+    // UTC. Synken läker dem bara om källans datum skriver över det lagrade.
+    [Fact]
+    public void UpdateFromSource_RefreshesPublishedAt_FromTheSource()
+    {
+        var (title, company, desc, url, _, publishedAt) = ValidParams();
+        var external = ValidExternalRef();
+        var shifted = publishedAt.AddHours(2);
+        var jobAd = JobAd.Import(title, company, desc, url, external,
+            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], shifted, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
+
+        var result = jobAd.UpdateFromSource(
+            title, desc, url, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], publishedAt, null, extractTerms: TestKeywordExtraction.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        jobAd.PublishedAt.ShouldBe(publishedAt);
+    }
+
+    [Fact]
+    public void UpdateFromSource_WithExpiresAtNotAfterTheRefreshedPublishedAt_ReturnsFailure()
+    {
+        var (title, company, desc, url, _, publishedAt) = ValidParams();
+        var external = ValidExternalRef();
+        var jobAd = JobAd.Import(title, company, desc, url, external,
+            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
+
+        var later = publishedAt.AddDays(30);
+        var result = jobAd.UpdateFromSource(
+            title, desc, url, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], later, later.AddDays(-1), extractTerms: TestKeywordExtraction.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobAd.InvalidDates");
+        jobAd.PublishedAt.ShouldBe(publishedAt);
     }
 
     [Fact]
@@ -203,7 +239,7 @@ public class JobAdTests
         var jobAd = JobAd.Create(title, company, desc, url, source, publishedAt, null, Clock).Value;
 
         var result = jobAd.UpdateFromSource(
-            "X", "Y", "https://example.com/x", "{}", TestFacets.FromPayload("{}"), [], null, extractTerms: TestKeywordExtraction.None);
+            "X", "Y", "https://example.com/x", "{}", TestFacets.FromPayload("{}"), [], publishedAt, null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.NotImported");
@@ -218,7 +254,7 @@ public class JobAdTests
             "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
 
         var result = jobAd.UpdateFromSource(
-            "Updated", "Updated desc", "https://example.com/x", "", TestFacets.FromPayload(""), [], null, extractTerms: TestKeywordExtraction.None);
+            "Updated", "Updated desc", "https://example.com/x", "", TestFacets.FromPayload(""), [], publishedAt, null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.RawPayloadRequired");
@@ -282,7 +318,7 @@ public class JobAdTests
             "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
 
         var result = jobAd.UpdateFromSource(
-            "Updated", "Updated desc", maliciousUrl, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], null, extractTerms: TestKeywordExtraction.None);
+            "Updated", "Updated desc", maliciousUrl, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], publishedAt, null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.UrlInvalid");

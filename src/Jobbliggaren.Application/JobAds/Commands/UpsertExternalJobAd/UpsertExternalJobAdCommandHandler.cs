@@ -115,7 +115,8 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         // stale terms — now structurally impossible, not a comment we have to trust.)
         var updateResult = existing.UpdateFromSource(
             item.Title, item.Description, item.Url,
-            item.SanitizedRawPayload, item.Facets, item.DeclaredContacts, item.ExpiresAt, Extract);
+            item.SanitizedRawPayload, item.Facets, item.DeclaredContacts,
+            item.PublishedAt, item.ExpiresAt, Extract);
 
         if (updateResult.IsFailure)
         {

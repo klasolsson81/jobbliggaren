@@ -138,6 +138,7 @@ public class JobAdFacetsTests
             url: "https://example.com/jobs/1",
             rawPayload: "{\"v\":2}",
             facets: new JobAdFacets("Ssyk_new", "Grp_new", "Kommun_new", "Lan_new", "Emp_new", "Wt_new", "5592804784"),
+            publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60), declaredContacts: [], extractTerms: TestKeywordExtraction.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -175,6 +176,7 @@ public class JobAdFacetsTests
             url: "https://example.com/jobs/1",
             rawPayload: "{\"v\":2}",
             facets: JobAdFacets.None,
+            publishedAt: Now.AddDays(-1),
             expiresAt: null, declaredContacts: [], extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         jobAd.SsykConceptId.ShouldBeNull("the source stopped sending it — the column must follow");

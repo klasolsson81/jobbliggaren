@@ -140,6 +140,10 @@ The file provider is last and overrides JSON/environment values. Missing, empty,
 unreadable or malformed files refuse startup; anonymous endpoint placeholders in
 Development settings are insufficient. Never place Redis passwords in tracked JSON.
 
+Feedback (#1979) är valfri och stängd som standard. Sätt `Feedback:Enabled` till `true` och
+`Feedback:NotificationRecipient` till en `.test`-adress för att prova inskick och avisering lokalt;
+ingen av nycklarna krävs för att stacken ska starta.
+
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
 källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
 `ValidateOnStart`-option ska den läggas till i mallen **OCH §7:s fälla-4-lista i SAMMA PR** som

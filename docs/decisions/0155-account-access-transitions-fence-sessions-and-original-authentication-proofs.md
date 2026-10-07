@@ -346,6 +346,11 @@ approved prepare/drain/ACL/bootstrap/apply procedure under one reconcile lock, f
 verified candidate. Resume admits only the complete predecessor policy on first preparation,
 or that same candidate's complete policy after an interruption; partial or unknown policy,
 credential drift, a different release or incompatible live processes refuse continuation.
+Any preparation checkpoint also blocks ordinary/channel/pinned/stage mutations under that
+lock. Bootstrap receives the bound predecessor and exact approved additions and compares
+actual primary history and the compiled manifest before any schema/grant mutation; it admits
+only exact predecessor or complete candidate history. Missing/invalid binding or read failure
+refuses. The separately explicit initial-bootstrap contract requires empty history.
 
 Installed files, mounted policy and effective Redis ACL must all agree. PING and file
 presence cannot establish this. Positive and negative probes include the real v1/v2 adapter

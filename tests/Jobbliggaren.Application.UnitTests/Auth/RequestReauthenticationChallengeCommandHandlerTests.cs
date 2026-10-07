@@ -208,8 +208,9 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     }
 
     [Fact]
-    public async Task A_session_whose_account_has_no_address_is_refused_before_any_budget_is_spent()
+    public async Task An_unreachable_operator_erased_inbox_is_refused_before_any_budget_is_spent()
     {
+        // Unreachable through current account writers: an operator erases Identity's inbox under a live session.
         _accountEmail = null;
 
         var result = await Sut().Handle(Command, Ct);

@@ -46,6 +46,8 @@ readonly RECEIPT=/var/lib/jobbliggaren/applied-release.env
 # the release to hold. Outside the checkout, so `git merge --ff-only` never touches it.
 readonly PIN_FILE=/etc/jobbliggaren/release-pin
 readonly PREPARATION=/var/lib/jobbliggaren/identity-preparation.env
+readonly PREPARATION_UID=0
+readonly MIGRATE_OVERRIDE_PATTERN=/run/jobbliggaren-migrate.XXXXXX.json
 readonly REDIS_SECRETS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh
 readonly REDIS_POLICY=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-policy.py
 
@@ -210,7 +212,7 @@ if [ "$mode" = status ]; then
     log "identity:  primary history DIFFERS from the receipt"
     differs+=" identity"
   fi
-  if [ -e "$PREPARATION" ]; then
+  if [ -e "$PREPARATION" ] || [ -L "$PREPARATION" ]; then
     log "prepare:   incomplete Identity preparation exists"
     differs+=" preparation"
   fi
@@ -236,6 +238,9 @@ if ! flock -n 9; then
   log "another reconcile holds $LOCK; this run is a no-op (not a failure)"
   exit 0
 fi
+
+[ "$mode" = prepare ] || { [ ! -e "$PREPARATION" ] && [ ! -L "$PREPARATION" ]; } ||
+  refuse "Identity preparation is incomplete; resume its exact verified record with --prepare-identity"
 
 [ -f "$COMPOSE_FILE" ] || refuse "no compose file at $COMPOSE_FILE"
 [ -x "$VERIFIER" ] || refuse "verifier missing or not executable: $VERIFIER"
@@ -391,13 +396,14 @@ done
 candidate_migrate() {
   local operation=$1 override output status=0
   [[ $operation == identity-history || $operation == bootstrap ]] || refuse "unknown candidate migration operation"
-  override=$(mktemp /run/jobbliggaren-migrate.XXXXXX.json) || cannot_answer "candidate migrate override could not be created"
+  shift
+  override=$(mktemp "$MIGRATE_OVERRIDE_PATTERN") || cannot_answer "candidate migrate override could not be created"
   if ! printf '{"services":{"migrate":{"image":"%smigrate@%s"}}}\n' "$OURS_PREFIX" "${digest_of[migrate]}" >"$override" \
     || ! chmod 0600 "$override"; then
     rm -f -- "$override"
     cannot_answer "candidate migrate override could not be secured"
   fi
-  output=$(compose -f "$override" run --rm -T --no-deps --pull never migrate "$operation" 2>/dev/null) || status=$?
+  output=$(compose -f "$override" run --rm -T --no-deps --pull never migrate "$operation" "$@" 2>/dev/null) || status=$?
   rm -f -- "$override"
   [ "$status" -eq 0 ] || cannot_answer "verified candidate migrate $operation failed; no result is assumed"
   printf '%s\n' "$output"
@@ -529,8 +535,8 @@ if [ "$mode" = prepare ]; then
   predecessor_identity=$(field "$receipt" JBL_RELEASE_MIGRATIONS_IDENTITY)
   preparation_prefix=$(printf 'JBL_PREPARE_FORMAT=1\nJBL_PREPARE_RECORD_DIGEST=%s\nJBL_PREPARE_SOURCE_SHA=%s\nJBL_PREPARE_IDENTITY=%s' \
     "$rec_digest" "$source_sha" "$candidate_identity")
-  if [ -e "$PREPARATION" ]; then
-    [ ! -L "$PREPARATION" ] && [ -f "$PREPARATION" ] && [ "$(stat -c '%u:%a' "$PREPARATION")" = 0:600 ] || refuse "preparation checkpoint posture differs"
+  if [ -e "$PREPARATION" ] || [ -L "$PREPARATION" ]; then
+    [ ! -L "$PREPARATION" ] && [ -f "$PREPARATION" ] && [ "$(stat -c '%u:%a' "$PREPARATION")" = "$PREPARATION_UID:600" ] || refuse "preparation checkpoint posture differs"
     [ "$(head -n 4 "$PREPARATION")" = "$preparation_prefix" ] && [ "$(wc -l <"$PREPARATION")" -eq 5 ] || refuse "checkpoint belongs to another release or is incomplete"
     predecessor_identity=$(field "$(cat "$PREPARATION")" JBL_PREPARE_PREDECESSOR_IDENTITY)
     [[ $predecessor_identity =~ ^[0-9]{14}_[A-Za-z0-9_]+(,[0-9]{14}_[A-Za-z0-9_]+)*$ ]] || refuse "checkpoint predecessor history is malformed"
@@ -576,7 +582,7 @@ if [ "$mode" = prepare ]; then
   bash "$REDIS_SECRETS" --publish-policy "$api_digest" "$worker_digest"
   compose up -d --no-deps --force-recreate --pull never redis redis-volatile
   "$PYTHON" -I "$REDIS_POLICY" --lock-fd 9 --policy candidate || refuse "candidate Redis policy did not become effective"
-  candidate_migrate bootstrap
+  candidate_migrate bootstrap --expect-history "$predecessor_identity" --expect-migrations "$added"
   [ "$(identity_history)" = "$candidate_identity" ] || refuse "Identity bootstrap readback differs from the candidate manifest"
   log "Identity preparation is verified; applying the same record under the same lock"
 elif [ "$mode" = apply ] && grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then

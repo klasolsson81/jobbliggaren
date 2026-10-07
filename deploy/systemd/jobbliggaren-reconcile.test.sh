@@ -54,6 +54,9 @@ for f in "$SUT" "$RECORD_TOOL_SRC" "$script_dir/jobbliggaren-runtime-ids.sh"; do
 done
 readonly FIXTURE_SUT="$TOOLS/reconcile.sh" FIXTURE_IDS="$TOOLS/runtime-ids.sh"
 readonly RECEIPT="$VAR/applied-release.env" STAMP="$VAR/stamp" PIN="$ETC/release-pin" ENVF="$CHECKOUT/deploy/.env"
+grep -qxF 'readonly MIGRATE_OVERRIDE_PATTERN=/run/jobbliggaren-migrate.XXXXXX.json' "$SUT" || exit 1
+grep -qxF 'readonly PREPARATION_UID=0' "$SUT" || exit 1
+readonly FIXTURE_UID=$(id -u)
 sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$CHECKOUT/deploy/docker-compose.yml#" \
   -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENVF#" \
@@ -65,6 +68,8 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly RECEIPT=.*#readonly RECEIPT=$RECEIPT#" \
   -e "s#^readonly PIN_FILE=.*#readonly PIN_FILE=$PIN#" \
   -e "s#^readonly PREPARATION=.*#readonly PREPARATION=$VAR/identity-preparation.env#" \
+  -e "s#^readonly PREPARATION_UID=.*#readonly PREPARATION_UID=$FIXTURE_UID#" \
+  -e "s#^readonly MIGRATE_OVERRIDE_PATTERN=.*#readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json#" \
   -e "s#^readonly REDIS_SECRETS=.*#readonly REDIS_SECRETS=$TOOLS/redis-secrets.sh#" \
   -e "s#^readonly REDIS_POLICY=.*#readonly REDIS_POLICY=$TOOLS/redis-policy.py#" \
   -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
@@ -75,6 +80,7 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
 for want in "readonly SECRETS_DIR=$SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
   "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh" \
   "readonly PYTHON=$TOOLS/python3" "readonly PREPARATION=$VAR/identity-preparation.env" \
+  "readonly PREPARATION_UID=$FIXTURE_UID" "readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json" \
   "readonly REDIS_SECRETS=$TOOLS/redis-secrets.sh" "readonly REDIS_POLICY=$TOOLS/redis-policy.py"; do
   grep -qxF "$want" "$FIXTURE_SUT" || {
     echo "FIXTURE BROKEN: redirect did not apply: $want — the suite would touch the host's real paths" >&2
@@ -193,13 +199,22 @@ if [ "$1" = compose ]; then
   profile=""; [ "$1" = --profile ] && { profile="$2"; shift 2; }
   case "$1" in
   run)
-    operation="${@: -1}"
+    shift
+    while [ "$#" -gt 0 ] && [ "$1" != migrate ]; do shift; done
+    [ "$#" -ge 2 ] || exit 1
+    shift
+    operation=$1
+    shift
     printf 'candidate-migrate %s\n' "$operation" >>"$REG/preparation-order"
     case "$operation" in
     identity-history)
+      [ "$#" -eq 0 ] || exit 1
       [ ! -f "$REG/history-fails" ] || exit 1
       printf 'JBL_IDENTITY_HISTORY=%s\n' "$(cat "$REG/identity-history")" ;;
     bootstrap)
+      [ "$#" -eq 4 ] && [ "$1" = --expect-history ] && [ "$3" = --expect-migrations ] || exit 1
+      [ "$2" = 20260101000000_I ] && [ "$4" = 20261007074622_AddAccountAccessSuspension ] || exit 1
+      printf '%s\n' "$@" >"$REG/bootstrap-arguments"
       [ ! -f "$REG/bootstrap-fails" ] || exit 1
       cp "$REG/candidate-identity" "$REG/identity-history"
       [ ! -f "$REG/bootstrap-ack-lost" ] || exit 1 ;;
@@ -447,6 +462,7 @@ reset() {
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
   rm -f "$REG"/retention-calls "$REG"/retention-fail-*
   rm -f "$VAR/identity-preparation.env" "$REG"/history-fails "$REG"/bootstrap-fails \
+    "$REG"/bootstrap-arguments \
     "$REG"/bootstrap-ack-lost "$REG"/redis-recreate-fails "$REG"/policy-fails \
     "$REG"/policy-publish-ack-lost "$REG"/preparation-order "$REG"/stopped-*
   printf '20260101000000_I' >"$REG/identity-history"
@@ -892,6 +908,10 @@ verify-policy candidate
 candidate-migrate bootstrap
 candidate-migrate identity-history
 apply" ]' "the actual CLI orders drain, policy, bootstrap and apply under one lock"
+check '[ "$(cat "$REG/bootstrap-arguments")" = "--expect-history
+20260101000000_I
+--expect-migrations
+20261007074622_AddAccountAccessSuspension" ]' "bootstrap receives the exact predecessor and approved additions"
 expect_exit 0 "prepared candidate has consistent read-only status" --status
 check 'said "identity:  primary history matches"' "status reads actual Identity history"
 
@@ -903,10 +923,55 @@ for interruption in policy-publish-ack-lost redis-recreate-fails bootstrap-ack-l
   expect_exit "$expected_exit" "interruption $interruption leaves an incomplete preparation" --prepare-identity "$PREPARE"
   check '[ -e "$VAR/identity-preparation.env" ] && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$OLD" "$RECEIPT"' \
     "checkpoint retained and predecessor receipt is not replaced"
+  cp "$RECEIPT" "$TMPROOT/interrupted-receipt"
+  cp "$STAMP" "$TMPROOT/interrupted-stamp"
+  cp "$VAR/identity-preparation.env" "$TMPROOT/interrupted-checkpoint"
+  refuse_checkpoint_apply() {
+    local description=$1
+    shift
+    rm -f "$REG/docker-calls" "$REG/up-args" "$REG/retention-calls"
+    expect_exit 1 "$description refuses the interrupted preparation" "$@"
+    check 'said "Identity preparation is incomplete" && ! applied && nothing_tagged \
+      && [ ! -s "$REG/docker-calls" ] && [ ! -s "$REG/retention-calls" ] \
+      && cmp -s "$RECEIPT" "$TMPROOT/interrupted-receipt" \
+      && cmp -s "$STAMP" "$TMPROOT/interrupted-stamp" \
+      && cmp -s "$VAR/identity-preparation.env" "$TMPROOT/interrupted-checkpoint" \
+      && applied_is "$SHA1"' "checkpoint refusal changes no containers, tags, receipt, stamp or checkpoint"
+  }
+  refuse_checkpoint_apply "same channel record after $interruption"
+  printf '%s\n' "$PREPARE" >"$PIN"
+  refuse_checkpoint_apply "same pinned record after $interruption"
+  rm -f "$PIN"
+  OTHER=$(release "$SHA3" 12 '20260101000000_A,20260201000000_B' \
+    '20260101000000_I,20261007074622_AddAccountAccessSuspension')
+  channel "$OTHER"
+  refuse_checkpoint_apply "different channel record after $interruption"
+  printf '%s\n' "$OTHER" >"$PIN"
+  refuse_checkpoint_apply "different pinned record after $interruption"
+  refuse_checkpoint_apply "stage after $interruption" --stage
+  rm -f "$PIN"
+  channel "$PREPARE"
   rm -f "$REG/$interruption"
   expect_exit 0 "same verified record resumes after $interruption" --prepare-identity "$PREPARE"
   check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$PREPARE" "$RECEIPT" && [ ! -e "$VAR/identity-preparation.env" ]' \
     "resumption commits only the authorized release"
+done
+for damaged_checkpoint in symlink directory; do
+  reset
+  if [ "$damaged_checkpoint" = symlink ]; then
+    ln -s "$VAR/operator-removed-target" "$VAR/identity-preparation.env"
+  else
+    mkdir "$VAR/identity-preparation.env"
+  fi
+  expect_exit 1 "operator-damaged checkpoint $damaged_checkpoint refuses ordinary apply"
+  check 'said "Identity preparation is incomplete" && nothing_tagged && ! applied && no_receipt' \
+    "damaged checkpoint degrades to refusal before mutations"
+  expect_exit 1 "operator-damaged checkpoint $damaged_checkpoint refuses stage" --stage
+  if [ "$damaged_checkpoint" = directory ]; then
+    rmdir "$VAR/identity-preparation.env"
+  else
+    rm "$VAR/identity-preparation.env"
+  fi
 done
 prepare_fixture
 touch "$REG/policy-publish-ack-lost"

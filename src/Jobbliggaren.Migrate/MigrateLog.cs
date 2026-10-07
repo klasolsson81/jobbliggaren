@@ -144,7 +144,7 @@ internal static partial class MigrateLog
     public static partial void ModeSchema(ILogger logger);
 
     [LoggerMessage(EventId = 202, Level = LogLevel.Error,
-        Message = "Usage: Jobbliggaren.Migrate <init|bootstrap|identity-history|ensure-extensions|schema|explain-search|rewrap-master-key>")]
+        Message = "Usage: Jobbliggaren.Migrate <init|identity-history|ensure-extensions|schema|explain-search|rewrap-master-key> or bootstrap <--initial | --expect-history <ids> --expect-migrations <ids>>")]
     public static partial void UsageError(ILogger logger);
 
     // #198 gate M-3 — master-key rotation. Offline: api and worker must be stopped, because a

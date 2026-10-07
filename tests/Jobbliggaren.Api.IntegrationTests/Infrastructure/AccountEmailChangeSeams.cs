@@ -138,18 +138,24 @@ internal sealed class AccountEmailChangeStoreFaults : IDisposable
 internal sealed class SessionTeardownFaults
 {
     private Guid? _userId;
+    internal (Guid UserId, long AccessRevision)? LastFailedGeneration { get; private set; }
 
     internal IDisposable FailingFor(Guid userId)
     {
         _userId = userId;
+        LastFailedGeneration = null;
         return new Scope(this);
     }
 
-    internal void ThrowIfFailing(Guid userId)
+    internal void ThrowIfFailing(Guid userId, long? accessRevision = null)
     {
         if (_userId == userId)
+        {
+            if (accessRevision is { } revision)
+                LastFailedGeneration = (userId, revision);
             throw new SessionStoreUnavailableException(
                 "The session store refused the invalidation.", new InvalidOperationException("RedisConnectionException"));
+        }
     }
 
     private sealed class Scope(SessionTeardownFaults owner) : IDisposable
@@ -186,7 +192,7 @@ internal sealed class FaultableSessionStore(ISessionStore inner, SessionTeardown
 
     public Task<int> InvalidateBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct)
     {
-        faults.ThrowIfFailing(userId);
+        faults.ThrowIfFailing(userId, accessRevision);
         return inner.InvalidateBeforeRevisionAsync(userId, accessRevision, ct);
     }
 }

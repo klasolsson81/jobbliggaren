@@ -1,6 +1,7 @@
 using System.Reflection;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using Jobbliggaren.Api.IntegrationTests.Admin;
 using Jobbliggaren.Api.IntegrationTests.Auth;
 using Jobbliggaren.Api.IntegrationTests.Configuration;
 using Jobbliggaren.Api.IntegrationTests.Security;
@@ -53,6 +54,9 @@ public sealed class OwnContainerPerTestTests
         typeof(RedisNetworkContractTests),
         // Tests that stop its Redis.
         typeof(RedisSessionStoreFailureTests),
+        // Eight lifecycle boundary cases count effective Admins across the whole Identity database, without other
+        // tests' holders. They need the full API/App/Identity/Redis host; SharedPostgresFixture is app-only.
+        typeof(LastEffectiveAdministratorTests),
     ];
 
     private static readonly Assembly ThisAssembly = typeof(OwnContainerPerTestTests).Assembly;

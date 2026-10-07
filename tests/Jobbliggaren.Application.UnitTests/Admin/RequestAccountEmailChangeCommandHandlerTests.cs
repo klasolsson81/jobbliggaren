@@ -271,6 +271,8 @@ public sealed class RequestAccountEmailChangeCommandHandlerTests : IAsyncDisposa
     [InlineData(AccountStatus.Suspended)]
     public async Task An_account_that_is_not_active_is_refused_and_spends_nothing(AccountStatus status)
     {
+        // ProfileMissing is the split AccountRegistrar at 22aefd8db after its profile save failed. The current pin is
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         _target = Account(status: status);
 
         var result = await Sut().Handle(Command, Ct);

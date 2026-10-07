@@ -101,11 +101,13 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
 
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
+            // Isolate this fixture's EF provider from the process-wide cache shared by unrelated test hosts.
             services.AddDbContext<AppDbContext>(options =>
                 options
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                    .UseSnakeCaseNamingConvention());
+                    .UseSnakeCaseNamingConvention()
+                    .EnableServiceProviderCaching(false));
 
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
             services.RemoveAll<AppIdentityDbContext>();
@@ -114,7 +116,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
-                }));
+                }).EnableServiceProviderCaching(false));
 
 
             // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder

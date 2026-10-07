@@ -87,14 +87,24 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
 // ADR 0033 — CLI-dispatch. Default-less. Saknad/okänd arg -> exit 1.
 // ADR 0034 amendment 2026-05-12 — `bootstrap`-mode för Identity-context-deploy
 // (master-creds, separate från `schema` som kör AppDbContext med jobbliggaren_app).
-var mode = args.Length == 1 ? args[0] : null;
+var mode = args.Length > 0 ? args[0] : null;
+IdentityBootstrapRequest? bootstrap = null;
+if (mode == "bootstrap")
+{
+    if (!IdentityBootstrapRequest.TryParse(args[1..], out bootstrap))
+        return UsageError(log);
+}
+else if (args.Length != 1)
+{
+    return UsageError(log);
+}
 
 try
 {
     return mode switch
     {
         "init" => await RunInitAsync(log, cts.Token),
-        "bootstrap" => await RunBootstrapAsync(log, cts.Token),
+        "bootstrap" => await RunBootstrapAsync(bootstrap!, log, cts.Token),
         "identity-history" => await ReadIdentityHistoryAsync(cts.Token),
         "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
         "explain-search" => await RunExplainSearchAsync(log, cts.Token),
@@ -349,7 +359,7 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 // (AppIdentityDbContext) med master-creds. Engångs eller vid Identity-schema-
 // ändring (sällsynt). Schema-mode kvarstår oförändrad (AppDbContext only).
 // TD-71 — efter permanent deploy revoke CREATE ON DATABASE från jobbliggaren_app.
-static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
+static async Task<int> RunBootstrapAsync(IdentityBootstrapRequest request, ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeBootstrap(log);
 
@@ -361,24 +371,19 @@ static async Task<int> RunBootstrapAsync(ILogger log, CancellationToken ct)
 
     var masterCs = BuildConnString(db, master.Username, master.Password);
 
-    // Step 1: SQL via master-creds — skapa identity-schema + GRANTs.
-    // Idempotent (CREATE SCHEMA IF NOT EXISTS, GRANT är no-op om redan satta).
-    MigrateLog.BootstrapStep1Start(log);
-    await using (var masterConn = new NpgsqlConnection(masterCs))
-    {
-        await masterConn.OpenAsync(ct);
-        await ExecuteBootstrapSchemaAsync(masterConn, db.Database, log, ct);
-    }
-
-    // Step 2: Applicera Identity-migrations med master-creds (har CREATE ON DATABASE,
-    // kan köra MigrateAsync utan Npgsql #1770-permission-fel). Samma masterCs som
-    // Step 1 — env-creds roterar inte mid-run (det gamla rotation-race-re-fetchet
-    // var en AWS-Secrets-Manager-artefakt och behövs inte längre).
-    MigrateLog.BootstrapStep2Start(log);
+    await using var masterConn = new NpgsqlConnection(masterCs);
+    await masterConn.OpenAsync(ct);
     await using var identityContext = new AppIdentityDbContext(
-        MigrationsOptionsFactory.BuildIdentityOptions(masterCs));
+        MigrationsOptionsFactory.BuildIdentityOptions(masterConn));
 
-    var pending = (await identityContext.Database.GetPendingMigrationsAsync(ct)).ToList();
+    var compiled = identityContext.Database.GetMigrations().ToArray();
+    var applied = (await identityContext.Database.GetAppliedMigrationsAsync(ct)).ToArray();
+    var pending = request.Validate(compiled, applied);
+
+    MigrateLog.BootstrapStep1Start(log);
+    await ExecuteBootstrapSchemaAsync(masterConn, db.Database, log, ct);
+
+    MigrateLog.BootstrapStep2Start(log);
     MigrateLog.PendingMigrationsCount(log, pending.Count);
 
     if (pending.Count > 0)

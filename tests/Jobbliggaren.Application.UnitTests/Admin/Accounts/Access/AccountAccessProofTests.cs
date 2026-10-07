@@ -113,8 +113,10 @@ public sealed class AccountAccessProofTests
     }
 
     [Fact]
-    public void Admits_IdentityWithoutProfile_RefusesTheIncompleteRegistration()
+    public void Admits_HistoricalSplitRegistrationWithoutProfile_RefusesAccess()
     {
+        // AccountRegistrar at 22aefd8db committed Identity before a failed profile save. The current writer pin is
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         var withoutProfile = Active() with { HasProfile = false };
 
         new AccountAccessProof(0, UserId, 0).Admits(withoutProfile).ShouldBeFalse();
@@ -156,11 +158,11 @@ public sealed class AccountAccessProofTests
     }
 
     [Fact]
-    public void Admits_EmailChangedAfterTheOriginalRead_RefusesTheOldSessionProof()
+    public void Admits_UnreachableOperatorInboxOverwriteWithinOneRevision_RefusesTheOriginalProof()
     {
         var original = Active();
         var proof = new AccountAccessProof(0, UserId, 0) { ExpectedEmail = original.Email };
-        // A committed self-service address change keeps the access revision and replaces the inbox.
+        // Unreachable through current address writers, which advance revision: an operator overwrites Identity's inbox.
         var changed = original with { Email = "changed@example.com" };
 
         proof.Admits(original).ShouldBeTrue();
@@ -172,8 +174,9 @@ public sealed class AccountAccessProofTests
     }
 
     [Fact]
-    public void Admits_OrdinalEmailCheck_RefusesAChangedSpellingAtTheSessionBoundary()
+    public void Admits_UnreachableOperatorSpellingOverwriteWithinOneRevision_RefusesTheOriginalProof()
     {
+        // Unreachable through current address writers: an operator changes only the stored spelling.
         var original = Active();
         var proof = new AccountAccessProof(0, UserId, 0) { ExpectedEmail = original.Email };
 

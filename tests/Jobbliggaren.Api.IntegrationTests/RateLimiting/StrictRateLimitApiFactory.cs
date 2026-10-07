@@ -45,11 +45,13 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
+            // Isolate this fixture's EF provider from the process-wide cache shared by unrelated test hosts.
             services.AddDbContext<AppDbContext>(options =>
                 options
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                    .UseSnakeCaseNamingConvention());
+                    .UseSnakeCaseNamingConvention()
+                    .EnableServiceProviderCaching(false));
 
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
             services.RemoveAll<AppIdentityDbContext>();
@@ -58,7 +60,7 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
-                }));
+                }).EnableServiceProviderCaching(false));
 
             services.AddSingleton<ILoggerProvider>(Logs);
 

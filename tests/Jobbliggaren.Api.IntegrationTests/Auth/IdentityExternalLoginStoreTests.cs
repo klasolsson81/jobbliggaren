@@ -275,20 +275,24 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
 
         var identity = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
         var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
-        await using var access = await coordinator.BeginAsync([userId], false, Ct);
-        var store = new IdentityExternalLoginStore(
-            ActivatorUtilities.CreateInstance<RacingUserManager>(
-                scope.ServiceProvider, new Race(window, TheOtherRequestLinksItAsync)),
-            identity,
-            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
-            coordinator,
-            scope.ServiceProvider.GetRequiredService<IAccountAccessReader>());
+        await using (var access = await coordinator.BeginAsync([userId], false, Ct))
+        {
+            var store = new IdentityExternalLoginStore(
+                ActivatorUtilities.CreateInstance<RacingUserManager>(
+                    scope.ServiceProvider, new Race(window, TheOtherRequestLinksItAsync)),
+                identity,
+                scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
+                coordinator,
+                scope.ServiceProvider.GetRequiredService<IAccountAccessReader>());
 
-        (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(expected);
+            (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(expected);
+            await access.CommitAsync(Ct);
+        }
 
-        await access.CommitAsync(Ct);
-        (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(winner);
-        (await identity.UserLogins.AsNoTracking().CountAsync(l => l.ProviderKey == subject.Reveal(), Ct)).ShouldBe(1);
+        await using var read = factory.Services.CreateAsyncScope();
+        (await Store(read).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(winner);
+        (await read.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins.AsNoTracking()
+            .CountAsync(l => l.ProviderKey == subject.Reveal(), Ct)).ShouldBe(1);
     }
 
     [Fact]

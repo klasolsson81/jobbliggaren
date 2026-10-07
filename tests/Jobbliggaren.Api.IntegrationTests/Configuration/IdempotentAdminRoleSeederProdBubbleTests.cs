@@ -62,11 +62,13 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
 
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
+            // Isolate this fixture's EF provider from the process-wide cache shared by unrelated test hosts.
             services.AddDbContext<AppDbContext>(options =>
                 options
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                    .UseSnakeCaseNamingConvention());
+                    .UseSnakeCaseNamingConvention()
+                    .EnableServiceProviderCaching(false));
 
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
             services.RemoveAll<AppIdentityDbContext>();
@@ -75,7 +77,7 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
-                }));
+                }).EnableServiceProviderCaching(false));
 
 
             // OBS: medveten frånvaro av seeder-removal — seedern SKA köra

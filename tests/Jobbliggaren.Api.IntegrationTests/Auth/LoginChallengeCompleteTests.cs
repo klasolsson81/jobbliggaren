@@ -181,18 +181,30 @@ public class LoginChallengeCompleteTests(ApiFactory factory)
         var grant = await GrantForAsync(email);
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
         var existing = (await UserOfAsync(email)).ShouldNotBeNull();
+        int createdBeforeCompletion;
+        await using (var before = _factory.Services.CreateAsyncScope())
+        {
+            createdBeforeCompletion = await before.ServiceProvider.GetRequiredService<AppDbContext>()
+                .AuditLogEntries.AsNoTracking().CountAsync(e => e.AggregateId == existing.Id
+                    && e.EventType == AccountRegistrar.AccountCreatedAuditEventType, Ct);
+        }
+        createdBeforeCompletion.ShouldBe(1);
 
         var response = await CompleteAsync(grant);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("outcome").GetString().ShouldBe("signedIn");
+        var signedIn = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        signedIn.GetProperty("outcome").GetString().ShouldBe("signedIn");
+        using var me = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me");
+        me.Headers.Authorization = new AuthenticationHeaderValue("Bearer", signedIn.GetProperty("sessionId").GetString());
+        (await _client.SendAsync(me, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await using var scope = _factory.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await users.Users.CountAsync(u => u.NormalizedEmail == existing.NormalizedEmail, Ct)).ShouldBe(1);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.AuditLogEntries.AsNoTracking().CountAsync(
             e => e.AggregateId == existing.Id
-                && e.EventType == AccountRegistrar.AccountCreatedAuditEventType, Ct)).ShouldBe(0);
+                && e.EventType == AccountRegistrar.AccountCreatedAuditEventType, Ct)).ShouldBe(createdBeforeCompletion);
     }
 
     [Theory]

@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Admin;
@@ -59,7 +61,7 @@ public sealed class AccountEmailChangeLogHygieneTests(ApiFactory factory)
                 .StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
         }
 
-        var change = await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(factory, ownerId, newEmail, owner, Ct);
+        var change = await AccountEmailChangeKit.AgeStartedChangeAsync(factory, ownerId, newEmail, owner, Ct);
         codes.Add(change.Code.Reveal());
         (await AccountEmailChangeKit.CompleteAsync(anonymous, owner, newEmail, "12345", Ct)).StatusCode
             .ShouldBe(HttpStatusCode.BadRequest);
@@ -71,14 +73,19 @@ public sealed class AccountEmailChangeLogHygieneTests(ApiFactory factory)
         var second = Address("andra");
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(host, second, ct: Ct);
         var secondId = await AdminAccountsKit.UserIdAsync(host, second, Ct);
+        long originalRevision;
+        await using (var before = host.Services.CreateAsyncScope())
+            originalRevision = (await before.ServiceProvider.GetRequiredService<IAccountAccessReader>()
+                .ReadAsync(secondId, Ct)).ShouldNotBeNull().AccessRevision;
         var secondNew = Address("andrany");
         var secondChange = await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(factory, secondId, secondNew, second, Ct);
         codes.Add(secondChange.Code.Reveal());
         using (factory.SessionTeardownFaults.FailingFor(secondId))
         {
             (await AccountEmailChangeKit.CompleteAsync(anonymous, second, secondNew, codes[^1], Ct)).StatusCode
-                .ShouldBe(HttpStatusCode.InternalServerError);
+                .ShouldBe(HttpStatusCode.NoContent);
         }
+        factory.SessionTeardownFaults.LastFailedGeneration.ShouldBe((secondId, checked(originalRevision + 1)));
 
         var logs = factory.ClosedHostLogs.ToList();
         logs.ShouldContain(log => log.Scopes.Any(scope => scope.Contains(AccountEmailChangeKit.CompletePath, StringComparison.Ordinal)));

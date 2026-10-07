@@ -183,6 +183,8 @@ public sealed class LoginChallengeIssuerTests
     public async Task An_account_without_a_profile_gets_its_record_under_its_own_spelling_and_no_mail(
         bool registrationsOpen, CodeBudgetState budget)
     {
+        // AccountRegistrar at 22aefd8db committed Identity before a failed profile save. The current writer pin is
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         const string typed = "perſon@example.com";
         var userId = Guid.NewGuid();
         var logger = new CapturingLogger<LoginChallengeIssuer>();

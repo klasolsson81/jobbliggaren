@@ -44,7 +44,6 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** ADR 0150 D4: the address change and its cancel are built (#1975); every other action is "Kommer snart". */
 const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate"]);
 
 const RETURN_PATH = "/admin/anvandare";

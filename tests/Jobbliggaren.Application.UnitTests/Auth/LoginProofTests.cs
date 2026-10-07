@@ -860,7 +860,8 @@ public sealed class LoginProofTests
     [Fact]
     public async Task With_registration_open_a_provider_proof_of_a_row_without_a_profile_links_nothing()
     {
-        // No profile: WithProfileAsync is not called, and the lookup still finds the Identity row.
+        // AccountRegistrar at 22aefd8db committed Identity before a failed profile save. The current writer pin is
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         (await Outcome(registrationsOpen: true).ResolveExternalAsync(await ProviderProofAsync(), Ct))
             .ShouldBeOfType<LoginOutcome.AccountUnavailable>();
 

@@ -24,7 +24,6 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -213,14 +212,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                     .UseSnakeCaseNamingConvention()
-                    // A test class builds an extra host via WithWebHostBuilder
-                    // (CreateRegistrationsClosedClient). Each derived host that re-AddDbContext's spins a
-                    // fresh EF internal service provider; across the shared [Collection("Api")] that
-                    // trips EF's process-wide ManyServiceProvidersCreatedWarning (>20 providers), which
-                    // is thrown-by-default and cascades to unrelated tests. Ignoring it is the
-                    // EF-team-sanctioned accommodation for WebApplicationFactory suites (test-only; prod
-                    // DbContext config is separate and unaffected).
-                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
+                    .EnableServiceProviderCaching(false)
                     .AddInterceptors(
                         _jobSeekerSaveRace,
                         _auditRowSaveFailure,
@@ -240,8 +232,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                         npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                     })
-                    // #714 — same rationale as AppDbContext above.
-                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
+                    .EnableServiceProviderCaching(false)
                     .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
 
@@ -280,8 +271,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IBackgroundJobController>(_backgroundJobs);
 
             // #1735 — the login challenge's stores stay the real Redis adapters, wrapped so a test can put
-            // them out of reach in place (LoginChallengeFaults). A dedicated host would be the fourth
-            // WebApplicationFactory, past EF's ManyServiceProvidersCreatedWarning ceiling.
+            // them out of reach in place (LoginChallengeFaults).
             services.RemoveAll<IRateBudget>();
             services.AddSingleton<IRateBudget>(sp => new FaultableRateBudget(
                 ActivatorUtilities.CreateInstance<RedisRateBudget>(sp), _loginChallengeFaults));
@@ -374,12 +364,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// public-registration kill-switch forced CLOSED. This is the counterfactual: without a host that
     /// actually refuses, the base host's 200/202 assertions cannot tell a working gate from an absent
     /// one.
-    /// <para>
-    /// Cached and shared: one
-    /// derived host per test class would each spin a fresh EF internal service provider and trip EF's
-    /// process-wide <c>ManyServiceProvidersCreatedWarning</c> (&gt;20) across the shared
-    /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
-    /// </para>
     /// </summary>
     internal HttpClient CreateRegistrationsClosedClient() => GetRegistrationsClosedHost().CreateClient();
 
@@ -392,10 +376,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false);
                 // Capture THIS host's boot records so the gate's announcement can be pinned against
-                // the behaviour of the same host. Hung on an existing derived host on purpose: a
-                // dedicated one counts toward EF's ManyServiceProvidersCreatedWarning (>20 internal
-                // providers), which fails whichever collection fixture initialises after the ceiling
-                // breaks.
+                // the behaviour of the same host.
                 services.AddSingleton<ILoggerProvider>(_closedHostLogs);
             }));
         }

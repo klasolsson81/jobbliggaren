@@ -276,9 +276,9 @@ public sealed class AccountAccessMutationBehaviorTests : IAsyncDisposable
     public async Task Handle_ShouldRejectAnOldOriginalGrant_WithoutIssuingACapabilityOrWritingSuccessAudit()
     {
         await SeedProfileAsync();
-        // Suspend + reinstate produce revision two and cutoff two. The original request's epoch is
-        // high enough, but its bound revision remains zero and must not be promoted to the live one.
-        _account = _account with { AccessRevision = 2, CredentialCutoff = 2 };
+        // After the original flow at epoch six, suspend and reinstate advance the global epoch to seven and eight.
+        _epoch = 8;
+        _account = _account with { AccessRevision = 2, CredentialCutoff = 8 };
         _currentUser.AccessRevision.Returns(2L);
         _coordinator.BeforeCommit = null;
 

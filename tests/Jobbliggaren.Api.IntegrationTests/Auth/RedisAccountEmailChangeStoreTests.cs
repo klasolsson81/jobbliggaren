@@ -323,12 +323,18 @@ public sealed class RedisAccountEmailChangeStoreTests : IAsyncLifetime, IClassFi
     public async Task The_pending_read_carries_the_two_instants_and_no_address()
     {
         var userId = Guid.NewGuid();
-        var written = await PutAsync(userId);
+        var request = new NewAccountEmailChange(userId, NewEmail, Current);
+        var issuedAt = _clock.UtcNow;
+        var written = (await _store.PutAsync(request, Ct)).ShouldBeOfType<AccountEmailChangePut.Written>();
 
         var pending = (await _store.FindPendingAsync(userId, Ct)).ShouldNotBeNull();
 
         pending.ShouldBe(new PendingAccountEmailChange(
-            PendingAccountEmailChangeState.Pending, written.CompletableFrom, written.ExpiresAt));
+            PendingAccountEmailChangeState.Pending, written.CompletableFrom, written.ExpiresAt)
+        {
+            RequestId = request.RequestId,
+            IssuedAt = issuedAt,
+        });
         (await _store.FindPendingAsync(Guid.NewGuid(), Ct)).ShouldBeNull();
     }
 

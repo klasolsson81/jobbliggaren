@@ -68,10 +68,16 @@ internal static class AccountEmailChangeKit
     public static async Task<ElapsedChange> ChangeStartedHoursAgoAsync(
         ApiFactory factory, Guid accountId, string newEmail, string currentEmail, CancellationToken ct, int hoursAgo = 73)
     {
-        var now = factory.Services.GetRequiredService<IDateTimeProvider>().UtcNow;
         var administrator = await AdminAsync(factory, AdminAccountsKit.NewToken(), ct);
         var requested = await RequestAsync(factory, administrator, accountId, newEmail, ct);
         requested.StatusCode.ShouldBe(HttpStatusCode.Accepted, await requested.Content.ReadAsStringAsync(ct));
+        return await AgeStartedChangeAsync(factory, accountId, newEmail, currentEmail, ct, hoursAgo);
+    }
+
+    public static async Task<ElapsedChange> AgeStartedChangeAsync(
+        ApiFactory factory, Guid accountId, string newEmail, string currentEmail, CancellationToken ct, int hoursAgo = 73)
+    {
+        var now = factory.Services.GetRequiredService<IDateTimeProvider>().UtcNow;
         var mailed = factory.Emails.LoginChallenges.Last(mail => mail.ToEmail == newEmail).Content
             .ShouldBeOfType<LoginChallengeEmail.AccountEmailChangeCode>();
         await using var redis = await ConnectionMultiplexer.ConnectAsync(factory.VolatileRedisConnectionString);

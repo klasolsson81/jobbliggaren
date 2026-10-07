@@ -374,15 +374,14 @@ public class LoginChallengeProofTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_address_that_left_its_account_is_asked_for_consent_when_its_code_is_proven()
+    public async Task An_original_account_bound_code_is_unavailable_after_its_address_leaves_the_account()
     {
-        // #1737 — the code proves the inbox, the address has no account, and registration is open here.
         var minted = await MintThenMoveTheAccountAwayAsync("moved-code");
 
         var body = await OkBodyOf(await VerifyAsync(minted.ChallengeId, minted.Code));
 
-        body.GetProperty("outcome").GetString().ShouldBe("consentRequired");
-        body.EnumerateObject().Select(p => p.Name).Order().ShouldBe(["grantToken", "outcome"]);
+        body.GetProperty("outcome").GetString().ShouldBe("accountUnavailable");
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome"]);
     }
 
     [Fact]

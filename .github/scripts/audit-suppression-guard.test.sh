@@ -920,5 +920,35 @@ expect_lacks "Z5 a header-only lockfile is NOT caught by the shape contract" "$o
 expect_has   "Z5b and still produces a false DEAD OVERRIDE, as declared"     "$out" "DEAD OVERRIDE"
 
 echo
+cat > "$TMP/parent.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "@lhci/utils@0.15.1>js-yaml@^3.13.1": "^4.3.2" } } }
+J
+mk_lock "  js-yaml@4.3.2:"
+out="$(run "$TMP/parent.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_lacks "P1 the installed LHCI YAML repair is present" "$out" "DEAD OVERRIDE"
+mk_lock "  '@lhci/utils@0.15.1':"
+out="$(run "$TMP/parent.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_has "P2 a remaining parent does not hide an absent child" "$out" "DEAD OVERRIDE"
+cat > "$TMP/scoped-child.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "eslint-config-next@>=16>@next/eslint-plugin-next@>=16": "16.3.8" } } }
+J
+mk_lock "  '@next/eslint-plugin-next@16.3.8':"
+out="$(run "$TMP/scoped-child.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_lacks "P3 scoped child and version comparators preserve the name" "$out" "DEAD OVERRIDE"
+cat > "$TMP/bare-parent.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "eslint-config-next>@next/eslint-plugin-next": "16.3.8" } } }
+J
+out="$(run "$TMP/bare-parent.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_lacks "P4 a bare parent and scoped child preserve the name" "$out" "DEAD OVERRIDE"
+cat > "$TMP/comparison.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "source-map-js@>1.0.0": "^1.2.2" } } }
+J
+mk_lock "  source-map-js@1.2.2:"
+out="$(run "$TMP/comparison.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_lacks "P5 a standalone greater-than range is not a parent separator" "$out" "DEAD OVERRIDE"
 echo "audit-suppression-guard fixtures: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

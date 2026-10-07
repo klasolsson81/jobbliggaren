@@ -204,9 +204,10 @@ public sealed record ErasureSurfaceCounts(
     int CompanyWatchFollows,
     int JobSeekerProfiles,
     int ResumeMetadata,
+    int FeedbackComments,
     int ApplicationsReferencingMatchedAds)
 {
-    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /// <summary>
     /// The sum of every surface. <b>Hand-written, and load-bearing twice</b> — it decides
@@ -218,7 +219,7 @@ public sealed record ErasureSurfaceCounts(
     public int Total =>
         JobAds + RecentJobSearches + SavedSearches + ApplicationSnapshots
         + ApplicationSnapshotContacts + ManualAdEntries + CompanyWatchCriteria
-        + CompanyWatchFollows + JobSeekerProfiles + ResumeMetadata
+        + CompanyWatchFollows + JobSeekerProfiles + ResumeMetadata + FeedbackComments
         + ApplicationsReferencingMatchedAds;
 }
 

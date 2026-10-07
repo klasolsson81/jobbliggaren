@@ -128,6 +128,17 @@ public class ErasureCascadeRegistryTests
             + "dispatch jobs. The row records THAT a followed company posted an ad; the ad's own "
             + "text is classified under job_ads.",
 
+        // #1979 — the feedback bookkeeping around the one searched column, feedback_submissions.comment.
+        ["feedback_notifications"] = "Delivery bookkeeping for the operator notice about a "
+            + "submission: ids, an attempt count and timestamps. One text-bearing column: state, a "
+            + "FeedbackNotificationState enum persisted BY NAME through HasConversion<string> into "
+            + "varchar(16) and written only by the notice's own transitions (the dispatch job and an "
+            + "administrator's requeue). No request body reaches it.",
+        ["feedback_prompt_suppressions"] = "A LINK ROW: (job_seeker_id, page_key, suppressed_at) "
+            + "recording THAT she gave feedback on a page. One text-bearing column: page_key, the "
+            + "name of a FeedbackPage — a closed set validated by FeedbackPage.TryFromKey before any "
+            + "write, persisted BY NAME into varchar(40).",
+
         // (`company_watches` USED TO BE HERE, filed under "pure link tables", on the ground that its
         // `filter` jsonb holds "a WatchFilterSpec whose every string is a concept-id validated
         // against ConceptIdPattern … no free text can enter it". The validator it named gates SHAPE,
@@ -764,7 +775,7 @@ public class ErasureCascadeRegistryTests
         surfaces.ShouldNotBeEmpty();
 
         // Drive the REAL BuildAuditPayload through the REAL command, with a fake pseudonymiser.
-        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
         var response = new EraseRecruiterAdsResponse(
             RequestId: Guid.NewGuid(),
             DryRun: true,

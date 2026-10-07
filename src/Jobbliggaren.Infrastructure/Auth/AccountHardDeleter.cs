@@ -243,8 +243,8 @@ public sealed partial class AccountHardDeleter(
         // UserJobAdMatches and FollowedCompanyAdHits above (the last two unfiltered since #868), and
         // ResumeFiles below — which likewise omit it. The iff-invariant (filtered ⇔ call present) is
         // machine-checked for every arm by AccountHardDeleteCascadeFitnessTests — which is what
-        // actually closes the "a filter added tomorrow silently narrows this read" hazard, for all
-        // eleven aggregates rather than this one.
+        // actually closes the "a filter added tomorrow silently narrows this read" hazard, for every
+        // aggregate in the cascade rather than this one.
         var companyWatchCriteria = await db.CompanyWatchCriteria
             .Where(c => c.UserId == userId)
             .ToListAsync(cancellationToken);
@@ -293,6 +293,20 @@ public sealed partial class AccountHardDeleter(
             // Idempotent (0 rows = no-op).
             await db.ResumeFiles
                 .Where(f => f.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            // GDPR Art. 17 (#1979) — the feedback the user sent, the operator notices about it (queued
+            // ones included, so no pending send outlives the account) and the per-page prompt
+            // suppressions. FK-less by-JobSeekerId aggregates (ADR 0011) stored in plaintext (Klas
+            // 2026-10-07), so the rows themselves must go. Same transaction, idempotent.
+            await db.FeedbackNotifications
+                .Where(n => n.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await db.FeedbackSubmissions
+                .Where(s => s.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await db.FeedbackPromptSuppressions
+                .Where(s => s.JobSeekerId == jsId)
                 .ExecuteDeleteAsync(cancellationToken);
 
             // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,

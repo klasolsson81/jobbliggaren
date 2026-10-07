@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -108,6 +109,9 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(CompanyWatch)] = "CompanyWatches",
         [typeof(FollowedCompanyAdHit)] = "FollowedCompanyAdHits",
         [typeof(CompanyWatchCriterion)] = "CompanyWatchCriteria",
+        [typeof(FeedbackSubmission)] = "FeedbackSubmissions",
+        [typeof(FeedbackNotification)] = "FeedbackNotifications",
+        [typeof(FeedbackPromptSuppression)] = "FeedbackPromptSuppressions",
     };
 
     /// <summary>
@@ -226,7 +230,7 @@ public class AccountHardDeleteCascadeFitnessTests
         //      `var q = db.X.Where(...); var r = await q.ToListAsync(ct);` — matches neither
         //      `db.X`+verb in one ';' segment nor the sibling wiring scan's [^;] reach. The arm would
         //      simply stop being checked while everything stayed green. Requiring every CascadeMap
-        //      DbSet to present at least one query-executing statement makes "we looked at all eleven"
+        //      DbSet to present at least one query-executing statement makes "we looked at every arm"
         //      a measured fact rather than a property that happens to hold today. Same doctrine as the
         //      DbSet-name pin above, which exists so the wiring scan cannot go vacuous.
         body.ShouldNotBeNullOrWhiteSpace(
@@ -364,6 +368,9 @@ public class AccountHardDeleteCascadeFitnessTests
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.ResumeFiles.Where(f => f.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
+                await db.FeedbackNotifications.Where(n => n.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
+                await db.FeedbackSubmissions.Where(s => s.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
+                await db.FeedbackPromptSuppressions.Where(s => s.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
             }
             """;
 
@@ -381,8 +388,8 @@ public class AccountHardDeleteCascadeFitnessTests
         // The pin was the ONLY detector in this file without one, and the mutation battery does not
         // reach it either: M1/M2/M3b all leave the reads VISIBLE, so the pin stays green through all
         // three. An inverted `!`, an Any/All slip or a regex typo would therefore make it return an
-        // empty list forever — green forever — and the claim it exists to support ("all eleven arms
-        // are actually examined") would quietly revert to prose. The fix for an untested guarantee is
+        // empty list forever — green forever — and the claim it exists to support ("every arm is
+        // actually examined") would quietly revert to prose. The fix for an untested guarantee is
         // itself a guarantee.
         //
         // The blind spot it detects, reproduced exactly: a read split across two statements. The
@@ -664,7 +671,7 @@ internal static class HardDeleteCascadeScan
     /// <summary>
     /// Reports the DbSet names that present NO query-executing statement the scan can see — i.e. the
     /// arms the iff-rule silently does not examine. Absence of violations means nothing if the
-    /// detector never looked; this is the counterfactual that makes "all eleven are checked" a fact.
+    /// detector never looked; this is the counterfactual that makes "every arm is checked" a fact.
     /// </summary>
     internal static IReadOnlyList<string> FindDbSetsWithoutQueryExecutingStatement(
         string code, IEnumerable<string> dbSetNames)

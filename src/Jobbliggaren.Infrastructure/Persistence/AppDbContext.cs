@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -37,6 +38,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits => Set<FollowedCompanyAdHit>();
     // #560 Fork A1 — criteria-based company watches (SNI ∧ kommun discovery predicate).
     public DbSet<CompanyWatchCriterion> CompanyWatchCriteria => Set<CompanyWatchCriterion>();
+    // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
+    public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
+    public DbSet<FeedbackNotification> FeedbackNotifications => Set<FeedbackNotification>();
+    public DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions => Set<FeedbackPromptSuppression>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

@@ -211,3 +211,42 @@ test("an ad applied before this visit links to /ansokningar, and the link leaves
   await expect(page.getByRole("heading", { level: 1, name: "Mina ansökningar" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+for (const width of [375, 1280, 3440]) {
+  test("a gone ad replaces loading without a height jump and its footer closes to the row at " + width + "px (#2007)", async ({ page, context }) => {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await context.route("**/*", (route) =>
+      route.request().headers()["next-router-prefetch"] ? route.abort() : route.continue()
+    );
+    const gate = Promise.withResolvers<void>();
+    harness.jobAdReadGate = gate.promise;
+    try {
+      await page.goto("/sparade");
+      const row = rowLink(page, ADS.saved);
+      await expect(row).toBeVisible();
+      // The list snapshot came first; an Art. 17 erasure makes the detail answer 410 (#1987).
+      harness.erasedAds.add(ADS.saved.id);
+      const opening = row.click();
+      const loading = page.locator(".jp-modal--loading");
+      await expect(loading).toBeVisible();
+      await loading.evaluate((panel) => Promise.all(panel.getAnimations().map((animation) => animation.finished)));
+      const before = await loading.boundingBox();
+      expect(before).not.toBeNull();
+      gate.resolve();
+      await opening;
+      const message = page.getByRole("dialog", { name: "Sidan finns inte" });
+      await expect(message).toBeVisible();
+      await message.evaluate((panel) => Promise.all(panel.getAnimations().map((animation) => animation.finished)));
+      const after = await message.boundingBox();
+      expect(after?.height).toBe(before?.height);
+      const footer = message.locator(".jp-modal__foot");
+      await expect(footer).toHaveText("Stäng");
+      await footer.getByRole("button", { name: "Stäng", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page).toHaveURL("/sparade");
+      await expect(row).toBeFocused();
+    } finally {
+      gate.resolve();
+    }
+  });
+}

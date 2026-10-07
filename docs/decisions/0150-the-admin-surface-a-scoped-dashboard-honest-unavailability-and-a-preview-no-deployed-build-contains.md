@@ -21,7 +21,7 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 **Measured against:** `origin/main` at `7c21f8117`, 2026-10-04.
 **Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions;
 2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary;
-2026-10-07 by ADR 0156 (#1979): four D8 rows for feedback's rating, statuses, list and page, and a dated note on the screenshot and reply rows.
+2026-10-07 by ADR 0156 (#1979): five D8 rows for feedback's rating, statuses, list, page and filters, and a dated note on the screenshot and reply rows.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -219,6 +219,7 @@ The handoff is a design reference, not production code. What ships departs from 
 | Statuses Ny, Pågår, Löst and Avfärdad | Ny, Pågår, Åtgärdad and Avstår | ADR 0156 D8 |
 | The sender's address in every feedback list row | None in the list; the detail reads it on the server | The list carries no personal data (ADR 0156 D8); the account has no name (D3) |
 | The page as the app path the report was sent from | The page's name from a closed set of 19; no URL or query string is collected | ADR 0156 D2 |
+| Feedback's status filter and summary period as the house `Segment` | `.jp-subnav` links, one URL each | The page is driven by its URL, so the notice's link opens its item; a filter that is client state (Användare) keeps `Segment` |
 
 ## Alternatives considered
 

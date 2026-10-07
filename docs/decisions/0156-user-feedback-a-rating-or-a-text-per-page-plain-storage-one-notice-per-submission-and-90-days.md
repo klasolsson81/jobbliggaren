@@ -49,8 +49,6 @@ Nine decisions. Each names the code that carries it.
   a status (D8) and its timestamps.
 - **`FeedbackPage`** is a SmartEnum of 19 fixed keys, stored by name (`page_key`) and parsed by
   `FeedbackPage.TryFromKey`, so a page can only come from this list, never from a URL, a filter or an ad or CV id.
-  Removing a key later deletes its `feedback_prompt_suppressions` rows in the same change, because those outlive the
-  feedback (D7).
 - **`FeedbackNotification`** (`feedback_notifications`) is its own aggregate (2b: a different writer, lifecycle and
   invariants), created in the same save as its submission, one per submission (D5).
 - **`FeedbackPromptSuppression`** (`feedback_prompt_suppressions`) is one row per user and page, written in the save
@@ -58,7 +56,7 @@ Nine decisions. Each names the code that carries it.
 
 The aggregates refer to each other and to the job seeker by strongly typed id only (ADR 0011), and the tables carry
 no foreign key. A row leaves by an explicit delete: the retention job or the account hard delete (D7). The tables are
-created by migration `20261007183235_AddFeedback`.
+created by migration `20261007215002_AddFeedback`.
 
 ### D2 — Submission and idempotency
 
@@ -115,9 +113,8 @@ reporter, so nothing a user wrote leaves for the mail provider
 (`IEmailSender.SendFeedbackReceivedNotificationAsync`, `EmailTemplates.FeedbackReceivedNotification`).
 
 `FeedbackNotificationDispatchJob` runs every minute (`dispatch-feedback-notifications`), registered unconditionally
-and idle while no recipient can be reached. It has no Hangfire retry (`AutomaticRetry(Attempts = 0)`, because a
-retried run could resend a mail whose outcome the job already recorded) and a lock wait of 30 seconds, under the
-interval (M7). A run sends at most ten notices and works at most 40 seconds. A due notice is claimed and saved as
+and idle while no recipient can be reached. It has no Hangfire retry (`AutomaticRetry(Attempts = 0)`) and a lock wait of 30 seconds, under the
+interval (M7). A run sends at most ten notices. A due notice is claimed and saved as
 `Sending` **before** the provider call, so a run that dies afterwards leaves a row the next run turns `Unknown`, and
 the notice is not sent a second time.
 
@@ -158,7 +155,7 @@ account and hold no text, so the prompt never returns on its own.
 
 An account hard delete removes all three tables in the transaction of the rest of its cascade
 (`AccountHardDeleter`), the notices first and queued ones included, so no send outlives the account.
-`AccountHardDeleteCascadeFitnessTests` and `ErasureCascadeRegistry` hold the build to it. A soft-deleted account is
+`AccountHardDeleteCascadeFitnessTests` holds the build to it. A soft-deleted account is
 not special-cased (2c): its rows go at hard delete, as other per-user aggregates do, and the admin detail reads the
 owner with `IgnoreQueryFilters`, so an account inside its 30-day restore window still shows.
 
@@ -175,7 +172,7 @@ and `admin-write` buckets.
   `IUserAccountService.GetEmailAsync`. The account has no name (ADR 0150 D3); the address is the identity.
 - **Triage.** The statuses are Ny, Pågår, Åtgärdad and Avstår (`FeedbackStatus`). Any may follow any other, so a
   closed item can be reopened. A status change and a requeue (D5) are `IAdminRequest` and audited
-  (`Admin.FeedbackStatusChanged`, `Admin.FeedbackNotificationRequeued`); the rows carry no actor.
+  (`Admin.FeedbackStatusChanged`, `Admin.FeedbackNotificationRequeued`).
 - **Statistics.** `GET .../summary?days=7|30|90` gives, per page, the submissions, the raters, the 1–5 distribution
   and the mean. A user's latest rating per page in the window counts once, so a re-rating replaces the earlier one;
   an unrated submission counts only as a submission, never as a zero. The read needs `DISTINCT ON`, a provider
@@ -255,8 +252,8 @@ this name.
 - One request and one save: no uploads to expire, no keys to hold, no cross-owner decryption (D2, D3).
 - A double click, a lost response or a second tab cannot save twice (D2). An outage costs one notice per run, and a
   notice with an unknown outcome is never resent without a person (D5).
-- Retention is one constant the privacy policy can state, and both ends of it, age and account, are executable and
-  held by the registries (D7).
+- Retention is one constant the privacy policy can state, and both ends of it, age and account, are executable
+  (D7).
 - A closed gate says why on the admin page, and the host still boots (D4).
 
 ### Negative and risks
@@ -266,10 +263,8 @@ this name.
 - Free text can name a recruiter or anyone else, and erasing it is manual and the operator's (grant 2).
 - An `Unknown` notice waits for a person. Five refused attempts end in `Failed` after about an hour and twenty
   minutes with no mail sent; the feedback is saved and listed either way.
-- The soft gate can leave the feature closed with nothing failing at startup. The signals are the admin page and the
-  dispatch job's warning (D4).
-- The page set is closed in code: a new page needs a code change, and removing one needs its suppression rows
-  deleted (D1).
+- The soft gate can leave the feature closed with nothing failing at startup. The signal is the admin page (D4).
+- The page set is closed in code: a new page needs a code change (D1).
 - ADR 0124 stays as written while a dated pointer amends its exception contract, so a reader of ADR 0124 must follow
   the pointer.
 

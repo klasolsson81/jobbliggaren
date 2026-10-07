@@ -2951,7 +2951,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
    modal detail streams in (ModalLoadingShell). Reuses the .jp-modal-scrim /
    .jp-modal surface; reserves a stable panel height so the swap to content does
    not jump (CLS). Spinner + status line centered. */
-.jp-modal--loading {
+.jp-modal--loading,
+.jp-modal--message {
   min-height: 220px;
 }
 .jp-modal-loading {

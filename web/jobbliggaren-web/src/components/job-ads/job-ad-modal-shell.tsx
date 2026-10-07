@@ -28,6 +28,7 @@ export function JobAdModalShell({
   company,
   meta,
   describedBy,
+  showCloseFooter = false,
   children,
 }: {
   title: string;
@@ -39,6 +40,7 @@ export function JobAdModalShell({
   meta: React.ReactNode;
   /** The id of a branch without an ad's one-line body; an ad's own text never describes the dialog (#1828). */
   describedBy?: string;
+  showCloseFooter?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -107,7 +109,11 @@ export function JobAdModalShell({
     >
       <div
         ref={panelRef}
-        className="jp-modal jp-modal--sheet"
+        className={
+          showCloseFooter
+            ? "jp-modal jp-modal--sheet jp-modal--message"
+            : "jp-modal jp-modal--sheet"
+        }
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
@@ -133,6 +139,14 @@ export function JobAdModalShell({
           </button>
         </header>
         {children}
+        {showCloseFooter && (
+          <div className="jp-modal__foot">
+            <span className="jp-modal__foot__spacer" />
+            <button type="button" className="jp-btn jp-btn--secondary" onClick={close}>
+              {t("modalShell.close")}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

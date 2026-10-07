@@ -387,10 +387,12 @@ if [ -z "$KEYS" ]; then
 else
   while IFS= read -r key; do
     [ -n "$key" ] || continue
-    # `pkg` or `pkg@<range>`; the range may itself contain '@' only in scopes,
-    # which always lead, so split on the LAST '@' that is not position 0.
     name="$key"
-    case "${key#@}" in *@*) name="${key%@*}" ;; esac
+    selector_delimiter='[^ |@]>'
+    if [[ "$key" =~ $selector_delimiter ]]; then
+      name="${key#*"${BASH_REMATCH[0]}"}"
+    fi
+    case "${name#@}" in *@*) name="${name%@*}" ;; esac
     # PRESENCE ONLY — no version is extracted, deliberately.
     #
     # A fourth check used to live here: it compared each resolved version against

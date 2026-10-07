@@ -218,6 +218,26 @@ describe("RecentSearchRow", () => {
     expect(link).not.toHaveClass("jp-btn--primary");
   });
 
+  // #2030 — the Clock plate repeated the page heading on every row.
+  it("renders no plate, and every icon on the row sits on an action", () => {
+    const { container } = render(
+      <RecentSearchRow
+        item={makeDto()}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
+    expect(container.querySelector(".jp-job__match")).toBeNull();
+    const icons = [...container.querySelectorAll("svg")];
+    expect(icons.length, "the row renders no icon at all, so the check below is vacuous").toBeGreaterThan(0);
+    expect(
+      icons.filter((icon) => !icon.closest("a, button")),
+      "jobbpilot-design-principles rule 3: an icon on a data row signals an action, and one outside a " +
+        "link or button only decorates the row",
+    ).toEqual([]);
+  });
+
   // #2029: "Kör igen" is where focus lands when the row above it is removed, and its name alone
   // does not say which search it runs.
   it("describes 'Kör igen' with the row's label, keeping the visible name", () => {

@@ -18,8 +18,7 @@ import { classTokens, sourceFiles } from "@/test/jsx-class-tokens";
  * Two halves of one contract, both computed from the source tree and the stylesheets, never from a
  * list:
  *   1. no chassis element (`jp-job`, `jp-app`, or one of their `__parts`) carries an inline grid
- *      property, the icon plate carries no inline `display`, and a `style` or spread the scan cannot
- *      read counts against it (fail closed);
+ *      property, and a `style` or spread the scan cannot read counts against it (fail closed);
  *   2. outside a `max-width: 720px` block, the only rules that set a grid property on a `.jp-job` row
  *      or part are single-class `.jp-job`/`.jp-job--*` rules above the arm in `globals.css`. A media
  *      query adds no specificity, so source order decides (see `globals-pagehero-cascade.test.ts`).
@@ -89,8 +88,7 @@ function scan(file: string, text: string): { chassis: number; rows: number; find
         continue;
       }
       const key = ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : name.getText(source);
-      const platesDisplay = classes.has("jp-job__match") && normalised(key) === "display";
-      if (isGridKey(key) || platesDisplay) findings.push({ line: at(prop), why: key });
+      if (isGridKey(key)) findings.push({ line: at(prop), why: key });
     }
   };
 
@@ -184,13 +182,6 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
     expect(findingsIn('const a = <article className="jp-job" {...rest} />;')).toEqual(["spread attribute"]);
   });
 
-  it("forbids an inline `display` on the icon plate, and nowhere else", () => {
-    expect(
-      findingsIn('const a = <div className="jp-job__match jp-job__match--neutral" style={{ display: "block" }} />;')
-    ).toEqual(["display"]);
-    expect(findingsIn('const a = <div className="jp-job__meta" style={{ display: "block" }} />;')).toEqual([]);
-  });
-
   it("names the chassis by its exact tokens, and reads elements, not mentions", () => {
     expect(findingsIn('const a = <ul className="jp-jobs" style={{ gridTemplateColumns: "1fr" }} />;')).toEqual([]);
     expect(findingsIn('const a = <div className="jp-job-skeleton" style={{ gridTemplateColumns: "1fr" }} />;')).toEqual([]);
@@ -236,7 +227,7 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
 
     expect(
       offenders,
-      "an inline grid property, or the plate's inline `display`, outranks the <=720px arm, so the row " +
+      "an inline grid property outranks the <=720px arm, so the row " +
         "keeps its columns below 720px and the actions paint over the title. Give the row a " +
         "`.jp-job--*` modifier in globals.css, placed before the <=720px arm, instead."
     ).toEqual([]);
@@ -246,18 +237,18 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
     const selectors = [
       ".jp-job",
       ".jp-job__actions",
-      ".jp-job--icon",
+      ".jp-job--single",
       ".jp-jobs > .jp-job--probe",
       ".jp-job:hover",
       ".jp-jobs",
       ".jp-job-tags",
       ".jp-job-skeleton",
-      ".jp-job--icon > .jp-icon-btn",
+      ".jp-job--single > .jp-icon-btn",
     ];
     expect(selectors.filter(subjectIsJob)).toEqual([
       ".jp-job",
       ".jp-job__actions",
-      ".jp-job--icon",
+      ".jp-job--single",
       ".jp-jobs > .jp-job--probe",
       ".jp-job:hover",
     ]);
@@ -308,15 +299,6 @@ describe("a list row's columns live in the stylesheet (#1875)", () => {
       "a media query adds no specificity: a rule like these wins over the <=720px arm, so the row " +
         "never drops to one column. Use a single-class `.jp-job--*` rule above the arm."
     ).toEqual([]);
-  });
-
-  it("the <=720px arm takes the icon plate out with `display: none`, never a hidden box", () => {
-    // A box that is only invisible keeps its grid track and gap below 720px. design-reviewer's
-    // condition 5 in #1875's form check.
-    const plate = readRules(GLOBALS).filter(
-      (r) => r.selector === ".jp-job--icon > .jp-job__match" && inNarrowArm(r)
-    );
-    expect(plate.map((r) => r.declarations)).toEqual([[{ property: "display", value: "none" }]]);
   });
 
   it("the shared row title wraps a word that does not fit, and only then", () => {

@@ -305,18 +305,16 @@ function* classExpressions(text) {
  * up unstyled while the source claimed otherwise".
  *
  * Deriving it from the damage rather than from the identifier is also what keeps
- * the guard honest. Three patterns in this tree lack a rule on purpose, and all
- * three fall out of this one rule instead of needing an exemption each:
+ * the guard honest. Patterns in this tree that lack a rule on purpose fall out of
+ * this one rule instead of needing an exemption each:
  *   - `className="jp-card jp-guest-resume"` — a container hook; the weight comes
  *     from `.jp-card` and from `.jp-guest-resume__title` etc.
- *   - `className="jp-job__match jp-job__match--neutral"` — BEM base plus styled
- *     modifier.
  *   - `<td className="jp-apptable__cell jp-apptable__cell--role">` — semantic
  *     column markers on a base-styled cell; five of six `__col--*` carry a width
  *     and `--role` deliberately absorbs the remainder, so deleting them would
  *     break the symmetry that makes the row and colgroup readable.
  *
- * An enumeration of those three would rot. This rule keeps telling the truth, and
+ * An enumeration of those would rot. This rule keeps telling the truth, and
  * still fails every instance that motivated the issue.
  */
 function anyClassResolves(names, definedClasses) {

@@ -1139,6 +1139,11 @@ one on every HTTPS response, including Next-served and Caddy-owned responses (RF
 | 6 `0.0.0.0` | From outside, to 5432, 6379, Seq, 8080, 3000 and 2019: connection refused; `docker ps` ports | — |
 | 7 Caps and timeouts | `edge-modes.test.sh` and `scripts/edge-probe.mjs` on the image; caddy's memory limit read (metadata) for the `lb_try_duration` amplification with the gate open | Optionally live: an oversized body → `413` |
 
+The synthetic body probe requires a completed 100-byte telemetry control, an identified one-byte
+upload that aborts without completion, the bounded deadline, and normal-traffic recovery. It reports
+wire status separately; an empty 200 remains the protocol-status anomaly tracked in [#2052](https://github.com/klasolsson81/jobbliggaren/issues/2052),
+including when the independently measured abort/deadline invariant passes.
+
 **N-1 arm (2)** (ADR 0050, gate N-1), on the running edge, counts only — after Switch 2 every 5xx entry
 carries a visitor's `remote_ip`, so no line is ever printed:
 

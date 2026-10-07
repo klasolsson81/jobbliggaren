@@ -258,6 +258,14 @@ app.Use(async (ctx, next) =>
         // (GDPR Art. 32 oracle-avoidance). No credential material is logged or echoed.
         await AuthProblem.InvalidCredentials().ExecuteAsync(ctx);
     }
+    catch (AccountAccessCommitUncertainException)
+    {
+        ctx.Response.Headers.CacheControl = "private, no-store";
+        await Results.Problem(
+            title: "Admin.AccountAccessOutcomeUnknown",
+            detail: "Det gick inte att bekräfta resultatet. Läs kontots uppgifter innan du gör en ny åtgärd.",
+            statusCode: StatusCodes.Status503ServiceUnavailable).ExecuteAsync(ctx);
+    }
     catch (ForbiddenException ex)
     {
         ctx.Response.StatusCode = 403;
@@ -270,8 +278,7 @@ app.Use(async (ctx, next) =>
     }
     catch (ConcurrencyConflictException)
     {
-        // ADR 0146 — a replayed command lost every attempt to a concurrent write and committed
-        // nothing. The body is fixed: no exception text, no entity value.
+        // The precommit concurrency refusal is fixed and carries no entity or exception text.
         await Results.Problem(
             detail: "Uppgifterna ändrades samtidigt. Försök igen.",
             title: "Concurrency.Conflict",

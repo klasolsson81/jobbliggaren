@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -35,22 +36,14 @@ public sealed partial class AccountHardDeleter(
     IAuditTrailEraser auditTrailEraser,
     IUserDataKeyStore dataKeyStore,
     IDateTimeProvider clock,
-    ILogger<AccountHardDeleter> logger)
+    ILogger<AccountHardDeleter> logger,
+    IAccountAccessCoordinator coordinator,
+    IAccountAccessReader access)
     : IAccountHardDeleter
 {
     /// <summary>
-    /// #508 (ADR 0024 D6) orphan-sweep grace window. Registration commits the Identity
-    /// user first (own SaveChanges) and the JobSeeker later (UnitOfWork, with a Redis
-    /// roundtrip in between) — ADR 0024's deliberate two-boundary model. An Identity user
-    /// with no JobSeeker that is YOUNGER than this window is therefore presumed to be an
-    /// in-flight registration, not an orphan, and is never swept — sweeping it would
-    /// permanently delete a live account being created (the TOCTOU this control hardens;
-    /// the CTO bind rejects the query-presence-only mechanic C). 1 h is far wider than the
-    /// real registration window (sub-second) so a slow/stalled registration is never
-    /// mistaken for an orphan; the cost of waiting one extra daily cron cycle to reap a
-    /// genuine orphan is nil. Hardcoded in Fas 1 — the same hardcoded-constant pattern as
-    /// <see cref="HardDeleteAccountsJob"/>.RestoreWindowDays (the pattern, not the value:
-    /// that window is 30 days, this one is 1 h); flips to IOptions if the policy ever changes.
+    /// Retains the #508 grace for orphan rows produced by the retired registration writer.
+    /// Current registration commits Identity and profile in one transaction (ADR 0155).
     /// </summary>
     private static readonly TimeSpan OrphanGraceWindow = TimeSpan.FromHours(1);
 
@@ -73,11 +66,7 @@ public sealed partial class AccountHardDeleter(
                 .ToListAsync(cancellationToken))
             .ToHashSet();
 
-        // #508 forward-orphan grace filter (ADR 0024 D6). Sweep a JobSeeker-less Identity
-        // user ONLY if it is OLDER than the grace window; a younger one is presumed
-        // mid-registration (Identity committed, JobSeeker not yet) and left alone. Root
-        // cause (non-atomic two-boundary registration) is deliberately NOT "fixed" here —
-        // we harden the compensating control, we do not introduce a cross-context tx.
+        // Retired-writer orphan eligibility is rechecked under lifecycle/target locks below.
         // Skew assumption: CreatedAt is stamped by Postgres now() while the threshold uses
         // the app clock (IDateTimeProvider). The 1 h window dwarfs any realistic skew (Fas 1
         // runs DB + Worker on one host, ADR 0066; prod relies on NTP), so skew cannot make
@@ -105,13 +94,18 @@ public sealed partial class AccountHardDeleter(
         foreach (var orphanId in orphanIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
+            await using var scope = await coordinator.BeginAsync([orphanId], true, cancellationToken);
+            var current = await access.ReadAsync(orphanId, cancellationToken);
+            if (current is null || current.HasProfile)
+                continue;
             var user = await userManager.FindByIdAsync(orphanId.ToString());
-            if (user is null) continue; // Race: Identity redan rensad mellan SELECT och DELETE
+            if (user is null || user.CreatedAt > graceThreshold)
+                continue;
 
             var result = await userManager.DeleteAsync(user);
             if (result.Succeeded)
             {
+                await scope.CommitAsync(cancellationToken);
                 cleaned++;
             }
             else
@@ -151,6 +145,12 @@ public sealed partial class AccountHardDeleter(
     public async Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken cancellationToken)
     {
         var jsId = new JobSeekerId(jobSeekerId);
+        var ownerId = await db.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+            .Where(js => js.Id == jsId).Select(js => (Guid?)js.UserId).SingleOrDefaultAsync(cancellationToken);
+        if (ownerId is null)
+            return;
+        await using var transaction = await coordinator.BeginAsync([ownerId.Value], true, cancellationToken);
+        db.ChangeTracker.Clear();
 
         // Hämta JobSeeker (IgnoreQueryFilters — den ÄR soft-deletad per
         // GetAccountsReadyForHardDeleteAsync-kontraktet).
@@ -158,7 +158,8 @@ public sealed partial class AccountHardDeleter(
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(js => js.Id == jsId, cancellationToken);
 
-        if (jobSeeker is null)
+        if (jobSeeker is null || jobSeeker.DeletedAt is null
+            || jobSeeker.DeletedAt >= clock.UtcNow.AddDays(-HardDeleteAccountsJob.RestoreWindowDays))
             return; // Idempotent — redan borta (race vid concurrent runs)
 
         var userId = jobSeeker.UserId;
@@ -248,10 +249,6 @@ public sealed partial class AccountHardDeleter(
             .Where(c => c.UserId == userId)
             .ToListAsync(cancellationToken);
 
-        // Steg 2 a — Öppna explicit transaction (UoWBehavior är inte i pipelinen
-        // för worker-jobb-anrop direkt mot porten).
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-
         try
         {
             // Steg 2 b — Anonymisera audit-trail. Deltar i samma transaction
@@ -312,6 +309,14 @@ public sealed partial class AccountHardDeleter(
 
             // Steg 2 f — SaveChanges + Steg 2 g — Commit.
             await db.SaveChangesAsync(cancellationToken);
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is not null)
+            {
+                var result = await userManager.DeleteAsync(user);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException("The account's Identity deletion was refused: "
+                        + string.Join(",", result.Errors.Select(error => error.Code)));
+            }
             await transaction.CommitAsync(cancellationToken);
         }
         catch
@@ -319,18 +324,8 @@ public sealed partial class AccountHardDeleter(
             // ADR 0146 — this context serves the whole run. Left tracked, this account's Deleted
             // entities would be written by the next account's SaveChanges, outside this rollback.
             db.ChangeTracker.Clear();
-            await transaction.RollbackAsync(cancellationToken);
             throw;
         }
-
-        // Steg 2 h — Identity-DELETE separat boundary. Om denna failer plockas
-        // raden upp av Steg 0 (CleanupIdentityOrphansAsync) i nästa körning.
-        // Idempotent — UserManager.DeleteAsync på redan borttagen användare
-        // returnerar IdentityResult.Failed, vilket vi medvetet ignorerar
-        // (orphan-loopen kan retry:a separat).
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is not null)
-            await userManager.DeleteAsync(user);
     }
 
     public async Task<int> EraseExternalLoginsOfAccountsPendingDeletionAsync(CancellationToken cancellationToken)
@@ -343,9 +338,18 @@ public sealed partial class AccountHardDeleter(
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
 
-        return await identity.UserLogins
-            .Where(login => pendingDeletion.Contains(login.UserId))
-            .ExecuteDeleteAsync(cancellationToken);
+        var erased = 0;
+        foreach (var userId in pendingDeletion.Order())
+        {
+            await using var scope = await coordinator.BeginAsync([userId], true, cancellationToken);
+            var current = await access.ReadAsync(userId, cancellationToken);
+            if (current is not { DeletedAt: not null })
+                continue;
+            erased += await identity.UserLogins.Where(login => login.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await scope.CommitAsync(cancellationToken);
+        }
+        return erased;
     }
 
     // #508 — reverse-orphan är utelåsta konton (JobSeeker utan Identity-user) som aldrig

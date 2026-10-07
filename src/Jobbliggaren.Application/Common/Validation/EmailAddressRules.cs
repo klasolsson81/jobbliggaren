@@ -8,4 +8,13 @@ namespace Jobbliggaren.Application.Common.Validation;
 public static class EmailAddressRules
 {
     public const int MaximumLength = 256;
+
+    public static bool IsUsableInboxAddress(string? address)
+    {
+        if (string.IsNullOrEmpty(address) || address.Length > MaximumLength
+            || address.Contains('\r', StringComparison.Ordinal) || address.Contains('\n', StringComparison.Ordinal))
+            return false;
+        var at = address.IndexOf('@', StringComparison.Ordinal);
+        return at > 0 && at < address.Length - 1 && address.IndexOf('@', at + 1) < 0;
+    }
 }

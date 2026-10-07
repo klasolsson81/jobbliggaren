@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Validation;
 using Shouldly;
 
@@ -18,6 +19,22 @@ public sealed class ConfirmEmailChangeCommandValidatorTests
     [Fact]
     public void A_grant_and_a_well_formed_address_pass()
         => _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, ValidEmail)).IsValid.ShouldBeTrue();
+
+    [Theory]
+    [InlineData(SessionLifetime.Session)]
+    [InlineData(SessionLifetime.Persistent)]
+    public void An_originally_admitted_replacement_lifetime_passes(SessionLifetime lifetime)
+        => _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, ValidEmail)
+        { ReplacementLifetime = lifetime }).IsValid.ShouldBeTrue();
+
+    [Fact]
+    public void An_undefined_replacement_lifetime_is_refused_before_the_grant_is_redeemed()
+    {
+        var result = _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, ValidEmail)
+        { ReplacementLifetime = (SessionLifetime)99 });
+
+        result.Errors.ShouldContain(error => error.PropertyName == nameof(ConfirmEmailChangeCommand.ReplacementLifetime));
+    }
 
     [Theory]
     [InlineData(null)]

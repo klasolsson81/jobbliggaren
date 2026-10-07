@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Domain.Common;
@@ -14,10 +15,15 @@ namespace Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 /// stamps <c>User.EmailChanged</c> (AggregateType "User"); the endpoint then logs every session out and issues
 /// this device a fresh one.
 /// </summary>
+public sealed record ConfirmedEmailChange(Guid UserId, CommittedSessionAuthorization Authorization);
+
 public sealed record ConfirmEmailChangeCommand(string? ChangeEmailGrant, string? NewEmail)
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+    : ICommand<Result<ConfirmedEmailChange>>, IAuthenticatedRequest,
+      IAuditableCommand<Result<ConfirmedEmailChange>>, IAccountAccessMutation
 {
+    public SessionLifetime ReplacementLifetime { get; init; } = SessionLifetime.Session;
+    public Guid? TargetUserId => null;
     public string EventType => "User.EmailChanged";
     public string AggregateType => "User";
-    public Guid ExtractAggregateId(Result<Guid> response) => response.Value;
+    public Guid ExtractAggregateId(Result<ConfirmedEmailChange> response) => response.Value.UserId;
 }

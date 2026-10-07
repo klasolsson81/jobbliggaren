@@ -1,8 +1,16 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
+using Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -16,7 +24,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// WHAT each budget is keyed by, the record the store is asked to write and the mail the new address gets. The
 /// request step never changes the address and never touches a session.
 /// </summary>
-public sealed class ChangeEmailCommandHandlerTests
+public sealed class ChangeEmailCommandHandlerTests : IAsyncDisposable
 {
     private const string Grant = "an-opaque-reauth-grant"; // gitleaks:allow
     private const string NewEmail = "ny.adress@example.se";
@@ -32,15 +40,38 @@ public sealed class ChangeEmailCommandHandlerTests
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
     private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
     private readonly ILoginChallengeStore _store = Substitute.For<ILoginChallengeStore>();
+    private readonly AppDbContext _db = TestAppDbContextFactory.Create();
+    private readonly AccountAccessTestKit.RecordingAccountAccessCoordinator _coordinator = AccountAccessTestKit.Coordinator();
+    private readonly FakeDateTimeProvider _clock = FakeDateTimeProvider.Default;
+    private NewBoundChallenge? _written;
+    private AccountAccessSnapshot _account = AccountAccessTestKit.Account(UserId, "person@example.com");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public ChangeEmailCommandHandlerTests()
     {
         _currentUser.UserId.Returns(UserId);
+        _currentUser.AccessRevision.Returns(0L);
         _sender.CanDeliver.Returns(true);
         _accounts.CheckAddressIsFreeAsync(UserId, NewEmail, Arg.Any<CancellationToken>()).Returns(Result.Success());
-        _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>()).Returns(Code);
+        _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            _written = call.Arg<NewBoundChallenge>();
+            return Code;
+        });
+        _store.ReadEmailChangeRequestAsync(Arg.Any<ChallengeId>(), UserId, Arg.Any<CancellationToken>())
+            .Returns(call => _written is { } written && written.Id == call.Arg<ChallengeId>()
+                ? new LoginChallengeProof(written.Recipient)
+                {
+                    Access = written.Access with { ExpectedEmail = null, ExpectedCutoff = null },
+                    EmailChangeRequest = written.EmailChangeRequest
+                } : null);
+        _sender.SendLoginChallengeAsync(NewEmail, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                _coordinator.HasActiveScope.ShouldBeFalse("mail transport must run after disposing the staging scope");
+                return Task.CompletedTask;
+            });
         Admit(user: true, daily: true, target: true);
     }
 
@@ -62,7 +93,17 @@ public sealed class ChangeEmailCommandHandlerTests
         _sender,
         _budget,
         Options.Create(new AuthEmailCooldownOptions { ChangeEmailWindowSeconds = ChangeEmailWindowSeconds }),
-        _store);
+        _store,
+        AccountAccessTestKit.Reader(id => id == UserId ? _account : null),
+        _coordinator, _db, _clock, Substitute.For<ICorrelationIdProvider>(),
+        Substitute.For<IRequestContextProvider>(), new RecordingLogger<ChangeEmailCommandHandler>());
+
+    public async ValueTask DisposeAsync()
+    {
+        await _coordinator.DisposeAsync();
+        await _db.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
 
     private static ChangeEmailCommand Command => new(Grant, NewEmail);
 
@@ -72,6 +113,18 @@ public sealed class ChangeEmailCommandHandlerTests
         var result = await Sut().Handle(Command, Ct);
 
         result.IsSuccess.ShouldBeTrue();
+        _coordinator.Commits.ShouldBe(2);
+        _coordinator.BegunScopes.Count.ShouldBe(2);
+        _coordinator.BegunScopes.ShouldAllBe(scope => !scope.Lifecycle && scope.UserIds.SequenceEqual(new[] { UserId }));
+        _written.ShouldNotBeNull().EmailChangeRequest.ShouldBe(
+            EmailChangeRequestTestKit.Original(result.Value.ChallengeId, _clock.UtcNow));
+        var witness = await _db.AuditLogEntries.AsNoTracking().SingleAsync(Ct);
+        witness.EventType.ShouldBe(ChangeEmailCommand.RequestedEventType);
+        witness.AggregateId.ShouldBe(UserId);
+        var payload = witness.Payload.ShouldNotBeNull();
+        payload.ShouldContain(result.Value.ChallengeId.Reveal());
+        payload.ShouldNotContain(NewEmail);
+        payload.ShouldNotContain(Grant);
         Received.InOrder(async () =>
         {
             await _budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(Window), UserId.ToString(), Arg.Any<CancellationToken>());
@@ -81,6 +134,7 @@ public sealed class ChangeEmailCommandHandlerTests
             await _accounts.CheckAddressIsFreeAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
             await _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>());
             await _sender.SendLoginChallengeAsync(NewEmail, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
+            await _accounts.CheckAddressIsFreeAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
         });
     }
 
@@ -119,16 +173,20 @@ public sealed class ChangeEmailCommandHandlerTests
     public async Task The_record_is_bound_to_this_user_and_the_change_email_purpose_and_addressed_to_the_new_address()
     {
         var result = await Sut().Handle(Command, Ct);
+        var originalProof = AccountAccessTestKit.Bound(UserId)
+            with
+        { ExpectedEmail = "person@example.com", ExpectedCutoff = 0 };
 
         result.Value.UserId.ShouldBe(UserId);
         await _store.Received(1).PutBoundAsync(
             Arg.Is<NewBoundChallenge>(c =>
                 c.Id == result.Value.ChallengeId
                 && c.Recipient == NewEmail
-                && c.Binding == new ChallengeBinding(ChallengePurpose.ChangeEmail, UserId)),
+                && c.Binding == new ChallengeBinding(ChallengePurpose.ChangeEmail, UserId)
+                && c.Access == originalProof),
             Arg.Any<CancellationToken>());
 
-        // The address is the validated command's; the account's own is never read.
+        // The address is the validated command's, never an account-service address projection.
         await _accounts.DidNotReceiveWithAnyArgs().GetEmailAsync(default, Ct);
     }
 
@@ -248,6 +306,48 @@ public sealed class ChangeEmailCommandHandlerTests
             .ThrowsAsync(new InvalidOperationException("provider down"));
 
         await Should.ThrowAsync<InvalidOperationException>(async () => await Sut().Handle(Command, Ct));
+        (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
+        await _store.Received(1).RevokeBoundAsync(
+            _written.ShouldNotBeNull().Id, new ChallengeBinding(ChallengePurpose.ChangeEmail, UserId), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_credential_transition_during_transport_refuses_activation_and_never_rebases_the_written_proof()
+    {
+        _sender.SendLoginChallengeAsync(NewEmail, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                _coordinator.HasActiveScope.ShouldBeFalse();
+                // SqlAccountAccess suspension committed while mail was in flight; Redis cleanup
+                // was unavailable, so the original staged artifact remains for fail-closed admission.
+                _account = _account with { IsSuspended = true, AccessRevision = 1, CredentialCutoff = 1 };
+                return Task.CompletedTask;
+            });
+
+        var result = await Sut().Handle(Command, Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        _written.ShouldNotBeNull().Access.ShouldBe(AccountAccessTestKit.Bound(UserId)
+            with
+        { ExpectedEmail = "person@example.com", ExpectedCutoff = 0 });
+        (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
+        _coordinator.Commits.ShouldBe(1);
+        await _store.DidNotReceiveWithAnyArgs().RevokeBoundAsync(default, default!, Ct);
+        var surviving = await _store.ReadEmailChangeRequestAsync(_written.Id, UserId, Ct);
+        surviving.ShouldNotBeNull().Access.ShouldBe(AccountAccessTestKit.Bound(UserId));
+        // A subsequent reinstate and fresh session cannot promote that original generation.
+        _account = _account with { IsSuspended = false, AccessRevision = 2, CredentialCutoff = 2 };
+        _currentUser.AccessRevision.Returns(2L);
+        var grants = Substitute.For<IGrantStore>();
+        var verify = new VerifyEmailChangeChallengeCommandHandler(_currentUser, _store, grants,
+            AccountAccessTestKit.Reader(id => id == UserId ? _account : null), _coordinator,
+            EmailChangeRequestTestKit.Reader(_db), _clock);
+
+        var unusable = await verify.Handle(new VerifyEmailChangeChallengeCommand(_written.Id.Reveal(), Code.Reveal()), Ct);
+
+        unusable.IsFailure.ShouldBeTrue();
+        await _store.DidNotReceiveWithAnyArgs().ConsumeBoundCodeAsync(default, default, default!, Ct);
+        await grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
     }
 
     [Fact]

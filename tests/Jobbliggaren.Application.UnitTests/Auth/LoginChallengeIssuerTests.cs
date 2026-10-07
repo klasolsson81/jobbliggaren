@@ -73,6 +73,7 @@ public sealed class LoginChallengeIssuerTests
         return new LoginChallengeIssuer(
             new LoginSubjectResolver(lookup, Substitute.For<IExternalLoginLookup>(), db), _store, _budget, _sender, _audit,
             Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen }),
+            AccountAccessTestKit.ReaderFromProfiles(db, id => id == userId && subject != "no-account" ? Email : null),
             (ILogger<LoginChallengeIssuer>?)logger ?? NullLogger<LoginChallengeIssuer>.Instance);
     }
 
@@ -93,7 +94,8 @@ public sealed class LoginChallengeIssuerTests
         {
             _store.PutAsync(
                 Arg.Is<NewLoginChallenge>(c => c.Id == dispatch.ChallengeId && c.Recipient == Email
-                    && c.Credentials == ChallengeCredentials.CodeAndLink && c.ReplacesLiveChallenge),
+                    && c.Credentials == ChallengeCredentials.CodeAndLink && c.ReplacesLiveChallenge
+                    && c.Access == AccountAccessTestKit.Bound(userId)),
                 Arg.Any<CancellationToken>());
             _sender.SendLoginChallengeAsync(
                 Email, new LoginChallengeEmail.CodeAndLink(Code, Link), Arg.Any<CancellationToken>());

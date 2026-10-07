@@ -127,7 +127,7 @@
       "active": "Aktiva",
       "pendingDeletion": "Under radering",
       "profileMissing": "Ofullständiga",
-      "suspended": "Suspenderade"
+      "suspended": "Avstängda"
     },
     "filterCount": "{label} ({count})",
     "table": {
@@ -150,7 +150,7 @@
       "active": "Aktiv",
       "pendingDeletion": "Under radering",
       "profileMissing": "Ofullständig",
-      "suspended": "Suspenderad"
+      "suspended": "Avstängd"
     },
     "statusLine": {
       "deletionEarliest": "Slutgiltigt tidigast <nowrap>{date}</nowrap>",
@@ -181,6 +181,7 @@
       "savedSearches": "Sparade sökningar",
       "resumes": "CV:n",
       "actions": "Åtgärder",
+      "access": "Åtkomst",
       "loading": "Hämtar kontots uppgifter…",
       "deletion": "Raderas slutgiltigt",
       "deletionEarliest": "Tidigast <nowrap>{date}</nowrap>",
@@ -202,9 +203,9 @@
       "cancelEmailChange": "Avbryt adressbytet",
       "sendLoginLink": "Skicka inloggningslänk",
       "markVerified": "Markera e-post som bekräftad",
-      "reinstate": "Häv suspendering",
+      "reinstate": "Återaktivera åtkomst",
       "restore": "Ångra radering",
-      "suspend": "Suspendera konto",
+      "suspend": "Stäng av åtkomst",
       "scheduleDeletion": "Radera konto",
       "deletePermanently": "Radera permanent"
     },
@@ -233,12 +234,27 @@
       "nothingToCancel": "Det finns inget adressbyte att avbryta längre.",
       "cancelUnknown": "Vi kan inte se om adressbytet avbröts. Öppna kontot igen för att se om det väntar."
     },
+    "access": {
+      "cancelsPending": "Det väntande adressbytet avbryts.",
+      "deletionContinues": "Raderingen fortsätter.",
+      "alreadySuspended": "Kontots åtkomst är redan avstängd.",
+      "alreadyReinstated": "Kontots åtkomst är redan återaktiverad.",
+      "lastAdministrator": "Den sista administratörens åtkomst kan inte tas bort.",
+      "profileUnavailable": "Kontots profil finns inte längre.",
+      "deliveryUnavailable": "E-postutskick är inte aktiverat just nu, så ingen kod kan skickas. Åtkomsten är oförändrad.",
+      "unknown": "Det går inte att bekräfta om åtgärden genomfördes. Kontrollera kontots aktuella status innan du bestämmer nästa steg."
+    },
     "confirm": {
       "cancel": "Avbryt",
       "suspend": {
-        "title": "Suspendera {email}?",
-        "body": "Kontoägaren loggas ut på alla enheter och kan inte logga in förrän du häver suspenderingen. Inga uppgifter tas bort.",
-        "confirm": "Suspendera konto"
+        "title": "Stäng av åtkomsten för {email}?",
+        "body": "Alla sessioner avslutas. Kontoägaren kan inte logga in förrän åtkomsten återaktiveras. Inga uppgifter tas bort.",
+        "confirm": "Stäng av åtkomst"
+      },
+      "reinstate": {
+        "title": "Återaktivera åtkomsten för {email}?",
+        "body": "Kontoägaren behöver logga in igen. Tidigare sessioner återaktiveras inte.",
+        "confirm": "Återaktivera åtkomst"
       },
       "scheduleDeletion": {
         "title": "Radera {email}?",
@@ -248,22 +264,22 @@
     },
     "toast": {
       "close": "Stäng meddelandet",
-      "suspended": "Kontot {email} är suspenderat.",
-      "reinstated": "Suspenderingen av {email} är hävd.",
+      "suspended": "Åtkomsten för {email} är avstängd.",
+      "reinstated": "Åtkomsten för {email} är återaktiverad. Kontoägaren behöver logga in igen.",
       "deletionScheduled": "Kontot {email} raderas slutgiltigt tidigast {date}.",
       "emailChangeRequested": "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden, tidigast <nowrap>{from}</nowrap>.",
       "emailChangeCancelled": "Adressbytet är avbrutet. Koden till den nya adressen gäller inte längre."
     },
     "refusal": {
       "ownAccount": {
-        "suspend": "Du kan inte suspendera ditt eget konto.",
-        "reinstate": "Du kan inte häva suspenderingen av ditt eget konto.",
+        "suspend": "Du kan inte stänga av din egen åtkomst.",
+        "reinstate": "Du kan inte återaktivera din egen åtkomst.",
         "scheduleDeletion": "Du kan inte radera ditt eget konto här. Radera det på Mina sidor."
       }
     },
     "busy": {
-      "suspend": "Suspenderar…",
-      "reinstate": "Häver…",
+      "suspend": "Stänger av…",
+      "reinstate": "Återaktiverar…",
       "scheduleDeletion": "Raderar…",
       "cancelEmailChange": "Avbryter…",
       "retry": "Hämtar…"

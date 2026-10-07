@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -16,7 +17,8 @@ namespace Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge
 public sealed class VerifyReauthenticationChallengeCommandHandler(
     ICurrentUser currentUser,
     ILoginChallengeStore store,
-    IGrantStore grants)
+    IGrantStore grants,
+    IAccountAccessReader access)
     : ICommandHandler<VerifyReauthenticationChallengeCommand, Result<GrantToken>>
 {
     public async ValueTask<Result<GrantToken>> Handle(
@@ -37,6 +39,13 @@ public sealed class VerifyReauthenticationChallengeCommandHandler(
         if (!verdict.IsVerified)
             return Result.Failure<GrantToken>(ChallengeVerdictErrors.For(verdict));
 
-        return Result.Success(await grants.IssueAsync(new GrantSubject.Reauthentication(userId), cancellationToken));
+        var account = await access.ReadAsync(userId, cancellationToken);
+        if (account is null || !verdict.Proof.Access.Admits(account)
+            || currentUser.AccessRevision != account.AccessRevision)
+            return Result.Failure<GrantToken>(DomainError.Gone(
+                AuthErrorCodes.LoginGrantUnusable, AuthErrorCodes.LoginGrantUnusableMessage));
+
+        return Result.Success(await grants.IssueAsync(
+            new GrantSubject.Reauthentication(userId) { Access = verdict.Proof.Access }, cancellationToken));
     }
 }

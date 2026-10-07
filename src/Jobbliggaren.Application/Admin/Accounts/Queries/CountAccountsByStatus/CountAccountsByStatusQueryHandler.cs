@@ -9,6 +9,6 @@ public sealed class CountAccountsByStatusQueryHandler(IAccountDirectory director
         CountAccountsByStatusQuery query, CancellationToken cancellationToken)
     {
         var counts = await directory.CountByStatusAsync(query.Address, cancellationToken);
-        return new AccountStatusCountsDto(counts.Total, counts.Active, counts.PendingDeletion, counts.ProfileMissing);
+        return new AccountStatusCountsDto(counts.Total, counts.Active, counts.PendingDeletion, counts.ProfileMissing, counts.Suspended);
     }
 }

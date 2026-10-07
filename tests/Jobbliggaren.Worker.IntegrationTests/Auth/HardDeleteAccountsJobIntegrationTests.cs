@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -165,19 +166,19 @@ $fn$ LANGUAGE plpgsql;";
     {
         // #1744 (security-auditor m-10, 6a form round): AspNetUserLogins holds the provider's identifier for the
         // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) erases it with the
-        // account. The state is a mature account still holding a link, which the account-deletion
-        // endpoint leaves when its erasure fails after the commit (DeleteMeTests pins that) and Steg 3 has not run
-        // since; the same writer links the soft-deleted seed here.
+        // account. Historical actor: the pre-#1976 deletion endpoint at 22aefd8db could commit SoftDelete
+        // before its provider erasure failed. The current writer cannot emit this partial deletion:
+        // DeleteMeTests.POST_me_delete_whose_erasure_fails_rolls_back_profile_and_keeps_session_and_links.
+        // Link while live, then replay that historical SoftDelete transform; the current linker refuses deletion.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
-        var (userId, jobSeekerId) = await SeedSoftDeletedAccountAsync(now.AddDays(-(RestoreWindowDays + 1)), ct);
         var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+        var (userId, jobSeekerId) = await SeedSoftDeletedAccountAsync(
+            now.AddDays(-(RestoreWindowDays + 1)), ct, googleSubject: subject);
 
         using (var seedScope = _fixture.Services.CreateScope())
         {
             var store = Store(seedScope);
-            (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
-
             // Precondition, or the absence below passes vacuously.
             (await store.FindUserIdAsync(ExternalProviderKey.Google, subject, ct)).ShouldBe(userId);
         }
@@ -196,15 +197,13 @@ $fn$ LANGUAGE plpgsql;";
     [Fact]
     public async Task RunAsync_ErasesTheLoginsOfAnAccountInItsRestoreWindow_AndKeepsTheAccount()
     {
-        // #1746 (ADR 0142 Amendment (20), dotnet-architect): Steg 3, the backstop. The state is an account ten days
-        // into its window still holding a login for every provider, which the account-deletion endpoint leaves when
-        // its erasure fails after the commit (DeleteMeTests pins that). Asserted per account and never on the run's
-        // count, since the collection shares the database.
+        // The backstop reads rows written by the retired pre-#1976 deletion endpoint at 22aefd8db:
+        // its post-commit erasure could fail and retain provider links inside the restore window.
+        // Current-writer pin: DeleteMeTests.POST_me_delete_whose_erasure_fails_rolls_back_profile_and_keeps_session_and_links.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
-        var (pendingUserId, pendingJobSeekerId) = await SeedSoftDeletedAccountAsync(now.AddDays(-10), ct);
+        var (pendingUserId, pendingJobSeekerId) = await SeedSoftDeletedAccountAsync(now.AddDays(-10), ct, linkEveryProvider: true);
         var activeUserId = await SeedActiveAccountAsync(ct);
-        await LinkEveryKnownProviderAsync(pendingUserId, ct);
         await LinkEveryKnownProviderAsync(activeUserId, ct);
 
         await RunJobAsync(now, ct);
@@ -228,18 +227,25 @@ $fn$ LANGUAGE plpgsql;";
     private static IdentityExternalLoginStore Store(IServiceScope scope) =>
         new(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
             scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
-            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
+            scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>(),
+            scope.ServiceProvider.GetRequiredService<IAccountAccessReader>());
 
     // The production writer, as a login with each provider writes it; over Known, so a later provider is covered too.
     private async Task LinkEveryKnownProviderAsync(Guid userId, CancellationToken ct)
     {
         using var scope = _fixture.Services.CreateScope();
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        await using var transaction = await coordinator.BeginAsync([userId], lifecycle: false, ct);
+        (await scope.ServiceProvider.GetRequiredService<IAccountAccessReader>().ReadAsync(userId, ct))
+            .ShouldNotBeNull().CanAuthenticate.ShouldBeTrue();
         var store = Store(scope);
         foreach (var provider in ExternalProviderKey.Known)
         {
             var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
             (await store.LinkAsync(userId, provider, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
         }
+        await transaction.CommitAsync(ct);
     }
 
     [Fact]
@@ -983,14 +989,16 @@ $fn$ LANGUAGE plpgsql;";
     }
 
     private async Task<(Guid UserId, JobSeekerId JobSeekerId)> SeedSoftDeletedAccountAsync(
-        DateTimeOffset deletedAt, CancellationToken ct)
+        DateTimeOffset deletedAt, CancellationToken ct, ExternalSubject? googleSubject = null, bool linkEveryProvider = false)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var email = $"hd-{Guid.NewGuid():N}@test.local";
-        var user = new ApplicationUser { UserName = email, Email = email };
+        var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = email, Email = email, EmailConfirmed = true };
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        await using var transaction = await coordinator.BeginAsync([user.Id], lifecycle: true, ct);
         var result = await userManager.CreateAsync(user);
         result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
@@ -1001,11 +1009,25 @@ $fn$ LANGUAGE plpgsql;";
         seekerResult.IsSuccess.ShouldBeTrue();
         var jobSeeker = seekerResult.Value;
 
-        // Soft-delete med fix klocka för att simulera utgånget restore-fönster
-        jobSeeker.SoftDelete(new FixedClock(deletedAt));
-
         db.JobSeekers.Add(jobSeeker);
         await db.SaveChangesAsync(ct);
+
+        if (googleSubject is { } subject)
+            (await Store(scope).LinkAsync(user.Id, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
+        if (linkEveryProvider)
+        {
+            foreach (var provider in ExternalProviderKey.Known)
+            {
+                var providerSubject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+                (await Store(scope).LinkAsync(user.Id, provider, providerSubject, ct)).ShouldBe(ExternalLinkResult.Linked);
+            }
+        }
+
+        jobSeeker.DeletedAt.ShouldBeNull();
+        jobSeeker.SoftDelete(new FixedClock(deletedAt));
+        jobSeeker.DeletedAt.ShouldBe(deletedAt);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return (user.Id, jobSeeker.Id);
     }
@@ -1017,7 +1039,9 @@ $fn$ LANGUAGE plpgsql;";
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var email = $"hd-active-{Guid.NewGuid():N}@test.local";
-        var user = new ApplicationUser { UserName = email, Email = email };
+        var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = email, Email = email, EmailConfirmed = true };
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        await using var transaction = await coordinator.BeginAsync([user.Id], lifecycle: false, ct);
         (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         var clock = new FixedClock(DateTimeOffset.UtcNow);
@@ -1025,6 +1049,7 @@ $fn$ LANGUAGE plpgsql;";
         seekerResult.IsSuccess.ShouldBeTrue();
         db.JobSeekers.Add(seekerResult.Value);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return user.Id;
     }

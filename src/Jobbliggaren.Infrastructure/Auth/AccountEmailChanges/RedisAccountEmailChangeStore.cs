@@ -3,10 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
@@ -34,7 +36,8 @@ namespace Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 /// </summary>
 internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChangeStore
 {
-    internal const string ProtectorPurpose = "Jobbliggaren.Auth.AccountEmailChange.v1";
+    internal const string ProtectorPurpose = "Jobbliggaren.Auth.AccountEmailChange.v2";
+    internal const string LegacyProtectorPurpose = "Jobbliggaren.Auth.AccountEmailChange.v1";
 
     private const string KeyPrefix = "jobbliggaren:";
 
@@ -42,6 +45,8 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
     private const string PutScript = """
         local owner = redis.call('HGET', KEYS[1], 'o')
         if owner and owner ~= ARGV[2] then return 0 end
+        local legacy_owner = redis.call('HGET', KEYS[2], 'o')
+        if legacy_owner and legacy_owner ~= ARGV[2] then return 0 end
         redis.call('HMSET', KEYS[1], 'p', ARGV[1], 'a', 0, 'o', ARGV[2], 'n', ARGV[3], 'x', ARGV[4])
         redis.call('EXPIRE', KEYS[1], ARGV[5])
         return 1
@@ -55,7 +60,7 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
 
     private const string OwnedReadScript = """
         if redis.call('HGET', KEYS[1], 'o') ~= ARGV[1] then return false end
-        return { redis.call('HGET', KEYS[1], 'a'), redis.call('HGET', KEYS[1], 'n'), redis.call('HGET', KEYS[1], 'x') }
+        return { redis.call('HGET', KEYS[1], 'a'), redis.call('HGET', KEYS[1], 'n'), redis.call('HGET', KEYS[1], 'x'), redis.call('HGET', KEYS[1], 'p') }
         """;
 
     // Guarded on the payload rather than on existence: the key is the address, so a newer change to the same address
@@ -71,9 +76,11 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
         """;
 
     private static readonly byte[] DummyFingerprint = Encoding.ASCII.GetBytes(SubjectFingerprint.Hex(string.Empty));
+    private static readonly bool[] KeyGenerations = [false, true];
 
     private readonly VolatileRedisConnection _redis;
     private readonly IDataProtector _protector;
+    private readonly IDataProtector _legacyProtector;
     private readonly IDateTimeProvider _clock;
     private readonly ILogger<RedisAccountEmailChangeStore> _logger;
     private readonly byte[] _dummyPayload;
@@ -86,6 +93,7 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
     {
         _redis = redis;
         _protector = dataProtection.CreateProtector(ProtectorPurpose);
+        _legacyProtector = dataProtection.CreateProtector(LegacyProtectorPurpose);
         _clock = clock;
         _logger = logger;
         _dummyPayload = _protector.Protect(JsonSerializer.SerializeToUtf8Bytes(new ChangePayload(
@@ -94,12 +102,14 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             Guid.Empty,
             SubjectFingerprint.Hex(string.Empty),
             0,
-            0)));
+            0, SecurityProofPayload.From(new AccountAccessProof(0, Guid.NewGuid(), 0)), Guid.NewGuid())));
     }
 
     public Task<AccountEmailChangePut> PutAsync(NewAccountEmailChange change, CancellationToken ct) =>
         _redis.ExecuteAsync<AccountEmailChangePut>(async db =>
         {
+            if (change.RequestId == Guid.Empty)
+                throw new ArgumentException("A new address-change request requires its server-generated id.", nameof(change));
             // Millisecond precision, so the instants answered here are the ones stored.
             var now = DateTimeOffset.FromUnixTimeMilliseconds(_clock.UtcNow.ToUnixTimeMilliseconds());
             var completableFrom = now + AccountEmailChangePolicy.Delay;
@@ -108,6 +118,8 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             var owner = OwnerMarker(change.UserId);
             var segment = RecordSegment(change.NewEmail);
             var recordKey = RecordKey(segment);
+            var original = change.Access == AccountAccessProof.Legacy
+                ? new AccountAccessProof(0, change.UserId, 0) : change.Access;
 
             var protectedPayload = _protector.Protect(JsonSerializer.SerializeToUtf8Bytes(new ChangePayload(
                 change.NewEmail,
@@ -115,11 +127,11 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
                 change.UserId,
                 SubjectFingerprint.Hex(change.CurrentEmail),
                 completableFrom.ToUnixTimeMilliseconds(),
-                expiresAt.ToUnixTimeMilliseconds())));
+                expiresAt.ToUnixTimeMilliseconds(), SecurityProofPayload.From(original), change.RequestId)));
 
             var written = (long)await db.ScriptEvaluateAsync(
                 PutScript,
-                [recordKey],
+                [recordKey, Legacy(recordKey)],
                 [
                     protectedPayload,
                     owner,
@@ -135,6 +147,9 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             var previous = await db.StringSetAndGetAsync(IndexKey(change.UserId), segment, AccountEmailChangePolicy.Ttl);
             if (!previous.IsNull && previous != segment)
                 await db.ScriptEvaluateAsync(OwnedDeleteScript, [RecordKey(previous.ToString())], [owner]);
+            var legacy = await db.StringGetAsync(Legacy(IndexKey(change.UserId)));
+            if (!legacy.IsNull)
+                await db.ScriptEvaluateAsync(OwnedDeleteScript, [Legacy(RecordKey(legacy.ToString()))], [owner]);
 
             return new AccountEmailChangePut.Written(
                 code, completableFrom, expiresAt, new RedisReceipt(recordKey, protectedPayload));
@@ -160,6 +175,12 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
 
             // EXISTS before HINCRBY: a bare increment on a missing key would create a hash with no TTL.
             var result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            var legacy = result.IsNull;
+            if (legacy)
+            {
+                recordKey = Legacy(recordKey);
+                result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            }
             if (result.IsNull)
             {
                 PayDummyWork(presentedCode, presentedCurrent);
@@ -175,7 +196,7 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             }
 
             var protectedPayload = (byte[]?)parts[1];
-            var payload = Open(protectedPayload);
+            var payload = Open(protectedPayload, legacy);
             var storedCode = payload is null
                 ? ChallengeCodeArm.DummyCode
                 : Encoding.ASCII.GetBytes(payload.Code);
@@ -187,7 +208,7 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             var codeMatches = CryptographicOperations.FixedTimeEquals(presentedCode, storedCode);
             var currentMatches = CryptographicOperations.FixedTimeEquals(presentedCurrent, storedCurrent);
 
-            if (payload is null)
+            if (payload is null || legacy)
                 return AccountEmailChangeVerdict.Unusable.Instance;
 
             if (!(codeMatches & currentMatches))
@@ -209,48 +230,94 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
             // Past its usable window, or no longer the record the account's pointer names (a fault between a put's
             // index swap and its removal of the record it displaced): a refusal after a match consumes the change.
             var usable = now < DateTimeOffset.FromUnixTimeMilliseconds(payload.ExpiresAt)
-                         && await db.StringGetAsync(IndexKey(payload.UserId)) == segment;
+                         && await db.StringGetAsync(legacy ? Legacy(IndexKey(payload.UserId)) : IndexKey(payload.UserId)) == segment;
 
             var consumed = (long)await db.ScriptEvaluateAsync(PayloadDeleteScript, [recordKey], [protectedPayload]);
             if (!usable || consumed != 1)
                 return AccountEmailChangeVerdict.Unusable.Instance;
 
             return new AccountEmailChangeVerdict.Verified(new AccountEmailChangeProof(
-                payload.UserId, payload.NewEmail, new ExpectedCurrentAddress(payload.CurrentFingerprint)));
+                payload.UserId, payload.NewEmail, new ExpectedCurrentAddress(payload.CurrentFingerprint))
+            {
+                Access = payload.Security!.Decode()!,
+                RequestId = payload.RequestId,
+                IssuedAt = DateTimeOffset.FromUnixTimeMilliseconds(payload.ExpiresAt) - AccountEmailChangePolicy.Ttl,
+                ExpiresAt = DateTimeOffset.FromUnixTimeMilliseconds(payload.ExpiresAt),
+            });
         });
 
     public Task<bool> CancelAsync(Guid userId, CancellationToken ct) =>
         _redis.ExecuteAsync(async db =>
         {
-            var segment = await db.StringGetAsync(IndexKey(userId));
-            if (segment.IsNull)
-                return false;
+            var legacy = await CancelFamilyAsync(db, userId, true);
+            return await CancelFamilyAsync(db, userId, false) || legacy;
+        });
 
-            var removed = (long)await db.ScriptEvaluateAsync(
-                OwnedDeleteScript, [RecordKey(segment.ToString())], [OwnerMarker(userId)]);
-            return removed == 1;
+    private static async Task<bool> CancelFamilyAsync(IDatabase db, Guid userId, bool legacy)
+    {
+        var indexKey = legacy ? Legacy(IndexKey(userId)) : IndexKey(userId);
+        var segment = await db.StringGetAsync(indexKey);
+        if (segment.IsNull)
+            return false;
+
+        var removed = (long)await db.ScriptEvaluateAsync(
+            OwnedDeleteScript, [legacy ? Legacy(RecordKey(segment.ToString())) : RecordKey(segment.ToString())], [OwnerMarker(userId)]);
+        return removed == 1;
+    }
+
+    public Task<bool> CancelBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct) =>
+        _redis.ExecuteAsync(async db =>
+        {
+            var removed = false;
+            foreach (var legacy in KeyGenerations)
+            {
+                var segment = await db.StringGetAsync(legacy ? Legacy(IndexKey(userId)) : IndexKey(userId));
+                if (segment.IsNull)
+                    continue;
+                var key = legacy ? Legacy(RecordKey(segment.ToString())) : RecordKey(segment.ToString());
+                var fields = await db.ScriptEvaluateAsync(OwnedReadScript, [key], [OwnerMarker(userId)]);
+                if (fields.IsNull)
+                    continue;
+                var protectedPayload = (byte[]?)((RedisResult[])fields!)[3];
+                var payload = Open(protectedPayload, legacy);
+                if (payload?.Security?.Decode() is not { AccessRevision: { } revision } || revision >= accessRevision)
+                    continue;
+                removed |= (long)await db.ScriptEvaluateAsync(PayloadDeleteScript, [key], [protectedPayload]) == 1;
+            }
+            return removed;
         });
 
     public Task<PendingAccountEmailChange?> FindPendingAsync(Guid userId, CancellationToken ct) =>
         _redis.ExecuteAsync(async db =>
         {
             var segment = await db.StringGetAsync(IndexKey(userId));
+            var legacy = segment.IsNull;
+            if (legacy)
+                return null;
             if (segment.IsNull)
                 return null;
 
             var result = await db.ScriptEvaluateAsync(
-                OwnedReadScript, [RecordKey(segment.ToString())], [OwnerMarker(userId)]);
+                OwnedReadScript, [legacy ? Legacy(RecordKey(segment.ToString())) : RecordKey(segment.ToString())], [OwnerMarker(userId)]);
             if (result.IsNull)
                 return null;
 
             var fields = (RedisResult[])result!;
+            var payload = Open((byte[]?)fields[3], legacy);
+            if (payload?.Security?.Decode()?.AccessRevision is not { } revision)
+                return null;
             var attempts = (long)fields[0];
             return new PendingAccountEmailChange(
                 attempts >= LoginChallengePolicy.MaxAttempts
                     ? PendingAccountEmailChangeState.CodeBurned
                     : PendingAccountEmailChangeState.Pending,
                 DateTimeOffset.FromUnixTimeMilliseconds((long)fields[1]),
-                DateTimeOffset.FromUnixTimeMilliseconds((long)fields[2]));
+                DateTimeOffset.FromUnixTimeMilliseconds((long)fields[2]))
+            {
+                AccessRevision = revision,
+                RequestId = payload.RequestId,
+                IssuedAt = DateTimeOffset.FromUnixTimeMilliseconds((long)fields[1]) - AccountEmailChangePolicy.Delay,
+            };
         });
 
     // A missing or burned record pays what a real miss pays: one Unprotect of this store's purpose and both compares.
@@ -262,14 +329,18 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
     }
 
     // A lost keyring or a malformed body reads as an unusable change.
-    private ChangePayload? Open(byte[]? protectedPayload)
+    private ChangePayload? Open(byte[]? protectedPayload, bool legacy = false)
     {
         if (protectedPayload is null)
             return null;
 
         try
         {
-            return JsonSerializer.Deserialize<ChangePayload>(_protector.Unprotect(protectedPayload));
+            var payload = JsonSerializer.Deserialize<ChangePayload>((legacy ? _legacyProtector : _protector).Unprotect(protectedPayload));
+            if (legacy && payload is not null)
+                return payload with { Security = SecurityProofPayload.From(new AccountAccessProof(0, payload.UserId, 0)) };
+            return payload?.Security?.Decode() is { } proof && proof.UserId == payload.UserId
+                && payload.RequestId is { } requestId && requestId != Guid.Empty ? payload : null;
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
@@ -280,10 +351,12 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
 
     internal static string RecordSegment(string newEmail) => SubjectFingerprint.Hex(newEmail);
 
-    internal static string RecordKey(string segment) => $"{KeyPrefix}auth/account-email-change/v1/{segment}";
+    internal static string RecordKey(string segment) => $"{KeyPrefix}auth/account-email-change/v2/{segment}";
 
     internal static string IndexKey(Guid userId) =>
-        $"{KeyPrefix}auth/account-email-change-by-user/v1/{OwnerMarker(userId)}";
+        $"{KeyPrefix}auth/account-email-change-by-user/v2/{OwnerMarker(userId)}";
+
+    private static string Legacy(string key) => key.Replace("/v2/", "/v1/", StringComparison.Ordinal);
 
     private static string OwnerMarker(Guid userId) =>
         SubjectFingerprint.Hex(userId.ToString("D", CultureInfo.InvariantCulture));
@@ -307,7 +380,9 @@ internal sealed partial class RedisAccountEmailChangeStore : IAccountEmailChange
         [property: JsonPropertyName("u")] Guid UserId,
         [property: JsonPropertyName("f")] string CurrentFingerprint,
         [property: JsonPropertyName("n")] long NotBefore,
-        [property: JsonPropertyName("x")] long ExpiresAt)
+        [property: JsonPropertyName("x")] long ExpiresAt,
+        [property: JsonPropertyName("g")] SecurityProofPayload? Security = null,
+        [property: JsonPropertyName("q")] Guid? RequestId = null)
     {
         public override string ToString() => "ChangePayload(redacted)";
     }

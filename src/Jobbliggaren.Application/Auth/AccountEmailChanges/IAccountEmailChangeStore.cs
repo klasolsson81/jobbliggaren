@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 
@@ -11,6 +12,8 @@ namespace Jobbliggaren.Application.Auth.AccountEmailChanges;
 /// </summary>
 public sealed record NewAccountEmailChange(Guid UserId, string NewEmail, string CurrentEmail)
 {
+    public Guid RequestId { get; init; } = Guid.NewGuid();
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
     public override string ToString() => $"NewAccountEmailChange({UserId}, addresses redacted)";
 }
 
@@ -53,6 +56,10 @@ public abstract record AccountEmailChangePut
 /// </summary>
 public sealed record AccountEmailChangeProof(Guid UserId, string NewEmail, ExpectedCurrentAddress ExpectedCurrent)
 {
+    public Guid? RequestId { get; init; }
+    public DateTimeOffset IssuedAt { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
     public override string ToString() => $"AccountEmailChangeProof({UserId}, address redacted)";
 }
 
@@ -91,7 +98,22 @@ public enum PendingAccountEmailChangeState
 public sealed record PendingAccountEmailChange(
     PendingAccountEmailChangeState State,
     DateTimeOffset CompletableFrom,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt)
+{
+    [JsonIgnore]
+    public long AccessRevision { get; init; }
+    [JsonIgnore]
+    public Guid? RequestId { get; init; }
+    [JsonIgnore]
+    public DateTimeOffset IssuedAt { get; init; }
+}
+
+public interface IAccountEmailChangeRequests
+{
+    Task<bool> HasCommittedRequestAsync(
+        Guid userId, Guid requestId, DateTimeOffset issuedAt, DateTimeOffset expiresAt, CancellationToken ct);
+    Task<bool> HasCommittedSelfRequestAsync(Guid userId, EmailChangeRequestProof request, CancellationToken ct);
+}
 
 /// <summary>
 /// The store of address changes an administrator starts (#1975, ADR 0153). It is not <see cref="ILoginChallengeStore"/>
@@ -121,6 +143,8 @@ public interface IAccountEmailChangeStore
 
     /// <summary>Removes the account's pending change. True when one was removed.</summary>
     Task<bool> CancelAsync(Guid userId, CancellationToken ct);
+
+    Task<bool> CancelBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct);
 
     /// <summary>The account's pending change, or null when it has none.</summary>
     Task<PendingAccountEmailChange?> FindPendingAsync(Guid userId, CancellationToken ct);

@@ -25,13 +25,15 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
     private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
     private readonly ILoginChallengeStore _store = Substitute.For<ILoginChallengeStore>();
+    private string? _accountEmail = Email;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public RequestReauthenticationChallengeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(UserId);
-        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns(Email);
+        _currentUser.AccessRevision.Returns(0L);
+        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns(_ => _accountEmail);
         _sender.CanDeliver.Returns(true);
         _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>()).Returns(Code);
         Admit(cooldown: true, codes: true);
@@ -52,7 +54,10 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
         _sender,
         _budget,
         Options.Create(new AuthEmailCooldownOptions { LoginChallengeWindowSeconds = cooldownSeconds }),
-        _store);
+        _store,
+        AccountAccessTestKit.Reader(userId => userId == UserId
+            ? AccountAccessTestKit.Account(UserId, Email) with { Email = _accountEmail }
+            : null));
 
     private static RequestReauthenticationChallengeCommand Command => new();
 
@@ -122,7 +127,8 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
             Arg.Is<NewBoundChallenge>(c =>
                 c.Id == result.Value
                 && c.Recipient == Email
-                && c.Binding == new ChallengeBinding(ChallengePurpose.Reauthentication, UserId)),
+                && c.Binding == new ChallengeBinding(ChallengePurpose.Reauthentication, UserId)
+                && c.Access == AccountAccessTestKit.Bound(UserId)),
             Arg.Any<CancellationToken>());
     }
 
@@ -204,7 +210,7 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     [Fact]
     public async Task A_session_whose_account_has_no_address_is_refused_before_any_budget_is_spent()
     {
-        _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns((string?)null);
+        _accountEmail = null;
 
         var result = await Sut().Handle(Command, Ct);
 

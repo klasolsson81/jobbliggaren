@@ -30,12 +30,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 [Collection("Api")]
 public class VolatileRedisPlacementTests(ApiFactory factory)
 {
-    private const string ChallengeRecordPrefix = "jobbliggaren:auth/challenge/v1/";
+    private const string ChallengeRecordPrefix = "jobbliggaren:auth/challenge/v2/";
     private const string BudgetPrefix = "jobbliggaren:budget/";
-    private const string GrantPrefix = "jobbliggaren:auth/grant/v1/";
+    private const string GrantPrefix = "jobbliggaren:auth/grant/v2/";
     private const string RegistrationClaimPrefix = "jobbliggaren:auth/registration-claim/v1/";
-    private const string OAuthStatePrefix = "jobbliggaren:auth/oauth-state/v1/";
-    private const string AccountEmailChangePrefix = "jobbliggaren:auth/account-email-change/v1/";
+    private const string OAuthStatePrefix = "jobbliggaren:auth/oauth-state/v2/";
+    private const string AccountEmailChangePrefix = "jobbliggaren:auth/account-email-change/v2/";
     private const string SessionPrefix = "jobbliggaren:session:";
 
     private readonly ApiFactory _factory = factory;

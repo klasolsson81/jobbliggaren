@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
@@ -26,27 +27,34 @@ public sealed class PasswordlessAccountCreatorTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // The concrete type (CA1859). DeleteAsync is an explicit implementation, so that test goes through the port.
-    private UserAccountService Sut() => new(
-        _userManager, Substitute.For<ILogger<UserAccountService>>(), Substitute.For<IDbExceptionInspector>());
+    private UserAccountService Sut(IAccountAccessCoordinator coordinator) => new(
+        _userManager, Substitute.For<ILogger<UserAccountService>>(), Substitute.For<IDbExceptionInspector>(),
+        coordinator, AccountAccessTestKit.Reader(_ => null));
 
     [Fact]
     public async Task CreatePasswordlessUserAsync_ShouldCreateAConfirmedUserNamedByItsAddress_WithNoPassword()
     {
         ApplicationUser? handed = null;
         _userManager.CreateAsync(Arg.Do<ApplicationUser>(u => handed = u)).Returns(IdentityResult.Success);
+        var userId = Guid.NewGuid();
+        await using var access = AccountAccessTestKit.Coordinator();
+        await using var transaction = await access.BeginAsync([userId], lifecycle: false, Ct);
 
-        var result = await Sut().CreatePasswordlessUserAsync(Email, Ct);
+        var result = await Sut(access).CreatePasswordlessUserAsync(userId, Email, Ct);
 
         result.IsSuccess.ShouldBeTrue();
         handed.ShouldNotBeNull();
         result.Value.ShouldBe(handed.Id);
+        handed.Id.ShouldBe(userId);
         handed.Email.ShouldBe(Email);
 
         // The unique index is on the user name, not on the address, so the address has to be the user name.
         handed.UserName.ShouldBe(Email);
         handed.EmailConfirmed.ShouldBeTrue();
         handed.PasswordHash.ShouldBeNull();
+        handed.IsSuspended.ShouldBeFalse();
+        handed.AccessRevision.ShouldBe(0);
+        handed.CredentialCutoff.ShouldBe(0);
         handed.CreatedAt.ShouldBe(default, "the database stamps it");
         await _userManager.DidNotReceive().CreateAsync(Arg.Any<ApplicationUser>(), Arg.Any<string>());
     }
@@ -58,24 +66,30 @@ public sealed class PasswordlessAccountCreatorTests
     {
         _userManager.CreateAsync(Arg.Any<ApplicationUser>())
             .Returns(IdentityResult.Failed(new IdentityError { Code = code, Description = $"'{Email}' is taken." }));
+        var userId = Guid.NewGuid();
+        await using var access = AccountAccessTestKit.Coordinator();
+        await using var transaction = await access.BeginAsync([userId], lifecycle: false, Ct);
 
-        var result = await Sut().CreatePasswordlessUserAsync(Email, Ct);
+        var result = await Sut(access).CreatePasswordlessUserAsync(userId, Email, Ct);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
         result.Error.Message.ShouldNotContain(Email);
     }
 
-    [Fact]
-    public async Task DeleteAsync_ShouldDeleteTheUser()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreatePasswordlessUserAsync_ShouldWriteNothing_WhenTheCallerDoesNotHoldItsAccount(bool anotherAccountIsHeld)
     {
-        var user = new ApplicationUser { Id = Guid.NewGuid(), Email = Email };
-        _userManager.FindByIdAsync(user.Id.ToString()).Returns(user);
-        _userManager.DeleteAsync(user).Returns(IdentityResult.Success);
+        var userId = Guid.NewGuid();
+        await using var access = AccountAccessTestKit.Coordinator();
+        await using var other = anotherAccountIsHeld
+            ? await access.BeginAsync([Guid.NewGuid()], lifecycle: false, Ct)
+            : null;
 
-        IPasswordlessAccountCreator creator = Sut();
-        await creator.DeleteAsync(user.Id, Ct);
+        await Should.ThrowAsync<InvalidOperationException>(() => Sut(access).CreatePasswordlessUserAsync(userId, Email, Ct));
 
-        await _userManager.Received(1).DeleteAsync(user);
+        await _userManager.DidNotReceiveWithAnyArgs().CreateAsync(default!);
     }
 }

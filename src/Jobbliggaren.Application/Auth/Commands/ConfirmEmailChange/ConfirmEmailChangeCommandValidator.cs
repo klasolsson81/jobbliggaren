@@ -13,5 +13,6 @@ public sealed class ConfirmEmailChangeCommandValidator : AbstractValidator<Confi
         // The address the grant is asserted for: well-formed and within the one email bound, so a malformed
         // request is a clean 400 before anything is redeemed.
         RuleFor(c => c.NewEmail).NotEmpty().EmailAddress().MaximumLength(EmailAddressRules.MaximumLength);
+        RuleFor(c => c.ReplacementLifetime).IsInEnum();
     }
 }

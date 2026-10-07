@@ -1,10 +1,15 @@
+using Jobbliggaren.Application.Auth.Access;
+
 namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
 /// What a started flow needs at its callback (ADR 0142 D8): the provider it was started for, the PKCE verifier and
 /// the post-login path. <see cref="Next"/> is an echo, never an input.
 /// </summary>
-public sealed record OAuthFlow(ExternalProviderKey Provider, PkceVerifier Verifier, string? Next);
+public sealed record OAuthFlow(ExternalProviderKey Provider, PkceVerifier Verifier, string? Next)
+{
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
+}
 
 /// <summary>
 /// The started flows, on the non-persisted Redis (ADR 0142 D1): one record per state, alive for

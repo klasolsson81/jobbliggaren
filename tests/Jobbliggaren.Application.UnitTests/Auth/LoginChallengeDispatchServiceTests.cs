@@ -51,6 +51,7 @@ public sealed class LoginChallengeDispatchServiceTests
             sp.GetRequiredService<LoginSubjectResolver>(), _store, AdmittingBudget(), _sender,
             Substitute.For<IAuthAuditLogger>(),
             Options.Create(new AuthOptions()),
+            AccountAccessTestKit.Reader(_ => null),
             NullLogger<LoginChallengeIssuer>.Instance));
         await using var provider = services.BuildServiceProvider();
 

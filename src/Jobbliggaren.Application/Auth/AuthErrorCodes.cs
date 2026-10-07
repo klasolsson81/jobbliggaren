@@ -99,6 +99,9 @@ public static class AuthErrorCodes
 
     public const string EmailTakenMessage = "Den e-postadressen är upptagen.";
 
+    public const string EmailUnchanged = "Auth.EmailUnchanged";
+    public const string EmailUnchangedMessage = "Kontot använder redan den e-postadressen.";
+
     /// <summary>
     /// #1739 — the user has asked to move to as many new addresses as a day admits
     /// (<c>ChangeEmailPolicy.UserTargetsDailyBudget</c>). Keyed by the user id, so only a holder of the session can
@@ -114,6 +117,9 @@ public static class AuthErrorCodes
     /// user or address. One answer, the <see cref="LoginGrantUnusable"/> form. Gone → 410.
     /// </summary>
     public const string EmailChangeGrantUnusable = "Auth.EmailChangeGrantUnusable";
+
+    public const string EmailChangeNotActivated = "Auth.EmailChangeNotActivated";
+    public const string EmailChangeNotActivatedMessage = "Begäran om adressbyte har inte slutförts. Försök igen.";
 
     public const string EmailChangeGrantUnusableMessage =
         "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";

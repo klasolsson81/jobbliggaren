@@ -3,7 +3,7 @@ using FluentValidation;
 namespace Jobbliggaren.Application.Common.Validation;
 
 /// <summary>
-/// The one rule every <c>IReauthenticatingRequest</c> applies to its grant (#1739, ADR 0142 D5), so the three
+/// The one rule every <c>IReauthenticatingRequest</c> applies to its grant (#1739, ADR 0142 D5), so the
 /// implementers cannot drift: present, and no longer than a token this build mints. The bound is the same
 /// one <c>CompleteLoginChallengeCommandValidator</c> puts on its grant token.
 /// </summary>

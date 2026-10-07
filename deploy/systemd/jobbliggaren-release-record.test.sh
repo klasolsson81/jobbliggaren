@@ -96,6 +96,16 @@ make_repo() {
   git -C "$REPO" config core.autocrlf false
   printf 'services: {}\n' >"$REPO/deploy/docker-compose.yml"
   printf '#!/bin/sh\nexit 0\n' >"$REPO/deploy/redis/healthcheck.sh"
+  for file in persistent.acl.template volatile.acl.template operator-persistent.acl.template operator-volatile.acl.template \
+    predecessor-1976/persistent.acl.template predecessor-1976/volatile.acl.template \
+    predecessor-1976/operator-persistent.acl.template predecessor-1976/operator-volatile.acl.template; do
+    mkdir -p "$(dirname "$REPO/deploy/redis/$file")"
+    cp "$repo_root/deploy/redis/$file" "$REPO/deploy/redis/$file"
+  done
+  mkdir -p "$REPO/deploy/systemd"
+  for file in jobbliggaren-reconcile.sh jobbliggaren-redis-secrets.sh jobbliggaren-redis-policy.py; do
+    cp "$script_dir/$file" "$REPO/deploy/systemd/$file"
+  done
   mig "$REPO/src/Infra/Persistence/Migrations/20260419145850_InitialCreate.Designer.cs" AppDbContext 20260419145850_InitialCreate
   mig "$REPO/src/Infra/Persistence/Migrations/20260927121429_AddXmin.Designer.cs" AppDbContext 20260927121429_AddXmin
   mig "$REPO/src/Infra/Identity/Migrations/20260506091354_InitialIdentity.Designer.cs" AppIdentityDbContext 20260506091354_InitialIdentity
@@ -219,6 +229,18 @@ expect_exit 2 "an unknown option is a usage error" emit --source-sha "$SHA" --re
 expect_exit 2 "an unknown subcommand is a usage error" publish
 
 echo "-- deploy-hash"
+make_repo
+for file in deploy/redis/persistent.acl.template deploy/redis/volatile.acl.template \
+  deploy/redis/operator-persistent.acl.template deploy/redis/operator-volatile.acl.template \
+  deploy/redis/predecessor-1976/persistent.acl.template deploy/redis/predecessor-1976/volatile.acl.template \
+  deploy/redis/predecessor-1976/operator-persistent.acl.template deploy/redis/predecessor-1976/operator-volatile.acl.template \
+  deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/jobbliggaren-redis-secrets.sh deploy/systemd/jobbliggaren-redis-policy.py; do
+  before=$(PATH="$SUT_PATH" bash "$FIXTURE_SUT" deploy-hash "$REPO")
+  printf '\n# fixture policy/procedure edit\n' >>"$REPO/$file"
+  after=$(PATH="$SUT_PATH" bash "$FIXTURE_SUT" deploy-hash "$REPO")
+  check '[ "$before" != "$after" ]' "release hash binds $file"
+  git -C "$REPO" checkout -q -- "$file"
+done
 dh() { PATH="$SUT_PATH" bash "$FIXTURE_SUT" deploy-hash "$REPO"; }
 make_repo
 printf 'services:\n  api:\n    image: x:applied\n' >"$REPO/deploy/docker-compose.yml"

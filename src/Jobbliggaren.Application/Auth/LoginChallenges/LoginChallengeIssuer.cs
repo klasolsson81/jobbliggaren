@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
@@ -20,11 +21,16 @@ public sealed partial class LoginChallengeIssuer(
     IEmailSender emailSender,
     IAuthAuditLogger audit,
     IOptions<AuthOptions> authOptions,
+    IAccountAccessReader access,
     ILogger<LoginChallengeIssuer> logger)
 {
     public async Task IssueAsync(LoginChallengeDispatch dispatch, CancellationToken ct)
     {
+        var epoch = await access.ReadEpochAsync(ct);
         var subject = await subjects.ResolveAsync(dispatch.Email, ct);
+        var account = subject is LoginSubject.KnownAccount knownAccount
+            ? await access.ReadAsync(knownAccount.UserId, ct) : null;
+        var original = new AccountAccessProof(epoch, account?.UserId, account?.AccessRevision);
 
         // Read here and not carried on the dispatch: the request path needs no policy, and the queue could
         // hold a stale value for as long as the drain takes.
@@ -50,7 +56,8 @@ public sealed partial class LoginChallengeIssuer(
                 dispatch.ChallengeId,
                 recipient,
                 capAdmits ? LoginChallengePlan.CredentialsFor(kind) : ChallengeCredentials.None,
-                ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted),
+                ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted)
+            { Access = original },
             ct);
 
         if (kind == LoginChallengeKind.RecordOnly)

@@ -74,6 +74,14 @@ marker and one cap.
 
 *(Pointer, 2026-09-29, #1918: from this date `UpdateMatchPreferencesCommand` (ADR 0147) is also a marked writer of the row. "Twelve" above is the count on 2026-09-27 and is not edited.)*
 
+*(Amendment pointer, 2026-10-07, #1976, ADR 0155: `DeleteAccountCommand` now
+participates in the protected account lifecycle transaction and no longer
+carries `IReplayOnConcurrencyConflict`. The global administrator lock and fresh
+access checks protect the last effective administrator; lifecycle writes are
+never automatically replayed. D1's xmin token and the other writers' replay
+remain. D3's deletion marker and the deletion-specific consequence below are
+historical.)*
+
 **D4 — ADR 0009 amendment.** `IAppDbContext` gains `ClearTracking()` (`IAppDbContext.cs:59-66`,
 beside `Detach` at `:49-57`), a narrow member that maps to `ChangeTracker.Clear()`. `ChangeTracker`
 itself stays off the port. Recorded as an amendment to ADR 0009, not a rewrite of it — see that ADR's

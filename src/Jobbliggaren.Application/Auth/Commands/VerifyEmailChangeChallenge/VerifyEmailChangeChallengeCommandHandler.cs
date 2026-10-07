@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -15,7 +17,11 @@ namespace Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 public sealed class VerifyEmailChangeChallengeCommandHandler(
     ICurrentUser currentUser,
     ILoginChallengeStore store,
-    IGrantStore grants)
+    IGrantStore grants,
+    IAccountAccessReader access,
+    IAccountAccessCoordinator coordinator,
+    IAccountEmailChangeRequests requests,
+    IDateTimeProvider clock)
     : ICommandHandler<VerifyEmailChangeChallengeCommand, Result<GrantToken>>
 {
     public async ValueTask<Result<GrantToken>> Handle(
@@ -26,9 +32,26 @@ public sealed class VerifyEmailChangeChallengeCommandHandler(
                 DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att bekräfta koden."));
 
         var userId = currentUser.UserId.Value;
+        if (coordinator.HasActiveScope)
+            throw new InvalidOperationException("Address-code verification must own its protected transaction.");
+        await using var scope = await coordinator.BeginAsync([userId], false, cancellationToken);
+        if (!scope.OwnsCommit)
+            throw new InvalidOperationException("Address-code verification cannot borrow a commit.");
+        var id = ChallengeId.FromRaw(command.ChallengeId!);
+        var pending = await store.ReadEmailChangeRequestAsync(id, userId, cancellationToken);
+        if (pending is null)
+            return Result.Failure<GrantToken>(ChallengeVerdictErrors.For(ChallengeVerdict.Missing));
+        var current = await access.ReadAsync(userId, cancellationToken);
+        if (pending.EmailChangeRequest is not { IsValid: true } request
+            || request.ExpiresAt <= clock.UtcNow || current is null
+            || !pending.Access.Admits(current) || currentUser.AccessRevision != current.AccessRevision)
+            return Unusable();
+        if (!await requests.HasCommittedSelfRequestAsync(userId, request, cancellationToken))
+            return Result.Failure<GrantToken>(DomainError.Conflict(
+                AuthErrorCodes.EmailChangeNotActivated, AuthErrorCodes.EmailChangeNotActivatedMessage));
 
         var verdict = await store.ConsumeBoundCodeAsync(
-            ChallengeId.FromRaw(command.ChallengeId!),
+            id,
             LoginCode.FromRaw(command.Code!),
             new ChallengeBinding(ChallengePurpose.ChangeEmail, userId),
             cancellationToken);
@@ -36,7 +59,17 @@ public sealed class VerifyEmailChangeChallengeCommandHandler(
         if (!verdict.IsVerified)
             return Result.Failure<GrantToken>(ChallengeVerdictErrors.For(verdict));
 
-        return Result.Success(await grants.IssueAsync(
-            new GrantSubject.ChangeEmail(userId, verdict.Proof.ProvenEmail), cancellationToken));
+        var account = await access.ReadAsync(userId, cancellationToken);
+        if (account is null || !verdict.Proof.Access.Admits(account)
+            || currentUser.AccessRevision != account.AccessRevision || verdict.Proof.EmailChangeRequest != request)
+            return Unusable();
+
+        var grant = await grants.IssueAsync(new GrantSubject.ChangeEmail(userId, verdict.Proof.ProvenEmail)
+        { Access = verdict.Proof.Access, Request = request }, cancellationToken);
+        await scope.CommitAsync(cancellationToken);
+        return Result.Success(grant);
     }
+
+    private static Result<GrantToken> Unusable() => Result.Failure<GrantToken>(DomainError.Gone(
+        AuthErrorCodes.EmailChangeGrantUnusable, AuthErrorCodes.EmailChangeGrantUnusableMessage));
 }

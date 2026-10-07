@@ -28,6 +28,14 @@ to the configured backend and disables caching. These are opaque Redis sessions,
 not JWTs: `src/Jobbliggaren.Infrastructure/Auth/SessionAuthenticationHandler.cs`
 resolves them through `ISessionStore`.
 
+`AccessControlledSessionStore` checks every session read against the primary
+database: an Identity account with a usable inbox and a live profile, no
+suspension, and the session's original `AccessRevision`. Creation and rotation
+take the target's transaction lock and check again before returning a bearer;
+rotation preserves the original revision. A database failure denies access.
+Redis, a positive cache and a read replica cannot authorize a session. A request
+already authenticated may finish; the next authentication checks the new state.
+
 Review issuance, rotation, expiry, revocation and store failure; cookie exposure,
 CSRF, redirects, forwarded-header trust, cache isolation and backend-path
 construction. API network isolation needs deployment evidence, not an assumption
@@ -57,6 +65,25 @@ an architecture test pins which handlers may inject `IAccountDirectory`. A hijac
 admin session can read every address; the `admin-read` rate limit bounds the cost
 of reading, not the exfiltration.
 
+The directory's status priority is ProfileMissing, PendingDeletion, Suspended,
+then Active. `isSuspended` is also returned separately: reinstating an account
+pending deletion does not restore its profile or cancel the deletion. Suspension
+and reinstatement require the Admin HTTP policy, `IAdminRequest`, an inbox
+re-authentication grant and `AdminWrite`; responses are private and not cached.
+A no-op is Conflict and writes no success-audit row. Audit names the actor and
+target separately, without an address or credential payload.
+
+`AccountAccessMutationBehavior` and `SqlAccountAccess` serialize lifecycle
+writes under the global administrator lock, then sorted actor/target locks.
+Self-suspension and removal of the last effective administrator are refused
+inside that transaction. Effective means Admin, a usable inbox, a live profile
+and no suspension. AppDbContext owns the physical connection and transaction;
+Identity/UserManager writes and the App audit enlist in it. Only the outer scope
+commits. Nested calls cannot add locks or replay, and a lost connection cannot
+be reopened to finish a previously admitted write. A stale actor revision is
+refused before mutation. Bootstrap, own deletion and permanent account erasure
+participate in this protocol; a future role-removal writer must do so too.
+
 An administrator can start a change of another account's address (ADR 0153), the
 one admin write that moves an account to another inbox. Each request costs the
 administrator's own re-authentication code; Admin accounts are refused by a fresh
@@ -67,6 +94,48 @@ refusal, the swap compares the account it loads against the address the change
 started from, and every session ends with none issued. A hijacked admin session
 alone cannot start one; a compromised or deceived administrator can, and the delay,
 the notice and `docs/runbooks/account-email-change-by-administrator.md` are the stops.
+
+A v2 pending change also carries its original target revision and a random
+server-generated request id. Public completion requires the exact committed
+`Admin.AccountEmailChangeRequested` audit witness with aggregate type `User`,
+that target and nonce within the proof's 96-hour lifetime, read from the primary
+database under the same target lock and physical transaction as the address swap
+and completion
+audit. Both request mails must be accepted before that witness commits.
+Redis alone, a staged row, a latest request, or an HTTP correlation id cannot
+activate the change.
+
+Both address-request paths own two short account-only transaction scopes. The
+first admits the original session/re-authentication authority, target proof,
+current address and destination availability, then stores the bounded protected
+Redis record. All database transactions and sorted account locks are disposed
+before mail transport. The second scope rechecks that unchanged original
+authority, the exact current pending request, original lifetime, current address
+and destination availability before saving and committing one activation audit.
+The administrator path checks the actor's current Admin role in both scopes.
+A send failure or known rollback leaves a surviving Redis proof inert even if
+selective cleanup fails. An unknown activation commit may have committed the
+witness: report uncertainty, and never automatically replay or resend it.
+
+Self-service uses the server's 22-character `ChallengeId` as its request nonce
+and requires `User.EmailChangeRequested`, aggregate `User`, own account and that
+exact nonce from the primary database. Its protected `q` provenance retains the
+original 15-minute lifetime when carried from challenge into the consumed-code
+grant. Verification checks activation before spending the code or an attempt;
+an otherwise valid unactivated request returns Conflict
+`Auth.EmailChangeNotActivated`. Confirmation repeats the witness and original
+access checks inside the protected address-swap transaction. Genuine v1
+self-service address challenges or grants without that provenance require a
+fresh request, including at revision zero.
+
+Genuine v1 pending admin changes are hidden and receive the generic 410 even
+for an account at revision zero: restart with a new inbox step-up, both mails
+and the full 72-hour delay. A malformed v2 proof never falls back to v1.
+Suspension invalidates pending and already consumed address proofs permanently,
+including after reinstatement. Address and user-name changes commit together;
+the actual swap also advances epoch, revision, cutoff and Identity stamps without
+changing suspension state. The old-address completion notice is dispatched only
+after known commit. Public administrator completion issues no session.
 
 ## Untrusted documents and external text
 
@@ -106,6 +175,45 @@ Account erasure crosses DeleteAccountCommandHandler, HardDeleteAccountsJob and
 `src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs`. New storage must
 include originals, derived artifacts, identities, audit handling and DEKs in its
 erasure design. Live DEK deletion does not prove backups cannot restore old keys.
+
+The access model is [ADR 0155](decisions/0155-account-access-transitions-fence-sessions-and-original-authentication-proofs.md).
+Suspension is separate from email verification and deletion. Each suspend or
+reinstate, actual address swap or first inbox proof advances the persistent
+singleton security epoch and target revision, sets the credential cutoff and
+rotates Identity stamps atomically. A no-op or already confirmed inbox advances
+nothing. The singleton survives account deletion. Login challenges, links,
+OAuth state, consent and registration grants preserve the epoch captured before
+the flow was stored; account-bound proofs also preserve their original identity
+and revision. No callback rebases
+a stale proof. A different account's transition does not invalidate an admitted
+flow. Genuine v1 login, consent and re-authentication proofs have generation zero
+only for never-transitioned accounts; the address-change exceptions are stated
+above.
+
+A fresh inbox-confirmation read selects the login lock scope only. Under its
+account lock, a login must still admit the original proof and current inbox
+state; a now-unconfirmed inbox cannot upgrade an account-only scope. First
+inbox confirmation independently requires the global lifecycle lock and commits
+its flag, credential transition and audit together. Provider and inbox writes
+commit before separate session issuance. A first inbox proof or self-service
+address swap may authorize that issuance only through the internal
+`CommittedSessionAuthorization`: its two purpose-specific factories, known
+commit and immutable intended lifetime bind the exact new revision, cutoff and
+address. The self-service endpoint preserves the current session's lifetime
+when readable; fresh primary admission still applies. Client input and old
+proofs cannot mint or rebase this authority. Failed replacement issuance reports the committed
+address change and asks for a fresh login.
+
+After known commit, cleanup removes only obsolete session and pending-change
+generations strictly below the new revision, so a delayed cleanup cannot revoke
+a fresh login. Cleanup failure does not turn a committed transition into a
+refusal. An unknown commit returns uncertainty and issues no session; current
+status cannot prove that one command succeeded, and lifecycle commands are never
+automatically replayed.
+The address request's nonce witness has the existing 90-day audit retention:
+erasure nulls actor, IP and user-agent fields and retains event, aggregate and
+payload. Completion does not require the actor to still exist. This introduces
+no erasure exception or retention extension.
 
 ## Repository and automated reviewers
 

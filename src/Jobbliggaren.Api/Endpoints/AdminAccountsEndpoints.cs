@@ -1,7 +1,9 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ReinstateAccount;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.SuspendAccount;
 using Jobbliggaren.Application.Admin.Accounts.Queries.CountAccountsByStatus;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetPendingAccountEmailChange;
@@ -47,6 +49,11 @@ public static class AdminAccountsEndpoints
         public override string ToString() => "AccountEmailChangeRequest(address and grant redacted)";
     }
 
+    public sealed record AccountAccessRequest(string? ReauthGrant = null)
+    {
+        public override string ToString() => "AccountAccessRequest(grant redacted)";
+    }
+
     public static void MapAdminAccountsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/admin/accounts")
@@ -78,6 +85,22 @@ public static class AdminAccountsEndpoints
         var account = app.MapGroup("/api/v1/admin/accounts/{id:guid}")
             .WithTags("Admin")
             .RequireAuthorization(AuthorizationPolicies.Admin);
+
+        account.MapPost("/suspend", async (
+            Guid id, AccountAccessRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new SuspendAccountCommand(id, body.ReauthGrant), ct);
+            return result.IsFailure ? result.Error.ToProblemResult() : Results.Ok(result.Value);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
+
+        account.MapPost("/reinstate", async (
+            Guid id, AccountAccessRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new ReinstateAccountCommand(id, body.ReauthGrant), ct);
+            return result.IsFailure ? result.Error.ToProblemResult() : Results.Ok(result.Value);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
 
         account.MapPost("/email-change", async (
             Guid id, AccountEmailChangeRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>

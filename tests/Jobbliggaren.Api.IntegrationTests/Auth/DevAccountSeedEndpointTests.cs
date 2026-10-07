@@ -145,15 +145,10 @@ public class DevAccountSeedEndpointTests(ApiFactory factory)
     [Fact]
     public async Task An_identity_row_without_a_profile_answers_409_and_stays_without_one()
     {
-        // The state AccountRegistrar leaves when its save throws after the Identity write
-        // committed, and AccountHardDeleter's step 2h, which deletes the profile before the Identity row.
+        // Historical registrar orphan, before #1976 made registration atomic; current-writer pin:
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         var email = ReservedAddress("orphan");
-        Guid userId;
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            userId = (await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-                .CreatePasswordlessUserAsync(email, Ct)).Value;
-        }
+        var userId = await Admin.AdminAccountsKit.CreateWithoutProfileAsync(_factory, email, Ct);
 
         (await SeedAsync(email)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
 

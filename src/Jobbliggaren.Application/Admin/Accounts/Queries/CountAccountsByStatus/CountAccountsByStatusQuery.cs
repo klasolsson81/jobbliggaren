@@ -13,4 +13,4 @@ public sealed record CountAccountsByStatusQuery(string? Address) : IQuery<Accoun
         $"CountAccountsByStatusQuery(address {(string.IsNullOrWhiteSpace(Address) ? "none" : "redacted")})";
 }
 
-public sealed record AccountStatusCountsDto(int Total, int Active, int PendingDeletion, int ProfileMissing);
+public sealed record AccountStatusCountsDto(int Total, int Active, int PendingDeletion, int ProfileMissing, int Suspended = 0);

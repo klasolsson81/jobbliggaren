@@ -7,6 +7,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -25,7 +26,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
     internal const int CommandTimeoutSeconds = 30;
 
     private const string Columns =
-        "user_id, email, email_confirmed, is_admin, job_seeker_id, registered_at, deleted_at, status";
+        "user_id, email, email_confirmed, is_admin, job_seeker_id, registered_at, deleted_at, status, is_suspended, access_revision, credential_cutoff";
 
     public async Task<AccountDirectoryPage> SearchAsync(
         AccountDirectorySearch search, CancellationToken cancellationToken)
@@ -58,14 +59,15 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
         await reader.ReadAsync(cancellationToken);
 
         // Every row takes one of the CASE's arms; a row that takes none is a state the rule does not know.
-        if (reader.GetInt32(4) != 0)
+        if (reader.GetInt32(5) != 0)
             throw new InvalidOperationException("An account matched no status in the directory's rule.");
 
         return new AccountStatusCounts(
             Total: reader.GetInt32(0),
             Active: reader.GetInt32(1),
             PendingDeletion: reader.GetInt32(2),
-            ProfileMissing: reader.GetInt32(3));
+            ProfileMissing: reader.GetInt32(3),
+            Suspended: reader.GetInt32(4));
     }
 
     public async Task<AccountDirectoryEntry?> FindAsync(Guid userId, CancellationToken cancellationToken)
@@ -105,6 +107,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             + "count(*) FILTER (WHERE status = @active)::int, "
             + "count(*) FILTER (WHERE status = @pending_deletion)::int, "
             + "count(*) FILTER (WHERE status = @profile_missing)::int, "
+            + "count(*) FILTER (WHERE status = @suspended)::int, "
             + "count(*) FILTER (WHERE status IS NULL)::int "
             + "FROM classified");
 
@@ -128,6 +131,9 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                     u.email AS email,
                     u.normalized_email AS sort_address,
                     u.email_confirmed AS email_confirmed,
+                    u.is_suspended AS is_suspended,
+                    u.access_revision AS access_revision,
+                    u.credential_cutoff AS credential_cutoff,
                     EXISTS (
                         SELECT 1
                         FROM identity."AspNetUserRoles" ur
@@ -140,6 +146,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                     CASE
                         WHEN js.id IS NULL THEN @profile_missing
                         WHEN js.deleted_at IS NOT NULL THEN @pending_deletion
+                        WHEN u.is_suspended THEN @suspended
                         WHEN js.deleted_at IS NULL THEN @active
                     END AS status
                 FROM identity."AspNetUsers" u
@@ -152,11 +159,14 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             sql.Append(" WHERE status = @status");
         sql.Append(tail);
 
-        var command = new NpgsqlCommand(sql.ToString(), connection) { CommandTimeout = CommandTimeoutSeconds };
+        var command = new NpgsqlCommand(sql.ToString(), connection,
+            db.Database.CurrentTransaction?.GetDbTransaction() as NpgsqlTransaction)
+        { CommandTimeout = CommandTimeoutSeconds };
         command.Parameters.AddWithValue("@admin_role", NpgsqlDbType.Text, normalizer.NormalizeName(Roles.Admin));
         command.Parameters.AddWithValue("@active", NpgsqlDbType.Text, nameof(AccountStatus.Active));
         command.Parameters.AddWithValue("@pending_deletion", NpgsqlDbType.Text, nameof(AccountStatus.PendingDeletion));
         command.Parameters.AddWithValue("@profile_missing", NpgsqlDbType.Text, nameof(AccountStatus.ProfileMissing));
+        command.Parameters.AddWithValue("@suspended", NpgsqlDbType.Text, nameof(AccountStatus.Suspended));
         if (address is not null)
             command.Parameters.AddWithValue("@address", NpgsqlDbType.Text, address);
         if (status is not null)
@@ -205,12 +215,17 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                 : reader.GetFieldValue<DateTimeOffset>(5),
             DeletedAt: await reader.IsDBNullAsync(6, cancellationToken)
                 ? null
-                : reader.GetFieldValue<DateTimeOffset>(6));
+                : reader.GetFieldValue<DateTimeOffset>(6),
+            IsSuspended: reader.GetBoolean(8),
+            AccessRevision: reader.GetInt64(9),
+            CredentialCutoff: reader.GetInt64(10));
     }
 
     private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (db.Database.CurrentTransaction is not null && connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("The protected directory connection cannot be reopened.");
         if (connection.State != ConnectionState.Open)
             await connection.OpenAsync(cancellationToken);
         return connection;

@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -30,15 +31,36 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
 
     private static async Task<Guid> OpenAccountAsync(AsyncServiceScope scope)
     {
-        var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-            .CreatePasswordlessUserAsync($"extern-{Guid.NewGuid():N}@example.se", Ct);
-        return created.Value;
+        var email = $"extern-{Guid.NewGuid():N}@example.se";
+        (await scope.ServiceProvider.GetRequiredService<AccountRegistrar>().OpenAsync(email, Ct)).IsSuccess.ShouldBeTrue();
+        return (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .FindByEmailAsync(email)).ShouldNotBeNull().Id;
     }
 
     private static IdentityExternalLoginStore Store(AsyncServiceScope scope) =>
         new(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
             scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
-            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
+            scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>(),
+            scope.ServiceProvider.GetRequiredService<IAccountAccessReader>());
+
+    private static async Task<ExternalLinkResult> LinkAsync(
+        AsyncServiceScope scope, Guid userId, ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct)
+    {
+        await using var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>()
+            .BeginAsync([userId], false, ct);
+        var result = await Store(scope).LinkAsync(userId, provider, subject, ct);
+        await access.CommitAsync(ct);
+        return result;
+    }
+
+    private static async Task EraseAllAsync(AsyncServiceScope scope, Guid userId, CancellationToken ct)
+    {
+        await using var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>()
+            .BeginAsync([userId], false, ct);
+        await Store(scope).EraseAllAsync(userId, ct);
+        await access.CommitAsync(ct);
+    }
 
     [Fact]
     public async Task A_linked_login_is_found_by_the_providers_identifier()
@@ -47,7 +69,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var userId = await OpenAccountAsync(scope);
         var subject = NewSubject();
 
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(userId);
     }
 
@@ -65,9 +87,9 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var userId = await OpenAccountAsync(scope);
         var subject = NewSubject();
-        await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, subject, Ct);
+        await LinkAsync(scope, userId, ExternalProviderKey.Google, subject, Ct);
 
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, subject, Ct))
+        (await LinkAsync(scope, userId, ExternalProviderKey.Google, subject, Ct))
             .ShouldBe(ExternalLinkResult.AlreadyLinkedToThisUser);
     }
 
@@ -78,9 +100,9 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var holder = await OpenAccountAsync(scope);
         var other = await OpenAccountAsync(scope);
         var subject = NewSubject();
-        await Store(scope).LinkAsync(holder, ExternalProviderKey.Google, subject, Ct);
+        await LinkAsync(scope, holder, ExternalProviderKey.Google, subject, Ct);
 
-        (await Store(scope).LinkAsync(other, ExternalProviderKey.Google, subject, Ct))
+        (await LinkAsync(scope, other, ExternalProviderKey.Google, subject, Ct))
             .ShouldBe(ExternalLinkResult.LinkedToAnotherUser);
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(holder);
     }
@@ -91,7 +113,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var userId = await OpenAccountAsync(scope);
         var subject = NewSubject();
-        await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, subject, Ct);
+        await LinkAsync(scope, userId, ExternalProviderKey.Google, subject, Ct);
 
         var row = await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
             .AsNoTracking()
@@ -117,7 +139,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var userId = await OpenAccountAsync(scope);
         var subject = await GitHubSubjectAsync();
 
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, userId, ExternalProviderKey.GitHub, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
 
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.GitHub, subject, Ct)).ShouldBe(userId);
         var row = await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
@@ -136,7 +158,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var userId = await OpenAccountAsync(scope);
         var subject = await GitHubSubjectAsync();
-        await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, subject, Ct);
+        await LinkAsync(scope, userId, ExternalProviderKey.GitHub, subject, Ct);
 
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBeNull();
     }
@@ -149,8 +171,8 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var google = NewSubject();
         var github = await GitHubSubjectAsync();
 
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.Google, google, Ct)).ShouldBe(ExternalLinkResult.Linked);
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.GitHub, github, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, userId, ExternalProviderKey.Google, google, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, userId, ExternalProviderKey.GitHub, github, Ct)).ShouldBe(ExternalLinkResult.Linked);
 
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, google, Ct)).ShouldBe(userId);
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.GitHub, github, Ct)).ShouldBe(userId);
@@ -170,7 +192,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var userId = await OpenAccountAsync(scope);
         var subject = await LinkedInSubjectAsync();
 
-        (await Store(scope).LinkAsync(userId, ExternalProviderKey.LinkedIn, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, userId, ExternalProviderKey.LinkedIn, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
 
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.LinkedIn, subject, Ct)).ShouldBe(userId);
         var row = await scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins
@@ -191,7 +213,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var userId = await OpenAccountAsync(scope);
         var subject = await LinkedInSubjectAsync();
-        await Store(scope).LinkAsync(userId, ExternalProviderKey.LinkedIn, subject, Ct);
+        await LinkAsync(scope, userId, ExternalProviderKey.LinkedIn, subject, Ct);
         ExternalProviderKey.TryParse(other, out var key).ShouldBeTrue();
 
         (await Store(scope).FindUserIdAsync(key, subject, Ct)).ShouldBeNull();
@@ -209,19 +231,19 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         var other = await OpenAccountAsync(scope);
         var otherSubject = NewSubject();
         foreach (var provider in ExternalProviderKey.Known)
-            (await Store(scope).LinkAsync(userId, provider, NewSubject(), Ct)).ShouldBe(ExternalLinkResult.Linked);
-        (await Store(scope).LinkAsync(other, ExternalProviderKey.Known[0], otherSubject, Ct))
+            (await LinkAsync(scope, userId, provider, NewSubject(), Ct)).ShouldBe(ExternalLinkResult.Linked);
+        (await LinkAsync(scope, other, ExternalProviderKey.Known[0], otherSubject, Ct))
             .ShouldBe(ExternalLinkResult.Linked);
         var logins = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>().UserLogins.AsNoTracking();
         (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(ExternalProviderKey.Known.Count);
 
-        await Store(scope).EraseAllAsync(userId, Ct);
+        await EraseAllAsync(scope, userId, Ct);
 
         (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(0);
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Known[0], otherSubject, Ct)).ShouldBe(other);
 
         // A second erasure finds nothing and changes nothing.
-        await Store(scope).EraseAllAsync(userId, Ct);
+        await EraseAllAsync(scope, userId, Ct);
         (await logins.CountAsync(l => l.UserId == userId, Ct)).ShouldBe(0);
         (await logins.CountAsync(l => l.UserId == other, Ct)).ShouldBe(1);
     }
@@ -237,9 +259,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
 
     [Theory]
     [InlineData(RaceWindow.BeforeIdentitysOwnCheck, false, ExternalLinkResult.LinkedToAnotherUser)]
-    [InlineData(RaceWindow.BeforeIdentitysOwnCheck, true, ExternalLinkResult.AlreadyLinkedToThisUser)]
     [InlineData(RaceWindow.BeforeTheSave, false, ExternalLinkResult.LinkedToAnotherUser)]
-    [InlineData(RaceWindow.BeforeTheSave, true, ExternalLinkResult.AlreadyLinkedToThisUser)]
     public async Task A_link_another_request_makes_past_the_read_is_answered_by_who_holds_it(
         RaceWindow window, bool sameAccount, ExternalLinkResult expected)
     {
@@ -250,21 +270,51 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         async Task TheOtherRequestLinksItAsync()
         {
             await using var other = factory.Services.CreateAsyncScope();
-            (await Store(other).LinkAsync(winner, ExternalProviderKey.Google, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+            (await LinkAsync(other, winner, ExternalProviderKey.Google, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
         }
 
         var identity = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        await using var access = await coordinator.BeginAsync([userId], false, Ct);
         var store = new IdentityExternalLoginStore(
             ActivatorUtilities.CreateInstance<RacingUserManager>(
                 scope.ServiceProvider, new Race(window, TheOtherRequestLinksItAsync)),
             identity,
-            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
+            coordinator,
+            scope.ServiceProvider.GetRequiredService<IAccountAccessReader>());
 
         (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(expected);
 
-        await identity.SaveChangesAsync(Ct);
+        await access.CommitAsync(Ct);
         (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(winner);
         (await identity.UserLogins.AsNoTracking().CountAsync(l => l.ProviderKey == subject.Reveal(), Ct)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Concurrent_callbacks_for_one_account_link_once_and_both_resolve_the_same_holder()
+    {
+        Guid userId;
+        await using (var setup = factory.Services.CreateAsyncScope())
+            userId = await OpenAccountAsync(setup);
+        var subject = NewSubject();
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<ExternalLinkResult> CallbackAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await start.Task.WaitAsync(Ct);
+            return await LinkAsync(scope, userId, ExternalProviderKey.Google, subject, Ct);
+        }
+
+        var first = CallbackAsync();
+        var second = CallbackAsync();
+        start.SetResult();
+        var results = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), Ct);
+
+        results.Count(result => result == ExternalLinkResult.Linked).ShouldBe(1);
+        results.Count(result => result == ExternalLinkResult.AlreadyLinkedToThisUser).ShouldBe(1);
+        await using var read = factory.Services.CreateAsyncScope();
+        (await Store(read).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(userId);
     }
 
     public sealed record Race(RaceWindow Window, Func<Task> TheOtherRequest);

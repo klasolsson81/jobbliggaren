@@ -185,6 +185,7 @@
       "deletion": "Permanently deleted",
       "deletionEarliest": "No earlier than <nowrap>{date}</nowrap>",
       "email": "Email",
+      "access": "Access status",
       "emailConfirmed": "Confirmed",
       "emailUnconfirmed": "Not confirmed",
       "profileMissing": "The account has no profile and cannot be signed in to. An account that still has no profile an hour after it was created is removed automatically.",
@@ -233,12 +234,27 @@
       "nothingToCancel": "There is no address change left to cancel.",
       "cancelUnknown": "We cannot tell whether the address change was cancelled. Open the account again to see whether it is pending."
     },
+    "access": {
+      "cancelsPending": "The pending address change is cancelled.",
+      "deletionContinues": "Deletion continues.",
+      "alreadySuspended": "The account's access is already suspended.",
+      "alreadyReinstated": "The account's access is already reinstated.",
+      "lastAdministrator": "The last administrator's access cannot be removed.",
+      "profileUnavailable": "The account's profile no longer exists.",
+      "deliveryUnavailable": "Email sending is not enabled right now, so no code can be sent. Access is unchanged.",
+      "unknown": "We cannot confirm whether the action completed. Check the account's current status before deciding your next step."
+    },
     "confirm": {
       "cancel": "Cancel",
       "suspend": {
         "title": "Suspend {email}?",
         "body": "The account holder is signed out on all devices and cannot sign in until you reinstate the account. No data is removed.",
         "confirm": "Suspend account"
+      },
+      "reinstate": {
+        "title": "Reinstate access for {email}?",
+        "body": "The account owner needs to sign in again. Previous sessions are not reinstated.",
+        "confirm": "Reinstate access"
       },
       "scheduleDeletion": {
         "title": "Delete {email}?",

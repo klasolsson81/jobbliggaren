@@ -13,7 +13,7 @@ const TERM = "konto.sentinel@example.test";
 
 const ANSWER = {
   accounts: { items: [], totalCount: 0, page: 1, pageSize: 25, totalPages: 0 },
-  counts: { total: 0, active: 0, pendingDeletion: 0, profileMissing: 0 },
+  counts: { total: 0, active: 0, suspended: 0, pendingDeletion: 0, profileMissing: 0 },
 };
 
 function withSession(value: string | undefined) {
@@ -133,7 +133,7 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
     ["an array", JSON.stringify([TERM])],
     ["a term longer than an address may be", JSON.stringify({ address: `${"q".repeat(257 - TERM.length)}${TERM}` })],
     ["a term that is not text", JSON.stringify({ address: 7 })],
-    ["a status the backend does not filter by", JSON.stringify({ address: TERM, status: "Suspended" })],
+    ["a status the backend does not filter by", JSON.stringify({ address: TERM, status: "UnknownStatus" })],
     ["an unknown sort", JSON.stringify({ address: TERM, sort: "Newest" })],
     ["page 0", JSON.stringify({ address: TERM, page: 0 })],
     ["a page that is not a whole number", JSON.stringify({ address: TERM, page: "2" })],
@@ -191,7 +191,7 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
     await POST(search({ address: TERM }));
     await POST(search({ address: TERM }));
     await POST(request(`{"address": "${TERM}"`));
-    await POST(search({ address: TERM, status: "Suspended" }));
+    await POST(search({ address: TERM, status: "UnknownStatus" }));
 
     expect(JSON.stringify(consoleCalls)).not.toContain(TERM);
   });

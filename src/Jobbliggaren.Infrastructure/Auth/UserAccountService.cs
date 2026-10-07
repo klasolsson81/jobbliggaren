@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -14,7 +15,9 @@ namespace Jobbliggaren.Infrastructure.Auth;
 public sealed partial class UserAccountService(
     UserManager<ApplicationUser> userManager,
     ILogger<UserAccountService> logger,
-    IDbExceptionInspector dbExceptionInspector)
+    IDbExceptionInspector dbExceptionInspector,
+    IAccountAccessCoordinator coordinator,
+    IAccountAccessReader access)
     : IUserAccountService, ILoginAccountLookup, IPasswordlessAccountCreator
 {
     /// <summary>
@@ -26,11 +29,24 @@ public sealed partial class UserAccountService(
     /// </summary>
     public async Task<Result<Guid>> CreatePasswordlessUserAsync(string email, CancellationToken ct)
     {
+        var userId = Guid.NewGuid();
+        await using var scope = await coordinator.BeginAsync([userId], false, ct);
+        var created = await CreatePasswordlessUserAsync(userId, email, ct);
+        if (created.IsSuccess)
+            await scope.CommitAsync(ct);
+        return created;
+    }
+
+    public async Task<Result<Guid>> CreatePasswordlessUserAsync(Guid userId, string email, CancellationToken ct)
+    {
+        if (!coordinator.Holds(userId))
+            throw new InvalidOperationException("Account creation requires its protected transaction.");
         if (!StorableAddress.IsStorable(email))
             return Result.Failure<Guid>(EmailNotStorableFailure());
 
         var user = new ApplicationUser
         {
+            Id = userId,
             UserName = email,
             Email = email,
             EmailConfirmed = true,
@@ -38,8 +54,6 @@ public sealed partial class UserAccountService(
 
         return CreatedOrFailure(await userManager.CreateAsync(user), user);
     }
-
-    Task IPasswordlessAccountCreator.DeleteAsync(Guid userId, CancellationToken ct) => DeleteUserAsync(userId, ct);
 
     private static Result<Guid> CreatedOrFailure(IdentityResult result, ApplicationUser user)
     {
@@ -60,30 +74,6 @@ public sealed partial class UserAccountService(
         }
 
         return Result.Success(user.Id);
-    }
-
-    private async Task DeleteUserAsync(Guid userId, CancellationToken ct)
-    {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return;
-
-        // #1349 — the IdentityResult was discarded. This is the COMPENSATING delete in
-        // AccountRegistrar's JobSeeker.Register failure arm, so a failure here leaves exactly
-        // the orphaned Identity row that flow exists to prevent — and said nothing about it. The
-        // row is then invisible until HardDeleteAccountsJob sweeps it a day later, or until someone
-        // reads the reverse of that sweep's counter.
-        //
-        // Codes, never Descriptions: a Description is user-facing prose that can carry the value that
-        // failed; a code cannot.
-        //
-        // Logged rather than thrown, deliberately. The caller is already returning a failure to the
-        // user and a throw here would replace a truthful validation error with a 500 — the
-        // compensation failing is an operator problem, not the registrant's.
-        var result = await userManager.DeleteAsync(user);
-        if (!result.Succeeded)
-            LogCompensatingDeleteFailed(
-                userId, string.Join(", ", result.Errors.Select(e => e.Code)));
     }
 
     public async Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct)
@@ -135,12 +125,22 @@ public sealed partial class UserAccountService(
     async Task<LoginAccount?> ILoginAccountLookup.FindAccountAsync(string email, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(email);
-        return user is { Email: { } accountEmail } ? new LoginAccount(user.Id, accountEmail) : null;
+        return user is { Email: { } accountEmail }
+            ? new LoginAccount(user.Id, accountEmail, user.IsSuspended, user.AccessRevision) : null;
     }
 
     public async Task<Result<AddressSwapped>> SwapConfirmedAddressAsync(
         Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct)
     {
+        if (!coordinator.Holds(userId))
+            throw new InvalidOperationException("An address swap requires its protected transaction.");
+        var account = await access.ReadAsync(userId, ct);
+        if (account is null)
+            return Result.Failure<AddressSwapped>(DomainError.NotFound(
+                AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
+        if (!account.CanAuthenticate)
+            return Result.Failure<AddressSwapped>(DomainError.Gone(
+                AuthErrorCodes.AccountEmailChangeStale, AuthErrorCodes.AccountEmailChangeStaleMessage));
         if (!StorableAddress.IsStorable(newEmail))
             return Result.Failure<AddressSwapped>(EmailNotStorableFailure());
 
@@ -159,6 +159,9 @@ public sealed partial class UserAccountService(
         }
 
         var previousEmail = user.Email;
+        if (string.Equals(previousEmail, newEmail, StringComparison.Ordinal))
+            return Result.Failure<AddressSwapped>(DomainError.Conflict(
+                AuthErrorCodes.EmailUnchanged, AuthErrorCodes.EmailUnchangedMessage));
 
         // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
         // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
@@ -189,7 +192,7 @@ public sealed partial class UserAccountService(
         var changeResult = await userManager.ChangeEmailAsync(user, newEmail, swapToken);
         if (!changeResult.Succeeded)
         {
-            LogAddressWriteFailedAfterUserName(userId);
+            LogAddressWriteRefused(userId);
             return Result.Failure<AddressSwapped>(EmailChangeIncompleteFailure());
         }
 
@@ -221,12 +224,6 @@ public sealed partial class UserAccountService(
         DomainError.Conflict(AuthErrorCodes.EmailChangeIncomplete, AuthErrorCodes.EmailChangeIncompleteMessage);
 
     [LoggerMessage(4001, LogLevel.Warning,
-        "[UserAccountService] Change-email: the address write failed after the user-name write for user " +
-        "{UserId} (user name moved, email kept; the change was refused)")]
-    private partial void LogAddressWriteFailedAfterUserName(Guid userId);
-
-    [LoggerMessage(4007, LogLevel.Warning,
-        "[UserAccountService] Compensating delete failed for user {UserId} ({ErrorCodes}) — an " +
-        "orphaned Identity row remains and is swept by HardDeleteAccountsJob, not before")]
-    private partial void LogCompensatingDeleteFailed(Guid userId, string errorCodes);
+        "[UserAccountService] Change-email refused for user {UserId}; its transaction must roll back")]
+    private partial void LogAddressWriteRefused(Guid userId);
 }

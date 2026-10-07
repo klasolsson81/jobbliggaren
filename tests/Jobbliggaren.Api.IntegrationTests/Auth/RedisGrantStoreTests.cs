@@ -1,9 +1,12 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Validation;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Grants;
@@ -55,6 +58,24 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static GrantAssertion Bearer => GrantAssertion.Bearer(GrantPurpose.LoginComplete);
+
+    private static GrantSubject.Reauthentication ReauthenticationFor(Guid userId) => new(userId)
+    {
+        Access = new AccountAccessProof(0, userId, 0),
+    };
+
+    private static EmailChangeRequestProof RequestProof()
+    {
+        var issuedAt = new DateTimeOffset(2026, 10, 7, 12, 0, 0, TimeSpan.Zero);
+        return new EmailChangeRequestProof(ChallengeId.Generate().Reveal(), issuedAt,
+            issuedAt + LoginChallengePolicy.ChallengeTtl);
+    }
+
+    private static GrantSubject.ChangeEmail ChangeEmailFor(Guid userId, string email) => new(userId, email)
+    {
+        Access = new AccountAccessProof(0, userId, 0),
+        Request = RequestProof(),
+    };
 
     [Fact]
     public async Task A_grant_is_redeemed_once_and_hands_back_the_proven_address()
@@ -140,10 +161,17 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
 
     private async Task WriteByHandAsync(GrantToken token, string subPurpose, object record)
     {
+        var document = JsonSerializer.SerializeToNode(record).ShouldBeOfType<JsonObject>();
+        var userId = document["u"]?.GetValue<Guid>();
+        var access = userId is { } bound && bound != Guid.Empty
+            ? new AccountAccessProof(0, bound, 0) : AccountAccessProof.Legacy;
+        document["g"] = JsonSerializer.SerializeToNode(new { f = access.FlowEpoch, u = access.UserId, r = access.AccessRevision });
+        if (document["p"]?.GetValue<int>() == (int)GrantPurpose.ChangeEmail)
+            document["q"] = JsonSerializer.SerializeToNode(RequestProof());
         var payload = _keyring
             .CreateProtector(RedisGrantStore.ProtectorPurpose)
             .CreateProtector(subPurpose)
-            .Protect(JsonSerializer.SerializeToUtf8Bytes(record));
+            .Protect(JsonSerializer.SerializeToUtf8Bytes(document));
         await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
     }
 
@@ -171,8 +199,12 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
         (await _store.RedeemAsync(withTheEmptyUser, emptyUser, Ct)).ShouldBeNull();
         (await _store.RedeemAsync(
             withoutAddress, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, string.Empty)), Ct)).ShouldBeNull();
-        (await _store.RedeemAsync(control, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "ny@example.se")), Ct))
-            .ShouldBe(new GrantSubject.ChangeEmail(userId, "ny@example.se"));
+        var admitted = (await _store.RedeemAsync(control,
+            GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "ny@example.se")), Ct))
+            .ShouldBeOfType<GrantSubject.ChangeEmail>();
+        admitted.UserId.ShouldBe(userId);
+        admitted.NewEmail.ShouldBe("ny@example.se");
+        admitted.Request.ShouldNotBeNull().IsValid.ShouldBeTrue();
     }
 
     // ── #1739: the two caller-asserted purposes (ADR 0142 D5) ──────────────────────────────────────────────
@@ -180,7 +212,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     [Fact]
     public async Task A_reauthentication_grant_is_redeemed_by_the_user_it_was_issued_to()
     {
-        var subject = new GrantSubject.Reauthentication(Guid.NewGuid());
+        var subject = ReauthenticationFor(Guid.NewGuid());
         var token = await _store.IssueAsync(subject, Ct);
 
         (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
@@ -190,7 +222,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     [Fact]
     public async Task A_change_email_grant_is_redeemed_for_the_user_and_the_address_it_was_issued_for()
     {
-        var subject = new GrantSubject.ChangeEmail(Guid.NewGuid(), "ny@example.se");
+        var subject = ChangeEmailFor(Guid.NewGuid(), "ny@example.se");
         var token = await _store.IssueAsync(subject, Ct);
 
         (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
@@ -199,7 +231,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     [Fact]
     public async Task A_grant_issued_to_one_user_is_refused_for_another_and_is_spent_by_the_attempt()
     {
-        var owner = new GrantSubject.Reauthentication(Guid.NewGuid());
+        var owner = ReauthenticationFor(Guid.NewGuid());
         var token = await _store.IssueAsync(owner, Ct);
 
         var asAnother = await _store.RedeemAsync(
@@ -216,8 +248,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     public async Task A_grant_issued_for_one_purpose_is_refused_for_every_other()
     {
         var userId = Guid.NewGuid();
-        var reauthentication = await _store.IssueAsync(new GrantSubject.Reauthentication(userId), Ct);
-        var changeEmail = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "ny@example.se"), Ct);
+        var reauthentication = await _store.IssueAsync(ReauthenticationFor(userId), Ct);
+        var changeEmail = await _store.IssueAsync(ChangeEmailFor(userId, "ny@example.se"), Ct);
         var loginComplete = await _store.IssueAsync(new GrantSubject.LoginComplete("ny@example.se"), Ct);
 
         (await _store.RedeemAsync(
@@ -232,8 +264,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     public async Task A_change_email_grant_is_refused_for_another_address_and_for_another_user()
     {
         var userId = Guid.NewGuid();
-        var forAnotherAddress = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "visad@example.se"), Ct);
-        var forAnotherUser = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "visad@example.se"), Ct);
+        var forAnotherAddress = await _store.IssueAsync(ChangeEmailFor(userId, "visad@example.se"), Ct);
+        var forAnotherUser = await _store.IssueAsync(ChangeEmailFor(userId, "visad@example.se"), Ct);
 
         (await _store.RedeemAsync(
             forAnotherAddress, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "annan@example.se")), Ct)).ShouldBeNull();
@@ -248,8 +280,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     private static GrantSubject SubjectFor(GrantPurpose purpose, string email = "ttl@example.se") => purpose switch
     {
         GrantPurpose.LoginComplete => new GrantSubject.LoginComplete(email),
-        GrantPurpose.Reauthentication => new GrantSubject.Reauthentication(Guid.NewGuid()),
-        GrantPurpose.ChangeEmail => new GrantSubject.ChangeEmail(Guid.NewGuid(), email),
+        GrantPurpose.Reauthentication => ReauthenticationFor(Guid.NewGuid()),
+        GrantPurpose.ChangeEmail => ChangeEmailFor(Guid.NewGuid(), email),
         GrantPurpose.LoginCompleteExternal => new GrantSubject.LoginCompleteExternal(
             Verified(email), ExternalProviderKey.Google, ExternalSubject.TryCreate("110248495921238986420")!.Value),
         _ => throw new InvalidOperationException($"No subject row for grant purpose {purpose}."),
@@ -272,7 +304,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     {
         var userId = Guid.NewGuid();
         const string newEmail = "reader-ny@example.se";
-        var token = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, newEmail), Ct);
+        var token = await _store.IssueAsync(ChangeEmailFor(userId, newEmail), Ct);
 
         var stored = Encoding.Latin1.GetString(
             (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!);
@@ -336,11 +368,11 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
         {
             GrantPurpose.LoginComplete =>
                 [new GrantSubject.LoginComplete("a@b.se"), new GrantSubject.LoginComplete(longest)],
-            GrantPurpose.Reauthentication => [new GrantSubject.Reauthentication(Guid.NewGuid())],
+            GrantPurpose.Reauthentication => [ReauthenticationFor(Guid.NewGuid())],
             GrantPurpose.ChangeEmail =>
             [
-                new GrantSubject.ChangeEmail(Guid.NewGuid(), "a@b.se"),
-                new GrantSubject.ChangeEmail(Guid.NewGuid(), longest),
+                ChangeEmailFor(Guid.NewGuid(), "a@b.se"),
+                ChangeEmailFor(Guid.NewGuid(), longest),
             ],
             // Every provider: since #1746 the keys differ in length (dotnet-architect N3), and the ceiling is the bound.
             GrantPurpose.LoginCompleteExternal =>
@@ -360,7 +392,7 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     public async Task A_padded_grant_still_redeems_to_its_subject()
     {
         var userId = Guid.NewGuid();
-        var subject = new GrantSubject.ChangeEmail(
+        var subject = ChangeEmailFor(
             userId, $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se");
         var token = await _store.IssueAsync(subject, Ct);
 
@@ -423,65 +455,111 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     }
 
     /// <summary>
-    /// A grant written by the build before #1744: purpose 1, the JSON that build serialised (the three members, the
-    /// user id as null). Its bytes are written by hand under the
-    /// production protector, because the actor that wrote them — the pre-#1744 <c>RedisGrantStore</c> — is retired;
-    /// <see cref="Purposes_one_to_three_serialise_exactly_as_before_the_external_members"/> pins that the current
-    /// writer still produces that shape. A grant alive across the deploy must still redeem.
+    /// A registration grant from the retired v1 writer at 22aefd8db, before account generations. Its original
+    /// purpose, padding, protector and key family are preserved here. The current writer's emission pin is
+    /// <see cref="Issue_ShouldPreserveOriginalAccessAndRequestMetadata_ForEveryPurpose"/>. Unrelated legacy
+    /// registration remains compatible while legacy self address-change proofs are refused by the HTTP suite.
     /// </summary>
     [Fact]
-    public async Task A_grant_written_before_the_external_purpose_existed_still_redeems()
+    public async Task A_legacy_registration_grant_still_redeems()
     {
         var token = GrantToken.Generate();
-        var legacy = Encoding.UTF8.GetBytes("""{"p":1,"e":"fore@example.se","u":null}""" + new string(' ', 400));
-        var payload = _keyring
-            .CreateProtector(RedisGrantStore.ProtectorPurpose)
-            .CreateProtector("1")
-            .Protect(legacy);
-        await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
+        await WriteLegacyAsync(token, "1", new { p = 1, e = "fore@example.se", u = (Guid?)null });
 
         (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBe(new GrantSubject.LoginComplete("fore@example.se"));
     }
 
     [Fact]
-    public async Task Purposes_one_to_three_serialise_exactly_as_before_the_external_members()
+    public async Task Issue_ShouldPreserveOriginalAccessAndRequestMetadata_ForEveryPurpose()
     {
-        // The two external members are omitted when null (ADR 0142 D1: no live record changes shape). One row per
-        // purpose, in the shape each one's subject serialises to.
         var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
-
-        (await StoredJsonAsync(new GrantSubject.LoginComplete("a@b.se")))
-            .ShouldBe("""{"p":1,"e":"a@b.se","u":null}""");
-        (await StoredJsonAsync(new GrantSubject.Reauthentication(userId)))
-            .ShouldBe("""{"p":2,"e":null,"u":"11111111-2222-3333-4444-555555555555"}""");
-        (await StoredJsonAsync(new GrantSubject.ChangeEmail(userId, "a@b.se")))
-            .ShouldBe("""{"p":3,"e":"a@b.se","u":"11111111-2222-3333-4444-555555555555"}""");
-
-        // Purpose 4 byte for byte as #1744 wrote it, so a purpose-4 grant alive across the deploy still redeems, and
-        // GitHub's and LinkedIn's in the same shape (#1745, #1746). Each subject is its production adapter's.
+        var anonymousAccess = new AccountAccessProof(7);
+        var knownAccess = new AccountAccessProof(7, userId, 4);
+        var request = RequestProof();
         var google = await GoogleIdentities.ProofAsync(GoogleUserInfoShapes.Gmail("1", "a"));
-        (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(google.Email, google.Provider, google.Subject)))
-            .ShouldBe("""{"p":4,"e":"a@gmail.com","u":null,"pr":"google","s":"1"}""");
         var github = await GitHubIdentities.ProofAsync(
             GitHubApiShapes.User(58323117, "grant-gh"), GitHubApiShapes.Emails.PrimaryVerified("a@firma.example"));
-        (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(github.Email, github.Provider, github.Subject)))
-            .ShouldBe("""{"p":4,"e":"a@firma.example","u":null,"pr":"github","s":"58323117"}""");
         var linkedin = await LinkedInIdentities.ProofAsync(
             LinkedInUserInfoShapes.Member(LinkedInUserInfoShapes.DocumentedSub, "a@firma.example"));
-        (await StoredJsonAsync(new GrantSubject.LoginCompleteExternal(linkedin.Email, linkedin.Provider, linkedin.Subject)))
-            .ShouldBe("""{"p":4,"e":"a@firma.example","u":null,"pr":"linkedin","s":"782bbtaQ"}""");
+        GrantSubject[] subjects =
+        [
+            new GrantSubject.LoginComplete("a@b.se") { Access = anonymousAccess },
+            new GrantSubject.Reauthentication(userId) { Access = knownAccess },
+            new GrantSubject.ChangeEmail(userId, "a@b.se") { Access = knownAccess, Request = request },
+            new GrantSubject.LoginCompleteExternal(google.Email, google.Provider, google.Subject) { Access = anonymousAccess },
+            new GrantSubject.LoginCompleteExternal(github.Email, github.Provider, github.Subject) { Access = anonymousAccess },
+            new GrantSubject.LoginCompleteExternal(linkedin.Email, linkedin.Provider, linkedin.Subject) { Access = anonymousAccess },
+        ];
+
+        foreach (var subject in subjects)
+        {
+            var token = await _store.IssueAsync(subject, Ct);
+            var key = RedisGrantStore.Key(token);
+            key.ShouldContain("/v2/");
+            (await _mux.GetDatabase().KeyExistsAsync(key.Replace("/v2/", "/v1/", StringComparison.Ordinal)))
+                .ShouldBeFalse();
+            var payload = await StoredPayloadAsync(token, subject.Purpose);
+            payload.GetProperty("p").GetInt32().ShouldBe((int)subject.Purpose);
+            var access = payload.GetProperty("g");
+            access.GetProperty("f").GetInt64().ShouldBe(subject.Access.FlowEpoch);
+            if (subject.Access.UserId is { } bound)
+            {
+                access.GetProperty("u").GetGuid().ShouldBe(bound);
+                access.GetProperty("r").GetInt64().ShouldBe(subject.Access.AccessRevision!.Value);
+            }
+            else
+            {
+                access.GetProperty("u").ValueKind.ShouldBe(JsonValueKind.Null);
+                access.GetProperty("r").ValueKind.ShouldBe(JsonValueKind.Null);
+            }
+            if (subject is GrantSubject.ChangeEmail change)
+                payload.GetProperty("q").Deserialize<EmailChangeRequestProof>().ShouldBe(change.Request);
+            else
+                payload.TryGetProperty("q", out _).ShouldBeFalse();
+            if (subject is GrantSubject.LoginCompleteExternal external)
+            {
+                payload.GetProperty("pr").GetString().ShouldBe(external.Provider.Value);
+                payload.GetProperty("s").GetString().ShouldBe(external.Subject.Reveal());
+            }
+
+            var assertion = subject is GrantSubject.Reauthentication or GrantSubject.ChangeEmail
+                ? GrantAssertion.Of(subject) : GrantAssertion.Bearer(subject.Purpose);
+            (await _store.RedeemAsync(token, assertion, Ct)).ShouldBe(subject);
+        }
     }
 
-    // What IssueAsync wrote, opened under the purpose's own protector, with the padding trimmed.
-    private async Task<string> StoredJsonAsync(GrantSubject subject)
+    private async Task<JsonElement> StoredPayloadAsync(GrantToken token, GrantPurpose purpose)
     {
-        var token = await _store.IssueAsync(subject, Ct);
         var stored = (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!;
         var json = _keyring
             .CreateProtector(RedisGrantStore.ProtectorPurpose)
-            .CreateProtector(((int)subject.Purpose).ToString(CultureInfo.InvariantCulture))
+            .CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture))
             .Unprotect(stored);
-        return Encoding.UTF8.GetString(json).TrimEnd(' ');
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private async Task WriteLegacyAsync(GrantToken token, string purpose, object record)
+    {
+        // Historical v1 ceiling from RedisGrantStore at 22aefd8db, shared by all four original purposes.
+        var ceiling = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            p = 4,
+            e = new string('"', EmailAddressRules.MaximumLength),
+            u = Guid.Empty,
+            pr = new string('"', ExternalProviderKey.MaximumLength),
+            s = new string('"', ExternalSubject.MaximumLength),
+        }).Length;
+        var json = JsonSerializer.SerializeToUtf8Bytes(record);
+        json.Length.ShouldBeLessThanOrEqualTo(ceiling);
+        var padded = new byte[ceiling];
+        Array.Fill(padded, (byte)' ');
+        json.CopyTo(padded, 0);
+        var payload = _keyring.CreateProtector(RedisGrantStore.LegacyProtectorPurpose)
+            .CreateProtector(purpose).Protect(padded);
+        var legacyKey = RedisGrantStore.Key(token).Replace("/v2/", "/v1/", StringComparison.Ordinal);
+        (await _mux.GetDatabase().StringSetAsync(legacyKey, payload, TimeSpan.FromMinutes(10), When.NotExists))
+            .ShouldBeTrue();
     }
 
     /// <summary>
@@ -539,9 +617,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     {
         var token = GrantToken.Generate();
         var control = GrantToken.Generate();
-        await WriteByHandAsync(
-            token, subPurpose: retired.ToString(CultureInfo.InvariantCulture),
-            new { p = retired, e = "a@b.se", pr = "github", s = "58323117" });
+        await WriteLegacyAsync(token, retired.ToString(CultureInfo.InvariantCulture),
+            new { p = retired, e = "a@b.se", u = (Guid?)null, pr = "github", s = "58323117" });
         await WriteByHandAsync(control, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "github", s = "58323117" });
 
         (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBeNull();

@@ -1,9 +1,13 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -23,7 +27,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 ///   state</item>
 /// <item>Layer-1 profile gate, TWO grounds one outcome: <c>DeletedAt != null</c> (soft-deleted) OR no
 ///   <c>JobSeeker</c> row at all (#1349) → best-effort session self-heal
-///   (<see cref="ISessionStore.InvalidateAllForUserAsync"/>) + InvalidCredentials; a Redis failure in
+///   (<see cref="ISessionStore.InvalidateAsync"/>) + InvalidCredentials after the original
+///   access read admitted it; an earlier stale-proof refusal mutates no sessions. A Redis failure in
 ///   the self-heal must NOT change the reject outcome</item>
 /// <item>else → Success</item>
 /// </list>
@@ -42,6 +47,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 public class ReauthenticationServiceTests
 {
     private const string Grant = "AAECAwQFBgcICQoLDA0ODw"; // gitleaks:allow
+    private static readonly SessionId CurrentSessionId = SessionId.FromRaw("reauthenticated-session-id");
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -52,19 +58,24 @@ public class ReauthenticationServiceTests
     // DeleteAccountCommandHandlerTests. Unique DB name per test-class instance (fresh per [Fact]).
     // Concrete type (not IAppDbContext) per CA1859; passed to the SUT via its IAppDbContext ctor param.
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
+    private readonly RecordingLogger<ReauthenticationService> _logger = new();
 
-    private ReauthenticationService CreateSut() =>
-        new(_currentUser, _grants, _db, _sessionStore, _audit);
+    private ReauthenticationService CreateSut(IAccountAccessReader? reader = null) =>
+        new(_currentUser, _grants, _db, _sessionStore, _audit,
+            reader ?? AccountAccessTestKit.ReaderFromProfiles(_db,
+                userId => _currentUser.UserId == userId ? "person@example.com" : null), _logger);
 
     // Authenticated user whose grant the store redeems for exactly the binding the service must assert.
     private void AuthenticatedWithRedeemableGrant(Guid userId)
     {
         _currentUser.UserId.Returns(userId);
+        _currentUser.AccessRevision.Returns(0L);
+        _currentUser.SessionId.Returns(CurrentSessionId);
         _grants.RedeemAsync(
                 GrantToken.FromRaw(Grant),
                 GrantAssertion.Of(new GrantSubject.Reauthentication(userId)),
                 Arg.Any<CancellationToken>())
-            .Returns(new GrantSubject.Reauthentication(userId));
+            .Returns(new GrantSubject.Reauthentication(userId) { Access = AccountAccessTestKit.Bound(userId) });
     }
 
     private async Task SeedSeekerAsync(Guid userId, bool softDeleted, CancellationToken ct)
@@ -74,6 +85,31 @@ public class ReauthenticationServiceTests
             seeker.SoftDelete(Clock);
         _db.JobSeekers.Add(seeker);
         await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task<IAccountAccessReader> SoftDeleteAfterCommittedAccessReadAsync(Guid userId, CancellationToken ct)
+    {
+        await SeedSeekerAsync(userId, softDeleted: false, ct);
+        var authoritative = AccountAccessTestKit.ReaderFromProfiles(_db,
+            id => id == userId ? "person@example.com" : null);
+        var reader = Substitute.For<IAccountAccessReader>();
+        reader.ReadEpochAsync(Arg.Any<CancellationToken>()).Returns(0L);
+        reader.ReadAsync(userId, Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            // A real primary read may finish before the response is delivered while self-deletion
+            // commits meanwhile. Capture that read, then invoke and validate the actual transform.
+            var snapshot = await authoritative.ReadAsync(userId, call.Arg<CancellationToken>());
+            if (snapshot?.HasLiveProfile == true)
+            {
+                var profile = await _db.JobSeekers.SingleAsync(seeker => seeker.UserId == userId, ct);
+                profile.DeletedAt.ShouldBeNull();
+                profile.SoftDelete(Clock);
+                profile.DeletedAt.ShouldBe(Clock.UtcNow);
+                await _db.SaveChangesAsync(ct);
+            }
+            return snapshot;
+        });
+        return reader;
     }
 
     [Fact]
@@ -138,10 +174,7 @@ public class ReauthenticationServiceTests
         _grants.RedeemAsync(Arg.Any<GrantToken>(), Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
             .Returns((GrantSubject?)null);
 
-        // Seed a SOFT-DELETED seeker for this user. If the soft-delete gate ran, it would call
-        // InvalidateAllForUserAsync on this row. It must NOT — the grant check comes FIRST, so an unusable
-        // grant can never reveal (or act on) soft-delete state. The un-fired self-heal is the observable
-        // proof that the JobSeekers gate was never reached (grant-first ordering).
+        // A bad grant cannot act on the account's deletion state or its current session.
         await SeedSeekerAsync(userId, softDeleted: true, ct);
 
         var result = await CreateSut().VerifyCurrentUserGrantAsync(Grant, ct);
@@ -150,45 +183,50 @@ public class ReauthenticationServiceTests
         result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
         await _sessionStore.DidNotReceive().InvalidateAllForUserAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateBeforeRevisionAsync(default, default, ct);
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateAsync(default, ct);
         _audit.Received(1).ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
         _audit.DidNotReceive().ReauthenticationSucceeded(Arg.Any<Guid>(), Arg.Any<GrantPurpose>());
     }
 
     [Fact]
-    public async Task VerifyCurrentUserGrant_WhenSeekerSoftDeleted_FailsAndSelfHealsSessions()
+    public async Task VerifyCurrentUserGrant_WhenProfileDeletesAfterAccessRead_FailsAndInvalidatesOnlyItsCurrentSession()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         AuthenticatedWithRedeemableGrant(userId);
-        await SeedSeekerAsync(userId, softDeleted: true, ct);
+        var reader = await SoftDeleteAfterCommittedAccessReadAsync(userId, ct);
 
-        var result = await CreateSut().VerifyCurrentUserGrantAsync(Grant, ct);
+        var result = await CreateSut(reader).VerifyCurrentUserGrantAsync(Grant, ct);
 
-        // A redeemable grant, but the account is soft-deleted-not-hard-deleted → reject + tear down its
-        // surviving sessions (Layer-1 gate).
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
-        await _sessionStore.Received(1).InvalidateAllForUserAsync(userId, Arg.Any<CancellationToken>());
+        await _sessionStore.Received(1).InvalidateAsync(CurrentSessionId, Arg.Any<CancellationToken>());
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateBeforeRevisionAsync(default, default, ct);
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, ct);
         _audit.Received(1).ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
     }
 
     [Fact]
-    public async Task VerifyCurrentUserGrant_WhenSoftDeletedAndSelfHealThrows_StillReturnsInvalidCredentials()
+    public async Task VerifyCurrentUserGrant_WhenLateDeletionCleanupIsUnavailable_StillRefusesAndLogsTypedFailure()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         AuthenticatedWithRedeemableGrant(userId);
-        await SeedSeekerAsync(userId, softDeleted: true, ct);
-        _sessionStore.InvalidateAllForUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("Redis nere"));
+        var reader = await SoftDeleteAfterCommittedAccessReadAsync(userId, ct);
+        _sessionStore.InvalidateAsync(CurrentSessionId, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new SessionStoreUnavailableException("session cleanup unavailable", new TimeoutException()));
 
-        var result = await CreateSut().VerifyCurrentUserGrantAsync(Grant, ct);
+        var result = await CreateSut(reader).VerifyCurrentUserGrantAsync(Grant, ct);
 
         // Self-heal is best-effort (try/catch): a Redis failure must not turn the gate into a 500 or
         // change the security-relevant reject. Layer 2's tombstone still fail-closes the read path.
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
-        await _sessionStore.Received(1).InvalidateAllForUserAsync(userId, Arg.Any<CancellationToken>());
+        await _sessionStore.Received(1).InvalidateAsync(CurrentSessionId, Arg.Any<CancellationToken>());
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateBeforeRevisionAsync(default, default, ct);
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, ct);
+        _logger.Records.ShouldHaveSingleItem().EventId.Id.ShouldBe(1032);
     }
 
     [Fact]
@@ -205,6 +243,8 @@ public class ReauthenticationServiceTests
         // No session mutation on the success path.
         await _sessionStore.DidNotReceive().InvalidateAllForUserAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateBeforeRevisionAsync(default, default, ct);
+        await _sessionStore.DidNotReceiveWithAnyArgs().InvalidateAsync(default, ct);
         _audit.Received(1).ReauthenticationSucceeded(userId, GrantPurpose.Reauthentication);
         _audit.DidNotReceive().ReauthenticationFailed(Arg.Any<Guid>(), Arg.Any<GrantPurpose>());
     }
@@ -222,12 +262,11 @@ public class ReauthenticationServiceTests
         // FRESH session by the /change-password re-issue — renewing the capability indefinitely
         // without ever crossing the login guard (security-auditor M-1).
         //
-        // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:): AccountHardDeleter step 2h
-        // commits the domain transaction before the Identity DELETE,
-        // so a failure there leaves exactly this row — and the transient window every registration
-        // passes through (the #508 grace filter, "presumed mid-registration") produces it too.
-        // The actor's own predicate is pinned against the real AccountHardDeleter in
-        // HardDeleteAccountsJobIntegrationTests.CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
+        // Historical actor: the predecessor AccountHardDeleter at 22aefd8db could commit the profile
+        // removal before Identity deletion. The current writer's atomic deletion is pinned by
+        // DeleteMeTests.POST_me_delete_whose_erasure_fails_rolls_back_profile_and_keeps_session_and_links;
+        // registration's current pin is AccountRegistrationAtomicityTests.
+        // OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails. This legacy orphan stays refused.
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         AuthenticatedWithRedeemableGrant(userId);

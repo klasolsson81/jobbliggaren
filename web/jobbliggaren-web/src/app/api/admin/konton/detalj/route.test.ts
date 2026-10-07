@@ -17,6 +17,7 @@ const DETAIL = {
   role: "User",
   status: "Active",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   deletionEarliest: null,
   applicationCount: 4,

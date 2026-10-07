@@ -13,4 +13,5 @@ public enum AccountStatus
     Active,
     PendingDeletion,
     ProfileMissing,
+    Suspended,
 }

@@ -29,6 +29,47 @@ and is not an observation.
 
 ---
 
+## Amendment pointer 2026-10-07 (#1976) — the original generation and committed request witness
+
+ADR 0155 owns the account access generation and shared physical transaction.
+For this flow it amends D3's record format, D4's pending read, D5's activation,
+D7's swap/audit boundary, D8's cleanup and D9's request payload. A v2 record
+carries its original target revision and a random server-generated `requestId`;
+the request audit carries that same nonce. Both mails must be accepted before
+the witness commits. The request owns two short account-only transactions:
+original actor/target admission and bounded Redis storage, then all database
+scopes and sorted locks are disposed before transport. After the accepted mails,
+the second scope rechecks the original authority, current Admin role, target
+generation, current address, exact pending request, original lifetime and
+destination availability before saving and committing activation. It never
+refreshes the original proof. Generic audit and UnitOfWork do not surround this
+owned request with another transaction or success row.
+
+Completion requires that exact committed event, `User` aggregate, target and
+nonce within the proof's 96-hour lifetime, under the lifecycle and target locks
+and the same transaction as both Identity address writes and the completion
+audit. An actual swap advances epoch, revision, cutoff and stamps independently
+of suspension. A failed audit rolls those writes back; the changed-address
+notice follows known commit, and public completion issues no session. No
+address or credential is added to an audit payload.
+
+D13's "A live change can have no request row" no longer describes a completable
+change: a send failure or known rollback leaves any surviving Redis record
+inert without its committed witness, even if selective revoke fails. An unknown
+activation commit may have committed the witness; report uncertainty without
+asserting failure or automatically replaying the command. The actor need not
+still exist; ordinary erasure nulls actor, IP and user agent while preserving event,
+aggregate and nonce payload under the unchanged 90-day audit retention.
+Genuine v1 pending admin changes are hidden and answer the generic 410, even at
+revision zero. Restart requires a fresh administrator inbox step-up, both mails
+and the full 72-hour delay. Malformed v2 never falls back to v1. Suspension
+invalidates pending and consumed proofs permanently; reinstatement does not
+revive them. Session and pending-change cleanup removes only revisions below
+the new committed revision, including after an address swap. Failed cleanup
+cannot turn a known swap commit into a refusal or revoke a fresh generation.
+D6's admin-wide no-op rule remains unchanged. This pointer asserts no live
+rollout or test result.
+
 ## Context
 
 **An owner without the inbox has no way in.** Self-service (Mina sidor, "Byt e-postadress") proves both inboxes with two

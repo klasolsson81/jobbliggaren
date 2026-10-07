@@ -165,7 +165,9 @@ public sealed class AccountEmailChangeRequestTests(ApiFactory factory)
         row.EventType.ShouldBe("Admin.AccountEmailChangeRequested");
         row.UserId.ShouldBe(admin.UserId);
         row.AggregateType.ShouldBe("User");
-        row.Payload.ShouldBeNull();
+        var payload = JsonDocument.Parse(row.Payload.ShouldNotBeNull()).RootElement;
+        payload.EnumerateObject().Select(property => property.Name).ShouldBe(["requestId"]);
+        payload.GetProperty("requestId").GetGuid().ShouldNotBe(Guid.Empty);
     }
 
     [Fact]

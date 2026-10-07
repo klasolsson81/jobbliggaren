@@ -41,10 +41,8 @@ public interface IUserAccountService
     /// <summary>
     /// Whether a change-email may name <paramref name="newEmail"/> (#1739): a failure when the address carries a
     /// character no stored address may hold (<c>Auth.EmailNotStorable</c>), or when some account holds it as its
-    /// address OR its user name (<c>Auth.EmailTaken</c>). The user name counts because a swap that failed after its
-    /// first write leaves a row whose user name is the new address and whose address is the old one, and that row
-    /// holds the address against everyone but <paramref name="userId"/>, whose retry completes the swap.
-    /// Authoritative uniqueness is still the swap's.
+    /// address OR its user name (<c>Auth.EmailTaken</c>). Both columns count, including historical rows written by
+    /// the retired split-commit swap. Authoritative uniqueness is still the protected swap's.
     /// </summary>
     Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct);
 
@@ -53,8 +51,8 @@ public interface IUserAccountService
     /// D5). The user name is written first and its refusal is fatal, because the unique index is on the user name:
     /// a taken name (the validator's refusal or the index's) is <c>Auth.EmailTaken</c>, any other refusal
     /// <c>Auth.EmailChangeIncomplete</c>. The address write follows, and its failure is fatal as
-    /// <c>Auth.EmailChangeIncomplete</c>, leaving the user name moved and the address kept, a state no one else can
-    /// take and a retry completes. The security stamp rotates with each write. <paramref name="precondition"/> is checked
+    /// <c>Auth.EmailChangeIncomplete</c>. Both writes participate in the caller's protected transaction, so a refusal
+    /// leaves neither a moved user name nor a moved address. <paramref name="precondition"/> is checked
     /// on the account as loaded, before the first write; a failed one is <c>Auth.AccountEmailChangeStale</c> and
     /// writes nothing.
     /// </summary>

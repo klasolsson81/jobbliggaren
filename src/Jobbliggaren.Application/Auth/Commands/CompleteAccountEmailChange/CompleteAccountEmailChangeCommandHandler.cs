@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -14,7 +15,7 @@ namespace Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 /// goes further. From there the change is consumed, and every refusal is the same one answer: an account that is no
 /// longer active, one that now holds Admin or holds another address than the one the change started from, or a new
 /// address someone else has taken. The swap, the notice to the address it replaced and the audit row follow, and
-/// nothing here throws once the swap has committed, so the endpoint's teardown always runs.
+/// post-commit notification failures retain the known success receipt (ADR 0155).
 /// </summary>
 public sealed partial class CompleteAccountEmailChangeCommandHandler(
     IEmailSender emailSender,
@@ -24,7 +25,10 @@ public sealed partial class CompleteAccountEmailChangeCommandHandler(
     IDateTimeProvider clock,
     ICorrelationIdProvider correlationId,
     IRequestContextProvider requestContext,
-    ILogger<CompleteAccountEmailChangeCommandHandler> logger)
+    ILogger<CompleteAccountEmailChangeCommandHandler> logger,
+    IAccountAccessCoordinator coordinator,
+    IAccountAccessReader access,
+    IAccountEmailChangeRequests requests)
     : ICommandHandler<CompleteAccountEmailChangeCommand, Result<AccountEmailChangeOutcome>>
 {
     /// <summary>The <c>audit_log</c> event of a completed change, told apart from self-service's <c>User.EmailChanged</c>.</summary>
@@ -54,25 +58,43 @@ public sealed partial class CompleteAccountEmailChangeCommandHandler(
         if (verdict is not AccountEmailChangeVerdict.Verified { Proof: var proof })
             return Unusable();
 
-        if (!await db.HasLiveProfileAsync(proof.UserId, cancellationToken))
-            return RefusedAfterMatch(proof.UserId, "ProfileNotLive");
-
-        // The account must still hold the address the change was started from and must not hold Admin, checked on the
-        // instance the swap loads, whose concurrency stamp guards its first write.
-        var moved = await addressSwap.MoveAsync(
-            proof.UserId,
-            proof.NewEmail,
-            SwapPrecondition.AdminInitiated(proof.ExpectedCurrent),
-            cancellationToken);
-        if (moved.IsFailure)
-            return RefusedAfterMatch(proof.UserId, moved.Error.Code);
-
-        return Outcome(new AccountEmailChangeOutcome.Completed(proof.UserId, await RecordCompletionAsync(proof.UserId)));
+        long revision;
+        if (coordinator.HasActiveScope)
+            throw new InvalidOperationException("Public address completion must own its transaction.");
+        try
+        {
+            await using (var scope = await coordinator.BeginAsync([proof.UserId], true, cancellationToken))
+            {
+                var account = await access.ReadAsync(proof.UserId, cancellationToken);
+                if (account is null || !proof.Access.Admits(account))
+                    return RefusedAfterMatch(proof.UserId, "AccessProofStale");
+                if (proof.RequestId is not { } requestId || requestId == Guid.Empty
+                    || proof.ExpiresAt <= proof.IssuedAt || proof.ExpiresAt - proof.IssuedAt != AccountEmailChangePolicy.Ttl
+                    || !await requests.HasCommittedRequestAsync(
+                        proof.UserId, requestId, proof.IssuedAt, proof.ExpiresAt, cancellationToken))
+                    return RefusedAfterMatch(proof.UserId, "CommittedRequestUnavailable");
+                var moved = await addressSwap.MoveAsync(
+                    proof.UserId, proof.NewEmail, SwapPrecondition.AdminInitiated(proof.ExpectedCurrent), cancellationToken);
+                if (moved.IsFailure)
+                    return RefusedAfterMatch(proof.UserId, moved.Error.Code);
+                revision = moved.Value.AccessRevision;
+                RecordCompletion(proof.UserId);
+                await db.SaveChangesAsync(cancellationToken);
+                await scope.CommitAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            addressSwap.DiscardNotices();
+            throw;
+        }
+        await addressSwap.NotifyCommittedAsync(CancellationToken.None);
+        return Outcome(new AccountEmailChangeOutcome.Completed(proof.UserId, revision));
     }
 
     // The account's own user id, so the eraser that anonymises an account's rows reaches this one, IP and user agent
     // included; AuditBehavior would stamp the anonymous caller, null.
-    private async Task<bool> RecordCompletionAsync(Guid targetUserId)
+    private void RecordCompletion(Guid targetUserId)
     {
         db.AuditLogEntries.Add(AuditLogEntry.Create(
             occurredAt: clock.UtcNow,
@@ -83,20 +105,6 @@ public sealed partial class CompleteAccountEmailChangeCommandHandler(
             aggregateId: targetUserId,
             ipAddress: requestContext.IpAddress,
             userAgent: requestContext.UserAgent));
-
-        try
-        {
-            await db.SaveChangesAsync(CancellationToken.None);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            // The address has moved, so this must not throw: the teardown has yet to run. Cleared, so the pipeline's
-            // own save does not try the row again.
-            db.ClearTracking();
-            LogAuditRowNotWritten(targetUserId, ex.GetType().Name);
-            return false;
-        }
     }
 
     private Result<AccountEmailChangeOutcome> RefusedAfterMatch(Guid targetUserId, string reason)
@@ -119,7 +127,4 @@ public sealed partial class CompleteAccountEmailChangeCommandHandler(
         "Account email change: refused after a full match for user {TargetUserId} ({Reason}); the change is consumed")]
     private partial void LogRefusedAfterMatch(Guid targetUserId, string reason);
 
-    [LoggerMessage(4006, LogLevel.Error,
-        "Account email change: the audit row was not written for user {TargetUserId} ({ErrorType}); the address had moved")]
-    private partial void LogAuditRowNotWritten(Guid targetUserId, string errorType);
 }

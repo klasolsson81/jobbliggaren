@@ -126,35 +126,55 @@ public static class AuthEndpoints
         // Change-email — CONFIRM step (#679; a grant since #1739). AUTHENTICATED: the grant is redeemed for this
         // user and this address, and only then is the account moved. On success the endpoint owns C6: every
         // session is invalidated and THIS device is issued a fresh one, keeping its lifetime profile. The teardown
-        // is not caught: a failure there answers an error over a committed change, never a 200 claiming other
-        // devices were logged out. CancellationToken.None: the change is committed; a
-        // client disconnect must not leave the account half-rotated.
+        // uses the newly committed revision; cleanup failure leaves old credentials inadmissible.
         group.MapPost("/change-email/confirm", async (
             EmailChangeConfirmRequest body,
             IMediator mediator,
             ISessionStore sessions,
             ICurrentUser currentUser,
+            ILoggerFactory loggers,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(
-                new ConfirmEmailChangeCommand(body.ChangeEmailGrant, body.NewEmail), ct);
-            if (result.IsFailure)
-                return ToErrorResult(result.Error);
-
-            var userId = result.Value;
-
             var lifetime = SessionLifetime.Session;
             if (currentUser.SessionId is { } sessionId)
             {
-                var current = await sessions.GetAsync(sessionId, CancellationToken.None);
+                var current = await sessions.GetAsync(sessionId, ct);
                 if (current is not null)
                     lifetime = current.Lifetime;
             }
+            var result = await mediator.Send(
+                new ConfirmEmailChangeCommand(body.ChangeEmailGrant, body.NewEmail) { ReplacementLifetime = lifetime }, ct);
+            if (result.IsFailure)
+                return ToErrorResult(result.Error);
 
-            // Invalidate-BEFORE-create: CreateAsync SADDs into the user index that
-            // InvalidateAllForUserAsync snapshots-then-deletes.
-            await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
-            var reissued = await sessions.CreateAsync(userId, lifetime, CancellationToken.None);
+            var userId = result.Value.UserId;
+
+            var logger = loggers.CreateLogger("AccountEmailChange");
+            try
+            {
+                await sessions.InvalidateBeforeRevisionAsync(
+                    userId, result.Value.Authorization.AccessRevision, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                AccountEmailChangeLog.TeardownFailed(logger, userId, ex.GetType().Name);
+            }
+
+            Session? reissued;
+            try
+            {
+                reissued = await sessions.CreateCommittedAsync(result.Value.Authorization, lifetime, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                AccountEmailChangeLog.TeardownFailed(logger, userId, ex.GetType().Name);
+                reissued = null;
+            }
+
+            if (reissued is null)
+                return Results.Problem(statusCode: StatusCodes.Status401Unauthorized,
+                    title: "Auth.SessionUnavailable",
+                    detail: "E-postadressen har ändrats. Logga in igen för att fortsätta.");
 
             return Results.Ok(new
             {
@@ -168,9 +188,7 @@ public static class AuthEndpoints
         // account's current address, the new address and the code mailed there, and no session is read or issued.
         // Every refusal is one 410 with one body; a full match before the delay is a 409 carrying the earliest instant;
         // a sender that cannot deliver is a 503 decided by the handler's first statement, before the store is asked.
-        // On success every session of the account is invalidated and the answer is 204. CancellationToken.None: a
-        // disconnect must abort neither the swap nor its teardown, and anything that fails after the swap answers 500,
-        // never a 503 that would invite a retry the refusal then meets.
+        // Known commit returns 204 even when Redis cleanup fails; old revisions fail the primary check.
         group.MapPost("/account-email-change/complete", async (
             AccountEmailChangeCompleteRequest body,
             IMediator mediator,
@@ -348,24 +366,21 @@ public static class AuthEndpoints
         statusCode: StatusCodes.Status409Conflict,
         extensions: new Dictionary<string, object?> { ["completableFrom"] = completableFrom });
 
-    // The swap has committed, so the sessions go whatever happened to the audit row, and the answer is success only
-    // when both the teardown and the row are done.
+    // The address, revision and audit committed together; Redis cleanup retains that receipt.
     private static async Task<IResult> AccountEmailChangeTeardownAsync(
         AccountEmailChangeOutcome.Completed completed, ISessionStore sessions, ILogger logger)
     {
         try
         {
-            await sessions.InvalidateAllForUserAsync(completed.UserId, CancellationToken.None);
+            await sessions.InvalidateBeforeRevisionAsync(
+                completed.UserId, completed.AccessRevision, CancellationToken.None);
         }
         catch (Exception ex)
         {
             AccountEmailChangeLog.TeardownFailed(logger, completed.UserId, ex.GetType().Name);
-            return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
         }
 
-        return completed.AuditRecorded
-            ? Results.NoContent()
-            : Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
+        return Results.NoContent();
     }
 
     // Every outcome is a 200 carrying `outcome`. Internal so a test can hand it every variant: the default

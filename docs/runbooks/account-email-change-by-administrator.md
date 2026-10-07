@@ -43,8 +43,31 @@ This is the one statement of the rule. Other runbooks point here.
    they need the account's current address and the code that was sent to the new address, and when they can use it.
    Never ask for the code and never send it.
 
-If the request's answer is lost (the panel says it cannot see whether the code was sent), open the account again:
-the pending row shows whether a change waits. If one waits that you cannot account for, cancel it and start again.
+If the request's answer is lost or the panel reports an unknown outcome, do not automatically repeat it. Open the
+account again to inspect current state. A pending row is a storage snapshot, not a receipt that this particular
+command committed or that both mails were accepted. If a change waits that you cannot account for, cancel it and
+start again with a new code to your own inbox and both request mails; the full delay starts over.
+
+Completion requires the exact committed request witness for that v2 change, as well as its original account access
+generation. A Redis record alone cannot activate it. A lost mail reply does not prove the recipient got nothing;
+without the committed witness any surviving record or delivered code remains unusable. An unknown activation
+commit may have committed that witness, so it must not be described as a confirmed cancellation or failure.
+The server checks the random request id against the exact committed `Admin.AccountEmailChangeRequested` event,
+`User` aggregate and target within the proof's original 96-hour lifetime, under the same account lock and
+transaction as the swap. No address or credential is added to that audit payload (ADR 0153's 2026-10-07 amendment and
+[ADR 0155](../decisions/0155-account-access-transitions-fence-sessions-and-original-authentication-proofs.md)).
+
+The server releases the first short account transaction and every lock before sending the current-address warning
+and then the new-address code. Both mails must be accepted. A second short transaction rechecks the original
+administrator/session authority, Admin role, target generation, current address, exact pending request, original
+lifetime and destination availability before committing activation. It does not refresh the original proof while
+mail transport waits. A send failure or known rollback leaves any surviving record inert even if cleanup fails.
+
+Completion changes user name and email, advances the target's credential generation and records its completion
+audit in one transaction. It leaves suspension state unchanged and issues no session; the owner must log in at
+the new address. After a known commit, failed Redis cleanup cannot turn the real address-change receipt into a
+refusal. Cleanup removes only older generations, preserving a fresh login. The old-address completion notice is
+sent only after that commit. An unknown commit supplies no success receipt and is never automatically replayed.
 
 ## While the change waits
 
@@ -54,6 +77,11 @@ the pending row shows whether a change waits. If one waits that you cannot accou
   persuasive.
 - A restart of the volatile Redis instance cancels every pending change. The panel then shows none; start again if
   the request still stands. The current address is told again and the delay starts over.
+- Suspending the account permanently invalidates its pending change and any already consumed proof. Reinstating
+  access does not revive either. A new change may be started only when the account is active again.
+- During the #1976 rollout, genuine v1 pending admin changes are hidden from the panel and receive the public
+  page's generic 410, including for accounts that have never been suspended. Restart with a fresh inbox step-up,
+  both newly accepted request mails and a new full 72-hour delay. An old code cannot complete the restarted change.
 
 ## Never
 

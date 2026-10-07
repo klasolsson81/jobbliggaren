@@ -125,15 +125,9 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
     [Fact]
     public async Task An_identity_row_without_a_profile_gets_its_record_and_is_mailed_nothing()
     {
-        // The orphan the registration path leaves when the Identity user committed and the profile did not
-        // (#1349).
+        // Historical pre-#1976 registrar orphan. AccountRegistrationAtomicityTests pins the current writer.
         var email = NewAddress("orphan");
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-                .CreatePasswordlessUserAsync(email, Ct);
-            created.IsSuccess.ShouldBeTrue();
-        }
+        await Admin.AdminAccountsKit.CreateWithoutProfileAsync(_factory, email, Ct);
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email }, Ct);
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
@@ -172,14 +166,8 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
         var (challengeId, mail) = await MintAsync(email);
         var code = mail.ShouldBeOfType<LoginChallengeEmail.NewAccountCode>().Code.Reveal();
 
-        // A sibling complete whose Identity write committed and whose profile save did not
-        // (AccountRegistrar.OpenAsync): the creator's half alone.
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-                .CreatePasswordlessUserAsync(email, Ct);
-            created.IsSuccess.ShouldBeTrue();
-        }
+        // An older registrar orphan revealed after delivery; the current atomic registrar cannot create it.
+        await Admin.AdminAccountsKit.CreateWithoutProfileAsync(_factory, email, Ct);
 
         var body = await VerifiedAsync(challengeId, code);
 

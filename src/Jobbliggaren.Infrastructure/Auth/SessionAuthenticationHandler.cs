@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
@@ -93,6 +94,7 @@ public sealed class SessionAuthenticationHandler(
 
         // Store session-id so endpoints (e.g. logout) can retrieve it without re-parsing the header.
         Context.Items["SessionId"] = sessionId;
+        Context.Items[AuthenticatedSessionKeys.AccessRevision] = session.AccessRevision;
 
         return AuthenticateResult.Success(ticket);
     }

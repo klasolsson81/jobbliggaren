@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -18,7 +19,8 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
     IEmailSender emailSender,
     IRateBudget budget,
     IOptions<AuthEmailCooldownOptions> cooldownOptions,
-    ILoginChallengeStore store)
+    ILoginChallengeStore store,
+    IAccountAccessReader access)
     : ICommandHandler<RequestReauthenticationChallengeCommand, Result<ChallengeId>>
 {
     private readonly RateBudgetScope _cooldown = LoginChallengePolicy.ReauthCooldown(
@@ -33,6 +35,10 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
                 DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att begära en kod."));
 
         var userId = currentUser.UserId.Value;
+        var original = await access.ReadCurrentProofAsync(currentUser, cancellationToken);
+        if (original is null)
+            return Result.Failure<ChallengeId>(DomainError.Validation(
+                AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
 
         // 1. CAPABILITY, first, reading no input and spending no budget (the RequestLoginChallenge precedent).
         if (!emailSender.CanDeliver)
@@ -69,7 +75,8 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
         // throws propagates, as ChangeEmailCommandHandler's does.
         var challengeId = ChallengeId.Generate();
         var code = await store.PutBoundAsync(
-            new NewBoundChallenge(challengeId, email, new ChallengeBinding(ChallengePurpose.Reauthentication, userId)),
+            new NewBoundChallenge(challengeId, email, new ChallengeBinding(ChallengePurpose.Reauthentication, userId))
+            { Access = original },
             cancellationToken);
 
         await emailSender.SendLoginChallengeAsync(

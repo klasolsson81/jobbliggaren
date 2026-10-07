@@ -23,7 +23,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// <c>AddressSwapWriteOrderTests</c>. The credential was the code proven in the new inbox, so the swap verifies
 /// no token of its own.
 /// </summary>
-public class UserAccountServiceAddressSwapTests
+public class UserAccountServiceAddressSwapTests : IAsyncDisposable
 {
     private const string OldEmail = "gammal@example.se";
     private const string NewEmail = "ny@example.se";
@@ -42,10 +42,14 @@ public class UserAccountServiceAddressSwapTests
         UserName = OldEmail,
     };
     private readonly UserAccountService _sut;
+    private readonly AccountAccessTestKit.RecordingAccountAccessCoordinator _access = AccountAccessTestKit.Coordinator();
+    private bool _accountExists = true;
 
     public UserAccountServiceAddressSwapTests()
     {
-        _sut = new UserAccountService(_userManager, _logger, _dbExceptionInspector);
+        _sut = new UserAccountService(_userManager, _logger, _dbExceptionInspector, _access,
+            AccountAccessTestKit.Reader(id => id == _user.Id && _accountExists
+                ? AccountAccessTestKit.Account(_user.Id, _user.Email!) : null));
 
         _userManager.FindByIdAsync(_user.Id.ToString()).Returns(_user);
         _userManager.SetUserNameAsync(_user, NewEmail).Returns(IdentityResult.Success);
@@ -53,17 +57,31 @@ public class UserAccountServiceAddressSwapTests
         _userManager.ChangeEmailAsync(_user, NewEmail, FreshToken).Returns(IdentityResult.Success);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        await _access.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
+
     private Task<Result<AddressSwapped>> SwapAsync(string newEmail = NewEmail) =>
-        _sut.SwapConfirmedAddressAsync(_user.Id, newEmail, SwapPrecondition.None, TestContext.Current.CancellationToken);
+        InAccessScopeAsync(newEmail, SwapPrecondition.None);
+
+    private async Task<Result<AddressSwapped>> InAccessScopeAsync(string newEmail, SwapPrecondition precondition)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var transaction = await _access.BeginAsync([_user.Id], lifecycle: false, ct);
+        var result = await _sut.SwapConfirmedAddressAsync(_user.Id, newEmail, precondition, ct);
+        if (result.IsSuccess)
+            await transaction.CommitAsync(ct);
+        return result;
+    }
 
     // #1975 — the precondition an administrator-initiated change carries: the fingerprint of the address it was started
     // from, by the one normaliser every key uses.
     private Task<Result<AddressSwapped>> SwapStartedFromAsync(string startedFrom) =>
-        _sut.SwapConfirmedAddressAsync(
-            _user.Id,
+        InAccessScopeAsync(
             NewEmail,
-            SwapPrecondition.AdminInitiated(new ExpectedCurrentAddress(SubjectFingerprint.Hex(startedFrom))),
-            TestContext.Current.CancellationToken);
+            SwapPrecondition.AdminInitiated(new ExpectedCurrentAddress(SubjectFingerprint.Hex(startedFrom))));
 
     private async Task TheAddressIsNeverWritten() =>
         await _userManager.DidNotReceive().ChangeEmailAsync(
@@ -173,6 +191,7 @@ public class UserAccountServiceAddressSwapTests
     public async Task SwapConfirmedAddressAsync_ShouldWriteNothing_WhenTheAccountIsGone()
     {
         _userManager.FindByIdAsync(_user.Id.ToString()).Returns((ApplicationUser?)null);
+        _accountExists = false;
 
         var result = await SwapAsync();
 
@@ -241,7 +260,7 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task SwapConfirmedAddressAsync_ShouldRefuseLogAndLeaveTheUserNameWritten_WhenTheAddressWriteFails()
+    public async Task SwapConfirmedAddressAsync_ShouldRefuseLogAndAbortTheCallerScope_WhenTheAddressWriteFails()
     {
         _userManager.ChangeEmailAsync(_user, NewEmail, FreshToken)
             .Returns(IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure()));
@@ -251,8 +270,11 @@ public class UserAccountServiceAddressSwapTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailChangeIncomplete);
 
-        // The user name is written once, to the new address, and never written back: releasing it would hand the
-        // contested name to the other swap while this row's change stands refused.
+        // Both writes belong to the caller's transaction. This port-level unit test witnesses refusal
+        // and absence of commit; the durable PostgreSQL pin is
+        // AddressSwapWriteOrderTests.Confirmed_swap_leaves_both_names_unchanged_when_its_audit_save_fails.
+        _access.Commits.ShouldBe(0);
+        _access.Rollbacks.ShouldBe(1);
         await _userManager.Received(1).SetUserNameAsync(Arg.Any<ApplicationUser>(), Arg.Any<string>());
         await _userManager.Received(1).SetUserNameAsync(_user, NewEmail);
 

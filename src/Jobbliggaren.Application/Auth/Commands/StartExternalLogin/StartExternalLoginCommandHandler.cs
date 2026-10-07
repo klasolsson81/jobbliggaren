@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -15,6 +16,7 @@ public sealed partial class StartExternalLoginCommandHandler(
     RegisteredProviders providers,
     IOAuthStateStore states,
     IRateBudget budget,
+    IAccountAccessReader access,
     ILogger<StartExternalLoginCommandHandler> logger)
     : ICommandHandler<StartExternalLoginCommand, Result<ExternalLoginStart>>
 {
@@ -37,7 +39,10 @@ public sealed partial class StartExternalLoginCommandHandler(
 
         var verifier = PkceVerifier.Generate();
         var state = await states.PutAsync(
-            new OAuthFlow(provider.Key, verifier, command.Next), cancellationToken);
+            new OAuthFlow(provider.Key, verifier, command.Next)
+            {
+                Access = new AccountAccessProof(await access.ReadEpochAsync(cancellationToken)),
+            }, cancellationToken);
 
         return Result.Success(new ExternalLoginStart(provider.BuildAuthorizeUrl(state, verifier.ToChallenge()), state));
     }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountsListing } from "@/lib/admin/account-directory";
+import type { AdminAccessOperation, AdminAccessOutcome } from "@/lib/admin/account-access";
 import type {
   AdminEmailChangeCancelOutcome,
   AdminEmailChangeRequestOutcome,
@@ -11,15 +12,17 @@ import type { AdminSelf } from "@/lib/admin/view-models";
 import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { toAccountsPage, type AccountDetailsDto, type AccountSearchResponse } from "@/lib/dto/admin-accounts";
 
-const { requestActionMock, cancelActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
+const { requestActionMock, cancelActionMock, accessActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
   requestActionMock: vi.fn<(accountId: string, newEmail: string, proof: CodeProof) => Promise<AdminEmailChangeRequestOutcome>>(),
   cancelActionMock: vi.fn<(accountId: string) => Promise<AdminEmailChangeCancelOutcome>>(),
+  accessActionMock: vi.fn<(accountId: string, operation: AdminAccessOperation, proof: CodeProof) => Promise<AdminAccessOutcome>>(),
   requestReauthCodeMock: vi.fn<() => Promise<ReauthRequestResult>>(),
 }));
 
 vi.mock("@/lib/actions/admin-accounts", () => ({
   requestAccountEmailChangeAction: requestActionMock,
   cancelAccountEmailChangeAction: cancelActionMock,
+  changeAccountAccessAction: accessActionMock,
 }));
 vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: requestReauthCodeMock }));
 
@@ -36,6 +39,7 @@ const A: Item = {
   role: "User",
   status: "Active",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   deletionEarliest: null,
   applicationCount: 4,
@@ -47,6 +51,7 @@ const B: Item = {
   role: "User",
   status: "ProfileMissing",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: null,
   deletionEarliest: null,
   applicationCount: null,
@@ -62,6 +67,7 @@ function countsOf(matched: ReadonlyArray<Item>): AccountSearchResponse["counts"]
     active: count("Active"),
     pendingDeletion: count("PendingDeletion"),
     profileMissing: count("ProfileMissing"),
+    suspended: count("Suspended"),
   };
 }
 
@@ -155,6 +161,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   requestActionMock.mockReset();
   cancelActionMock.mockReset();
+  accessActionMock.mockReset();
   requestReauthCodeMock.mockReset();
   requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: "step-up-challenge" });
 });
@@ -448,7 +455,7 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     expect(within(dialog).queryByRole("alert")).toBeNull();
   });
 
-  it("offers the address change live, and every other action as Kommer snart (ADR 0150 D4)", async () => {
+  it("offers address change and suspension live, with the remaining actions as Kommer snart", async () => {
     serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
     render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
@@ -458,7 +465,7 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
       "Agera som användaren Kommer snart",
       "Ändra e-postadress",
       "Skicka inloggningslänk Kommer snart",
-      "Suspendera konto Kommer snart",
+      "Stäng av åtkomst",
       "Radera konto Kommer snart",
       "Radera permanent Kommer snart",
     ]);
@@ -740,5 +747,257 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     expect(actionNames(panelD)).toContain("Avbryt adressbytet");
     expect(callsTo(DETAIL_ROUTE)).toEqual([{ id: A.id }, { id: D.id }]);
     expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: D.id }]);
+  });
+});
+
+describe("AccountsDirectory — suspend and reinstate access (#1976)", () => {
+  const SUSPENDED: Item = { ...A, status: "Suspended", isSuspended: true };
+  const DELETING: Item = { ...SUSPENDED, status: "PendingDeletion", deletionEarliest: "2026-11-07" };
+  const PENDING_READ = {
+    pending: { state: "Pending", completableFrom: "2026-10-08T12:00:00Z", expiresAt: "2026-10-09T12:00:00Z" },
+  };
+  const SPENT = "Koden du skrev in är förbrukad, så du behöver en ny kod när du försöker igen.";
+  const receipt = (isSuspended: boolean, pendingDeletion = false): AdminAccessOutcome => ({
+    ok: true, value: { userId: A.id, isSuspended, accessRevision: isSuspended ? 1 : 2, pendingDeletion },
+  });
+
+  async function openAccount() {
+    await userEvent.click(screen.getByRole("button", { name: A.email! }));
+    const panel = screen.getByRole("dialog", { name: A.email! });
+    await within(panel).findByText("CV:n");
+    return panel;
+  }
+
+  async function beginAccess(user: ReturnType<typeof userEvent.setup>, panel: HTMLElement, operation: AdminAccessOperation) {
+    const action = operation === "suspend" ? "Stäng av åtkomst" : "Återaktivera åtkomst";
+    await user.click(within(panel).getByRole("button", { name: action }));
+    const dialog = await screen.findByRole("dialog", {
+      name: operation === "suspend" ? `Stäng av åtkomsten för ${A.email}?` : `Återaktivera åtkomsten för ${A.email}?`,
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Skicka kod" }));
+    const code = await within(dialog).findByLabelText("Sexsiffrig kod");
+    await waitFor(() => expect(code).toHaveFocus());
+    await user.type(code, "123456");
+    return { dialog, submit: within(dialog).getByRole("button", { name: action }) };
+  }
+
+  it("confirms suspension and permanent cancellation of the pending address change before requesting any code", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: () => json(PENDING_READ) });
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const trigger = within(panel).getByRole("button", { name: "Stäng av åtkomst" });
+
+    await userEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: `Stäng av åtkomsten för ${A.email}?` });
+    expect(dialog).toHaveAccessibleDescription(/Det väntande adressbytet avbryts\./);
+    expect(dialog).toHaveTextContent("Alla sessioner avslutas.");
+    expect(dialog).toHaveTextContent(SELF.email);
+    expect(requestReauthCodeMock).not.toHaveBeenCalled();
+    expect(accessActionMock).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(within(panel).getByRole("button", { name: "Avbryt adressbytet" })).toBeInTheDocument();
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("suspends through the real code dialog and refreshes the panel, list, counters and address change from server answers", async () => {
+    serve({
+      [DETAIL_ROUTE]: [() => json(DETAIL), () => json({ ...DETAIL, ...SUSPENDED })],
+      [EMAIL_CHANGE_ROUTE]: [() => json(PENDING_READ), NOTHING_PENDING],
+      [LIST]: () => json(answer([SUSPENDED, B, C])),
+    });
+    accessActionMock.mockResolvedValue(receipt(true));
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    expect(accessActionMock).toHaveBeenCalledExactlyOnceWith(A.id, "suspend", {
+      challengeId: "step-up-challenge", code: "123456",
+    });
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Återaktivera åtkomst" })).toBeInTheDocument());
+    expect(within(panel).getByText("Avstängd")).toBeInTheDocument();
+    expect(within(panel).queryByText("Adressbyte")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Stäng av åtkomst" })).toBeNull();
+    await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+    expect(callsTo(DETAIL_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+    expect(callsTo(EMAIL_CHANGE_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+    expect(getAdminToastSnapshot()?.message).toBe(`Åtkomsten för ${A.email} är avstängd.`);
+    await waitFor(() => expect(within(panel).getByRole("heading", { name: A.email! })).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("radio", { name: "Avstängda (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Aktiva (0)" })).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Konton" })).getAllByRole("row")[1]).toHaveTextContent("Avstängd");
+  });
+
+  it("reinstates a suspended account under deletion with its own code confirmation and a receipt that deletion continues", async () => {
+    const reinstated: Item = { ...DELETING, isSuspended: false };
+    serve({
+      [DETAIL_ROUTE]: [() => json({ ...DETAIL, ...DELETING }), () => json({ ...DETAIL, ...reinstated })],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+      [LIST]: () => json(answer([reinstated])),
+    });
+    accessActionMock.mockResolvedValue(receipt(false, true));
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([DELETING])) }} self={SELF} />);
+    const panel = await openAccount();
+    expect(within(panel).getByText("Åtkomst").nextElementSibling).toHaveTextContent("Avstängd");
+    const { dialog, submit } = await beginAccess(user, panel, "reinstate");
+    expect(dialog).toHaveAccessibleDescription(/Tidigare sessioner återaktiveras inte\./);
+    expect(dialog).toHaveAccessibleDescription(/Raderingen fortsätter\./);
+
+    await user.click(submit);
+
+    expect(accessActionMock).toHaveBeenCalledExactlyOnceWith(A.id, "reinstate", {
+      challengeId: "step-up-challenge", code: "123456",
+    });
+    await waitFor(() => expect(within(panel).queryByText("Åtkomst")).toBeNull());
+    expect(within(panel).getByText("Under radering")).toBeInTheDocument();
+    expect(within(panel).getByText("Raderas slutgiltigt").nextElementSibling).toHaveTextContent("2026-11-07");
+    expect(getAdminToastSnapshot()?.message).toBe(
+      `Åtkomsten för ${A.email} är återaktiverad. Kontoägaren behöver logga in igen. Raderingen fortsätter.`,
+    );
+  });
+
+  it("shows and focuses the direct reinstatement command's refusal in Åtgärder and publishes no success receipt (#1994)", async () => {
+    const refusal = `Kontots åtkomst är redan återaktiverad. ${SPENT}`;
+    serve({
+      [DETAIL_ROUTE]: [() => json({ ...DETAIL, ...SUSPENDED }), () => json(DETAIL)],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+      [LIST]: () => json(answer([A])),
+    });
+    // Another administrator reinstated the account after the panel read it; the command returns its real no-op refusal.
+    accessActionMock.mockResolvedValue({ ok: false, kind: "operationRefused", channel: "status", error: refusal });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([SUSPENDED])) }} self={SELF} />);
+    const panel = await openAccount();
+    const { submit } = await beginAccess(user, panel, "reinstate");
+
+    await user.click(submit);
+
+    const actions = within(panel).getByRole("region", { name: "Åtgärder" });
+    const alert = await within(actions).findByRole("alert");
+    expect(alert).toHaveTextContent(refusal);
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(accessActionMock).toHaveBeenCalledExactlyOnceWith(A.id, "reinstate", {
+      challengeId: "step-up-challenge", code: "123456",
+    });
+    expect(getAdminToastSnapshot()).toBeNull();
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(2);
+  });
+
+  it("keeps an unknown command outcome uncertain even when a later read finds the account suspended", async () => {
+    const uncertainty = `Det går inte att bekräfta om åtgärden genomfördes. ${SPENT}`;
+    serve({
+      [DETAIL_ROUTE]: [() => json(DETAIL), () => json({ ...DETAIL, ...SUSPENDED })],
+      [EMAIL_CHANGE_ROUTE]: [() => json(PENDING_READ), NOTHING_PENDING],
+      [LIST]: () => json(answer([SUSPENDED])),
+    });
+    accessActionMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: uncertainty });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    const status = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("status");
+    expect(status).toHaveTextContent(uncertainty);
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(await within(panel).findByText("Avstängd")).toBeInTheDocument();
+    expect(getAdminToastSnapshot()).toBeNull();
+    expect(accessActionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a wrong code at the focused code field and spends no second challenge", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    const error = "Koden stämmer inte. Kontrollera siffrorna och försök igen.";
+    accessActionMock.mockResolvedValue({ ok: false, kind: "wrongCode", error });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { dialog, submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    const code = within(dialog).getByLabelText("Sexsiffrig kod");
+    await waitFor(() => expect(code).toHaveFocus());
+    expect(code).toHaveValue("");
+    expect(code).toHaveAttribute("aria-invalid", "true");
+    expect(code).toHaveAccessibleDescription(/Koden stämmer inte\. Kontrollera siffrorna och försök igen\./);
+    expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(1);
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("returns a rate-limited command to Åtgärder with the spent-code message and no receipt", async () => {
+    const error = `För många förfrågningar. Försök igen om 6 sekunder. ${SPENT}`;
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([A])) });
+    accessActionMock.mockResolvedValue({ ok: false, kind: "operationRefused", channel: "status", error });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    const alert = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("alert");
+    expect(alert).toHaveTextContent(error);
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("keeps session expiry in the code dialog with a focused status and the return-to-admin login link", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    accessActionMock.mockResolvedValue({ ok: false, kind: "notLoggedIn" });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { dialog, submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    const status = await within(dialog).findByRole("status");
+    expect(status).toHaveTextContent("Du är inte inloggad längre. Logga in igen och börja om.");
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(within(dialog).getByRole("link", { name: "Logga in" })).toHaveAttribute("href", "/logga-in?next=/admin/anvandare");
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(1);
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("disables a pending access write and keeps its dialog open until the command answers", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(DETAIL), [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([A])) });
+    let settle: (outcome: AdminAccessOutcome) => void = () => {};
+    accessActionMock.mockImplementation(() => new Promise((resolve) => (settle = resolve)));
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const panel = await openAccount();
+    const { dialog, submit } = await beginAccess(user, panel, "suspend");
+
+    await user.click(submit);
+
+    expect(within(dialog).getByRole("button", { name: "Stänger av…" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
+    await user.keyboard("{Escape}{Enter}");
+    expect(dialog).toBeInTheDocument();
+    expect(accessActionMock).toHaveBeenCalledTimes(1);
+    expect(getAdminToastSnapshot()).toBeNull();
+    await act(async () => settle({ ok: false, kind: "operationRefused", channel: "status", error: "Kontots åtkomst är redan avstängd." }));
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Kontots åtkomst är redan avstängd.");
+  });
+
+  it("sends the suspended filter under its backend name", async () => {
+    fetchMock.mockResolvedValue(json(answer([SUSPENDED])));
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    await userEvent.click(screen.getByRole("radio", { name: "Avstängda (0)" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(call(0).body).toMatchObject({ status: "Suspended", page: 1 });
+    expect(await screen.findByRole("radio", { name: "Avstängda (1)" })).toHaveAttribute("aria-checked", "true");
   });
 });

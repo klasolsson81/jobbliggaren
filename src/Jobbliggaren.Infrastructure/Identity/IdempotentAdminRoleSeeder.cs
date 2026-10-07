@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,10 +60,18 @@ internal sealed partial class IdempotentAdminRoleSeeder(
 
         try
         {
+            var coordinator = sp.GetRequiredService<IAccountAccessCoordinator>();
+            var access = sp.GetRequiredService<IAccountAccessReader>();
+            var candidate = string.IsNullOrWhiteSpace(_options.InitialAdminEmail)
+                ? null : await userManager.FindByEmailAsync(_options.InitialAdminEmail);
+            await using var accessScope = await coordinator.BeginAsync(
+                candidate is null ? [] : [candidate.Id], true, cancellationToken);
             await EnsureAdminRoleExistsAsync(roleManager, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(_options.InitialAdminEmail))
-                await EnsureUserIsAdminAsync(userManager, _options.InitialAdminEmail, cancellationToken);
+                await EnsureUserIsAdminAsync(userManager, access, candidate?.Id,
+                    _options.InitialAdminEmail, cancellationToken);
+            await accessScope.CommitAsync(cancellationToken);
         }
         catch (PostgresException ex) when (ex.SqlState == "42P01" && IsSchemaInitGracePeriod(hostEnvironment))
         {
@@ -121,13 +130,15 @@ internal sealed partial class IdempotentAdminRoleSeeder(
 
     private async Task EnsureUserIsAdminAsync(
         UserManager<ApplicationUser> userManager,
+        IAccountAccessReader access,
+        Guid? lockedCandidateId,
         string email,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         var user = await userManager.FindByEmailAsync(email);
-        if (user is null)
+        if (user is null || user.Id != lockedCandidateId)
         {
             LogAdminUserNotFound(logger);
             return;
@@ -136,6 +147,12 @@ internal sealed partial class IdempotentAdminRoleSeeder(
         if (await userManager.IsInRoleAsync(user, Roles.Admin))
         {
             LogAdminAlreadyAssigned(logger, user.Id);
+            return;
+        }
+
+        if ((await access.ReadAsync(user.Id, ct))?.CanAuthenticate != true)
+        {
+            LogAdminCandidateUnavailable(logger, user.Id);
             return;
         }
 
@@ -185,4 +202,8 @@ internal sealed partial class IdempotentAdminRoleSeeder(
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
         Message = "AdminBootstrap.InitialAdminEmail names user {UserId}, who does not hold the Admin role while another account does. Nothing is assigned.")]
     private static partial void LogAddressNamesANonHolder(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Warning,
+        Message = "Admin bootstrap refused unavailable account {UserId}")]
+    private static partial void LogAdminCandidateUnavailable(ILogger logger, Guid userId);
 }

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { AdminAccountsToolbar } from "./admin-accounts-toolbar";
 import { AdminAccountsPager, AdminAccountsSummary } from "./admin-accounts-pager";
 
-const COUNTS = { all: 12, active: 8, pendingDeletion: 1, profileMissing: 3 } as const;
+const COUNTS = { all: 14, active: 8, suspended: 2, pendingDeletion: 1, profileMissing: 3 } as const;
 
 describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
   it("while unbuilt, disables the search and the filter and points both to the Kommer snart line", () => {
@@ -18,6 +18,7 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(within(filter).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
       "Alla",
       "Aktiva",
+      "Avstängda",
       "Under radering",
       "Ofullständiga",
     ]);
@@ -70,7 +71,7 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
     expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
       "Alla",
       "Aktiva",
-      "Suspenderade",
+      "Avstängda",
       "Under radering",
       "Ofullständiga",
     ]);
@@ -81,6 +82,7 @@ describe("AdminAccountsToolbar (ADR 0150 D2/D3)", () => {
       <AdminAccountsToolbar filter="active" onQueryChange={() => {}} onFilterChange={() => {}} counts={COUNTS} />,
     );
     expect(screen.getByRole("radio", { name: "Aktiva (8)" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Avstängda (2)" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Ofullständiga (3)" })).toBeInTheDocument();
     unmount();

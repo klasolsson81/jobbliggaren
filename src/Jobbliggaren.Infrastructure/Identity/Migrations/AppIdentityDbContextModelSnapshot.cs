@@ -18,10 +18,38 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("identity")
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.Identity.AccountSecurityEpoch", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<long>("Value")
+                        .HasColumnType("bigint")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_account_security_epoch");
+
+                    b.ToTable("account_security_epoch", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_account_security_epoch_nonnegative", "value >= 0");
+
+                            t.HasCheckConstraint("ck_account_security_epoch_singleton", "id = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Value = 0L
+                        });
+                });
 
             modelBuilder.Entity("Jobbliggaren.Infrastructure.Identity.ApplicationUser", b =>
                 {
@@ -34,6 +62,12 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("access_failed_count");
 
+                    b.Property<long>("AccessRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("access_revision");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text")
@@ -45,6 +79,12 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<long>("CredentialCutoff")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("credential_cutoff");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -53,6 +93,12 @@ namespace Jobbliggaren.Infrastructure.Identity.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean")
                         .HasColumnName("email_confirmed");
+
+                    b.Property<bool>("IsSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_suspended");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean")

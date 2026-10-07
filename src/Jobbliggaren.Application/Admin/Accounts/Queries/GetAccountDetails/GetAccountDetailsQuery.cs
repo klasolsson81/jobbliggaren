@@ -20,7 +20,8 @@ public sealed record AccountDetailsDto(
     DateOnly? DeletionEarliest,
     int? ApplicationCount,
     int? ResumeCount,
-    int? SavedSearchCount)
+    int? SavedSearchCount,
+    bool IsSuspended = false)
 {
     public override string ToString() => $"AccountDetailsDto({Id}, {Status})";
 }

@@ -21,13 +21,9 @@ public sealed record VerifiedEmail
     /// <summary>Null for anything that is not one address of a local part and a domain within the length bound.</summary>
     public static VerifiedEmail? TryCreate(string? address)
     {
-        if (string.IsNullOrEmpty(address) || address.Length > EmailAddressRules.MaximumLength)
+        if (!EmailAddressRules.IsUsableInboxAddress(address))
             return null;
 
-        var at = address.IndexOf('@', StringComparison.Ordinal);
-        if (at <= 0 || at == address.Length - 1 || address.IndexOf('@', at + 1) >= 0)
-            return null;
-
-        return new VerifiedEmail(address);
+        return new VerifiedEmail(address!);
     }
 }

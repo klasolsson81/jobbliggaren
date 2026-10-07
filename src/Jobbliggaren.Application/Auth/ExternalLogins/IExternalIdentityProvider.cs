@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth.Access;
+
 namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
@@ -31,4 +33,7 @@ public sealed record ExternalIdentity(ExternalProviderKey Provider, ExternalSubj
 /// An OAuth proof on its way to the outcome function (ADR 0142 D8, security-auditor m-3): the address stays a
 /// <see cref="VerifiedEmail"/> until the account is resolved, so no caller can hand the outcome an unverified string.
 /// </summary>
-public sealed record ExternalLoginProof(VerifiedEmail Email, ExternalProviderKey Provider, ExternalSubject Subject);
+public sealed record ExternalLoginProof(VerifiedEmail Email, ExternalProviderKey Provider, ExternalSubject Subject)
+{
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
+}

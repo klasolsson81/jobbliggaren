@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using StackExchange.Redis;
 
@@ -37,6 +38,12 @@ public sealed class SessionStoreResilienceDecorator(ISessionStore inner) : ISess
 
     public Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct) =>
         Guard(() => inner.CreateAsync(userId, lifetime, ct));
+
+    public Task<Session?> CreateAsync(Guid userId, AccountAccessProof proof, SessionLifetime lifetime, CancellationToken ct) =>
+        Guard(() => inner.CreateAsync(userId, proof, lifetime, ct));
+
+    public Task<int> InvalidateBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct) =>
+        Guard(() => inner.InvalidateBeforeRevisionAsync(userId, accessRevision, ct));
 
     public Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct) =>
         Guard(() => inner.RotateAsync(current, ct));

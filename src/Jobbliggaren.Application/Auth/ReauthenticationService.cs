@@ -1,6 +1,9 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.Auth;
 
@@ -9,12 +12,14 @@ namespace Jobbliggaren.Application.Auth;
 /// against the session's user, then the Layer 1 soft-delete liveness gate runs. Since #1739 the credential
 /// is a purpose-scoped grant (ADR 0142 D5), earned by the code mailed to the account's own address.
 /// </summary>
-public sealed class ReauthenticationService(
+public sealed partial class ReauthenticationService(
     ICurrentUser currentUser,
     IGrantStore grants,
     IAppDbContext db,
     ISessionStore sessionStore,
-    IAuthAuditLogger audit)
+    IAuthAuditLogger audit,
+    IAccountAccessReader access,
+    ILogger<ReauthenticationService> logger)
     : IReauthenticationService
 {
     public async ValueTask<Result> VerifyCurrentUserGrantAsync(string? grant, CancellationToken ct)
@@ -59,17 +64,19 @@ public sealed class ReauthenticationService(
         //
         // The predicate is deliberately the same rule as LoginSubjectResolver's: two gates, one sentence —
         // "a row with no JobSeeker is granted nothing". Read them together.
-        if (!await db.HasLiveProfileAsync(userId, ct))
+        var account = await access.ReadAsync(userId, ct);
+        if (account is null || !subject.Access.Admits(account)
+            || currentUser.AccessRevision != account.AccessRevision
+            || !await db.HasLiveProfileAsync(userId, ct))
         {
             try
             {
-                await sessionStore.InvalidateAllForUserAsync(userId, ct);
+                if (currentUser.SessionId is { } sessionId)
+                    await sessionStore.InvalidateAsync(sessionId, ct);
             }
-            catch
+            catch (AuthStoreUnavailableException ex)
             {
-                // Best-effort self-heal — the reject below is the security-relevant outcome, and
-                // Layer 2's tombstone already fail-closes the read path. A Redis failure here must
-                // not turn the gate into a 500 that leaks "soft-deleted" via a distinct status.
+                CleanupUnavailable(logger, ex.GetType().Name);
             }
 
             audit.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
@@ -83,4 +90,8 @@ public sealed class ReauthenticationService(
     private static Result InvalidCredentials() =>
         Result.Failure(
             DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
+
+    [LoggerMessage(EventId = 1032, Level = LogLevel.Warning,
+        Message = "Reauthentication session cleanup unavailable ({ExceptionType}); access was refused.")]
+    private static partial void CleanupUnavailable(ILogger logger, string exceptionType);
 }

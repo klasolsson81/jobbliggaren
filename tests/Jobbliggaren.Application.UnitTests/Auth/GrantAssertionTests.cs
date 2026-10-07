@@ -1,5 +1,8 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.TestSupport;
 using Shouldly;
 
@@ -54,6 +57,27 @@ public class GrantAssertionTests
 
         assertion.Purposes.ShouldBe([GrantPurpose.ChangeEmail]);
         assertion.Binding.ShouldBe(binding);
+    }
+
+    [Fact]
+    public void Matches_ShouldAcceptServerRequestMetadata_WhileStillAssertingTheExactUserAndAddress()
+    {
+        var userId = Guid.NewGuid();
+        const string address = "new-address@example.com";
+        var original = EmailChangeRequestTestKit.Original(ChallengeId.Generate(), FakeDateTimeProvider.Default.UtcNow);
+        var subject = new GrantSubject.ChangeEmail(userId, address)
+        {
+            Access = new AccountAccessProof(7, userId, 3),
+            Request = original,
+        };
+        var assertion = GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, address));
+
+        assertion.Matches(subject).ShouldBeTrue();
+        assertion.Matches(subject with { UserId = Guid.NewGuid() }).ShouldBeFalse();
+        assertion.Matches(subject with { NewEmail = "New-address@example.com" }).ShouldBeFalse();
+        assertion.Matches(new GrantSubject.Reauthentication(userId)).ShouldBeFalse();
+        subject.Access.AccessRevision.ShouldBe(3);
+        subject.Request.ShouldBe(original);
     }
 
     [Fact]

@@ -299,17 +299,21 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         const string providerSubject = "provider-subject-sentinel-1974";
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            await using var access = await scope.ServiceProvider
+                .GetRequiredService<Jobbliggaren.Application.Auth.Access.IAccountAccessCoordinator>()
+                .BeginAsync([userId], false, Ct);
             var linked = await scope.ServiceProvider.GetRequiredService<IExternalLoginWriter>()
                 .LinkAsync(userId, ExternalProviderKey.Google, ExternalSubject.TryCreate(providerSubject)!.Value, Ct);
             linked.ShouldBe(ExternalLinkResult.Linked);
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             stamp = (await users.FindByIdAsync(userId.ToString()))!.SecurityStamp!;
+            await access.CommitAsync(Ct);
         }
 
         var listText = JsonSerializer.Serialize(await SearchOkAsync(admin, new { address = token }, Ct));
         var item = Items(await SearchOkAsync(admin, new { address = token }, Ct)).Single();
         item.EnumerateObject().Select(property => property.Name).ShouldBe(
-            ["id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount"],
+            ["id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount", "isSuspended"],
             ignoreOrder: true);
 
         var detailResponse = await admin.GetAsync(DetailPath(userId), Ct);
@@ -317,7 +321,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         JsonDocument.Parse(detailText).RootElement.EnumerateObject().Select(property => property.Name).ShouldBe(
             [
                 "id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest",
-                "applicationCount", "resumeCount", "savedSearchCount",
+                "applicationCount", "resumeCount", "savedSearchCount", "isSuspended",
             ],
             ignoreOrder: true);
 

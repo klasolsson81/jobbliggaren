@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -12,19 +13,33 @@ namespace Jobbliggaren.Application.Auth;
 public sealed partial class ConfirmedAddressSwap(
     IUserAccountService userAccountService,
     IEmailSender emailSender,
-    ILogger<ConfirmedAddressSwap> logger)
+    ILogger<ConfirmedAddressSwap> logger,
+    IAccountAccessWriter accessWriter)
 {
-    public async Task<Result> MoveAsync(
+    private readonly List<(Guid UserId, string Email)> _pendingNotices = [];
+
+    public async Task<Result<AccountAccessSnapshot>> MoveAsync(
         Guid userId, string newEmail, SwapPrecondition precondition, CancellationToken ct)
     {
         var swapped = await userAccountService.SwapConfirmedAddressAsync(userId, newEmail, precondition, ct);
         if (swapped.IsFailure)
-            return Result.Failure(swapped.Error);
+            return Result.Failure<AccountAccessSnapshot>(swapped.Error);
 
-        // Old-address security notice (CTO-bind #4): "your email was changed", so the previous owner can detect an
-        // unauthorized change (OWASP ASVS V2.5 / NIST SP 800-63B). Best-effort, log-and-continue — a send failure
-        // must never fail a completed change. No link, and it does not reveal the new address.
+        var transition = await accessWriter.AdvanceCredentialsAsync(userId, ct);
+
         if (swapped.Value.PreviousEmail is { Length: > 0 } previousEmail)
+            _pendingNotices.Add((userId, previousEmail));
+
+        return Result.Success(transition);
+    }
+
+    public void DiscardNotices() => _pendingNotices.Clear();
+
+    public async Task NotifyCommittedAsync(CancellationToken ct)
+    {
+        var notices = _pendingNotices.ToArray();
+        _pendingNotices.Clear();
+        foreach (var (userId, previousEmail) in notices)
         {
             try
             {
@@ -37,7 +52,6 @@ public sealed partial class ConfirmedAddressSwap(
             }
         }
 
-        return Result.Success();
     }
 
     [LoggerMessage(4002, LogLevel.Warning,

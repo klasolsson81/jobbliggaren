@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Domain.Common;
@@ -12,8 +13,9 @@ namespace Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailCha
 /// change.
 /// </summary>
 public sealed record CancelAccountEmailChangeCommand(Guid UserId)
-    : ICommand<Result>, IAdminRequest, IAuditableCommand<Result>
+    : ICommand<Result>, IAdminRequest, IAuditableCommand<Result>, IAccountAccessMutation
 {
+    public Guid? TargetUserId => UserId;
     public string EventType => "Admin.AccountEmailChangeCancelled";
     public string AggregateType => "User";
     public Guid ExtractAggregateId(Result response) => UserId;

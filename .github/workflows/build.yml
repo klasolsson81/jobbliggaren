@@ -391,6 +391,16 @@ jobs:
           JBL_REQUIRE_MODE_CASES: "1"
           JBL_REQUIRE_GROUP_CASES: "1"
 
+      - name: Account-access Redis policy (real ACL and authorization probes)
+        run: |
+          docker build --file tests/Deployment/RedisPolicyFixture.Dockerfile --tag jbl-1976-policy-tests tests/Deployment
+          docker run --rm --network none --read-only \
+            --tmpfs /run:rw,noexec,nosuid,size=32m \
+            --tmpfs /opt/test-area:rw,exec,nosuid,size=64m \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/repo,readonly \
+            --pids-limit 128 --memory 192m jbl-1976-policy-tests
+
       # Frånvaro-detektorn för lådans kryptohemligheter (#198, grind B-1). `--check` är lådans
       # ENDA larm för en saknad masternyckel: en crash-loopande container syns aldrig i
       # `systemctl --failed`, så ett falskt "all present" lämnar API:t nere utan spår på den

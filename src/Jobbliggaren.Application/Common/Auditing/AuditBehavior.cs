@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Auditing;
@@ -29,6 +30,9 @@ public sealed class AuditBehavior<TMessage, TResponse>(
         CancellationToken cancellationToken)
     {
         var response = await next(message, cancellationToken);
+
+        if (message is IOwnsAccountTransaction)
+            return response;
 
         // Bara markerade commands triggar audit (opt-in via marker-interface).
         if (message is not (IAuditableCommand<TResponse> or IBatchAuditableCommand<TResponse>))

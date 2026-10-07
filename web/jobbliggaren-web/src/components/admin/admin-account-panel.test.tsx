@@ -33,6 +33,7 @@ const ACTIVE: AdminAddressedAccount = {
   role: "user",
   status: "active",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   applicationCount: 4,
   deletionEarliest: null,
@@ -235,7 +236,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
       "Agera som användaren Kommer snart",
       "Ändra e-postadress",
       "Skicka inloggningslänk Kommer snart",
-      "Suspendera konto",
+      "Stäng av åtkomst",
       "Radera konto",
       "Radera permanent Kommer snart",
     ]);
@@ -245,17 +246,17 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   });
 
   it("offers a suspended account its reinstatement instead of its suspension", () => {
-    renderPanel({ ...ACTIVE, status: "suspended" });
-    expect(actionNames()).toContain("Häv suspendering");
-    expect(actionNames()).not.toContain("Suspendera konto");
+    renderPanel({ ...ACTIVE, status: "suspended", isSuspended: true });
+    expect(actionNames()).toContain("Återaktivera åtkomst");
+    expect(actionNames()).not.toContain("Stäng av åtkomst");
   });
 
   it("offers a suspended account no address change, and nothing in its place (ADR 0153 D11)", () => {
-    renderPanel({ ...ACTIVE, status: "suspended" });
+    renderPanel({ ...ACTIVE, status: "suspended", isSuspended: true });
 
     expect(actionNames()).toEqual([
       "Agera som användaren Kommer snart",
-      "Häv suspendering",
+      "Återaktivera åtkomst",
       "Radera konto",
       "Radera permanent Kommer snart",
     ]);
@@ -267,6 +268,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(actionNames()).toEqual([
       "Agera som användaren Kommer snart",
       "Ångra radering Kommer snart",
+      "Stäng av åtkomst",
       "Radera permanent Kommer snart",
     ]);
   });
@@ -417,7 +419,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   });
 
   it("offers an action as Kommer snart when it is named live without the command that runs it (ADR 0150 D4)", () => {
-    // The account page's own set (#1975): the address change and its cancel, and no command for #1976–#1977.
+    // A caller that marks the action live but supplies neither access nor direct command cannot run it.
     render(
       <AdminAccountPanel
         account={ACTIVE}
@@ -432,7 +434,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
       "Agera som användaren Kommer snart",
       "Ändra e-postadress",
       "Skicka inloggningslänk Kommer snart",
-      "Suspendera konto Kommer snart",
+      "Stäng av åtkomst Kommer snart",
       "Radera konto Kommer snart",
       "Radera permanent Kommer snart",
     ]);
@@ -454,7 +456,7 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     const onCommand = vi.fn(async () => null);
     renderPanel(ACTIVE, onCommand, new Set());
 
-    const suspend = screen.getByRole("button", { name: "Suspendera konto Kommer snart" });
+    const suspend = screen.getByRole("button", { name: "Stäng av åtkomst Kommer snart" });
     await userEvent.click(suspend);
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onCommand).not.toHaveBeenCalled();
@@ -464,15 +466,15 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     const onCommand = vi.fn(async () => null);
     renderPanel(ACTIVE, onCommand);
 
-    await userEvent.click(screen.getByRole("button", { name: "Suspendera konto" }));
-    const confirm = screen.getByRole("alertdialog", { name: "Suspendera konto.a@example.test?" });
+    await userEvent.click(screen.getByRole("button", { name: "Stäng av åtkomst" }));
+    const confirm = screen.getByRole("alertdialog", { name: "Stäng av åtkomsten för konto.a@example.test?" });
     await waitFor(() => expect(within(confirm).getByRole("button", { name: "Avbryt" })).toHaveFocus());
     expect(onCommand).not.toHaveBeenCalled();
 
-    await userEvent.click(within(confirm).getByRole("button", { name: "Suspendera konto" }));
+    await userEvent.click(within(confirm).getByRole("button", { name: "Stäng av åtkomst" }));
     expect(onCommand).toHaveBeenCalledWith(ACTIVE, { kind: "suspend" });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(getAdminToastSnapshot()?.message).toBe("Kontot konto.a@example.test är suspenderat.");
+    expect(getAdminToastSnapshot()?.message).toBe("Åtkomsten för konto.a@example.test är avstängd.");
   });
 
   it("keeps the confirmation open with the refusal when the command is refused, and shows no receipt", async () => {
@@ -531,24 +533,24 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   it("returns focus to the action that opened a confirmation the reader cancelled", async () => {
     renderPanel(ACTIVE);
 
-    const suspend = screen.getByRole("button", { name: "Suspendera konto" });
+    const suspend = screen.getByRole("button", { name: "Stäng av åtkomst" });
     await userEvent.click(suspend);
     await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Avbryt" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Suspendera konto" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stäng av åtkomst" })).toHaveFocus());
   });
 
   it("names a direct command while it runs, then publishes its receipt and moves focus to the title", async () => {
     let settle: (refusal: AdminCommandRefusal) => void = () => {};
-    renderPanel({ ...ACTIVE, status: "suspended" }, () => new Promise((resolve) => (settle = resolve)));
+    renderPanel({ ...ACTIVE, status: "suspended", isSuspended: true }, () => new Promise((resolve) => (settle = resolve)));
 
-    await userEvent.click(screen.getByRole("button", { name: "Häv suspendering" }));
-    expect(screen.getByRole("button", { name: "Häver…" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Återaktivera åtkomst" }));
+    expect(screen.getByRole("button", { name: "Återaktiverar…" })).toBeDisabled();
 
     settle(null);
     await waitFor(() => expect(screen.getByRole("heading", { name: "konto.a@example.test" })).toHaveFocus());
-    expect(getAdminToastSnapshot()?.message).toBe("Suspenderingen av konto.a@example.test är hävd.");
+    expect(getAdminToastSnapshot()?.message).toBe("Åtkomsten för konto.a@example.test är återaktiverad. Kontoägaren behöver logga in igen.");
   });
 
   it("holds the receipt's clock while it is open, and lets it go when it closes", () => {
@@ -559,6 +561,24 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
 
     rerender(<AdminAccountPanel account={null} details={loaded(null)} onClose={() => {}} commands={commands()} />);
     expect(getAdminToastHeld()).toBe(false);
+  });
+
+  it("focuses a direct command's real refusal in Åtgärder without publishing a success receipt (#1994)", async () => {
+    const account = { ...ACTIVE, status: "suspended" as const, isSuspended: true };
+    const refusal = "Kontots åtkomst är redan återaktiverad.";
+    let settle: (result: AdminCommandRefusal) => void = () => {};
+    const command = vi.fn(() => new Promise<AdminCommandRefusal>((resolve) => (settle = resolve)));
+    renderPanel(account, command);
+
+    await userEvent.click(screen.getByRole("button", { name: "Återaktivera åtkomst" }));
+    expect(command).toHaveBeenCalledExactlyOnceWith(account, { kind: "reinstate" });
+    expect(screen.getByRole("button", { name: "Återaktiverar…" })).toBeDisabled();
+    await act(async () => settle(refusal));
+
+    const alert = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("alert");
+    expect(alert).toHaveTextContent(refusal);
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(getAdminToastSnapshot()).toBeNull();
   });
 });
 

@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -8,7 +10,9 @@ namespace Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 public sealed class DeleteAccountCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IAccountAccessWriter access,
+    IExternalLoginEraser externalLogins)
     : ICommandHandler<DeleteAccountCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(DeleteAccountCommand command, CancellationToken cancellationToken)
@@ -26,6 +30,10 @@ public sealed class DeleteAccountCommandHandler(
 
         var userId = currentUser.UserId.Value;
 
+        if (!await access.CanRemoveAccessAsync(userId, cancellationToken))
+            return Result.Failure<Guid>(DomainError.Conflict(
+                AccountAccessErrors.LastAdministrator, "Den sista administratörens konto kan inte raderas."));
+
         // IgnoreQueryFilters: vi behöver hitta även soft-deletade JobSeekers
         // för idempotency-check (annars hamnar vi i NotFound-grenen vid retry).
         var jobSeeker = await db.JobSeekers
@@ -38,11 +46,9 @@ public sealed class DeleteAccountCommandHandler(
                     "Auth.JobSeekerNotFound",
                     "JobSeeker hittades inte för aktuell användare."));
 
-        // Idempotens: om redan soft-deletat returnera Success utan ny audit-rad
-        // (annars skulle AuditBehavior skriva en till Account.Deleted vid varje
-        // retry-anrop). DELETE-semantik är tolerant mot multiple deletes.
         if (jobSeeker.DeletedAt is not null)
-            return Result.Success(jobSeeker.Id.Value);
+            return Result.Failure<Guid>(DomainError.Gone(
+                "Auth.AccountAlreadyDeleted", "Kontot väntar redan på radering."));
 
         // Hämta alla user-ägda aggregat för cascade. Global query filter
         // exkluderar redan soft-deletade barn — vid första radering är
@@ -70,6 +76,7 @@ public sealed class DeleteAccountCommandHandler(
         foreach (var app in applications) app.SoftDelete(clock);
         foreach (var resume in resumes) resume.SoftDelete(clock);
         jobSeeker.SoftDelete(clock);
+        await externalLogins.EraseAllAsync(userId, cancellationToken);
 
         // SaveChanges sker via UnitOfWorkBehavior — atomic. AuditBehavior
         // skriver Account.Deleted-raden i samma transaction. JobSeeker.Id

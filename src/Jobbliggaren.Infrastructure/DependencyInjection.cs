@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -17,6 +18,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
@@ -1182,6 +1184,8 @@ public static class DependencyInjection
         //
         // What carries a genuine failure instead: LoggingBehavior.LogFailed (Error, with the
         // exception) on every Mediator path.
+        services.TryAddScoped<ProtectedAccountTransaction>();
+        services.TryAddScoped<ProtectedAccountTransactionInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString,
@@ -1191,6 +1195,7 @@ public static class DependencyInjection
                     (RelationalEventId.CommandError, LogLevel.Information),
                     (CoreEventId.SaveChangesFailed, LogLevel.Information)))
                 .AddInterceptors(
+                    sp.GetRequiredService<ProtectedAccountTransactionInterceptor>(),
                     sp.GetRequiredService<Security.FieldEncryptionSaveChangesInterceptor>(),
                     sp.GetRequiredService<Security.FieldDecryptionMaterializationInterceptor>()));
 
@@ -1682,14 +1687,15 @@ public static class DependencyInjection
 
         services.AddApiDataProtection(configuration);
 
-        services.AddDbContext<AppIdentityDbContext>(options =>
+        services.AddDbContext<AppIdentityDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString, npgsql =>
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 })
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
@@ -1705,6 +1711,13 @@ public static class DependencyInjection
             .AddDefaultTokenProviders();
 
         services.AddApiRedisConnections(configuration);
+
+        services.AddScoped<SqlAccountAccess>();
+        services.AddScoped<IAccountAccessCoordinator>(sp => sp.GetRequiredService<SqlAccountAccess>());
+        services.AddScoped<IAccountAccessReader>(sp => sp.GetRequiredService<SqlAccountAccess>());
+        services.AddScoped<IAccountAccessWriter>(sp => sp.GetRequiredService<SqlAccountAccess>());
+        services.AddScoped<IAccountEmailChangeRequests, SqlAccountEmailChangeRequests>();
+        services.AddScoped<IAccountAccessCleanup, AccountAccessCleanup>();
 
         // #746 — bind + validate at startup: SessionStoreOptionsValidator caps SlideThreshold to
         // [0.0, 0.25] (a bad throttle value must fail the boot, not silently widen the Art.17
@@ -1808,7 +1821,9 @@ public static class DependencyInjection
         // sees a StackExchange.Redis type).
         services.AddScoped<RedisSessionStore>();
         services.AddScoped<ISessionStore>(sp =>
-            new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()));
+            new AccessControlledSessionStore(
+                new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()),
+                sp.GetRequiredService<IAccountAccessReader>(), sp.GetRequiredService<IAccountAccessCoordinator>()));
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<ConfirmedAddressSwap>();
@@ -1879,14 +1894,15 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Postgres saknas i konfiguration.");
 
-        services.AddDbContext<AppIdentityDbContext>(options =>
+        services.AddDbContext<AppIdentityDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString, npgsql =>
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 })
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
         // AddIdentityCore<TUser>() registrerar UserManager + UserStore utan
         // AuthenticationScheme/Cookies/SignInManager — HTTP-fritt.
@@ -1900,6 +1916,10 @@ public static class DependencyInjection
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IAccountHardDeleter, AccountHardDeleter>();
+        services.AddScoped<SqlAccountAccess>();
+        services.AddScoped<IAccountAccessCoordinator>(sp => sp.GetRequiredService<SqlAccountAccess>());
+        services.AddScoped<IAccountAccessReader>(sp => sp.GetRequiredService<SqlAccountAccess>());
+        services.AddScoped<IAccountAccessWriter>(sp => sp.GetRequiredService<SqlAccountAccess>());
 
         return services;
     }

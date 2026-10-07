@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -41,13 +42,13 @@ public sealed class CompleteLoginChallengeCommandHandler(
 
         return subject switch
         {
-            GrantSubject.LoginComplete { ProvenEmail: var email } => await CompleteByCodeAsync(email, cancellationToken),
+            GrantSubject.LoginComplete complete => await CompleteByCodeAsync(complete.ProvenEmail, complete.Access, cancellationToken),
             GrantSubject.LoginCompleteExternal external => await CompleteByProviderAsync(external, cancellationToken),
             _ => GrantUnusable(),
         };
     }
 
-    private async Task<Result<LoginOutcome>> CompleteByCodeAsync(string email, CancellationToken ct)
+    private async Task<Result<LoginOutcome>> CompleteByCodeAsync(string email, AccountAccessProof proof, CancellationToken ct)
     {
         // Taken AFTER the redeem: a loser still holding a live grant could retry into the winner's account.
         // The loser is answered like a replayed grant, so nothing says an address is being registered.
@@ -56,6 +57,8 @@ public sealed class CompleteLoginChallengeCommandHandler(
 
         if (await subjects.ResolveAsync(email, ct) is LoginSubject.NoAccount)
         {
+            if (proof.UserId is not null || proof.AccessRevision is not null)
+                return GrantUnusable();
             var opened = await registrar.OpenAsync(email, ct);
             if (opened.IsFailure)
                 return Result.Failure<LoginOutcome>(opened.Error);
@@ -65,7 +68,7 @@ public sealed class CompleteLoginChallengeCommandHandler(
         // pending deletion, or a row without a profile. The Identity write may have committed, so from here
         // on CancellationToken.None.
         return Result.Success(await outcome.ResolveAsync(
-            new LoginChallengeProof(email), LoginMethod.Code, CancellationToken.None));
+            new LoginChallengeProof(email) { Access = proof }, LoginMethod.Code, CancellationToken.None));
     }
 
     private async Task<Result<LoginOutcome>> CompleteByProviderAsync(
@@ -74,13 +77,15 @@ public sealed class CompleteLoginChallengeCommandHandler(
         if (!await claim.TryClaimAsync(external.ProvenEmail.Value, ct))
             return GrantUnusable();
 
-        var proof = new ExternalLoginProof(external.ProvenEmail, external.Provider, external.Subject);
+        var proof = new ExternalLoginProof(external.ProvenEmail, external.Provider, external.Subject) { Access = external.Access };
 
         // Checked before an account is opened, so the ordinary case never creates an account it then cannot link:
         // a provider login another account holds leaves the address without one, and the outcome refuses it.
         var resolved = await subjects.ResolveExternalAsync(proof, ct);
         if (resolved.Subject is LoginSubject.NoAccount && !resolved.IsLinkedElsewhere)
         {
+            if (external.Access.UserId is not null || external.Access.AccessRevision is not null)
+                return GrantUnusable();
             var opened = await registrar.OpenAsync(external.ProvenEmail.Value, ct);
             if (opened.IsFailure)
                 return Result.Failure<LoginOutcome>(opened.Error);

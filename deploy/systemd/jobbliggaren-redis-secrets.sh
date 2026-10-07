@@ -12,19 +12,23 @@ declare -A passwords=()
 declare -A reader_uid=() reader_gid=()
 fail() { printf 'REFUSING: Redis secret %s\n' "$*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || fail 'operation requires root'
-[[ ( $# -eq 1 && ( $1 == --check || $1 == --inject ) ) || ( $# -eq 3 && $1 == --check-images ) ]] || fail 'use --check, --inject or --check-images API_DIGEST WORKER_DIGEST'
+[[ ( $# -eq 1 && ( $1 == --check || $1 == --inject || $1 == --check-predecessor ) ) ||
+   ( $# -eq 3 && ( $1 == --check-images || $1 == --check-transition || $1 == --publish-policy ) ) ]] ||
+  fail 'use --check, --inject, --check-predecessor or --check-images/--check-transition/--publish-policy API_DIGEST WORKER_DIGEST'
 readonly API_IMAGE=${2:-} WORKER_IMAGE=${3:-}
-if [[ $1 == --check-images ]]; then
+if [[ $# -eq 3 ]]; then
   [[ $API_IMAGE =~ @sha256:[a-f0-9]{64}$ && $WORKER_IMAGE =~ @sha256:[a-f0-9]{64}$ ]] || fail 'incoming application images must be verified digests'
 fi
 [[ $(findmnt -n -o FSTYPE -T /run) == tmpfs ]] || fail 'root must reside on tmpfs'
 [[ ! -L "$ROOT" ]] || fail 'root is a symlink'
 
 valid_password() { [[ $1 =~ ^[A-Fa-f0-9]{64}$ ]]; }
+policy_source=$POLICY
+[[ $1 != --check-predecessor ]] || policy_source=$POLICY/predecessor-1976
 render_policy() {
   local store=$1 rendered placeholder digest user
   [[ $store == persistent || $store == volatile ]] || fail 'unknown policy store'
-  rendered=$(cat "$POLICY/$store.acl.template")
+  rendered=$(cat "$policy_source/$store.acl.template")
   for user in "${USERS[@]}"; do
     placeholder=${user^^}; placeholder=${placeholder//-/_}
     digest=$(printf '%s' "${passwords[$user]}" | sha256sum); digest=${digest%% *}
@@ -33,7 +37,7 @@ render_policy() {
   [[ "$rendered" != *'{{'* && "$rendered" != *'}}'* ]] || fail 'ACL has an unresolved placeholder'
   printf '%s\n' "$rendered"
   digest=$(printf '%s' "${passwords[operator-$store]}" | sha256sum); digest=${digest%% *}
-  rendered=$(cat "$POLICY/operator-$store.acl.template")
+  rendered=$(cat "$policy_source/operator-$store.acl.template")
   rendered=${rendered//\{\{OPERATOR_SHA256\}\}/$digest}
   [[ "$rendered" != *'{{'* && "$rendered" != *'}}'* ]] || fail 'operator ACL has an unresolved placeholder'
   printf '%s\n' "$rendered"
@@ -131,6 +135,36 @@ measure_ids() {
     fi
   done
 }
+
+if [[ $1 == --check-transition || $1 == --publish-policy ]]; then
+  [[ -e /proc/self/fd/9 ]] || fail 'transition requires the reconciler lock descriptor'
+  flock -n 9 || fail 'transition does not own the reconciler lock'
+  # A separate open description must fail while the inherited description holds the lock.
+  ( exec 7>"$LOCK"; ! flock -n 7 ) || fail 'transition lock descriptor is not the reconcile lock'
+  set_status=candidate
+  if ! ( check_set ) >/dev/null 2>&1; then
+    policy_source=$POLICY/predecessor-1976
+    ( check_set ) >/dev/null 2>&1 || fail 'installed policy is neither complete predecessor nor complete candidate'
+    set_status=predecessor
+  fi
+  check_set
+  measure_ids compare
+  if [[ $1 == --check-transition ]]; then
+    printf '%s\n' "$set_status"
+    exit 0
+  fi
+  policy_source=$POLICY
+  for store in persistent volatile; do
+    staged=$(mktemp "$ROOT/$store/users.acl.XXXXXX")
+    render_policy "$store" >"$staged"
+    chown "${reader_uid[redis]}:${reader_gid[redis]}" "$staged"
+    chmod 0400 "$staged"
+    mv -f -- "$staged" "$ROOT/$store/users.acl"
+  done
+  check_set
+  printf 'Candidate Redis policy published with the existing seven credentials; no service restarted.\n'
+  exit 0
+fi
 
 if [[ $1 != --inject ]]; then
   check_set

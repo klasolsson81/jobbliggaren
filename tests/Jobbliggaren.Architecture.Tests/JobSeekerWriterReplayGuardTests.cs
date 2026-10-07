@@ -1,4 +1,6 @@
 using System.Reflection;
+using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
@@ -54,21 +56,35 @@ public class JobSeekerWriterReplayGuardTests
     ];
 
     [Fact]
-    public void Every_writer_of_a_job_seeker_is_a_marked_command_handler_or_a_scan_that_retries()
+    public void Every_writer_of_a_job_seeker_retries_or_is_the_one_protected_deletion_handler_that_refuses_conflicts()
     {
         var writers = TypesCallingAJobSeekerMutator();
         writers.ShouldContain(typeof(UpdateNotificationConsentCommandHandler), "the sweep must see the writers it guards");
         writers.ShouldContain(typeof(BackgroundMatchingJob), "the sweep must see the writers it guards");
+        writers.ShouldContain(typeof(DeleteAccountCommandHandler), "the sweep must see the explicit non-replay exception");
 
         var unmarked = writers
-            .Where(type => !ScansWithTheirOwnRetry.Contains(type) && !HandlesAMarkedCommand(type))
+            .Where(type => !ScansWithTheirOwnRetry.Contains(type) && !HandlesAMarkedCommand(type)
+                && type != typeof(DeleteAccountCommandHandler))
             .Select(type => type.FullName)
             .Order(StringComparer.Ordinal)
             .ToList();
 
         unmarked.ShouldBeEmpty(
-            "These write a job_seekers row without IReplayOnConcurrencyConflict on their command, so a "
-            + "concurrent write refuses them instead of re-running them: " + string.Join(", ", unmarked));
+            "These write a job_seekers row without a reviewed replay or protected non-replay protocol: "
+            + string.Join(", ", unmarked));
+    }
+
+    [Fact]
+    public void The_one_non_replay_deletion_exception_requires_the_protected_reauthenticated_audited_scope()
+    {
+        var command = typeof(DeleteAccountCommand);
+        command.IsAssignableTo(typeof(IAccountAccessMutation)).ShouldBeTrue();
+        command.IsAssignableTo(typeof(IReauthenticatingRequest)).ShouldBeTrue();
+        command.IsAssignableTo(typeof(IAuditableCommand)).ShouldBeTrue();
+        command.IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeTrue();
+        command.IsAssignableTo(typeof(IReplayOnConcurrencyConflict)).ShouldBeFalse();
+        HandlesAMarkedCommand(typeof(DeleteAccountCommandHandler)).ShouldBeFalse();
     }
 
     [Fact]

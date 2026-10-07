@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -9,6 +10,7 @@ using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
@@ -64,6 +66,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // #1975 — disarmed unless a test arms them for one account: the address change's teardown and its audit row.
     private readonly SessionTeardownFaults _sessionTeardownFaults = new();
     private readonly AuditRowSaveFailure _auditRowSaveFailure = new();
+    private readonly AccountEmailChangeStoreFaults _accountEmailChangeStoreFaults = new();
+    internal AccountEmailChangeStoreFaults AccountEmailChangeStoreFaults => _accountEmailChangeStoreFaults;
+    private readonly AccountAccessFlowGates _accountAccessFlowGates = new();
+    internal AccountAccessFlowGates AccountAccessFlowGates => _accountAccessFlowGates;
+    private readonly CommitAcknowledgementLoss _commitAcknowledgementLoss = new();
+    internal CommitAcknowledgementLoss CommitAcknowledgementLoss => _commitAcknowledgementLoss;
+    private readonly EmailChangeActivationFaults _emailChangeActivationFaults = new();
+    internal EmailChangeActivationFaults EmailChangeActivationFaults => _emailChangeActivationFaults;
 
     /// <summary>#1975 — fails the session store's invalidation of one account, so the completion's teardown fails.</summary>
     internal SessionTeardownFaults SessionTeardownFaults => _sessionTeardownFaults;
@@ -214,20 +224,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .AddInterceptors(
                         _jobSeekerSaveRace,
                         _auditRowSaveFailure,
+                        _commitAcknowledgementLoss,
+                        _emailChangeActivationFaults.AuditSaveFailure,
+                        _emailChangeActivationFaults.CommitAcknowledgementLoss,
+                        sp.GetRequiredService<ProtectedAccountTransactionInterceptor>(),
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor>(),
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldDecryptionMaterializationInterceptor>()));
 
             // Replace AppIdentityDbContext
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
             services.RemoveAll<AppIdentityDbContext>();
-            services.AddDbContext<AppIdentityDbContext>(options =>
+            services.AddDbContext<AppIdentityDbContext>((sp, options) =>
                 options.UseNpgsql(_postgresCs, npgsql =>
                     {
                         npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                     })
                     // #714 — same rationale as AppDbContext above.
-                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning)));
+                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
+                    .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
 
             // ADR 0066 (#802) — fält-krypteringen kör den riktiga
@@ -247,7 +262,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // vars); this last-wins singleton in ConfigureServices does. RemoveAll first so nothing
             // resolves the real sender even via GetServices<IEmailSender>().
             services.RemoveAll<IEmailSender>();
-            services.AddSingleton<IEmailSender>(_emailSender);
+            services.AddSingleton<IEmailSender>(sp => new ActivationEmailSender(_emailSender,
+                _emailChangeActivationFaults, sp.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>()));
 
             // #1735 — the swap above removed the Development composition's login-code capture with the sender it
             // wrapped; wrap the recording sender the same way, or /dev/login-code is only ever tested on its 404.
@@ -270,23 +286,32 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IRateBudget>(sp => new FaultableRateBudget(
                 ActivatorUtilities.CreateInstance<RedisRateBudget>(sp), _loginChallengeFaults));
             services.RemoveAll<ILoginChallengeStore>();
-            services.AddSingleton<ILoginChallengeStore>(sp => new FaultableLoginChallengeStore(
-                ActivatorUtilities.CreateInstance<RedisLoginChallengeStore>(sp), _loginChallengeFaults));
+            services.AddSingleton<ILoginChallengeStore>(sp => new ActivationLoginChallengeStore(
+                new FaultableLoginChallengeStore(ActivatorUtilities.CreateInstance<RedisLoginChallengeStore>(sp),
+                    _loginChallengeFaults), _emailChangeActivationFaults));
             services.RemoveAll<IGrantStore>();
             services.AddSingleton<IGrantStore>(sp => new FaultableGrantStore(
-                ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults));
+                ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults, _accountAccessFlowGates));
             services.RemoveAll<IOAuthStateStore>();
             services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
                 ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), _loginChallengeFaults));
             services.RemoveAll<IAccountEmailChangeStore>();
             services.AddSingleton<IAccountEmailChangeStore>(sp => new FaultableAccountEmailChangeStore(
-                ActivatorUtilities.CreateInstance<RedisAccountEmailChangeStore>(sp), _loginChallengeFaults));
+                ActivatorUtilities.CreateInstance<RedisAccountEmailChangeStore>(sp), _loginChallengeFaults,
+                _accountEmailChangeStoreFaults));
+
+            services.RemoveAll<IAccountAccessCoordinator>();
+            services.AddScoped<IAccountAccessCoordinator>(sp => new GatedAccountAccessCoordinator(
+                sp.GetRequiredService<SqlAccountAccess>(), _accountAccessFlowGates));
 
             // #1975 — the session store as production composes it, with one account's invalidation failable.
             services.RemoveAll<ISessionStore>();
             services.AddScoped<ISessionStore>(sp => new FaultableSessionStore(
-                new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()),
-                _sessionTeardownFaults));
+                new AccessControlledSessionStore(
+                    new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()),
+                    sp.GetRequiredService<IAccountAccessReader>(),
+                    sp.GetRequiredService<IAccountAccessCoordinator>()),
+                _sessionTeardownFaults, _accountAccessFlowGates));
 
             // #1744 — the REAL Google adapter over ScriptedGoogle, handed to the handlers through RegisteredProviders
             // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test
@@ -504,6 +529,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public new async ValueTask DisposeAsync()
     {
+        _accountEmailChangeStoreFaults.Dispose();
+        _accountAccessFlowGates.Dispose();
+        _emailChangeActivationFaults.Dispose();
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         _redisEnvironment?.Dispose();

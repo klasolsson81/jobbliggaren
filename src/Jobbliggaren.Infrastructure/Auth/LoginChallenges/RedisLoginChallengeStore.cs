@@ -6,7 +6,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Common.Validation;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -28,7 +31,8 @@ namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 /// </summary>
 internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 {
-    internal const string ProtectorPurpose = "Jobbliggaren.Auth.LoginChallenge.v1";
+    internal const string ProtectorPurpose = "Jobbliggaren.Auth.LoginChallenge.v2";
+    internal const string LegacyProtectorPurpose = "Jobbliggaren.Auth.LoginChallenge.v1";
 
     // A raw multiplexer bypasses IDistributedCache's InstanceName (parity RedisSessionStore.KeyPrefix).
     private const string KeyPrefix = "jobbliggaren:";
@@ -44,6 +48,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
     private readonly VolatileRedisConnection _redis;
     private readonly IDataProtector _protector;
+    private readonly IDataProtector _legacyProtector;
     private readonly ILogger<RedisLoginChallengeStore> _logger;
     private readonly byte[] _dummyPayload;
 
@@ -54,9 +59,10 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     {
         _redis = redis;
         _protector = dataProtection.CreateProtector(ProtectorPurpose);
+        _legacyProtector = dataProtection.CreateProtector(LegacyProtectorPurpose);
         _logger = logger;
         _dummyPayload = _protector.Protect(
-            JsonSerializer.SerializeToUtf8Bytes(new ChallengePayload("dummy@example.invalid", null, null)));
+            Padded(new ChallengePayload("dummy@example.invalid", null, null, SecurityProofPayload.From(AccountAccessProof.Legacy))));
     }
 
     public Task<IssuedCredentials> PutAsync(NewLoginChallenge challenge, CancellationToken ct) =>
@@ -76,7 +82,8 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var payload = new ChallengePayload(
                 challenge.Recipient,
                 code?.Reveal(),
-                secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)));
+                secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)),
+                SecurityProofPayload.From(challenge.Access));
             var protectedPayload = _protector.Protect(Padded(payload));
 
             var segment = RecordSegment(challenge.Id);
@@ -102,6 +109,9 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 var previous = await displaced;
                 if (!previous.IsNull && previous != segment)
                     await db.KeyDeleteAsync(RecordKey(previous.ToString()));
+                var legacy = await db.StringGetAsync(Legacy(IndexKey(challenge.Recipient)));
+                if (!legacy.IsNull)
+                    await db.KeyDeleteAsync(Legacy(RecordKey(legacy.ToString())));
             }
 
             var link = secret is null
@@ -117,6 +127,12 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var recordKey = RecordKey(RecordSegment(id));
 
             var result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            var legacy = result.IsNull;
+            if (legacy)
+            {
+                recordKey = Legacy(recordKey);
+                result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            }
             if (result.IsNull)
             {
                 PayDummyCompare(presentedBytes);
@@ -133,7 +149,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 return ChallengeVerdict.Burned;
             }
 
-            var payload = Open((byte[]?)parts[1]);
+            var payload = Open((byte[]?)parts[1], legacy);
             if (payload is null)
                 return ChallengeVerdict.Missing;
 
@@ -147,7 +163,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 // Single use: of two concurrent hits, or a hit racing the link or a newer mint, exactly one
                 // delete returns true.
                 return await db.KeyDeleteAsync(recordKey)
-                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient))
+                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient) { Access = payload.Security!.Decode()! })
                     : ChallengeVerdict.Missing;
             }
 
@@ -169,13 +185,19 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             // Read-only: the link arm never reads or writes the attempt counter, so a scanner posting links
             // cannot burn the owner's code.
             var protectedPayload = (byte[]?)await db.HashGetAsync(recordKey, PayloadField);
+            var legacy = protectedPayload is null;
+            if (legacy)
+            {
+                recordKey = Legacy(recordKey);
+                protectedPayload = (byte[]?)await db.HashGetAsync(recordKey, PayloadField);
+            }
             if (protectedPayload is null)
             {
                 PayDummyLinkCompare(secretHash);
                 return null;
             }
 
-            var payload = Open(protectedPayload);
+            var payload = Open(protectedPayload, legacy);
             if (payload is null)
                 return null;
 
@@ -184,7 +206,8 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             if (!matched)
                 return null;
 
-            return await db.KeyDeleteAsync(recordKey) ? new LoginChallengeProof(payload.Recipient) : null;
+            return await db.KeyDeleteAsync(recordKey)
+                ? new LoginChallengeProof(payload.Recipient) { Access = payload.Security!.Decode()! } : null;
         });
 
     public Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct) =>
@@ -193,10 +216,11 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var binding = challenge.Binding;
             var code = ChallengeCodeArm.Mint();
 
-            // No padding: the code is always present and of one length, and a Guid serialises to one width, so
-            // the protected length already depends on the address alone.
-            var protectedPayload = BoundProtectorFor(binding.Purpose).Protect(JsonSerializer.SerializeToUtf8Bytes(
-                new BoundChallengePayload(challenge.Recipient, code.Reveal(), binding.UserId)));
+            var original = challenge.Access == AccountAccessProof.Legacy
+                ? new AccountAccessProof(0, binding.UserId, 0) : challenge.Access;
+            var protectedPayload = BoundProtectorFor(binding.Purpose).Protect(PaddedBound(
+                new BoundChallengePayload(challenge.Recipient, code.Reveal(), binding.UserId, SecurityProofPayload.From(original))
+                { Request = challenge.EmailChangeRequest }));
 
             var segment = RecordSegment(challenge.Id);
             var recordKey = BoundRecordKey(segment);
@@ -217,8 +241,38 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var previous = await displaced;
             if (!previous.IsNull && previous != segment)
                 await db.KeyDeleteAsync(BoundRecordKey(previous.ToString()));
+            var legacy = await db.StringGetAsync(Legacy(BoundIndexKey(binding)));
+            if (!legacy.IsNull)
+                await db.KeyDeleteAsync(Legacy(BoundRecordKey(legacy.ToString())));
 
             return code;
+        });
+
+    public Task<LoginChallengeProof?> ReadEmailChangeRequestAsync(ChallengeId id, Guid userId, CancellationToken ct) =>
+        _redis.ExecuteAsync(async db =>
+        {
+            var payload = OpenBound((byte[]?)await db.HashGetAsync(BoundRecordKey(RecordSegment(id)), PayloadField),
+                ChallengePurpose.ChangeEmail);
+            return payload is { Request.IsValid: true } && payload.UserId == userId
+                && string.Equals(payload.Request.RequestId, id.Reveal(), StringComparison.Ordinal)
+                ? new LoginChallengeProof(payload.Recipient)
+                { Access = payload.Security!.Decode()!, EmailChangeRequest = payload.Request }
+                : null;
+        });
+
+    public Task RevokeBoundAsync(ChallengeId id, ChallengeBinding expected, CancellationToken ct) =>
+        _redis.ExecuteAsync(async db =>
+        {
+            var key = BoundRecordKey(RecordSegment(id));
+            var protectedPayload = (byte[]?)await db.HashGetAsync(key, PayloadField);
+            var payload = OpenBound(protectedPayload, expected.Purpose);
+            if (payload is null || payload.UserId != expected.UserId)
+                return false;
+            await db.ScriptEvaluateAsync("""
+                if redis.call('HGET', KEYS[1], 'p') ~= ARGV[1] then return 0 end
+                return redis.call('UNLINK', KEYS[1])
+                """, [key], [protectedPayload]);
+            return true;
         });
 
     public Task<ChallengeVerdict> ConsumeBoundCodeAsync(
@@ -229,6 +283,12 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var recordKey = BoundRecordKey(RecordSegment(id));
 
             var result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            var legacy = result.IsNull;
+            if (legacy)
+            {
+                recordKey = Legacy(recordKey);
+                result = await db.ScriptEvaluateAsync(ChallengeCodeArm.ConsumeScript, [recordKey]);
+            }
             if (result.IsNull)
             {
                 PayDummyCompare(presentedBytes);
@@ -240,8 +300,11 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
             // Another purpose cannot open the payload, and another user is refused here: both before the
             // attempt count is answered, so whoever does not own the record learns nothing about it.
-            var payload = OpenBound((byte[]?)parts[1], expected.Purpose);
-            if (payload is null || payload.UserId != expected.UserId)
+            var payload = OpenBound((byte[]?)parts[1], expected.Purpose, legacy);
+            if (payload is null || payload.UserId != expected.UserId
+                || (expected.Purpose == ChallengePurpose.ChangeEmail
+                    && (legacy || payload.Request?.IsValid != true
+                        || !string.Equals(payload.Request.RequestId, id.Reveal(), StringComparison.Ordinal))))
             {
                 _ = CryptographicOperations.FixedTimeEquals(presentedBytes, ChallengeCodeArm.DummyCode);
                 return ChallengeVerdict.Missing;
@@ -254,7 +317,8 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             if (matched)
             {
                 return await db.KeyDeleteAsync(recordKey)
-                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient))
+                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient)
+                    { Access = payload.Security!.Decode()!, EmailChangeRequest = payload.Request })
                     : ChallengeVerdict.Missing;
             }
 
@@ -277,14 +341,18 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
     // A payload that cannot be opened — a lost keyring, or a malformed body — reads as a missing
     // record, which is the answer D1 names for a lost keyring ("degrades to expired").
-    private ChallengePayload? Open(byte[]? protectedPayload)
+    private ChallengePayload? Open(byte[]? protectedPayload, bool legacy = false)
     {
         if (protectedPayload is null)
             return null;
 
         try
         {
-            return JsonSerializer.Deserialize<ChallengePayload>(_protector.Unprotect(protectedPayload));
+            var payload = JsonSerializer.Deserialize<ChallengePayload>(
+                (legacy ? _legacyProtector : _protector).Unprotect(protectedPayload));
+            if (legacy && payload is not null)
+                return payload with { Security = SecurityProofPayload.From(AccountAccessProof.Legacy) };
+            return payload?.Security?.Decode() is not null ? payload : null;
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
@@ -294,15 +362,18 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     }
 
     // Another purpose's protector, a lost keyring and a malformed body all read as a missing record.
-    private BoundChallengePayload? OpenBound(byte[]? protectedPayload, ChallengePurpose purpose)
+    private BoundChallengePayload? OpenBound(byte[]? protectedPayload, ChallengePurpose purpose, bool legacy = false)
     {
         if (protectedPayload is null)
             return null;
 
         try
         {
-            return JsonSerializer.Deserialize<BoundChallengePayload>(
-                BoundProtectorFor(purpose).Unprotect(protectedPayload));
+            var payload = JsonSerializer.Deserialize<BoundChallengePayload>(
+                BoundProtectorFor(purpose, legacy).Unprotect(protectedPayload));
+            if (legacy && payload is not null)
+                return payload with { Security = SecurityProofPayload.From(new AccountAccessProof(0, payload.UserId, 0)) };
+            return payload?.Security?.Decode() is { } proof && proof.UserId == payload.UserId ? payload : null;
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
@@ -312,8 +383,8 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     }
 
     // The purpose's NUMBER, as RedisGrantStore.ProtectorFor has it. ChallengeBinding admits defined purposes only.
-    private IDataProtector BoundProtectorFor(ChallengePurpose purpose) =>
-        _protector.CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture));
+    private IDataProtector BoundProtectorFor(ChallengePurpose purpose, bool legacy = false) =>
+        (legacy ? _legacyProtector : _protector).CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture));
 
     private static (ChallengeId Id, byte[] SecretHash)? DecodeLinkToken(string raw)
     {
@@ -340,29 +411,47 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(payload);
         var ceiling = JsonSerializer.SerializeToUtf8Bytes(
-            payload with { Code = FullestCode, LinkHash = FullestLinkHash }).Length;
+            payload with { Code = FullestCode, LinkHash = FullestLinkHash, Security = SecurityProofPayload.Maximum }).Length;
         var padded = new byte[ceiling];
         json.CopyTo(padded, 0);
         padded.AsSpan(json.Length).Fill((byte)' ');
         return padded;
     }
 
+    private static byte[] PaddedBound(BoundChallengePayload payload)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(payload);
+        var ceiling = JsonSerializer.SerializeToUtf8Bytes(payload with
+        {
+            Recipient = new string('"', EmailAddressRules.MaximumLength),
+            Code = FullestCode,
+            Security = SecurityProofPayload.Maximum,
+            Request = new EmailChangeRequestProof(new string('A', 22), DateTimeOffset.MaxValue, DateTimeOffset.MaxValue),
+        }).Length;
+        var padded = new byte[ceiling];
+        json.CopyTo(padded, 0);
+        padded.AsSpan(json.Length).Fill((byte)' ');
+        return padded;
+    }
+
+    private static string Legacy(string key) => key.Replace("/v2/", "/v1/", StringComparison.Ordinal);
+
     // The id is hashed before it becomes a key, so a Redis dump shows no live challenge id (parity
     // RedisSessionStore's session keys).
     internal static string RecordSegment(ChallengeId id) =>
         Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(id.Reveal())));
 
-    internal static string RecordKey(string segment) => $"{KeyPrefix}auth/challenge/v1/{segment}";
+    internal static string RecordKey(string segment) => $"{KeyPrefix}auth/challenge/v2/{segment}";
 
     internal static string IndexKey(string email) =>
-        $"{KeyPrefix}auth/challenge-by-address/v1/{SubjectFingerprint.Hex(email)}";
+        $"{KeyPrefix}auth/challenge-by-address/v2/{SubjectFingerprint.Hex(email)}";
 
     // A family of its own (ADR 0142 D1: a record-shape change costs a new segment), so the login arm cannot see a
     // bound record and a bound consume cannot see a login record.
-    internal static string BoundRecordKey(string segment) => $"{KeyPrefix}auth/challenge-bound/v1/{segment}";
+    internal static string BoundRecordKey(string segment) => $"{KeyPrefix}auth/challenge-bound/v2/{segment}";
 
     internal static string BoundIndexKey(ChallengeBinding binding) =>
-        $"{KeyPrefix}auth/challenge-by-user/v1/{(int)binding.Purpose}/{SubjectFingerprint.Hex(binding.UserId.ToString())}";
+        $"{KeyPrefix}auth/challenge-by-user/v2/{(int)binding.Purpose}/{SubjectFingerprint.Hex(binding.UserId.ToString())}";
 
     [LoggerMessage(1012, LogLevel.Warning,
         "Login challenge payload unreadable ({ErrorType}) — answered as a missing challenge")]
@@ -371,11 +460,18 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     internal sealed record ChallengePayload(
         [property: JsonPropertyName("e")] string Recipient,
         [property: JsonPropertyName("c")] string? Code,
-        [property: JsonPropertyName("l")] string? LinkHash);
+        [property: JsonPropertyName("l")] string? LinkHash,
+        [property: JsonPropertyName("g")] SecurityProofPayload? Security = null);
 
     // No link field: a bound challenge cannot carry one.
     internal sealed record BoundChallengePayload(
         [property: JsonPropertyName("e")] string Recipient,
         [property: JsonPropertyName("c")] string Code,
-        [property: JsonPropertyName("u")] Guid UserId);
+        [property: JsonPropertyName("u")] Guid UserId,
+        [property: JsonPropertyName("g")] SecurityProofPayload? Security = null)
+    {
+        [JsonPropertyName("q")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public EmailChangeRequestProof? Request { get; init; }
+    }
 }

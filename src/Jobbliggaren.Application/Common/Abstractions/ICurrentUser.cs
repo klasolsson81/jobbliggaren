@@ -20,6 +20,7 @@ public interface ICurrentUser
     Guid? UserId { get; }
     bool IsAuthenticated { get; }
     SessionId? SessionId { get; }
+    long? AccessRevision => null;
 
     /// <summary>
     /// Kontrollerar om aktuell principal har rollen. Implementeras typiskt via

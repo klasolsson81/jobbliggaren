@@ -118,7 +118,7 @@ public sealed class RedisAccountEmailChangeStoreTests : IAsyncLifetime, IClassFi
         proof.NewEmail.ShouldBe(NewEmail);
         proof.ExpectedCurrent.Fingerprint.ShouldBe(SubjectFingerprint.Hex(Current));
         second.ShouldBe(AccountEmailChangeVerdict.Unusable.Instance);
-        Keys("jobbliggaren:auth/account-email-change/v1/*").ShouldBeEmpty();
+        Keys("jobbliggaren:auth/account-email-change/v2/*").ShouldBeEmpty();
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class RedisAccountEmailChangeStoreTests : IAsyncLifetime, IClassFi
         _clock.UtcNow = written.ExpiresAt;
 
         (await ConsumeAsync(written.Code)).ShouldBe(AccountEmailChangeVerdict.Unusable.Instance);
-        Keys("jobbliggaren:auth/account-email-change/v1/*").ShouldBeEmpty();
+        Keys("jobbliggaren:auth/account-email-change/v2/*").ShouldBeEmpty();
     }
 
     [Fact]
@@ -278,7 +278,7 @@ public sealed class RedisAccountEmailChangeStoreTests : IAsyncLifetime, IClassFi
         var second = await PutAsync(userId);
         SeventyThreeHoursPass();
 
-        Keys("jobbliggaren:auth/account-email-change/v1/*").ShouldHaveSingleItem();
+        Keys("jobbliggaren:auth/account-email-change/v2/*").ShouldHaveSingleItem();
         if (first.Code.Reveal() != second.Code.Reveal())
             (await ConsumeAsync(first.Code)).ShouldBe(AccountEmailChangeVerdict.Unusable.Instance);
 

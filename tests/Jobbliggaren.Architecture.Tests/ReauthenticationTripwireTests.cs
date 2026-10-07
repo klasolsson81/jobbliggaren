@@ -31,6 +31,7 @@ public class ReauthenticationTripwireTests
     private static readonly Regex SensitiveOp = new(
         "(Change|Update|Set|Reset)(Email|Password|Credential)"    // credential / email mutation
         + "|(Delete|Purge|Erase|Anonymi)(Account|User|Identity)"  // account erasure
+        + "|(Suspend|Reinstate)(Account|User|Identity)"        // access lifecycle
         + "|Export(PersonalData|MyData|AccountData|Gdpr|Pii)",     // personal-data export / portability
         RegexOptions.Compiled);
 

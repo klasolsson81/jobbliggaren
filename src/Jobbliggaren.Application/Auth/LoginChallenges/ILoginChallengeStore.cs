@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Jobbliggaren.Application.Auth.Access;
 
 namespace Jobbliggaren.Application.Auth.LoginChallenges;
 
@@ -33,13 +34,20 @@ public sealed record NewLoginChallenge(
     ChallengeId Id,
     string Recipient,
     ChallengeCredentials Credentials,
-    bool ReplacesLiveChallenge);
+    bool ReplacesLiveChallenge)
+{
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
+}
 
 /// <summary>What the store minted for a challenge, for the mail to carry. Null where not asked for.</summary>
 public sealed record IssuedCredentials(LoginCode? Code, LoginLinkToken? Link);
 
 /// <summary>A consumed challenge's proof: the inbox of <see cref="ProvenEmail"/> received it.</summary>
-public sealed record LoginChallengeProof(string ProvenEmail);
+public sealed record LoginChallengeProof(string ProvenEmail)
+{
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
+    public EmailChangeRequestProof? EmailChangeRequest { get; init; }
+}
 
 /// <summary>What a presented code did to its challenge. A missing and an expired record are one state.</summary>
 public enum ChallengeOutcome
@@ -130,6 +138,12 @@ public interface ILoginChallengeStore
     /// be multiplied by minting again.
     /// </summary>
     Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct);
+
+    /// <summary>Reads the exact current self-service request without consuming a code or attempt.</summary>
+    Task<LoginChallengeProof?> ReadEmailChangeRequestAsync(ChallengeId id, Guid userId, CancellationToken ct);
+
+    /// <summary>Removes only this bound request; it cannot revoke a replacement.</summary>
+    Task RevokeBoundAsync(ChallengeId id, ChallengeBinding expected, CancellationToken ct);
 
     /// <summary>
     /// Presents a code for a bound challenge. The store asserts <paramref name="expected"/>: another purpose or

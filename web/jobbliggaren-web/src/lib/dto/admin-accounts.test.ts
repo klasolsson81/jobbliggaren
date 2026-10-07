@@ -12,6 +12,7 @@ const ITEM = {
   role: "User",
   status: "Active",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   deletionEarliest: null,
   applicationCount: 4,
@@ -20,7 +21,7 @@ const ITEM = {
 function answer(items: ReadonlyArray<Record<string, unknown>>) {
   return {
     accounts: { items, totalCount: items.length, page: 1, pageSize: 25, totalPages: 1 },
-    counts: { total: 10, active: 4, pendingDeletion: 1, profileMissing: 2 },
+    counts: { total: 10, active: 4, suspended: 3, pendingDeletion: 1, profileMissing: 2 },
   };
 }
 
@@ -28,15 +29,22 @@ describe("the account directory's wire shapes (#1974, ADR 0151)", () => {
   it("maps each count to its own filter", () => {
     const page = toAccountsPage(accountSearchResponseSchema.parse(answer([ITEM])));
 
-    expect(page.counts).toEqual({ all: 10, active: 4, pendingDeletion: 1, profileMissing: 2 });
+    expect(page.counts).toEqual({ all: 10, active: 4, suspended: 3, pendingDeletion: 1, profileMissing: 2 });
   });
 
-  it("reads a suspended account before the backend sends one, as ADR 0151 D2's tolerant reader", () => {
-    // Declared unreachable until #1976: no backend path reports Suspended yet. This pins only that the web
-    // reads it when an API that learned it first does.
-    const page = toAccountsPage(accountSearchResponseSchema.parse(answer([{ ...ITEM, status: "Suspended" }])));
+  it("reads a suspended account and its separate access flag", () => {
+    const page = toAccountsPage(accountSearchResponseSchema.parse(answer([{ ...ITEM, status: "Suspended", isSuspended: true }])));
 
     expect(page.rows[0]?.status).toBe("suspended");
+    expect(page.rows[0]?.isSuspended).toBe(true);
+  });
+
+  it("retains suspension independently when a pending deletion takes status priority", () => {
+    const page = toAccountsPage(accountSearchResponseSchema.parse(answer([
+      { ...ITEM, status: "PendingDeletion", isSuspended: true, deletionEarliest: "2026-11-07" },
+    ])));
+
+    expect(page.rows[0]).toMatchObject({ status: "pendingDeletion", isSuspended: true, deletionEarliest: "2026-11-07" });
   });
 
   it("reads an id outside RFC 9562's version bits instead of failing the page", () => {

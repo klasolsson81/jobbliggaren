@@ -1,6 +1,6 @@
+using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
-using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
@@ -102,11 +102,7 @@ public static class MeEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
-        // GDPR Art. 17 — Right to erasure. Soft-deletar kontot + alla user-ägda
-        // aggregat i samma transaction (DeleteAccountCommand → UnitOfWorkBehavior).
-        // Post-commit invalideras alla Redis-sessioner via secondary user-sessions-
-        // index (ADR 0024 D4 + ADR 0017 deferred-not stängd), och sist raderas kontots
-        // externa inloggningar (ADR 0142 Amendment (20)).
+        // Profile cascade, external-login erasure and audit share the protected transaction.
         // Hard-delete + Identity-DELETE + audit-anonymisering sker av
         // HardDeleteAccountsJob efter 30-dagars restore-fönster (ADR 0024 D5+D6).
         //
@@ -120,40 +116,28 @@ public static class MeEndpoints
             DeleteAccountRequest body,
             IMediator mediator,
             ISessionStore sessions,
-            IExternalLoginEraser externalLogins,
             ICurrentUser currentUser,
+            ILoggerFactory loggers,
             CancellationToken ct) =>
         {
             var result = await mediator.Send(new DeleteAccountCommand(body.ReauthGrant), ct);
             if (result.IsFailure)
                 return result.Error.ToProblemResult();
 
-            // Failsafe: om Redis är ner får vi en exception → klienten ser 500,
-            // men kontot är redan soft-deletat (idempotent re-DELETE ger ingen
-            // skada vid retry). Vi medvetet INTE swallow:ar Redis-fel — sessionen
-            // måste avslutas eller incidenten flaggas.
+            // Primary-profile liveness already denies authentication after the known commit.
             if (currentUser.UserId.HasValue)
             {
-                // PR2c-0 Layer 2: plant the account-deletion tombstone BEFORE the eager
-                // invalidation, so GetAsync fail-closed rejects (and self-heals) any session
-                // that survives a partial InvalidateAllForUserAsync (Redis blip / race). The
-                // tombstone is the durable read-path backstop (GDPR Art. 17); InvalidateAll is
-                // the fast path that tears the sessions down immediately.
-                //
-                // CancellationToken.None (NOT the request ct): the account is already
-                // soft-deleted (committed above), so this post-commit erasure MUST complete
-                // regardless of a client disconnect. On the request ct, a fire-and-close between
-                // the commit and this block would abort the plant → sessions survive to
-                // sliding-expiry and the read-path stays open, defeating the durable-erasure
-                // guarantee (code-reviewer PR2c-0 Major). Art. 17 teardown is not the caller's
-                // to cancel; the plant leads (fail-closed) so it lands even if InvalidateAll throws.
-                await sessions.MarkUserDeletedAsync(currentUser.UserId.Value, CancellationToken.None);
-                await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, CancellationToken.None);
-
-                // #1746 (ADR 0142 Amendment (20), ADR 0146 D3): after the commit, never in the replayed handler,
-                // and last, so a failure here never keeps a session alive. Not swallowed either: the 500 leaves the
-                // account deleted and signed out, and HardDeleteAccountsJob's backstop takes the links.
-                await externalLogins.EraseAllAsync(currentUser.UserId.Value, CancellationToken.None);
+                // Redis cleanup proceeds after a disconnect; its failure cannot undo the receipt.
+                try
+                {
+                    await sessions.MarkUserDeletedAsync(currentUser.UserId.Value, CancellationToken.None);
+                    await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    AccountEmailChangeLog.TeardownFailed(loggers.CreateLogger("AccountDeletion"),
+                        currentUser.UserId.Value, ex.GetType().Name);
+                }
             }
 
             return Results.NoContent();

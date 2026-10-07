@@ -2,9 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
+using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.Registration;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Validation;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Auth;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
@@ -145,11 +151,18 @@ public sealed class AdminAccountsAccessTests(ApiFactory factory)
     public async Task An_account_that_was_removed_answers_the_same_404_as_one_that_never_existed()
     {
         var (client, _, _) = await AdminAsync(factory, NewToken(), Ct);
-        var removed = await CreateWithoutProfileAsync(factory, Address(NewToken(), "removed"), Ct);
+        var removed = await CreatePendingDeletionAsync(factory, Address(NewToken(), "removed"), Ct);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            // Removed by the registrar's own compensating delete (AccountRegistrar), a path production runs.
-            await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>().DeleteAsync(removed, Ct);
+            // The clock passes the restore window; the production hard-deleter must admit this profile first.
+            var now = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>().UtcNow.AddDays(32);
+            var clock = new MutableFakeDateTimeProvider { UtcNow = now };
+            var deleter = ActivatorUtilities.CreateInstance<AccountHardDeleter>(scope.ServiceProvider, clock);
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var profileId = await db.JobSeekers.IgnoreQueryFilters().Where(row => row.UserId == removed)
+                .Select(row => row.Id).SingleAsync(Ct);
+            (await deleter.GetAccountsReadyForHardDeleteAsync(now.AddDays(-30), Ct)).ShouldContain(profileId.Value);
+            await deleter.HardDeleteAccountAsync(profileId.Value, Ct);
         }
 
         var gone = await client.GetAsync(DetailPath(removed), Ct);

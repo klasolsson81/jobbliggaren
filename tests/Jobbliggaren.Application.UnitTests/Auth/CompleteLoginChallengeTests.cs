@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -13,6 +14,7 @@ using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -33,7 +35,7 @@ public sealed class CompleteLoginChallengeTests
     private static readonly GrantToken Token = GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw");
     private static readonly DateTimeOffset Now = FakeDateTimeProvider.Default.UtcNow;
 
-    private readonly Guid _userId = Guid.NewGuid();
+    private Guid _userId = Guid.NewGuid();
     private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly IRegistrationClaim _claim = Substitute.For<IRegistrationClaim>();
     private readonly IPasswordlessAccountCreator _accounts = Substitute.For<IPasswordlessAccountCreator>();
@@ -49,30 +51,36 @@ public sealed class CompleteLoginChallengeTests
     public CompleteLoginChallengeTests()
     {
         _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
-            .Returns(new GrantSubject.LoginComplete(Email));
+            .Returns(new GrantSubject.LoginComplete(Email) { Access = new AccountAccessProof(0) });
         _claim.TryClaimAsync(Email, Arg.Any<CancellationToken>()).Returns(true);
-        _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.AlreadyConfirmed);
-        _sessions.CreateAsync(_userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+        _inbox.RecordAsync(Arg.Is<Guid>(id => id == _userId), Arg.Any<CancellationToken>()).Returns(InboxProof.AlreadyConfirmed);
+        _sessions.CreateAsync(Arg.Is<Guid>(id => id == _userId), Arg.Any<AccountAccessProof>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(call => new Session(
                 SessionId.FromRaw("granted-session-id"), _userId, Now, Now.AddDays(30), call.Arg<SessionLifetime>()));
     }
 
-    private CompleteLoginChallengeCommandHandler Handler(bool registrationsOpen = true)
+    private CompleteLoginChallengeCommandHandler Handler(
+        bool registrationsOpen = true, AppDbContext? database = null,
+        AccountAccessTestKit.RecordingAccountAccessCoordinator? access = null)
     {
+        database ??= _db;
+        access ??= AccountAccessTestKit.Coordinator();
         var options = Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen });
         var correlation = Substitute.For<ICorrelationIdProvider>();
         correlation.Current.Returns(Guid.NewGuid());
         var request = Substitute.For<IRequestContextProvider>();
-        var resolver = new LoginSubjectResolver(_lookup, _externalLookup, _db);
+        var resolver = new LoginSubjectResolver(_lookup, _externalLookup, database);
+        var reader = AccountAccessTestKit.ReaderFromProfiles(database, id => id == _userId ? Email : null);
         var grant = new PasswordlessSessionGrant(
-            _inbox, _sessions, Substitute.For<IAuthAuditLogger>(), _db, FakeDateTimeProvider.Default, correlation, request);
+            _inbox, _sessions, Substitute.For<IAuthAuditLogger>(), database, FakeDateTimeProvider.Default, correlation, request,
+            reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>());
 
         return new CompleteLoginChallengeCommandHandler(
             options, _grants, _claim, resolver,
-            new AccountRegistrar(_accounts, _db, FakeDateTimeProvider.Default, correlation, request),
+            new AccountRegistrar(_accounts, database, FakeDateTimeProvider.Default, correlation, request, access),
             new LoginProofOutcome(
                 resolver, grant, _grants,
-                new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
+                new ExternalLoginLinker(_externalWriter, database, FakeDateTimeProvider.Default, correlation, request),
                 options, NullLogger<LoginProofOutcome>.Instance));
     }
 
@@ -98,7 +106,7 @@ public sealed class CompleteLoginChallengeTests
         result.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
         await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
         await _claim.DidNotReceiveWithAnyArgs().TryClaimAsync(default!, Ct);
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
     }
 
     [Fact]
@@ -125,7 +133,30 @@ public sealed class CompleteLoginChallengeTests
         result.Error.Code.ShouldBe(AuthErrorCodes.LoginGrantUnusable);
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
         await _claim.DidNotReceiveWithAnyArgs().TryClaimAsync(default!, Ct);
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
+    }
+
+    [Fact]
+    public async Task An_unreachable_account_bound_registration_grant_is_refused_without_creating_an_identity()
+    {
+        // Declared unreachable operator corruption of a stored consent grant: current login proof
+        // code never emits consent for a known account, pinned by LoginProofTests.
+        // An_original_known_account_proof_cannot_become_registration_consent_after_its_address_changes.
+        // Assert only fail-closed consumption of that damaged proof, never a production issuance claim.
+        _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
+            .Returns(new GrantSubject.LoginComplete(Email) { Access = AccountAccessTestKit.Bound(_userId) });
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.LoginGrantUnusable);
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateCommittedAsync(default!, default, Ct);
+        (await _db.JobSeekers.CountAsync(Ct)).ShouldBe(0);
+        (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -140,7 +171,7 @@ public sealed class CompleteLoginChallengeTests
 
         lostClaim.Error.ShouldBe(noGrant.Error);
         await _lookup.DidNotReceiveWithAnyArgs().FindAccountAsync(default!, Ct);
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
     }
 
     [Fact]
@@ -165,7 +196,7 @@ public sealed class CompleteLoginChallengeTests
         var result = await Handler().Handle(Command(), Ct);
 
         result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
         (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(1);
         (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
     }
@@ -178,20 +209,25 @@ public sealed class CompleteLoginChallengeTests
         var result = await Handler().Handle(Command(), Ct);
 
         result.Value.ShouldBeOfType<LoginOutcome.PendingDeletion>();
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
     }
 
     [Fact]
     public async Task An_identity_row_without_a_profile_is_unavailable_and_is_never_adopted()
     {
+        // The pre-#1976 registrar at 22aefd8db could commit Identity before a failed profile save.
+        // Today's atomic writer is pinned by
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns(new LoginAccount(_userId, Email));
 
         var result = await Handler().Handle(Command(), Ct);
 
         result.Value.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
         (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(0);
     }
 
@@ -200,9 +236,16 @@ public sealed class CompleteLoginChallengeTests
     // The address has no account when the handler asks, and the one it creates when the outcome asks.
     private void TheAddressGetsItsAccountFromTheCreator()
     {
+        var created = false;
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>())
-            .Returns((LoginAccount?)null, new LoginAccount(_userId, Email));
-        _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>()).Returns(Result.Success(_userId));
+            .Returns(_ => created ? new LoginAccount(_userId, Email) : null);
+        _accounts.CreatePasswordlessUserAsync(Arg.Any<Guid>(), Email, Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                _userId = call.Arg<Guid>();
+                created = true;
+                return Result.Success(_userId);
+            });
     }
 
     [Fact]
@@ -213,12 +256,11 @@ public sealed class CompleteLoginChallengeTests
         var result = await Handler().Handle(Command(), Ct);
 
         result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
-        await _sessions.Received(1).CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+        await _sessions.Received(1).CreateAsync(_userId, AccountAccessTestKit.Bound(_userId) with { ExpectedEmail = Email }, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
 
         var profile = await _db.JobSeekers.AsNoTracking().SingleAsync(Ct);
         profile.UserId.ShouldBe(_userId);
         profile.TermsAcceptance.ShouldBe(TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default));
-        await _accounts.DidNotReceiveWithAnyArgs().DeleteAsync(default, Ct);
     }
 
     [Fact]
@@ -242,7 +284,7 @@ public sealed class CompleteLoginChallengeTests
         // The outcome function reads the profile back, and a session for an account whose profile did not
         // commit is #1349. SessionStoreUnavailableException is what the store's resilience decorator throws.
         TheAddressGetsItsAccountFromTheCreator();
-        _sessions.CreateAsync(_userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+        _sessions.CreateAsync(Arg.Is<Guid>(id => id == _userId), Arg.Any<AccountAccessProof>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new SessionStoreUnavailableException(
                 "Redis-session-store är inte tillgänglig.", new TimeoutException("Redis timed out")));
 
@@ -252,19 +294,32 @@ public sealed class CompleteLoginChallengeTests
     }
 
     [Fact]
-    public async Task A_profile_the_aggregate_refuses_deletes_the_user_it_was_for_and_opens_no_session()
+    public async Task A_profile_save_failure_aborts_the_registration_scope_and_opens_no_session()
     {
-        // UNREACHABLE through UserAccountService, which returns the id Identity generated: an empty id is the
-        // one input JobSeeker.Register refuses here. This asserts only that the refusal is compensated.
-        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
-        _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>()).Returns(Result.Success(Guid.Empty));
+        // The persistence port can throw before commit. This unit seam witnesses scope abort;
+        // Its durable PostgreSQL pin is
+        // AccountRegistrationAtomicityTests.OpenAsync_ShouldLeaveNoIdentityOrProfile_WhenAuditSaveFails.
+        var failure = new DbUpdateException("registration persistence unavailable");
+        await using var database = TestAppDbContextFactory.Create(new RefuseRegistrationSave(failure));
+        await using var access = AccountAccessTestKit.Coordinator();
+        TheAddressGetsItsAccountFromTheCreator();
 
-        var result = await Handler().Handle(Command(), Ct);
+        var thrown = await Should.ThrowAsync<DbUpdateException>(
+            () => Handler(database: database, access: access).Handle(Command(), Ct).AsTask());
 
-        result.Error.Code.ShouldBe("JobSeeker.UserIdRequired");
-        await _accounts.Received(1).DeleteAsync(Guid.Empty, Arg.Any<CancellationToken>());
+        thrown.ShouldBeSameAs(failure);
+        access.Commits.ShouldBe(0);
+        access.Rollbacks.ShouldBe(1);
+        access.HasActiveScope.ShouldBeFalse();
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
-        (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(0);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
+    }
+
+    private sealed class RefuseRegistrationSave(DbUpdateException failure) : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
+            throw failure;
     }
 
     [Fact]
@@ -273,7 +328,7 @@ public sealed class CompleteLoginChallengeTests
         // The claim does not cover every path to an account, so Identity's duplicate is what the create can
         // answer even for the caller that holds the claim. The winner's account exists by then.
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
-        _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>())
+        _accounts.CreatePasswordlessUserAsync(Arg.Any<Guid>(), Email, Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
                 await WithAccountAsync();
@@ -292,13 +347,14 @@ public sealed class CompleteLoginChallengeTests
     public async Task A_create_that_fails_for_another_reason_is_that_failure_and_opens_no_session()
     {
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
-        _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>())
+        _accounts.CreatePasswordlessUserAsync(Arg.Any<Guid>(), Email, Arg.Any<CancellationToken>())
             .Returns(Result.Failure<Guid>(DomainError.Validation("Auth.InvalidEmail", "Invalid email.")));
 
         var result = await Handler().Handle(Command(), Ct);
 
         result.Error.Code.ShouldBe("Auth.InvalidEmail");
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
         (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(0);
     }
 
@@ -312,7 +368,8 @@ public sealed class CompleteLoginChallengeTests
         var proof = await GoogleIdentities.ProofAsync(
             GoogleUserInfoShapes.Workspace(Subject.Reveal(), Email, hostedDomain: "example.com"));
         _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
-            .Returns(new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject));
+            .Returns(new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject)
+            { Access = new AccountAccessProof(0) });
     }
 
     [Fact]
@@ -333,7 +390,7 @@ public sealed class CompleteLoginChallengeTests
     {
         await TheGrantIsAProvidersGrantAsync();
         TheAddressGetsItsAccountFromTheCreator();
-        _externalWriter.LinkAsync(_userId, ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
+        _externalWriter.LinkAsync(Arg.Is<Guid>(id => id == _userId), ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
             .Returns(ExternalLinkResult.Linked);
 
         var result = await Handler().Handle(Command(), Ct);
@@ -341,9 +398,9 @@ public sealed class CompleteLoginChallengeTests
         result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
         Received.InOrder(() =>
         {
-            _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>());
+            _accounts.CreatePasswordlessUserAsync(Arg.Any<Guid>(), Email, Arg.Any<CancellationToken>());
             _externalWriter.LinkAsync(_userId, ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>());
-            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, AccountAccessTestKit.Bound(_userId) with { ExpectedEmail = Email }, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
         });
         (await _db.AuditLogEntries.AsNoTracking().Select(e => e.EventType).ToListAsync(Ct)).ShouldBe(
             [AccountRegistrar.AccountCreatedAuditEventType, ExternalLoginLinker.ExternalLoginLinkedAuditEventType],
@@ -362,8 +419,9 @@ public sealed class CompleteLoginChallengeTests
         var result = await Handler().Handle(Command(), Ct);
 
         result.Value.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
     }
 
     [Fact]
@@ -375,7 +433,7 @@ public sealed class CompleteLoginChallengeTests
         var result = await Handler().Handle(Command(), Ct);
 
         result.Error.Code.ShouldBe(AuthErrorCodes.LoginGrantUnusable);
-        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default, default!, Ct);
     }
 
     [Fact]

@@ -95,6 +95,7 @@ try
     {
         "init" => await RunInitAsync(log, cts.Token),
         "bootstrap" => await RunBootstrapAsync(log, cts.Token),
+        "identity-history" => await ReadIdentityHistoryAsync(cts.Token),
         "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
         "explain-search" => await RunExplainSearchAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
@@ -116,6 +117,21 @@ static int UsageError(ILogger log)
 {
     MigrateLog.UsageError(log);
     return 1;
+}
+
+static async Task<int> ReadIdentityHistoryAsync(CancellationToken ct)
+{
+    await using var connection = new NpgsqlConnection(MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING"));
+    await connection.OpenAsync(ct);
+    await using var command = new NpgsqlCommand("""
+        SELECT migration_id FROM identity."__EFMigrationsHistory" ORDER BY migration_id
+        """, connection);
+    await using var reader = await command.ExecuteReaderAsync(ct);
+    var migrations = new List<string>();
+    while (await reader.ReadAsync(ct))
+        migrations.Add(reader.GetString(0));
+    Console.WriteLine("JBL_IDENTITY_HISTORY=" + string.Join(',', migrations));
+    return 0;
 }
 
 static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)

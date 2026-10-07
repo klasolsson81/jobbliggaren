@@ -16,12 +16,20 @@ const accountStatusSchema = z.enum(["Active", "PendingDeletion", "ProfileMissing
 const accountRoleSchema = z.enum(["User", "Admin"]);
 const count = z.number().int().nonnegative();
 
+export const accountAccessReceiptSchema = z.object({
+  userId: z.guid(),
+  isSuspended: z.boolean(),
+  accessRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  pendingDeletion: z.boolean(),
+});
+
 const accountListItemSchema = z.object({
   id: z.guid(),
   email: z.string().nullable(),
   role: accountRoleSchema,
   status: accountStatusSchema,
   emailConfirmed: z.boolean(),
+  isSuspended: z.boolean(),
   registeredAt: z.string().nullable(),
   deletionEarliest: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   applicationCount: count.nullable(),
@@ -37,6 +45,7 @@ export const accountStatusCountsSchema = z.object({
   active: count,
   pendingDeletion: count,
   profileMissing: count,
+  suspended: count,
 });
 
 export const accountSearchResponseSchema = z.object({
@@ -53,7 +62,7 @@ export const ACCOUNT_SORTS = ["RegisteredNewest", "RegisteredOldest", "AddressAs
 export type AccountSort = (typeof ACCOUNT_SORTS)[number];
 
 /** The statuses a search can filter by: the ones the backend produces. */
-export const ACCOUNT_SEARCH_STATUSES = ["Active", "PendingDeletion", "ProfileMissing"] as const;
+export const ACCOUNT_SEARCH_STATUSES = ["Active", "PendingDeletion", "ProfileMissing", "Suspended"] as const;
 export type AccountSearchStatus = (typeof ACCOUNT_SEARCH_STATUSES)[number];
 
 /** A search request: the term travels only in a POST body, never in a URL. */
@@ -79,6 +88,7 @@ export function toAccountRow(item: z.infer<typeof accountListItemSchema>): Admin
     role: item.role === "Admin" ? "admin" : "user",
     status: STATUS[item.status],
     emailConfirmed: item.emailConfirmed,
+    isSuspended: item.isSuspended,
     registeredAt: item.registeredAt,
     applicationCount: item.applicationCount,
     deletionEarliest: item.deletionEarliest,
@@ -90,7 +100,7 @@ export function toAccountDetail(item: AccountDetailsDto): AdminAccountDetail {
 }
 
 /** The filters the directory counts, keyed as the toolbar names them. */
-export type AccountCountKey = "all" | "active" | "pendingDeletion" | "profileMissing";
+export type AccountCountKey = "all" | "active" | "pendingDeletion" | "profileMissing" | "suspended";
 
 /** One answered search as the account page shows it. */
 export interface AccountsPage {
@@ -144,6 +154,7 @@ export function toAccountsPage(response: AccountSearchResponse): AccountsPage {
       active: counts.active,
       pendingDeletion: counts.pendingDeletion,
       profileMissing: counts.profileMissing,
+      suspended: counts.suspended,
     },
   };
 }

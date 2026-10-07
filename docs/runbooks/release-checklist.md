@@ -929,7 +929,7 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            behölls. Den står kvar därför att en läsare annars inte kan se att slutsatsen fanns:
            **`basic_auth` bar under ett dygn en transparensrisk utöver åtkomstkontroll, och den
            risken är åtgärdad vid källan.** ⚠ **Återuppstår den om en markörrad någon gång blir
-           falsk igen** — rad 82 är den enda kvarvarande kandidaten, och den är i dag sann.
+           falsk igen** — rad 87 är den enda kvarvarande kandidaten, och den är i dag sann.
            **Slutsats (1) är oförändrad och är den som gäller.**
            ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
            Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
@@ -1300,8 +1300,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    mätning — den här raden är hädanefter den tracked mätningens hem.*
 >
 > **Läget idag är korrekt för de rader som fortfarande beskriver något planerat, och
-> trasigt för dem som inte gör det.** Policyn beskriver ansökningshistorik/
-> företagsöversikt och SCB-uppslag som planerade, vilket de är.
+> trasigt för dem som inte gör det.** Policyn beskriver SCB-uppslag som planerade, vilket de är.
 > ⚠ **E-postleverantörsraderna beskriver INTE längre något planerat OCH bär fortfarande sin
 > markör — de är alltså falska, och skyldigheten är öppen:** armen aktiverades 2026-08-16 medan
 > §2.5 punkt 1 bar KVAR. Punkt 1 nedan är hemmet för vilka rader det gäller och varför, och den
@@ -1331,10 +1330,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-09-04 (#183, MX-flytten): 7 + 7** (rad 37, 50, 82, 92, 116, 117, 152 —
-      identiska i sv och en). **Mängden KRYMPTE med ett och ingen rad flyttade:** STRATO-raden på
-      95 förlorade sin markör i copy-flippen, och en redigering **inuti** en JSON-sträng flyttar
-      ingenting under sig — samma mekanik som 2026-08-16-regenereringen nedan skriver ut.
+      **Regenerated 2026-10-07 (#2046): 3 + 3** (lines 54, 87, 97 in both locales).
+      Before this correction: 7 + 7 on lines 41, 54, 87, 97, 124, 125, 160.
+      *(Previous regeneration, dated provenance: **2026-09-04** (#183, MX move): **7 + 7**
+      on lines 37, 50, 82, 92, 116, 117, 152 in both locales. The STRATO line on 95 lost
+      its marker; no JSON line moved.)*
       *(Föregående regenerering, kvar som daterad proveniens: **2026-08-28** (#183,
       STRATO-mottagarstycket): **8 + 8** på rad 37, 50, 82, 92, **95**, 116, 117, 152. Den gången
       VÄXTE mängden och förskjutningen var enhetlig: det nya lövet var STRATO-raden på 95, och de
@@ -1359,7 +1359,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       nedskrivet tal. De ommäts i samma PR, **ett kommando per locale eftersom strängen skiljer
       sig** — `grep -n "Notiserna planeras att skickas med e-post" …/sv/content-legal.json` och
       `grep -n "The notifications are planned to be sent by email" …/en/content-legal.json`, båda →
-      **82**. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
+      **87**. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
       filen: samma halvmätning som §2.6 finns för att förbjuda.) **Egenskapen är "levande radnummer-pekare in i
       `content-legal.json`", och §2.6-mängden är bara ett av hemmen.** ⚠ Den här noten fick
       räknas om en gång: första svepet täckte bara runbooken, och `code-reviewer` mätte bredare
@@ -1395,7 +1395,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       påståenden satta i presens; 75:s förnekelsemening är **struken helt**, eftersom den inte har
       någon sann presensform; 76 fick markören struken och **avtalsreservationen struken med den**
       — se §2.5 punkt 1:s residual (i), som äger det ledet och är uppdaterad i samma ändring.
-      **Rad 82 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
+      **Rad 87 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
       default OFF och ingen notis har skickats.
       ⚠ **RAD 82:s TEXT ÄR DÄREMOT RÄTTAD 2026-08-16 (#183 FU-1, `security-auditor` Major 3) — OCH
       ATT RÄTTA ÄR INTE ATT FLIPPA.** Raden sa *"behandlar e-posten i Paris inom EU"*, vilket är en
@@ -1404,13 +1404,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kornigheten** — en framtidsutsaga kan vara exakt lika över-precis som en presensutsaga, och
       mot båda står GTS Art. 10:s avtalsrangiga åtkomsträtt utan ortsklausul. Raden bär nu
       regionformen plus avtalets egen utfästelse, och **markörsatsen är ordagrant orörd**.
-      **Det skyddade i rad 82 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
+      **Det skyddade i rad 87 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
       mörka gren binder `/planerat och ännu inte i drift/i`, som satsen fortfarande matchar; raden
       står kvar i mängden ovan, och flippdisciplinen är oberörd. *(Sessionen lämnade först raden
       orörd och läste den som en framtidsutsaga under sin markör. Graderingen föll åt andra hållet,
-      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 82 mot lådan före varje flipp** — dess
+      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 87 mot lådan före varje flipp** — dess
       grind är en användarreglage, inte en operatörsgrind, så den kan bli falsk utan att någon gör
-      något på infrastruktursidan. ⚠ **Rad 82 har sedan 2026-08-16 en MEKANISK läsare:**
+      något på infrastruktursidan. ⚠ **Rad 87 har sedan 2026-08-16 en MEKANISK läsare:**
       `content-legal-parity.test.ts` kräver markören på samtyckesavsnittets omnämnanden och
       **förbjuder** den på mottagaravsnittets. Sviten faller alltså vid notisernas flipp, precis som
       den föll vid den här — men den ersätter inte ommätningen, den kräver den.
@@ -1509,7 +1509,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         igen.** Armen aktiverades utan att grinden passerades, och copyn är därefter flippad för att
         stämma (#183 FU-2b) — **inte** för att grinden passerades. `Email:Provider` är alltså inte
         längre `NullEmailSender` i drift, oavsett vad defaulten säger. **Läs bulleten som SCB-only
-        framåt**; e-postraderna har ingen kvarvarande flipp utom notisernas (rad 82), och den
+        framåt**; e-postraderna har ingen kvarvarande flipp utom notisernas (rad 87), och den
         grindas av ett användarreglage, inte av den här punkten.
         *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
@@ -1556,15 +1556,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       2026-08-16 en egen, smalare mängd och skopade följd-PR:en efter den. Den utelämnade en rad som
       #183:s egen `f09755b1` införde samma dygn med motiveringen "the arm is dark" — falsk när den
       skrevs. Två trackade hemvister med olika mängd för samma faktum, och den felaktiga styrde
-      skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 82 flippas INTE**, och de återstående planerat-meningarna — SCB-vägen och
-      ansökningshistoriken — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
+      skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 87 flippas INTE**, och de återstående planerat-meningarna — SCB-vägen — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
       falska, vilket är den dyra riktningen.
-      ⚠ **RAD 82:s SANNING ÄR OMÄTT, och det skrivs ut hellre än antas.** Varje annan siffra i det
-      här blocket bär datum och instrument; rad 82:s gör det inte. Grunden är rimlig — notis-e-post
-      kräver opt-in plus en matchningskörning, och `Processed 4` är leverantörssidigt **aggregat** som
-      inte identifierar mallar — men rimlig är inte mätt.
-      **Vad som skulle fastställa den, och det är två tabeller och inte en:** att **ingen rad någonsin
-      lämnat `Pending`** i `user_job_ad_matches` respektive `followed_company_ad_hits` — de två
+      **The measurement covers both notification tables:** check whether any row has left `Pending`
+      in `user_job_ad_matches` or `followed_company_ad_hits` — de två
       tabellerna som ÄR notis-armen. ⚠ **Formen är `Pending`, aldrig `sent_at IS NULL`:** i
       claim-then-send-spinen sätts `MarkQueued` **före** utskicket, så en `Queued`-rad kan ha
       genererat ett utskick vars commit föll — det är vad `StrandedMatchReaperJob` finns för. Att
@@ -1576,12 +1571,6 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       det här stycket lade till ett tredje — värre än den utelämnade mätningen det ersatte, eftersom
       stycket gör en poäng av att varje annan siffra bär instrument och raden därför **läser som
       körbar**. `security-auditor` + `code-reviewer`, oberoende, samma dag.)*
-      Tills mätningen är gjord: skyddad från flip på en omätt grund, och det är medvetet den
-      försiktiga riktningen.
-      ⚠ **Statusordet är `security-auditor`s, inte den här postens.** §2.6:s E5-dom skriver rad 82 som
-      **SANN**; det här blocket skriver dess **grund** som omätt, och hon ratificerade den skärpningen
-      i FU-2:s fjärde omkontroll. De konvergerar operativt — raden flippas inte — men **domen ägs av
-      henne**, och en läsare som vill ändra status går till henne, inte hit.
       ⚠ **Den här punktens egen instruktion är samtidigt OUPPFYLLBAR** — *"flippa styckena först när
       respektive grind är passerad"* kan inte utföras för en grind som redan kringgåtts. Läs den som
       överträdd, aldrig som en väntande ordning; det är samma form som §2.5:s strukna

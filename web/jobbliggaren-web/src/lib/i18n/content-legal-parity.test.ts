@@ -70,8 +70,8 @@ function sectionHeadingOf(catalogue: unknown, path: string): string {
  * Formerna är ratificerade av senior-cto-advisor (#186/TD-116) och binder hela MENINGEN, inte
  * ett token — resonemanget bor i e-post-tripwirens doc-kommentar nedan och upprepas inte här.
  *
- * De ligger som konstanter för att de sedan #1199 används i **båda** polariteterna: e-post- och
- * ansökningshistorik-spärrarna kräver att markören finns, värd-spärren kräver att den saknas.
+ * The consent-gated email disclosure requires these sentences; live recipient disclosures forbid
+ * them. Both polarities use the same expressions.
  * Två textkopior av samma mönster hade gett "ETT HEM PER TAL" applicerat på ett regex — och
  * felmoden är inte symmetrisk: bara den POSITIVA assertionen körs mot text som faktiskt bär
  * markören, så en felstavning i en separat negativ kopia hade varit **osynlig för hela sviten**
@@ -109,27 +109,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     expect(leafPaths(enLegal)).toEqual(leafPaths(svLegal));
   });
 
-  /**
-   * #824 PR 4 / #852 — STATUS-MARKÖR-TRIPWIRE (senior-cto-advisor, bindande).
-   *
-   * "(planerat) … ännu inte i drift" är INTE "obyggd". Det är ett ratificerat hus-idiom med en
-   * definierad betydelse — `docs/runbooks/gdpr-processing-register.md` ("Statusgrind: behandlingen är
-   * BYGGD men ännu INTE i prod-drift … formuleringarna flippas från 'planerat' till aktiv drift VID
-   * prod-aktivering") — och det bärs av sju behandlingar, flera av dem kod-skeppade (bl.a.
-   * original-cv-filen). Flippen är en AKTIVERINGSHÄNDELSE, inte en copy-händelse: den sker i lockstep
-   * med första `v*`-taggen (ADR 0090 Ruling 3 item 4), spårad i **#852**.
-   *
-   * Varför testet finns: definitionen levde bara i gitignorerade filer, och TVÅ obligatoriska granskare
-   * i rad lästes vilse av den — design-reviewer krävde att markören skulle strykas ur just de här
-   * styckena, i tron att den betydde "funktionen finns inte". Hade den strykts hade policyn påstått att
-   * behandlingen är i drift innan lanseringsgrindarna passerats: den motsatta osanningen. Kunskapen bor
-   * här nu, där den faller ut i CI i stället för i en granskares minne (Beyoncé-regeln: if you liked it
-   * you should have put a test on it).
-   *
-   * Testet ska FALLA vid prod-aktivering. Det är meningen — det är grinden. Ta då bort det i samma
-   * ändring som flippar copyn, och stäng #852.
-   */
-  it("ansökningshistoriken bär status-markören 'planerat' i policyn tills #852 flippar den", () => {
+  it("application history is disclosed without planned-status markers in both locales", () => {
     // Scoped to `privacy` DELIBERATELY, unlike the email-provider tripwire below: widening to the whole
     // catalogue pulls in `recruiterNotice.sections.2.paragraphs.1`, which describes the same feature
     // to a different audience and carries no status marker. Measured, not assumed.
@@ -147,8 +127,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // loses a different one. Measured identical today.
     expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
 
-    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(/planerat/i);
-    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/planned/i);
+    for (const [path, paragraph] of sv)
+      expect(paragraph, path).not.toMatch(/planerat|planerad|planeras|planerar|ännu inte i drift/i);
+    for (const [path, paragraph] of en)
+      expect(paragraph, path).not.toMatch(/planned|\bplans\b|not yet in operation/i);
   });
 
   /**
@@ -223,9 +205,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * reproducera mot någon era; §2.6 punkt 1 är talens hem och regenererar dem ur sitt eget grep.
    * `code-reviewer`, ograderad observation.)* Mönstren nedan är därför
    * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
-   * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
-   * `planerat`. Systern kan INTE följa med: retentionsposterna bär `(planerat)` utan markörmeningen, så
-   * meningsformen hade fällt dem. Bredda aldrig tillbaka. Och "not yet in operation" är den engelska
+   * (`planerat och ännu inte i drift`). The history guard instead rejects future-status wording.
+   * Do not broaden the email marker. "not yet in operation" is the English
    * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
    *
    * ⚠ **DEN HÄR RADEN ÄR VERKSTÄLLD 2026-08-16 (#183 FU-2b) OCH STÅR KVAR SOM PROVENIENS.** Den
@@ -238,7 +219,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * `code-reviewer` Major 3.)* Instruktionen förutsatte en total flipp, och den förutsättningen höll inte.
    *
    * **Nästa flipp är notisernas**, och då faller det här testet igen — på samtyckesgrenen. Det är
-   * avsiktligt: §2.6 punkt 1 kräver att rad 82 ommäts mot lådan före varje flipp, och en grön svit
+   * avsiktligt: §2.6 punkt 1 kräver att rad 87 ommäts mot lådan före varje flipp, och en grön svit
    * hade tagit ifrån den mätningen dess enda mekaniska läsare. Ta då bort samtyckesgrenen, behåll
    * golvet, och lämna den negativa grenen som den enda kvarvarande — samma sluttillstånd som
    * värd-spärren nedan redan står i.

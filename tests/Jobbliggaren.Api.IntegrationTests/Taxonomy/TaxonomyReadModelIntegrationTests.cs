@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,7 +39,8 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
                 .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         _provider = services.BuildServiceProvider();
     }
 

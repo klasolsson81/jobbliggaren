@@ -6,6 +6,7 @@ using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
@@ -52,7 +53,8 @@ public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
             options
                 .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         _provider = services.BuildServiceProvider();
 
         var env = Substitute.For<IHostEnvironment>();

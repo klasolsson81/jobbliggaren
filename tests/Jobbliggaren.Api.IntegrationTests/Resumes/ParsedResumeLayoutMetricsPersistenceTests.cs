@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -46,7 +47,8 @@ public sealed class ParsedResumeLayoutMetricsPersistenceTests : IAsyncLifetime
             options
                 .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         _provider = services.BuildServiceProvider();
     }
 

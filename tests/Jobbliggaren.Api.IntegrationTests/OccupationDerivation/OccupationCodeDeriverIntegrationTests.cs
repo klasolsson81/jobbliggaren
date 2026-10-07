@@ -6,6 +6,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
@@ -75,7 +76,8 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
                 .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         _provider = services.BuildServiceProvider();
 
         await RunSeederAsync(CancellationToken.None);

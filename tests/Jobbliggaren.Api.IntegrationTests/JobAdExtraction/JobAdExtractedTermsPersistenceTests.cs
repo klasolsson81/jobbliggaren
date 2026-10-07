@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
@@ -52,7 +53,8 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             options
                 .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         _provider = services.BuildServiceProvider();
     }
 

@@ -146,6 +146,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
+            .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
             .AddInterceptors(_commandTimeouts));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddRecruiterErasureMatchQuery();

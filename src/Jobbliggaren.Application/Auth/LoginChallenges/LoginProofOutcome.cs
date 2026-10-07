@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
@@ -36,8 +37,9 @@ public sealed partial class LoginProofOutcome(
 
         // Only a CODE proves a new address. A link reaches the no-account arm only when the account it was mailed
         // to went away inside the challenge's lifetime, and a new account must not rise from it.
-        var consent = method == LoginMethod.Code ? new GrantSubject.LoginComplete(proof.ProvenEmail) : null;
-        return await DecideAsync(subject, method, registration, consent, linkBeforeSession: null, ct);
+        var consent = method == LoginMethod.Code
+            ? new GrantSubject.LoginComplete(proof.ProvenEmail) { Access = proof.Access } : null;
+        return await DecideAsync(subject, method, registration, consent, proof.Access, linkBeforeSession: null, ct);
     }
 
     /// <summary>
@@ -65,12 +67,12 @@ public sealed partial class LoginProofOutcome(
             return NotThisAccountsAddress(registration);
         }
 
-        var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject);
+        var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject) { Access = proof.Access };
         Func<LoginSubject.Active, CancellationToken, Task<bool>>? link = resolved.LinkedUserId is null
             ? (active, token) => externalLogins.LinkAsync(active.UserId, proof.Provider, proof.Subject, token)
             : null;
 
-        return await DecideAsync(resolved.Subject, method, registration, consent, link, ct);
+        return await DecideAsync(resolved.Subject, method, registration, consent, proof.Access, link, ct);
     }
 
     private async Task<LoginOutcome> DecideAsync(
@@ -78,10 +80,12 @@ public sealed partial class LoginProofOutcome(
         LoginMethod method,
         RegistrationState registration,
         GrantSubject? consent,
+        AccountAccessProof original,
         Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
         CancellationToken ct) => (subject, registration) switch
         {
-            (LoginSubject.Active active, _) => await SignInAsync(active, method, registration, linkBeforeSession, ct),
+            (LoginSubject.Active active, _) => await SignInAsync(active, method, registration, original, linkBeforeSession, ct),
+            (LoginSubject.Suspended, _) => new LoginOutcome.AccountUnavailable(),
             (LoginSubject.PendingDeletion pending, _) =>
                 new LoginOutcome.PendingDeletion(AccountRestoreWindow.PermanentDeletionEarliest(pending.DeletedAt)),
 
@@ -89,7 +93,8 @@ public sealed partial class LoginProofOutcome(
             (LoginSubject.NoAccount or LoginSubject.ProfileMissing, RegistrationState.Closed) =>
                 new LoginOutcome.RegistrationClosed(),
 
-            (LoginSubject.NoAccount, RegistrationState.Open) when consent is not null =>
+            (LoginSubject.NoAccount, RegistrationState.Open) when consent is not null
+                && original.UserId is null && original.AccessRevision is null =>
                 new LoginOutcome.ConsentRequired(await grants.IssueAsync(consent, ct)),
             (LoginSubject.NoAccount, RegistrationState.Open) => new LoginOutcome.AccountUnavailable(),
 
@@ -105,17 +110,18 @@ public sealed partial class LoginProofOutcome(
         LoginSubject.Active active,
         LoginMethod method,
         RegistrationState registration,
+        AccountAccessProof original,
         Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
         CancellationToken ct)
     {
-        // The link commits before the session, so a link another account won in the meantime opens none.
-        if (linkBeforeSession is not null && !await linkBeforeSession(active, ct))
+        var session = await grant.GrantAsync(active, method, original, linkBeforeSession, ct);
+        if (session is null)
         {
             LogLinkLostToAnotherAccount(logger, active.UserId, method);
             return NotThisAccountsAddress(registration);
         }
 
-        return new LoginOutcome.SignedIn((await grant.GrantAsync(active, method, ct)).SessionId);
+        return new LoginOutcome.SignedIn(session.SessionId);
     }
 
     private RegistrationState Registration() =>

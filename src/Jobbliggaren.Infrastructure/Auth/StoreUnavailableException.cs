@@ -5,7 +5,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// uniform 503 body, <see cref="ClientMessage"/>, so a request that cannot reach the store fails the same
 /// way whichever store it was and whatever the subtype's own message says (#512; ADR 0142 D2).
 /// </summary>
-public abstract class StoreUnavailableException : Exception
+public abstract class StoreUnavailableException : Jobbliggaren.Application.Common.Exceptions.AuthStoreUnavailableException
 {
     /// <summary>The 503 body's text for every subtype. The subtype's own message never reaches a client.</summary>
     public const string ClientMessage = "Tjänsten är inte tillgänglig just nu. Försök igen om en stund.";
@@ -24,7 +24,7 @@ public abstract class StoreUnavailableException : Exception
     /// name and no inner exception at all.
     /// </summary>
     protected StoreUnavailableException(string store, string message, string innerType)
-        : base(message)
+        : base(message, null)
     {
         Store = store;
         InnerType = innerType;

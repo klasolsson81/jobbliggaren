@@ -89,6 +89,7 @@ const account = (n: number, local: string, status: string, extra: Record<string,
   role: "User",
   status,
   emailConfirmed: true,
+  isSuspended: status === "Suspended",
   registeredAt: `2026-09-${String(10 + n).padStart(2, "0")}T09:00:00Z`,
   deletionEarliest: null,
   applicationCount: status === "Active" ? n : null,
@@ -119,15 +120,32 @@ export interface AccountsQuery {
   readonly many?: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
   readonly gone?: ReadonlySet<string>;
+  readonly status?: string;
+  readonly access?: ReadonlyMap<string, AccountAccessState>;
+}
+
+export interface AccountAccessState {
+  readonly isSuspended: boolean;
+  readonly accessRevision: number;
+}
+
+function withAccess(row: (typeof ACCOUNTS)[number], access: ReadonlyMap<string, AccountAccessState>) {
+  const isSuspended = access.get(row.id)?.isSuspended ?? row.isSuspended;
+  const status = row.status === "ProfileMissing" || row.status === "PendingDeletion"
+    ? row.status : isSuspended ? "Suspended" : "Active";
+  return { ...row, status, isSuspended };
 }
 
 export function accountsPage(
   term: string | undefined,
-  { page = 1, pageSize = 25, many = false, gone = new Set<string>() }: AccountsQuery = {}
+  { page = 1, pageSize = 25, many = false, gone = new Set<string>(), status,
+    access = new Map<string, AccountAccessState>() }: AccountsQuery = {}
 ) {
-  const all = (many ? [...ACCOUNTS, ...MORE] : ACCOUNTS).filter((row) => !gone.has(row.id));
-  const items = term === undefined ? all : all.filter((row) => row.email.includes(term.toLowerCase()));
-  const count = (status: string) => items.filter((row) => row.status === status).length;
+  const all = (many ? [...ACCOUNTS, ...MORE] : ACCOUNTS)
+    .filter((row) => !gone.has(row.id)).map((row) => withAccess(row, access));
+  const matching = term === undefined ? all : all.filter((row) => row.email.includes(term.toLowerCase()));
+  const items = status === undefined ? matching : matching.filter((row) => row.status === status);
+  const count = (status: string) => matching.filter((row) => row.status === status).length;
   return {
     accounts: {
       items: items.slice((page - 1) * pageSize, page * pageSize),
@@ -137,17 +155,20 @@ export function accountsPage(
       totalPages: Math.ceil(items.length / pageSize),
     },
     counts: {
-      total: items.length,
+      total: matching.length,
       active: count("Active"),
       pendingDeletion: count("PendingDeletion"),
       profileMissing: count("ProfileMissing"),
+      suspended: count("Suspended"),
     },
   };
 }
 
-export function accountDetails(accountId: string, gone: ReadonlySet<string> = new Set()) {
+export function accountDetails(accountId: string, gone: ReadonlySet<string> = new Set(),
+  access: ReadonlyMap<string, AccountAccessState> = new Map()) {
   const row = gone.has(accountId) ? undefined : [...ACCOUNTS, ...MORE].find((candidate) => candidate.id === accountId);
   if (row === undefined) return undefined;
-  const active = row.status === "Active";
-  return { ...row, resumeCount: active ? 2 : null, savedSearchCount: active ? 1 : null };
+  const current = withAccess(row, access);
+  const live = current.status === "Active" || current.status === "Suspended";
+  return { ...current, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
 }

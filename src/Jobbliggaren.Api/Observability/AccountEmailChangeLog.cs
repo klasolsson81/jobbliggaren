@@ -3,14 +3,13 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Api.Observability;
 
 /// <summary>
-/// #1975 (ADR 0153) — the public completion of an administrator-initiated address change could not invalidate the
-/// account's sessions after the address had moved. Error, carrying the account's id only: the route is anonymous, so no
-/// logging scope names a user, and an operator has to log the account out by hand.
+/// Post-commit operational failures preserve the known account-transition outcome.
+/// Only the opaque account id and exception type are recorded.
 /// </summary>
 internal static partial class AccountEmailChangeLog
 {
     [LoggerMessage(EventId = 2060, Level = LogLevel.Error,
-        Message = "Account email change: the sessions of user {TargetUserId} were not invalidated after the address "
-            + "moved ({ErrorType})")]
+        Message = "Committed account transition: post-commit cleanup or replacement session issuance failed for "
+            + "user {TargetUserId} ({ErrorType}); earlier credentials remain inadmissible")]
     public static partial void TeardownFailed(ILogger logger, Guid targetUserId, string errorType);
 }

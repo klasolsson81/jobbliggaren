@@ -177,15 +177,45 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(recordKey)).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("address", 1)]
+    [InlineData("user", 1)]
+    [InlineData("address", 2)]
+    [InlineData("user", 2)]
+    public async Task ChallengeIndexes_ApiVolatileIdentity_CanReadLegacyOnlyWithoutOtherIndexPrivileges(
+        string family, int generation)
+    {
+        var modern = family == "address"
+            ? RedisLoginChallengeStore.IndexKey($"acl-index-{Guid.NewGuid():N}@example.se")
+            : RedisLoginChallengeStore.BoundIndexKey(new ChallengeBinding(ChallengePurpose.Reauthentication, Guid.NewGuid()));
+        var key = modern.Replace("/v2/", $"/v{generation}/", StringComparison.Ordinal);
+        const string segment = "indexed-credential-segment";
+        var db = fixture.Challenge.GetDatabase();
+        (await db.ExecuteAsync("SET", key, segment, "EX", "600")).ToString().ShouldBe("OK");
+
+        if (generation == 1)
+            ((string?)await db.StringGetAsync(key)).ShouldBe(segment);
+        else
+            await DeniedAsync(() => db.StringGetAsync(key));
+
+        await DeniedAsync(() => db.ExecuteAsync("GETDEL", key));
+        await DeniedAsync(() => db.ExecuteAsync("DEL", key));
+        await DeniedAsync(() => db.ExecuteAsync("UNLINK", key));
+        await DeniedAsync(() => db.HashGetAsync(key, "p"));
+        ((string?)await fixture.VolatileAdmin.GetDatabase().StringGetAsync(key)).ShouldBe(segment);
+    }
+
     // #1975 — the admin-initiated address change, ahead of its store: the record family runs the bound
     // challenge's verbs and the index SET and GET. Neither is removed with DEL, and only the record may be
     // unlinked.
-    [Fact]
-    public async Task AccountEmailChanges_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task AccountEmailChanges_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands(int generation)
     {
         var db = fixture.Challenge.GetDatabase();
-        var record = new RedisKey("jobbliggaren:auth/account-email-change/v1/" + Guid.NewGuid().ToString("N"));
-        var index = new RedisKey("jobbliggaren:auth/account-email-change-by-user/v1/" + Guid.NewGuid().ToString("N"));
+        var record = new RedisKey($"jobbliggaren:auth/account-email-change/v{generation}/" + Guid.NewGuid().ToString("N"));
+        var index = new RedisKey($"jobbliggaren:auth/account-email-change-by-user/v{generation}/" + Guid.NewGuid().ToString("N"));
 
         await db.ExecuteAsync("HMSET", record, "p", "sealed", "a", "0");
         ((string?)await db.ExecuteAsync("HGET", record, "p")).ShouldBe("sealed");
@@ -496,7 +526,7 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     }
 
     private static string SessionKey(SessionId id) =>
-        "jobbliggaren:session:" + Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(id.Reveal())));
+        "jobbliggaren:session:v2:" + Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(id.Reveal())));
 
     private static async Task DeniedAsync(Func<Task> operation)
     {

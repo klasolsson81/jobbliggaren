@@ -46,7 +46,7 @@ public static class LoginChallengePlan
             (LoginSubject.Active, CodeBudgetState.Admitted, _) => LoginChallengeKind.CodeAndLink,
             (LoginSubject.Active, CodeBudgetState.Exhausted, _) => LoginChallengeKind.LinkOnly,
             (LoginSubject.PendingDeletion, _, _) => LoginChallengeKind.PendingDeletion,
-            (LoginSubject.ProfileMissing, _, _) => LoginChallengeKind.RecordOnly,
+            (LoginSubject.ProfileMissing or LoginSubject.Suspended, _, _) => LoginChallengeKind.RecordOnly,
             (LoginSubject.NoAccount, _, RegistrationState.Closed) => LoginChallengeKind.RegistrationClosed,
             (LoginSubject.NoAccount, CodeBudgetState.Admitted, RegistrationState.Open) =>
                 LoginChallengeKind.NewAccountCode,

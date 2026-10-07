@@ -176,9 +176,8 @@ public class ChangeEmailTests(ApiFactory factory)
     [Fact]
     public async Task POST_change_email_to_an_address_held_only_as_a_user_name_returns_409()
     {
-        // The state a swap leaves when its address write fails after its user-name write
-        // (UserAccountService.SwapConfirmedAddressAsync, log 4001): the address is another row's user name and
-        // no row's address, and the unique index holds it there. Written here by that swap's own first call.
+        // Historical partial swap from the pre-#1976 writer: the address remains reserved as UserName.
+        // Current-writer pin: AddressSwapWriteOrderTests.Confirmed_swap_leaves_both_names_unchanged_when_its_audit_save_fails.
         var ct = TestContext.Current.CancellationToken;
         var held = Address("held-name");
         var holder = Address("holder");
@@ -289,8 +288,11 @@ public class ChangeEmailTests(ApiFactory factory)
         var email = Address("audit");
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        (await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), Address("audit-new"), ct))
-            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var newEmail = Address("audit-new");
+        var response = await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), newEmail, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var challengeId = (await response.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("challengeId").GetString().ShouldNotBeNull();
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -305,6 +307,14 @@ public class ChangeEmailTests(ApiFactory factory)
         auditEntries.Count.ShouldBe(1, "exactly one User.EmailChangeRequested row per request");
         auditEntries[0].AggregateType.ShouldBe("User");
         auditEntries[0].AggregateId.ShouldBe(user.Id, "the aggregate id is the Identity user id");
+        var payload = auditEntries[0].Payload.ShouldNotBeNull();
+        using var witness = JsonDocument.Parse(payload);
+        witness.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["requestId"]);
+        witness.RootElement.GetProperty("requestId").GetString().ShouldBe(challengeId);
+        payload.ShouldNotContain(email);
+        payload.ShouldNotContain(newEmail);
+        payload.ShouldNotContain(CodesTo(newEmail).ShouldHaveSingleItem().Content
+            .ShouldBeOfType<LoginChallengeEmail.AddressChangeCode>().Code.Reveal());
     }
 
     // ---------------------------------------------------------------------------------------

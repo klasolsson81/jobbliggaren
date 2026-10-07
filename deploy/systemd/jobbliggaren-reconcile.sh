@@ -4,6 +4,7 @@
 # usage:  jobbliggaren-reconcile.sh            the unit's apply
 #         jobbliggaren-reconcile.sh --stage    first boot only: verify and tag a release, apply nothing
 #         jobbliggaren-reconcile.sh --status   read-only: what is selected, applied, running and checked out
+#         jobbliggaren-reconcile.sh --prepare-identity sha256:<record>   explicitly approved drain/policy/bootstrap/apply
 #
 # WHAT IT APPLIES. Until #1238 this pulled five `latest` tags, and between the first and the last of
 # them a pull could land on a mixed set that every gate then verified, because an attestation binds
@@ -44,12 +45,18 @@ readonly RECEIPT=/var/lib/jobbliggaren/applied-release.env
 # Absent: follow the channel. Present: exactly one line, `sha-<40 hex>` or `sha256:<64 hex>`, naming
 # the release to hold. Outside the checkout, so `git merge --ff-only` never touches it.
 readonly PIN_FILE=/etc/jobbliggaren/release-pin
+readonly PREPARATION=/var/lib/jobbliggaren/identity-preparation.env
+readonly PREPARATION_UID=0
+readonly MIGRATE_OVERRIDE_PATTERN=/run/jobbliggaren-migrate.XXXXXX.json
+readonly REDIS_SECRETS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh
+readonly REDIS_POLICY=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-policy.py
 
 # The injected crypto secrets, and the shared measurement that says who may read them (#1295).
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 # Reads compose's resolved model in the binding step.
 readonly PYTHON=/usr/bin/python3
+readonly HEALTH_WAIT_TIMEOUT_SECONDS=600
 
 readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 readonly RELEASE_REPO="${OURS_PREFIX}release"
@@ -88,12 +95,18 @@ cannot_answer() {
 }
 
 mode=apply
+approved_record=""
 case "${1:-}" in
-"") ;;
---stage) mode=stage ;;
---status) mode=status ;;
+"") [ "$#" -eq 0 ] || exit 2 ;;
+--stage) [ "$#" -eq 1 ] || exit 2; mode=stage ;;
+--status) [ "$#" -eq 1 ] || exit 2; mode=status ;;
+--prepare-identity)
+  [ "$#" -eq 2 ] && [[ $2 =~ ^sha256:[0-9a-f]{64}$ ]] || exit 2
+  mode=prepare
+  approved_record=$2
+  ;;
 *)
-  log "usage: $0 [--stage | --status]"
+  log "usage: $0 [--stage | --status | --prepare-identity sha256:<record>]"
   exit 2
   ;;
 esac
@@ -189,11 +202,26 @@ if [ "$mode" = status ]; then
       differs+=" running:$svc"
     fi
   done
+  postgres=$(service_containers postgres) || cannot_answer "could not identify the primary database"
+  [ -n "$postgres" ] && [ "$(wc -l <<<"$postgres")" -eq 1 ] || cannot_answer "primary database container is ambiguous or absent"
+  actual_identity=$(/usr/bin/docker exec "$postgres" psql -U postgres -d jobbliggaren -tAc \
+    "SELECT string_agg(migration_id, ',' ORDER BY migration_id) FROM identity.\"__EFMigrationsHistory\";" 2>/dev/null) ||
+    cannot_answer "could not read actual primary Identity history"
+  if [ "$actual_identity" = "$(field "$receipt" JBL_RELEASE_MIGRATIONS_IDENTITY)" ]; then
+    log "identity:  primary history matches the receipt"
+  else
+    log "identity:  primary history DIFFERS from the receipt"
+    differs+=" identity"
+  fi
+  if [ -e "$PREPARATION" ] || [ -L "$PREPARATION" ]; then
+    log "prepare:   incomplete Identity preparation exists"
+    differs+=" preparation"
+  fi
   if [ -n "$differs" ]; then
     log "verdict:   INCONSISTENT —$differs"
     exit 1
   fi
-  log "verdict:   consistent — the checkout's deployment files, :applied, the receipt and the running containers name release $rec_digest"
+  log "verdict:   consistent — deployment files, :applied, receipt, running containers and primary Identity history name release $rec_digest"
   exit 0
 fi
 
@@ -211,6 +239,9 @@ if ! flock -n 9; then
   log "another reconcile holds $LOCK; this run is a no-op (not a failure)"
   exit 0
 fi
+
+[ "$mode" = prepare ] || { [ ! -e "$PREPARATION" ] && [ ! -L "$PREPARATION" ]; } ||
+  refuse "Identity preparation is incomplete; resume its exact verified record with --prepare-identity"
 
 [ -f "$COMPOSE_FILE" ] || refuse "no compose file at $COMPOSE_FILE"
 [ -x "$VERIFIER" ] || refuse "verifier missing or not executable: $VERIFIER"
@@ -285,6 +316,7 @@ done
 /usr/bin/docker pull --quiet "$ref" >/dev/null 2>&1 ||
   cannot_answer "could not pull $ref (before activation the package may not be public yet, or not published yet)"
 rec_digest=$(repo_digest "$ref" "$RELEASE_REPO") || refuse "expected exactly one repo digest for $RELEASE_REPO on $ref"
+[ "$mode" != prepare ] || [ "$rec_digest" = "$approved_record" ] || refuse "the selected record differs from the explicitly approved preparation record"
 [ -z "$pinned_digest" ] || [ "$rec_digest" = "$pinned_digest" ] || refuse "pulled $rec_digest, but $PIN_FILE pins $pinned_digest"
 
 record_status=0
@@ -362,7 +394,45 @@ for image in "${upstream[@]}"; do
   log "pulled $image (upstream, on the allowlist)"
 done
 
-if [ "$mode" = apply ]; then
+candidate_migrate() {
+  local operation=$1 override output status=0
+  [[ $operation == identity-history || $operation == bootstrap ]] || refuse "unknown candidate migration operation"
+  shift
+  override=$(mktemp "$MIGRATE_OVERRIDE_PATTERN") || cannot_answer "candidate migrate override could not be created"
+  if ! printf '{"services":{"migrate":{"image":"%smigrate@%s"}}}\n' "$OURS_PREFIX" "${digest_of[migrate]}" >"$override" \
+    || ! chmod 0600 "$override"; then
+    rm -f -- "$override"
+    cannot_answer "candidate migrate override could not be secured"
+  fi
+  output=$(compose -f "$override" run --rm -T --no-deps --pull never migrate "$operation" "$@" 2>/dev/null) || status=$?
+  rm -f -- "$override"
+  [ "$status" -eq 0 ] || cannot_answer "verified candidate migrate $operation failed; no result is assumed"
+  printf '%s\n' "$output"
+}
+
+identity_history() {
+  local output marker
+  output=$(candidate_migrate identity-history) || return $?
+  [ "$(grep -c '^JBL_IDENTITY_HISTORY=' <<<"$output")" -eq 1 ] || cannot_answer "candidate did not report exactly one Identity history"
+  marker=$(field "$output" JBL_IDENTITY_HISTORY)
+  [[ $marker =~ ^[0-9]{14}_[A-Za-z0-9_]+(,[0-9]{14}_[A-Za-z0-9_]+)*$ ]] || cannot_answer "actual Identity history is empty or malformed"
+  [ "$(tr ',' '\n' <<<"$marker" | LC_ALL=C sort -u | paste -sd, -)" = "$marker" ] || cannot_answer "actual Identity history is not a sorted unique set"
+  printf '%s' "$marker"
+}
+
+candidate_identity=$(field "$record" JBL_RELEASE_MIGRATIONS_IDENTITY)
+actual_identity=""
+if [ "$mode" != stage ]; then
+  actual_identity=$(identity_history)
+  extra_identity=$(comm -23 <(tr ',' '\n' <<<"$actual_identity" | LC_ALL=C sort) \
+    <(tr ',' '\n' <<<"$candidate_identity" | LC_ALL=C sort) | paste -sd, -)
+  [ -z "$extra_identity" ] || refuse "actual Identity history contains migrations absent from the candidate ($extra_identity); pinning never bypasses this gate"
+  if [ "$mode" != prepare ]; then
+    [ "$actual_identity" = "$candidate_identity" ] || refuse "actual Identity history differs from the candidate; obtain explicit GO and use --prepare-identity for this verified record"
+  fi
+fi
+
+if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
   # ---------------------------------------------------------------------------------------------------------
   # THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was current AT
   # INJECTION TIME; this release may bring a different one. A base-image bump that moves uid or gid makes
@@ -452,11 +522,72 @@ if [ "$mode" = apply ]; then
   fi
 
   if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
-    bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check-images "$api_digest" "$worker_digest" || {
+    secret_mode=--check-images
+    [ "$mode" != prepare ] || secret_mode=--check-transition
+    redis_policy=$(bash "$REDIS_SECRETS" "$secret_mode" "$api_digest" "$worker_digest") || {
       log "REFUSING: Redis credential mounts do not match the incoming readers; nothing is applied."
       exit 1
     }
   fi
+fi
+
+if [ "$mode" = prepare ]; then
+  [ -e "$RECEIPT" ] || refuse "Identity preparation requires a verified predecessor receipt"
+  predecessor_identity=$(field "$receipt" JBL_RELEASE_MIGRATIONS_IDENTITY)
+  preparation_prefix=$(printf 'JBL_PREPARE_FORMAT=1\nJBL_PREPARE_RECORD_DIGEST=%s\nJBL_PREPARE_SOURCE_SHA=%s\nJBL_PREPARE_IDENTITY=%s' \
+    "$rec_digest" "$source_sha" "$candidate_identity")
+  if [ -e "$PREPARATION" ] || [ -L "$PREPARATION" ]; then
+    [ ! -L "$PREPARATION" ] && [ -f "$PREPARATION" ] && [ "$(stat -c '%u:%a' "$PREPARATION")" = "$PREPARATION_UID:600" ] || refuse "preparation checkpoint posture differs"
+    [ "$(head -n 4 "$PREPARATION")" = "$preparation_prefix" ] && [ "$(wc -l <"$PREPARATION")" -eq 5 ] || refuse "checkpoint belongs to another release or is incomplete"
+    predecessor_identity=$(field "$(cat "$PREPARATION")" JBL_PREPARE_PREDECESSOR_IDENTITY)
+    [[ $predecessor_identity =~ ^[0-9]{14}_[A-Za-z0-9_]+(,[0-9]{14}_[A-Za-z0-9_]+)*$ ]] || refuse "checkpoint predecessor history is malformed"
+    policy_phase=transition
+  else
+    [ "$redis_policy" = predecessor ] || refuse "first preparation requires the complete predecessor Redis policy"
+    [ "$actual_identity" = "$predecessor_identity" ] || refuse "first preparation requires exact predecessor Identity history"
+    policy_phase=predecessor
+  fi
+  added=$(comm -13 <(tr ',' '\n' <<<"$predecessor_identity" | LC_ALL=C sort) \
+    <(tr ',' '\n' <<<"$candidate_identity" | LC_ALL=C sort) | paste -sd, -)
+  [ "$added" = 20261007074622_AddAccountAccessSuspension ] || refuse "this narrow preparation supports exactly the approved #1976 migration"
+  [ "$actual_identity" = "$predecessor_identity" ] || [ "$actual_identity" = "$candidate_identity" ] || refuse "actual Identity history is neither complete predecessor nor complete candidate"
+  "$PYTHON" -I "$REDIS_POLICY" --lock-fd 9 --policy "$policy_phase" || refuse "installed, mounted or active Redis transition policy differs"
+  for svc in api worker; do
+    cid=$(service_containers "$svc")
+    [ -z "$cid" ] && continue
+    [ "$(wc -l <<<"$cid")" -eq 1 ] || refuse "preparation found ambiguous $svc containers"
+    running=$(/usr/bin/docker inspect --format '{{.State.Running}}' "$cid") || cannot_answer "cannot inspect $svc state"
+    [ "$running" = true ] || continue
+    have=$(/usr/bin/docker inspect --format '{{.Image}}' "$cid") || cannot_answer "cannot inspect $svc image"
+    if [ "$actual_identity" = "$candidate_identity" ]; then
+      want=$(image_id "$OURS_PREFIX$svc@${digest_of[$svc]}") || cannot_answer "cannot identify candidate $svc"
+      [ "$redis_policy" = candidate ] || refuse "a candidate application is running with predecessor policy"
+      "$PYTHON" -I "$REDIS_POLICY" --lock-fd 9 --policy candidate || refuse "candidate application is running with incompatible active ACL"
+    else
+      want=$(image_id "$OURS_PREFIX$svc@$(field "$receipt" "JBL_RELEASE_IMAGE_${svc^^}")") || cannot_answer "cannot identify predecessor $svc"
+    fi
+    [ "$have" = "$want" ] || refuse "incompatible live $svc process; it is outside this verified preparation"
+  done
+  compose stop api worker
+  for svc in api worker; do
+    cid=$(service_containers "$svc")
+    [ -z "$cid" ] || [ "$(/usr/bin/docker inspect --format '{{.State.Running}}' "$cid")" = false ] || refuse "$svc did not drain"
+  done
+  if [ ! -e "$PREPARATION" ]; then
+    mkdir -p "$(dirname "$PREPARATION")"
+    checkpoint=$(mktemp "$PREPARATION.XXXXXX")
+    printf '%s\nJBL_PREPARE_PREDECESSOR_IDENTITY=%s\n' "$preparation_prefix" "$predecessor_identity" >"$checkpoint"
+    chmod 0600 "$checkpoint"
+    mv -f -- "$checkpoint" "$PREPARATION"
+  fi
+  bash "$REDIS_SECRETS" --publish-policy "$api_digest" "$worker_digest"
+  compose up -d --no-deps --force-recreate --pull never redis redis-volatile
+  "$PYTHON" -I "$REDIS_POLICY" --lock-fd 9 --policy candidate || refuse "candidate Redis policy did not become effective"
+  candidate_migrate bootstrap --expect-history "$predecessor_identity" --expect-migrations "$added"
+  [ "$(identity_history)" = "$candidate_identity" ] || refuse "Identity bootstrap readback differs from the candidate manifest"
+  log "Identity preparation is verified; applying the same record under the same lock"
+elif [ "$mode" = apply ] && grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
+  "$PYTHON" -I "$REDIS_POLICY" --lock-fd 9 --policy candidate || refuse "effective Redis ACL differs from the candidate"
 fi
 
 # --- 6. move :applied, apply, prove, record — or put :applied back ------------------------------------------
@@ -509,7 +640,7 @@ log "verified ${#RELEASE_IMAGES[@]} image(s), pulled ${#upstream[@]} upstream; a
 
 # `--pull never` (and `pull_policy: never` in compose) complete the TOCTOU argument: `up` must not
 # consult the registry again and resolve anything to something newer than what was verified.
-compose up -d --remove-orphans --pull never
+compose up -d --remove-orphans --pull never --wait --wait-timeout "$HEALTH_WAIT_TIMEOUT_SECONDS"
 
 # THE POSTCONDITION: every service runs exactly the image the record names. A receipt is written only
 # for an apply that measurably happened.
@@ -540,6 +671,9 @@ in_tag_phase=0
 mkdir -p "$(dirname "$STAMP")"
 date -u +%Y-%m-%dT%H:%M:%SZ >"$STAMP"
 log "reconcile complete: release $source_sha applied; receipt $RECEIPT; stamped $STAMP"
+if [ "$mode" = prepare ]; then
+  rm -f -- "$PREPARATION"
+fi
 if ! retention_pass; then
   log "apply succeeded; retention post-pass incomplete; receipt and :applied remain committed"
   exit 2

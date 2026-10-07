@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Applications;
@@ -6,6 +7,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth.Commands.DeleteAccount;
@@ -15,26 +17,26 @@ namespace Jobbliggaren.Application.UnitTests.Auth.Commands.DeleteAccount;
 /// för DeleteAccountCommandHandler:
 ///   1. Ej autentiserad           → Failure "Auth.NotAuthenticated"
 ///   2. Ingen JobSeeker för userId → Failure "Auth.JobSeekerNotFound"
-///   3. Redan soft-deletad         → idempotent Success utan ny mutation
+///   3. Already soft-deleted       → Gone without a new mutation or success audit
 ///   4. Happy path med barn-aggregat → hela ägar-trädet soft-deletat
 /// Den fjärde är den säkerhetskritiska assertionen: inget user-ägt aggregat
 /// (ansökningar + FollowUp/Note-barn, CV + versioner) lämnas oraderat = ingen
 /// kvarvarande PII.
 ///
-/// PR2c/C5 (epik #481): DeleteAccountCommand bär nu ett Password (IReauthenticatingRequest).
-/// Dessa handler-unit-tester kör handlern DIREKT och kringgår ReauthenticationBehavior — gaten
-/// verifierar lösenordet FÖRE handlern, och handlern själv ignorerar Password. Därför skickas
-/// null in här; re-auth-vägen täcks av ReauthenticationServiceTests + ReauthenticationBehaviorTests
-/// (unit) och DeleteMeTests (integration).
+/// These direct handler tests bypass ReauthenticationBehavior and supply no grant. The ordinary-user
+/// removal port permits only this fixture's caller. Step-up is covered by ReauthenticationServiceTests,
+/// ReauthenticationBehaviorTests and DeleteMeTests.
 /// </summary>
 public class DeleteAccountCommandHandlerTests
 {
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
+    private readonly IExternalLoginEraser _eraser = Substitute.For<IExternalLoginEraser>();
 
     private static ICurrentUser AuthenticatedAs(Guid userId)
     {
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
+        currentUser.AccessRevision.Returns(0L);
         return currentUser;
     }
 
@@ -45,12 +47,14 @@ public class DeleteAccountCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock);
+        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
+            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.NotAuthenticated");
+        await _eraser.DidNotReceiveWithAnyArgs().EraseAllAsync(default, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -59,7 +63,8 @@ public class DeleteAccountCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var currentUser = AuthenticatedAs(Guid.NewGuid());
 
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock);
+        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
+            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
@@ -67,10 +72,11 @@ public class DeleteAccountCommandHandlerTests
         result.Error.Code.ShouldBe("Auth.JobSeekerNotFound");
         // #203: a missing JobSeeker is a NotFound (→404), not a Validation (→400).
         result.Error.Kind.ShouldBe(Jobbliggaren.Domain.Common.ErrorKind.NotFound);
+        await _eraser.DidNotReceiveWithAnyArgs().EraseAllAsync(default, TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public async Task DeleteAccountCommandHandler_WhenJobSeekerAlreadySoftDeleted_ReturnsIdempotentSuccessWithoutNewMutation()
+    public async Task DeleteAccountCommandHandler_WhenJobSeekerAlreadySoftDeleted_ReturnsGoneWithoutNewMutation()
     {
         var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
@@ -84,12 +90,15 @@ public class DeleteAccountCommandHandlerTests
         // Klockan stegas fram — om handlern muterade igen skulle DeletedAt
         // skrivas om med detta senare värde.
         var laterClock = new FakeDateTimeProvider(Clock.UtcNow.AddDays(1));
-        var handler = new DeleteAccountCommandHandler(db, AuthenticatedAs(userId), laterClock);
+        var currentUser = AuthenticatedAs(userId);
+        var handler = new DeleteAccountCommandHandler(db, currentUser, laterClock,
+            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBe(seeker.Id.Value);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Kind.ShouldBe(Jobbliggaren.Domain.Common.ErrorKind.Gone);
+        await _eraser.DidNotReceiveWithAnyArgs().EraseAllAsync(default, TestContext.Current.CancellationToken);
 
         // Idempotens: ingen ny soft-delete-mutation — DeletedAt oförändrat.
         var reloaded = await db.JobSeekers
@@ -132,13 +141,16 @@ public class DeleteAccountCommandHandlerTests
         // handler and only pass because of the .Include(FollowUps).Include(Notes) fix.
         db.ChangeTracker.Clear();
 
-        var handler = new DeleteAccountCommandHandler(db, AuthenticatedAs(userId), Clock);
+        var currentUser = AuthenticatedAs(userId);
+        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
+            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
         await db.SaveChangesAsync(CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(seeker.Id.Value);
+        await _eraser.Received(1).EraseAllAsync(userId, CancellationToken.None);
 
         // GDPR cascade-completeness: bevisa att INGET user-ägt aggregat lämnas
         // oraderat. IgnoreQueryFilters() krävs eftersom soft-deletade rader
@@ -173,5 +185,33 @@ public class DeleteAccountCommandHandlerTests
         // Varje CV-version (inkl. Master) är soft-deletad — ingen kvar-PII.
         reloadedResumes.SelectMany(r => r.Versions).ShouldAllBe(v => v.DeletedAt != null);
         reloadedResumes.SelectMany(r => r.Versions).Count().ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task DeleteAccountCommandHandler_WhenProviderErasureFails_PropagatesBeforeTheOuterSuccessSave()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
+        var currentUser = AuthenticatedAs(userId);
+        var fault = new InvalidOperationException("provider-erasure-fault");
+        _eraser.EraseAllAsync(userId, CancellationToken.None).ThrowsAsync(fault);
+        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
+            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+
+        var actual = await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new DeleteAccountCommand(null), CancellationToken.None).AsTask());
+
+        actual.ShouldBeSameAs(fault);
+        await _eraser.Received(1).EraseAllAsync(userId, CancellationToken.None);
+        db.AuditLogEntries.Local.ShouldBeEmpty();
+        // A failed handler never reaches the outer success Save/Audit. Physical rollback is pinned by
+        // DeleteMeTests.POST_me_delete_whose_erasure_fails_rolls_back_profile_and_keeps_session_and_links.
+        db.ChangeTracker.Clear();
+        (await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.UserId == userId, CancellationToken.None))
+            .DeletedAt.ShouldBeNull();
     }
 }

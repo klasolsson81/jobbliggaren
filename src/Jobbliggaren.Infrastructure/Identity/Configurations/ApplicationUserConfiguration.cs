@@ -7,6 +7,10 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
 {
     public void Configure(EntityTypeBuilder<ApplicationUser> builder)
     {
+        builder.Property(user => user.IsSuspended).HasDefaultValue(false).IsRequired();
+        builder.Property(user => user.AccessRevision).HasDefaultValue(0L).IsRequired();
+        builder.Property(user => user.CredentialCutoff).HasDefaultValue(0L).IsRequired();
+
         // #508 (ADR 0024 D6) — created_at drives the orphan-sweep grace window.
         // HasDefaultValueSql("now()") makes the column ValueGeneratedOnAdd: the DB
         // stamps now() on INSERT when the property is the CLR sentinel

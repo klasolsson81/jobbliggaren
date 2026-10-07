@@ -1,4 +1,6 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 
 namespace Jobbliggaren.Application.Auth.Grants;
 
@@ -23,6 +25,7 @@ public abstract record GrantSubject
     private GrantSubject() { }
 
     public abstract GrantPurpose Purpose { get; }
+    public AccountAccessProof Access { get; init; } = AccountAccessProof.Legacy;
 
     /// <summary>
     /// The address a login challenge proved, waiting for the terms to be accepted. Nothing here is asserted
@@ -50,6 +53,7 @@ public abstract record GrantSubject
     public sealed record ChangeEmail(Guid UserId, string NewEmail) : GrantSubject
     {
         public override GrantPurpose Purpose => GrantPurpose.ChangeEmail;
+        public EmailChangeRequestProof? Request { get; init; }
     }
 
     /// <summary>
@@ -81,6 +85,12 @@ public sealed record GrantAssertion
 
     /// <summary>The binding the stored subject must EQUAL, or null for a bearer-bound purpose.</summary>
     public GrantSubject? Binding { get; }
+
+    public bool Matches(GrantSubject subject) =>
+        Purposes.Contains(subject.Purpose)
+        && (Binding is null || (Binding is GrantSubject.ChangeEmail requested && subject is GrantSubject.ChangeEmail stored
+            ? requested.UserId == stored.UserId && string.Equals(requested.NewEmail, stored.NewEmail, StringComparison.Ordinal)
+            : Binding == subject with { Access = Binding.Access }));
 
     // Value equality over the purposes, not the list's reference: two assertions a caller builds alike are equal.
     public bool Equals(GrantAssertion? other) =>

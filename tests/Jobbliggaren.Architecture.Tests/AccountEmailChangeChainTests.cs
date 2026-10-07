@@ -11,6 +11,7 @@ using Jobbliggaren.Application.Auth.Commands.CompleteAccountEmailChange;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
 using Shouldly;
 
@@ -46,7 +47,7 @@ public class AccountEmailChangeChainTests
             .Order()];
 
     [Fact]
-    public void Only_the_handlers_of_the_flow_take_the_store()
+    public void Only_the_address_handlers_and_generation_selective_cleanup_take_the_store()
     {
         ConsumersOf(typeof(IAccountEmailChangeStore)).ShouldBe(
         [
@@ -56,6 +57,7 @@ public class AccountEmailChangeChainTests
                 typeof(CompleteAccountEmailChangeCommandHandler).FullName!,
                 typeof(GetPendingAccountEmailChangeQueryHandler).FullName!,
                 typeof(RequestAccountEmailChangeCommandHandler).FullName!,
+                typeof(AccountAccessCleanup).FullName!,
             }.Order(),
         ]);
     }

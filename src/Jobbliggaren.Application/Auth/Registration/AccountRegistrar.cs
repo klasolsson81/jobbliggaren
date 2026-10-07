@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Domain.Auditing;
@@ -17,7 +18,8 @@ public sealed class AccountRegistrar(
     IAppDbContext db,
     IDateTimeProvider clock,
     ICorrelationIdProvider correlationId,
-    IRequestContextProvider requestContext)
+    IRequestContextProvider requestContext,
+    IAccountAccessCoordinator coordinator)
 {
     public const string AccountCreatedAuditEventType = "User.AccountCreated";
 
@@ -28,16 +30,15 @@ public sealed class AccountRegistrar(
     /// </summary>
     public async Task<Result> OpenAsync(string email, CancellationToken ct)
     {
-        var created = await accounts.CreatePasswordlessUserAsync(email, ct);
+        var userId = Guid.NewGuid();
+        await using var scope = await coordinator.BeginAsync([userId], false, ct);
+        var created = await accounts.CreatePasswordlessUserAsync(userId, email, ct);
         if (created.IsFailure)
             return created.Error.Code == AuthErrorCodes.DuplicateAccount ? Result.Success() : Result.Failure(created.Error);
 
         var seeker = JobSeeker.Register(created.Value, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seeker.IsFailure)
-        {
-            await accounts.DeleteAsync(created.Value, ct);
             return Result.Failure(seeker.Error);
-        }
 
         db.JobSeekers.Add(seeker.Value);
         db.AuditLogEntries.Add(AuditLogEntry.Create(
@@ -50,11 +51,8 @@ public sealed class AccountRegistrar(
             ipAddress: requestContext.IpAddress,
             userAgent: requestContext.UserAgent));
 
-        // Saved here, not by the unit-of-work behavior after the handler: the caller reads the profile back
-        // from the database, and an unsaved Add is invisible to it. A save that throws is followed by nothing,
-        // so no session exists for an account whose profile did not commit (#1349); the orphan sweep collects
-        // the Identity row.
         await db.SaveChangesAsync(ct);
+        await scope.CommitAsync(ct);
         return Result.Success();
     }
 }

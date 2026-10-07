@@ -44,7 +44,7 @@ public sealed partial class CompleteExternalLoginCommandHandler(
         {
             ExternalExchange.Identified { Identity: var identity } => Result.Success(new ExternalLoginCompletion(
                 await outcome.ResolveExternalAsync(
-                    new ExternalLoginProof(identity.Email, identity.Provider, identity.Subject), cancellationToken),
+                    new ExternalLoginProof(identity.Email, identity.Provider, identity.Subject) { Access = flow.Access }, cancellationToken),
                 flow.Next)),
 
             // Nothing is linked and no grant is issued.

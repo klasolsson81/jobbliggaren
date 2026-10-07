@@ -7,6 +7,7 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -31,7 +32,7 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// <item>Grant-vägrans-paritet: en okänd grant, en förbrukad, en annan användares och dess ägares därefter
 ///   ger byte-identisk 401 — ingen av dem avslöjar varför</item>
 /// <item>#1746: the account's external logins go at the request for every provider, and a failure in that erasure
-///   leaves the account deleted and signed out</item>
+///   rolls back the profile and leaves the session and provider links intact</item>
 /// </list>
 ///
 /// OBS rate-limit: AccountDeletion-policyn är UserId-partitionerad med PermitLimit=1/60s och hålls
@@ -278,6 +279,9 @@ public class DeleteMeTests(ApiFactory factory)
         await using var scope = _factory.Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);
         user.ShouldNotBeNull();
+        await using var access = await scope.ServiceProvider
+            .GetRequiredService<Jobbliggaren.Application.Auth.Access.IAccountAccessCoordinator>()
+            .BeginAsync([user.Id], false, Ct);
         var writer = scope.ServiceProvider.GetRequiredService<IExternalLoginWriter>();
         foreach (var provider in ExternalProviderKey.Known)
         {
@@ -285,6 +289,7 @@ public class DeleteMeTests(ApiFactory factory)
             (await writer.LinkAsync(user.Id, provider, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
         }
 
+        await access.CommitAsync(Ct);
         return user.Id;
     }
 
@@ -324,10 +329,10 @@ public class DeleteMeTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task POST_me_delete_whose_erasure_fails_leaves_the_account_deleted_and_signed_out_with_its_links()
+    public async Task POST_me_delete_whose_erasure_fails_rolls_back_profile_and_keeps_session_and_links()
     {
-        // The actor: a database failure in the erasure after the soft delete committed. Session, grant and delete all go
-        // through the derived host. The links it leaves are the state HardDeleteAccountsJob's backstop exists for.
+        // The actual erasure fault happens inside the account transaction; the current writer cannot leave the
+        // retired post-commit partial deletion that HardDeleteAccountsJob still cleans up for historical rows.
         await using var host = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             services.AddScoped<IExternalLoginEraser, FailingEraser>()));
         var client = host.CreateClient();
@@ -346,24 +351,119 @@ public class DeleteMeTests(ApiFactory factory)
         response.StatusCode.ShouldBe(
             HttpStatusCode.InternalServerError, await response.Content.ReadAsStringAsync(Ct));
 
-        (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull().DeletedAt.ShouldNotBeNull();
+        (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull().DeletedAt.ShouldBeNull();
         using var me = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me");
         me.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-        (await client.SendAsync(me, Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await client.SendAsync(me, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await LinksOfAsync(userId)).ShouldBe(ExternalProviderKey.Known.Count);
+        await using var read = _factory.Services.CreateAsyncScope();
+        (await read.ServiceProvider.GetRequiredService<AppDbContext>().AuditLogEntries
+            .AnyAsync(row => row.UserId == userId && row.EventType == "Account.Deleted", Ct)).ShouldBeFalse();
     }
 
     private sealed class FailingEraser : IExternalLoginEraser
     {
         public Task EraseAllAsync(Guid userId, CancellationToken ct) =>
-            Task.FromException(new NpgsqlException("the connection was lost after the soft delete committed"));
+            Task.FromException(new NpgsqlException("the protected erasure connection was lost"));
     }
 
-    // Idempotency-testet är inte möjligt via ren API-yta: en andra POST /me/delete kräver ny session,
-    // och login är blockerad efter första radering per D5 (dessutom kapar AccountDeletion-rate-limiten
-    // en andra delete inom samma minut). Idempotens verifieras indirekt av "exakt EN Account.Deleted-
-    // rad"-asserten ovan (om handlern inte var idempotent skulle vi få N rader vid Hangfire-retry) och
-    // direkt av handler-unit-testet i DeleteAccountCommandHandlerTests. Att ett raderat konto inte kan
-    // logga in pinnas där inloggningen bor: LoginChallengeProofTests
-    // (An_account_deleted_after_the_mail_went_out_gets_its_deletion_date_not_a_session).
+    [Fact]
+    public async Task POST_me_delete_whose_successful_erasure_loses_an_xmin_race_returns_409_without_replay_or_partial_deletion()
+    {
+        var attempt = new DeletionAttempt();
+        await using var host = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddScoped<IExternalLoginEraser>(sp => new RecordingEraser(
+                ActivatorUtilities.CreateInstance<IdentityExternalLoginStore>(sp),
+                sp.GetRequiredService<AppIdentityDbContext>(), attempt))));
+        using var client = host.CreateClient();
+        var email = NewAddress("xmin-race");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(host, email, ct: Ct);
+        var userId = await LinkEveryKnownProviderAsync(email);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        // Both cascade rows come from their public create paths, not hand-seeded deleted state.
+        using var application = await client.PostAsJsonAsync("/api/v1/applications",
+            new { jobAdId = (Guid?)null, coverLetter = (string?)null }, Ct);
+        application.StatusCode.ShouldBe(HttpStatusCode.Created);
+        using var resume = await client.PostAsJsonAsync("/api/v1/resumes",
+            new { name = "Race fixture CV", fullName = "Anna Andersson" }, Ct);
+        resume.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var before = (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull();
+        before.DeletedAt.ShouldBeNull();
+        before.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
+        var grant = await ReauthTestHelpers.MintGrantAsync(_factory, client, sessionId, email, Ct);
+        HttpStatusCode? competingStatus = null;
+
+        _factory.JobSeekerSaveRace.Arm(userId, times: 1, async raceCt =>
+        {
+            // This callback runs at the held AppDb Save, after the real handler's provider eraser
+            // has succeeded in its shared transaction. A different request changes the real xmin.
+            attempt.Calls.ShouldBe(1);
+            attempt.ErasureCompleted.ShouldBeTrue();
+            using var competitor = host.CreateClient();
+            competitor.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+            using var write = await competitor.PutAsJsonAsync("/api/v1/me/background-match-notification-consent",
+                new { enabled = true }, raceCt);
+            competingStatus = write.StatusCode;
+            write.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull()
+                .Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        });
+
+        HttpResponseMessage response;
+        try
+        {
+            using var delete = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/delete")
+            { Content = JsonContent.Create(new { reauthGrant = grant }) };
+            response = await client.SendAsync(delete, Ct);
+        }
+        finally
+        {
+            _factory.JobSeekerSaveRace.Disarm();
+        }
+
+        using (response)
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Conflict, await response.Content.ReadAsStringAsync(Ct));
+        }
+        competingStatus.ShouldBe(HttpStatusCode.NoContent);
+        _factory.JobSeekerSaveRace.Fired.ShouldBe(1);
+        attempt.Calls.ShouldBe(1, "the successful eraser must not run again after the xmin conflict");
+        (await LinksOfAsync(userId)).ShouldBe(ExternalProviderKey.Known.Count);
+        await using var read = _factory.Services.CreateAsyncScope();
+        var primary = read.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await primary.JobSeekers.IgnoreQueryFilters().AsNoTracking().SingleAsync(row => row.UserId == userId, Ct);
+        stored.DeletedAt.ShouldBeNull();
+        stored.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        (await primary.Applications.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(row => row.JobSeekerId == stored.Id, Ct)).DeletedAt.ShouldBeNull();
+        (await primary.Resumes.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(row => row.JobSeekerId == stored.Id, Ct)).DeletedAt.ShouldBeNull();
+        (await primary.AuditLogEntries.AsNoTracking()
+            .AnyAsync(row => row.UserId == userId && row.EventType == "Account.Deleted", Ct)).ShouldBeFalse();
+        (await primary.AuditLogEntries.AsNoTracking().CountAsync(row => row.UserId == userId
+            && row.EventType == "JobSeeker.NotificationConsentUpdated", Ct)).ShouldBe(1);
+        using var me = await client.GetAsync("/api/v1/me", Ct);
+        me.StatusCode.ShouldBe(HttpStatusCode.OK, "the original session must remain usable after rollback");
+    }
+
+    private sealed class DeletionAttempt
+    {
+        public int Calls { get; set; }
+        public bool ErasureCompleted { get; set; }
+    }
+
+    private sealed class RecordingEraser(IExternalLoginEraser inner, AppIdentityDbContext identity, DeletionAttempt attempt)
+        : IExternalLoginEraser
+    {
+        public async Task EraseAllAsync(Guid userId, CancellationToken ct)
+        {
+            attempt.Calls++;
+            await inner.EraseAllAsync(userId, ct);
+            (await identity.UserLogins.AsNoTracking().CountAsync(row => row.UserId == userId, ct)).ShouldBe(0);
+            attempt.ErasureCompleted = true;
+        }
+    }
+
+    // A successful deletion revokes its session, so a second HTTP attempt cannot reach the handler.
+    // Direct no-op deletion is a failure and writes no success audit; DeleteAccountCommandHandlerTests pins it.
 }

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Microsoft.AspNetCore.Http;
 
@@ -25,6 +26,10 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
 
     public SessionId? SessionId =>
         httpContextAccessor.HttpContext?.Items["SessionId"] is SessionId sid ? sid : null;
+
+    public long? AccessRevision =>
+        httpContextAccessor.HttpContext?.Items[AuthenticatedSessionKeys.AccessRevision] is long revision
+            ? revision : null;
 
     public bool IsInRole(string role) => Principal?.IsInRole(role) == true;
 }

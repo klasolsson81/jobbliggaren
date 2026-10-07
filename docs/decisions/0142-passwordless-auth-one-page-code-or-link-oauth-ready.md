@@ -3714,6 +3714,54 @@ instead of configured. Two mails and two code entries for an email change. Eight
 fifteen. A new PII key class in Redis for ≤ 15 min, with the keyring as its confidentiality bound.
 The attempt budget is a measured acceptance with seven lapse triggers, one of them spent (6, Amendment (13)), not a permanent property.
 
+## Amendment pointer 2026-10-07 (#1976) — account access generations and atomic Identity writes
+
+ADR 0155 owns the suspension/session model. Login codes and links, OAuth state,
+consent/registration grants, inbox proof and address-change proofs preserve the
+epoch captured before storage and any original account identity/revision. Fresh
+primary-database checks precede protected writes and session issuance; callback
+does not rebase an old proof. Genuine v1 proofs have generation zero only for
+never-transitioned accounts, except that all v1 pending admin address changes
+are unusable and must restart (ADR 0153's amendment of this date). Genuine v1
+self-service address challenges or grants without protected request provenance
+also require a fresh request, including at revision zero. Unrelated v1 login,
+consent and re-authentication retain generation-zero compatibility.
+
+Both address-request paths now use two short account-only transaction scopes,
+with every database scope and lock disposed before transport. Accepted mail is
+followed by fresh admission of the unchanged original authority and exact
+pending record before its activation audit commits. Self-service uses the
+server's 22-character challenge id, `User.EmailChangeRequested`, aggregate
+`User` and own account as its exact committed witness; protected `q` provenance
+retains the original 15-minute lifetime through the grant. Verification checks
+activation before code consumption and returns Conflict
+`Auth.EmailChangeNotActivated` without spending a code attempt when activation
+has not committed. Protected confirmation checks the witness again. A known
+rollback or send failure leaves any remaining proof inert; an unknown activation
+commit may have committed its witness and permits no automatic replay.
+
+The registrar's Identity row, profile, terms stamp and account-created audit now
+commit in one App-owned physical transaction. D3/1c's compensation and orphan
+premises describe the retired writer. The D5 address swap still takes the unique
+user-name index first, but both user-name and email writes now share the outer
+transaction with audit: a failed second write rolls back the first. Provider
+linking and inbox proof commit before separate session issuance. An actual
+address swap or first inbox proof advances epoch, revision, cutoff and stamps
+in that transaction without changing suspension state. A fresh confirmation
+hint selects the login lock scope only: an account-only scope refuses a newly
+needed first proof instead of upgrading its locks, and the recorder requires
+the global lifecycle lock. Flows with no transition retain their original
+access proof. After a known transition commit, only the two purpose-specific
+internal factories of `CommittedSessionAuthorization` can authorize the exact
+new revision/cutoff/address and immutable intended lifetime. Self-service
+preserves its session profile; public administrator completion issues no
+session. Unknown commit confirms no authorization and issues no session.
+Post-commit cleanup removes only revisions below the new one; cleanup failure
+does not contradict a known swap success. D5's partial-write model and the
+earlier bootstrap/own-deletion boundaries are amended by ADR 0155. Existing
+provider risk decisions are unchanged. This pointer records source
+synchronization, not a live rollout or a green test verdict.
+
 ## Alternatives considered
 
 - **D8 Variant A — aspnet-contrib remote-auth handlers with a proxied callback.** Rejected: the

@@ -1,0 +1,52 @@
+using System.Data.Common;
+using Jobbliggaren.Domain.Auditing;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
+
+namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
+
+internal sealed class CommitAcknowledgementLoss : DbTransactionInterceptor
+{
+    private readonly Lock _gate = new();
+    private Guid? _target;
+    private int _fired;
+    internal int Fired => Volatile.Read(ref _fired);
+
+    internal IDisposable AfterAddressChangeCommit(Guid target)
+    {
+        lock (_gate)
+        {
+            _target = target;
+            _fired = 0;
+        }
+        return new Scope(this);
+    }
+
+    public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (_target is { } target && eventData.Context is AppDbContext app
+                && app.ChangeTracker.Entries<AuditLogEntry>().Any(entry => entry.Entity.AggregateId == target
+                    && entry.Entity.EventType == "User.EmailChanged"))
+            {
+                _target = null;
+                Interlocked.Increment(ref _fired);
+                // The real server commit has finished; its caller loses the acknowledgement before it can attest it.
+                throw new NpgsqlException("The address transition commit acknowledgement was lost.");
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    private sealed class Scope(CommitAcknowledgementLoss owner) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (owner._gate)
+                owner._target = null;
+        }
+    }
+}

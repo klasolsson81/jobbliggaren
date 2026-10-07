@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -12,4 +13,4 @@ namespace Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 /// the re-auth tripwire's pattern does not match: its credential is the code, not a re-authentication grant.
 /// </summary>
 public sealed record VerifyEmailChangeChallengeCommand(string? ChallengeId, string? Code)
-    : ICommand<Result<GrantToken>>, IAuthenticatedRequest;
+    : ICommand<Result<GrantToken>>, IAuthenticatedRequest, IOwnsAccountTransaction;

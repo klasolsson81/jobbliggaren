@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // each code is verified by the action that spends it, so no grant and no session id leaves the server
 // (security-auditor, #1740 S1 (d)); every refusal after a verified code says the code is spent (Minor 7);
 // the request's 409 compares only the two codes with copy of their own (S3); the confirm's answer falls
-// in three classes (Minor 3), and only a parsed 200 re-issues the session (S2). The translator returns
+// includes a known committed change without a session; only a parsed 200 re-issues the session (S2). The translator returns
 // "namespace.key", so assertions check the resolved key.
 
 const { getSessionIdMock, getServerSessionMock, setSessionCookieMock, authedFetchMock } = vi.hoisted(
@@ -234,6 +234,21 @@ describe("requestEmailChangeAction", () => {
 });
 
 describe("confirmEmailChangeAction", () => {
+  it("reports the committed address change when a fresh session cannot be issued", async () => {
+    backend({
+      "/api/v1/auth/change-email/verify": verifiedChange,
+      "/api/v1/auth/change-email/confirm": () => problem(401, "Auth.SessionUnavailable"),
+    });
+
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: true,
+      value: { requiresLogin: true },
+    });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+    expect(getServerSessionMock).not.toHaveBeenCalled();
+    expect(paths()).toEqual(["/api/v1/auth/change-email/verify", "/api/v1/auth/change-email/confirm"]);
+  });
+
   it("re-issues the device's session from a parsed 200, and hands back nothing of it", async () => {
     backend({
       "/api/v1/auth/change-email/verify": verifiedChange,

@@ -360,10 +360,8 @@ public class ChangeEmailVerifyAndConfirmTests(ApiFactory factory)
     [Fact]
     public async Task A_retry_after_the_callers_own_half_finished_swap_completes_it()
     {
-        // The state a swap leaves when its address write fails after its user-name write
-        // (UserAccountService.SwapConfirmedAddressAsync, log 4001), written here by that swap's own first call: the
-        // new address is this row's user name and not yet its address. It holds the address against everyone else,
-        // and against the caller not at all.
+        // Historical partial swap from the retired pre-#1976 writer; today's atomic writer cannot leave it.
+        // Current-writer pin: AddressSwapWriteOrderTests.Confirmed_swap_leaves_both_names_unchanged_when_its_audit_save_fails.
         var email = Address("half");
         var newEmail = Address("half-new");
         var sessionId = await SignUpAsync(email);

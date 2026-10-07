@@ -13,7 +13,8 @@ public sealed record AccountListItemDto(
     bool EmailConfirmed,
     DateTimeOffset? RegisteredAt,
     DateOnly? DeletionEarliest,
-    int? ApplicationCount)
+    int? ApplicationCount,
+    bool IsSuspended = false)
 {
     public override string ToString() => $"AccountListItemDto({Id}, {Status})";
 }

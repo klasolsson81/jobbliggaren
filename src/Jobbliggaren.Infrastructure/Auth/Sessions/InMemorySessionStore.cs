@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ public sealed class InMemorySessionStore(
     // SupersededAt (2b-3) mirrors RedisSessionStore.SessionPayload: null = live, set = the key
     // has been rotated away and is living out its fixed grace window (COND-A). ExpiresAt then
     // holds the grace ceiling (now + RotationGraceWindow) and is never slid.
-    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime, DateTimeOffset? SupersededAt)>
+    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime, DateTimeOffset? SupersededAt, long AccessRevision)>
         _sessions = new();
 
     // COND-B revocation tombstone: userId -> revoked-until. Mirrors the Redis SET EX tombstone
@@ -63,7 +64,7 @@ public sealed class InMemorySessionStore(
         // ceiling set at rotation). Mirrors RedisSessionStore.GetAsync's short-circuit.
         if (entry.SupersededAt is not null)
             return Task.FromResult<Session?>(
-                new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt, entry.Lifetime));
+                new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt, entry.Lifetime, entry.AccessRevision));
 
         // NOTE (#746): the RedisSessionStore sliding-write throttle (SlidAt / SlideThreshold) is
         // deliberately NOT mirrored here. The throttle exists solely to skip the per-read Redis
@@ -76,22 +77,27 @@ public sealed class InMemorySessionStore(
         var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
         var newExpiry = now + slidingTtl;
-        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime, entry.SupersededAt), entry);
+        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime, entry.SupersededAt, entry.AccessRevision), entry);
 
         return Task.FromResult<Session?>(
-            new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry, entry.Lifetime));
+            new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry, entry.Lifetime, entry.AccessRevision));
     }
 
-    public Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
+    public async Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct) =>
+        (await CreateAsync(userId, new AccountAccessProof(0, userId, 0), lifetime, ct))!;
+
+    public Task<Session?> CreateAsync(Guid userId, AccountAccessProof proof, SessionLifetime lifetime, CancellationToken ct)
     {
+        if (proof.UserId != userId || proof.AccessRevision is not { } revision || revision < 0)
+            throw new ArgumentException("Session creation requires an admitted, account-bound proof.", nameof(proof));
         var sessionId = SessionId.Generate();
         var now = dateTimeProvider.UtcNow;
         var expiresAt = now + _options.ProfileFor(lifetime).SlidingTtl;
 
         // RotatedAt starts at CreatedAt (== now); SupersededAt null (live).
-        _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime, null);
+        _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime, null, revision);
 
-        return Task.FromResult(new Session(sessionId, userId, now, expiresAt, lifetime));
+        return Task.FromResult<Session?>(new Session(sessionId, userId, now, expiresAt, lifetime, revision));
     }
 
     public Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct)
@@ -122,7 +128,7 @@ public sealed class InMemorySessionStore(
         // (ExpiresAt = grace ceiling) so concurrent in-flight requests don't 401. The superseded
         // entry stays in the store so InvalidateAllForUserAsync (Art. 17) still reaches it.
         var graceExpiry = now + _options.RotationGraceWindow;
-        var supersededEntry = (entry.UserId, entry.CreatedAt, now, graceExpiry, entry.Lifetime, (DateTimeOffset?)now);
+        var supersededEntry = (entry.UserId, entry.CreatedAt, now, graceExpiry, entry.Lifetime, (DateTimeOffset?)now, entry.AccessRevision);
         if (!_sessions.TryUpdate(key, supersededEntry, entry))
             return Task.FromResult<SessionRotation?>(null);
 
@@ -132,7 +138,7 @@ public sealed class InMemorySessionStore(
         var expiresAt = now + slidingTtl;
 
         // Preserve CreatedAt + Lifetime verbatim (cap anchor never resets); RotatedAt = now.
-        _sessions[newId.Reveal()] = (entry.UserId, entry.CreatedAt, now, expiresAt, entry.Lifetime, (DateTimeOffset?)null);
+        _sessions[newId.Reveal()] = (entry.UserId, entry.CreatedAt, now, expiresAt, entry.Lifetime, (DateTimeOffset?)null, entry.AccessRevision);
 
         // COND-B fail-closed: a concurrent InvalidateAllForUserAsync tombstone means our new key
         // may outlive the revoke — undo (drop new AND the superseded old) and return null.
@@ -161,6 +167,15 @@ public sealed class InMemorySessionStore(
         foreach (var key in toRemove)
             _sessions.TryRemove(key, out _);
         return Task.FromResult(toRemove.Count);
+    }
+
+    public Task<int> InvalidateBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct)
+    {
+        var count = 0;
+        foreach (var entry in _sessions.Where(s => s.Value.UserId == userId && s.Value.AccessRevision < accessRevision))
+            if (_sessions.TryRemove(entry))
+                count++;
+        return Task.FromResult(count);
     }
 
     public Task MarkUserDeletedAsync(Guid userId, CancellationToken ct)

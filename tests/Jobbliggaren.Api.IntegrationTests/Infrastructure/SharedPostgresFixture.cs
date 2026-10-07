@@ -1,5 +1,6 @@
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -58,7 +59,8 @@ public sealed class SharedPostgresFixture : IAsyncLifetime
         await using (var provider = new ServiceCollection()
             .AddDbContext<AppDbContext>(options => options
                 .UseNpgsql(template, npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .UseSnakeCaseNamingConvention())
+                .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)))
             .BuildServiceProvider())
         {
             using var scope = provider.CreateScope();

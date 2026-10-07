@@ -20,7 +20,7 @@ public interface ILoginAccountLookup
 /// be the spelling that found it: Identity's lookup normaliser folds case, and with it a few non-ASCII letters
 /// (<c>ſ</c> finds <c>s</c>).
 /// </summary>
-public sealed record LoginAccount(Guid UserId, string Email);
+public sealed record LoginAccount(Guid UserId, string Email, bool IsSuspended = false, long AccessRevision = 0);
 
 /// <summary>What an address is, for the login challenge. A closed set: only the variants nested here exist.</summary>
 public abstract record LoginSubject
@@ -48,6 +48,8 @@ public abstract record LoginSubject
 
     /// <summary>An account with a live profile: the one kind that may be given a session.</summary>
     public sealed record Active(Guid UserId, string AccountEmail) : KnownAccount(UserId, AccountEmail);
+
+    public sealed record Suspended(Guid UserId, string AccountEmail) : KnownAccount(UserId, AccountEmail);
 
     /// <summary>An account in its restore window (its profile is soft-deleted).</summary>
     public sealed record PendingDeletion(Guid UserId, string AccountEmail, DateTimeOffset DeletedAt)
@@ -101,6 +103,7 @@ public sealed class LoginSubjectResolver(
         {
             null => new LoginSubject.ProfileMissing(account.UserId, account.Email),
             { DeletedAt: { } deletedAt } => new LoginSubject.PendingDeletion(account.UserId, account.Email, deletedAt),
+            _ when account.IsSuspended => new LoginSubject.Suspended(account.UserId, account.Email),
             _ => new LoginSubject.Active(account.UserId, account.Email),
         };
     }

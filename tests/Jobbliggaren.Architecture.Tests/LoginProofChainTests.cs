@@ -5,6 +5,7 @@ using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
+using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -83,22 +84,11 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Only_the_account_deletion_endpoint_erases_a_login()
+    public void Only_the_protected_account_deletion_handler_erases_a_login()
     {
-        // #1746 (ADR 0142 Amendment (20), dotnet-architect): after the soft delete commits, in the endpoint and never
-        // in the replayed handler (ADR 0146 D3). A new way into the deletion window, an admin surface say, is a
-        // deliberate addition here; the hard-delete job's backstop covers it until then. The endpoint's lambda
-        // compiles into a nested closure whose name is no contract, so a consumer reads as its outermost type.
-        ConsumersOf(typeof(IExternalLoginEraser)).Select(name => name.Split('+')[0]).Distinct()
-            .ShouldBe([typeof(MeEndpoints).FullName!]);
-
-        // The type maps every /me endpoint, so the one method is pinned by the request it binds as well.
-        Composing.SelectMany(a => a.GetTypes())
-            .SelectMany(t => t.GetConstructors(Declared).Cast<MethodBase>().Concat(t.GetMethods(Declared)))
-            .Where(m => m.GetParameters().Any(p => p.ParameterType == typeof(IExternalLoginEraser)))
-            .ShouldHaveSingleItem()
-            .GetParameters().Select(p => p.ParameterType)
-            .ShouldContain(typeof(MeEndpoints.DeleteAccountRequest));
+        // #1976: provider erasure joins the protected deletion transaction before audit/save/commit.
+        // Its command refuses an xmin conflict instead of replaying any part of that transaction.
+        ConsumersOf(typeof(IExternalLoginEraser)).ShouldBe([typeof(DeleteAccountCommandHandler).FullName!]);
     }
 
     [Fact]

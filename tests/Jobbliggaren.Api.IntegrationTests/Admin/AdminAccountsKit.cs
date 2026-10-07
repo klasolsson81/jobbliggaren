@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Infrastructure.Identity;
@@ -62,16 +63,20 @@ internal static class AdminAccountsKit
     }
 
     /// <summary>
-    /// An account without a profile: the registrar's first boundary alone, the state a failed second step
-    /// leaves until the nightly sweep (#1349).
+    /// Historical data left by AccountRegistrar before #1976: Identity committed before the profile save failed.
+    /// AccountRegistrationAtomicityTests pins that today's registrar does not leave this shape.
     /// </summary>
     public static async Task<Guid> CreateWithoutProfileAsync(
         WebApplicationFactory<Program> factory, string email, CancellationToken ct)
     {
         await using var scope = factory.Services.CreateAsyncScope();
+        var userId = Guid.NewGuid();
+        await using var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>()
+            .BeginAsync([userId], false, ct);
         var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-            .CreatePasswordlessUserAsync(email, ct);
+            .CreatePasswordlessUserAsync(userId, email, ct);
         created.IsSuccess.ShouldBeTrue();
+        await access.CommitAsync(ct);
         return created.Value;
     }
 
@@ -102,12 +107,15 @@ internal static class AdminAccountsKit
     public static async Task PromoteAsync(WebApplicationFactory<Program> factory, Guid userId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
+        await using var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>()
+            .BeginAsync([userId], true, CancellationToken.None);
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         if (!await roles.RoleExistsAsync(Roles.Admin))
             (await roles.CreateAsync(new IdentityRole<Guid>(Roles.Admin))).Succeeded.ShouldBeTrue();
         var user = await users.FindByIdAsync(userId.ToString()) ?? throw new InvalidOperationException("No such user.");
         (await users.AddToRoleAsync(user, Roles.Admin)).Succeeded.ShouldBeTrue();
+        await access.CommitAsync(CancellationToken.None);
     }
 
     public static async Task DemoteAsync(WebApplicationFactory<Program> factory, Guid userId)

@@ -1,5 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
-import { STEP_UP_GRANT } from "./fixtures";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join, win32 } from "node:path";
+import { STEP_UP_CHALLENGE, STEP_UP_GRANT } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
@@ -20,8 +23,9 @@ test.afterAll(async () => {
   await harness.stop();
 });
 
-test.beforeEach(async ({ context }) => {
+test.beforeEach(async ({ context, page }) => {
   harness.reset();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await context.addCookies([
     { name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN, secure: true, httpOnly: true, sameSite: "Strict" },
   ]);
@@ -93,6 +97,334 @@ test("Bakgrundsjobb and Granskning still render their data", async ({ page }) =>
 const accountRows = (page: Page) => page.getByRole("table", { name: "Konton" }).locator("tbody tr");
 
 const ACCOUNT_E = "00000000-0000-4000-8000-000000000005";
+const ACCOUNT_D = "00000000-0000-4000-8000-000000000004";
+const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
+const lighthouseRequire = createRequire(cliRequire.resolve("lighthouse"));
+const axePath = lighthouseRequire.resolve("axe-core/axe.min.js");
+
+function screenshotDirectory() {
+  const requested = process.env.ADMIN_ACCESS_SCREENSHOT_DIR;
+  if (!requested) return null;
+  if (!win32.isAbsolute(requested)) throw new Error("ADMIN_ACCESS_SCREENSHOT_DIR must be absolute.");
+  const directory = win32.resolve(requested);
+  const repository = win32.resolve(__dirname, "../../../..");
+  if (!/^c:\\tmp\\/i.test(directory)
+    || directory.toLowerCase() === repository.toLowerCase()
+    || directory.toLowerCase().startsWith(`${repository.toLowerCase()}\\`)) {
+    throw new Error("ADMIN_ACCESS_SCREENSHOT_DIR must be an external C:/tmp directory outside the repository.");
+  }
+  return directory;
+}
+
+async function captureAccessState(page: Page, state: string) {
+  const directory = screenshotDirectory();
+  if (directory === null) return;
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({ path: join(directory, `${state}-${page.viewportSize()?.width ?? 1280}.png`),
+    animations: "disabled", fullPage: true });
+}
+
+type AxeResult = { violations: { id: string; impact: string | null; nodes: { target: string[] }[] }[] };
+
+async function expectAccessAxe(page: Page, state: string) {
+  await page.addScriptTag({ path: axePath });
+  const result = await page.evaluate(async () => {
+    const engine = (window as unknown as {
+      axe: { run: (target: Document, options: unknown) => Promise<AxeResult> };
+    }).axe;
+    return engine.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });
+  });
+  expect(result.violations, `${state} has accessibility violations`).toEqual([]);
+}
+
+async function openAccount(page: Page, email = "konto.e@example.test") {
+  await page.goto("/admin/anvandare");
+  await page.getByRole("button", { name: email, exact: true }).click();
+  const panel = page.getByRole("dialog", { name: email, exact: true });
+  await expect(panel.getByRole("region", { name: "Åtgärder", exact: true })).toBeVisible();
+  return panel;
+}
+
+const accessLabels = {
+  suspend: { button: "Stäng av åtkomst", title: "Stäng av åtkomsten för" },
+  reinstate: { button: "Återaktivera åtkomst", title: "Återaktivera åtkomsten för" },
+} as const;
+
+async function beginAccess(page: Page, panel: Locator, operation: keyof typeof accessLabels,
+  email = "konto.e@example.test") {
+  await panel.getByRole("button", { name: accessLabels[operation].button, exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: `${accessLabels[operation].title} ${email}?`, exact: true });
+  await expect(dialog).toContainText("skickar vi en sexsiffrig kod till admin@example.test");
+  return dialog;
+}
+
+async function enterAccessCode(dialog: Locator) {
+  await dialog.getByRole("button", { name: "Skicka kod", exact: true }).click();
+  await expect(dialog).toContainText("Vi har skickat en kod till admin@example.test.");
+  await expect(dialog.getByLabel("Sexsiffrig kod")).toBeFocused();
+  await dialog.getByLabel("Sexsiffrig kod").fill("123456");
+}
+
+async function submitAccessCode(page: Page, dialog: Locator, operation: keyof typeof accessLabels) {
+  const response = page.waitForResponse(answer => answer.request().method() === "POST"
+    && answer.request().headers()["next-action"] !== undefined).then(answer => answer.text());
+  await dialog.getByRole("button", { name: accessLabels[operation].button, exact: true }).click();
+  const flight = await response;
+  expect(flight).not.toContain(STEP_UP_GRANT);
+  expect(flight).not.toContain("123456");
+}
+
+test("suspend cancels the pending address change, refreshes counts/filter and reinstatement requires a fresh code", async ({ page }) => {
+  harness.emailChanges.add(ACCOUNT_E);
+  const panel = await openAccount(page);
+  const suspend = await beginAccess(page, panel, "suspend");
+  await expect(suspend).toContainText("Det väntande adressbytet avbryts.");
+  await captureAccessState(page, "suspend-confirmation");
+  await expectAccessAxe(page, "suspend confirmation");
+  await enterAccessCode(suspend);
+  await captureAccessState(page, "suspend-code");
+  await submitAccessCode(page, suspend, "suspend");
+
+  await expect(suspend).toBeHidden();
+  await expect(panel.getByRole("heading", { name: "konto.e@example.test", exact: true })).toBeFocused();
+  await expect(panel.getByRole("button", { name: "Återaktivera åtkomst", exact: true })).toBeVisible();
+  await expect(panel.getByText("Adressbyte", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".jp-toast")).toContainText("Åtkomsten för konto.e@example.test är avstängd.");
+  expect(harness.emailChanges.has(ACCOUNT_E)).toBe(false);
+  await captureAccessState(page, "suspend-receipt");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("radio", { name: "Avstängda (1)", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Aktiva (2)", exact: true })).toBeVisible();
+  await page.getByRole("radio", { name: "Avstängda (1)", exact: true }).click();
+  await expect(accountRows(page)).toHaveCount(1);
+  await expect(accountRows(page).first()).toContainText("Avstängd");
+  expect(JSON.parse(harness.searches.at(-1) ?? "{}")).toMatchObject({ status: "Suspended" });
+  await page.getByRole("button", { name: "konto.e@example.test", exact: true }).click();
+  const reinstate = await beginAccess(page, panel, "reinstate");
+  await expect(reinstate).toContainText("Tidigare sessioner återaktiveras inte.");
+  await captureAccessState(page, "reinstate-confirmation");
+  await enterAccessCode(reinstate);
+  await submitAccessCode(page, reinstate, "reinstate");
+
+  await expect(reinstate).toBeHidden();
+  await expect(panel.getByRole("button", { name: "Stäng av åtkomst", exact: true })).toBeVisible();
+  await expect(page.locator(".jp-toast").filter({ hasText: "är återaktiverad" }))
+    .toContainText("Kontoägaren behöver logga in igen.");
+  await captureAccessState(page, "reinstate-receipt");
+  expect(harness.access.get(ACCOUNT_E)).toEqual({ isSuspended: false, accessRevision: 2 });
+  expect(harness.emailChanges.has(ACCOUNT_E)).toBe(false);
+  expect(harness.reauthVerifications.map(body => JSON.parse(body))).toEqual([
+    { challengeId: STEP_UP_CHALLENGE, code: "123456" }, { challengeId: STEP_UP_CHALLENGE, code: "123456" },
+  ]);
+  expect(harness.accessRequests.map(({ operation, body }) => ({ operation, body: JSON.parse(body) }))).toEqual([
+    { operation: "suspend", body: { reauthGrant: STEP_UP_GRANT } },
+    { operation: "reinstate", body: { reauthGrant: STEP_UP_GRANT } },
+  ]);
+  await page.keyboard.press("Escape");
+  await expect(accountRows(page)).toHaveCount(1); // The empty-region row, with the Suspended filter retained.
+  await expect(page.getByRole("radio", { name: "Avstängda (0)", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Konton", exact: true })).toBeFocused();
+});
+
+test("reinstate under pending deletion leaves the deletion date and explicitly receipts its continuation", async ({ page }) => {
+  harness.access.set(ACCOUNT_D, { isSuspended: true, accessRevision: 1 });
+  const panel = await openAccount(page, "konto.d@example.test");
+  await expect(panel.getByText("Avstängd", { exact: true })).toBeVisible();
+  const dialog = await beginAccess(page, panel, "reinstate", "konto.d@example.test");
+  await expect(dialog).toContainText("Raderingen fortsätter.");
+  await enterAccessCode(dialog);
+  await submitAccessCode(page, dialog, "reinstate");
+
+  await expect(dialog).toBeHidden();
+  await expect(panel).toContainText("2026-10-30");
+  await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+  await expect(page.locator(".jp-toast")).toContainText("Raderingen fortsätter.");
+  expect(harness.access.get(ACCOUNT_D)).toEqual({ isSuspended: false, accessRevision: 2 });
+  await captureAccessState(page, "reinstate-pending-deletion-receipt");
+  await expectAccessAxe(page, "pending-deletion receipt");
+});
+
+for (const width of [1280, 3440]) {
+  test(`request loading, code and protected-write loading render at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    harness.holdCodeRequests = true;
+    harness.holdAccessWrites = true;
+    try {
+      const panel = await openAccount(page);
+      const dialog = await beginAccess(page, panel, "suspend");
+      await dialog.getByRole("button", { name: "Skicka kod", exact: true }).click();
+      await expect.poll(() => harness.requests.includes("POST /api/v1/auth/reauth")).toBe(true);
+      await expect(dialog.getByRole("button", { name: "Skickar…", exact: true })).toBeDisabled();
+      await captureAccessState(page, "code-request-loading");
+      await expectAccessAxe(page, "code request loading");
+      harness.releaseCodeRequests();
+      await expect(dialog.getByLabel("Sexsiffrig kod")).toBeFocused();
+      await captureAccessState(page, "code-entry");
+      await expectAccessAxe(page, "code entry");
+      await dialog.getByLabel("Sexsiffrig kod").fill("123456");
+      await dialog.getByRole("button", { name: "Stäng av åtkomst", exact: true }).click();
+      await expect.poll(() => harness.accessRequests.length).toBe(1);
+      await expect(dialog.getByRole("button", { name: "Stänger av…", exact: true })).toBeDisabled();
+      await captureAccessState(page, "protected-write-loading");
+      await expectAccessAxe(page, "protected write loading");
+      await expect(page.locator(".jp-toast")).toHaveCount(0);
+      harness.releaseAccessWrites();
+      await expect(dialog).toBeHidden();
+      await expect(page.locator(".jp-toast")).toContainText("är avstängd.");
+      await captureAccessState(page, "known-commit-success");
+    } finally {
+      harness.releaseCodeRequests();
+      harness.releaseAccessWrites();
+    }
+  });
+
+  for (const committed of [false, true]) {
+    test(`an unknown 503 outcome claims no command receipt even after status ${committed ? "changed" : "stayed active"}, ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      harness.accessMode = committed ? "unknownAfterCommit" : "unknown";
+      const panel = await openAccount(page);
+      const dialog = await beginAccess(page, panel, "suspend");
+      await enterAccessCode(dialog);
+      await submitAccessCode(page, dialog, "suspend");
+
+      await expect(dialog).toBeHidden();
+      const notice = panel.getByRole("region", { name: "Åtgärder" }).getByRole("status");
+      await expect(notice).toContainText("Det går inte att bekräfta om åtgärden genomfördes.");
+      await expect(notice).toBeFocused();
+      await expect(page.locator(".jp-toast")).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: committed ? "Återaktivera åtkomst" : "Stäng av åtkomst", exact: true }))
+        .toBeVisible();
+      expect(harness.accessRequests).toHaveLength(1);
+      await captureAccessState(page, `unknown-${committed ? "committed" : "uncommitted"}`);
+      await expectAccessAxe(page, "unknown command outcome");
+    });
+  }
+
+  test(`a real no-op command refusal is focused in Åtgärder without a receipt, ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const panel = await openAccount(page);
+    const dialog = await beginAccess(page, panel, "suspend");
+    await enterAccessCode(dialog);
+    // A second administrator committed suspension after this panel's read. The real command now refuses.
+    harness.access.set(ACCOUNT_E, { isSuspended: true, accessRevision: 1 });
+    await submitAccessCode(page, dialog, "suspend");
+
+    await expect(dialog).toBeHidden();
+    const refusal = panel.getByRole("region", { name: "Åtgärder" }).getByRole("alert");
+    await expect(refusal).toContainText("Kontots åtkomst är redan avstängd.");
+    await expect(refusal).toBeFocused();
+    await expect(page.locator(".jp-toast")).toHaveCount(0);
+    expect(harness.access.get(ACCOUNT_E)?.accessRevision).toBe(1);
+    expect(harness.accessRequests).toHaveLength(1);
+    await captureAccessState(page, "command-no-op-refusal");
+    await expectAccessAxe(page, "real no-op refusal");
+  });
+
+  test(`a 429 after code verification spends no transition and gives a focused refusal, ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    harness.accessMode = "rateLimited";
+    const panel = await openAccount(page);
+    const dialog = await beginAccess(page, panel, "suspend");
+    await enterAccessCode(dialog);
+    await submitAccessCode(page, dialog, "suspend");
+
+    await expect(dialog).toBeHidden();
+    const refusal = panel.getByRole("region", { name: "Åtgärder" }).getByRole("alert");
+    await expect(refusal).toContainText("För många förfrågningar.");
+    await expect(refusal).toBeFocused();
+    await expect(page.locator(".jp-toast")).toHaveCount(0);
+    expect(harness.access.has(ACCOUNT_E)).toBe(false);
+    await captureAccessState(page, "command-rate-limit");
+    await expectAccessAxe(page, "command rate limit");
+  });
+
+  test(`an expired session after verification replaces the code form with a login route, ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    harness.accessMode = "unauthorized";
+    const panel = await openAccount(page);
+    const dialog = await beginAccess(page, panel, "suspend");
+    await enterAccessCode(dialog);
+    await submitAccessCode(page, dialog, "suspend");
+
+    const outcome = dialog.getByRole("status");
+    await expect(outcome).toContainText("Du är inte inloggad längre. Logga in igen och börja om.");
+    await expect(outcome).toBeFocused();
+    await expect(dialog.getByRole("link", { name: "Logga in", exact: true })).toHaveAttribute("href", /\/logga-in\?next=.*admin/);
+    await expect(dialog.getByLabel("Sexsiffrig kod")).toHaveCount(0);
+    await expect(page.locator(".jp-toast")).toHaveCount(0);
+    await captureAccessState(page, "session-expired");
+    await expectAccessAxe(page, "expired-session replacement");
+  });
+}
+
+test("the real direct cancel refusal (#1994) is shown and focused in Åtgärder without a success toast", async ({ page }) => {
+  harness.emailChanges.add(ACCOUNT_E);
+  const panel = await openAccount(page);
+  await expect(panel.getByRole("button", { name: "Avbryt adressbytet", exact: true })).toBeVisible();
+  // Another operator cancelled the pending record after this panel's read.
+  harness.emailChanges.delete(ACCOUNT_E);
+  await panel.getByRole("button", { name: "Avbryt adressbytet", exact: true }).click();
+
+  const refusal = panel.getByRole("region", { name: "Åtgärder" }).getByRole("status");
+  await expect(refusal).toContainText("Det finns inget adressbyte att avbryta längre.");
+  await expect(refusal).toBeFocused();
+  await expect(page.locator(".jp-toast")).toHaveCount(0);
+  expect(harness.requests).toContain(`DELETE /api/v1/admin/accounts/${ACCOUNT_E}/email-change`);
+  await captureAccessState(page, "direct-cancel-refusal");
+  await expectAccessAxe(page, "direct command refusal");
+});
+
+for (const width of [1280, 1920, 3440]) {
+  test(`the access surface rests without overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/anvandare");
+    await expect(page.getByRole("radio", { name: "Avstängda (0)", exact: true })).toBeVisible();
+    await captureAccessState(page, "directory-resting");
+    await page.getByRole("button", { name: "konto.e@example.test", exact: true }).click();
+    const panel = page.getByRole("dialog", { name: "konto.e@example.test", exact: true });
+    await expect(panel.getByRole("button", { name: "Stäng av åtkomst", exact: true })).toBeVisible();
+    await panel.evaluate(async element => {
+      await Promise.all(element.getAnimations().map(animation => animation.finished));
+    });
+    await captureAccessState(page, "active-panel-resting");
+    const box = await panel.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await expectAccessAxe(page, `resting access panel at ${width}px`);
+  });
+}
+
+test("keyboard reaches the access dialog, traps focus, retains the challenge on reopen and returns focus on cancel", async ({ page }) => {
+  const panel = await openAccount(page);
+  const trigger = panel.getByRole("button", { name: "Stäng av åtkomst", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Stäng av åtkomsten för konto.e@example.test?", exact: true });
+  for (let presses = 0; presses < 5; presses++) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  }
+  const send = dialog.getByRole("button", { name: "Skicka kod", exact: true });
+  await send.focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByLabel("Sexsiffrig kod")).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Stäng av åtkomst", exact: true })).toBeEnabled();
+  await page.keyboard.type("123456");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByLabel("Sexsiffrig kod")).toBeFocused();
+  expect(harness.requests.filter(route => route === "POST /api/v1/auth/reauth")).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Avbryt", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(trigger).toBeFocused();
+  expect(harness.accessRequests).toHaveLength(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "konto.e@example.test", exact: true })).toBeFocused();
+});
 
 test("Användare lists the accounts with their counts, and searches by a body the URL never carries", async ({ page }) => {
   await page.goto("/admin/anvandare");
@@ -118,7 +450,7 @@ test("Användare opens an account in the panel, shows its details, and returns f
 
   const panel = page.getByRole("dialog", { name: "konto.e@example.test" });
   await expect(panel.getByText("CV:n")).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Stäng" })).toBeFocused();
+  await expect(panel.getByRole("button", { name: "Stäng", exact: true })).toBeFocused();
   await expect(panel.getByRole("button", { name: /Kommer snart$/ }).first()).toBeVisible();
   expect(harness.requests).toContain(`GET /api/v1/admin/accounts/${ACCOUNT_E}`);
 

@@ -11,7 +11,7 @@ import { ChangeEmailSetting } from "./change-email-setting";
 const requestEmailChangeMock =
   vi.fn<(newEmail: string, proof: CodeProof) => Promise<ReauthOutcome<{ challengeId: string }>>>();
 const confirmEmailChangeMock =
-  vi.fn<(newEmail: string, proof: CodeProof) => Promise<ReauthOutcome<null>>>();
+  vi.fn<(newEmail: string, proof: CodeProof) => Promise<ReauthOutcome<null | { requiresLogin: true }>>>();
 const requestReauthCodeMock = vi.fn<() => Promise<ReauthRequestResult>>();
 
 vi.mock("@/lib/actions/me", () => ({
@@ -269,6 +269,27 @@ describe("ChangeEmailSetting", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent(incomplete);
     expect(screen.getByRole("button", { name: "Börja om" })).toHaveAttribute("data-variant", "default");
+  });
+
+  it("focuses a committed receipt and asks for login with the new address when no session was issued", async () => {
+    confirmEmailChangeMock.mockResolvedValue({ ok: true, value: { requiresLogin: true } });
+    const user = userEvent.setup();
+    render(<ChangeEmailSetting currentEmail={CURRENT} />);
+
+    await confirmWith(user);
+
+    const panel = await screen.findByRole("status");
+    expect(panel).toHaveTextContent(`Adressen är bytt till ${NEW}. Logga in igen för att fortsätta.`);
+    await waitFor(() => expect(panel).toHaveFocus());
+    await user.tab();
+    expect(within(panel).getByRole("link", { name: "Logga in" })).toHaveFocus();
+    expect(within(panel).getByRole("link", { name: "Logga in" })).toHaveAttribute(
+      "href", "/logga-in?next=/mina-sidor/konto"
+    );
+    expect(screen.queryByText(`Din e-postadress är ${CURRENT}.`)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Börja om" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Kod till den nya adressen")).not.toBeInTheDocument();
+    expect(confirmEmailChangeMock).toHaveBeenCalledTimes(1);
   });
 
   it("claims nothing when the outcome is unknown: a reload link, and no Börja om", async () => {

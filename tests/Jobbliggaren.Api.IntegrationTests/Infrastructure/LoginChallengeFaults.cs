@@ -72,6 +72,18 @@ internal sealed class FaultableLoginChallengeStore(ILoginChallengeStore inner, L
         return inner.PutBoundAsync(challenge, ct);
     }
 
+    public Task<LoginChallengeProof?> ReadEmailChangeRequestAsync(ChallengeId id, Guid userId, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.ReadEmailChangeRequestAsync(id, userId, ct);
+    }
+
+    public Task RevokeBoundAsync(ChallengeId id, ChallengeBinding expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.RevokeBoundAsync(id, expected, ct);
+    }
+
     public Task<ChallengeVerdict> ConsumeBoundCodeAsync(
         ChallengeId id, LoginCode presented, ChallengeBinding expected, CancellationToken ct)
     {
@@ -80,7 +92,7 @@ internal sealed class FaultableLoginChallengeStore(ILoginChallengeStore inner, L
     }
 }
 
-internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFaults faults) : IGrantStore
+internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFaults faults, AccountAccessFlowGates gates) : IGrantStore
 {
     public Task<GrantToken> IssueAsync(GrantSubject subject, CancellationToken ct)
     {
@@ -88,10 +100,12 @@ internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFault
         return inner.IssueAsync(subject, ct);
     }
 
-    public Task<GrantSubject?> RedeemAsync(GrantToken token, GrantAssertion expected, CancellationToken ct)
+    public async Task<GrantSubject?> RedeemAsync(GrantToken token, GrantAssertion expected, CancellationToken ct)
     {
         faults.ThrowIfUnavailable();
-        return inner.RedeemAsync(token, expected, ct);
+        var subject = await inner.RedeemAsync(token, expected, ct);
+        await gates.PauseReauthenticationAsync(subject, ct);
+        return subject;
     }
 }
 

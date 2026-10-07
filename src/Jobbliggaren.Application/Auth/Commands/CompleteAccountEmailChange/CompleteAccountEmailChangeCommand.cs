@@ -26,10 +26,9 @@ public abstract record AccountEmailChangeOutcome
     }
 
     /// <summary>
-    /// The account moved. <see cref="AuditRecorded"/> is false when the row could not be written after the swap
-    /// committed, which the endpoint answers as a failure once its teardown has run.
+    /// The address and audit committed together. Cleanup may remove only this or an older generation.
     /// </summary>
-    public sealed record Completed(Guid UserId, bool AuditRecorded) : AccountEmailChangeOutcome;
+    public sealed record Completed(Guid UserId, long AccessRevision) : AccountEmailChangeOutcome;
 
     /// <summary>The code and the current address matched before the delay had run. Nothing was spent.</summary>
     public sealed record NotYet(DateTimeOffset CompletableFrom) : AccountEmailChangeOutcome;

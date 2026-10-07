@@ -175,7 +175,7 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
     {
         Span<byte> hash = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
-        return $"session:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+        return $"session:v2:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
     }
 
     // Secondary user-sessions-index key as built by RedisSessionStore.UserSessionsKey

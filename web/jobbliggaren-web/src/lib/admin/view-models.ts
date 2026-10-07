@@ -48,6 +48,8 @@ export interface AdminAccountRow {
   readonly role: AdminAccountRole;
   readonly status: AdminAccountStatus;
   readonly emailConfirmed: boolean;
+  /** Independent of deletion status; older preview fixtures derive it from their primary status. */
+  readonly isSuspended?: boolean;
   /** ISO instant from the account's profile; null when it has none. */
   readonly registeredAt: string | null;
   /** Null when the count is unknown for this account. */

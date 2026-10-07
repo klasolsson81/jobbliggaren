@@ -98,8 +98,8 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
     [Fact]
     public async Task SetUserNameAsync_succeeds_again_on_the_name_a_half_failed_swap_left()
     {
-        // The retry after a swap whose second write failed. The first call below is that swap's first write, so the
-        // row a fresh request then loads holds the new user name and the old address.
+        // Historical pre-#1976 partial swap: the retired writer committed UserName before ChangeEmail failed.
+        // Confirmed_swap_leaves_both_names_unchanged_when_its_audit_save_fails pins the current atomic writer.
         var ct = TestContext.Current.CancellationToken;
         var oldEmail = Address("retry");
         var newEmail = Address("retry-new");
@@ -119,6 +119,27 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
         halfMoved.Email.ShouldBe(oldEmail);
 
         (await retryManager.SetUserNameAsync(halfMoved, newEmail)).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Confirmed_swap_leaves_both_names_unchanged_when_its_audit_save_fails()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var account = await CreateSignedInAccountAsync(Address("audit-rollback"), ct);
+        var next = Address("audit-rollback-next");
+        var grant = await GrantAsync(account, next, ct);
+
+        HttpResponseMessage response;
+        using (_factory.AuditRowSaveFailure.FailingFor("User.EmailChanged", account.Id))
+            response = await ConfirmAsync(account, next, grant, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        var unchanged = await ReadAsync(account.Id);
+        unchanged.Email.ShouldBe(account.Email);
+        unchanged.UserName.ShouldBe(account.Email);
+        await using var read = _factory.Services.CreateAsyncScope();
+        (await read.ServiceProvider.GetRequiredService<AppIdentityDbContext>().Users
+            .AnyAsync(user => user.Email == next || user.UserName == next, ct)).ShouldBeFalse();
     }
 
     [Fact]

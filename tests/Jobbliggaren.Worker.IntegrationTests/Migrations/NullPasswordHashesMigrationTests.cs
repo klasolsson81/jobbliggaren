@@ -1,8 +1,6 @@
-using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
-using Jobbliggaren.Infrastructure.Auth;
-using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Identity.Migrations;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -41,11 +39,13 @@ namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 /// (removed in <c>41a49394</c>).</item>
 /// <item>R2, a hash on a confirmed address: R1's call, then the write the retired <c>POST /auth/verify-email</c>
 /// made after its token check (<c>ConfirmEmailAsync</c> sets the flag and saves the user).</item>
-/// <item>R3, no hash: the live writer, <c>UserAccountService.CreatePasswordlessUserAsync</c>.</item>
+/// <item>R3, no hash: <c>UserAccountService.CreatePasswordlessUserAsync</c> at <c>22aefd8db</c>, before #1976.</item>
 /// </list>
 /// No path in <c>src/</c> writes R1's or R2's shape any more; the current writer's account is born confirmed
 /// and without a hash, pinned by
 /// <c>LoginChallengeCompleteTests.A_new_address_that_accepts_the_terms_gets_a_passwordless_account_and_a_persistent_session</c>.
+/// The current generation-zero writer is separately pinned on the fully migrated schema by
+/// <c>AddAccountAccessSuspensionMigrationTests.Up_PopulatedPredecessor_AddsActiveGenerationZeroAndExactlyOneEpoch</c>.
 /// R1 and R2 carry a password because this migration's premise is a table that holds hashes. The password
 /// is made at run time and the hash comes from Identity's hasher inside <c>CreateAsync</c>.
 /// </para>
@@ -83,12 +83,16 @@ public sealed class NullPasswordHashesMigrationTests : IAsyncLifetime
             })
             .Build();
 
-        // The Worker's own Identity composition, so every seed and save below goes through the real
-        // UserManager and UserStore.
+        // The real Worker UserManager/UserStore with the 22aefd8db model: this journey deliberately
+        // predates #1976's columns, which the current full-row store otherwise reads and writes.
         _identity = new ServiceCollection()
             .AddLogging()
+            .AddScoped<ProtectedAccountTransaction>()
+            .AddScoped<ProtectedAccountTransactionInterceptor>()
             .AddSingleton<IDbExceptionInspector, DbExceptionInspector>()
             .AddCoreIdentityForWorker(configuration)
+            .AddDbContext<AppIdentityDbContext>(options => options
+                .ReplaceService<IModelCustomizer, PreSuspensionIdentityModelCustomizer>())
             .BuildServiceProvider();
     }
 
@@ -131,14 +135,16 @@ public sealed class NullPasswordHashesMigrationTests : IAsyncLifetime
         return user.Id;
     }
 
-    private async Task<Guid> CreateAsTheLiveWriterDoesAsync(CancellationToken ct)
+    private async Task<Guid> CreateAsThePreSuspensionPasswordlessWriterDidAsync()
     {
         await using var scope = Identity.CreateAsyncScope();
-        var created = await ActivatorUtilities.CreateInstance<UserAccountService>(scope.ServiceProvider)
-            .CreatePasswordlessUserAsync(NewAddress(), ct);
-
-        created.IsSuccess.ShouldBeTrue();
-        return created.Value;
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var email = NewAddress();
+        // UserAccountService at 22aefd8db passed this confirmed, hash-free row to CreateAsync(user).
+        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
+        (await users.CreateAsync(user)).Succeeded.ShouldBeTrue();
+        user.PasswordHash.ShouldBeNull();
+        return user.Id;
     }
 
     /// <summary>
@@ -245,7 +251,7 @@ public sealed class NullPasswordHashesMigrationTests : IAsyncLifetime
         // --- 1. The three rows, and a UserManager that loads R2 now and saves it only in step 9.
         var r1 = await CreateAsTheRetiredRegisterDidAsync(thenConfirmAsVerifyEmailDid: false);
         var r2 = await CreateAsTheRetiredRegisterDidAsync(thenConfirmAsVerifyEmailDid: true);
-        var r3 = await CreateAsTheLiveWriterDoesAsync(ct);
+        var r3 = await CreateAsThePreSuspensionPasswordlessWriterDidAsync();
         Guid[] all = [r1, r2, r3];
         Guid[] hashed = [r1, r2];
 
@@ -371,18 +377,35 @@ public sealed class NullPasswordHashesMigrationTests : IAsyncLifetime
             """LOCK TABLE identity."__EFMigrationsHistory" """, StringComparison.Ordinal));
         await RowsShouldStillBeAsync(after, ct);
 
-        // --- 13. The live recorder over the row this migration left: an unconfirmed address without a hash.
-        // Its first proof still confirms the address and rotates the stamp.
+        // --- 13. IdentityInboxProofRecorder at 22aefd8db over the migration's historical row:
+        // the original transform confirms the address and rotates its stamp in one UserManager save.
+        // Current recorder behavior under the account-access transaction is separately pinned in
+        // IdentityInboxProofRecorderTests.An_unconfirmed_address_is_confirmed_and_its_stamp_rotated_in_one_save.
         await using (var proof = Identity.CreateAsyncScope())
         {
-            var recorder = new IdentityInboxProofRecorder(
-                proof.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
-            (await recorder.RecordAsync(r1, ct)).ShouldBe(InboxProof.FirstProofRecorded);
+            var users = proof.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = (await users.FindByIdAsync(r1.ToString())).ShouldNotBeNull();
+            user.EmailConfirmed = true;
+            (await users.UpdateSecurityStampAsync(user)).Succeeded.ShouldBeTrue();
         }
 
         var proven = await ReadRowAsync(r1, ct);
         proven.EmailConfirmed.ShouldBeTrue();
         proven.PasswordHash.ShouldBeNull();
         proven.SecurityStamp.ShouldNotBe(after[r1].SecurityStamp);
+    }
+
+    private sealed class PreSuspensionIdentityModelCustomizer(ModelCustomizerDependencies dependencies)
+        : ModelCustomizer(dependencies)
+    {
+        public override void Customize(ModelBuilder modelBuilder, DbContext context)
+        {
+            base.Customize(modelBuilder, context);
+            modelBuilder.Ignore<AccountSecurityEpoch>();
+            modelBuilder.Entity<ApplicationUser>()
+                .Ignore(user => user.IsSuspended)
+                .Ignore(user => user.AccessRevision)
+                .Ignore(user => user.CredentialCutoff);
+        }
     }
 }

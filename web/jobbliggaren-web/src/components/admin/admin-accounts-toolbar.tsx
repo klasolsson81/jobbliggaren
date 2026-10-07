@@ -16,6 +16,7 @@ export type AdminAccountFilter = "all" | AdminAccountStatus;
 export const ADMIN_ACCOUNT_FILTERS: ReadonlyArray<AdminAccountFilter> = [
   "all",
   "active",
+  "suspended",
   "pendingDeletion",
   "profileMissing",
 ];

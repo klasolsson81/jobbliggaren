@@ -22,7 +22,7 @@ case "$operation" in
     ;;
   delete-known-session)
     [[ $# -eq 4 && $3 == --session-key ]] || fail 'delete-known-session requires --session-key'
-    [[ $4 =~ ^jobbliggaren:session:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$ ]] || fail 'session key must contain a canonical SHA-256 base64url hash'
+    [[ $4 =~ ^jobbliggaren:session:(v2:)?[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$ ]] || fail 'session key must contain a canonical SHA-256 base64url hash'
     session_key=$4
     ;;
   *) fail 'unknown operation';;

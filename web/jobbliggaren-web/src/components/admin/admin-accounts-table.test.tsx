@@ -8,9 +8,9 @@ import { AdminAccountsTable } from "./admin-accounts-table";
 // (AdminAccountsDirectoryTests.The_current_writer_creates_every_account_confirmed), and
 // AdminAccountsDirectoryTests.Email_confirmed_reads_the_column pins that the directory reports the flag.
 const ROWS: ReadonlyArray<AdminAccountRow> = [
-  { id: "a", email: "konto.a@example.test", role: "user", status: "active", emailConfirmed: true, registeredAt: "2026-09-28T12:02:00Z", applicationCount: 4, deletionEarliest: null },
-  { id: "b", email: "konto.b@example.test", role: "admin", status: "pendingDeletion", emailConfirmed: false, registeredAt: "2026-08-14T07:30:00Z", applicationCount: null, deletionEarliest: "2026-11-03" },
-  { id: "c", email: "konto.c@example.test", role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null },
+  { id: "a", email: "konto.a@example.test", role: "user", status: "active", emailConfirmed: true, isSuspended: false, registeredAt: "2026-09-28T12:02:00Z", applicationCount: 4, deletionEarliest: null },
+  { id: "b", email: "konto.b@example.test", role: "admin", status: "pendingDeletion", emailConfirmed: false, isSuspended: false, registeredAt: "2026-08-14T07:30:00Z", applicationCount: null, deletionEarliest: "2026-11-03" },
+  { id: "c", email: "konto.c@example.test", role: "user", status: "profileMissing", emailConfirmed: true, isSuspended: false, registeredAt: null, applicationCount: null, deletionEarliest: null },
 ];
 
 /** What a screen reader reads in a cell: the dash is hidden from it, and its words are not. */

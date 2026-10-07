@@ -15,6 +15,7 @@ const ACCOUNT: AdminAddressedAccount = {
   role: "user",
   status: "active",
   emailConfirmed: true,
+  isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   applicationCount: 4,
   deletionEarliest: null,

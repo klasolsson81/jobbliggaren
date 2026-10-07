@@ -27,6 +27,7 @@ const WIRE_STATUS: Readonly<Partial<Record<AdminAccountStatus, AccountSearchStat
   active: "Active",
   pendingDeletion: "PendingDeletion",
   profileMissing: "ProfileMissing",
+  suspended: "Suspended",
 };
 
 /** The status a filter asks the backend for; "all" asks for none. */

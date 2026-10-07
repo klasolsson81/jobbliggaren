@@ -1,5 +1,6 @@
 using FluentValidation.TestHelper;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -185,7 +186,7 @@ public class StartExternalLoginCommandHandlerTests
     }
 
     private StartExternalLoginCommandHandler Handler(params IExternalIdentityProvider[] providers) =>
-        new(new RegisteredProviders(providers), _states, _budget, _log);
+        new(new RegisteredProviders(providers), _states, _budget, AccountAccessTestKit.Reader(_ => null), _log);
 
     [Fact]
     public async Task Handle_ShouldBeNotFoundAndMintNothing_WhenTheProviderIsNotRegistered()
@@ -289,6 +290,7 @@ public class CompleteExternalLoginCommandHandlerTests
     private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
     private readonly OAuthState _state = OAuthState.Generate();
     private readonly PkceVerifier _verifier = PkceVerifier.Generate();
+    private readonly Dictionary<Guid, string> _accountEmails = [];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -297,12 +299,12 @@ public class CompleteExternalLoginCommandHandlerTests
         _google.Key.Returns(ExternalProviderKey.Google);
         _github.Key.Returns(ExternalProviderKey.GitHub);
         _states.TakeAsync(_state, ExternalProviderKey.Google, Arg.Any<CancellationToken>())
-            .Returns(new OAuthFlow(ExternalProviderKey.Google, _verifier, Next));
+            .Returns(new OAuthFlow(ExternalProviderKey.Google, _verifier, Next) { Access = new AccountAccessProof(0) });
         _states.TakeAsync(_state, ExternalProviderKey.GitHub, Arg.Any<CancellationToken>())
-            .Returns(new OAuthFlow(ExternalProviderKey.GitHub, _verifier, Next));
+            .Returns(new OAuthFlow(ExternalProviderKey.GitHub, _verifier, Next) { Access = new AccountAccessProof(0) });
         _grants.IssueAsync(Arg.Any<GrantSubject>(), Arg.Any<CancellationToken>()).Returns(IssuedGrant);
         _inbox.RecordAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(InboxProof.AlreadyConfirmed);
-        _sessions.CreateAsync(Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+        _sessions.CreateAsync(Arg.Any<Guid>(), Arg.Any<AccountAccessProof>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(call => new Session(
                 SessionId.FromRaw("granted-session-id"), call.Arg<Guid>(), FakeDateTimeProvider.Default.UtcNow,
                 FakeDateTimeProvider.Default.UtcNow.AddDays(30), call.Arg<SessionLifetime>()));
@@ -314,10 +316,14 @@ public class CompleteExternalLoginCommandHandlerTests
     {
         var correlation = Substitute.For<ICorrelationIdProvider>();
         var request = Substitute.For<IRequestContextProvider>();
+        var access = AccountAccessTestKit.Coordinator();
+        var reader = AccountAccessTestKit.ReaderFromProfiles(_db,
+            id => _accountEmails.TryGetValue(id, out var email) ? email : null);
         var outcome = new LoginProofOutcome(
             new LoginSubjectResolver(_lookup, _externalLookup, _db),
             new PasswordlessSessionGrant(
-                _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request),
+                _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request,
+                reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>()),
             _grants,
             new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
             Options.Create(new AuthOptions { RegistrationsOpen = _registrationsOpen }),
@@ -345,6 +351,7 @@ public class CompleteExternalLoginCommandHandlerTests
     private async Task<Guid> ActiveAccountAsync(string address)
     {
         var userId = Guid.NewGuid();
+        _accountEmails.Add(userId, address);
         _lookup.FindAccountAsync(address, Arg.Any<CancellationToken>()).Returns(new LoginAccount(userId, address));
         _db.JobSeekers.Add(JobSeeker.Register(
             userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value);
@@ -432,6 +439,7 @@ public class CompleteExternalLoginCommandHandlerTests
         await _lookup.DidNotReceiveWithAnyArgs().FindAccountAsync(default!, Ct);
         await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
     }
 
     [Fact]
@@ -482,6 +490,7 @@ public class CompleteExternalLoginCommandHandlerTests
                                                              && g.ProvenEmail.Value == "ny@firma.example"),
             Arg.Any<CancellationToken>());
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
     }
 
     [Fact]
@@ -521,6 +530,7 @@ public class CompleteExternalLoginCommandHandlerTests
         await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
         await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
     }
 
     [Fact]

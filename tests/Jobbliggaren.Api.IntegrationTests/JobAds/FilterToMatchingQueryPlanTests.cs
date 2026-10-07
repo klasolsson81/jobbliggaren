@@ -453,6 +453,7 @@ public class FilterToMatchingQueryPlanTests(JobAdBrowsePlanFixture fixture, ITes
             .UseNpgsql(connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
+            .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
             .AddInterceptors(recorder)
             .Options);
     }

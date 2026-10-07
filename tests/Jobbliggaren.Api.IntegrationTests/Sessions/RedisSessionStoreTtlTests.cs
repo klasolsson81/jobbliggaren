@@ -344,7 +344,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var sessionId = SessionId.Generate();
-        var member = SessionMember(sessionId);
+        var member = LegacySessionMember(sessionId);
         var setKey = UserSessionsKey(userId);
 
         var createdAt = _capClock.UtcNow;
@@ -498,7 +498,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var sessionId = SessionId.Generate();
-        var member = SessionMember(sessionId);
+        var member = LegacySessionMember(sessionId);
 
         var createdAt = _capClock.UtcNow;
         // Pre-2b3 payload: lifetime + rotatedAt present, supersededAt absent.
@@ -735,7 +735,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var sessionId = SessionId.Generate();
-        var member = SessionMember(sessionId);
+        var member = LegacySessionMember(sessionId);
         var setKey = UserSessionsKey(userId);
 
         var legacyJson = $"{{\"userId\":\"{userId}\",\"createdAt\":\"{_capClock.UtcNow:O}\"}}"; // within window (now)
@@ -761,7 +761,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var sessionId = SessionId.Generate();
-        var member = SessionMember(sessionId);
+        var member = LegacySessionMember(sessionId);
         var setKey = UserSessionsKey(userId);
 
         var createdAt = _capClock.UtcNow;
@@ -789,8 +789,11 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
     {
         Span<byte> hash = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
-        return $"session:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+        return $"session:v2:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
     }
+
+    private static string LegacySessionMember(SessionId sessionId) =>
+        SessionMember(sessionId).Replace("session:v2:", "session:", StringComparison.Ordinal);
 
     // Secondary user-sessions-index key as built by RedisSessionStore.UserSessionsKey
     // (manually jobbliggaren:-prefixed since the store uses IConnectionMultiplexer directly).
@@ -803,6 +806,6 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPla
         Span<byte> hash = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
         var hashed = Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        return $"jobbliggaren:session:{hashed}";
+        return $"jobbliggaren:session:v2:{hashed}";
     }
 }

@@ -14,7 +14,7 @@ import {
   type AdminAccountDetails,
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
-import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction } from "@/lib/actions/admin-accounts";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction } from "@/lib/actions/admin-accounts";
 import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
 import {
   ACCOUNTS_PAGE_SIZE,
@@ -44,8 +44,7 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** ADR 0150 D4: the address change and its cancel are built (#1975); every other action is "Kommer snart". */
-const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange"]);
+const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate"]);
 
 const RETURN_PATH = "/admin/anvandare";
 
@@ -255,6 +254,21 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   // request or a cancel answers becomes the panel's pending change, never what the form held.
   const commands: AdminAccountCommands = {
     live: LIVE,
+    access: {
+      requestCode: requestReauthCode,
+      returnPath: RETURN_PATH,
+      run: async (account, operation, proof) => {
+        const outcome = await changeAccountAccessAction(account.id, operation, proof);
+        if (!stillOpen(account.id)) return outcome;
+        if (outcome.ok || outcome.kind === "operationRefused" || outcome.kind === "outcomeUnknown") {
+          if (outcome.ok && operation === "suspend") setEmailChange({ kind: "none" });
+          if (!outcome.ok && outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
+          setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+          void readAccount(account.id, true);
+        }
+        return outcome;
+      },
+    },
     emailChange: {
       requestCode: requestReauthCode,
       request: async (account, newEmail, proof) => {

@@ -1,5 +1,10 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Authorization;
+using Jobbliggaren.Application.UnitTests.Auth;
+using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,6 +60,11 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         assigned.Count.ShouldBe(
             1,
             "LogAdminAssigned (EventId=2) ska emit:as exakt en gång när seedern faktiskt tilldelar Admin-rollen.");
+        var access = sp.GetRequiredService<AccountAccessTestKit.RecordingAccountAccessCoordinator>();
+        var begun = access.BegunScopes.ShouldHaveSingleItem();
+        begun.Lifecycle.ShouldBeTrue();
+        begun.UserIds.ShouldBe([(await UserIdAsync(sp, AdminEmail))]);
+        access.Commits.ShouldBe(1);
     }
 
     [Fact]
@@ -116,6 +126,50 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         warning.Message.ShouldNotContain(AdminEmail);
     }
 
+    [Fact]
+    public async Task StartAsync_CandidatePendingDeletion_GrantsNothingAndReportsUnavailable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var sp = BuildServiceProvider();
+        await CreateUserAsync(sp, AdminEmail, ct);
+        var userId = await UserIdAsync(sp, AdminEmail);
+        var app = sp.GetRequiredService<AppDbContext>();
+        var profile = await app.JobSeekers.SingleAsync(seeker => seeker.UserId == userId, ct);
+        profile.SoftDelete(FakeDateTimeProvider.Default);
+        profile.DeletedAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
+        await app.SaveChangesAsync(ct);
+        var logger = new CapturingLogger();
+
+        await BuildSeeder(sp, AdminEmail, logger).StartAsync(ct);
+
+        (await IsAdminAsync(sp, AdminEmail)).ShouldBeFalse();
+        logger.Entries.ShouldNotContain(entry => entry.EventId.Id == 2);
+        logger.Entries.ShouldContain(entry => entry.EventId.Id == 7);
+        (await app.JobSeekers.IgnoreQueryFilters().SingleAsync(seeker => seeker.UserId == userId, ct))
+            .DeletedAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
+    }
+
+    [Fact]
+    public async Task StartAsync_UnreachableOperatorErasedProfile_GrantsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var sp = BuildServiceProvider();
+        await CreateUserAsync(sp, AdminEmail, ct);
+        var userId = await UserIdAsync(sp, AdminEmail);
+        var app = sp.GetRequiredService<AppDbContext>();
+        // Declared unreachable through today's atomic account lifecycle: operator damage deletes
+        // the profile while leaving Identity. Assert only that bootstrap fails closed on that read.
+        app.JobSeekers.Remove(await app.JobSeekers.SingleAsync(seeker => seeker.UserId == userId, ct));
+        await app.SaveChangesAsync(ct);
+        var logger = new CapturingLogger();
+
+        await BuildSeeder(sp, AdminEmail, logger).StartAsync(ct);
+
+        (await IsAdminAsync(sp, AdminEmail)).ShouldBeFalse();
+        logger.Entries.ShouldNotContain(entry => entry.EventId.Id == 2);
+        logger.Entries.ShouldContain(entry => entry.EventId.Id == 7);
+    }
+
     private static ServiceProvider BuildServiceProvider()
     {
         var dbName = $"identity-tests-{Guid.NewGuid():N}";
@@ -123,6 +177,30 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         services.AddLogging();
         services.AddDbContext<AppIdentityDbContext>(opts =>
             opts.UseInMemoryDatabase(dbName));
+        services.AddSingleton<AppDbContext>(_ => TestAppDbContextFactory.Create());
+        services.AddSingleton<AccountAccessTestKit.RecordingAccountAccessCoordinator>(_ => AccountAccessTestKit.Coordinator());
+        services.AddSingleton<IAccountAccessCoordinator>(provider =>
+            provider.GetRequiredService<AccountAccessTestKit.RecordingAccountAccessCoordinator>());
+        services.AddScoped<IAccountAccessReader>(provider =>
+        {
+            var identity = provider.GetRequiredService<AppIdentityDbContext>();
+            var app = provider.GetRequiredService<AppDbContext>();
+            return AccountAccessTestKit.Reader(userId =>
+            {
+                provider.GetRequiredService<IAccountAccessCoordinator>().Holds(userId).ShouldBeTrue(
+                    "Bootstrap admission must be read while its candidate account is held.");
+                var user = identity.Users.AsNoTracking().SingleOrDefault(user => user.Id == userId);
+                if (user?.Email is not { } email)
+                    return null;
+                var profile = app.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+                    .Where(seeker => seeker.UserId == userId).Select(seeker => new { seeker.DeletedAt }).FirstOrDefault();
+                var isAdmin = identity.UserRoles.Join(identity.Roles,
+                    assignment => assignment.RoleId, role => role.Id, (assignment, role) => new { assignment.UserId, role.Name })
+                    .Any(assignment => assignment.UserId == userId && assignment.Name == Roles.Admin);
+                return new AccountAccessSnapshot(userId, email, user.IsSuspended, user.AccessRevision,
+                    user.CredentialCutoff, profile is not null, profile?.DeletedAt, isAdmin);
+            });
+        });
 
         // AddIdentityCore-pattern matchar Worker-DI (HTTP-fri Identity-stack).
         // Räcker för CreateAsync/FindByEmailAsync/IsInRoleAsync/AddToRoleAsync.
@@ -152,9 +230,15 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         {
             Email = email,
             UserName = email,
+            EmailConfirmed = true,
         };
         var result = await userManager.CreateAsync(user);
         result.Succeeded.ShouldBeTrue(string.Join("; ", result.Errors.Select(e => e.Description)));
+        var app = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var profile = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default),
+            FakeDateTimeProvider.Default).Value;
+        app.JobSeekers.Add(profile);
+        await app.SaveChangesAsync(ct);
     }
 
     private static async Task PromoteToAdminAsync(IServiceProvider sp, string email, CancellationToken ct)

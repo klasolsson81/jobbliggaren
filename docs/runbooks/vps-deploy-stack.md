@@ -334,19 +334,19 @@ that, under one lock, in this order:
    workflow on `main` of this repository; only then is it copied out, validated, and verified as
    built from the commit it names.
 2. **It must have been released with this checkout's configuration.** `deploy/docker-compose.yml`
-   (full-line comments and blank lines aside) and `deploy/redis/healthcheck.sh` must hash to the
+   (full-line comments and blank lines aside), Redis healthcheck and complete candidate/predecessor
+   policies, plus the reconcile/policy-publication/verification helpers must hash to the
    record's value. Otherwise the run refuses and prints the exact command that advances the
    checkout to the release (*Advancing the checkout*, below).
 3. **Following the channel never moves backwards.** A release older than the receipt's, or one
-   lacking an AppDbContext migration the receipt holds, is refused. A pin skips both checks — it
-   is a deliberate act, and `migrate`'s gate decides (§3a). Without a receipt the first apply is a
-   bootstrap and may move backwards once. A release that adds Identity migrations gets a `NOTE`
-   line; the unit never applies them (§3c).
+   lacking an AppDbContext migration the receipt holds, is refused. A pin skips those two checks;
+   `migrate`'s AppDb gate decides (§3a). Actual Identity history must match the candidate for
+   both ordinary and pinned apply; #1976's exact pending set uses explicit preparation (§3c).
 4. **Each image is pulled by the digest the record names and verified as built from the
    record's commit.** One failure and nothing is applied.
 5. **Then the gates, then the apply.** After #1295's secrets gate (below) and the Redis gate
    (`redis-service-boundaries.md`), it tags the five images `:applied`, runs
-   `docker compose up -d --remove-orphans --pull never`, checks that every service runs exactly
+   `docker compose up -d --remove-orphans --pull never --wait --wait-timeout 600`, checks that every service runs exactly
    the release's image, and only then writes the receipt and the stamp. A failure after the tags
    moved puts `:applied` back to what the run found.
 
@@ -594,12 +594,101 @@ run neither before step 6 has advanced the clone.
 
 ## 3c. Identity migrations: `bootstrap`
 
+### Account-access preparation (#1976, ADR 0155)
+
+`20261007074622_AddAccountAccessSuspension` uses the narrow manual
+`jobbliggaren-reconcile.sh --prepare-identity sha256:<release-record-digest>` path.
+Ordinary and pinned reconcile read the primary database's actual Identity history through
+the verified candidate's `identity-history` mode. Any difference from the candidate manifest
+refuses before service changes, `:applied` tags or an apply receipt. A pin cannot bypass this
+gate. `--status` also compares actual Identity history with the receipt and reports an
+unfinished preparation as inconsistent.
+
+**Authority is specific to this transition.** Before `agents-done` or arming, obtain Klas's
+concrete GO naming the final reviewed HEAD and tree, exactly
+`{20261007074622_AddAccountAccessSuspension}`, and the prepare/drain/ACL/bootstrap/apply
+procedure below. It must explicitly authorize the later published release whose provenance
+matches that reviewed tree. Plan approval, CTO's architecture decisions and the standing GO
+for earlier Identity migrations do not grant this permission. After merge, read back the
+record's digest, source and all five image attestations against that authorization. Do not
+substitute a newer release or another migration set.
+
+Klas performs escrow-policy publication and signed-in live checks. The manual prepare
+invocation publishes the candidate ACL with the **same seven escrow credentials**; it
+does not rotate them. No credential goes on argv, in the PR, in logs or in a pasted command.
+Keep the persistent volumes, crypto secrets and existing escrow intact.
+
+Advance the box checkout to the authorized release commit while holding the reconcile lock
+(§3b, ADR 0154 Amendment 2). Let the manual reconciler acquire the same lock for its entire
+preparation; do not wrap it in an independent `flock` process that makes its own lock fail.
+On the approved checkout, Klas runs:
+
+```bash
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --prepare-identity sha256:<verified-record-digest>
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status
+```
+
+The first command performs the following sequence under one inherited descriptor-9 lock:
+
+1. Select and verify the exact approved record, source, image digests and deployment-file
+   hash. The hash includes candidate/predecessor ACL templates and the preparation helpers.
+2. Require a verified predecessor receipt, exact predecessor Identity history and complete
+   predecessor Redis policy. Validate credential/file posture and incoming API/Worker reader
+   identities. Reject unknown, partial or drifted policies and incompatible live processes.
+3. Compare **installed, mounted and active** ACLs with a full policy oracle using the actual
+   Redis image, then run positive/negative v1/v2 `ACL DRYRUN` probes. Neither files nor PING
+   alone establish this condition; probes never read application keys.
+4. Stop API and Worker and verify they have drained. Persist the root-owned `0600`
+   preparation checkpoint bound to this record/source/migration set.
+5. Publish the complete candidate policy from the retained seven credentials, force-recreate
+   both Redis services, and verify their actual active ACLs and authorization probes again.
+6. Run `bootstrap` from the verified candidate migrate **digest**, never an older `:applied`
+   image, with `--expect-history` bound to the checkpoint's predecessor identifiers and
+   `--expect-migrations` bound to the exact approved additions. Bootstrap itself reads primary
+   history and its compiled manifest before any schema/grant writes, using the same connection
+   for validation, grants and migrations. Only exact predecessor or complete candidate history
+   is admitted; read failure refuses. Read back exact history through `identity-history`.
+7. Apply the same verified candidate, recreate API/Worker, wait for service health, check
+   image postconditions, write the apply receipt and remove the preparation checkpoint.
+   `--status` must report consistent; record both the successful ACL verification and health.
+
+An interruption after ACL publication, Redis recreation or bootstrap resumes only through
+the **same verified record**. The checkpoint must be complete and match exactly; installed,
+mounted and active policy must be complete predecessor or candidate, actual Identity history
+must be exactly predecessor or candidate, and any live application must be compatible.
+Partial files, credential drift, another release or an unexplained schema history refuse.
+Ordinary, channel, pinned and `--stage` mutations refuse under the reconcile lock whenever
+any checkpoint entry exists, including a damaged link or directory. They cannot complete an
+interrupted preparation or replace its bound release; only the exact preparation may resume.
+Do not delete the checkpoint to defeat this check and do not automatically roll schema or
+ACL back. Repair an unexplained state with Klas before resuming.
+
+Read back only migration identifiers, schema shape and counts. The epoch singleton must
+exist exactly once. After any suspension, reinstatement, actual verified address swap or
+first inbox proof advances its value, **Down refuses**, even when every affected account
+has later been erased. Old sessions/proofs remain invalid after reinstatement; delayed
+cleanup removes only revisions older than the committed transition. This is a forward
+recovery procedure, not permission to restore an older credential generation.
+
+The session record contains the approved HEAD/tree and procedure, published record/source/
+digests, actual history before/after, drain/ACL/bootstrap/apply results, health and consistent
+status. It contains no addresses, credential contents or secret hashes. Klas's signed-in
+checks verify suspension/reinstatement, the real refusal/receipt states and deletion continuity.
+
+### Historical Identity runs before the account-access preparation boundary
+
+The following standing-GO procedure records earlier migrations. It is not the execution
+path for #1976 or a way around the candidate-history gate above.
+
 `schema`, which every `up` runs, applies `AppDbContext` migrations only. A migration on
 `AppIdentityDbContext` (the `identity` schema) is applied by `Jobbliggaren.Migrate bootstrap`, and
 nothing runs that by itself: the session whose merge adds the migration runs it once the release is
 applied, under Klas's standing GO (ADR 0154; Klas 2026-10-05: "Stående GO täcker §3c"). It is the **second**
 sanctioned exception to *"manual applies go through the unit"* (§3b), and it has **no schema-ahead
-gate** (§3a), so it must never run an image older than the history it meets.
+gate** (§3a) on the historical images documented below. ADR 0155 candidates additionally enforce
+the exact bound predecessor/additions before privileged writes. Bare `bootstrap` refuses on
+those candidates. Initial provisioning explicitly uses `bootstrap --initial`, which requires
+empty Identity history; partial initialization must use an explicitly bound migration set.
 
 **The whole sequence runs under ONE lock**, so the hourly reconcile cannot re-create a
 container underneath it. Hold it in a root shell and run the preconditions, the apply and the read-back
@@ -657,9 +746,15 @@ cd /opt/jobbliggaren/deploy
 
 **The run, inside the same shell:**
 
+For an ADR 0155 candidate, set `identity_predecessor` to the exact sorted, comma-separated
+primary history established above and `identity_additions` to the exact sorted additions
+named by the GO. These are migration identifiers, never credentials. Keep both values for
+an acknowledged-complete retry: the candidate then reports no pending migrations.
+
 ```bash
 out=$(exec </dev/null 2>&1
-  docker compose -f docker-compose.yml run --rm -T --pull never --no-deps migrate bootstrap
+  docker compose -f docker-compose.yml run --rm -T --pull never --no-deps migrate bootstrap \
+    --expect-history "$identity_predecessor" --expect-migrations "$identity_additions"
 ); rc=$?
 echo "exit $rc"; [ "$rc" -eq 1 ] || printf '%s\n' "$out"; unset out
 ```

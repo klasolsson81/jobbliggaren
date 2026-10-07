@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Jobbliggaren.Application.Auth.Access;
 
 namespace Jobbliggaren.Application.Common.Abstractions;
 
@@ -53,7 +54,8 @@ public sealed record Session(
     // convenience for test doubles that don't assert on it — it is NOT the pre-profiles
     // back-compat mechanism, which lives separately in SessionPayload deserialization (a
     // pre-profiles JSON without a Lifetime field decodes to ordinal 0 = Legacy there).
-    SessionLifetime Lifetime = SessionLifetime.Legacy);
+    SessionLifetime Lifetime = SessionLifetime.Legacy,
+    long AccessRevision = 0);
 
 /// <summary>
 /// Which lifetime profile a session was created under (#481 persistent-login).
@@ -83,6 +85,16 @@ public interface ISessionStore
 
     // Creates a session under the given lifetime profile (#481 persistent-login).
     Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct);
+
+    Task<Session?> CreateAsync(Guid userId, AccountAccessProof proof, SessionLifetime lifetime, CancellationToken ct);
+
+    Task<Session?> CreateCommittedAsync(CommittedSessionAuthorization authorization, SessionLifetime lifetime, CancellationToken ct)
+    {
+        var proof = authorization.Authorize(lifetime);
+        return CreateAsync(proof.UserId!.Value, proof, lifetime, ct);
+    }
+
+    Task<int> InvalidateBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct);
 
     /// <summary>
     /// Rotates the session id if the session's profile has a rotation interval that has

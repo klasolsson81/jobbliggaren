@@ -40,6 +40,7 @@ public static class MediatorPipelineBehaviors
         // re-auth prefetches no DEK, commits nothing and writes no audit row. Validation runs
         // earlier, so an empty grant yields 400 before re-auth runs (empty vs wrong = 400 vs 401).
         typeof(ReauthenticationBehavior<,>),
+        typeof(AccountAccessMutationBehavior<,>),
         // TD-13 (ADR 0049 Mekanik-not 3/4) — efter auth (ingen KMS-op för ej
         // auktoriserad principal, §5.4), före UnitOfWork (DEK-cache varm när
         // handlerns query materialiserar krypterade entiteter).

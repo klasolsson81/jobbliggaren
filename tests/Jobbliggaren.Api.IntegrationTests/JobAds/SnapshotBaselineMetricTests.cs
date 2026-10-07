@@ -6,6 +6,7 @@ using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.JobAds.SnapshotMisses;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -45,7 +46,8 @@ public sealed class SnapshotBaselineMetricTests : IAsyncLifetime
         services.AddDbContext<AppDbContext>(options => options
             .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         _provider = services.BuildServiceProvider();

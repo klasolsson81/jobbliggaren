@@ -30,10 +30,12 @@ public sealed class VerifyReauthenticationChallengeCommandHandlerTests
     public VerifyReauthenticationChallengeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(UserId);
+        _currentUser.AccessRevision.Returns(0L);
         _grants.IssueAsync(Arg.Any<GrantSubject>(), Arg.Any<CancellationToken>()).Returns(Grant);
     }
 
-    private VerifyReauthenticationChallengeCommandHandler Sut() => new(_currentUser, _store, _grants);
+    private VerifyReauthenticationChallengeCommandHandler Sut() =>
+        new(_currentUser, _store, _grants, AccountAccessTestKit.Reader(UserId, "person@example.com"));
 
     private static VerifyReauthenticationChallengeCommand Command => new(ChallengeIdRaw, CodeRaw);
 
@@ -45,7 +47,8 @@ public sealed class VerifyReauthenticationChallengeCommandHandlerTests
     [Fact]
     public async Task The_code_is_presented_with_this_users_reauthentication_binding()
     {
-        StoreAnswers(ChallengeVerdict.Verified(new LoginChallengeProof("person@example.com")));
+        StoreAnswers(ChallengeVerdict.Verified(new LoginChallengeProof("person@example.com")
+        { Access = AccountAccessTestKit.Bound(UserId) }));
 
         await Sut().Handle(Command, Ct);
 
@@ -59,13 +62,15 @@ public sealed class VerifyReauthenticationChallengeCommandHandlerTests
     [Fact]
     public async Task A_verified_code_is_a_reauthentication_grant_for_this_user()
     {
-        StoreAnswers(ChallengeVerdict.Verified(new LoginChallengeProof("person@example.com")));
+        StoreAnswers(ChallengeVerdict.Verified(new LoginChallengeProof("person@example.com")
+        { Access = AccountAccessTestKit.Bound(UserId) }));
 
         var result = await Sut().Handle(Command, Ct);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(Grant);
-        await _grants.Received(1).IssueAsync(new GrantSubject.Reauthentication(UserId), Arg.Any<CancellationToken>());
+        await _grants.Received(1).IssueAsync(new GrantSubject.Reauthentication(UserId)
+        { Access = AccountAccessTestKit.Bound(UserId) }, Arg.Any<CancellationToken>());
     }
 
     [Theory]

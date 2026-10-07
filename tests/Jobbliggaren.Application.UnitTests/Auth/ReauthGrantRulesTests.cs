@@ -1,5 +1,7 @@
 using FluentValidation;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ReinstateAccount;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.SuspendAccount;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -25,6 +27,14 @@ public sealed class ReauthGrantRulesTests
             nameof(RequestAccountEmailChangeCommand),
             grant => new RequestAccountEmailChangeCommand(Guid.NewGuid(), "ny@example.se", grant),
             () => new RequestAccountEmailChangeCommandValidator()
+        },
+        {
+            nameof(SuspendAccountCommand), grant => new SuspendAccountCommand(Guid.NewGuid(), grant),
+            () => new SuspendAccountCommandValidator()
+        },
+        {
+            nameof(ReinstateAccountCommand), grant => new ReinstateAccountCommand(Guid.NewGuid(), grant),
+            () => new ReinstateAccountCommandValidator()
         },
     };
 
@@ -75,7 +85,8 @@ public sealed class ReauthGrantRulesTests
             .Where(t => t is { IsInterface: false, IsAbstract: false } && typeof(IReauthenticatingRequest).IsAssignableFrom(t))
             .Select(t => t.Name)
             .Order(StringComparer.Ordinal)
-            .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand), nameof(RequestAccountEmailChangeCommand)]);
+            .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand), nameof(ReinstateAccountCommand),
+                nameof(RequestAccountEmailChangeCommand), nameof(SuspendAccountCommand)]);
     }
 
     [Fact]

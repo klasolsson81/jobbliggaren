@@ -61,12 +61,22 @@ readonly -a KEYS=(
 
 # The deployment files the box reads at apply time and a release is bound to: the compose file, and
 # every file it bind-mounts by relative path. The fixture suite reads the real compose file and fails
-# if it references a relative path missing here. Files the host's own scripts render or check
-# (the Redis ACL templates) are not here: `jobbliggaren-redis-secrets.sh --check-images` already
-# refuses an apply whose rendered policy does not match them.
+# if it references a relative path missing here. Migration preparation and policy checks
+# are bound to the same record.
 readonly -a DEPLOY_FILES=(
   deploy/docker-compose.yml
   deploy/redis/healthcheck.sh
+  deploy/redis/persistent.acl.template
+  deploy/redis/volatile.acl.template
+  deploy/redis/operator-persistent.acl.template
+  deploy/redis/operator-volatile.acl.template
+  deploy/redis/predecessor-1976/persistent.acl.template
+  deploy/redis/predecessor-1976/volatile.acl.template
+  deploy/redis/predecessor-1976/operator-persistent.acl.template
+  deploy/redis/predecessor-1976/operator-volatile.acl.template
+  deploy/systemd/jobbliggaren-reconcile.sh
+  deploy/systemd/jobbliggaren-redis-secrets.sh
+  deploy/systemd/jobbliggaren-redis-policy.py
 )
 
 readonly MIGRATION_ID_RE='[0-9]{14}_[A-Za-z0-9_]+'

@@ -99,6 +99,9 @@ public static class AuthErrorCodes
 
     public const string EmailTakenMessage = "Den e-postadressen är upptagen.";
 
+    public const string EmailUnchanged = "Auth.EmailUnchanged";
+    public const string EmailUnchangedMessage = "Kontot använder redan den e-postadressen.";
+
     /// <summary>
     /// #1739 — the user has asked to move to as many new addresses as a day admits
     /// (<c>ChangeEmailPolicy.UserTargetsDailyBudget</c>). Keyed by the user id, so only a holder of the session can
@@ -115,6 +118,9 @@ public static class AuthErrorCodes
     /// </summary>
     public const string EmailChangeGrantUnusable = "Auth.EmailChangeGrantUnusable";
 
+    public const string EmailChangeNotActivated = "Auth.EmailChangeNotActivated";
+    public const string EmailChangeNotActivatedMessage = "Begäran om adressbyte har inte slutförts. Försök igen.";
+
     public const string EmailChangeGrantUnusableMessage =
         "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";
 
@@ -125,6 +131,8 @@ public static class AuthErrorCodes
     public const string EmailChangeIncomplete = "Auth.EmailChangeIncomplete";
 
     public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
+
+    public const string SessionUnavailable = "Auth.SessionUnavailable";
 
     /// <summary>
     /// #1975 — an administrator-initiated change no longer fits the account it was started for: the account's address

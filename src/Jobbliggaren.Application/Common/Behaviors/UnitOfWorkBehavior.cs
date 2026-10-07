@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Mediator;
@@ -21,6 +22,12 @@ public sealed partial class UnitOfWorkBehavior<TCommand, TResponse>(
         MessageHandlerDelegate<TCommand, TResponse> next,
         CancellationToken cancellationToken)
     {
+        if (message is IOwnsAccountTransaction)
+        {
+            if (message is IReplayOnConcurrencyConflict)
+                throw new InvalidOperationException("An owned account transaction cannot be replayed.");
+            return await next(message, cancellationToken);
+        }
         if (message is not IReplayOnConcurrencyConflict)
         {
             var response = await next(message, cancellationToken);

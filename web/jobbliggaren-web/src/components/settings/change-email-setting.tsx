@@ -47,6 +47,7 @@ type View =
   | { step: "codeDead"; message: string }
   /** The confirm left and nothing readable came back: the address may have changed. */
   | { step: "unknown"; message: string }
+  | { step: "committedWithoutSession"; address: string }
   | { step: "notLoggedIn" }
   /** No mail can be delivered on this deployment. */
   | { step: "mailOff"; message?: string };
@@ -184,6 +185,14 @@ export function ChangeEmailSetting({ currentEmail }: { currentEmail: string }) {
         code: parsed.data,
       });
       if (outcome.ok) {
+        if (outcome.value?.requiresLogin) {
+          setView({ step: "committedWithoutSession", address: challenge.address });
+          setInput("");
+          setPendingAddress("");
+          setCode("");
+          pendingFocus.current = "panel";
+          return;
+        }
         // The action re-set the session cookie, so the page re-renders with the new address.
         setView({ step: "address" });
         setInput("");
@@ -288,6 +297,23 @@ export function ChangeEmailSetting({ currentEmail }: { currentEmail: string }) {
             {current}
             <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
             {panel(<p>{view.message}</p>)}
+          </>
+        );
+
+      case "committedWithoutSession":
+        return (
+          <>
+            {title}
+            {panel(
+              <>
+                <p>{t("account.changeEmail.committedWithoutSession", { newEmail: view.address })}</p>
+                <p>
+                  <Link href={`/logga-in?next=${MINA_SIDOR_HREF.konto}`} className={STANDALONE_LINK}>
+                    {t("account.reauth.toLogin")}
+                  </Link>
+                </p>
+              </>
+            )}
           </>
         );
 

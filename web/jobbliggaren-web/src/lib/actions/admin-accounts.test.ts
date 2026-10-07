@@ -23,7 +23,8 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
 
-import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction } from "./admin-accounts";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction } from "./admin-accounts";
+import { ADMIN_ACCESS_ERRORS, type AdminAccessOperation } from "@/lib/admin/account-access";
 
 const ACCOUNT = "00000000-0000-4000-8000-000000000007";
 const PATH = `/api/v1/admin/accounts/${ACCOUNT}/email-change`;
@@ -270,5 +271,110 @@ describe("cancelAccountEmailChangeAction", () => {
 
     expect(await cancelAccountEmailChangeAction("../search")).toEqual({ kind: "nothingPending" });
     expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("changeAccountAccessAction (#1976)", () => {
+  const VERIFY = "/api/v1/auth/reauth/verify";
+  const accessPath = (operation: AdminAccessOperation) => `/api/v1/admin/accounts/${ACCOUNT}/${operation}`;
+  const change = (operation: AdminAccessOperation = "suspend") => changeAccountAccessAction(ACCOUNT, operation, PROOF);
+  const receipt = (isSuspended: boolean, pendingDeletion = false) => ({
+    userId: ACCOUNT, isSuspended, accessRevision: isSuspended ? 1 : 2, pendingDeletion,
+  });
+
+  it.each(["suspend", "reinstate"] as const)("verifies the administrator's code before %s and returns only the receipt", async (operation) => {
+    const value = receipt(operation === "suspend", operation === "reinstate");
+    backend({ [VERIFY]: verified, [accessPath(operation)]: () => json(200, value) });
+
+    const outcome = await change(operation);
+
+    expect(outcome).toEqual({ ok: true, value });
+    expect(paths()).toEqual([VERIFY, accessPath(operation)]);
+    expect(authedFetchMock).toHaveBeenNthCalledWith(1, "session-under-test", VERIFY, {
+      method: "POST", body: JSON.stringify(PROOF),
+    });
+    expect(authedFetchMock).toHaveBeenNthCalledWith(2, "session-under-test", accessPath(operation), {
+      method: "POST", body: JSON.stringify({ reauthGrant: GRANT }),
+    });
+    expect(JSON.stringify(outcome)).not.toContain(GRANT);
+    expect(JSON.stringify(outcome)).not.toContain(PROOF.code);
+  });
+
+  it("rejects an invalid account id, operation or code before spending the proof", async () => {
+    expect(await changeAccountAccessAction("../search", "suspend", PROOF)).toMatchObject({ ok: false, kind: "inputRefused" });
+    // Declared unreachable for typed callers: a direct Server Action POST can supply an unknown operation.
+    expect(await changeAccountAccessAction(ACCOUNT, "erase" as AdminAccessOperation, PROOF)).toMatchObject({ ok: false, kind: "inputRefused" });
+    expect(await changeAccountAccessAction(ACCOUNT, "suspend", { ...PROOF, code: "12ab" })).toEqual({
+      ok: false, kind: "wrongCode", error: "pages.auth.passwordless.code.malformedCode",
+    });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing session", "ordinary user", "missing session id"] as const)("spends no code for %s", async (state) => {
+    if (state === "missing session") getServerSessionMock.mockResolvedValue(null);
+    if (state === "ordinary user") getServerSessionMock.mockResolvedValue({ userId: ACCOUNT, email: NEW, roles: [] });
+    if (state === "missing session id") getSessionIdMock.mockResolvedValue(null);
+
+    const outcome = await change();
+
+    expect(outcome).toEqual(state === "ordinary user"
+      ? { ok: false, kind: "status", error: "admin.users.errors.forbidden" }
+      : { ok: false, kind: "notLoggedIn" });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [400, "Auth.LoginCodeWrong", { ok: false, kind: "wrongCode", error: "pages.auth.passwordless.code.wrongCode" }],
+    [410, "Auth.LoginCodeBurned", { ok: false, kind: "deadCode", reason: "burned" }],
+    [429, "", { ok: false, kind: "status", error: "pages.auth.passwordless.errors.tooManyAttempts" }],
+    [401, "", { ok: false, kind: "notLoggedIn" }],
+  ] as const)("does not send the account command after a refused %i code verification", async (status, title, expected) => {
+    backend({ [VERIFY]: () => problem(status, title) });
+
+    expect(await change()).toEqual(expected);
+    expect(paths()).toEqual([VERIFY]);
+  });
+
+  it.each([
+    [409, ADMIN_ACCESS_ERRORS.alreadySuspended, "access.alreadySuspended"],
+    [409, ADMIN_ACCESS_ERRORS.alreadyReinstated, "access.alreadyReinstated"],
+    [409, ADMIN_ACCESS_ERRORS.selfSuspension, "refusal.ownAccount.suspend"],
+    [409, ADMIN_ACCESS_ERRORS.lastAdministrator, "access.lastAdministrator"],
+    [404, ADMIN_ACCESS_ERRORS.accountNotFound, "errors.gone"],
+    [410, ADMIN_ACCESS_ERRORS.profileUnavailable, "access.profileUnavailable"],
+    [403, "", "errors.forbidden"],
+    [429, "", "errors.rateLimited"],
+  ] as const)("returns the real command refusal %i/%s without a success receipt", async (status, title, key) => {
+    backend({ [VERIFY]: verified, [accessPath("suspend")]: () => problem(status, title) });
+
+    expect(await change()).toEqual({
+      ok: false, kind: "operationRefused", channel: "status", error: `admin.users.${key} ${SPENT}`,
+    });
+    expect(paths()).toEqual([VERIFY, accessPath("suspend")]);
+  });
+
+  it.each([
+    ["a lost response", () => Promise.reject(new Error("socket hang up"))],
+    ["an unreadable receipt", () => json(200, { userId: ACCOUNT, isSuspended: true })],
+    ["another account's receipt", () => json(200, { ...receipt(true), userId: "00000000-0000-4000-8000-000000000008" })],
+    ["the opposite transition", () => json(200, receipt(false))],
+    ["an unknown conflict", () => problem(409, "Admin.Unknown")],
+    ["an unknown gone result", () => problem(410, "Admin.Unknown")],
+    ["an unavailable transaction", () => json(503, {})],
+  ])("claims no success for %s after the proof was spent", async (_label, respond) => {
+    backend({ [VERIFY]: verified, [accessPath("suspend")]: respond });
+
+    expect(await change()).toEqual({ ok: false, kind: "outcomeUnknown", error: `admin.users.access.unknown ${SPENT}` });
+    expect(paths()).toEqual([VERIFY, accessPath("suspend")]);
+  });
+
+  it("distinguishes a refused grant from the session ending after verification", async () => {
+    backend({ [VERIFY]: verified, [accessPath("suspend")]: () => problem(401, "Auth.InvalidCredentials") });
+    expect(await change()).toEqual({
+      ok: false, kind: "operationRefused", channel: "status", error: `admin.users.emailChange.notConfirmed ${SPENT}`,
+    });
+
+    backend({ [VERIFY]: verified, [accessPath("suspend")]: () => json(401, {}) });
+    expect(await change()).toEqual({ ok: false, kind: "notLoggedIn" });
   });
 });

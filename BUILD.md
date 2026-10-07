@@ -276,11 +276,11 @@ Verifieras via ArchUnit.NET eller NetArchTest-regler i Domain.ArchitectureTests-
 
 **Alla genom Mediator.SourceGenerator-pipeline i Application-lagret:**
 
-1. `LoggingBehavior` — loggar request-start, duration, success/fail
-2. `ValidationBehavior` — kör FluentValidation, returnerar `Result<T>.Failure` vid fel
-3. `AuthorizationBehavior` — kontrollerar att current user har rätt att köra handler
-4. `CachingBehavior` — caches `ICacheable`-queries till Redis
-5. `UnitOfWorkBehavior` — wrappar commands i DB-transaction, triggar domain event dispatch efter SaveChanges
+1. `LoggingScopeBehavior` → `LoggingBehavior`: request context, duration and outcome.
+2. `ValidationBehavior` → `AuthorizationBehavior` → `AdminAuthorizationBehavior`: validation, authenticated access and defense in depth for `IAdminRequest`.
+3. `ReauthenticationBehavior`: consumes the purpose-bound, single-use inbox grant for `IReauthenticatingRequest`.
+4. `AccountAccessMutationBehavior`: takes the global lifecycle lock before sorted actor/target locks; owns the shared App/Identity physical transaction and commits only after successful audit/save. Lifecycle commands cannot replay automatically.
+5. `FieldEncryptionKeyPrefetchBehavior` → `UnitOfWorkBehavior` → `RecentJobSearchCaptureBehavior` → `AuditBehavior`: encryption prefetch, save/domain events, scoped recent-search capture and success-only audit. The protected outer scope owns commit (ADR 0155).
 
 ---
 
@@ -603,14 +603,16 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 > `me/ai-keys`, `me/ai-usage`, `me/credits` byggs aldrig — ingen AI/LLM, ingen
 > BYOK, inga credits.
 
-**Admin (role = Admin eller SuperAdmin)**
+**Admin (Admin policy; `IAdminRequest` also enforced by the Mediator pipeline)**
 - `POST /api/v1/admin/accounts/search` — kontolistan: en sida och statusräkningarna; söktermen går i kroppen, aldrig i URL:en (#1974, ADR 0151)
 - `GET /api/v1/admin/accounts/{id}` — ett kontos uppgifter (#1974, ADR 0151)
 - `POST /api/v1/admin/accounts/{id}/email-change` — påbörja ett adressbyte som kontoägaren slutför efter fördröjningen; kräver administratörens egen kod (#1975, ADR 0153)
 - `DELETE /api/v1/admin/accounts/{id}/email-change` — avbryt kontots väntande adressbyte (#1975, ADR 0153)
 - `GET /api/v1/admin/accounts/{id}/email-change` — kontots väntande adressbyte, utan adress (#1975, ADR 0153)
-- `POST /api/v1/admin/accounts/{id}/suspend` — **OBYGGD** (#1976)
-- `POST /api/v1/admin/accounts/{id}/unsuspend` — **OBYGGD** (#1976)
+- `POST /api/v1/admin/accounts/{id}/suspend` — suspends access and permanently invalidates earlier sessions/authentication proofs and pending address changes; the administrator's own inbox grant is required (#1976, ADR 0155).
+- `POST /api/v1/admin/accounts/{id}/reinstate` — permits a fresh login; old sessions stay invalid and pending deletion continues. Requires the administrator's own inbox grant (#1976, ADR 0155).
+
+Admin access writes use `AdminWrite`, private/no-store responses and separate audit actor/target. A no-op is Conflict and writes no success audit. Self-suspension and removing the last effective administrator are refused atomically. Directory status priority is `ProfileMissing > PendingDeletion > Suspended > Active`; details expose `isSuspended` separately.
 - `POST /api/v1/admin/accounts/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
@@ -629,8 +631,12 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 
 ```sql
 -- Identity (ASP.NET Core Identity-defaults utökas)
-users                           -- IdentityUser
-user_roles, roles, role_claims, user_claims, user_logins, user_tokens
+identity."AspNetUsers"           -- IdentityUser
+  is_suspended (boolean, default false)
+  access_revision (bigint, default 0)
+  credential_cutoff (bigint, default 0)
+identity.account_security_epoch  -- singleton id=1, value bigint default 0; survives account erasure
+identity."AspNetUserRoles", identity."AspNetRoles", role_claims, user_claims, user_logins, user_tokens
 
 -- Core domain
 job_seekers
@@ -843,6 +849,7 @@ Alla FK-kolumner har index. Utöver det:
 ### 7.4 Migrations
 
 - EF Core migrations i `Jobbliggaren.Infrastructure/Persistence/Migrations/`
+- Identity migrations live in `Jobbliggaren.Infrastructure/Identity/Migrations/`. `20261007074622_AddAccountAccessSuspension` requires the explicitly approved `--prepare-identity <record digest>` procedure in `docs/runbooks/vps-deploy-stack.md` §3c. Ordinary and pinned reconcile refuse any actual Identity history different from the candidate manifest before applying services/tags/receipt. Down refuses once the persistent global epoch has advanced, including after affected accounts have been erased.
 - Namn: `20260418_InitialSchema`, `20260420_AddImpersonationClaim`, etc.
 - Aldrig redigera applied migration — skapa ny
 - Seed-data för reference (SSYK) körs via separat `Seed`-kommando
@@ -1218,8 +1225,9 @@ Roles lagras i `user_roles` (Identity).
 
 - **Bärartoken är ett session-id, inte en JWT.** `Authorization: Bearer <sessionId>`; sessionen
   är opak och slås upp server-side. Ingen signatur, inga claims i token.
-- **Session-state ligger i storen** (Redis bakom en resiliens-decorator, #511/#728), inte i
-  token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
+- **Session state** is stored in Redis, behind resilience and primary-database access guards. Every read, creation and rotation requires a live, non-suspended Identity/profile with the original session revision. Database failure denies access. Rotation preserves revision; no positive cache or read replica authorizes it (ADR 0155).
+- **Security generations:** suspend, reinstate, an actual verified address swap and the first inbox proof advance the account revision and global epoch/cutoff in their protected transaction. Login/code/link/OAuth/consent proofs retain their original epoch, account identity and revision. Legacy proofs have generation zero only for never-transitioned accounts; malformed v2 never falls back. Other accounts' transitions do not invalidate an otherwise admitted flow.
+- **After commit:** cleanup removes only generations older than the committed revision. Cleanup failure preserves the real success receipt; the primary still refuses old credentials. Self-service address confirmation may issue a replacement session using its internal, purpose-bound authorization after known commit and an exact revision/cutoff/address check. Rollback, unknown commit or an intervening transition permits no replacement. Administrator-initiated anonymous completion issues no session. Pending administrator address changes also require their exact committed request witness (ADR 0155).
 - **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
   och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
 - **Inloggning** är en mejlad kod eller länk (ADR 0142); lösenordsvägarna togs bort i del 5a.

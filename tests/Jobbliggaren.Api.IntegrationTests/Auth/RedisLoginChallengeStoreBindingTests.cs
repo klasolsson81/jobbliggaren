@@ -1,5 +1,6 @@
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
@@ -57,7 +58,15 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime, IClas
     private async Task<(ChallengeId Id, LoginCode Code)> PutBoundAsync(string recipient, ChallengeBinding binding)
     {
         var id = ChallengeId.Generate();
-        return (id, await _store.PutBoundAsync(new NewBoundChallenge(id, recipient, binding), Ct));
+        var issuedAt = new DateTimeOffset(2026, 10, 7, 12, 0, 0, TimeSpan.Zero);
+        var request = new NewBoundChallenge(id, recipient, binding)
+        {
+            Access = new AccountAccessProof(0, binding.UserId, 0),
+            EmailChangeRequest = binding.Purpose == ChallengePurpose.ChangeEmail
+                ? new EmailChangeRequestProof(id.Reveal(), issuedAt, issuedAt + LoginChallengePolicy.ChallengeTtl)
+                : null,
+        };
+        return (id, await _store.PutBoundAsync(request, Ct));
     }
 
     private static LoginCode WrongCodeFor(LoginCode code) =>
@@ -158,7 +167,7 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime, IClas
         var owner = ChangeEmail(Guid.NewGuid());
         var (id, code) = await PutBoundAsync("ny@example.se", owner);
 
-        Keys("jobbliggaren:auth/challenge/v1/*").ShouldBeEmpty();
+        Keys("jobbliggaren:auth/challenge/v2/*").ShouldBeEmpty();
 
         // A change-email code presented on the login arm must never become a login proof.
         (await _store.ConsumeCodeAsync(id, code, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
@@ -273,7 +282,7 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime, IClas
     }
 
     [Fact]
-    public async Task The_protected_length_depends_on_the_address_alone()
+    public async Task The_protected_length_reveals_neither_the_address_nor_the_purpose()
     {
         const string address = "langd@example.se";
         var db = _mux.GetDatabase();
@@ -290,7 +299,7 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime, IClas
         var (longerId, _) = await PutBoundAsync("en-markbart-langre-adress-an-den-forsta@example.se", Reauthentication(Guid.NewGuid()));
         var longer = await db.HashStringLengthAsync(
             RedisLoginChallengeStore.BoundRecordKey(RedisLoginChallengeStore.RecordSegment(longerId)), "p");
-        longer.ShouldBeGreaterThan(lengths[0]);
+        longer.ShouldBe(lengths[0]);
     }
 
     [Fact]

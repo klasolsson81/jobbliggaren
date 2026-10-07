@@ -19,6 +19,7 @@ export const AUTH_ERROR_CODES = {
   EmailTaken: "Auth.EmailTaken",
   ChangeEmailTargetBudgetExhausted: "Auth.ChangeEmailTargetBudgetExhausted",
   EmailChangeIncomplete: "Auth.EmailChangeIncomplete",
+  SessionUnavailable: "Auth.SessionUnavailable",
   ExternalEmailUnverified: "Auth.ExternalEmailUnverified",
   InvalidCredentials: "Auth.InvalidCredentials",
   UserNotFound: "Auth.UserNotFound",

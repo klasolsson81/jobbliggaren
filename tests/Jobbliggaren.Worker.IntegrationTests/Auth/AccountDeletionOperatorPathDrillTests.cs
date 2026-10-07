@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -94,7 +95,9 @@ public class AccountDeletionOperatorPathDrillTests(WorkerTestFixture fixture)
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var address = $"drill-{Guid.NewGuid():N}@test.local";
-        var user = new ApplicationUser { UserName = address, Email = address };
+        var user = new ApplicationUser { Id = Guid.NewGuid(), UserName = address, Email = address, EmailConfirmed = true };
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        await using var transaction = await coordinator.BeginAsync([user.Id], lifecycle: false, ct);
         (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         var clock = new FixedClock(DateTimeOffset.UtcNow);
@@ -102,6 +105,7 @@ public class AccountDeletionOperatorPathDrillTests(WorkerTestFixture fixture)
         seeker.IsSuccess.ShouldBeTrue();
         db.JobSeekers.Add(seeker.Value);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return (user.Id, seeker.Value.Id, address);
     }
@@ -110,15 +114,20 @@ public class AccountDeletionOperatorPathDrillTests(WorkerTestFixture fixture)
     private async Task LinkEveryKnownProviderAsync(Guid userId, CancellationToken ct)
     {
         using var scope = fixture.Services.CreateScope();
+        var coordinator = scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>();
+        var reader = scope.ServiceProvider.GetRequiredService<IAccountAccessReader>();
+        await using var transaction = await coordinator.BeginAsync([userId], lifecycle: false, ct);
+        (await reader.ReadAsync(userId, ct)).ShouldNotBeNull().CanAuthenticate.ShouldBeTrue();
         var store = new IdentityExternalLoginStore(
             scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
             scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
-            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(), coordinator, reader);
         foreach (var provider in ExternalProviderKey.Known)
         {
             var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
             (await store.LinkAsync(userId, provider, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
         }
+        await transaction.CommitAsync(ct);
     }
 
     private async Task<int> LinksOfAsync(Guid userId, CancellationToken ct)

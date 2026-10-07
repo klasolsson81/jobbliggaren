@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
@@ -14,7 +15,9 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 internal sealed class IdentityExternalLoginStore(
     UserManager<ApplicationUser> userManager,
     AppIdentityDbContext identity,
-    IDbExceptionInspector dbExceptionInspector) : IExternalLoginLookup, IExternalLoginWriter, IExternalLoginEraser
+    IDbExceptionInspector dbExceptionInspector,
+    IAccountAccessCoordinator coordinator,
+    IAccountAccessReader access) : IExternalLoginLookup, IExternalLoginWriter, IExternalLoginEraser
 {
     public async Task<Guid?> FindUserIdAsync(
         ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct) =>
@@ -23,6 +26,8 @@ internal sealed class IdentityExternalLoginStore(
     public async Task<ExternalLinkResult> LinkAsync(
         Guid userId, ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct)
     {
+        if (!coordinator.Holds(userId) || (await access.ReadAsync(userId, ct))?.CanAuthenticate != true)
+            throw new InvalidOperationException("Provider linking requires fresh admission in a protected transaction.");
         // Read first: Identity answers LoginAlreadyAssociated for the same user too, and the caller must tell a
         // login it already holds from one another account holds.
         if (await ClassifyAsync(userId, provider, subject) is { } existing)
@@ -63,8 +68,13 @@ internal sealed class IdentityExternalLoginStore(
 
     // One statement keyed on the account alone, not UserManager.RemoveLoginAsync: that one reads the user and rotates
     // its security stamp per login, and none of it matters for an account being deleted.
-    public Task EraseAllAsync(Guid userId, CancellationToken ct) =>
-        identity.UserLogins.Where(login => login.UserId == userId).ExecuteDeleteAsync(ct);
+    public async Task EraseAllAsync(Guid userId, CancellationToken ct)
+    {
+        if (!coordinator.Holds(userId))
+            throw new InvalidOperationException("Provider erasure requires its protected transaction.");
+        await access.ReadAsync(userId, ct);
+        await identity.UserLogins.Where(login => login.UserId == userId).ExecuteDeleteAsync(ct);
+    }
 
     private async Task<ExternalLinkResult?> ClassifyAsync(
         Guid userId, ExternalProviderKey provider, ExternalSubject subject) =>

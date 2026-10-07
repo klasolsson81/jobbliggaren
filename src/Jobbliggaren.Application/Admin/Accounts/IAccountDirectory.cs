@@ -46,7 +46,10 @@ public sealed record AccountDirectoryEntry(
     AccountStatus Status,
     JobSeekerId? JobSeekerId,
     DateTimeOffset? RegisteredAt,
-    DateTimeOffset? DeletedAt)
+    DateTimeOffset? DeletedAt,
+    bool IsSuspended = false,
+    long AccessRevision = 0,
+    long CredentialCutoff = 0)
 {
     /// <summary>The earliest permanent deletion, while deletion is pending.</summary>
     public DateOnly? PermanentDeletionEarliest =>
@@ -59,4 +62,4 @@ public sealed record AccountDirectoryEntry(
 
 public sealed record AccountDirectoryPage(IReadOnlyList<AccountDirectoryEntry> Entries, int TotalCount);
 
-public sealed record AccountStatusCounts(int Total, int Active, int PendingDeletion, int ProfileMissing);
+public sealed record AccountStatusCounts(int Total, int Active, int PendingDeletion, int ProfileMissing, int Suspended = 0);

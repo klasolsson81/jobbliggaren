@@ -23,7 +23,7 @@ public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, I
         {
             return new AccountDetailsDto(
                 entry.UserId, entry.Email, role, entry.Status, entry.EmailConfirmed,
-                entry.RegisteredAt, deletionEarliest, null, null, null);
+                entry.RegisteredAt, deletionEarliest, null, null, null, entry.IsSuspended);
         }
 
         var applications = db.Applications;
@@ -43,6 +43,6 @@ public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, I
         return new AccountDetailsDto(
             entry.UserId, entry.Email, role, entry.Status, entry.EmailConfirmed,
             entry.RegisteredAt, deletionEarliest,
-            counts?.Applications, counts?.Resumes, counts?.SavedSearches);
+            counts?.Applications, counts?.Resumes, counts?.SavedSearches, entry.IsSuspended);
     }
 }

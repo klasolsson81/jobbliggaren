@@ -44,6 +44,8 @@ import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
 import { isInAdminToast } from "./admin-toast-host";
+import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
+import type { AdminAccessOperation, AdminAccessOutcome, AdminAccessReceipt } from "@/lib/admin/account-access";
 
 /** The actions whose flows exist in the MVP (#1975–#1977); every other action is "Kommer snart" here. */
 export type AdminLiveAction = Extract<
@@ -89,6 +91,11 @@ export interface AdminAccountCommands {
    */
   readonly deletionEarliestIfScheduledNow?: string;
   readonly emailChange?: AdminEmailChangeCommands;
+  readonly access?: {
+    readonly requestCode: () => Promise<ReauthRequestResult>;
+    readonly run: (account: AdminAddressedAccount, operation: AdminAccessOperation, proof: CodeProof) => Promise<AdminAccessOutcome>;
+    readonly returnPath: string;
+  };
 }
 
 /**
@@ -166,7 +173,7 @@ type ActionSlot = AdminAccountAction | "addressNote" | "emailChangeUnknown";
 
 /** The handoff's order, narrowed by the state the account is in. */
 function actionsFor(
-  { status, emailConfirmed }: Pick<AdminAccountRow, "status" | "emailConfirmed">,
+  { status, emailConfirmed, isSuspended }: Pick<AdminAccountRow, "status" | "emailConfirmed" | "isSuspended">,
   emailChange: AdminEmailChangeState,
   administrator: boolean,
 ) {
@@ -177,10 +184,11 @@ function actionsFor(
   else if (status === "active") general.push(administrator ? "addressNote" : "changeEmail");
   if (status === "active") general.push("sendLoginLink");
   if (status === "active" && !emailConfirmed) general.push("markVerified");
-  if (status === "suspended") general.push("reinstate");
+  const suspended = isSuspended ?? status === "suspended";
+  if (suspended) general.push("reinstate");
   if (status === "pendingDeletion") general.push("restore");
   const destructive: AdminAccountAction[] = [];
-  if (status === "active") destructive.push("suspend");
+  if (!suspended && (status === "active" || status === "pendingDeletion")) destructive.push("suspend");
   if (status !== "pendingDeletion") destructive.push("scheduleDeletion");
   destructive.push("deletePermanently");
   return { general, destructive };
@@ -277,6 +285,7 @@ function PanelContent({
   const account = loaded !== null && isAddressed(loaded) ? loaded : null;
   const live = commands?.live ?? NO_LIVE_ACTIONS;
   const emailChangeCommands = commands?.emailChange;
+  const accessCommands = commands?.access;
   // The administrator's own account, by its id: an address is no identity (security-auditor, #1975 C-1).
   const ownAccount = self !== undefined && sameId(head.id, self.userId);
   const administrator = head.role === "admin" || ownAccount;
@@ -382,6 +391,9 @@ function PanelContent({
         return emailChangeCommands !== undefined && self !== undefined;
       case "cancelEmailChange":
         return emailChangeCommands !== undefined;
+      case "suspend":
+      case "reinstate":
+        return (accessCommands !== undefined && self !== undefined) || commands?.run !== undefined;
       default:
         return commands?.run !== undefined;
     }
@@ -537,6 +549,47 @@ function PanelContent({
         </li>
       );
     }
+    if ((action === "suspend" || action === "reinstate") && accessCommands !== undefined && self !== undefined) {
+      const description = t(`confirm.${action}.body`)
+        + (action === "suspend" && emailChange.kind === "pending" ? ` ${t("access.cancelsPending")}` : "")
+        + (action === "reinstate" && target.status === "pendingDeletion" ? ` ${t("access.deletionContinues")}` : "");
+      const handOff = (outcome: ReauthHandOff<AdminAccessReceipt>) => {
+        if (outcome.kind === "verified") {
+          showAdminToast(receipt(target, { kind: action })
+            + (action === "reinstate" && outcome.value.pendingDeletion ? ` ${t("access.deletionContinues")}` : ""));
+          exitFocus.current = "title";
+        } else {
+          setNotice({ text: outcome.error ?? t("access.deliveryUnavailable"),
+            role: outcome.kind === "outcomeUnknown" ? "status" : "alert" });
+          exitFocus.current = "notice";
+        }
+      };
+      return (
+        <li key={action}>
+          <ReAuthCodeDialog<AdminAccessReceipt>
+            trigger={
+              <button type="button" className={`jp-btn ${destructive ? "jp-btn--danger" : "jp-btn--secondary"} jp-adminpanel__action`}
+                ref={(element) => { actionRefs.current[action] = element; }} onClick={() => setNotice(null)}>
+                <Icon size={18} aria-hidden="true" />{t(`actions.${action}`)}
+              </button>
+            }
+            className="jp-adminstepup"
+            title={t(`confirm.${action}.title`, { email: target.email })}
+            description={description}
+            currentEmail={self.email}
+            confirmLabel={t(`actions.${action}`)}
+            pendingLabel={t(`busy.${action}`)}
+            cancelLabel={t("confirm.cancel")}
+            variant={action === "suspend" ? "destructive" : "default"}
+            returnPath={accessCommands.returnPath}
+            requestCode={accessCommands.requestCode}
+            action={(proof) => accessCommands.run(target, action, proof)}
+            onHandOff={handOff}
+            focusAfterHandOff={focusAfterExit}
+          />
+        </li>
+      );
+    }
     return (
       <li key={action}>
         <button
@@ -611,6 +664,9 @@ function PanelContent({
       );
     return (
       <dl className="jp-admindl jp-adminpanel__facts">
+        {detail.status === "pendingDeletion" && detail.isSuspended ? (
+          <><dt>{t("panel.access")}</dt><dd><AdminAccountStatus status="suspended" /></dd></>
+        ) : null}
         {detail.status === "pendingDeletion" ? (
           <>
             <dt>{t("panel.deletion")}</dt>

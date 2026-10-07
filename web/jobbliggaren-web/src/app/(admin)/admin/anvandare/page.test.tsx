@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/actions/admin-accounts", () => ({
   requestAccountEmailChangeAction: vi.fn(),
   cancelAccountEmailChangeAction: vi.fn(),
+  changeAccountAccessAction: vi.fn(),
 }));
 vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: vi.fn() }));
 
@@ -40,6 +41,7 @@ const RESPONSE: AccountSearchResponse = {
         role: "Admin",
         status: "Active",
         emailConfirmed: true,
+        isSuspended: false,
         registeredAt: "2026-09-28T12:02:00Z",
         deletionEarliest: null,
         applicationCount: 4,
@@ -50,6 +52,7 @@ const RESPONSE: AccountSearchResponse = {
         role: "User",
         status: "ProfileMissing",
         emailConfirmed: true,
+        isSuspended: false,
         registeredAt: null,
         deletionEarliest: null,
         applicationCount: null,
@@ -60,6 +63,7 @@ const RESPONSE: AccountSearchResponse = {
         role: "User",
         status: "ProfileMissing",
         emailConfirmed: true,
+        isSuspended: false,
         registeredAt: null,
         deletionEarliest: null,
         applicationCount: null,
@@ -70,7 +74,7 @@ const RESPONSE: AccountSearchResponse = {
     pageSize: 25,
     totalPages: 1,
   },
-  counts: { total: 3, active: 1, pendingDeletion: 0, profileMissing: 2 },
+  counts: { total: 3, active: 1, suspended: 0, pendingDeletion: 0, profileMissing: 2 },
 };
 
 async function renderPage() {
@@ -109,6 +113,7 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
     expect(within(group).getAllByRole("radio").map((option) => option.textContent)).toEqual([
       "Alla (3)",
       "Aktiva (1)",
+      "Avstängda (0)",
       "Under radering (0)",
       "Ofullständiga (2)",
     ]);

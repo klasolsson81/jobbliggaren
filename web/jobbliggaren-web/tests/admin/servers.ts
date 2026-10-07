@@ -15,6 +15,7 @@ import {
   STEP_UP_GRANT,
   accountDetails,
   accountsPage,
+  type AccountAccessState,
 } from "./fixtures";
 
 /**
@@ -36,10 +37,20 @@ export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "admin-harness-session";
 
 export type AdminMode = "ok" | "forbidden" | "error" | "rateLimited" | "unauthorized";
+export type AccessMode = "ok" | "forbidden" | "rateLimited" | "unauthorized" | "unknown" | "unknownAfterCommit";
 
 export type Harness = {
   who: "admin" | "member";
   mode: AdminMode;
+  accessMode: AccessMode;
+  codeMode: "ok" | "unauthorized" | "rateLimited";
+  holdCodeRequests: boolean;
+  holdAccessWrites: boolean;
+  readonly access: Map<string, AccountAccessState>;
+  readonly accessRequests: { accountId: string; operation: "suspend" | "reinstate"; body: string }[];
+  readonly reauthVerifications: string[];
+  releaseCodeRequests(): void;
+  releaseAccessWrites(): void;
   /** The account directory holds thirty more accounts, so its listing has a second page. */
   many: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
@@ -86,10 +97,30 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const requests: string[] = [];
   const searches: string[] = [];
   const emailChangeRequests: string[] = [];
+  const accessRequests: Harness["accessRequests"] = [];
+  const reauthVerifications: string[] = [];
+  const pendingCodeRequests: (() => void)[] = [];
+  const pendingAccessWrites: (() => void)[] = [];
+  let issuedGrants = 0;
 
   const harness: Harness = {
     who: "admin",
     mode: "ok",
+    accessMode: "ok",
+    codeMode: "ok",
+    holdCodeRequests: false,
+    holdAccessWrites: false,
+    access: new Map(),
+    accessRequests,
+    reauthVerifications,
+    releaseCodeRequests() {
+      harness.holdCodeRequests = false;
+      for (const answer of pendingCodeRequests.splice(0)) answer();
+    },
+    releaseAccessWrites() {
+      harness.holdAccessWrites = false;
+      for (const answer of pendingAccessWrites.splice(0)) answer();
+    },
     many: false,
     gone: new Set(),
     emailChanges: new Set(),
@@ -98,15 +129,23 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     requests,
     searches,
     reset() {
+      harness.releaseCodeRequests();
+      harness.releaseAccessWrites();
       misses.length = 0;
       requests.length = 0;
       searches.length = 0;
       emailChangeRequests.length = 0;
+      accessRequests.length = 0;
+      reauthVerifications.length = 0;
+      issuedGrants = 0;
       harness.who = "admin";
       harness.mode = "ok";
+      harness.accessMode = "ok";
+      harness.codeMode = "ok";
       harness.many = false;
       harness.gone.clear();
       harness.emailChanges.clear();
+      harness.access.clear();
     },
     async stop() {
       await Promise.all([close(proxy), close(backend)]);
@@ -153,16 +192,80 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       request.on("end", () => {
         searches.push(body);
         if (harness.mode !== "ok") return refusal();
-        const { address, page, pageSize } = JSON.parse(body) as { address?: string; page?: number; pageSize?: number };
-        return json(200, accountsPage(address, { page, pageSize, many: harness.many, gone: harness.gone }));
+        const { address, status, page, pageSize } = JSON.parse(body) as {
+          address?: string; status?: string; page?: number; pageSize?: number;
+        };
+        return json(200, accountsPage(address, { status, page, pageSize, many: harness.many,
+          gone: harness.gone, access: harness.access }));
       });
       return;
     }
     // #1975 — the administrator's own step-up, then an account's address change: its request, cancel and read.
-    if (route === "POST /api/v1/auth/reauth") return json(202, { challengeId: STEP_UP_CHALLENGE });
-    if (route === "POST /api/v1/auth/reauth/verify") {
+    if (route === "POST /api/v1/auth/reauth") {
       request.resume();
-      return json(200, { reauthGrant: STEP_UP_GRANT });
+      const answer = () => json(202, { challengeId: STEP_UP_CHALLENGE }, { "Cache-Control": "private, no-store" });
+      if (harness.holdCodeRequests) pendingCodeRequests.push(answer);
+      else answer();
+      return;
+    }
+    if (route === "POST /api/v1/auth/reauth/verify") {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        reauthVerifications.push(body);
+        if (harness.codeMode === "unauthorized") return json(401, { title: "Unauthorized", status: 401 });
+        if (harness.codeMode === "rateLimited")
+          return json(429, { title: "Too Many Requests", status: 429 }, { "Retry-After": "6" });
+        const proof = JSON.parse(body) as { challengeId?: unknown; code?: unknown };
+        if (proof.challengeId !== STEP_UP_CHALLENGE || proof.code !== "123456")
+          return json(400, { title: "Auth.LoginCodeWrong", status: 400 });
+        issuedGrants++;
+        return json(200, { reauthGrant: STEP_UP_GRANT }, { "Cache-Control": "private, no-store" });
+      });
+      return;
+    }
+
+    const accessCommand = /^POST \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})\/(suspend|reinstate)$/.exec(route);
+    if (accessCommand !== null) {
+      const accountId = accessCommand[1] ?? "";
+      const operation = accessCommand[2] === "suspend" ? "suspend" : "reinstate";
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        accessRequests.push({ accountId, operation, body });
+        const reply = (status: number, value?: unknown, headers: Record<string, string> = {}) =>
+          json(status, value, { "Cache-Control": "private, no-store", ...headers });
+        const input = JSON.parse(body) as { reauthGrant?: unknown };
+        if (harness.who !== "admin") return reply(403, { title: "Forbidden", status: 403 });
+        if (input.reauthGrant !== STEP_UP_GRANT || issuedGrants === 0)
+          return reply(401, { title: "Auth.InvalidCredentials", status: 401 });
+        issuedGrants--;
+        const answer = () => {
+          if (harness.accessMode === "forbidden") return reply(403, { title: "Forbidden", status: 403 });
+          if (harness.accessMode === "rateLimited")
+            return reply(429, { title: "Too Many Requests", status: 429 }, { "Retry-After": "6" });
+          if (harness.accessMode === "unauthorized") return reply(401, { title: "Unauthorized", status: 401 });
+          if (harness.accessMode === "unknown") return reply(503, { title: "Unavailable", status: 503 });
+          const found = accountDetails(accountId, harness.gone, harness.access);
+          if (found === undefined) return reply(404, { title: "Admin.AccountNotFound", status: 404 });
+          if (found.status === "ProfileMissing")
+            return reply(410, { title: "Admin.ProfileUnavailable", status: 410 });
+          const suspended = operation === "suspend";
+          if (found.isSuspended === suspended)
+            return reply(409, { title: suspended ? "Admin.AccountAlreadySuspended" : "Admin.AccountAlreadyReinstated", status: 409 });
+          const accessRevision = (harness.access.get(accountId)?.accessRevision ?? 0) + 1;
+          harness.access.set(accountId, { isSuspended: suspended, accessRevision });
+          if (suspended) harness.emailChanges.delete(accountId);
+          if (harness.accessMode === "unknownAfterCommit") return reply(503, { title: "Unavailable", status: 503 });
+          return reply(200, { userId: accountId, isSuspended: suspended, accessRevision,
+            pendingDeletion: found.status === "PendingDeletion" });
+        };
+        if (harness.holdAccessWrites) pendingAccessWrites.push(answer);
+        else answer();
+      });
+      return;
     }
     const emailChange = /^(GET|POST|DELETE) \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})\/email-change$/.exec(route);
     if (emailChange !== null) {
@@ -190,7 +293,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
     if (detail !== null) {
       if (harness.mode !== "ok") return refusal();
-      const found = accountDetails(detail[1] ?? "", harness.gone);
+      const found = accountDetails(detail[1] ?? "", harness.gone, harness.access);
       return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
     }
 

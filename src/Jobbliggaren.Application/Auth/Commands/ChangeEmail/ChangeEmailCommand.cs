@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -17,16 +18,17 @@ namespace Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 /// This step does NOT change the email and does NOT touch sessions: it writes a challenge bound to the user and
 /// the change-email purpose, addressed to the NEW address, and mails that address a code. The swap happens only
 /// once the code is verified (<c>VerifyEmailChangeChallengeCommand</c>) and the grant it yields is confirmed
-/// (<c>ConfirmEmailChangeCommand</c>). Returns the user id for <c>AuditBehavior</c>'s
-/// <c>User.EmailChangeRequested</c> row, and the challenge id for the caller. Neither the grant nor the new email
-/// ever reaches a log or audit projection.
+/// (<c>ConfirmEmailChangeCommand</c>). The handler commits exactly one <c>User.EmailChangeRequested</c> activation
+/// witness after transport; generic audit and UnitOfWork do not save this owned transaction. The witness contains
+/// only the server's request identity. Neither the grant nor the new email reaches a log or audit projection.
 /// </para>
 /// </summary>
 public sealed record ChangeEmailCommand(string? ReauthGrant, string? NewEmail)
     : ICommand<Result<EmailChangeChallenge>>, IAuthenticatedRequest, IReauthenticatingRequest,
-        IAuditableCommand<Result<EmailChangeChallenge>>
+        IAuditableCommand<Result<EmailChangeChallenge>>, IOwnsAccountTransaction
 {
-    public string EventType => "User.EmailChangeRequested";
+    public const string RequestedEventType = "User.EmailChangeRequested";
+    public string EventType => RequestedEventType;
     public string AggregateType => "User";
     public Guid ExtractAggregateId(Result<EmailChangeChallenge> response) => response.Value.UserId;
 }

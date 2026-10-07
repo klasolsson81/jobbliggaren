@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,5 +59,10 @@ public static class MigrationsOptionsFactory
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
             })
             .UseSnakeCaseNamingConvention()
+            .Options;
+
+    public static DbContextOptions<AppIdentityDbContext> BuildIdentityOptions(DbConnection connection) =>
+        new DbContextOptionsBuilder<AppIdentityDbContext>(BuildIdentityOptions(connection.ConnectionString))
+            .UseNpgsql(connection)
             .Options;
 }

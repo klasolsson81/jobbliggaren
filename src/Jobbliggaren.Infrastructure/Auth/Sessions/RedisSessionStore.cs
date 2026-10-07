@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Microsoft.Extensions.Caching.Distributed;
@@ -35,11 +36,20 @@ public sealed class RedisSessionStore(
     // 401s → re-login mints a fresh session → self-heal), and InvalidateAsync still drops the main
     // key while skipping the now-unknowable index membership. Catch JsonException ONLY — a genuine
     // bug must still surface (§5, no catch-all).
-    private static SessionPayload? TryDeserializePayload(string json)
+    private static SessionPayload? TryDeserializePayload(string json, bool legacy)
     {
         try
         {
-            return JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+            using var document = JsonDocument.Parse(json);
+            var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+            if (payload is null || payload.UserId == Guid.Empty || payload.AccessRevision < 0)
+                return null;
+            var hasVersion = document.RootElement.TryGetProperty("version", out _);
+            var hasRevision = document.RootElement.TryGetProperty("accessRevision", out _);
+            if (legacy ? hasVersion || hasRevision || payload.AccessRevision != 0
+                : !hasVersion || !hasRevision || payload.Version != 2)
+                return null;
+            return payload;
         }
         catch (JsonException)
         {
@@ -50,11 +60,17 @@ public sealed class RedisSessionStore(
     public async Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
     {
         string? json;
+        var sessionKey = Key(sessionId);
         try
         {
             // Timing-säkerhet: Redis GET är hash-tabell-uppslagning, inte byte-jämförelse.
             // 256-bit session-id-entropi gör enumeration via timing oexploaterbar.
-            json = await cache.GetStringAsync(Key(sessionId), ct);
+            json = await cache.GetStringAsync(sessionKey, ct);
+            if (json is null)
+            {
+                sessionKey = LegacyKey(sessionId);
+                json = await cache.GetStringAsync(sessionKey, ct);
+            }
         }
         catch (RedisConnectionException ex)
         {
@@ -63,7 +79,7 @@ public sealed class RedisSessionStore(
 
         if (json is null) return null;
 
-        var payload = TryDeserializePayload(json);
+        var payload = TryDeserializePayload(json, sessionKey == LegacyKey(sessionId));
         if (payload is null) return null;
 
         var db = redis.GetDatabase();
@@ -75,7 +91,7 @@ public sealed class RedisSessionStore(
         // so the id can never authenticate again. Checked before the sliding writes (no point
         // sliding a deleted user's session) AND before the COND-A grace short-circuit (deletion
         // overrides an in-flight rotation grace). +1 Redis RTT on the auth hot path — the
-        // ADR-0045-sanctioned cost of Layer 2 (vs a forbidden per-request Postgres read).
+        // The primary-database access check is owned by AccessControlledSessionStore.
         try
         {
             if (await db.KeyExistsAsync(UserDeletedKey(payload.UserId)))
@@ -120,14 +136,13 @@ public sealed class RedisSessionStore(
         if (payload.SupersededAt is { } supersededAt)
             return new Session(
                 sessionId, payload.UserId, payload.CreatedAt, supersededAt + _options.RotationGraceWindow,
-                payload.Lifetime);
+                payload.Lifetime, payload.AccessRevision);
 
         // Slide up to SlidingTtl, but never past the absolute cap: a key's TTL must
         // not outlive the cap (defense-in-depth beside the check above, and it frees
         // Redis memory promptly at the ceiling).
         var capRemaining = payload.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
-        var sessionKey = Key(sessionId);
 
         // Sliding-write throttle (#746): the SADD/KeyExpire/SetString rewrite below is the Redis
         // cost the auth hot path pays on EVERY read. Skip it while less than SlideThreshold ×
@@ -179,7 +194,7 @@ public sealed class RedisSessionStore(
                 // AbsoluteExpirationRelativeToNow (NOT SlidingExpiration): no `sldexp` is stored,
                 // so the GetStringAsync above performs no auto-slide — the slide is explicit-only
                 // and this gate fully controls it. Stamp SlidAt = now so subsequent reads throttle.
-                var slidJson = JsonSerializer.Serialize(payload with { SlidAt = now }, JsonOptions);
+                var slidJson = SerializePayload(payload with { SlidAt = now }, sessionKey == LegacyKey(sessionId));
                 await cache.SetStringAsync(
                     sessionKey,
                     slidJson,
@@ -199,11 +214,16 @@ public sealed class RedisSessionStore(
         // consumers must not be handed an over-promised value.
         var expiresAt = (shouldSlide ? now : slidAt) + slidingTtl;
 
-        return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt, payload.Lifetime);
+        return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt, payload.Lifetime, payload.AccessRevision);
     }
 
-    public async Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
+    public async Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct) =>
+        (await CreateAsync(userId, new AccountAccessProof(0, userId, 0), lifetime, ct))!;
+
+    public async Task<Session?> CreateAsync(Guid userId, AccountAccessProof proof, SessionLifetime lifetime, CancellationToken ct)
     {
+        if (proof.UserId != userId || proof.AccessRevision is not { } revision || revision < 0)
+            throw new ArgumentException("Session creation requires an admitted, account-bound proof.", nameof(proof));
         var sessionId = SessionId.Generate();
         var now = dateTimeProvider.UtcNow;
         var profile = _options.ProfileFor(lifetime);
@@ -213,7 +233,7 @@ public sealed class RedisSessionStore(
         var expiresAt = now + profile.SlidingTtl;
 
         // SlidAt = now: a fresh key starts its #746 throttle window cleanly.
-        var payload = new SessionPayload(userId, now, now, lifetime, SlidAt: now);
+        var payload = new SessionPayload(userId, now, now, lifetime, SlidAt: now, Version: 2, AccessRevision: revision);
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         var sessionKey = Key(sessionId);
 
@@ -255,15 +275,42 @@ public sealed class RedisSessionStore(
             throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
         }
 
-        return new Session(sessionId, userId, now, expiresAt, lifetime);
+        return new Session(sessionId, userId, now, expiresAt, lifetime, revision);
+    }
+
+    public async Task<int> InvalidateBeforeRevisionAsync(Guid userId, long accessRevision, CancellationToken ct)
+    {
+        var db = redis.GetDatabase();
+        var setKey = UserSessionsKey(userId);
+        var count = 0;
+        foreach (var member in await db.SetMembersAsync(setKey))
+        {
+            if ((string?)member is not { } key)
+                continue;
+            var json = await cache.GetStringAsync(key, ct);
+            var payload = json is null ? null : TryDeserializePayload(json,
+                !key.StartsWith("session:v2:", StringComparison.Ordinal));
+            if (payload is not null && (payload.UserId != userId || payload.AccessRevision >= accessRevision))
+                continue;
+            await cache.RemoveAsync(key, ct);
+            await db.SetRemoveAsync(setKey, member);
+            count++;
+        }
+        return count;
     }
 
     public async Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct)
     {
         string? existing;
+        var sessionKey = Key(sessionId);
         try
         {
-            existing = await cache.GetStringAsync(Key(sessionId), ct);
+            existing = await cache.GetStringAsync(sessionKey, ct);
+            if (existing is null)
+            {
+                sessionKey = LegacyKey(sessionId);
+                existing = await cache.GetStringAsync(sessionKey, ct);
+            }
         }
         catch (RedisConnectionException ex)
         {
@@ -275,17 +322,17 @@ public sealed class RedisSessionStore(
         // Hämta payload för att veta vilken user:s set vi ska SREM från.
         // Om payload-deserialiseringen misslyckas (korrupt data) hoppar vi
         // bara secondary-index-borttagning — main-key:n droppas ändå.
-        var payload = TryDeserializePayload(existing);
+        var payload = TryDeserializePayload(existing, sessionKey == LegacyKey(sessionId));
 
         try
         {
             if (payload is not null)
             {
                 var db = redis.GetDatabase();
-                await db.SetRemoveAsync(UserSessionsKey(payload.UserId), Key(sessionId));
+                await db.SetRemoveAsync(UserSessionsKey(payload.UserId), sessionKey);
             }
 
-            await cache.RemoveAsync(Key(sessionId), ct);
+            await cache.RemoveAsync(sessionKey, ct);
         }
         catch (RedisConnectionException ex)
         {
@@ -351,9 +398,15 @@ public sealed class RedisSessionStore(
     public async Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct)
     {
         string? json;
+        var currentKey = Key(current);
         try
         {
-            json = await cache.GetStringAsync(Key(current), ct);
+            json = await cache.GetStringAsync(currentKey, ct);
+            if (json is null)
+            {
+                currentKey = LegacyKey(current);
+                json = await cache.GetStringAsync(currentKey, ct);
+            }
         }
         catch (RedisConnectionException ex)
         {
@@ -362,7 +415,7 @@ public sealed class RedisSessionStore(
 
         if (json is null) return null;
 
-        var payload = TryDeserializePayload(json);
+        var payload = TryDeserializePayload(json, currentKey == LegacyKey(current));
         if (payload is null) return null;
 
         // A superseded key is already rotated away and living out its grace window — never
@@ -403,7 +456,7 @@ public sealed class RedisSessionStore(
             // Preserve CreatedAt + Lifetime verbatim (the cap anchor must never reset);
             // stamp RotatedAt = now and SlidAt = now (the new key starts a fresh #746
             // throttle window).
-            var rotatedPayload = payload with { RotatedAt = now, SlidAt = now };
+            var rotatedPayload = payload with { RotatedAt = now, SlidAt = now, Version = 2 };
             var rotatedJson = JsonSerializer.Serialize(rotatedPayload, JsonOptions);
 
             // Slide the new key up to SlidingTtl, clamped to the absolute cap (as GetAsync).
@@ -433,9 +486,9 @@ public sealed class RedisSessionStore(
             // (Art. 17): it either self-expires at the grace ceiling (leaving a benign orphan
             // member, exactly as GetAsync/CreateAsync already do) or is killed by a revoke.
             var supersededPayload = payload with { RotatedAt = now, SupersededAt = now };
-            var supersededJson = JsonSerializer.Serialize(supersededPayload, JsonOptions);
+            var supersededJson = SerializePayload(supersededPayload, currentKey == LegacyKey(current));
             await cache.SetStringAsync(
-                Key(current),
+                currentKey,
                 supersededJson,
                 new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _options.RotationGraceWindow },
                 ct);
@@ -457,8 +510,8 @@ public sealed class RedisSessionStore(
             {
                 await db.SetRemoveAsync(setKey, newKey);
                 await cache.RemoveAsync(newKey, ct);
-                await db.SetRemoveAsync(setKey, Key(current));
-                await cache.RemoveAsync(Key(current), ct);
+                await db.SetRemoveAsync(setKey, currentKey);
+                await cache.RemoveAsync(currentKey, ct);
                 return null;
             }
 
@@ -474,11 +527,25 @@ public sealed class RedisSessionStore(
     // Skyddar mot Redis-dump-läckage: raw token aldrig synligt i Redis.
     // (jobbliggaren:-prefixet läggs till automatiskt av IDistributedCache-konfigurationen)
     private static string Key(SessionId sessionId)
+        => $"session:v2:{Hash(sessionId)}";
+
+    private static string LegacyKey(SessionId sessionId)
+        => $"session:{Hash(sessionId)}";
+
+    private static string Hash(SessionId sessionId)
     {
         Span<byte> hash = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
-        return $"session:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+        return Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
+
+    private static string SerializePayload(SessionPayload payload, bool legacy) => legacy
+        ? JsonSerializer.Serialize(new LegacySessionPayload(payload.UserId, payload.CreatedAt, payload.RotatedAt,
+            payload.Lifetime, payload.SupersededAt, payload.SlidAt), JsonOptions)
+        : JsonSerializer.Serialize(payload, JsonOptions);
+
+    private sealed record LegacySessionPayload(Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt,
+        SessionLifetime Lifetime, DateTimeOffset? SupersededAt, DateTimeOffset SlidAt);
 
     // Secondary-index-key: tracks alla aktiva session-keys för en user.
     // Manuellt prefixad med jobbliggaren: eftersom vi använder IConnectionMultiplexer
@@ -519,5 +586,7 @@ public sealed class RedisSessionStore(
         DateTimeOffset RotatedAt,
         SessionLifetime Lifetime,
         DateTimeOffset? SupersededAt = null,
-        DateTimeOffset SlidAt = default);
+        DateTimeOffset SlidAt = default,
+        int Version = 0,
+        long AccessRevision = 0);
 }

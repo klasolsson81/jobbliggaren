@@ -369,16 +369,16 @@ export async function requestEmailChangeAction(
  * change confirmed in this one action, so neither grant leaves the server. The address is the one the
  * request sent, verbatim: the grant binds it as spelled.
  *
- * Once the code is accepted it is spent, and the answer falls in one of three classes
+ * Once the code is accepted it is spent, and the answer falls in one of four classes
  * (security-auditor, #1740 Minor 3): a documented refusal leaves the address unchanged; a 5xx, a
  * transport failure or a 200 that does not parse may sit over a committed change and claims nothing;
- * a parsed 200 is done. Only then is the device's session re-issued (ADR 0018: the backend sets no
- * cookie).
+ * a parsed 200 is done and re-issues the device's session; 401 Auth.SessionUnavailable confirms the
+ * committed change but requires a fresh login. The backend sets no cookie (ADR 0018).
  */
 export async function confirmEmailChangeAction(
   newEmail: string,
   proof: CodeProof
-): Promise<Exclude<ReauthOutcome<null>, { kind: "refused" }>> {
+): Promise<Exclude<ReauthOutcome<null | { requiresLogin: true }>, { kind: "refused" }>> {
   const ts = await getTranslations("settings");
   const tp = await getTranslations("pages");
 
@@ -436,7 +436,10 @@ export async function confirmEmailChangeAction(
     return { ok: true, value: null };
   }
   if (res.status >= 400 && res.status < 500) {
-    const title = res.status === 409 ? await readProblemTitle(res) : null;
+    const title = res.status === 401 || res.status === 409 ? await readProblemTitle(res) : null;
+    if (res.status === 401 && title === AUTH_ERROR_CODES.SessionUnavailable) {
+      return { ok: true, value: { requiresLogin: true } };
+    }
     if (title === AUTH_ERROR_CODES.EmailTaken) {
       return {
         ok: false,

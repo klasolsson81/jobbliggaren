@@ -29,8 +29,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// #1975 (ADR 0153) — the owner's side, through the public route: one byte-identical refusal for everything but a full
 /// match (security-auditor T-5), the delay (T-8), the races (T-6), the account while the change waits and after it
 /// (T-7), every session gone and none issued (T-9), the external logins left as they were (T-10), and the one audit row
-/// with the account as its user (T-11). A change whose delay has run is written by the production adapter as it would
-/// have been written 73 hours ago; the host's clock is never moved.
+/// with the account as its user (T-11). The clock ages an actual HTTP-minted proof and its exact committed witness,
+/// preserving the original code, request nonce and account revision.
 /// </summary>
 [Collection("Api")]
 public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsyncLifetime
@@ -65,6 +65,10 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
 
     private Task<HttpResponseMessage> CompleteAsync(string current, string newEmail, string code) =>
         AccountEmailChangeKit.CompleteAsync(_anonymous, current, newEmail, code, Ct);
+
+    private async Task<IReadOnlyList<Jobbliggaren.Domain.Auditing.AuditLogEntry>> CompletionRowsAsync(Guid userId) =>
+        (await AccountEmailChangeKit.AuditRowsAsync(factory, userId, Ct))
+            .Where(row => row.EventType != "Admin.AccountEmailChangeRequested").ToList();
 
     private async Task<ApplicationUser> AccountAsync(Guid userId)
     {
@@ -134,7 +138,7 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
 
         factory.Emails.Sent.ShouldContain(new RecordedEmail(RecordedEmailKind.EmailChangedNotification, owner.Current));
 
-        var row = (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).ShouldHaveSingleItem();
+        var row = (await CompletionRowsAsync(owner.UserId)).ShouldHaveSingleItem();
         row.EventType.ShouldBe("User.EmailChangedViaAdministrator");
         row.UserId.ShouldBe(owner.UserId);
         row.UserAgent.ShouldBe("probe/1.0");
@@ -147,7 +151,7 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
                 .AnonymizeUserAuditTrailAsync(owner.UserId, Ct);
         }
 
-        var erased = (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).ShouldHaveSingleItem();
+        var erased = (await CompletionRowsAsync(owner.UserId)).ShouldHaveSingleItem();
         erased.UserAgent.ShouldBeNull();
         erased.IpAddress.ShouldBeNull();
     }
@@ -273,7 +277,7 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         }
 
         (await AccountAsync(owner.UserId)).Email.ShouldBe(owner.Current);
-        (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).ShouldBeEmpty();
+        (await CompletionRowsAsync(owner.UserId)).ShouldBeEmpty();
     }
 
     // ── T-6: races ──
@@ -290,7 +294,7 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
 
         responses.Count(r => r.StatusCode == HttpStatusCode.NoContent).ShouldBe(1);
         responses.Count(r => r.StatusCode == HttpStatusCode.Gone).ShouldBe(1);
-        (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).ShouldHaveSingleItem();
+        (await CompletionRowsAsync(owner.UserId)).ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -308,14 +312,14 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         var completed = (await completion).StatusCode == HttpStatusCode.NoContent;
         var cancelled = (await cancel).StatusCode == HttpStatusCode.NoContent;
         completed.ShouldNotBe(cancelled);
-        (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).Select(row => row.EventType)
+        (await CompletionRowsAsync(owner.UserId)).Select(row => row.EventType)
             .ShouldBe([completed ? "User.EmailChangedViaAdministrator" : "Admin.AccountEmailChangeCancelled"]);
     }
 
-    // ── what fails after the swap answers 500, never a retryable 503 ──
+    // A known commit remains success even if Redis cleanup fails; an audit failure rolls the swap back.
 
     [Fact]
-    public async Task A_teardown_that_fails_answers_500_over_the_committed_change()
+    public async Task A_teardown_that_fails_preserves_success_over_the_committed_change()
     {
         var owner = await OwnerAsync();
         var newEmail = Address("ny");
@@ -325,12 +329,12 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         using (factory.SessionTeardownFaults.FailingFor(owner.UserId))
             response = await CompleteAsync(owner.Current, newEmail, change.Code.Reveal());
 
-        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await AccountAsync(owner.UserId)).Email.ShouldBe(newEmail);
     }
 
     [Fact]
-    public async Task An_audit_row_that_cannot_be_written_answers_500_after_the_teardown_ran()
+    public async Task An_audit_row_that_cannot_be_written_rolls_back_the_address_and_keeps_the_old_session()
     {
         var owner = await OwnerAsync();
         var newEmail = Address("ny");
@@ -341,9 +345,11 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
             response = await CompleteAsync(owner.Current, newEmail, change.Code.Reveal());
 
         response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
-        (await AccountAsync(owner.UserId)).Email.ShouldBe(newEmail);
-        (await MeAsync(owner.SessionId)).ShouldBe(HttpStatusCode.Unauthorized);
-        (await AccountEmailChangeKit.AuditRowsAsync(factory, owner.UserId, Ct)).ShouldBeEmpty();
+        (await AccountAsync(owner.UserId)).Email.ShouldBe(owner.Current);
+        (await AccountAsync(owner.UserId)).UserName.ShouldBe(owner.Current);
+        (await MeAsync(owner.SessionId)).ShouldBe(HttpStatusCode.OK);
+        (await CompletionRowsAsync(owner.UserId))
+            .ShouldNotContain(row => row.EventType == "User.EmailChangedViaAdministrator");
     }
 
     // ── refusals decided before the store ──
@@ -403,13 +409,15 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         var owner = await OwnerAsync();
         var newEmail = Address("ny");
         await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(factory, owner.UserId, newEmail, owner.Current, Ct, hoursAgo: 1);
+        var currentAddressMailCount = factory.Emails.LoginChallenges.Count(mail => mail.ToEmail == owner.Current);
+        var newAddressMailCount = factory.Emails.LoginChallenges.Count(mail => mail.ToEmail == newEmail);
 
         (await _anonymous.PostAsJsonAsync("/api/v1/auth/challenge", new { email = owner.Current }, Ct)).StatusCode
             .ShouldBe(HttpStatusCode.Accepted);
         (await _anonymous.PostAsJsonAsync("/api/v1/auth/challenge", new { email = newEmail }, Ct)).StatusCode
             .ShouldBe(HttpStatusCode.Accepted);
-        await AwaitMailAsync(owner.Current);
-        await AwaitMailAsync(newEmail);
+        await AwaitMailAsync(owner.Current, currentAddressMailCount);
+        await AwaitMailAsync(newEmail, newAddressMailCount);
 
         factory.Emails.LoginChallenges.Last(mail => mail.ToEmail == owner.Current).Content
             .ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
@@ -418,10 +426,10 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         (await AccountAsync(owner.UserId)).Email.ShouldBe(owner.Current);
     }
 
-    private async Task AwaitMailAsync(string email)
+    private async Task AwaitMailAsync(string email, int previousCount)
     {
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!factory.Emails.LoginChallenges.Any(m => m.ToEmail == email))
+        while (factory.Emails.LoginChallenges.Count(m => m.ToEmail == email) <= previousCount)
         {
             DateTime.UtcNow.ShouldBeLessThan(deadline, "the dispatch consumer never sent the challenge mail");
             await Task.Delay(25, Ct);

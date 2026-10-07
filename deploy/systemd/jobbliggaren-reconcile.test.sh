@@ -54,6 +54,9 @@ for f in "$SUT" "$RECORD_TOOL_SRC" "$script_dir/jobbliggaren-runtime-ids.sh"; do
 done
 readonly FIXTURE_SUT="$TOOLS/reconcile.sh" FIXTURE_IDS="$TOOLS/runtime-ids.sh"
 readonly RECEIPT="$VAR/applied-release.env" STAMP="$VAR/stamp" PIN="$ETC/release-pin" ENVF="$CHECKOUT/deploy/.env"
+grep -qxF 'readonly MIGRATE_OVERRIDE_PATTERN=/run/jobbliggaren-migrate.XXXXXX.json' "$SUT" || exit 1
+grep -qxF 'readonly PREPARATION_UID=0' "$SUT" || exit 1
+readonly FIXTURE_UID=$(id -u)
 sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$CHECKOUT/deploy/docker-compose.yml#" \
   -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENVF#" \
@@ -64,6 +67,11 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly STAMP=.*#readonly STAMP=$STAMP#" \
   -e "s#^readonly RECEIPT=.*#readonly RECEIPT=$RECEIPT#" \
   -e "s#^readonly PIN_FILE=.*#readonly PIN_FILE=$PIN#" \
+  -e "s#^readonly PREPARATION=.*#readonly PREPARATION=$VAR/identity-preparation.env#" \
+  -e "s#^readonly PREPARATION_UID=.*#readonly PREPARATION_UID=$FIXTURE_UID#" \
+  -e "s#^readonly MIGRATE_OVERRIDE_PATTERN=.*#readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json#" \
+  -e "s#^readonly REDIS_SECRETS=.*#readonly REDIS_SECRETS=$TOOLS/redis-secrets.sh#" \
+  -e "s#^readonly REDIS_POLICY=.*#readonly REDIS_POLICY=$TOOLS/redis-policy.py#" \
   -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
   -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
   -e "s#^readonly PYTHON=.*#readonly PYTHON=$TOOLS/python3#" \
@@ -71,7 +79,9 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   "$SUT" >"$FIXTURE_SUT"
 for want in "readonly SECRETS_DIR=$SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
   "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh" \
-  "readonly PYTHON=$TOOLS/python3"; do
+  "readonly PYTHON=$TOOLS/python3" "readonly PREPARATION=$VAR/identity-preparation.env" \
+  "readonly PREPARATION_UID=$FIXTURE_UID" "readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json" \
+  "readonly REDIS_SECRETS=$TOOLS/redis-secrets.sh" "readonly REDIS_POLICY=$TOOLS/redis-policy.py"; do
   grep -qxF "$want" "$FIXTURE_SUT" || {
     echo "FIXTURE BROKEN: redirect did not apply: $want — the suite would touch the host's real paths" >&2
     exit 1
@@ -134,6 +144,47 @@ exit 0
 EOF
 chmod +x "$TOOLS/verify-image-attestation.sh"
 
+cat >"$TOOLS/redis-secrets.sh" <<'EOF'
+#!/usr/bin/env bash
+REG="__REG__"
+[ -e /proc/self/fd/9 ] || exit 91
+exec 7>>"__LOCK__"
+if flock -n 7; then exit 91; fi
+[ ! -f "$REG/policy-fails" ] || exit 1
+case "$1" in
+--check-images) [ "$(cat "$REG/policy-installed")" = candidate ] || exit 1 ;;
+--check-transition)
+  case "$(cat "$REG/policy-installed")" in candidate|predecessor) ;; *) exit 1 ;; esac ;;
+--publish-policy)
+  printf 'publish-policy\n' >>"$REG/preparation-order"
+  printf candidate >"$REG/policy-installed"
+  [ ! -f "$REG/policy-publish-ack-lost" ] || exit 1 ;;
+*) exit 99 ;;
+esac
+cat "$REG/policy-installed"
+EOF
+sed -i -e "s#__REG__#$REG#g" -e "s#__LOCK__#$TMPROOT/lock#g" "$TOOLS/redis-secrets.sh"
+cat >"$TOOLS/redis-policy.py" <<EOF
+import fcntl, os, pathlib, sys
+root = pathlib.Path('$REG')
+assert sys.argv[1:4] == ['--lock-fd', '9', '--policy']
+assert os.fstat(9).st_ino == pathlib.Path('$TMPROOT/lock').stat().st_ino
+with open('$TMPROOT/lock') as other:
+    try:
+        fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        pass
+    else:
+        raise AssertionError('inherited lock not exclusive')
+phase = sys.argv[4]
+allowed = {'candidate', 'predecessor'} if phase == 'transition' else {phase}
+assert not (root / 'policy-fails').exists()
+assert (root / 'policy-installed').read_text() in allowed
+assert (root / 'policy-active').read_text() in allowed
+with (root / 'preparation-order').open('a') as output:
+    output.write('verify-policy ' + phase + '\\n')
+EOF
+
 # --- the docker stub: a registry, a local store, compose and containers, all files -------------------------
 cat >"$BIN/docker" <<'EOF'
 #!/usr/bin/env bash
@@ -144,8 +195,36 @@ printf '%s\n' "$*" >>"$REG/docker-calls"
 mkdir -p "$REG/local" "$REG/tags" "$REG/blobs" "$REG/known" "$REG/running" "$REG/containers"
 if [ "$1" = compose ]; then
   shift; [ "$1" = -f ] && shift 2
+  while [ "${1:-}" = -f ]; do shift 2; done
   profile=""; [ "$1" = --profile ] && { profile="$2"; shift 2; }
   case "$1" in
+  run)
+    shift
+    while [ "$#" -gt 0 ] && [ "$1" != migrate ]; do shift; done
+    [ "$#" -ge 2 ] || exit 1
+    shift
+    operation=$1
+    shift
+    printf 'candidate-migrate %s\n' "$operation" >>"$REG/preparation-order"
+    case "$operation" in
+    identity-history)
+      [ "$#" -eq 0 ] || exit 1
+      [ ! -f "$REG/history-fails" ] || exit 1
+      printf 'JBL_IDENTITY_HISTORY=%s\n' "$(cat "$REG/identity-history")" ;;
+    bootstrap)
+      [ "$#" -eq 4 ] && [ "$1" = --expect-history ] && [ "$3" = --expect-migrations ] || exit 1
+      [ "$2" = 20260101000000_I ] && [ "$4" = 20261007074622_AddAccountAccessSuspension ] || exit 1
+      printf '%s\n' "$@" >"$REG/bootstrap-arguments"
+      [ ! -f "$REG/bootstrap-fails" ] || exit 1
+      cp "$REG/candidate-identity" "$REG/identity-history"
+      [ ! -f "$REG/bootstrap-ack-lost" ] || exit 1 ;;
+    *) exit 99 ;;
+    esac
+    exit 0 ;;
+  stop)
+    printf 'drain\n' >>"$REG/preparation-order"
+    touch "$REG/stopped-api" "$REG/stopped-worker"
+    exit 0 ;;
   config)
     # What compose v5.5.1 printed for an unterminated quote in .env (security-auditor, 2026-10-04).
     if [ -f "$REG/compose-config-leaks" ]; then
@@ -180,7 +259,27 @@ if [ "$1" = compose ]; then
   up)
     printf '%s\n' "$*" >"$REG/up-args"
     [ -f "$REG/up-fails" ] && exit 1
+    if [ -f "$REG/healthy-after" ] && [[ " $* " == *" --wait "* ]]; then
+      wait_timeout=0
+      previous=""
+      for argument in "$@"; do
+        [ "$previous" != --wait-timeout ] || wait_timeout=$argument
+        previous=$argument
+      done
+      [ "$wait_timeout" -ge "$(cat "$REG/healthy-after")" ] || exit 1
+    fi
+    redis_only=0
+    if [[ " $* " == *" --force-recreate "* ]]; then
+      redis_only=1
+      printf 'redis-recreate\n' >>"$REG/preparation-order"
+      [ ! -f "$REG/redis-recreate-fails" ] || exit 1
+      cat "$REG/policy-installed" >"$REG/policy-active"
+    else
+      printf 'apply\n' >>"$REG/preparation-order"
+      rm -f "$REG/stopped-api" "$REG/stopped-worker"
+    fi
     while read -r svc img; do
+      [ "$redis_only" -eq 0 ] || [[ $svc == redis || $svc == redis-volatile ]] || continue
       [ "$svc" = migrate-rewrap ] && continue
       [ -f "$REG/up-skips-$svc" ] && continue
       id=$(cat "$REG/local/$(key "$img")" 2>/dev/null) || { echo "No such image: $img" >&2; exit 1; }
@@ -265,7 +364,15 @@ cp)
   t=$(mktemp -d); cp "$REG/blobs/$d" "$t/release.env"; (cd "$t" && tar -cf - release.env); rm -rf "$t"; exit 0 ;;
 rm) exit 0 ;;
 inspect)
-  cid="${@: -1}"; cat "$REG/running/${cid#cid-}"; echo; exit 0 ;;
+  cid="${@: -1}"
+  if [[ $* == *'.State.Running'* ]]; then
+    if [ -f "$REG/stopped-${cid#cid-}" ]; then echo false; else echo true; fi
+  else cat "$REG/running/${cid#cid-}"; echo; fi
+  exit 0 ;;
+exec)
+  [ "$2" = cid-postgres ] && [ "$3" = psql ] || exit 99
+  [ ! -f "$REG/history-fails" ] || exit 1
+  cat "$REG/identity-history"; echo; exit 0 ;;
 run)
   echo "$*" >"$REG/idmeasured"
   cat "$REG/ids-out"; exit "$(cat "$REG/ids-exit")" ;;
@@ -294,8 +401,18 @@ idof() { printf 'sha256:%s' "$(printf 'image-of-%s' "$1" | sha256sum | cut -d' '
 sha_of() { printf '%s' "$1" | sha1sum | cut -d' ' -f1; }
 readonly SHA1=$(sha_of one) SHA2=$(sha_of two) SHA3=$(sha_of three)
 
-printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf 'services: {}\n  ConnectionStrings__Redis_FILE: fixture\n' >"$CHECKOUT/deploy/docker-compose.yml"
 printf '#!/bin/sh\n' >"$CHECKOUT/deploy/redis/healthcheck.sh"
+for file in persistent.acl.template volatile.acl.template operator-persistent.acl.template operator-volatile.acl.template \
+  predecessor-1976/persistent.acl.template predecessor-1976/volatile.acl.template \
+  predecessor-1976/operator-persistent.acl.template predecessor-1976/operator-volatile.acl.template; do
+  mkdir -p "$(dirname "$CHECKOUT/deploy/redis/$file")"
+  cp "$script_dir/../redis/$file" "$CHECKOUT/deploy/redis/$file"
+done
+mkdir -p "$CHECKOUT/deploy/systemd"
+for file in jobbliggaren-reconcile.sh jobbliggaren-redis-secrets.sh jobbliggaren-redis-policy.py; do
+  cp "$script_dir/$file" "$CHECKOUT/deploy/systemd/$file"
+done
 DEPLOY=$(PATH="$BIN:/usr/bin:/bin" bash "$TOOLS/jobbliggaren-release-record.sh" deploy-hash "$CHECKOUT")
 readonly DEPLOY
 
@@ -309,6 +426,7 @@ migrate $PREFIX-migrate:applied
 migrate-rewrap $PREFIX-migrate:applied
 postgres postgres:18.3
 redis redis:8.6-alpine
+redis-volatile redis:8.6-alpine
 seq datalust/seq:2026.1
 EOF
 }
@@ -317,7 +435,7 @@ EOF
 # registry under `sha-<sha>`. Optional <app-ids> overrides the AppDbContext migration list. Prints the
 # record digest.
 release() {
-  local sha="$1" seq="$2" app="${3:-20260101000000_A,20260201000000_B}" name d rec
+  local sha="$1" seq="$2" app="${3:-20260101000000_A,20260201000000_B}" identity="${4:-20260101000000_I}" name d rec
   for name in "${NAMES[@]}"; do
     d=$(digest_of "$name-$sha")
     touch "$REG/known/$d"
@@ -328,7 +446,7 @@ release() {
     printf 'JBL_RELEASE_SOURCE_SHA=%s\nJBL_RELEASE_SEQUENCE=%s\n' "$sha" "$seq"
     for name in API WORKER MIGRATE WEB CADDY; do printf 'JBL_RELEASE_IMAGE_%s=%s\n' "$name" "$(digest_of "${name,,}-$sha")"; done
     printf 'JBL_RELEASE_DEPLOY_SHA256=%s\n' "$DEPLOY"
-    printf 'JBL_RELEASE_MIGRATIONS_APP=%s\nJBL_RELEASE_MIGRATIONS_IDENTITY=20260101000000_I\n' "$app"
+    printf 'JBL_RELEASE_MIGRATIONS_APP=%s\nJBL_RELEASE_MIGRATIONS_IDENTITY=%s\n' "$app" "$identity"
   } >"$REG/rec.tmp"
   rec="sha256:$(sha256sum <"$REG/rec.tmp" | cut -d' ' -f1)"
   mv "$REG/rec.tmp" "$REG/blobs/$rec"
@@ -351,7 +469,16 @@ reset() {
   rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/oneoff-* "$REG"/compose-config-leaks "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
     "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
+  rm -f "$REG"/healthy-after
   rm -f "$REG"/retention-calls "$REG"/retention-fail-*
+  rm -f "$VAR/identity-preparation.env" "$REG"/history-fails "$REG"/bootstrap-fails \
+    "$REG"/bootstrap-arguments \
+    "$REG"/bootstrap-ack-lost "$REG"/redis-recreate-fails "$REG"/policy-fails \
+    "$REG"/policy-publish-ack-lost "$REG"/preparation-order "$REG"/stopped-*
+  printf '20260101000000_I' >"$REG/identity-history"
+  printf '20260101000000_I,20261007074622_AddAccountAccessSuspension' >"$REG/candidate-identity"
+  printf candidate >"$REG/policy-installed"
+  printf candidate >"$REG/policy-active"
   default_compose
   printf 'POSTGRES_APP_PASSWORD=x\n#IMAGE_TAG=sha-0000000\n' >"$ENVF"
   rm -rf "$SECRETS"
@@ -416,6 +543,21 @@ channel "$REC"
 run_sut
 : >"$REG/docker-calls"
 expect_exit 0 "the same release again is a re-apply, not a refusal"
+
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '390\n' >"$REG/healthy-after"
+expect_exit 0 "Compose readiness after the cold health dependency windows permits apply"
+check 'grep -qF -- "--wait --wait-timeout 600" "$REG/up-args"' "apply waits within the configured ten-minute health budget"
+check 'applied_is "$SHA1" && [ -f "$RECEIPT" ] && [ -f "$STAMP" ]' "late readiness writes the verified receipt and stamp"
+printf '601\n' >"$REG/healthy-after"
+REC=$(release "$SHA2" 11)
+channel "$REC"
+prior_receipt=$(cat "$RECEIPT")
+prior_stamp=$(cat "$STAMP")
+expect_exit 1 "Compose readiness beyond the budget remains an apply failure"
+check 'applied_is "$SHA1" && [ "$(cat "$RECEIPT")" = "$prior_receipt" ] && [ "$(cat "$STAMP")" = "$prior_stamp" ]' "a real timeout retains the previous tags, receipt and stamp"
 
 echo "-- retention pass ordering and failure recovery"
 reset
@@ -685,12 +827,12 @@ printf 'services:\n  api: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
 expect_exit 1 "a checkout whose compose configuration differs refuses"
 check 'said "merge --ff-only $SHA1"' "and prints the exact command that advances the checkout to the release"
 check 'nothing_tagged && ! applied' "and nothing was tagged or applied"
-printf 'services: {}\n# a comment that changes no configuration\n\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf 'services: {}\n  ConnectionStrings__Redis_FILE: fixture\n# a comment that changes no configuration\n\n' >"$CHECKOUT/deploy/docker-compose.yml"
 reset
 REC=$(release "$SHA1" 10)
 channel "$REC"
 expect_exit 0 "a comment-only difference in compose still applies (the canonical form)"
-printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf 'services: {}\n  ConnectionStrings__Redis_FILE: fixture\n' >"$CHECKOUT/deploy/docker-compose.yml"
 
 echo "-- following the channel never moves backwards"
 reset
@@ -736,8 +878,145 @@ mv "$NEWBYTES" "$REG/blobs/$NEWREC"
 touch "$REG/known/$NEWREC"
 printf '%s' "$SHA2" >"$REG/attested/$NEWREC"
 channel "$NEWREC"
-expect_exit 0 "a release adding Identity migrations applies"
-check 'said "20260301000000_J"' "and the journal names the Identity migration the unit does not apply"
+: >"$REG/docker-calls"
+expect_exit 1 "a release adding Identity migrations refuses before apply"
+check 'said "actual Identity history differs" && nothing_tagged && applied_is "$SHA1"' "the actual history gate refuses before tags"
+
+echo "-- exact actual Identity history gates ordinary and pinned apply"
+for selection_kind in channel pin; do
+  reset
+  REC=$(release "$SHA1" 10)
+  if [ "$selection_kind" = pin ]; then printf '%s\n' "$REC" >"$PIN"; else channel "$REC"; fi
+  printf '20260101000000_I,20261007074622_AddAccountAccessSuspension' >"$REG/identity-history"
+  expect_exit 1 "$selection_kind refuses actual migrations absent from the candidate"
+  check 'nothing_tagged && ! applied && no_receipt' "no service, tags or receipt changed"
+done
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+touch "$REG/history-fails"
+expect_exit 2 "unavailable primary Identity history gives no assumed compatibility"
+check 'nothing_tagged && ! applied && no_receipt' "history outage leaves apply untouched"
+
+prepare_fixture() {
+  reset
+  OLD=$(release "$SHA1" 10)
+  channel "$OLD"
+  run_sut
+  printf predecessor >"$REG/policy-installed"
+  printf predecessor >"$REG/policy-active"
+  PREPARE=$(release "$SHA2" 11 '20260101000000_A,20260201000000_B' \
+    '20260101000000_I,20261007074622_AddAccountAccessSuspension')
+  channel "$PREPARE"
+  rm -f "$REG/preparation-order" "$REG/up-args" "$REG/docker-calls"
+}
+
+echo "-- authorized narrow preparation, drain and interruption recovery"
+prepare_fixture
+expect_exit 1 "preparation refuses a different approved record digest" --prepare-identity "sha256:$(printf 'a%.0s' {1..64})"
+check '! applied && ! grep -q drain "$REG/preparation-order" 2>/dev/null' "wrong release drains nothing"
+prepare_fixture
+printf candidate >"$REG/policy-installed"
+printf candidate >"$REG/policy-active"
+expect_exit 1 "first preparation refuses candidate policy without a checkpoint" --prepare-identity "$PREPARE"
+check 'said "first preparation requires" && ! applied' "first-run predecessor requirement is decisive"
+prepare_fixture
+expect_exit 0 "same approved candidate drains, prepares and applies" --prepare-identity "$PREPARE"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$PREPARE" "$RECEIPT" && [ ! -e "$VAR/identity-preparation.env" ]' \
+  "only completed candidate writes its receipt and removes the checkpoint"
+check '[ "$(cat "$REG/preparation-order")" = "candidate-migrate identity-history
+verify-policy predecessor
+drain
+publish-policy
+redis-recreate
+verify-policy candidate
+candidate-migrate bootstrap
+candidate-migrate identity-history
+apply" ]' "the actual CLI orders drain, policy, bootstrap and apply under one lock"
+check '[ "$(cat "$REG/bootstrap-arguments")" = "--expect-history
+20260101000000_I
+--expect-migrations
+20261007074622_AddAccountAccessSuspension" ]' "bootstrap receives the exact predecessor and approved additions"
+expect_exit 0 "prepared candidate has consistent read-only status" --status
+check 'said "identity:  primary history matches"' "status reads actual Identity history"
+
+for interruption in policy-publish-ack-lost redis-recreate-fails bootstrap-ack-lost; do
+  prepare_fixture
+  touch "$REG/$interruption"
+  expected_exit=1
+  [[ "$interruption" != bootstrap-ack-lost ]] || expected_exit=2
+  expect_exit "$expected_exit" "interruption $interruption leaves an incomplete preparation" --prepare-identity "$PREPARE"
+  check '[ -e "$VAR/identity-preparation.env" ] && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$OLD" "$RECEIPT"' \
+    "checkpoint retained and predecessor receipt is not replaced"
+  cp "$RECEIPT" "$TMPROOT/interrupted-receipt"
+  cp "$STAMP" "$TMPROOT/interrupted-stamp"
+  cp "$VAR/identity-preparation.env" "$TMPROOT/interrupted-checkpoint"
+  refuse_checkpoint_apply() {
+    local description=$1
+    shift
+    rm -f "$REG/docker-calls" "$REG/up-args" "$REG/retention-calls"
+    expect_exit 1 "$description refuses the interrupted preparation" "$@"
+    check 'said "Identity preparation is incomplete" && ! applied && nothing_tagged \
+      && [ ! -s "$REG/docker-calls" ] && [ ! -s "$REG/retention-calls" ] \
+      && cmp -s "$RECEIPT" "$TMPROOT/interrupted-receipt" \
+      && cmp -s "$STAMP" "$TMPROOT/interrupted-stamp" \
+      && cmp -s "$VAR/identity-preparation.env" "$TMPROOT/interrupted-checkpoint" \
+      && applied_is "$SHA1"' "checkpoint refusal changes no containers, tags, receipt, stamp or checkpoint"
+  }
+  refuse_checkpoint_apply "same channel record after $interruption"
+  printf '%s\n' "$PREPARE" >"$PIN"
+  refuse_checkpoint_apply "same pinned record after $interruption"
+  rm -f "$PIN"
+  OTHER=$(release "$SHA3" 12 '20260101000000_A,20260201000000_B' \
+    '20260101000000_I,20261007074622_AddAccountAccessSuspension')
+  channel "$OTHER"
+  refuse_checkpoint_apply "different channel record after $interruption"
+  printf '%s\n' "$OTHER" >"$PIN"
+  refuse_checkpoint_apply "different pinned record after $interruption"
+  refuse_checkpoint_apply "stage after $interruption" --stage
+  rm -f "$PIN"
+  channel "$PREPARE"
+  rm -f "$REG/$interruption"
+  expect_exit 0 "same verified record resumes after $interruption" --prepare-identity "$PREPARE"
+  check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$PREPARE" "$RECEIPT" && [ ! -e "$VAR/identity-preparation.env" ]' \
+    "resumption commits only the authorized release"
+done
+for damaged_checkpoint in symlink directory; do
+  reset
+  if [ "$damaged_checkpoint" = symlink ]; then
+    ln -s "$VAR/operator-removed-target" "$VAR/identity-preparation.env"
+  else
+    mkdir "$VAR/identity-preparation.env"
+  fi
+  expect_exit 1 "operator-damaged checkpoint $damaged_checkpoint refuses ordinary apply"
+  check 'said "Identity preparation is incomplete" && nothing_tagged && ! applied && no_receipt' \
+    "damaged checkpoint degrades to refusal before mutations"
+  expect_exit 1 "operator-damaged checkpoint $damaged_checkpoint refuses stage" --stage
+  if [ "$damaged_checkpoint" = directory ]; then
+    rmdir "$VAR/identity-preparation.env"
+  else
+    rm "$VAR/identity-preparation.env"
+  fi
+done
+prepare_fixture
+touch "$REG/policy-publish-ack-lost"
+run_sut --prepare-identity "$PREPARE" || true
+rm -f "$REG/policy-publish-ack-lost"
+printf partial >"$REG/policy-installed"
+expect_exit 1 "resume refuses partial installed policy" --prepare-identity "$PREPARE"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$OLD" "$RECEIPT"' "partial policy cannot grant an apply receipt"
+prepare_fixture
+touch "$REG/redis-recreate-fails"
+run_sut --prepare-identity "$PREPARE" || true
+rm -f "$REG/redis-recreate-fails"
+printf unknown >"$REG/policy-active"
+expect_exit 1 "resume refuses unknown effective ACL" --prepare-identity "$PREPARE"
+check 'grep -qx "JBL_RECEIPT_RECORD_DIGEST=$OLD" "$RECEIPT"' "active-policy refusal leaves receipt unchanged"
+prepare_fixture
+touch "$REG/bootstrap-fails"
+expect_exit 2 "bootstrap failure is unresolved, never an apply" --prepare-identity "$PREPARE"
+check '[ "$(cat "$REG/identity-history")" = 20260101000000_I ] && grep -qx "JBL_RECEIPT_RECORD_DIGEST=$OLD" "$RECEIPT"' \
+  "failed bootstrap creates neither assumed schema nor candidate receipt"
 
 echo "-- every image, bound to the record's commit — no mixed set"
 reset
@@ -849,12 +1128,12 @@ expect_exit 1 "--status sees a checkout advanced past the applied release's conf
 check 'said "config:    the checkout'"'"'s deployment files DIFFER"' "and names it"
 printf 'services: {}\r\n' >"$CHECKOUT/deploy/docker-compose.yml"
 expect_exit 2 "--status cannot answer when the checkout's deployment files cannot be hashed" --status
-printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf 'services: {}\n  ConnectionStrings__Redis_FILE: fixture\n' >"$CHECKOUT/deploy/docker-compose.yml"
 cp "$RECEIPT" "$TMPROOT/receipt.saved"
 printf 'not a receipt\n' >"$RECEIPT"
 expect_exit 2 "--status cannot answer over a receipt that does not validate" --status
 cp "$TMPROOT/receipt.saved" "$RECEIPT"
-printf 'services: {}\n' >"$CHECKOUT/deploy/docker-compose.yml"
+printf 'services: {}\n  ConnectionStrings__Redis_FILE: fixture\n' >"$CHECKOUT/deploy/docker-compose.yml"
 printf '%s' "$(idof other)" >"$REG/running/api"
 rm -f "$REG/docker-calls" "$REG/up-args" "$TMPROOT/lock"
 expect_exit 1 "--status sees a container running something else" --status

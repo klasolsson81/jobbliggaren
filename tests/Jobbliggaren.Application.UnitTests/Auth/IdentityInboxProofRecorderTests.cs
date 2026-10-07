@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
@@ -14,6 +15,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// one is confirmed and its stamp rotated in ONE save, and a write Identity did not persist throws.
 /// <c>ConcurrencyFailure</c> is what <c>UserStore.UpdateAsync</c> answers when two first proofs race on two live
 /// records.
+/// Unconfirmed fixtures name the retired password register's row shape; PasswordlessAccountCreatorTests
+/// pins that today's writer emits confirmed accounts only.
 /// </summary>
 public sealed class IdentityInboxProofRecorderTests
 {
@@ -30,7 +33,7 @@ public sealed class IdentityInboxProofRecorderTests
         var user = new ApplicationUser { Id = Guid.NewGuid(), Email = "confirmed@example.com", EmailConfirmed = true };
         _users.FindByIdAsync(user.Id.ToString()).Returns(user);
 
-        var proof = await new IdentityInboxProofRecorder(_users).RecordAsync(user.Id, Ct);
+        var proof = await RecordAsync(user);
 
         proof.ShouldBe(InboxProof.AlreadyConfirmed);
         AsyncCallsOn(_users).ShouldBe([nameof(UserManager<ApplicationUser>.FindByIdAsync)]);
@@ -46,7 +49,7 @@ public sealed class IdentityInboxProofRecorderTests
             .Returns(IdentityResult.Success)
             .AndDoes(ci => confirmedAtSave = ci.Arg<ApplicationUser>().EmailConfirmed);
 
-        var proof = await new IdentityInboxProofRecorder(_users).RecordAsync(user.Id, Ct);
+        var proof = await RecordAsync(user);
 
         proof.ShouldBe(InboxProof.FirstProofRecorded);
         // Read at the call, not afterwards: the flag must already be set when the one save runs.
@@ -66,10 +69,41 @@ public sealed class IdentityInboxProofRecorderTests
             new IdentityError { Code = "ConcurrencyFailure", Description = "racing@example.com was changed" }));
 
         var thrown = await Should.ThrowAsync<InvalidOperationException>(
-            () => new IdentityInboxProofRecorder(_users).RecordAsync(user.Id, Ct));
+            () => RecordAsync(user));
 
         thrown.Message.ShouldContain("ConcurrencyFailure");
         thrown.Message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task A_first_confirmation_refuses_an_account_only_scope_without_the_lifecycle_lock()
+    {
+        // The retired password registrar at 22aefd8db admitted unconfirmed accounts. Today's
+        // passwordless writer emits only confirmed accounts (PasswordlessAccountCreatorTests).
+        var user = new ApplicationUser { Id = Guid.NewGuid(), Email = "first-proof@example.com", EmailConfirmed = false };
+        _users.FindByIdAsync(user.Id.ToString()).Returns(user);
+        await using var access = AccountAccessTestKit.Coordinator();
+        await using var transaction = await access.BeginAsync([user.Id], lifecycle: false, Ct);
+        var recorder = new IdentityInboxProofRecorder(_users, access, AccountAccessTestKit.Reader(id => id == user.Id
+            ? AccountAccessTestKit.Account(user.Id, user.Email!) with { InboxConfirmed = false } : null));
+
+        await Should.ThrowAsync<InvalidOperationException>(() => recorder.RecordAsync(user.Id, Ct));
+
+        user.EmailConfirmed.ShouldBeFalse();
+        await _users.DidNotReceiveWithAnyArgs().UpdateSecurityStampAsync(default!);
+        access.Commits.ShouldBe(0);
+    }
+
+    private async Task<InboxProof> RecordAsync(ApplicationUser user)
+    {
+        await using var access = AccountAccessTestKit.Coordinator();
+        await using var transaction = await access.BeginAsync([user.Id], lifecycle: !user.EmailConfirmed, Ct);
+        var recorder = new IdentityInboxProofRecorder(
+            _users, access, AccountAccessTestKit.Reader(id => id == user.Id
+                ? AccountAccessTestKit.Account(user.Id, user.Email!) with { InboxConfirmed = user.EmailConfirmed } : null));
+        var proof = await recorder.RecordAsync(user.Id, Ct);
+        await transaction.CommitAsync(Ct);
+        return proof;
     }
 
     // The async members received, in order. The suffix filter keeps out whatever the substitute's base

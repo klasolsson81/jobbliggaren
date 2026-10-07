@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -9,10 +10,15 @@ namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 /// stamp rotation leave in ONE <c>UPDATE</c>: <see cref="UserManager{TUser}.UpdateSecurityStampAsync"/> rotates
 /// the stamp in memory and then saves the whole user, the flag set just before included.
 /// </summary>
-internal sealed class IdentityInboxProofRecorder(UserManager<ApplicationUser> userManager) : IInboxProofRecorder
+internal sealed class IdentityInboxProofRecorder(
+    UserManager<ApplicationUser> userManager,
+    IAccountAccessCoordinator coordinator,
+    IAccountAccessReader access) : IInboxProofRecorder
 {
     public async Task<InboxProof> RecordAsync(Guid userId, CancellationToken ct)
     {
+        if (!coordinator.Holds(userId) || (await access.ReadAsync(userId, ct))?.CanAuthenticate != true)
+            throw new InvalidOperationException("Inbox proof requires fresh admission in a protected transaction.");
         // The caller resolved this id from the account table a moment ago, so absence is a race with a
         // hard delete, not a state to answer.
         var user = await userManager.FindByIdAsync(userId.ToString())
@@ -20,6 +26,9 @@ internal sealed class IdentityInboxProofRecorder(UserManager<ApplicationUser> us
 
         if (user.EmailConfirmed)
             return InboxProof.AlreadyConfirmed;
+
+        if (!coordinator.HasLifecycleScope)
+            throw new InvalidOperationException("A first inbox proof requires the lifecycle lock before its account lock.");
 
         user.EmailConfirmed = true;
         var result = await userManager.UpdateSecurityStampAsync(user);

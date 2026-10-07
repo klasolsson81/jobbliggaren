@@ -7,6 +7,8 @@ namespace Jobbliggaren.Infrastructure.Identity;
 public sealed class AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
+    public DbSet<AccountSecurityEpoch> AccountSecurityEpochs => Set<AccountSecurityEpoch>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

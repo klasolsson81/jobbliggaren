@@ -2,6 +2,7 @@ using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -86,6 +87,8 @@ public sealed class JobAdBrowsePlanFixture : IAsyncLifetime
         // and nothing HTTP-bound — exactly the slice this fixture needs. No AddApplication / identity /
         // matching / email: this guard resolves only AppDbContext and runs raw SQL through it.
         services.AddPersistence(configuration);
+        services.AddDbContext<AppDbContext>(options =>
+            options.ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
 
         // Host parity: the bare ServiceCollection has no generic host, so register a Test environment
         // explicitly. No AddPersistence registration takes IHostEnvironment after the KMS removal (#802);

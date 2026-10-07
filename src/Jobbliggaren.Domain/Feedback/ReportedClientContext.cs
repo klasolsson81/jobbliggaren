@@ -1,11 +1,15 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Domain.Feedback;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ReportedTheme
 {
     Light,
     Dark,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ReportedDeviceClass
 {
     Mobile,
@@ -13,6 +17,7 @@ public enum ReportedDeviceClass
     Desktop,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ReportedOsFamily
 {
     Windows,
@@ -24,6 +29,7 @@ public enum ReportedOsFamily
     Other,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ReportedBrowserFamily
 {
     Chrome,

@@ -214,6 +214,21 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             profileOptions.Value.CadenceCron);
 
+        // #1979 — the operator notices for saved feedback. Minutely, like the criterion sweep: the
+        // committed rows are the queue, and a missed tick is caught by the next. Registered
+        // unconditionally; the job itself does nothing while no recipient can be reached.
+        manager.AddOrUpdate<FeedbackNotificationDispatchWorker>(
+            RecurringJobIds.DispatchFeedbackNotifications,
+            job => job.RunAsync(CancellationToken.None),
+            "* * * * *");
+
+        // #1979 — the 90-day feedback retention, daily at 04:50 UTC, clear of the 04:00 hard delete and
+        // the 04:30/04:45 purge and reaper slots.
+        manager.AddOrUpdate<FeedbackRetentionWorker>(
+            RecurringJobIds.FeedbackRetention,
+            job => job.RunAsync(CancellationToken.None),
+            "50 4 * * *");
+
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
         //

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 
@@ -9,6 +10,7 @@ public readonly record struct FeedbackNotificationId(Guid Value)
     public override string ToString() => Value.ToString();
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum FeedbackNotificationState
 {
     /// <summary>Waiting for its send, now or after a backoff.</summary>

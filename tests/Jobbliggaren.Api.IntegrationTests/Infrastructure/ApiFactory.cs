@@ -470,6 +470,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // test calls them more often than the burst allows.
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", "60");
+        // #1979 — feedback: the two buckets raised for the shared collection, and the feature opened with
+        // a reserved-domain recipient, so the gate reads Open while RecordingEmailSender can deliver.
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("Feedback__Enabled", "true");
+        Environment.SetEnvironmentVariable("Feedback__NotificationRecipient", "feedback-operator@example.test");
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod

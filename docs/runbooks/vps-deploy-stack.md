@@ -346,7 +346,7 @@ that, under one lock, in this order:
    record's commit.** One failure and nothing is applied.
 5. **Then the gates, then the apply.** After #1295's secrets gate (below) and the Redis gate
    (`redis-service-boundaries.md`), it tags the five images `:applied`, runs
-   `docker compose up -d --remove-orphans --pull never --wait --wait-timeout 60`, checks that every service runs exactly
+   `docker compose up -d --remove-orphans --pull never --wait --wait-timeout 600`, checks that every service runs exactly
    the release's image, and only then writes the receipt and the stamp. A failure after the tags
    moved puts `:applied` back to what the run found.
 

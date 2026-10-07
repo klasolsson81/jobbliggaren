@@ -409,13 +409,15 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         var owner = await OwnerAsync();
         var newEmail = Address("ny");
         await AccountEmailChangeKit.ChangeStartedHoursAgoAsync(factory, owner.UserId, newEmail, owner.Current, Ct, hoursAgo: 1);
+        var currentAddressMailCount = factory.Emails.LoginChallenges.Count(mail => mail.ToEmail == owner.Current);
+        var newAddressMailCount = factory.Emails.LoginChallenges.Count(mail => mail.ToEmail == newEmail);
 
         (await _anonymous.PostAsJsonAsync("/api/v1/auth/challenge", new { email = owner.Current }, Ct)).StatusCode
             .ShouldBe(HttpStatusCode.Accepted);
         (await _anonymous.PostAsJsonAsync("/api/v1/auth/challenge", new { email = newEmail }, Ct)).StatusCode
             .ShouldBe(HttpStatusCode.Accepted);
-        await AwaitMailAsync(owner.Current);
-        await AwaitMailAsync(newEmail);
+        await AwaitMailAsync(owner.Current, currentAddressMailCount);
+        await AwaitMailAsync(newEmail, newAddressMailCount);
 
         factory.Emails.LoginChallenges.Last(mail => mail.ToEmail == owner.Current).Content
             .ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
@@ -424,10 +426,10 @@ public sealed class AccountEmailChangeCompletionTests(ApiFactory factory) : IAsy
         (await AccountAsync(owner.UserId)).Email.ShouldBe(owner.Current);
     }
 
-    private async Task AwaitMailAsync(string email)
+    private async Task AwaitMailAsync(string email, int previousCount)
     {
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!factory.Emails.LoginChallenges.Any(m => m.ToEmail == email))
+        while (factory.Emails.LoginChallenges.Count(m => m.ToEmail == email) <= previousCount)
         {
             DateTime.UtcNow.ShouldBeLessThan(deadline, "the dispatch consumer never sent the challenge mail");
             await Task.Delay(25, Ct);

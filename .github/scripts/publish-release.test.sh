@@ -165,8 +165,13 @@ git_q() { git -C "$REPO" -c user.name=fixture -c user.email=fixture@example.inva
 mkdir -p "$REPO/src/I/Persistence/Migrations" "$REPO/src/I/Identity/Migrations" "$REPO/deploy/redis"
 git init -q "$REPO"
 git -C "$REPO" config core.autocrlf false
-printf 'services: {}\n' >"$REPO/deploy/docker-compose.yml"
-printf '#!/bin/sh\n' >"$REPO/deploy/redis/healthcheck.sh"
+bound_files=$(sed -n '/^readonly -a DEPLOY_FILES=(/,/^)/p' "$RECORD_TOOL_SRC" |
+  sed -n 's/^[[:space:]]*\(deploy\/[^[:space:]]*\)$/\1/p')
+[ -n "$bound_files" ] || { echo "FIXTURE BROKEN: no deployment-file contract found" >&2; exit 1; }
+while IFS= read -r file; do
+  mkdir -p "$REPO/$(dirname "$file")"
+  cp "$repo_root/$file" "$REPO/$file"
+done <<<"$bound_files"
 printf '    [DbContext(typeof(AppDbContext))]\n    [Migration("20260101000000_A")]\n' >"$REPO/src/I/Persistence/Migrations/A.Designer.cs"
 printf '    [DbContext(typeof(AppIdentityDbContext))]\n    [Migration("20260101000000_B")]\n' >"$REPO/src/I/Identity/Migrations/B.Designer.cs"
 git_q add -A && git_q commit -q -m c1

@@ -259,6 +259,15 @@ if [ "$1" = compose ]; then
   up)
     printf '%s\n' "$*" >"$REG/up-args"
     [ -f "$REG/up-fails" ] && exit 1
+    if [ -f "$REG/healthy-after" ] && [[ " $* " == *" --wait "* ]]; then
+      wait_timeout=0
+      previous=""
+      for argument in "$@"; do
+        [ "$previous" != --wait-timeout ] || wait_timeout=$argument
+        previous=$argument
+      done
+      [ "$wait_timeout" -ge "$(cat "$REG/healthy-after")" ] || exit 1
+    fi
     redis_only=0
     if [[ " $* " == *" --force-recreate "* ]]; then
       redis_only=1
@@ -460,6 +469,7 @@ reset() {
   rm -f "$REG"/up-args "$REG"/up-fails "$REG"/up-skips-* "$REG"/oneoff-* "$REG"/compose-config-leaks "$REG"/pull-fails "$REG"/extra-repodigest "$REG"/repodigest-as "$REG"/tag-count \
     "$REG"/tag-fails-at "$REG"/rmi-fails "$REG"/created "$REG"/idmeasured "$REG"/verifier-cannot \
     "$REG"/docker-calls "$REG"/verifier-calls "$RECEIPT" "$STAMP" "$PIN"
+  rm -f "$REG"/healthy-after
   rm -f "$REG"/retention-calls "$REG"/retention-fail-*
   rm -f "$VAR/identity-preparation.env" "$REG"/history-fails "$REG"/bootstrap-fails \
     "$REG"/bootstrap-arguments \
@@ -533,6 +543,21 @@ channel "$REC"
 run_sut
 : >"$REG/docker-calls"
 expect_exit 0 "the same release again is a re-apply, not a refusal"
+
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+printf '390\n' >"$REG/healthy-after"
+expect_exit 0 "Compose readiness after the cold health dependency windows permits apply"
+check 'grep -qF -- "--wait --wait-timeout 600" "$REG/up-args"' "apply waits within the configured ten-minute health budget"
+check 'applied_is "$SHA1" && [ -f "$RECEIPT" ] && [ -f "$STAMP" ]' "late readiness writes the verified receipt and stamp"
+printf '601\n' >"$REG/healthy-after"
+REC=$(release "$SHA2" 11)
+channel "$REC"
+prior_receipt=$(cat "$RECEIPT")
+prior_stamp=$(cat "$STAMP")
+expect_exit 1 "Compose readiness beyond the budget remains an apply failure"
+check 'applied_is "$SHA1" && [ "$(cat "$RECEIPT")" = "$prior_receipt" ] && [ "$(cat "$STAMP")" = "$prior_stamp" ]' "a real timeout retains the previous tags, receipt and stamp"
 
 echo "-- retention pass ordering and failure recovery"
 reset

@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -71,13 +72,12 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
-            // Isolate this fixture's EF provider from the process-wide cache shared by unrelated test hosts.
             services.AddDbContext<AppDbContext>(options =>
                 options
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                     .UseSnakeCaseNamingConvention()
-                    .EnableServiceProviderCaching(false));
+                    .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
 
             services.RemoveAll<DbContextOptions<AppIdentityDbContext>>();
             services.RemoveAll<AppIdentityDbContext>();
@@ -86,7 +86,7 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
                 {
                     npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
-                }).EnableServiceProviderCaching(false));
+                }).ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
 
 
             // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder

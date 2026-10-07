@@ -24,6 +24,7 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -212,7 +213,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                     .UseSnakeCaseNamingConvention()
-                    .EnableServiceProviderCaching(false)
+                    .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(
                         _jobSeekerSaveRace,
                         _auditRowSaveFailure,
@@ -232,7 +233,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                         npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
                         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                     })
-                    .EnableServiceProviderCaching(false)
+                    .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
 

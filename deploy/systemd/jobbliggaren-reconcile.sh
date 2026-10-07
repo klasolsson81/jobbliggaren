@@ -56,6 +56,7 @@ readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 # Reads compose's resolved model in the binding step.
 readonly PYTHON=/usr/bin/python3
+readonly HEALTH_WAIT_TIMEOUT_SECONDS=600
 
 readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 readonly RELEASE_REPO="${OURS_PREFIX}release"
@@ -639,7 +640,7 @@ log "verified ${#RELEASE_IMAGES[@]} image(s), pulled ${#upstream[@]} upstream; a
 
 # `--pull never` (and `pull_policy: never` in compose) complete the TOCTOU argument: `up` must not
 # consult the registry again and resolve anything to something newer than what was verified.
-compose up -d --remove-orphans --pull never --wait --wait-timeout 60
+compose up -d --remove-orphans --pull never --wait --wait-timeout "$HEALTH_WAIT_TIMEOUT_SECONDS"
 
 # THE POSTCONDITION: every service runs exactly the image the record names. A receipt is written only
 # for an apply that measurably happened.

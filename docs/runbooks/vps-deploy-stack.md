@@ -1081,8 +1081,8 @@ heads() { curl -sSI "$@" | grep -iE '^(HTTP|strict-transport-security|location|s
 ```
 
 `heads` prints the status line and three headers, never a body: a handler that leaked would otherwise
-put personal data in the transcript. Count the `strict-transport-security` lines it prints — two on a
-Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
+put personal data in the transcript. Count the `strict-transport-security` lines it prints: exactly
+one on every HTTPS response, including Next-served and Caddy-owned responses (RFC 6797 §7.1).
 
 **Before the visit — the session, no user-visible change**
 
@@ -1121,7 +1121,7 @@ Next-served response (Caddy's and `buildSecurityHeaders`), one on Caddy's own.
 |---|---|---|---|---|
 | 11 | Session | `setkey SITE_ADMISSION open; sudo grep -qx 'SITE_ADMISSION=open' "$E" && preflight && apply` | `reconcile complete`; `verdict: consistent` on step 10's `source` | R1, then step 10 again: a release that landed in between opened on copy step 10 never read |
 | 12 | Session, operator's machine | `curl -s -o /dev/null -w '%{http_code}\n'` on `https://jobbliggaren.se/` and `/kontaktperson-i-annons`, no credentials | `200` on both — M1's anonymous 200. **Only a 200 proves the switch:** a mistyped value keeps the gate, and its 401 is indistinguishable from never having switched | R1 if anything else |
-| 13 | Session, operator's machine | Gate M-5a with admission open, on Caddy's own responses (C6): `heads` on the apex `/`, on `/.well-known/acme-challenge/probe`, on step 8's two redirects, and on a protected deep link (`/oversikt`) | `200` with two HSTS lines; the ACME `404` with one HSTS line and `server: Caddy` (no Next headers); `308` and `302` with path and query kept and one HSTS line; the deep link `3xx` to `/logga-in`. Every HSTS line reads `max-age=31536000` and nothing after it. A `503` while `web` is down is not induced live: `deploy/caddy/edge-modes.test.sh` proves it on the image, for this source and caddy v2.11.4 | R1 |
+| 13 | Session, operator's machine | Gate M-5a with admission open, on Caddy's own responses (C6): `heads` on the apex `/`, on `/.well-known/acme-challenge/probe`, on step 8's two redirects, and on a protected deep link (`/oversikt`) | `200` with one HSTS line; the ACME `404` with one HSTS line and `server: Caddy` (no Next headers); `308` and `302` with path and query kept and one HSTS line; the deep link `3xx` to `/logga-in`. Every HSTS line reads `max-age=31536000` and nothing after it. A `503` while `web` is down is not induced live: `deploy/caddy/edge-modes.test.sh` proves it on the image, for this source and caddy v2.11.4 | R1 |
 | 14 | Session, operator's machine | For `google`, `github` and `linkedin`: `curl -s -D - -o /dev/null https://jobbliggaren.se/api/auth/oauth/<p>/start \| grep -i '^location' \| grep -o 'redirect_uri=[^&]*'` — the parameter alone | `redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2F<p>%2Fcallback` (`SITE_HOST` → `Email__BaseUrl` → every `redirect_uri`) | R1, then step 5's console |
 | 15 | Session | `registration-gate.md`'s refused-registration probe with its baseline counts; the same account count before and after Klas's step 17 | `HTTP 503`, `Auth.RegistrationsClosed`; counts identical | R1 and STOPP: the closed registration this move relies on is not closed |
 | 16 | Session + `security-auditor` | Re-grade gate M-5b on the set below (column *after*) and N-1 arm (2) on its instrument below | No open Blocker. ADR 0050 §8's second review is not closed until this re-grade is recorded | A Blocker: R1 and STOPP to Klas, since it has no §9.6 route. A new Major: R1, and Klas decides |

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import type { RefCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Clock, Search, Trash2 } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import {
@@ -121,13 +121,7 @@ export function RecentSearchRow({
 
   return (
     <li>
-      <article className="jp-job jp-job--icon" onClick={handleRowClick}>
-        <div
-          className="jp-job__match jp-job__match--neutral"
-          aria-hidden="true"
-        >
-          <Clock size={20} />
-        </div>
+      <article className="jp-job" onClick={handleRowClick}>
         <div className="jp-job__body">
           <h3 id={labelId} className="jp-job__title">
             {label}

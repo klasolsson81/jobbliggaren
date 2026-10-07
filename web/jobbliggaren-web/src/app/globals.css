@@ -2634,9 +2634,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: flex-end;
   gap: 8px;
 }
-/* Row templates beside the chassis' `1fr auto`. They stay above the <=720px arm below, which has to
+/* A row template beside the chassis' `1fr auto`. It stays above the <=720px arm below, which has to
    win at narrow widths: a media query adds no specificity, so source order decides (#1875). */
-.jp-job--icon { grid-template-columns: auto 1fr auto; }
 .jp-job--single { grid-template-columns: 1fr; }
 
 /* Dark mode: job- och application-titel byter till fet vit */
@@ -2654,9 +2653,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
     flex-direction: row;
     flex-wrap: wrap;
   }
-  /* The plate repeats the page heading. `display: none`, never a hidden box: a hidden box keeps
-     its grid track and gap (#1875). */
-  .jp-job--icon > .jp-job__match { display: none; }
   /* A first icon button under the text puts its 16px glyph on the text rail; the hit area stays the
      44px touch floor. Same idea as .jp-btn--flush. */
   .jp-job__actions > .jp-icon-btn:first-child {
@@ -7238,13 +7234,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Labelns radbox, inte sin egen font-size: under flex-start toppjusteras
      BOXARNA, så counten linjerar med rad 1 bara när boxhöjderna är lika. */
   line-height: calc(var(--text-ui) * 1.3);
-}
-
-/* Neutral icon plate on an icon-led row (`.jp-job--icon`). */
-.jp-job__match--neutral {
-  background: var(--jp-surface-3);
-  border-color: var(--jp-border);
-  color: var(--jp-ink-2);
 }
 
 /* Hero-sökhint (guest-jobb-page) — mjuk vit på gradientplattan. */

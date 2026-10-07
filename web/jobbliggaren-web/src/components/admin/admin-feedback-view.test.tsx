@@ -294,8 +294,8 @@ describe("AdminFeedbackView — the summary (#1979)", () => {
     expect(table()).not.toHaveTextContent("%");
   });
 
-  it("filters the list to a page from its name, and marks the page in force", () => {
-    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, page: "jobs", pageNumber: 2 } });
+  it("filters the list to a page from its name, closing the open submission, and marks the page in force", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, page: "jobs", pageNumber: 2, id: FIRST } });
 
     expect(within(table()).getByRole("link", { name: "Jobb" })).toHaveAttribute("href", `${BASE}?sida=jobs`);
     expect(within(table()).getByRole("link", { name: "Jobb" })).toHaveAttribute("aria-current", "true");

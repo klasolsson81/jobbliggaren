@@ -412,7 +412,7 @@ function FeedbackSummary({
                   <td>
                     {isFeedbackPageKey(row.page) ? (
                       <FeedbackFocusLink
-                        href={feedbackHref(basePath, withPage(query, row.page))}
+                        href={feedbackHref(basePath, withoutId(withPage(query, row.page)))}
                         focusTo="scope"
                         className="jp-adminfeedback__pagelink jp-adminfeedback__textlink"
                         aria-current={row.page === query.page ? "true" : undefined}

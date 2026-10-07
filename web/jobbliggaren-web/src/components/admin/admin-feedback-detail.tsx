@@ -200,33 +200,35 @@ function FeedbackItemBody({
       <div className="jp-adminfeedback__detailhead">
         <FeedbackStatusPill status={item.status} />
         <form className="jp-adminfeedback__status" onSubmit={saveStatus} noValidate>
-          <label htmlFor={statusId}>{t("detail.status.label")}</label>
-          <select
-            ref={selectRef}
-            id={statusId}
-            className="jp-adminfeedback__select"
-            value={chosen}
-            disabled={pending}
-            aria-invalid={statusRefusal?.about === "value" ? true : undefined}
-            aria-describedby={statusRefusal === null ? undefined : statusRefusalId}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (isFeedbackStatus(value)) setChoice(value);
-            }}
-          >
-            {FEEDBACK_STATUSES.map((option) => (
-              <option key={option} value={option}>
-                {t(`status.${option}`)}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="jp-btn jp-btn--secondary jp-btn--sm" aria-disabled={pending || undefined}>
-            <AdminBusyLabel
-              busy={running === "status"}
-              label={t("detail.status.save")}
-              busyLabel={t("detail.status.saving")}
-            />
-          </button>
+          <div className="jp-adminfeedback__statusrow">
+            <label htmlFor={statusId}>{t("detail.status.label")}</label>
+            <select
+              ref={selectRef}
+              id={statusId}
+              className="jp-adminfeedback__select"
+              value={chosen}
+              disabled={pending}
+              aria-invalid={statusRefusal?.about === "value" ? true : undefined}
+              aria-describedby={statusRefusal === null ? undefined : statusRefusalId}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (isFeedbackStatus(value)) setChoice(value);
+              }}
+            >
+              {FEEDBACK_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {t(`status.${option}`)}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="jp-btn jp-btn--secondary jp-btn--sm" aria-disabled={pending || undefined}>
+              <AdminBusyLabel
+                busy={running === "status"}
+                label={t("detail.status.save")}
+                busyLabel={t("detail.status.saving")}
+              />
+            </button>
+          </div>
           {statusRefusal === null ? null : (
             <p
               ref={refusalRef}

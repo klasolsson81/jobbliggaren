@@ -1021,12 +1021,17 @@
 /* The notice's dot and words at the size of the metadata around them. */
 .jp-adminfeedback__notice .jp-statusDot { font-size: var(--text-body-sm); }
 .jp-adminfeedback__status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-left: auto;
   font-size: var(--text-body-sm);
+}
+.jp-adminfeedback__statusrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .jp-adminfeedback__status .jp-btn { white-space: nowrap; }
 .jp-adminfeedback__select {
@@ -1090,10 +1095,7 @@
 }
 /* A refusal of the status, under its field. `contain` keeps its words from widening the form, so
    the form stays beside the pill and the words wrap to its width. */
-.jp-adminfeedback__status .jp-adminfeedback__refusal {
-  flex-basis: 100%;
-  contain: inline-size;
-}
+.jp-adminfeedback__status .jp-adminfeedback__refusal { contain: inline-size; }
 /* One label column for the open submission's facts, its notice and the browser's report; the
    report's box pads its own, so its column is that much narrower and the values line up. */
 .jp-adminfeedback__detail .jp-admindl { grid-template-columns: 9rem minmax(0, 1fr); }

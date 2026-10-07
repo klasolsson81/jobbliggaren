@@ -306,6 +306,37 @@ test("a page name in the summary filters the list and focus moves to the line th
   await expect(firstRow(page)).toBeFocused();
 });
 
+test("a page chosen in the summary while a submission is open lands on the filtered list with focus on its line, at 375 and 1280 px", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(`${PAGE}?id=${ids.failed}`);
+  await expect(list(page)).toBeHidden();
+  const tapped = summary(page).getByRole("link", { name: "Jobb", exact: true });
+  await tapped.scrollIntoViewIfNeeded();
+  await tapped.click();
+
+  await expect(page).toHaveURL(`${PAGE}?sida=jobs`);
+  await expect(detailRegion(page)).toHaveCount(0);
+  await expect(statusNav(page)).toBeVisible();
+  await expect(list(page)).toBeVisible();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(scopeLine(page)).toContainText("Sida: Jobb");
+  await expect(scopeLine(page)).toBeFocused();
+  await expect(scopeLine(page)).toBeInViewport();
+  await capture(page, "phone-page-choice");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${PAGE}?id=${ids.failed}`);
+  await expect(detailRegion(page)).toBeVisible();
+  await pressEnter(summary(page).getByRole("link", { name: "Jobb", exact: true }));
+
+  await expect(page).toHaveURL(`${PAGE}?sida=jobs`);
+  await expect(detailRegion(page)).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(1);
+  await expect(scopeLine(page)).toBeFocused();
+  await expect(scopeLine(page)).toBeInViewport();
+  await capture(page, "phone-page-choice");
+});
+
 test("a page past the last says so, and its link to the first page lands focus on the list's first submission", async ({ page }) => {
   await page.goto(`${PAGE}?sidnr=9`);
 
@@ -394,6 +425,35 @@ test("the status a submission already has is refused on the field; a refused com
   await expect(refusal).toBeFocused();
   await expect(toast(page)).toHaveCount(0);
   await atBothWidths(page, "status-refused");
+});
+
+test("on a phone the status row keeps its place when a refusal shows under it", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const detail = detailRegion(page);
+  const pill = detail.locator(".jp-adminfeedback__detailhead > .jp-pill");
+  const select = detail.getByRole("combobox", { name: "Status" });
+  const save = detail.getByRole("button", { name: "Spara status" });
+  const refusal = detail.locator(".jp-adminfeedback__status").getByRole("alert");
+  const place = (target: Locator) =>
+    target.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return { x: Math.round(box.left), y: Math.round(box.top + window.scrollY), width: Math.round(box.width) };
+    });
+  const row = { pill: await place(pill), select: await place(select), save: await place(save) };
+  expect(row.pill.y, "the pill and the status field share a line").toBeGreaterThanOrEqual(row.select.y - 8);
+
+  await save.click();
+  await expect(refusal).toHaveText("Inskicket har redan den statusen.");
+  expect({ pill: await place(pill), select: await place(select), save: await place(save) }).toEqual(row);
+  expect((await place(refusal)).y).toBeGreaterThan(row.select.y);
+
+  harness.mode = "rateLimited";
+  await select.selectOption({ label: "Åtgärdad" });
+  await save.click();
+  await expect(refusal).toHaveText("För många förfrågningar. Försök igen om 6 sekunder.");
+  expect({ pill: await place(pill), select: await place(select), save: await place(save) }).toEqual(row);
 });
 
 test("a failed notice is sent again at a press, with no question, and lands on the notice", async ({ page }) => {

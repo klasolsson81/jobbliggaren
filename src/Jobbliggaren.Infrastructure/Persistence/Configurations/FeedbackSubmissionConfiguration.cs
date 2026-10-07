@@ -63,6 +63,7 @@ public sealed class FeedbackSubmissionConfiguration : IEntityTypeConfiguration<F
             context.Property(c => c.BrowserFamily).HasColumnName("reported_browser_family")
                 .HasConversion<string>().HasMaxLength(24);
         });
+        builder.Navigation(s => s.Context).IsRequired();
 
         builder.Property(s => s.AppVersion).HasMaxLength(FeedbackSubmission.AppVersionMaxLength);
 

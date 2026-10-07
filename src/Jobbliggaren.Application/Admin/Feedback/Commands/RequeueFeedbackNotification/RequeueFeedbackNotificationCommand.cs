@@ -1,10 +1,7 @@
-using FluentValidation;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Domain.Common;
-using Jobbliggaren.Domain.Feedback;
 using Mediator;
-using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Admin.Feedback.Commands.RequeueFeedbackNotification;
 
@@ -19,24 +16,4 @@ public sealed record RequeueFeedbackNotificationCommand(Guid Id, bool Acknowledg
     public string EventType => "Admin.FeedbackNotificationRequeued";
     public string AggregateType => "Feedback";
     public Guid ExtractAggregateId(Result response) => Id;
-}
-
-public sealed class RequeueFeedbackNotificationCommandValidator : AbstractValidator<RequeueFeedbackNotificationCommand>
-{
-    public RequeueFeedbackNotificationCommandValidator() => RuleFor(c => c.Id).NotEmpty();
-}
-
-public sealed class RequeueFeedbackNotificationCommandHandler(IAppDbContext db, IDateTimeProvider clock)
-    : ICommandHandler<RequeueFeedbackNotificationCommand, Result>
-{
-    public async ValueTask<Result> Handle(RequeueFeedbackNotificationCommand command, CancellationToken cancellationToken)
-    {
-        var submissionId = new FeedbackSubmissionId(command.Id);
-        var notice = await db.FeedbackNotifications
-            .FirstOrDefaultAsync(n => n.SubmissionId == submissionId, cancellationToken);
-        if (notice is null)
-            return Result.Failure(DomainError.NotFound("Feedback", command.Id));
-
-        return notice.Requeue(command.AcknowledgeDuplicateRisk, clock.UtcNow);
-    }
 }

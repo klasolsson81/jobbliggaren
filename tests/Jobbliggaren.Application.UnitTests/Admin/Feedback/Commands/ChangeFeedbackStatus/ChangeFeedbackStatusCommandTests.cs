@@ -8,8 +8,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Feedback.Commands.ChangeFeedbackStatus;
 
 /// <summary>
-/// #1979 — the status change is admin-only and audited under a stable event type, keyed to the submission (the row
-/// itself carries no actor). The audit row written through the real pipeline is pinned in <c>AdminFeedbackTests</c>.
+/// #1979 — the status change is admin-only and audited under a stable event type, keyed to the submission. The audit
+/// row written through the real pipeline is pinned in <c>AdminFeedbackTests</c>.
 /// </summary>
 public sealed class ChangeFeedbackStatusCommandTests
 {

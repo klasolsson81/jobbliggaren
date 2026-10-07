@@ -1,11 +1,9 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.Feedback.Events;
 using Jobbliggaren.Domain.JobSeekers;
 
 namespace Jobbliggaren.Domain.Feedback;
-
-public sealed record FeedbackSubmittedDomainEvent(
-    FeedbackSubmissionId SubmissionId, FeedbackPage Page, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// One piece of feedback a user sent about a page (#1979): a rating, a text, or both. The
@@ -100,13 +98,15 @@ public sealed partial class FeedbackSubmission : AggregateRoot<FeedbackSubmissio
             return Result.Failure(DomainError.Validation(
                 "Feedback.StatusUnchanged", "Feedbacken har redan den statusen."));
 
+        var from = Status;
         Status = to;
         StatusChangedAt = now;
+        RaiseDomainEvent(new FeedbackStatusChangedDomainEvent(Id, from, to, now));
         return Result.Success();
     }
 
     // The web server stamps the commit its build came from. Lowercase hex only, so the column is a
     // closed domain no person's name can be typed into (ErasureCascadeRegistry's ground relies on it).
-    [GeneratedRegex("^[0-9a-f]{7,40}$")]
+    [GeneratedRegex(@"^[0-9a-f]{7,40}\z")]
     private static partial Regex AppVersionShape();
 }

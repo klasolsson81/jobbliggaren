@@ -101,7 +101,6 @@ public sealed class SubmitFeedbackCommandHandlerTests : IAsyncDisposable
         var suppression = await _db.FeedbackPromptSuppressions.AsNoTracking().SingleAsync(Ct);
         suppression.JobSeekerId.ShouldBe(owner);
         suppression.Page.ShouldBe(FeedbackPage.Jobs);
-        suppression.SuppressedAt.ShouldBe(Now);
     }
 
     [Fact]

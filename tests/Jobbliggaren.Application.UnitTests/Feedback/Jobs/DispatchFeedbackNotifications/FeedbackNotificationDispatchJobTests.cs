@@ -9,7 +9,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -34,6 +34,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly MutableFakeDateTimeProvider _clock = new() { UtcNow = T0 };
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly RecordingLogger<FeedbackNotificationDispatchJob> _log = new();
     private readonly JobSeekerId _owner = new(Guid.NewGuid());
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -47,8 +48,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     }
 
     private FeedbackNotificationDispatchJob Job(AppDbContext db, FeedbackOptions? options = null) =>
-        new(db, _sender, new FeedbackGate(Options.Create(options ?? Open), _sender), _clock,
-            NullLogger<FeedbackNotificationDispatchJob>.Instance);
+        new(db, _sender, new FeedbackGate(Options.Create(options ?? Open), _sender), _clock, _log);
 
     /// <summary>One scheduled run, on a fresh change tracker like the fresh scope each Hangfire run resolves.</summary>
     private async Task RunAsync(AppDbContext db, FeedbackOptions? options = null)
@@ -340,7 +340,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
         // is removed, nothing is sent for it, and the notice behind it still goes out.
         var orphan = FeedbackSubmission.Submit(_owner, Guid.NewGuid(), FeedbackPage.Jobs, null,
             FeedbackComment.Create("Utan sin inskickning.").Value, FeedbackRows.NoClient(), null, T0).Value;
-        var orphanNotice = FeedbackNotification.Queue(orphan.Id, _owner, T0);
+        var orphanNotice = FeedbackNotification.QueueFor(orphan);
         _db.FeedbackNotifications.Add(orphanNotice);
         await _db.SaveChangesAsync(Ct);
         var behind = await SubmitAsync(T0.AddSeconds(1));
@@ -379,6 +379,88 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
         await RunAsync(_db);
 
         SendCount().ShouldBe(FeedbackNotificationDispatchJob.MaxSendsPerRun + 2);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithoutARecipient_WarnsOnlyWhileANoticeWaits_AndNamesTheMissingRecipient()
+    {
+        var closed = new FeedbackOptions { Enabled = false, NotificationRecipient = null };
+
+        await RunAsync(_db, closed);
+
+        _log.Records.ShouldNotContain(record => record.EventId.Id == 3101);
+
+        // Queued while a recipient was configured; the configuration lost it afterwards.
+        await SubmitAsync(T0);
+        _clock.UtcNow = T0.AddMinutes(1);
+
+        await RunAsync(_db, closed);
+
+        var warning = _log.Records.Where(record => record.EventId.Id == 3101).ShouldHaveSingleItem();
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Message.ShouldContain(nameof(FeedbackAvailability.NoRecipient));
+        warning.Message.ShouldNotContain(nameof(FeedbackAvailability.Disabled));
+        SendCount().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithTheDailyBudgetSpent_LeavesTheNoticeQueuedUntilTheWindowFrees()
+    {
+        for (var i = 0; i < FeedbackNotificationDispatchJob.DailyBudget; i++)
+            await SubmitAsync(T0.AddSeconds(i));
+        _clock.UtcNow = T0.AddMinutes(1);
+        for (var sent = 0; sent < FeedbackNotificationDispatchJob.DailyBudget; sent += FeedbackNotificationDispatchJob.MaxSendsPerRun)
+            await RunAsync(_db);
+        SendCount().ShouldBe(FeedbackNotificationDispatchJob.DailyBudget);
+
+        var over = await SubmitAsync(T0.AddMinutes(2));
+        _clock.UtcNow = T0.AddMinutes(3);
+
+        await RunAsync(_db);
+
+        SendCount().ShouldBe(FeedbackNotificationDispatchJob.DailyBudget);
+        (await NoticeAsync(_db, over.NoticeId)).State.ShouldBe(FeedbackNotificationState.Queued);
+        _log.Records.Where(record => record.EventId.Id == 3107).ShouldHaveSingleItem()
+            .Level.ShouldBe(LogLevel.Warning);
+
+        _clock.UtcNow = T0.AddMinutes(1).AddHours(24).AddSeconds(1);
+
+        await RunAsync(_db);
+
+        SendCount().ShouldBe(FeedbackNotificationDispatchJob.DailyBudget + 1);
+        (await NoticeAsync(_db, over.NoticeId)).State.ShouldBe(FeedbackNotificationState.Accepted);
+    }
+
+    [Fact]
+    public async Task RunAsync_ASendThatOutlastsTheRunBudget_StartsNoFurtherSend()
+    {
+        for (var i = 0; i < 3; i++)
+            await SubmitAsync(T0.AddSeconds(i));
+        _clock.UtcNow = T0.AddMinutes(1);
+        // A slow provider: the clock passes the run budget while the first mail is handed over.
+        _sender.SendFeedbackReceivedNotificationAsync(
+                Arg.Any<string>(), Arg.Any<FeedbackReceivedNotificationEmail>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                _clock.UtcNow += FeedbackNotificationDispatchJob.RunBudget;
+                return Task.CompletedTask;
+            });
+
+        await RunAsync(_db);
+
+        SendCount().ShouldBe(1);
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, EventId EventId, string Message)> Records { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => Records.Add((logLevel, eventId, formatter(state, exception)));
     }
 
     /// <summary>

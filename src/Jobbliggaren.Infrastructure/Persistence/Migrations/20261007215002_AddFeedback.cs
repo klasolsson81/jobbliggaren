@@ -38,8 +38,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     job_seeker_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    page_key = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                    suppressed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    page_key = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false)
                 },
                 constraints: table =>
                 {

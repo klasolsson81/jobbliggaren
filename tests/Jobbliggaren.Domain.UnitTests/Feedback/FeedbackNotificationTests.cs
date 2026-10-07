@@ -4,14 +4,16 @@ using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.Feedback;
 
-// Klas 2026-10-07: a send proven not accepted is retried at most five times; an unknown outcome is
-// never resent without an administrator acknowledging that the mail may arrive twice.
+// Klas 2026-10-07: an unknown outcome is never resent without an administrator acknowledging that the
+// mail may arrive twice.
 public class FeedbackNotificationTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
     private static FeedbackNotification Queued() =>
-        FeedbackNotification.Queue(FeedbackSubmissionId.New(), new JobSeekerId(Guid.NewGuid()), Now);
+        FeedbackNotification.QueueFor(FeedbackSubmission.Submit(
+            new JobSeekerId(Guid.NewGuid()), Guid.NewGuid(), FeedbackPage.Jobs, FeedbackRating.Create(4).Value, null,
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, Now).Value);
 
     private static FeedbackNotification Sending()
     {
@@ -21,7 +23,7 @@ public class FeedbackNotificationTests
     }
 
     [Fact]
-    public void Queue_IsDueAtOnce()
+    public void QueueFor_IsDueAtOnce()
     {
         var notification = Queued();
 
@@ -29,6 +31,23 @@ public class FeedbackNotificationTests
         notification.Attempts.ShouldBe(0);
         notification.NextAttemptAt.ShouldBe(Now);
         notification.CreatedAt.ShouldBe(Now);
+    }
+
+    [Fact]
+    public void QueueFor_TakesTheSubmissionsIdOwnerAndTime()
+    {
+        var owner = new JobSeekerId(Guid.NewGuid());
+        var submission = FeedbackSubmission.Submit(
+            owner, Guid.NewGuid(), FeedbackPage.Matches, null, FeedbackComment.Create("Bra sida.").Value,
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null,
+            Now.AddMinutes(-3)).Value;
+
+        var notification = FeedbackNotification.QueueFor(submission);
+
+        notification.SubmissionId.ShouldBe(submission.Id);
+        notification.JobSeekerId.ShouldBe(owner);
+        notification.CreatedAt.ShouldBe(submission.SubmittedAt);
+        notification.NextAttemptAt.ShouldBe(submission.SubmittedAt);
     }
 
     [Fact]

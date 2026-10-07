@@ -58,7 +58,7 @@ public sealed record ReportedClientContext
     public const decimal MinPixelRatio = 0.25m;
     public const decimal MaxPixelRatio = 10m;
 
-    public static readonly ReportedClientContext Empty = new();
+    public static ReportedClientContext Empty => new();
 
     public int? ViewportWidth { get; private init; }
     public int? ViewportHeight { get; private init; }

@@ -36,11 +36,11 @@ public sealed class FeedbackRetentionJobIntegrationTests(WorkerTestFixture fixtu
         var submission = FeedbackSubmission.Submit(
             owner, Guid.NewGuid(), page, FeedbackRating.Create(3).Value, null,
             ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, at).Value;
-        var notice = FeedbackNotification.Queue(submission.Id, owner, submission.SubmittedAt);
+        var notice = FeedbackNotification.QueueFor(submission);
         db.FeedbackSubmissions.Add(submission);
         db.FeedbackNotifications.Add(notice);
         if (!await db.FeedbackPromptSuppressions.AnyAsync(s => s.JobSeekerId == owner && s.Page == page, Ct))
-            db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page, at));
+            db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page));
         await db.SaveChangesAsync(Ct);
         return new Seeded(submission.Id, notice.Id);
     }

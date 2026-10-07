@@ -27,8 +27,13 @@ public sealed partial class FeedbackNotificationDispatchJob(
 {
     public const int MaxSendsPerRun = 10;
 
+    /// <summary>The most notices handed to the provider in any 24 hours, across every account; the rest wait.</summary>
+    public const int DailyBudget = 20;
+
     /// <summary>Under the one-minute schedule, so a run ends before the next one starts.</summary>
-    public static readonly TimeSpan RunBudget = TimeSpan.FromSeconds(40);
+    public static readonly TimeSpan RunBudget = TimeSpan.FromSeconds(25);
+
+    private static readonly TimeSpan BudgetWindow = TimeSpan.FromHours(24);
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -36,11 +41,16 @@ public sealed partial class FeedbackNotificationDispatchJob(
 
         if (gate.DeliverableRecipient is not { } recipient)
         {
-            LogNotDeliverable(gate.Availability);
+            if (await db.FeedbackNotifications.AnyAsync(
+                    n => n.State == FeedbackNotificationState.Queued, cancellationToken))
+                LogNotDeliverable(gate.DispatchAvailability);
             return;
         }
 
         var started = clock.UtcNow;
+        var since = started - BudgetWindow;
+        var budgetLeft = DailyBudget - await db.FeedbackNotifications
+            .CountAsync(n => n.SendingStartedAt >= since, cancellationToken);
         for (var sends = 0; sends < MaxSendsPerRun && clock.UtcNow - started < RunBudget; sends++)
         {
             var now = clock.UtcNow;
@@ -50,6 +60,12 @@ public sealed partial class FeedbackNotificationDispatchJob(
                 .FirstOrDefaultAsync(cancellationToken);
             if (notification is null)
                 return;
+
+            if (budgetLeft <= 0)
+            {
+                LogDailyBudgetSpent(DailyBudget);
+                return;
+            }
 
             var submission = await db.FeedbackSubmissions
                 .AsNoTracking()
@@ -75,6 +91,7 @@ public sealed partial class FeedbackNotificationDispatchJob(
                 return;
             }
 
+            budgetLeft--;
             var accepted = await SendAsync(recipient, notification, submission.Page, submission.Rating,
                 submission.SubmittedAt, cancellationToken);
             await TrySaveAsync(CancellationToken.None);
@@ -169,6 +186,10 @@ public sealed partial class FeedbackNotificationDispatchJob(
     [LoggerMessage(3104, LogLevel.Error,
         "[FeedbackNotificationDispatch] {Count} notices were left sending past their window and are now unknown")]
     private partial void LogExpired(int count);
+
+    [LoggerMessage(3107, LogLevel.Warning,
+        "[FeedbackNotificationDispatch] The daily budget of {Budget} notices is spent; the rest wait in the queue")]
+    private partial void LogDailyBudgetSpent(int budget);
 
     [LoggerMessage(3106, LogLevel.Information,
         "[FeedbackNotificationDispatch] A notice was deleted or changed while the run held it; the next run reads what is left")]

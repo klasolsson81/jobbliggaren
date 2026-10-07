@@ -119,6 +119,10 @@
 					delete state
 					delete hd
 					delete error_description
+					# /admin/feedback's submission id, which the operator notice links to (#1979). Each value points
+					# at one person's feedback, a pseudonym (recital 26), and no reading of this log needs it: the
+					# ground `uid` is deleted on.
+					delete id
 				}
 				request>headers delete
 			}

@@ -101,6 +101,16 @@ public sealed class GetFeedbackPromptStateQueryHandlerTests : IAsyncDisposable
         state.AnsweredPages.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task Handle_AnAccountWithoutAProfile_IsClosed_AsSubmitRefusesIt()
+    {
+        // An Identity account with no job_seekers row: ADR 0151's ProfileMissing, which submit answers 404.
+        var state = await ReadAsync(_me);
+
+        state.Open.ShouldBeFalse();
+        state.AnsweredPages.ShouldBeEmpty();
+    }
+
     [Theory]
     [InlineData(false, Recipient, true)]
     [InlineData(true, null, true)]

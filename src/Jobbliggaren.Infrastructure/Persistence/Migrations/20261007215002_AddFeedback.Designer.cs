@@ -14,7 +14,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261007183235_AddFeedback")]
+    [Migration("20261007215002_AddFeedback")]
     partial class AddFeedback
     {
         /// <inheritdoc />
@@ -517,10 +517,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
                         .HasColumnName("page_key");
-
-                    b.Property<DateTimeOffset>("SuppressedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("suppressed_at");
 
                     b.HasKey("Id")
                         .HasName("pk_feedback_prompt_suppressions");

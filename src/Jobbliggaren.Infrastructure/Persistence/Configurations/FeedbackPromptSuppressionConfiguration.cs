@@ -30,8 +30,6 @@ public sealed class FeedbackPromptSuppressionConfiguration : IEntityTypeConfigur
             .IsUnique()
             .HasDatabaseName("ux_feedback_prompt_suppressions_job_seeker_page");
 
-        builder.Property(s => s.SuppressedAt).IsRequired();
-
         builder.Ignore(s => s.DomainEvents);
     }
 }

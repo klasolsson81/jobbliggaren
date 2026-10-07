@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Ardalis.SmartEnum;
 
 namespace Jobbliggaren.Domain.Feedback;
@@ -5,8 +6,7 @@ namespace Jobbliggaren.Domain.Feedback;
 /// <summary>
 /// The fixed set of pages feedback is collected for (#1979). The name is the wire key the web's
 /// route map sends and the value persisted, so a rating category can never come from a URL, a
-/// filter or an ad/CV id — only from this list. Removing a key later means deleting its
-/// suppression rows in the same change, because those outlive the feedback's retention.
+/// filter or an ad/CV id — only from this list.
 /// </summary>
 public sealed class FeedbackPage : SmartEnum<FeedbackPage>
 {
@@ -33,7 +33,7 @@ public sealed class FeedbackPage : SmartEnum<FeedbackPage>
     private FeedbackPage(string name, int value) : base(name, value) { }
 
     /// <summary>Exact, case-sensitive match on the wire key; anything else is refused.</summary>
-    public static bool TryFromKey(string? key, out FeedbackPage? page)
+    public static bool TryFromKey(string? key, [NotNullWhen(true)] out FeedbackPage? page)
     {
         page = null;
         return !string.IsNullOrEmpty(key) && TryFromName(key, ignoreCase: false, out page);

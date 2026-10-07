@@ -46,11 +46,19 @@ public sealed class FeedbackGate(IOptions<FeedbackOptions> options, IEmailSender
     public bool AcceptsSubmissions => Availability == FeedbackAvailability.Open;
 
     /// <summary>
-    /// Where queued notices can go, or <see langword="null"/> when they cannot leave. Independent of
-    /// <see cref="FeedbackOptions.Enabled"/>: notices queued before the switch was turned off still go out.
+    /// Whether queued notices can leave: <see cref="FeedbackAvailability.Open"/>,
+    /// <see cref="FeedbackAvailability.NoRecipient"/> or <see cref="FeedbackAvailability.CannotDeliver"/>.
+    /// Independent of <see cref="FeedbackOptions.Enabled"/>: notices queued before the switch was turned
+    /// off still go out.
     /// </summary>
+    public FeedbackAvailability DispatchAvailability =>
+        !HasUsableRecipient ? FeedbackAvailability.NoRecipient
+        : !emailSender.CanDeliver ? FeedbackAvailability.CannotDeliver
+        : FeedbackAvailability.Open;
+
+    /// <summary>Where queued notices go, or <see langword="null"/> when they cannot leave.</summary>
     public string? DeliverableRecipient =>
-        HasUsableRecipient && emailSender.CanDeliver ? options.Value.NotificationRecipient : null;
+        DispatchAvailability == FeedbackAvailability.Open ? options.Value.NotificationRecipient : null;
 
     private bool HasUsableRecipient =>
         EmailAddressRules.IsUsableInboxAddress(options.Value.NotificationRecipient);

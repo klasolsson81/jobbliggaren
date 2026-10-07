@@ -3,12 +3,6 @@ using Jobbliggaren.Domain.JobSeekers;
 
 namespace Jobbliggaren.Domain.Feedback;
 
-public readonly record struct FeedbackPromptSuppressionId(Guid Value)
-{
-    public static FeedbackPromptSuppressionId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString();
-}
-
 /// <summary>
 /// That a user has given feedback on a page, so the inline prompt stays hidden there on every
 /// device (#1979). It outlives the feedback's 90-day retention on purpose: v1 never asks again.
@@ -18,26 +12,23 @@ public sealed class FeedbackPromptSuppression : AggregateRoot<FeedbackPromptSupp
 {
     public JobSeekerId JobSeekerId { get; private set; }
     public FeedbackPage Page { get; private set; } = null!;
-    public DateTimeOffset SuppressedAt { get; private set; }
 
     // EF Core constructor
     private FeedbackPromptSuppression() { }
 
-    private FeedbackPromptSuppression(
-        FeedbackPromptSuppressionId id, JobSeekerId jobSeekerId, FeedbackPage page, DateTimeOffset now)
+    private FeedbackPromptSuppression(FeedbackPromptSuppressionId id, JobSeekerId jobSeekerId, FeedbackPage page)
         : base(id)
     {
         JobSeekerId = jobSeekerId;
         Page = page;
-        SuppressedAt = now;
     }
 
-    public static FeedbackPromptSuppression Record(JobSeekerId jobSeekerId, FeedbackPage page, DateTimeOffset now)
+    public static FeedbackPromptSuppression Record(JobSeekerId jobSeekerId, FeedbackPage page)
     {
         ArgumentNullException.ThrowIfNull(page);
         if (jobSeekerId == default)
             throw new ArgumentException("A suppression belongs to a job seeker.", nameof(jobSeekerId));
 
-        return new FeedbackPromptSuppression(FeedbackPromptSuppressionId.New(), jobSeekerId, page, now);
+        return new FeedbackPromptSuppression(FeedbackPromptSuppressionId.New(), jobSeekerId, page);
     }
 }

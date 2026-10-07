@@ -78,8 +78,8 @@ public sealed class AdminFeedbackTests(ApiFactory factory)
             reporter.JobSeekerId, Guid.NewGuid(), page, FeedbackRating.Create(stars).Value, null,
             ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, at).Value;
         db.FeedbackSubmissions.Add(submission);
-        db.FeedbackNotifications.Add(FeedbackNotification.Queue(submission.Id, reporter.JobSeekerId, submission.SubmittedAt));
-        db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(reporter.JobSeekerId, page, at));
+        db.FeedbackNotifications.Add(FeedbackNotification.QueueFor(submission));
+        db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(reporter.JobSeekerId, page));
         await db.SaveChangesAsync(Ct);
     }
 

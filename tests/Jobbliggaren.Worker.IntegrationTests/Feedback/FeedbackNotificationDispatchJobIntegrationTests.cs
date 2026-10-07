@@ -73,10 +73,10 @@ public sealed class FeedbackNotificationDispatchJobIntegrationTests(WorkerTestFi
         var submission = FeedbackSubmission.Submit(
             owner, Guid.NewGuid(), FeedbackPage.Jobs, FeedbackRating.Create(4).Value, null,
             ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, at).Value;
-        var notice = FeedbackNotification.Queue(submission.Id, owner, submission.SubmittedAt);
+        var notice = FeedbackNotification.QueueFor(submission);
         db.FeedbackSubmissions.Add(submission);
         db.FeedbackNotifications.Add(notice);
-        db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, FeedbackPage.Jobs, at));
+        db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, FeedbackPage.Jobs));
         await db.SaveChangesAsync(Ct);
         return new Seeded(submission.Id, notice.Id);
     }

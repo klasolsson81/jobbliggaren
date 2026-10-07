@@ -1,4 +1,5 @@
 using Jobbliggaren.Domain.Feedback;
+using Jobbliggaren.Domain.Feedback.Events;
 using Jobbliggaren.Domain.JobSeekers;
 using Shouldly;
 
@@ -74,6 +75,8 @@ public class FeedbackSubmissionTests
     [InlineData("anna-svensson")]
     [InlineData("9e5c37")]
     [InlineData("0123456789abcdef0123456789abcdef012345678")]
+    [InlineData("abc1234\n")]
+    [InlineData("0123456789abcdef0123456789abcdef01234567\n")]
     public void Submit_AnAppVersionThatIsNotACommitHash_IsRefused(string appVersion)
         => FeedbackSubmission.Submit(Owner, Guid.NewGuid(), FeedbackPage.Jobs, Stars(3), null,
                 ReportedClientContext.Empty, appVersion, Now)
@@ -105,6 +108,21 @@ public class FeedbackSubmissionTests
     }
 
     [Fact]
+    public void ChangeStatus_RaisesFeedbackStatusChanged()
+    {
+        var submission = Submit(Stars(2), null);
+        var later = Now.AddHours(3);
+
+        submission.ChangeStatus(FeedbackStatus.Resolved, later).IsSuccess.ShouldBeTrue();
+
+        var changed = submission.DomainEvents.OfType<FeedbackStatusChangedDomainEvent>().ShouldHaveSingleItem();
+        changed.SubmissionId.ShouldBe(submission.Id);
+        changed.From.ShouldBe(FeedbackStatus.New);
+        changed.To.ShouldBe(FeedbackStatus.Resolved);
+        changed.OccurredAt.ShouldBe(later);
+    }
+
+    [Fact]
     public void ChangeStatus_ReopeningAClosedItem_IsAllowed()
     {
         var submission = Submit(Stars(2), null);
@@ -124,6 +142,7 @@ public class FeedbackSubmissionTests
 
         result.Error.Code.ShouldBe("Feedback.StatusUnchanged");
         submission.StatusChangedAt.ShouldBeNull();
+        submission.DomainEvents.OfType<FeedbackStatusChangedDomainEvent>().ShouldBeEmpty();
     }
 
     [Fact]

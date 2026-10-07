@@ -515,10 +515,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("page_key");
 
-                    b.Property<DateTimeOffset>("SuppressedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("suppressed_at");
-
                     b.HasKey("Id")
                         .HasName("pk_feedback_prompt_suppressions");
 

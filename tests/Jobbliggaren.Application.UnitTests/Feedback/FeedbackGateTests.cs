@@ -104,4 +104,15 @@ public sealed class FeedbackGateTests
     [InlineData(false)]
     public void DeliverableRecipient_WhenTheSenderCannotDeliver_IsNull(bool enabled) =>
         Gate(enabled, Recipient, canDeliver: false).DeliverableRecipient.ShouldBeNull();
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DispatchAvailability_IgnoresTheSwitch_AndNamesWhyNoticesCannotLeave(bool enabled)
+    {
+        Gate(enabled, Recipient, canDeliver: true).DispatchAvailability.ShouldBe(FeedbackAvailability.Open);
+        Gate(enabled, recipient: null, canDeliver: true).DispatchAvailability.ShouldBe(FeedbackAvailability.NoRecipient);
+        Gate(enabled, recipient: null, canDeliver: false).DispatchAvailability.ShouldBe(FeedbackAvailability.NoRecipient);
+        Gate(enabled, Recipient, canDeliver: false).DispatchAvailability.ShouldBe(FeedbackAvailability.CannotDeliver);
+    }
 }

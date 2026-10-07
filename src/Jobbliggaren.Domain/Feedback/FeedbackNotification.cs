@@ -1,42 +1,15 @@
-using System.Text.Json.Serialization;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 
 namespace Jobbliggaren.Domain.Feedback;
-
-public readonly record struct FeedbackNotificationId(Guid Value)
-{
-    public static FeedbackNotificationId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString();
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum FeedbackNotificationState
-{
-    /// <summary>Waiting for its send, now or after a backoff.</summary>
-    Queued,
-
-    /// <summary>Claimed and handed to the provider; the outcome is not yet recorded.</summary>
-    Sending,
-
-    /// <summary>The provider accepted the message. Not a claim that it reached the inbox.</summary>
-    Accepted,
-
-    /// <summary>Every attempt was refused by the provider; nothing was sent.</summary>
-    Failed,
-
-    /// <summary>The provider may or may not have taken it. Never resent on its own.</summary>
-    Unknown,
-}
 
 /// <summary>
 /// The mail that tells the operator a feedback submission was saved (#1979). It is created in the
 /// same save as its submission and then lives its own life, written by the Worker and requeued by
 /// an administrator (CTO decision 2b, 2026-10-07).
 /// <para>
-/// The rule the states carry is Klas's (2026-10-07): a send proven not accepted is retried at most
-/// <see cref="MaxAttempts"/> times; an outcome that may have been accepted is never sent again
-/// unless an administrator acknowledges the risk of a duplicate.
+/// The rule the states carry is Klas's (2026-10-07): an outcome that may have been accepted is never
+/// sent again unless an administrator acknowledges the risk of a duplicate.
 /// </para>
 /// </summary>
 public sealed class FeedbackNotification : AggregateRoot<FeedbackNotificationId>
@@ -82,13 +55,11 @@ public sealed class FeedbackNotification : AggregateRoot<FeedbackNotificationId>
         CreatedAt = now;
     }
 
-    public static FeedbackNotification Queue(
-        FeedbackSubmissionId submissionId, JobSeekerId jobSeekerId, DateTimeOffset now)
+    public static FeedbackNotification QueueFor(FeedbackSubmission submission)
     {
-        if (submissionId == default || jobSeekerId == default)
-            throw new ArgumentException("A notification belongs to a submission and its owner.");
-
-        return new FeedbackNotification(FeedbackNotificationId.New(), submissionId, jobSeekerId, now);
+        ArgumentNullException.ThrowIfNull(submission);
+        return new FeedbackNotification(
+            FeedbackNotificationId.New(), submission.Id, submission.JobSeekerId, submission.SubmittedAt);
     }
 
     /// <summary>Takes a due notice for sending. Persist this before calling the provider.</summary>

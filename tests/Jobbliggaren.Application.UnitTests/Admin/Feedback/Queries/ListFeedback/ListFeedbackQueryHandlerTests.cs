@@ -87,6 +87,17 @@ public sealed class ListFeedbackQueryHandlerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Handle_AnExcerptThatWouldSplitASurrogatePair_IsCutBeforeThePair()
+    {
+        var text = new string('z', ListFeedbackQuery.ExcerptLength - 1) + "\U0001F600 och mer";
+        await SubmitAsync(FeedbackPage.Jobs, T0, rating: null, comment: text);
+
+        var excerpt = (await ListAsync(new ListFeedbackQuery())).Items.Items.ShouldHaveSingleItem().Excerpt;
+
+        excerpt.ShouldBe(new string('z', ListFeedbackQuery.ExcerptLength - 1) + "…");
+    }
+
+    [Fact]
     public async Task Handle_CountsPerStatusInsideThePageFilter()
     {
         var jobsNew = await SubmitAsync(FeedbackPage.Jobs, T0);

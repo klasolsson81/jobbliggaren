@@ -620,11 +620,11 @@ $fn$ LANGUAGE plpgsql;";
         var submission = FeedbackSubmission.Submit(
             owner, Guid.NewGuid(), page, FeedbackRating.Create(4).Value, FeedbackComment.Create("Bra sida.").Value,
             ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt).Value;
-        var notice = FeedbackNotification.Queue(submission.Id, owner, submission.SubmittedAt);
+        var notice = FeedbackNotification.QueueFor(submission);
         db.FeedbackSubmissions.Add(submission);
         db.FeedbackNotifications.Add(notice);
         if (!await db.FeedbackPromptSuppressions.AnyAsync(s => s.JobSeekerId == owner && s.Page == page, ct))
-            db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page, sentAt));
+            db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page));
         await db.SaveChangesAsync(ct);
 
         if (!accepted)

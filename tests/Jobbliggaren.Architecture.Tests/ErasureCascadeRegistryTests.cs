@@ -134,7 +134,7 @@ public class ErasureCascadeRegistryTests
             + "FeedbackNotificationState enum persisted BY NAME through HasConversion<string> into "
             + "varchar(16) and written only by the notice's own transitions (the dispatch job and an "
             + "administrator's requeue). No request body reaches it.",
-        ["feedback_prompt_suppressions"] = "A LINK ROW: (job_seeker_id, page_key, suppressed_at) "
+        ["feedback_prompt_suppressions"] = "A LINK ROW: (job_seeker_id, page_key) "
             + "recording THAT she gave feedback on a page. One text-bearing column: page_key, the "
             + "name of a FeedbackPage — a closed set validated by FeedbackPage.TryFromKey before any "
             + "write, persisted BY NAME into varchar(40).",

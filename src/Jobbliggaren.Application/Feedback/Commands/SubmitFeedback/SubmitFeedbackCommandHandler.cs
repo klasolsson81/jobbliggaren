@@ -49,14 +49,14 @@ public sealed class SubmitFeedbackCommandHandler(
         if (submission.IsFailure)
             return Result.Failure<FeedbackSubmitted>(submission.Error);
 
-        var notification = FeedbackNotification.Queue(submission.Value.Id, jobSeekerId, submission.Value.SubmittedAt);
+        var notification = FeedbackNotification.QueueFor(submission.Value);
 
         // Two attempts. A unique violation is either the same key saved concurrently (replay it) or
         // a concurrent submission for the same page claiming the suppression row (save again
         // without it). The inspector cannot tell the two indexes apart, so the re-read decides.
         for (var attempt = 1; ; attempt++)
         {
-            var suppression = await SuppressionFor(jobSeekerId, submission.Value.Page, cancellationToken);
+            var suppression = await SuppressionForAsync(jobSeekerId, submission.Value.Page, cancellationToken);
             db.FeedbackSubmissions.Add(submission.Value);
             db.FeedbackNotifications.Add(notification);
             if (suppression is not null)
@@ -105,17 +105,17 @@ public sealed class SubmitFeedbackCommandHandler(
             client.PixelRatio, client.Theme, client.DeviceClass, client.OsFamily, client.BrowserFamily);
 
         return FeedbackSubmission.Submit(
-            jobSeekerId, command.SubmissionKey, page!, rating, comment.Value, context, command.AppVersion,
+            jobSeekerId, command.SubmissionKey, page, rating, comment.Value, context, command.AppVersion,
             clock.UtcNow);
     }
 
-    private async Task<FeedbackPromptSuppression?> SuppressionFor(
+    private async Task<FeedbackPromptSuppression?> SuppressionForAsync(
         JobSeekerId jobSeekerId, FeedbackPage page, CancellationToken cancellationToken)
     {
         var exists = await db.FeedbackPromptSuppressions
             .AsNoTracking()
             .AnyAsync(s => s.JobSeekerId == jobSeekerId && s.Page == page, cancellationToken);
-        return exists ? null : FeedbackPromptSuppression.Record(jobSeekerId, page, clock.UtcNow);
+        return exists ? null : FeedbackPromptSuppression.Record(jobSeekerId, page);
     }
 
     private async Task<Guid?> FindByKeyAsync(

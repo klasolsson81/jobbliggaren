@@ -62,7 +62,7 @@ internal static partial class EmailTemplates
             [FeedbackPage.Application] = "Ansökan",
             [FeedbackPage.NewApplication] = "Ny ansökan",
             [FeedbackPage.Statistics] = "Statistik",
-            [FeedbackPage.ActivityReport] = "Aktivitetsrapport",
+            [FeedbackPage.ActivityReport] = "Aktivitetsrapport-hjälp",
             [FeedbackPage.FollowedCompanies] = "Bevakade företag",
             [FeedbackPage.CompanySearch] = "Sök företag",
             [FeedbackPage.IndustryWatches] = "Branschbevakningar",

@@ -625,6 +625,21 @@ public static partial class RateLimitingExtensions
             // spara/ta-bort). Auth-gated → anonym fångas av RequireAuthorization
             // (NoLimiter bypass). senior-cto-advisor 2026-06-16 (B1a), riktvärde 5/min;
             // security-auditor verifierar (BLOCKING). Parametrar IOptions-bundna (§5.1).
+            options.AddPolicy(ResumeImportPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-resume-import");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.ResumeImport.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeImport.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
             // #1979 — feedback submissions, per UserId. Its own bucket: a submission is a write that
             // queues a mail to the operator, so a flood is capped here rather than in his inbox.
             options.AddPolicy(FeedbackSubmitPolicy, ctx =>
@@ -661,21 +676,6 @@ public static partial class RateLimitingExtensions
                             / (double)rateLimitOpts.FeedbackPromptState.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
-                    });
-            });
-
-            options.AddPolicy(ResumeImportPolicy, ctx =>
-            {
-                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-                if (string.IsNullOrEmpty(userId))
-                    return RateLimitPartition.GetNoLimiter("anonymous-resume-import");
-
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
-                    new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = rateLimitOpts.ResumeImport.PermitLimit,
-                        Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeImport.WindowSeconds),
-                        QueueLimit = 0,
                     });
             });
 

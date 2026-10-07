@@ -32,7 +32,6 @@
     "anchor": "{count, plural, one {# industry watch} other {# industry watches}}",
     "link": "View industry watches",
     "emptyTitle": "You have no industry watches yet",
-    "emptyBody": "A saved search by industry and municipality.",
     "emptyCta": "New industry watch",
     "unavailable": "Industry watches could not be loaded. Refresh the page.",
     "adsTooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here.",

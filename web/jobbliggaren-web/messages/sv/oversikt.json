@@ -32,7 +32,6 @@
     "anchor": "{count, plural, one {# branschbevakning} other {# branschbevakningar}}",
     "link": "Visa branschbevakningar",
     "emptyTitle": "Du har inga branschbevakningar än",
-    "emptyBody": "En sparad sökning på bransch och kommun.",
     "emptyCta": "Ny branschbevakning",
     "unavailable": "Branschbevakningar kunde inte hämtas. Uppdatera sidan.",
     "adsTooBroadAdvice": "En bevakning som matchar fler företag än vi kan räkna annonser för får inga tal här.",

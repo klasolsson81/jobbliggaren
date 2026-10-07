@@ -82,7 +82,6 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
     return (
       <OversiktCard id={ID} title={title} tone="info" span={4} icon={Briefcase}>
         <p className="jp-ov-card__emptytitle">{t("criteriaSummary.emptyTitle")}</p>
-        <p className="jp-ov-card__emptybody">{t("criteriaSummary.emptyBody")}</p>
         <OversiktCardFoot>
           <Link className="jp-btn jp-btn--emphasis jp-ov-cta" href={CATALOGUE_HREF}>
             {t("criteriaSummary.emptyCta")}

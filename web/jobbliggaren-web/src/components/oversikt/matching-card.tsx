@@ -45,7 +45,7 @@ export function MatchingCard({
   if (setupState === "incomplete") {
     return (
       <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target} focusableTitle>
-        <p className="jp-ov-card__text">{t("notices.calloutText")}</p>
+        <p className="jp-ov-card__emptytitle">{t("notices.calloutText")}</p>
         <OversiktCardFoot>
           {/* `/oversikt?matchsetup=1` opens the match-setup modal via MatchSetupLauncher
               (epic #526) — the same destination the callout has always had. */}

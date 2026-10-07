@@ -2354,20 +2354,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
-.jp-ov-card__emptybody {
-  margin: 6px 0 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-}
 .jp-ov-card__unavailable {
   margin: 12px 0 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-}
-.jp-ov-card__text {
-  margin: 18px 0 0;
-  font-size: var(--text-ui);
-  line-height: 1.5;
   color: var(--jp-ink-1);
 }
 /* Foten sätter CTA:n på kortets golv så tre kort i rad delar knappbaslinje, med handoffens

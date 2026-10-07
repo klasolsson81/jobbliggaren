@@ -40,7 +40,7 @@ interface CompanyWatchRowProps {
  * `companyName` (public Platsbanken data resolved server-side). org.nr is rendered ONLY when the
  * backend supplied it (`!isProtectedIdentity && organizationNumber` — a legal-entity number); a
  * personnummer-shaped org.nr arrives masked (`organizationNumber` null, `isProtectedIdentity` true)
- * and is shown as a "skyddad identitet" note, never a raw number. `activeAdCount` is public open-role
+ * and is shown as a note that the organisation number is hidden, never a raw number. `activeAdCount` is public open-role
  * data (#447), surfaced even when the org.nr is masked.
  *
  * <para>#452 — the primary per-company signal follows `mode`: in `matching` mode the row leads with the

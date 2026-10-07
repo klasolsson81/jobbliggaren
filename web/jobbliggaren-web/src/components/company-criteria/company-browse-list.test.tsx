@@ -262,7 +262,7 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     expect(cell(0)).toHaveTextContent("Acme Bygg AB");
     // A 42-character company name overflows into Org.nr at the table's minimum width without this.
     expect(cell(0)).toHaveClass("wrap-break-word");
-    // The org.nr NUMBER may not break; the cell may, so the "Skyddad identitet" badge can wrap
+    // The org.nr NUMBER may not break; the cell may, so the "Org.nr dolt" badge can wrap
     // instead of overflowing into Säteskommun.
     expect(cell(1)).not.toHaveClass("whitespace-nowrap");
     expect(cell(1).querySelector(".whitespace-nowrap")).toHaveTextContent("559280-4784");
@@ -293,13 +293,7 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     for (const el of ancestors) expect(el).not.toHaveClass("whitespace-nowrap");
   });
 
-  /**
-   * The badge is the REASON nowrap left the org.nr cell, so it is the half that has to be pinned.
-   * "Skyddad identitet" sets `font-sans` inside a `font-mono` cell and clears 175px by 14px — a font
-   * fallback eats that, and under fixed layout the cell then overflows into Säteskommun instead of
-   * growing. Asserting only that the NUMBER carries nowrap leaves the badge free to take the class
-   * back, which every other assertion in this file survives (measured, not argued).
-   */
+  /** The masking badge may wrap independently of the formatted organisation number. */
   it("leaves the protected-identity badge wrappable — the reason nowrap left the cell", () => {
     const { container } = render(
       <CompanyBrowseList items={[PROTECTED]} reference={REFERENCE} followStateByOrgNr={new Map()} />,
@@ -308,7 +302,7 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     if (!orgNrCell) throw new Error("no org.nr cell — the row rendered fewer than two <td>s");
 
     // Anchor the cell by its content BEFORE negating anything about that content.
-    expect(orgNrCell).toContainElement(screen.getByText("Skyddad identitet"));
+    expect(orgNrCell).toContainElement(screen.getByText("Org.nr dolt"));
     expect(orgNrCell).not.toHaveClass("whitespace-nowrap");
     // The load-bearing one: nothing BETWEEN the cell and the badge may forbid the break either.
     expect(orgNrCell.querySelectorAll(".whitespace-nowrap")).toHaveLength(0);

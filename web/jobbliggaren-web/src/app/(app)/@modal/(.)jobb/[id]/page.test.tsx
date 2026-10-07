@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { render, screen, within } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../messages/sv/pages.json";
 import svFallback from "../../../../../../messages/sv/fallback.json";
 import type { JobDetailLoad } from "@/lib/job-ads/load-job-detail-data";
 import InterceptedJobbModal from "./page";
 
+const back = vi.fn();
 const redirect = vi.fn();
 const notFound = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
@@ -42,7 +44,7 @@ vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
   return {
     ...actual,
-    useRouter: () => ({ back: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+    useRouter: () => ({ back, push: vi.fn(), replace: vi.fn() }),
     redirect: (url: string) => {
       redirect(url);
       throw new Error(`NEXT_REDIRECT:${url}`);
@@ -61,8 +63,19 @@ async function renderModal() {
   return render(element);
 }
 
+async function expectCloseFooter(dialog: HTMLElement) {
+  expect(dialog).toHaveClass("jp-modal--message");
+  const close = within(dialog).getByText("Stäng", { selector: "button" });
+  expect(close).toHaveClass("jp-btn", "jp-btn--secondary");
+  expect(close.closest(".jp-modal__foot")).toHaveTextContent(/^Stäng$/);
+  expect(dialog.querySelectorAll(".jp-modal__foot")).toHaveLength(1);
+  await userEvent.click(close);
+  expect(back).toHaveBeenCalledTimes(1);
+}
+
 describe("@modal/(.)jobb/[id] — an outcome without an ad, in the job modal's own sheet", () => {
   beforeEach(() => {
+    back.mockReset();
     redirect.mockReset();
     notFound.mockClear();
     getServerSession.mockReset();
@@ -81,6 +94,7 @@ describe("@modal/(.)jobb/[id] — an outcome without an ad, in the job modal's o
     expect(dialog).toHaveAttribute("aria-describedby", "jp-modal-desc");
     expect(document.getElementById("jp-modal-desc")).toHaveTextContent(body);
     expect(dialog).toHaveClass("jp-modal--sheet");
+    await expectCloseFooter(dialog);
   });
 
   // #1987: a notFound() thrown here escapes the slot to the root boundary, which swaps the signed-in shell for the
@@ -93,6 +107,7 @@ describe("@modal/(.)jobb/[id] — an outcome without an ad, in the job modal's o
     expect(dialog).toHaveAttribute("aria-describedby", "jp-modal-desc");
     expect(document.getElementById("jp-modal-desc")).toHaveTextContent(svFallback.notFound.body);
     expect(dialog).toHaveClass("jp-modal--sheet");
+    await expectCloseFooter(dialog);
     expect(notFound).not.toHaveBeenCalled();
   });
 });

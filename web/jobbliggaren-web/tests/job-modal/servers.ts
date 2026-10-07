@@ -47,6 +47,7 @@ export const ADDRESS_CHANGE_CODES = {
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
+  jobAdReadGate: Promise<void> | null;
   /** Listed ads erased under Art. 17 after the list rendered: their detail answers 410. */
   readonly erasedAds: Set<string>;
   /** Ads whose listed application answers 404 when it is read. */
@@ -140,6 +141,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
 
   const harness: Harness = {
     occupationStated: true,
+    jobAdReadGate: null,
     erasedAds: new Set(),
     unavailableApplications: new Set(),
     misses,
@@ -152,6 +154,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       syntheticUploadReceipts.length = 0;
       harness.rejectNextImport = false;
       harness.occupationStated = true;
+      harness.jobAdReadGate = null;
       harness.erasedAds.clear();
       harness.unavailableApplications.clear();
       applied = new Map(ads.filter((ad) => ad.appliedBeforeVisit).map((ad) => [ad.id, randomUUID()]));
@@ -286,6 +289,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     }
 
     if (ad && route === `GET /api/v1/job-ads/${ad.id}`) {
+      await harness.jobAdReadGate;
       if (harness.erasedAds.has(ad.id)) return json(410, { title: "Gone", status: 410 });
       return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [] });
     }

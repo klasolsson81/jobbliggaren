@@ -21,7 +21,7 @@ import type {
   AdminValueRegion,
 } from "@/lib/admin/view-models";
 import { listRegion } from "@/lib/admin/view-models";
-import type { AdminFeedbackQuery, AdminFeedbackRefusal } from "@/lib/admin/feedback";
+import { commandRefusal, type AdminFeedbackQuery, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
@@ -170,8 +170,8 @@ export function PreviewFeedback({
   async function onRequeue(id: string, acknowledgeDuplicateRisk: boolean): Promise<AdminFeedbackRefusal> {
     await latency();
     const state = submissions.find((item) => item.id === id)?.notice?.state;
-    if (state !== "failed" && state !== "unknown") return t("errors.noticeAlreadyQueued");
-    if (state === "unknown" && !acknowledgeDuplicateRisk) return t("errors.noticeChanged");
+    if (state !== "failed" && state !== "unknown") return commandRefusal(t("errors.noticeAlreadyQueued"));
+    if (state === "unknown" && !acknowledgeDuplicateRisk) return commandRefusal(t("errors.noticeChanged"));
     setSubmissions((previous) =>
       previous.map((item) => (item.id === id ? { ...item, notice: { state: "queued", attempts: 0, nextAttemptAt: now } } : item)),
     );

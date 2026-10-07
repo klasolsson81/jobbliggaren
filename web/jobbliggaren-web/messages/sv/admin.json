@@ -303,7 +303,7 @@
     },
     "scope": {
       "page": "Sida: {page}",
-      "clear": "Visa alla sidor"
+      "clear": "Visa inskick från alla sidor"
     },
     "list": {
       "label": "Inskick",
@@ -334,7 +334,7 @@
       "application": "Ansökan",
       "new-application": "Ny ansökan",
       "statistics": "Statistik",
-      "activity-report": "Aktivitetsrapport",
+      "activity-report": "Aktivitetsrapport-hjälp",
       "followed-companies": "Bevakade företag",
       "company-search": "Sök företag",
       "industry-watches": "Branschbevakningar",
@@ -346,6 +346,7 @@
     },
     "detail": {
       "label": "Valt inskick",
+      "back": "Alla inskick",
       "notFound": "Inskicket finns inte.",
       "noComment": "Ingen text.",
       "facts": {

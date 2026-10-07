@@ -338,6 +338,29 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
   },
 ];
 
+/**
+ * `count` more submissions about /jobb, each older than every one above, that fill the list past one page
+ * of 25: the pager's bounds, and a submission the notice mail opens that is not on the list's first page.
+ */
+export function manyFeedback(count: number): ReadonlyArray<FeedbackRecord> {
+  return Array.from({ length: count }, (_, index) => {
+    const at = new Date(Date.parse("2026-09-01T08:00:00Z") - index * 3_600_000).toISOString();
+    return {
+      id: id(800 + index),
+      pageKey: "jobs",
+      rating: (index % 5) + 1,
+      comment: `Inskick ${index + 1}: sökningen på yrke visar annonser från fel län.`,
+      status: "New",
+      submittedAt: at,
+      statusChangedAt: null,
+      reporterEmail: `konto.m${index + 1}@example.test`,
+      client: NOTHING_REPORTED,
+      appVersion: null,
+      notification: notice("Accepted", 1, at),
+    };
+  });
+}
+
 const EXCERPT_LENGTH = 90;
 
 const excerpt = (comment: string | null) =>

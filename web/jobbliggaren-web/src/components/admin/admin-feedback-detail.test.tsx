@@ -2,7 +2,7 @@ import { Component, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AdminFeedbackRefusal } from "@/lib/admin/feedback";
+import { commandRefusal, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
 import type { AdminFeedbackItem, AdminFeedbackNoticeState, AdminFeedbackStatus } from "@/lib/admin/view-models";
 import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-store";
 import { AdminFeedbackDetail } from "./admin-feedback-detail";
@@ -48,6 +48,9 @@ type Commands = {
 
 const accepted = async () => null;
 
+/** The list the submission was opened from, as the view passes it. */
+const BACK = "/admin/feedback?status=ny&sidnr=2";
+
 /**
  * The caller the live page is: a command that went through is followed by the page's revalidation, which
  * hands the detail the submission as the backend now holds it.
@@ -57,6 +60,8 @@ function Revalidating({ item, onStatus = accepted, onRequeue = accepted }: { rea
   return (
     <AdminFeedbackDetail
       region={{ kind: "loaded", data: current }}
+      openId={item.id}
+      backHref={BACK}
       onStatus={async (id, status) => {
         const outcome = await onStatus(id, status);
         if (outcome === null) setCurrent((previous) => ({ ...previous, status, statusChangedAt: "2026-10-05T08:00:00Z" }));
@@ -116,26 +121,64 @@ describe("AdminFeedbackDetail — the status (#1979)", () => {
     expect(select).toHaveValue("inProgress");
   });
 
-  it("refuses a status the submission already has, without asking the backend", async () => {
+  it("refuses a status the submission already has, without asking the backend, on the field itself", async () => {
     const onStatus = vi.fn(accepted);
     render(<Revalidating item={ITEM} onStatus={onStatus} />);
 
     await userEvent.click(within(detail()).getByRole("button", { name: "Spara status" }));
 
+    const select = within(detail()).getByRole("combobox", { name: "Status" });
     const refusal = within(detail()).getByRole("alert");
     expect(refusal).toHaveTextContent("Inskicket har redan den statusen.");
-    await waitFor(() => expect(refusal).toHaveFocus());
+    // In the form, under the field, and tied to it: the value is what was refused.
+    expect(refusal.closest("form")).toBe(select.closest("form"));
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAccessibleDescription("Inskicket har redan den statusen.");
+    await waitFor(() => expect(select).toHaveFocus());
     expect(onStatus).not.toHaveBeenCalled();
+
+    // A new choice is asked for afresh: pressing again with another status clears the refusal.
+    await userEvent.selectOptions(select, "Pågår");
+    await userEvent.click(within(detail()).getByRole("button", { name: "Spara status" }));
+    await waitFor(() => expect(within(detail()).queryByRole("alert")).toBeNull());
+    expect(select).not.toHaveAttribute("aria-invalid");
+    expect(select).not.toHaveAttribute("aria-describedby");
   });
 
-  it("shows a refusal where the status was asked, takes focus to it, and leaves the status as it was", async () => {
-    render(<Revalidating item={ITEM} onStatus={async () => "Statusen sparades inte. Ladda om sidan och försök igen."} />);
+  it("marks the field when the backend refuses the value, as it does when another administrator set it first", async () => {
+    render(
+      <Revalidating
+        item={ITEM}
+        onStatus={async () => ({ text: "Inskicket har redan den statusen.", about: "value" })}
+      />,
+    );
 
-    await userEvent.selectOptions(within(detail()).getByRole("combobox", { name: "Status" }), "Avstår");
+    const select = within(detail()).getByRole("combobox", { name: "Status" });
+    await userEvent.selectOptions(select, "Åtgärdad");
+    await userEvent.click(within(detail()).getByRole("button", { name: "Spara status" }));
+
+    await within(detail()).findByRole("alert");
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(select).toHaveFocus());
+  });
+
+  it("shows a refusal of the command under the field, takes focus to it, and never marks the field", async () => {
+    render(
+      <Revalidating
+        item={ITEM}
+        onStatus={async () => commandRefusal("För många förfrågningar. Försök igen om 7 sekunder.")}
+      />,
+    );
+
+    const select = within(detail()).getByRole("combobox", { name: "Status" });
+    await userEvent.selectOptions(select, "Avstår");
     await userEvent.click(within(detail()).getByRole("button", { name: "Spara status" }));
 
     const refusal = await within(detail()).findByRole("alert");
-    expect(refusal).toHaveTextContent("Statusen sparades inte. Ladda om sidan och försök igen.");
+    expect(refusal).toHaveTextContent("För många förfrågningar. Försök igen om 7 sekunder.");
+    expect(refusal.closest("form")).toBe(select.closest("form"));
+    expect(select).toHaveAccessibleDescription("För många förfrågningar. Försök igen om 7 sekunder.");
+    expect(select).not.toHaveAttribute("aria-invalid");
     await waitFor(() => expect(refusal).toHaveFocus());
     expect(within(detail()).getByText("Ny", { selector: ".jp-pill" })).toBeInTheDocument();
     expect(getAdminToastSnapshot()).toBeNull();
@@ -192,7 +235,12 @@ describe("AdminFeedbackDetail — the notice (#1979)", () => {
   });
 
   it("shows a refused requeue where it was asked and takes focus to it", async () => {
-    render(<Revalidating item={withNotice("failed", 5)} onRequeue={async () => "Aviseringen är redan köad eller skickad."} />);
+    render(
+      <Revalidating
+        item={withNotice("failed", 5)}
+        onRequeue={async () => commandRefusal("Aviseringen är redan köad eller skickad.")}
+      />,
+    );
 
     await userEvent.click(within(detail()).getByRole("button", { name: "Försök igen" }));
 
@@ -214,6 +262,10 @@ describe("AdminFeedbackDetail — the notice (#1979)", () => {
       description: "Aviseringen kan redan ha kommit fram. Ett nytt utskick kan ge en dubblett.",
     });
     await waitFor(() => expect(within(question).getByRole("button", { name: "Avbryt" })).toHaveFocus());
+    // Nothing is destroyed, and the body says what is risked: the one primary, never danger.
+    const confirm = within(question).getByRole("button", { name: "Skicka avisering igen" });
+    expect(confirm).toHaveClass("jp-btn--primary");
+    expect(confirm).not.toHaveClass("jp-btn--danger");
     await userEvent.click(within(question).getByRole("button", { name: "Avbryt" }));
 
     expect(onRequeue).not.toHaveBeenCalled();
@@ -234,7 +286,12 @@ describe("AdminFeedbackDetail — the notice (#1979)", () => {
   });
 
   it("keeps a refused requeue in the question, which stays open", async () => {
-    render(<Revalidating item={withNotice("unknown")} onRequeue={async () => "Aviseringens läge har ändrats. Kontrollera det innan du skickar den igen."} />);
+    render(
+      <Revalidating
+        item={withNotice("unknown")}
+        onRequeue={async () => commandRefusal("Aviseringens läge har ändrats. Kontrollera det innan du skickar den igen.")}
+      />,
+    );
 
     await userEvent.click(within(detail()).getByRole("button", { name: "Skicka avisering igen" }));
     await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Skicka avisering igen" }));
@@ -246,9 +303,31 @@ describe("AdminFeedbackDetail — the notice (#1979)", () => {
   });
 });
 
+describe("AdminFeedbackDetail — the way back (#1979)", () => {
+  it.each([
+    ["loaded", { kind: "loaded", data: ITEM }],
+    ["empty", { kind: "empty" }],
+    ["failed", { kind: "failed" }],
+  ] as const)("leads back to the list it was opened from first, in the %s state too", (_kind, region) => {
+    render(<AdminFeedbackDetail region={region} openId={ITEM.id} backHref={BACK} onStatus={accepted} onRequeue={accepted} />);
+
+    const back = within(detail()).getByRole("link", { name: "Alla inskick" });
+    expect(back).toHaveAttribute("href", BACK);
+    expect(detail().firstElementChild).toBe(back);
+  });
+});
+
 describe("AdminFeedbackDetail — focus when it opens (#1979)", () => {
   it("takes focus when it is opened from the list, and leaves it alone when the page's URL opened it", () => {
-    const { unmount } = render(<AdminFeedbackDetail region={{ kind: "loaded", data: ITEM }} onStatus={accepted} onRequeue={accepted} />);
+    const { unmount } = render(
+      <AdminFeedbackDetail
+        region={{ kind: "loaded", data: ITEM }}
+        openId={ITEM.id}
+        backHref={BACK}
+        onStatus={accepted}
+        onRequeue={accepted}
+      />,
+    );
     expect(detail()).not.toHaveFocus();
     unmount();
 
@@ -274,7 +353,13 @@ describe("AdminFeedbackDetail — focus when it opens (#1979)", () => {
 function Opening() {
   const [open, setOpen] = useState(false);
   return open ? (
-    <AdminFeedbackDetail region={{ kind: "loaded", data: ITEM }} onStatus={accepted} onRequeue={accepted} />
+    <AdminFeedbackDetail
+      region={{ kind: "loaded", data: ITEM }}
+      openId={ITEM.id}
+      backHref={BACK}
+      onStatus={accepted}
+      onRequeue={accepted}
+    />
   ) : (
     <button type="button" onClick={() => setOpen(true)}>
       Öppna

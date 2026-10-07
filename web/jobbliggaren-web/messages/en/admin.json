@@ -303,7 +303,7 @@
     },
     "scope": {
       "page": "Page: {page}",
-      "clear": "Show all pages"
+      "clear": "Show submissions from all pages"
     },
     "list": {
       "label": "Submissions",
@@ -334,7 +334,7 @@
       "application": "Application",
       "new-application": "New application",
       "statistics": "Statistics",
-      "activity-report": "Activity report",
+      "activity-report": "Activity report helper",
       "followed-companies": "Followed companies",
       "company-search": "Search companies",
       "industry-watches": "Industry watches",
@@ -346,6 +346,7 @@
     },
     "detail": {
       "label": "Selected submission",
+      "back": "All submissions",
       "notFound": "The submission does not exist.",
       "noComment": "No text.",
       "facts": {

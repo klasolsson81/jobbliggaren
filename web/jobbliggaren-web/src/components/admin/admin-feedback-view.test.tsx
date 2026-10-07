@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DEFAULT_FEEDBACK_QUERY, type AdminFeedbackQuery } from "@/lib/admin/feedback";
 import type { AdminFeedbackItem, AdminFeedbackListPage, AdminFeedbackPageSummary } from "@/lib/admin/view-models";
 import { AdminFeedbackView, type AdminFeedbackViewProps } from "./admin-feedback-view";
@@ -145,23 +145,39 @@ describe("AdminFeedbackView — the list (#1979)", () => {
     ]);
   });
 
-  it("pages with links, and offers no page that does not exist", () => {
+  it("pages with links, both controls on every page", () => {
     renderView({ list: { kind: "loaded", data: { ...LIST, page: 2, totalPages: 3, totalCount: 60 } } });
 
     const pager = screen.getByRole("navigation", { name: "Sidnavigering" });
     expect(within(pager).getByRole("status")).toHaveTextContent("Sida 2 av 3");
-    expect(within(pager).getByRole("link", { name: "Föregående" })).toHaveAttribute("href", BASE);
-    expect(within(pager).getByRole("link", { name: "Nästa" })).toHaveAttribute("href", `${BASE}?sidnr=3`);
+    const previous = within(pager).getByRole("link", { name: "Föregående" });
+    const next = within(pager).getByRole("link", { name: "Nästa" });
+    expect(previous).toHaveAttribute("href", BASE);
+    expect(previous).toHaveAttribute("rel", "prev");
+    expect(next).toHaveAttribute("href", `${BASE}?sidnr=3`);
+    expect(next).toHaveAttribute("rel", "next");
+    for (const control of [previous, next]) expect(control).not.toHaveAttribute("aria-disabled");
   });
 
-  it("shows no pager for one page, and no link back from the first page", () => {
-    const { unmount } = renderView();
+  it("shows no pager for one page", () => {
+    renderView();
     expect(screen.queryByRole("navigation", { name: "Sidnavigering" })).toBeNull();
-    unmount();
+  });
 
-    renderView({ list: { kind: "loaded", data: { ...LIST, totalPages: 2, totalCount: 30 } } });
-    const pager = screen.getByRole("navigation", { name: "Sidnavigering" });
-    expect(within(pager).queryByRole("link", { name: "Föregående" })).toBeNull();
+  it.each([
+    ["Föregående", "the first", 1, BASE],
+    ["Nästa", "the last", 2, `${BASE}?sidnr=2`],
+  ])("keeps %s at %s page, inert in its place, so the control a keyboard pressed keeps focus", (name, _bound, page, href) => {
+    renderView({ list: { kind: "loaded", data: { ...LIST, page, totalPages: 2, totalCount: 30 } } });
+
+    const control = within(screen.getByRole("navigation", { name: "Sidnavigering" })).getByRole("link", { name });
+    expect(control).toHaveAttribute("aria-disabled", "true");
+    expect(control).toHaveAttribute("href", href);
+    expect(control).not.toHaveAttribute("rel");
+    control.focus();
+    // A cancelled click: the link goes nowhere, and it is still the control that holds focus.
+    expect(fireEvent.click(control)).toBe(false);
+    expect(control).toHaveFocus();
   });
 
   it.each([
@@ -186,6 +202,9 @@ describe("AdminFeedbackView — the list (#1979)", () => {
 
     expect(listRegion()).toHaveTextContent("Sidan finns inte.");
     expect(within(listRegion()).getByRole("link", { name: "Till första sidan" })).toHaveAttribute("href", BASE);
+    // Where focus lands once the line it stood in is gone (admin-feedback-focus.tsx).
+    expect(listRegion()).toHaveAttribute("data-feedback-focus", "list");
+    expect(listRegion()).toHaveAttribute("tabindex", "-1");
   });
 
   it("shows a failed list as one alert, with no count in the filter, and keeps the summary", () => {
@@ -202,10 +221,22 @@ describe("AdminFeedbackView — the list (#1979)", () => {
     renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, page: "cv-review", status: "new", pageNumber: 2 } });
 
     const scope = present(screen.getByText("Sida: CV-granskning").parentElement);
-    expect(within(scope).getByRole("link", { name: "Visa alla sidor" })).toHaveAttribute(
+    expect(within(scope).getByRole("link", { name: "Visa inskick från alla sidor" })).toHaveAttribute(
       "href",
       `${BASE}?status=ny`,
     );
+    // The line a page name in the summary sends focus to.
+    expect(scope).toHaveAttribute("data-feedback-focus", "scope");
+    expect(scope).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("names each row for the focus that returns to it", () => {
+    renderView();
+
+    expect(within(listRegion()).getAllByRole("link").map((link) => link.getAttribute("data-feedback-item"))).toEqual([
+      FIRST,
+      SECOND,
+    ]);
   });
 });
 
@@ -300,8 +331,30 @@ describe("AdminFeedbackView — the open submission (#1979)", () => {
   const detail = () => screen.getByRole("region", { name: "Valt inskick" });
 
   it("opens nothing while the URL names nothing", () => {
-    renderView();
+    const { container } = renderView();
     expect(screen.queryByRole("region", { name: "Valt inskick" })).toBeNull();
+    expect(container.querySelector(".jp-adminfeedback")).not.toHaveClass("jp-adminfeedback--open");
+  });
+
+  it("is a step of its own below 1100 px: the filters and the list come first in the DOM, and it leads back", () => {
+    const query: AdminFeedbackQuery = { ...DEFAULT_FEEDBACK_QUERY, status: "new", pageNumber: 2, id: FIRST.toUpperCase() };
+    const { container } = renderView({
+      query,
+      list: { kind: "loaded", data: { ...LIST, page: 2, totalPages: 2 } },
+      detail: { kind: "loaded", data: ITEM },
+    });
+
+    // admin.css hides the filters and the list under this modifier below 1100 px.
+    expect(container.querySelector(".jp-adminfeedback")).toHaveClass("jp-adminfeedback--open");
+    const follows = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(statusNav(), listRegion())).toBe(true);
+    expect(follows(listRegion(), detail())).toBe(true);
+
+    const back = within(detail()).getByRole("link", { name: "Alla inskick" });
+    expect(back).toHaveAttribute("href", `${BASE}?status=ny&sidnr=2`);
+    expect(back).toHaveClass("jp-adminfeedback__back");
+    expect(detail().firstElementChild).toBe(back);
   });
 
   it("shows the whole text, the reporter, the page, the rating and the time; a status never changed has no line", () => {
@@ -368,6 +421,7 @@ describe("AdminFeedbackView — the open submission (#1979)", () => {
     renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind } });
 
     expect(detail()).toHaveTextContent(line);
+    expect(within(detail()).getByRole("link", { name: "Alla inskick" })).toHaveAttribute("href", BASE);
     expect(within(listRegion()).getAllByRole("link")).toHaveLength(2);
   });
 

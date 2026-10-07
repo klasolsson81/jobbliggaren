@@ -69,9 +69,20 @@ export function isFeedbackId(value: unknown): value is string {
 
 /**
  * What a command on a submission came to: null when it went through, otherwise the refusal in words,
- * shown where the command was asked.
+ * shown where the command was asked. `value` refuses the value chosen, the status the submission already
+ * has, and marks that field invalid; `command` is every other refusal, which leaves the field as it is.
  */
-export type AdminFeedbackRefusal = string | null;
+export type AdminFeedbackRefusal = AdminFeedbackRefused | null;
+
+export interface AdminFeedbackRefused {
+  readonly text: string;
+  readonly about: "value" | "command";
+}
+
+/** A refusal of the command rather than of a value chosen. */
+export function commandRefusal(text: string): AdminFeedbackRefused {
+  return { text, about: "command" };
+}
 
 /** The ProblemDetails titles the feedback commands answer with. */
 export const FEEDBACK_ERRORS = {
@@ -102,8 +113,8 @@ export interface AdminFeedbackQuery {
   readonly page: FeedbackPageKey | null;
   readonly pageNumber: number;
   /**
-   * The open submission as the URL names it, or null when none is open. An id of the wrong shape is
-   * kept, so the page can say that it names no submission; it never reaches the backend.
+   * The open submission as the URL names it, or null when none is open. An id of the wrong shape reads
+   * as none, so what the URL carried never reaches a link on the page or the backend.
    */
   readonly id: string | null;
   readonly window: AdminFeedbackWindow;
@@ -145,7 +156,7 @@ export function parseFeedbackQuery(params: FeedbackSearchParams): AdminFeedbackQ
     status: statusFromSlug(first(params.status)),
     page: isFeedbackPageKey(page) ? page : null,
     pageNumber: pageNumberFrom(first(params.sidnr)),
-    id: id === undefined || id === "" ? null : id,
+    id: isFeedbackId(id) ? id : null,
     window: windowFrom(first(params.fonster)),
   };
 }
@@ -178,6 +189,11 @@ export function withPageNumber(query: AdminFeedbackQuery, pageNumber: number): A
 
 export function withId(query: AdminFeedbackQuery, id: string): AdminFeedbackQuery {
   return { ...query, id };
+}
+
+/** Back to the list the open submission was opened from: its filters, page and window stay. */
+export function withoutId(query: AdminFeedbackQuery): AdminFeedbackQuery {
+  return { ...query, id: null };
 }
 
 export function withWindow(query: AdminFeedbackQuery, window: AdminFeedbackWindow): AdminFeedbackQuery {

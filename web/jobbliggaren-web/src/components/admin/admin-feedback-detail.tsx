@@ -2,12 +2,17 @@
 
 // "use client": the open submission holds the status being chosen, the command that runs, its refusal
 // and the requeue's confirmation, and moves focus to itself when it is opened from the list.
-import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Send } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FEEDBACK_STATUSES, isFeedbackStatus, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
+import {
+  FEEDBACK_STATUSES,
+  isFeedbackStatus,
+  type AdminFeedbackRefusal,
+  type AdminFeedbackRefused,
+} from "@/lib/admin/feedback";
 import { showAdminToast } from "@/lib/admin/toast-store";
 import type {
   AdminFeedbackClient,
@@ -18,6 +23,7 @@ import type {
 import { formatDateTime } from "@/lib/i18n/format";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
+import { FeedbackFocusLink } from "./admin-feedback-focus";
 import { FeedbackNoticeState, FeedbackRating, FeedbackStatusPill, useFeedbackPageLabel } from "./admin-feedback-parts";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
@@ -28,6 +34,10 @@ const LIST_SELECTOR = ".jp-adminfeedback__list";
 
 export interface AdminFeedbackDetailProps {
   readonly region: AdminRegion<AdminFeedbackItem>;
+  /** The submission the URL opens: "Alla inskick" returns focus to its row in the list. */
+  readonly openId: string;
+  /** The list it was opened from: the same URL without the open submission. */
+  readonly backHref: string;
   /** A refused read's own line; without one a failed read shows the shared line. */
   readonly failed?: string;
   readonly onStatus: (id: string, status: AdminFeedbackStatus) => Promise<AdminFeedbackRefusal>;
@@ -37,14 +47,16 @@ export interface AdminFeedbackDetailProps {
 /**
  * The open submission (#1979, ADR 0150 D1: one framed region, not a card grid). The caller keys it by the
  * submission's id, so each submission starts with no choice, no refusal and no confirmation of its own.
+ * Below 1100 px it is a step of its own, and "Alla inskick" leads back to the list it was opened from.
  */
-export function AdminFeedbackDetail({ region, failed, onStatus, onRequeue }: AdminFeedbackDetailProps) {
+export function AdminFeedbackDetail({ region, openId, backHref, failed, onStatus, onRequeue }: AdminFeedbackDetailProps) {
   const t = useTranslations("admin.feedback.detail");
   const sectionRef = useRef<HTMLElement>(null);
 
-  // A submission opened from the list takes focus, so the keyboard and a screen reader land on it. One
-  // the page opened by its own URL leaves focus where the page put it.
-  useEffect(() => {
+  // A submission opened from the list takes focus, so the keyboard and a screen reader land on it. A
+  // layout effect: below 1100 px the list steps aside, and focus must move before the row holding it is
+  // gone from the screen. One the page opened by its own URL leaves focus where the page put it.
+  useLayoutEffect(() => {
     const active = document.activeElement;
     if (!(active instanceof Element) || active.closest(LIST_SELECTOR) === null) return;
     sectionRef.current?.focus({ preventScroll: true });
@@ -58,6 +70,14 @@ export function AdminFeedbackDetail({ region, failed, onStatus, onRequeue }: Adm
       aria-labelledby="admin-feedback-detail"
       className="jp-adminfeedback__detail"
     >
+      <FeedbackFocusLink
+        href={backHref}
+        focusTo={`item:${openId.toLowerCase()}`}
+        className="jp-adminfeedback__back jp-adminfeedback__textlink"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        {t("back")}
+      </FeedbackFocusLink>
       <h2 id="admin-feedback-detail" className="sr-only">
         {t("label")}
       </h2>
@@ -70,13 +90,13 @@ export function AdminFeedbackDetail({ region, failed, onStatus, onRequeue }: Adm
   );
 }
 
-/** A refusal, shown under the control that asked for it. */
-interface Refusal {
+/** A refusal, shown with the control that asked for it. */
+interface Refusal extends AdminFeedbackRefused {
   readonly where: "status" | "notice";
-  readonly text: string;
 }
 
-type FocusTarget = "refusal" | "notice";
+/** The status field for a refusal of its value; the refusal's own line for every other. */
+type FocusTarget = "field" | "refusal" | "notice";
 
 function FeedbackItemBody({
   item,
@@ -91,6 +111,7 @@ function FeedbackItemBody({
   const format = useFormatter();
   const pageLabel = useFeedbackPageLabel();
   const statusId = useId();
+  const statusRefusalId = useId();
   const replyId = useId();
   const soonId = useId();
 
@@ -107,25 +128,27 @@ function FeedbackItemBody({
   const [running, setRunning] = useState<"status" | "notice" | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const selectRef = useRef<HTMLSelectElement>(null);
   const refusalRef = useRef<HTMLParagraphElement>(null);
   const noticeHeadingRef = useRef<HTMLHeadingElement>(null);
   const resendRef = useRef<HTMLButtonElement>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
   const requeuedFromDialog = useRef(false);
 
-  // Focus follows what a command left on screen, once it is there.
+  // Focus follows what a command left on screen, once it is there and the field is enabled again.
   useEffect(() => {
     const target = pendingFocus.current;
     if (target === null) return;
-    const element = target === "refusal" ? refusalRef.current : noticeHeadingRef.current;
-    if (element === null) return;
+    const element =
+      target === "field" ? selectRef.current : target === "refusal" ? refusalRef.current : noticeHeadingRef.current;
+    if (element === null || (element instanceof HTMLSelectElement && element.disabled)) return;
     pendingFocus.current = null;
     element.focus();
   });
 
-  function refuse(where: Refusal["where"], text: string) {
-    setRefusal({ where, text });
-    pendingFocus.current = "refusal";
+  function refuse(where: Refusal["where"], refused: AdminFeedbackRefused) {
+    setRefusal({ where, ...refused });
+    pendingFocus.current = where === "status" && refused.about === "value" ? "field" : "refusal";
   }
 
   // The button stays focusable while a command runs (DESIGN.md §6): a disabled button holding focus drops
@@ -134,7 +157,7 @@ function FeedbackItemBody({
     event.preventDefault();
     if (pending) return;
     if (chosen === item.status) {
-      refuse("status", t("detail.status.unchanged"));
+      refuse("status", { text: t("detail.status.unchanged"), about: "value" });
       return;
     }
     const status = chosen;
@@ -170,18 +193,22 @@ function FeedbackItemBody({
   }
 
   const notice = item.notice;
+  const statusRefusal = refusal?.where === "status" ? refusal : null;
 
   return (
     <>
       <div className="jp-adminfeedback__detailhead">
         <FeedbackStatusPill status={item.status} />
-        <form className="jp-adminfeedback__status" onSubmit={saveStatus}>
+        <form className="jp-adminfeedback__status" onSubmit={saveStatus} noValidate>
           <label htmlFor={statusId}>{t("detail.status.label")}</label>
           <select
+            ref={selectRef}
             id={statusId}
             className="jp-adminfeedback__select"
             value={chosen}
             disabled={pending}
+            aria-invalid={statusRefusal?.about === "value" ? true : undefined}
+            aria-describedby={statusRefusal === null ? undefined : statusRefusalId}
             onChange={(event) => {
               const value = event.target.value;
               if (isFeedbackStatus(value)) setChoice(value);
@@ -200,13 +227,19 @@ function FeedbackItemBody({
               busyLabel={t("detail.status.saving")}
             />
           </button>
+          {statusRefusal === null ? null : (
+            <p
+              ref={refusalRef}
+              id={statusRefusalId}
+              tabIndex={-1}
+              role="alert"
+              className="jp-adminfeedback__refusal"
+            >
+              {statusRefusal.text}
+            </p>
+          )}
         </form>
       </div>
-      {refusal?.where === "status" ? (
-        <p ref={refusalRef} tabIndex={-1} role="alert" className="jp-adminfeedback__refusal">
-          {refusal.text}
-        </p>
-      ) : null}
 
       {item.comment === null ? (
         <p className="jp-adminfeedback__none">{t("detail.noComment")}</p>
@@ -308,9 +341,11 @@ function FeedbackItemBody({
         <ComingSoon id={soonId} />
       </div>
 
+      {/* A notice sent again destroys nothing, and the body says what it risks: the neutral tone. */}
       <AdminConfirmDialog
         key={confirming ? "open" : "closed"}
         open={confirming}
+        tone="neutral"
         title={t("detail.notice.confirm.title")}
         body={t("detail.notice.confirm.body")}
         confirmLabel={t("detail.notice.confirm.confirm")}
@@ -322,7 +357,7 @@ function FeedbackItemBody({
             requeuedFromDialog.current = true;
             setConfirming(false);
           }
-          return outcome;
+          return outcome?.text ?? null;
         }}
         onCancel={() => setConfirming(false)}
         onCloseAutoFocus={(event) => {

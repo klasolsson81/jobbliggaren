@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import {
+  commandRefusal,
   FEEDBACK_ERRORS,
   FEEDBACK_ROUTE,
   isFeedbackId,
@@ -53,18 +54,19 @@ function sharedRefusal(t: Translate, res: Response): string | null {
  * #1979 — moves a submission to another status. A change that went through, and a submission that is no
  * longer there, revalidate the page, so it shows what the backend holds. A refusal the backend documents
  * changed nothing; a 5xx or a lost response may sit over a change that was saved, so it claims nothing.
+ * Only the status the submission already has refuses the value chosen; every other refusal is the command's.
  */
 export async function changeFeedbackStatusAction(
   id: string,
   status: AdminFeedbackStatus,
 ): Promise<AdminFeedbackRefusal> {
   const t = await feedbackCopy();
-  if (!isFeedbackId(id)) return t("errors.gone");
+  if (!isFeedbackId(id)) return commandRefusal(t("errors.gone"));
   // Declared unreachable for a typed caller: a direct Server Action POST can send anything.
-  if (!isFeedbackStatus(status)) return t("errors.statusRefused");
+  if (!isFeedbackStatus(status)) return commandRefusal(t("errors.statusRefused"));
 
   const admin = await adminSession(t);
-  if ("refusal" in admin) return admin.refusal;
+  if ("refusal" in admin) return commandRefusal(admin.refusal);
 
   let res: Response;
   try {
@@ -73,7 +75,7 @@ export async function changeFeedbackStatusAction(
       body: JSON.stringify({ status: wireFeedbackStatus(status) }),
     });
   } catch {
-    return t("errors.statusUnknown");
+    return commandRefusal(t("errors.statusUnknown"));
   }
 
   if (res.status === 204) {
@@ -81,18 +83,18 @@ export async function changeFeedbackStatusAction(
     return null;
   }
   const shared = sharedRefusal(t, res);
-  if (shared !== null) return shared;
+  if (shared !== null) return commandRefusal(shared);
   switch (res.status) {
     case 400:
       return (await readProblemTitle(res)) === FEEDBACK_ERRORS.statusUnchanged
-        ? t("detail.status.unchanged")
-        : t("errors.statusRefused");
+        ? { text: t("detail.status.unchanged"), about: "value" }
+        : commandRefusal(t("errors.statusRefused"));
     case 404:
-      if ((await readProblemTitle(res)) !== FEEDBACK_ERRORS.notFound) return t("errors.statusUnknown");
+      if ((await readProblemTitle(res)) !== FEEDBACK_ERRORS.notFound) return commandRefusal(t("errors.statusUnknown"));
       revalidatePath(FEEDBACK_ROUTE);
-      return t("errors.gone");
+      return commandRefusal(t("errors.gone"));
     default:
-      return t("errors.statusUnknown");
+      return commandRefusal(t("errors.statusUnknown"));
   }
 }
 
@@ -107,12 +109,12 @@ export async function requeueFeedbackNotificationAction(
   acknowledgeDuplicateRisk: boolean,
 ): Promise<AdminFeedbackRefusal> {
   const t = await feedbackCopy();
-  if (!isFeedbackId(id)) return t("errors.gone");
+  if (!isFeedbackId(id)) return commandRefusal(t("errors.gone"));
   // Declared unreachable for a typed caller: a direct Server Action POST can send anything.
-  if (typeof acknowledgeDuplicateRisk !== "boolean") return t("errors.noticeRefused");
+  if (typeof acknowledgeDuplicateRisk !== "boolean") return commandRefusal(t("errors.noticeRefused"));
 
   const admin = await adminSession(t);
-  if ("refusal" in admin) return admin.refusal;
+  if ("refusal" in admin) return commandRefusal(admin.refusal);
 
   let res: Response;
   try {
@@ -121,7 +123,7 @@ export async function requeueFeedbackNotificationAction(
       body: JSON.stringify({ acknowledgeDuplicateRisk }),
     });
   } catch {
-    return t("errors.noticeUnknown");
+    return commandRefusal(t("errors.noticeUnknown"));
   }
 
   if (res.status === 204) {
@@ -129,22 +131,22 @@ export async function requeueFeedbackNotificationAction(
     return null;
   }
   const shared = sharedRefusal(t, res);
-  if (shared !== null) return shared;
+  if (shared !== null) return commandRefusal(shared);
   switch (res.status) {
     case 400:
-      return t("errors.noticeRefused");
+      return commandRefusal(t("errors.noticeRefused"));
     case 404:
-      if ((await readProblemTitle(res)) !== FEEDBACK_ERRORS.notFound) return t("errors.noticeUnknown");
+      if ((await readProblemTitle(res)) !== FEEDBACK_ERRORS.notFound) return commandRefusal(t("errors.noticeUnknown"));
       revalidatePath(FEEDBACK_ROUTE);
-      return t("errors.gone");
+      return commandRefusal(t("errors.gone"));
     case 409: {
       const title = await readProblemTitle(res);
       revalidatePath(FEEDBACK_ROUTE);
-      return title === FEEDBACK_ERRORS.notificationNotRequeueable
-        ? t("errors.noticeAlreadyQueued")
-        : t("errors.noticeChanged");
+      return commandRefusal(
+        title === FEEDBACK_ERRORS.notificationNotRequeueable ? t("errors.noticeAlreadyQueued") : t("errors.noticeChanged"),
+      );
     }
     default:
-      return t("errors.noticeUnknown");
+      return commandRefusal(t("errors.noticeUnknown"));
   }
 }

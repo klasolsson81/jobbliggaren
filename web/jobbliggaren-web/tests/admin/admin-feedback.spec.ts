@@ -1,14 +1,15 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join, win32 } from "node:path";
-import { FEEDBACK_IDS } from "./fixtures";
+import { FEEDBACK_IDS, manyFeedback } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
  * `/admin/feedback` in a real browser against the production build (#1979, ADR 0150 D2): every region's
- * state rendered from a real response of the fixture backend, the notice mail's link, a status change and
- * both requeues with their receipts, and each state at 1280 and 375 px with no sideways page scroll.
- * Set ADMIN_FEEDBACK_SCREENSHOT_DIR to an external C:/tmp directory to keep a screenshot of each state.
+ * state rendered from a real response of the fixture backend, the notice mail's link at both widths, a
+ * status change and both requeues with their receipts, where focus lands after every link that removes
+ * itself, and each state at 1280 and 375 px with no sideways page scroll. Set
+ * ADMIN_FEEDBACK_SCREENSHOT_DIR to an external C:/tmp directory to keep a screenshot of each state.
  */
 
 let harness: Harness;
@@ -35,12 +36,19 @@ test.afterEach(() => {
 
 const PAGE = "/admin/feedback";
 const ids = FEEDBACK_IDS;
+/** The phone the design review measured the notice mail's link on. */
+const PHONE = { width: 375, height: 812 };
 
 const list = (page: Page) => page.getByRole("region", { name: "Inskick", exact: true });
+const rows = (page: Page) => list(page).locator(".jp-adminfeedback__list > li");
+const firstRow = (page: Page) => list(page).locator(".jp-adminfeedback__list a").first();
+const row = (page: Page, id: string) => list(page).locator(`[data-feedback-item="${id}"]`);
 const detailRegion = (page: Page) => page.getByRole("region", { name: "Valt inskick", exact: true });
 const summary = (page: Page) => page.getByRole("region", { name: "Betyg per sida", exact: true });
 const statusNav = (page: Page) => page.getByRole("navigation", { name: "Filtrera på status" });
 const windowNav = (page: Page) => page.getByRole("navigation", { name: "Period" });
+const pager = (page: Page) => page.getByRole("navigation", { name: "Sidnavigering" });
+const scopeLine = (page: Page) => page.locator(".jp-adminfeedback__scope");
 const toast = (page: Page) => page.locator(".jp-toast");
 /** The value a `<dt>` names in the open submission's facts. */
 const fact = (scope: Locator, term: string) =>
@@ -66,8 +74,13 @@ async function capture(page: Page, state: string) {
   const directory = screenshotDirectory();
   if (directory === null) return;
   mkdirSync(directory, { recursive: true });
+  // A full-page capture draws the sticky header where the page is scrolled to, over the content there:
+  // capture from the top, and put the page back where the test left it.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: join(directory, `${state}-${page.viewportSize()?.width ?? 1280}.png`),
     animations: "disabled", fullPage: true });
+  await page.evaluate((y) => window.scrollTo(0, y), scrolled);
 }
 
 /** The state as it stands, at 1280 and at 375 px, where the page must not scroll sideways. */
@@ -78,6 +91,19 @@ async function atBothWidths(page: Page, state: string) {
   expect(overflow, `${state} scrolls sideways at 375px`).toBeLessThanOrEqual(0);
   await capture(page, state);
   await page.setViewportSize({ width: 1280, height: 900 });
+}
+
+/** A link's height against the touch floor: 32 px in the app, 44 px at 768 px and below (DESIGN.md §5). */
+async function expectFloor(link: Locator, floor: 32 | 44) {
+  const box = await link.boundingBox();
+  expect(box, "the link is not rendered").not.toBeNull();
+  expect(box?.height ?? 0, `${await link.textContent()} is under the ${floor} px floor`).toBeGreaterThanOrEqual(floor);
+}
+
+/** Presses the link from the keyboard, as the design review measured focus. */
+async function pressEnter(link: Locator) {
+  await link.focus();
+  await link.press("Enter");
 }
 
 test("lists every submission newest first with its counts, and filters by a status", async ({ page }) => {
@@ -122,7 +148,7 @@ test("lists every submission newest first with its counts, and filters by a stat
   expect(harness.feedbackQueries).toContain("/api/v1/admin/feedback?status=New&pageNumber=1&pageSize=25");
 });
 
-test("the notice mail's link opens its submission and leaves focus where the page starts; one opened from the list takes focus", async ({ page }) => {
+test("the notice mail's link opens its submission beside the list and leaves focus where the page starts; one opened from the list takes focus", async ({ page }) => {
   await page.goto(`${PAGE}?id=${ids.failed}`);
 
   const detail = detailRegion(page);
@@ -132,7 +158,10 @@ test("the notice mail's link opens its submission and leaves focus where the pag
   await expect(fact(detail, "Läge")).toHaveText("Misslyckades");
   await expect(fact(detail, "Försök")).toHaveText("5");
   await expect(fact(detail, "Fönster")).toHaveText("1280 × 720");
-  await expect(list(page).getByRole("link", { name: /CV-granskning/ })).toHaveAttribute("aria-current", "true");
+  await expect(row(page, ids.failed)).toHaveAttribute("aria-current", "true");
+  // At 1100 px and wider the list stands beside the submission, so there is no way back to offer.
+  await expect(list(page)).toBeVisible();
+  await expect(detail.getByRole("link", { name: "Alla inskick" })).toBeHidden();
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
   expect(harness.requests).toContain(`GET /api/v1/admin/feedback/${ids.failed}`);
   await atBothWidths(page, "mail-link");
@@ -141,6 +170,157 @@ test("the notice mail's link opens its submission and leaves focus where the pag
   await expect(page).toHaveURL(`${PAGE}?id=${ids.accepted}`);
   await expect(detail).toContainText("Det vore bra att kunna sortera sparade annonser på sista ansökningsdag.");
   await expect(detail).toBeFocused();
+});
+
+test("the open submission's facts, notice and browser report share one value column", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const detail = detailRegion(page);
+  await expect(fact(detail, "Nästa försök")).toBeVisible();
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    const columns = await detail.locator("dl").evaluateAll((lists) =>
+      lists.map((dl) => ({
+        values: [...dl.querySelectorAll("dd")].map((dd) => Math.round(dd.getBoundingClientRect().left)),
+        // A label that wraps, or runs past its column, is wider than the column.
+        crowded: [...dl.querySelectorAll("dt")]
+          .filter((dt) => {
+            const words = document.createRange();
+            words.selectNodeContents(dt);
+            return words.getClientRects().length > 1 || dt.scrollWidth > dt.clientWidth;
+          })
+          .map((dt) => dt.textContent),
+      })),
+    );
+    expect(columns, `${width}px: the facts, the notice and the report`).toHaveLength(3);
+    expect(new Set(columns.flatMap((column) => column.values)).size, `${width}px: one value column`).toBe(1);
+    expect(columns.flatMap((column) => column.crowded), `${width}px: a label wider than its column`).toEqual([]);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await atBothWidths(page, "label-column");
+});
+
+test("on a phone the notice mail's link lands on its submission as a step of its own, and Alla inskick leads back to its row", async ({ page }) => {
+  for (const record of manyFeedback(30)) harness.feedback.set(record.id, record);
+  await page.setViewportSize(PHONE);
+  await page.goto(`${PAGE}?id=${ids.unknown}`);
+
+  const detail = detailRegion(page);
+  const back = detail.getByRole("link", { name: "Alla inskick" });
+  // The filters and the 25 rows above it step aside: the submission is on the first screen.
+  await expect(statusNav(page)).toBeHidden();
+  await expect(list(page)).toBeHidden();
+  await expect(back).toBeVisible();
+  await expect(back).toBeInViewport();
+  await expect(fact(detail, "Läge")).toHaveText("Utfall okänt");
+  expect(await detail.evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(PHONE.height / 2);
+  await expect(back).toHaveAttribute("href", PAGE);
+  await expectFloor(back, 44);
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  await capture(page, "phone-mail-link");
+
+  // Back to the list it was opened from, with focus on the submission's own row.
+  await pressEnter(back);
+  await expect(page).toHaveURL(PAGE);
+  await expect(detail).toHaveCount(0);
+  await expect(statusNav(page)).toBeVisible();
+  await expect(row(page, ids.unknown)).toBeFocused();
+  await expect(row(page, ids.unknown)).toBeInViewport();
+  await capture(page, "phone-back-to-list");
+
+  // A row opened from the list is the step again, and the submission takes focus at its top.
+  await row(page, ids.accepted).click();
+  await expect(page).toHaveURL(`${PAGE}?id=${ids.accepted}`);
+  await expect(detail).toBeFocused();
+  await expect(list(page)).toBeHidden();
+  await expect(back).toBeInViewport();
+  await capture(page, "phone-opened-from-list");
+
+  // A submission past the list's first page goes back to the first row of the list that is shown.
+  await page.goto(`${PAGE}?id=${manyFeedback(30)[29]?.id ?? ""}`);
+  await pressEnter(detail.getByRole("link", { name: "Alla inskick" }));
+  await expect(page).toHaveURL(PAGE);
+  await expect(firstRow(page)).toBeFocused();
+});
+
+test("the pager keeps both controls on every page, and the one pressed keeps focus at a bound", async ({ page }) => {
+  for (const record of manyFeedback(30)) harness.feedback.set(record.id, record);
+  await page.goto(PAGE);
+
+  const position = pager(page).getByRole("status");
+  const previous = pager(page).getByRole("link", { name: "Föregående" });
+  const next = pager(page).getByRole("link", { name: "Nästa" });
+  await expect(position).toHaveText("Sida 1 av 2");
+  await expect(rows(page)).toHaveCount(25);
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  await expect(next).not.toHaveAttribute("aria-disabled", "true");
+  await atBothWidths(page, "pager-first-page");
+
+  await pressEnter(next);
+  await expect(page).toHaveURL(`${PAGE}?sidnr=2`);
+  await expect(position).toHaveText("Sida 2 av 2");
+  await expect(rows(page)).toHaveCount(11);
+  await expect(next).toHaveAttribute("aria-disabled", "true");
+  await expect(next).toBeFocused();
+  await expect(next).toBeInViewport();
+
+  // At its bound the control goes nowhere and keeps focus.
+  await next.press("Enter");
+  await expect(page).toHaveURL(`${PAGE}?sidnr=2`);
+  await expect(next).toBeFocused();
+  await atBothWidths(page, "pager-last-page");
+
+  await pressEnter(previous);
+  await expect(page).toHaveURL(PAGE);
+  await expect(position).toHaveText("Sida 1 av 2");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  await expect(previous).toBeFocused();
+  await expect(previous).toBeInViewport();
+});
+
+test("a page name in the summary filters the list and focus moves to the line that says so; lifting it lands on the list", async ({ page }) => {
+  await page.goto(PAGE);
+
+  const jobs = summary(page).getByRole("link", { name: "Jobb", exact: true });
+  await expectFloor(jobs, 32);
+  await pressEnter(jobs);
+  await expect(page).toHaveURL(`${PAGE}?sida=jobs`);
+  await expect(scopeLine(page)).toContainText("Sida: Jobb");
+  await expect(scopeLine(page)).toBeFocused();
+  await expect(scopeLine(page)).toBeInViewport();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(jobs).toHaveAttribute("aria-current", "true");
+  const clear = scopeLine(page).getByRole("link", { name: "Visa inskick från alla sidor" });
+  await expectFloor(clear, 32);
+  await atBothWidths(page, "scope");
+
+  await page.setViewportSize(PHONE);
+  await expectFloor(clear, 44);
+  await expectFloor(jobs, 44);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  await pressEnter(clear);
+  await expect(page).toHaveURL(PAGE);
+  await expect(scopeLine(page)).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(6);
+  await expect(firstRow(page)).toBeFocused();
+});
+
+test("a page past the last says so, and its link to the first page lands focus on the list's first submission", async ({ page }) => {
+  await page.goto(`${PAGE}?sidnr=9`);
+
+  await expect(list(page)).toContainText("Sidan finns inte.");
+  const firstPage = list(page).getByRole("link", { name: "Till första sidan" });
+  await expectFloor(firstPage, 32);
+  await atBothWidths(page, "page-missing");
+  await page.setViewportSize(PHONE);
+  await expectFloor(firstPage, 44);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  await pressEnter(firstPage);
+  await expect(page).toHaveURL(PAGE);
+  await expect(rows(page)).toHaveCount(6);
+  await expect(firstRow(page)).toBeFocused();
 });
 
 test("a submission whose reporter and browser are unknown shows en-dashes, never 0", async ({ page }) => {
@@ -173,6 +353,49 @@ test("a status change goes through its Server Action, confirms with a receipt an
   await atBothWidths(page, "status-receipt");
 });
 
+test("the status a submission already has is refused on the field; a refused command is said under it and leaves the field unmarked", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const detail = detailRegion(page);
+  const select = detail.getByRole("combobox", { name: "Status" });
+  const save = detail.getByRole("button", { name: "Spara status" });
+  const refusal = detail.locator(".jp-adminfeedback__status").getByRole("alert");
+  await save.click();
+
+  await expect(refusal).toHaveText("Inskicket har redan den statusen.");
+  await expect(select).toHaveAttribute("aria-invalid", "true");
+  const refusalId = await refusal.getAttribute("id");
+  expect(refusalId).not.toBeNull();
+  await expect(select).toHaveAttribute("aria-describedby", refusalId ?? "");
+  await expect(select).toBeFocused();
+  const [field, words] = [await select.boundingBox(), await refusal.boundingBox()];
+  expect(words?.y ?? 0, "the refusal stands under its field").toBeGreaterThanOrEqual((field?.y ?? 0) + (field?.height ?? 0));
+  expect(harness.feedbackCommands).toEqual([]);
+  await atBothWidths(page, "status-unchanged");
+
+  // The backend refuses the value too, as it does when another administrator set it first.
+  const record = harness.feedback.get(ids.queued);
+  if (record === undefined) throw new Error("the fixture has no queued submission");
+  harness.feedback.set(ids.queued, { ...record, status: "InProgress" });
+  await select.selectOption({ label: "Pågår" });
+  await save.click();
+  await expect(refusal).toHaveText("Inskicket har redan den statusen.");
+  await expect(select).toHaveAttribute("aria-invalid", "true");
+  await expect(select).toBeFocused();
+  expect(commands()).toEqual([{ id: ids.queued, command: "status", body: { status: "InProgress" } }]);
+
+  // A refusal of the command, not of the value: said under the field, which stays unmarked.
+  harness.mode = "rateLimited";
+  await select.selectOption({ label: "Åtgärdad" });
+  await save.click();
+  await expect(refusal).toHaveText("För många förfrågningar. Försök igen om 6 sekunder.");
+  await expect(select).not.toHaveAttribute("aria-invalid", "true");
+  await expect(select).toHaveAttribute("aria-describedby", (await refusal.getAttribute("id")) ?? "");
+  await expect(refusal).toBeFocused();
+  await expect(toast(page)).toHaveCount(0);
+  await atBothWidths(page, "status-refused");
+});
+
 test("a failed notice is sent again at a press, with no question, and lands on the notice", async ({ page }) => {
   await page.goto(`${PAGE}?id=${ids.failed}`);
 
@@ -190,7 +413,7 @@ test("a failed notice is sent again at a press, with no question, and lands on t
   await atBothWidths(page, "requeue-failed-receipt");
 });
 
-test("a notice whose outcome is unknown is sent again only after the duplicate warning", async ({ page }) => {
+test("a notice whose outcome is unknown is sent again only after the duplicate warning, asked in the neutral tone", async ({ page }) => {
   await page.goto(`${PAGE}?id=${ids.unknown}`);
 
   const detail = detailRegion(page);
@@ -201,6 +424,11 @@ test("a notice whose outcome is unknown is sent again only after the duplicate w
   const question = page.getByRole("alertdialog", { name: "Skicka aviseringen igen?" });
   await expect(question).toContainText("Aviseringen kan redan ha kommit fram. Ett nytt utskick kan ge en dubblett.");
   await expect(question.getByRole("button", { name: "Avbryt" })).toBeFocused();
+  // Nothing is destroyed and the body names the risk: the dialog's one primary, never danger.
+  const confirm = question.getByRole("button", { name: "Skicka avisering igen" });
+  await expect(confirm).toHaveClass(/\bjp-btn--primary\b/);
+  await expect(confirm).not.toHaveClass(/\bjp-btn--danger\b/);
+  await expect(question.locator(".jp-btn--primary")).toHaveCount(1);
   await atBothWidths(page, "requeue-unknown-question");
   await question.getByRole("button", { name: "Avbryt" }).click();
   await expect(question).toBeHidden();
@@ -208,7 +436,7 @@ test("a notice whose outcome is unknown is sent again only after the duplicate w
   expect(harness.feedbackCommands).toEqual([]);
 
   await resend.click();
-  await question.getByRole("button", { name: "Skicka avisering igen" }).click();
+  await confirm.click();
   await expect(question).toBeHidden();
   await expect(toast(page)).toContainText("Aviseringen är köad igen.");
   await expect(fact(detail, "Läge")).toHaveText("Köad");
@@ -318,16 +546,22 @@ test("whether feedback is open: no line while open, the reason while closed, and
   await atBothWidths(page, "availability-unreadable");
 });
 
-test("an id that names no submission says so, and one of the wrong shape never reaches the backend", async ({ page }) => {
+test("an id that names no submission says so; one of the wrong shape opens nothing, reaches no backend and no link", async ({ page }) => {
   const unknownId = "00000000-0000-4000-8000-000000000799";
   await page.goto(`${PAGE}?id=${unknownId}`);
 
-  await expect(detailRegion(page)).toHaveText("Valt inskickInskicket finns inte.");
+  await expect(detailRegion(page)).toContainText("Inskicket finns inte.");
   await expect(list(page).getByRole("link")).toHaveCount(6);
   expect(harness.requests).toContain(`GET /api/v1/admin/feedback/${unknownId}`);
   await atBothWidths(page, "unknown-id");
 
   await page.goto(`${PAGE}?id=inte-ett-id`);
-  await expect(detailRegion(page)).toHaveText("Valt inskickInskicket finns inte.");
+  await expect(detailRegion(page)).toHaveCount(0);
+  await expect(list(page).getByRole("link")).toHaveCount(6);
   expect(harness.requests.filter((route) => route.includes("inte-ett-id"))).toEqual([]);
+  const hrefs = await page.locator("a[href^='/admin/feedback']").evaluateAll((links) =>
+    links.map((link) => link.getAttribute("href") ?? ""),
+  );
+  expect(hrefs.length).toBeGreaterThan(0);
+  expect(hrefs.filter((href) => href.includes("inte-ett-id"))).toEqual([]);
 });

@@ -7,6 +7,7 @@ import {
   isFeedbackPageKey,
   parseFeedbackQuery,
   withId,
+  withoutId,
   withPage,
   withPageNumber,
   withStatus,
@@ -48,13 +49,20 @@ describe("parseFeedbackQuery (#1979)", () => {
     ["a page number past the cap", { sidnr: "99999" }, { pageNumber: 1 }],
     ["a window the summary does not offer", { fonster: "14" }, { window: 30 }],
     ["an empty id", { id: "  " }, { id: null }],
+    ["an id of the wrong shape", { id: "not-a-guid" }, { id: null }],
+    ["an id with a path behind it", { id: `${ID}/status` }, { id: null }],
   ])("reads %s as the default", (_label, params, expected) => {
     expect(parseFeedbackQuery(params)).toEqual({ ...DEFAULT_FEEDBACK_QUERY, ...expected });
   });
 
-  it("keeps an id of the wrong shape, so the page can say it names nothing, and reads the first of a repeated key", () => {
-    expect(parseFeedbackQuery({ id: "not-a-guid" }).id).toBe("not-a-guid");
+  it("never writes an id of the wrong shape into a link", () => {
+    const query = parseFeedbackQuery({ status: "ny", id: "kalle@example.test" });
+    expect(feedbackHref(BASE, withPageNumber(query, 2))).toBe(`${BASE}?status=ny&sidnr=2`);
+  });
+
+  it("reads the first of a repeated key", () => {
     expect(parseFeedbackQuery({ status: ["avstar", "ny"] }).status).toBe("declined");
+    expect(parseFeedbackQuery({ id: [ID, "not-a-guid"] }).id).toBe(ID);
   });
 });
 
@@ -77,6 +85,12 @@ describe("feedbackHref (#1979)", () => {
     expect(withPageNumber(query, 2)).toEqual({ ...query, pageNumber: 2 });
     expect(withWindow(query, 7)).toEqual({ ...query, window: 7 });
     expect(withId(DEFAULT_FEEDBACK_QUERY, ID)).toEqual({ ...DEFAULT_FEEDBACK_QUERY, id: ID });
+  });
+
+  it("leads back from an open submission to the list it was opened from", () => {
+    const query = { status: "inProgress", page: "jobs", pageNumber: 2, id: ID, window: 7 } as const;
+    expect(withoutId(query)).toEqual({ ...query, id: null });
+    expect(feedbackHref(BASE, withoutId(query))).toBe(`${BASE}?status=pagar&sida=jobs&sidnr=2&fonster=7`);
   });
 });
 

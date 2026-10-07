@@ -793,7 +793,9 @@
 }
 
 /* ── Feedback: master/detail ─────────────────────────────────────────────────────────── */
-.jp-adminfeedback {
+/* The list and the open submission side by side. Below 1100 px the open submission is a step of
+   its own, and the wrapper's `--open` hides the filters and the list (the responsive block). */
+.jp-adminfeedback__grid {
   display: grid;
   grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 24px;
@@ -1009,6 +1011,8 @@
   font-variant-numeric: tabular-nums;
 }
 .jp-adminfeedback__itemhead .jp-adminfeedback__time { margin-left: auto; }
+/* The pill keeps to the status row's line when a refusal under the field makes the form taller. */
+.jp-adminfeedback__detailhead { align-items: baseline; }
 .jp-adminfeedback__excerpt {
   font-size: var(--text-ui);
   color: var(--jp-ink-1);
@@ -1071,6 +1075,29 @@
 .jp-adminfeedback__block .jp-statusDot { font-size: var(--text-body-sm); }
 /* The current page filter's row in the summary. */
 .jp-adminfeedback__pagelink[aria-current="true"] { font-weight: var(--jp-fw-semibold); }
+/* The summary's page names, the filter's lift, "Till första sidan" and "Alla inskick": text links at
+   the in-app floor (DESIGN.md §5), 44 px at 768 px and below (the responsive block). */
+.jp-adminfeedback__textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+/* Only where the open submission is a step of its own (the responsive block). */
+.jp-adminfeedback__back {
+  display: none;
+  align-self: flex-start;
+}
+/* A refusal of the status, under its field. `contain` keeps its words from widening the form, so
+   the form stays beside the pill and the words wrap to its width. */
+.jp-adminfeedback__status .jp-adminfeedback__refusal {
+  flex-basis: 100%;
+  contain: inline-size;
+}
+/* One label column for the open submission's facts, its notice and the browser's report; the
+   report's box pads its own, so its column is that much narrower and the values line up. */
+.jp-adminfeedback__detail .jp-admindl { grid-template-columns: 9rem minmax(0, 1fr); }
+.jp-adminfeedback__detail .jp-adminfeedback__meta { grid-template-columns: calc(9rem - 16px) minmax(0, 1fr); }
 
 /* ── Log and delivery cells ──────────────────────────────────────────────────────────────── */
 .jp-table .jp-admintable__num {
@@ -1128,7 +1155,13 @@
   .jp-admincard[data-span="5"],
   .jp-admincard[data-span="7"],
   .jp-admincard[data-span="8"] { grid-column: span 12; }
-  .jp-adminfeedback { grid-template-columns: minmax(0, 1fr); }
+  .jp-adminfeedback__grid { grid-template-columns: minmax(0, 1fr); }
+  /* An open submission is a step of its own (#1979): the status filter, the page filter and the list
+     step aside, and "Alla inskick" leads back. The DOM order stays the visual order. */
+  .jp-adminfeedback--open > .jp-subnav,
+  .jp-adminfeedback--open > .jp-adminfeedback__scope,
+  .jp-adminfeedback--open .jp-adminfeedback__master { display: none; }
+  .jp-adminfeedback__back { display: inline-flex; }
 }
 @media (max-width: 768px) {
   /* Touch floor (DESIGN.md §5): the card links, the sort controls and the account buttons reach 44 px. */
@@ -1140,7 +1173,8 @@
     align-items: center;
     min-height: 44px;
   }
-  .jp-adminfeedback__select { min-height: 44px; }
+  .jp-adminfeedback__select,
+  .jp-adminfeedback__textlink { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
   .jp-adminfeedback__detail { padding: 20px 16px; }

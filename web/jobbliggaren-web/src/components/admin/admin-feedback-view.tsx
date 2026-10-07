@@ -7,6 +7,7 @@ import {
   feedbackHref,
   isFeedbackPageKey,
   withId,
+  withoutId,
   withPage,
   withPageNumber,
   withStatus,
@@ -26,6 +27,7 @@ import type {
 } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
 import { AdminFeedbackDetail } from "./admin-feedback-detail";
+import { FeedbackFocusLink, FeedbackFocusReceiver, FeedbackPagerLink } from "./admin-feedback-focus";
 import { FeedbackNoticeState, FeedbackRating, FeedbackStatusPill, useFeedbackPageLabel } from "./admin-feedback-parts";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminTableScroll } from "./admin-table-scroll";
@@ -56,8 +58,12 @@ const sameId = (left: string, right: string | null) => right !== null && left.to
  * notice mail's link opens the submission it names, and every filter, page and window is a link. Each
  * region is one state of ADR 0150 D2's union, and one failing read never blanks another.
  *
+ * Below 1100 px an open submission is a step of its own: the filter, the page filter and the list step
+ * aside, and the submission leads back to them. The DOM order is the visual order at every width.
+ *
  * No directive: on the live page the list, the filters and the summary render on the server, and only the
- * open submission, which holds a status choice and runs commands, is a client island.
+ * open submission, which holds a status choice and runs commands, and the links that move focus are
+ * client islands.
  */
 export function AdminFeedbackView({
   basePath,
@@ -71,15 +77,21 @@ export function AdminFeedbackView({
   onRequeue,
 }: AdminFeedbackViewProps) {
   const t = useTranslations("admin.feedback");
+  const open = detail !== null;
 
   return (
     <>
       <FeedbackAvailabilityLine region={availability} />
-      <div>
+      <div className={open ? "jp-adminfeedback jp-adminfeedback--open" : "jp-adminfeedback"}>
         <FeedbackStatusFilter basePath={basePath} query={query} list={list} />
         <FeedbackScope basePath={basePath} query={query} />
-        <div className={detail === null ? undefined : "jp-adminfeedback"}>
-          <section aria-labelledby="admin-feedback-list" className="jp-adminfeedback__master">
+        <div className={open ? "jp-adminfeedback__grid" : undefined}>
+          <section
+            aria-labelledby="admin-feedback-list"
+            tabIndex={-1}
+            data-feedback-focus="list"
+            className="jp-adminfeedback__master"
+          >
             <h2 id="admin-feedback-list" className="sr-only">
               {t("list.label")}
             </h2>
@@ -89,6 +101,8 @@ export function AdminFeedbackView({
             <AdminFeedbackDetail
               key={query.id ?? ""}
               region={detail}
+              openId={query.id ?? ""}
+              backHref={feedbackHref(basePath, withoutId(query))}
               failed={failedLines?.detail}
               onStatus={onStatus}
               onRequeue={onRequeue}
@@ -97,6 +111,7 @@ export function AdminFeedbackView({
         </div>
       </div>
       <FeedbackSummary basePath={basePath} query={query} region={summary} failed={failedLines?.summary} />
+      <FeedbackFocusReceiver location={feedbackHref(basePath, query)} />
     </>
   );
 }
@@ -155,15 +170,24 @@ function FeedbackStatusFilter({
   );
 }
 
-/** The page filter in force, set from the summary's page names, and the link that lifts it. */
+/**
+ * The page filter in force, set from the summary's page names, and the link that lifts it. The line takes
+ * focus after a page name sets it; lifting it leaves focus on the list's first submission.
+ */
 function FeedbackScope({ basePath, query }: { readonly basePath: string; readonly query: AdminFeedbackQuery }) {
   const t = useTranslations("admin.feedback.scope");
   const pageLabel = useFeedbackPageLabel();
   if (query.page === null) return null;
   return (
-    <p className="jp-adminfeedback__scope">
+    <p className="jp-adminfeedback__scope" tabIndex={-1} data-feedback-focus="scope">
       <span>{t("page", { page: pageLabel(query.page) })}</span>
-      <Link href={feedbackHref(basePath, withPage(query, null))}>{t("clear")}</Link>
+      <FeedbackFocusLink
+        href={feedbackHref(basePath, withPage(query, null))}
+        focusTo="list"
+        className="jp-adminfeedback__textlink"
+      >
+        {t("clear")}
+      </FeedbackFocusLink>
     </p>
   );
 }
@@ -187,7 +211,14 @@ function FeedbackList({
     // A page number past the last page: the submissions exist, this page of them does not.
     return (
       <p className="jp-adminsoon jp-adminsoon--region">
-        {t("pageMissing")} <Link href={feedbackHref(basePath, withPageNumber(query, 1))}>{t("firstPage")}</Link>
+        {t("pageMissing")}{" "}
+        <FeedbackFocusLink
+          href={feedbackHref(basePath, withPageNumber(query, 1))}
+          focusTo="list"
+          className="jp-adminfeedback__textlink"
+        >
+          {t("firstPage")}
+        </FeedbackFocusLink>
       </p>
     );
   }
@@ -230,7 +261,13 @@ function FeedbackListLink({
   const format = useFormatter();
   const pageLabel = useFeedbackPageLabel();
   return (
-    <Link href={href} scroll={false} className="jp-adminfeedback__item" aria-current={open ? "true" : undefined}>
+    <Link
+      href={href}
+      scroll={false}
+      className="jp-adminfeedback__item"
+      data-feedback-item={item.id.toLowerCase()}
+      aria-current={open ? "true" : undefined}
+    >
       <span className="jp-adminfeedback__itemhead">
         <FeedbackStatusPill status={item.status} />
         <span className="jp-adminfeedback__page">{pageLabel(item.page)}</span>
@@ -249,7 +286,7 @@ function FeedbackListLink({
   );
 }
 
-/** "Sida 2 av 3" with Föregående and Nästa as links; a page that does not exist is never offered. */
+/** "Sida 2 av 3" with Föregående and Nästa on every page, in the same place (`FeedbackPagerLink`). */
 function FeedbackPager({
   basePath,
   query,
@@ -263,32 +300,32 @@ function FeedbackPager({
 }) {
   const t = useTranslations("admin.users.pager");
   if (pages <= 1) return null;
+  const first = page <= 1;
+  const last = page >= pages;
   return (
     <nav className="jp-adminpager" aria-label={t("label")}>
       <p className="jp-adminpager__position" role="status">
         {t("position", { page, pages })}
       </p>
       <div className="jp-adminpager__buttons">
-        {page > 1 ? (
-          <Link
-            href={feedbackHref(basePath, withPageNumber(query, page - 1))}
-            rel="prev"
-            className="jp-btn jp-btn--sm jp-btn--secondary"
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            {t("previous")}
-          </Link>
-        ) : null}
-        {page < pages ? (
-          <Link
-            href={feedbackHref(basePath, withPageNumber(query, page + 1))}
-            rel="next"
-            className="jp-btn jp-btn--sm jp-btn--secondary"
-          >
-            {t("next")}
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        ) : null}
+        <FeedbackPagerLink
+          href={feedbackHref(basePath, withPageNumber(query, first ? page : page - 1))}
+          disabled={first}
+          rel="prev"
+          className="jp-btn jp-btn--sm jp-btn--secondary"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          {t("previous")}
+        </FeedbackPagerLink>
+        <FeedbackPagerLink
+          href={feedbackHref(basePath, withPageNumber(query, last ? page : page + 1))}
+          disabled={last}
+          rel="next"
+          className="jp-btn jp-btn--sm jp-btn--secondary"
+        >
+          {t("next")}
+          <ArrowRight size={16} aria-hidden="true" />
+        </FeedbackPagerLink>
       </div>
     </nav>
   );
@@ -299,7 +336,8 @@ const SUMMARY_CAPTION_ID = "admin-feedback-summary-caption";
 
 /**
  * Betyg per sida over the window: how many rated each page, the 1–5 spread as numbers, the mean with one
- * decimal and how many submissions arrived. A page name filters the list to that page.
+ * decimal and how many submissions arrived. A page name filters the list to that page, and focus goes to
+ * the line that says so.
  */
 function FeedbackSummary({
   basePath,
@@ -373,13 +411,14 @@ function FeedbackSummary({
                 <tr key={row.page}>
                   <td>
                     {isFeedbackPageKey(row.page) ? (
-                      <Link
+                      <FeedbackFocusLink
                         href={feedbackHref(basePath, withPage(query, row.page))}
-                        className="jp-adminfeedback__pagelink"
+                        focusTo="scope"
+                        className="jp-adminfeedback__pagelink jp-adminfeedback__textlink"
                         aria-current={row.page === query.page ? "true" : undefined}
                       >
                         {pageLabel(row.page)}
-                      </Link>
+                      </FeedbackFocusLink>
                     ) : (
                       row.page
                     )}

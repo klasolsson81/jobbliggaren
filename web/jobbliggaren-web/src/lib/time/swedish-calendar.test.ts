@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   lastTwelveSwedishMonths,
+  previousSwedishDateSlug,
   previousSwedishMonth,
   swedishDateSlug,
   swedishMonthOf,
@@ -128,6 +129,25 @@ describe("swedishDateSlug", () => {
     expect(swedishDateSlug(new Date("2026-07-31T22:30:00Z"))).toMatch(
       /^\d{4}-\d{2}-\d{2}$/,
     );
+  });
+});
+
+describe("previousSwedishDateSlug", () => {
+  it("steps back from the Swedish date, not the UTC one, just after midnight", () => {
+    // 2026-07-31T22:30:00Z is 2026-08-01 00:30 Swedish; yesterday is 31 July. A UTC-based
+    // step would answer 30 July.
+    expect(previousSwedishDateSlug(new Date("2026-07-31T22:30:00Z"))).toBe("2026-07-31");
+  });
+
+  it("is still right in the first hour after the 23-hour spring-forward day", () => {
+    // 2026-03-29 is 23 hours long in Sweden. 2026-03-29T22:30:00Z is 30 March 00:30 CEST, and
+    // a fixed 24-hour step lands on 28 March 23:30 CET — two dates back.
+    expect(previousSwedishDateSlug(new Date("2026-03-29T22:30:00Z"))).toBe("2026-03-29");
+  });
+
+  it("rolls the month and the year back on the 1st", () => {
+    expect(previousSwedishDateSlug(new Date("2026-03-01T09:00:00Z"))).toBe("2026-02-28");
+    expect(previousSwedishDateSlug(new Date("2025-12-31T23:30:00Z"))).toBe("2025-12-31");
   });
 });
 

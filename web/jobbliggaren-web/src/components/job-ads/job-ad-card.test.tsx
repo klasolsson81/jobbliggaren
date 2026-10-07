@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
@@ -142,6 +142,31 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
   it("prints any other source", () => {
     render(<JobAdCard jobAd={{ ...baseAd, source: "Manual" }} />);
     expect(screen.getByText("Egen")).toBeInTheDocument();
+  });
+
+  // "idag"/"igår" is the Swedish calendar day, the zone the time itself is shown in. The server
+  // runs UTC, so these discriminate only where the test process does too (CI) — on a Swedish
+  // host the old getDate() reading agreed with Sweden by accident.
+  describe("published day is the Swedish calendar day", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("says idag for an ad from just after Swedish midnight", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-08T06:00:00Z")); // 8 okt 08:00 i Sverige
+      // 8 okt 00:15 i Sverige, but still 7 Oct in UTC — a UTC reading says "igår".
+      render(<JobAdCard jobAd={{ ...baseAd, publishedAt: "2026-10-07T22:15:00Z" }} />);
+      expect(screen.getByText("idag, kl. 00:15")).toBeInTheDocument();
+    });
+
+    it("says igår for an ad from the previous Swedish evening", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-07T23:30:00Z")); // 8 okt 01:30 i Sverige
+      // 7 okt 21:00 i Sverige — the same UTC date as "now", so a UTC reading says "idag".
+      render(<JobAdCard jobAd={{ ...baseAd, publishedAt: "2026-10-07T19:00:00Z" }} />);
+      expect(screen.getByText("igår, kl. 21:00")).toBeInTheDocument();
+    });
   });
 
   it("omits sista ansökningsdag when expiresAt is null", () => {

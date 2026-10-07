@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { jobSourceLabel } from "@/lib/job-ads/status";
 import { formatDate, formatTime, type JpFormatter } from "@/lib/i18n/format";
+import { previousSwedishDateSlug, swedishDateSlug } from "@/lib/time/swedish-calendar";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { hasJobTags, JobTags } from "./job-tags";
@@ -66,6 +67,10 @@ interface JobAdCardProps {
  * next-intl (`ui.card.published*`); funktionen tar translatorn + den
  * locale-medvetna formattern så den förblir en ren render-helper (anropas i
  * RSC:n med komponentens `t`/`format`).
+ *
+ * "idag"/"igår" är det SVENSKA kalenderdygnet, samma zon som klockslaget formatteras i.
+ * `getDate()` läste serverns zon (UTC i containern), så mellan svensk midnatt och 01/02
+ * hamnade en annons från strax efter midnatt under "igår".
  */
 function formatPublishedAtWithTime(
   iso: string,
@@ -78,21 +83,10 @@ function formatPublishedAtWithTime(
   const time = formatTime(format, date);
 
   const now = new Date();
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
+  const day = swedishDateSlug(date);
 
-  if (isToday) return t("publishedToday", { time });
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    date.getFullYear() === yesterday.getFullYear() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getDate() === yesterday.getDate();
-
-  if (isYesterday) return t("publishedYesterday", { time });
+  if (day === swedishDateSlug(now)) return t("publishedToday", { time });
+  if (day === previousSwedishDateSlug(now)) return t("publishedYesterday", { time });
 
   return t("publishedOlder", {
     date: formatDate(format, iso) ?? iso,

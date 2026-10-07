@@ -115,6 +115,24 @@ export function swedishDateSlug(instant: Date): string {
 }
 
 /**
+ * The slug of the Swedish civil date BEFORE the one `instant` falls on — the "igår" a reader in
+ * Sweden means, whatever zone the server runs in.
+ *
+ * Calendar arithmetic, never `instant - 24 h`: the spring-forward day is 23 hours long, so in
+ * the first hour after the following midnight a fixed 24-hour step lands two dates back. The
+ * previous date is built at noon UTC, which is 13:00 or 14:00 in Sweden and so always the same
+ * civil date, then labelled by `swedishDateSlug` itself — one formatter, one padding.
+ */
+export function previousSwedishDateSlug(instant: Date): string {
+  const parts = SWEDISH_DATE.formatToParts(instant);
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  const day = Number(parts.find((p) => p.type === "day")?.value);
+  // Date.UTC rolls day 0 back into the previous month (and year), so the 1st needs no branch.
+  return swedishDateSlug(new Date(Date.UTC(year, month - 1, day - 1, 12)));
+}
+
+/**
  * Steps a civil month back, rolling the year. The mirror of the backend's
  * `CivilMonth.Previous()`, and here for the same reason: it is the only month
  * arithmetic that is safe, so it lives in one place rather than inline in a loop.

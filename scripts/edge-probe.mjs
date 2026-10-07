@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {mkdtempSync, writeFileSync, rmSync} from 'node:fs';
 import http from 'node:http';
@@ -7,12 +7,15 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
-import {assertForwardedAddress, assertLocalDockerEndpoint} from './edge-probe-guards.mjs';
+import {assertForwardedAddress, assertLocalDockerEndpoint, assertBodyAbortEvidence} from './edge-probe-guards.mjs';
 
 // No remote target option: only a newly created local Docker sandbox is tested.
 const root = process.cwd();
 const image = process.argv[2];
 assert(image, 'Pass a locally available Caddy image ID or digest.');
+const bodyStatusIssue = 'https://github.com/klasolsson81/jobbliggaren/issues/2052';
+assert(/^https:\/\/github\.com\/klasolsson81\/jobbliggaren\/issues\/\d+$/.test(bodyStatusIssue),
+  'The independently tracked protocol anomaly must be linked');
 const id = `edge-probe-${randomUUID()}`;
 const scratch = mkdtempSync(path.join(os.tmpdir(), 'edge-probe-'));
 const owned = [];
@@ -21,6 +24,17 @@ let port;
 let count = 0;
 const auth = `Basic ${Buffer.from('probe:synthetic-only').toString('base64')}`;
 const rows = [];
+const controlId = randomUUID();
+const incompleteId = randomUUID();
+let controlResponse;
+function bodyEvents(container) {
+  assert(owned.includes(container), 'Only the owned synthetic upstream is readable');
+  const result = spawnSync('docker', ['logs', container], {encoding:'utf8', timeout:60000, maxBuffer:1024*1024});
+  assert.equal(result.status, 0, 'Synthetic body telemetry must be readable');
+  return (result.stdout + result.stderr).split('\n')
+    .filter(line => line.startsWith('EDGE_BODY_EVENT '))
+    .map(line => JSON.parse(line.slice(16)));
+}
 function docker(...args) {
   return execFileSync('docker', args, {encoding:'utf8', timeout:60000, maxBuffer:2*1024*1024}).trim();
 }
@@ -61,7 +75,7 @@ function slowRequest(body, limit) {
     let data = '';
     const timer = setTimeout(() => socket.destroy(new Error('Slow request exceeded ceiling')), limit+4000);
     socket.on('connect', () => socket.write(body));
-    socket.on('data', part => {data += part;});
+    socket.on('data', part => {data += part; if (data.length > 65536) socket.destroy(new Error('Response ceiling'));});
     socket.on('error', reject);
     socket.on('close', () => {clearTimeout(timer); resolve({elapsed:performance.now()-start, data});});
   });
@@ -93,9 +107,18 @@ try {
 const http = require('node:http');
 http.createServer((req,res) => {
   let bytes=0;
+  const request=req.headers['x-edge-probe-id'];
+  const started=performance.now();
+  function event(name) {
+    if(typeof request==='string')console.log('EDGE_BODY_EVENT '+JSON.stringify({request,event:name,
+      declaredBytes:Number(req.headers['content-length']),receivedBytes:bytes,complete:req.complete,elapsedMs:performance.now()-started}));
+  }
+  event('start');
+  req.on('aborted',()=>event('aborted'));
+  req.on('close',()=>event('close'));
   req.on('data', data => bytes += data.length);
   req.on('error', () => res.destroy());
-  req.on('end', () => {res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({bytes,xff:req.headers['x-forwarded-for'],proto:req.headers['x-forwarded-proto']}));});
+  req.on('end', () => {event('complete');res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({bytes,xff:req.headers['x-forwarded-for'],proto:req.headers['x-forwarded-proto']}));});
 }).listen(3000,'0.0.0.0');
 `);
   docker('network','create',id); networkCreated = true;
@@ -147,12 +170,31 @@ http.createServer((req,res) => {
     assert(r.elapsed >= headerMs*0.8 && r.elapsed < headerMs+3500);
     assert(!r.data.includes('200 OK'));
   });
-  await check('incomplete body is refused within budget',async () => {
-    const r=await slowRequest(`POST / HTTP/1.1\r\nHost: localhost\r\nAuthorization: ${auth}\r\nContent-Length: 100\r\nConnection: close\r\n\r\nx`,bodyMs);
-    assert(r.elapsed >= bodyMs*0.8 && r.elapsed < bodyMs+3500);
-    assert(!r.data.includes('200 OK'));
+  await check('complete body verifies the 100-byte telemetry control',async () => {
+    controlResponse = await request({method:'POST', bytes:100, headers:{'X-Edge-Probe-Id':controlId}});
+    assert.equal(controlResponse.status,200);
+    assert.equal(JSON.parse(controlResponse.body).bytes,100);
+    console.log(JSON.stringify({name:'body telemetry control',request:controlId,status:controlResponse.status,receivedBytes:100}));
   });
-  await check('normal traffic recovers after refusals',async () => assert.equal((await request()).status,200));
+  await check('incomplete body aborts within budget without upstream completion',async () => {
+
+    const r=await slowRequest(`POST / HTTP/1.1\r\nHost: localhost\r\nAuthorization: ${auth}\r\nContent-Length: 100\r\nX-Edge-Probe-Id: ${incompleteId}\r\nConnection: close\r\n\r\nx`,bodyMs);
+    const events=bodyEvents(stub);
+    const separator=r.data.indexOf('\r\n\r\n');
+    const body=separator>=0?r.data.slice(separator+4):'';
+    console.log(JSON.stringify({name:'incomplete body observed evidence',verdict:'unvalidated',request:incompleteId,
+      milliseconds:Math.round(r.elapsed),wireStatus:r.data.match(/^HTTP\/1\.1 (\d{3})/)?.[1]??null,
+      framing:{headersComplete:separator>=0,bodyBytes:Buffer.byteLength(body),
+        contentLength:r.data.match(/^content-length:\s*(\d+)\s*$/im)?.[1]??null,
+        chunked:/^transfer-encoding:\s*chunked\s*$/im.test(r.data.slice(0,separator))},
+      receiptBytes:body.match(/"bytes"\s*:\s*(\d+)/)?.[1]??null,telemetryEventCount:events.length,
+      events:events.slice(0,8).map(e=>e&&typeof e==='object'?{request:e.request,event:e.event,
+        declaredBytes:e.declaredBytes,receivedBytes:e.receivedBytes,complete:e.complete,elapsedMs:e.elapsedMs}:{malformed:true})}));
+    const evidence=assertBodyAbortEvidence({response:r,bodyMs,control:controlResponse,controlId,incompleteId,events});
+    console.log(JSON.stringify({name:'incomplete body evidence',request:incompleteId,milliseconds:Math.round(r.elapsed),
+      ...evidence,protocolStatusIssue:bodyStatusIssue}));
+  });
+  await check('normal traffic recovers after cap refusals and upload abort',async () => assert.equal((await request()).status,200));
   console.log(JSON.stringify({passed:rows.length, requests:count, boundary:'HTTP/1.1 plain local edge with synthetic upstream; no Next/API/TLS/provider verdict'}));
 } finally {
   for (const container of owned.reverse()) {

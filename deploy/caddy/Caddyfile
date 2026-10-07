@@ -295,6 +295,7 @@
 		# where a round-trip failed after connecting is GET-only unless lb_retry_match says
 		# otherwise. Do not add lb_retry_match without revisiting that.
 		reverse_proxy web:3000 {
+			header_down -Strict-Transport-Security
 			# THE ONLY WRITER OF THIS HEADER IN THE STACK, and pinning that is the point.
 			# Since 2.5 Caddy already ignores an inbound X-Forwarded-For from an untrusted
 			# peer and sets it to the TCP client address, and no `trusted_proxies` is

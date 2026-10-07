@@ -111,8 +111,17 @@ pass "every combination of SITE_ADMISSION and SITE_ALIASES adapts"
 # --- Runtime -------------------------------------------------------------------------------
 docker network create "$id" >/dev/null; network_created=1
 stub="$id-web"; owned+=("$stub")
-docker run -d --name "$stub" --network "$id" --network-alias web --entrypoint caddy "$image" \
-  respond --listen :3000 --header "X-Edge-Stub: upstream" --body upstream >/dev/null
+cat >"$scratch/upstream.Caddyfile" <<'STUB'
+:3000 {
+  header X-Edge-Stub upstream
+  header Strict-Transport-Security "max-age=31536000"
+  redir /oversikt /logga-in 307
+  respond upstream 200
+}
+STUB
+docker run -d --name "$stub" --network "$id" --network-alias web \
+  --mount "type=bind,source=$scratch/upstream.Caddyfile,target=/etc/caddy/upstream.Caddyfile,readonly" \
+  --entrypoint caddy "$image" run --config /etc/caddy/upstream.Caddyfile >/dev/null
 
 # run_edge <name> <aliases> [docker -e args...] — sets PORT to the published 443 port. Not called in
 # a command substitution: a subshell would lose the failure count and the cleanup list.
@@ -125,12 +134,13 @@ run_edge() {
     fail "$name: the issuer swap changed apps.http"
   fi
   owned+=("$name")
-  docker create --name "$name" --network "$id" -p 127.0.0.1::443 \
+  docker create --name "$name" --network "$id" -p 127.0.0.1::443 -p 127.0.0.1::80 \
     "${base_env[@]}" -e "SITE_ALIASES=$aliases" "$@" --entrypoint caddy "$image" \
     run --config /etc/caddy/test.json >/dev/null
   docker cp -q "$test_cfg" "$name:/etc/caddy/test.json"
   docker start "$name" >/dev/null
   PORT=$(docker port "$name" 443/tcp | head -1 | sed 's/.*://')
+  PORT_HTTP=$(docker port "$name" 80/tcp | head -1 | sed 's/.*://')
   local i ready=0
   for i in $(seq 1 40); do
     if curl -sk -o "$scratch/body" --max-time 2 --connect-to "$SITE:443:127.0.0.1:$PORT" "https://$SITE/.well-known/acme-challenge/ready"; then
@@ -150,6 +160,13 @@ get() {
     | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/'
 }
 
+one_hsts() {
+  local count
+  count=$(grep -ci '^strict-transport-security:' <<<"$1" || true)
+  [ "$count" = 1 ] && grep -qx "$HSTS" <<<"$1" && return 0
+  echo "HSTS fields=$count, expected exactly 1 with host-only value" >&2
+  return 1
+}
 status_of() { head -1 <<<"$1" | awk '{print $2}'; }
 
 check_running() {
@@ -165,15 +182,15 @@ for value in UNSET basic_auth open Open OPEN ' open' 'open ' opne 'o*' '?pen' '*
   port=$PORT
   h=$(get "$port" "$SITE" /)
   if [ "$value" = open ]; then
-    [ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && grep -qx "$HSTS" <<<"$h" \
+    [ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && one_hsts "$h" \
       && pass "[$value] 200 from upstream, no credentials, HSTS" || fail "[$value] expected 200 from upstream: $(status_of "$h")"
   else
-    [ "$(status_of "$h")" = 401 ] && grep -qi '^www-authenticate: basic' <<<"$h" && grep -qx "$HSTS" <<<"$h" \
+    [ "$(status_of "$h")" = 401 ] && grep -qi '^www-authenticate: basic' <<<"$h" && one_hsts "$h" \
       && ! grep -qx "$MARKER" <<<"$h" \
       && pass "[$value] 401 Basic with HSTS, upstream not reached" || fail "[$value] expected the gate: $(status_of "$h")"
   fi
   h=$(get "$port" "$SITE" /.well-known/acme-challenge/x)
-  [ "$(status_of "$h")" = 404 ] && grep -qx "$HSTS" <<<"$h" && ! grep -qx "$MARKER" <<<"$h" \
+  [ "$(status_of "$h")" = 404 ] && one_hsts "$h" && ! grep -qx "$MARKER" <<<"$h" \
     && pass "[$value] ACME prefix answered at the edge: 404 with HSTS" || fail "[$value] ACME prefix: $(status_of "$h")"
   check_running "$name"
   docker rm -f "$name" >/dev/null
@@ -182,16 +199,27 @@ done
 # The gate admits, not only refuses.
 name="$id-cred"; run_edge "$name" none; port=$PORT
 h=$(get "$port" "$SITE" / -u "$USER_NAME:$PASSWORD")
-[ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && pass "gated edge admits the credential" || fail "credential refused: $(status_of "$h")"
+[ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && one_hsts "$h" && pass "gated edge admits the credential" || fail "credential refused: $(status_of "$h")"
+docker rm -f "$name" >/dev/null
+
+name="$id-hsts"; run_edge "$name" apex -e SITE_ADMISSION=open; port=$PORT
+for path in / /api/health /oversikt; do
+  expected=200; [ "$path" != /oversikt ] || expected=307
+  h=$(get "$port" "$SITE" "$path")
+  [ "$(status_of "$h")" = "$expected" ] && one_hsts "$h" && pass "open $path: $expected, exactly one HSTS" || fail "open $path: status=$(status_of "$h")"
+done
+h=$(curl -s -D - -o "$scratch/body" --max-time 5 --connect-to "$SITE:80:127.0.0.1:$PORT_HTTP" "http://$SITE/p?q=1" | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/')
+count=$(grep -ci '^strict-transport-security:' <<<"$h" || true)
+[ "$(status_of "$h")" = 308 ] && [ "$count" = 0 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && pass "HTTP redirect: 308, no HSTS, path/query retained" || fail "HTTP redirect: status=$(status_of "$h") HSTS=$count"
 docker rm -f "$name" >/dev/null
 
 # Aliases at runtime, admission unset: the redirects carry HSTS, keep path and query, never proxy.
 name="$id-apex"; run_edge "$name" apex; port=$PORT
 h=$(get "$port" "www.$SITE" '/p?q=1')
-[ "$(status_of "$h")" = 308 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && grep -qx "$HSTS" <<<"$h" \
+[ "$(status_of "$h")" = 308 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && one_hsts "$h" \
   && ! grep -qx "$MARKER" <<<"$h" && pass "www 308 to the apex, path and query kept, HSTS" || fail "www: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
 h=$(get "$port" "dev.$SITE" '/p?q=1')
-[ "$(status_of "$h")" = 302 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && grep -qx "$HSTS" <<<"$h" \
+[ "$(status_of "$h")" = 302 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && one_hsts "$h" \
   && ! grep -qx "$MARKER" <<<"$h" && pass "dev. 302 to the apex, path and query kept, HSTS" || fail "dev.: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
 h=$(get "$port" "www.$SITE" '/p?q=1' -H "Host: WWW.$SITE:443")
 grep -qx "location: https://$SITE/p?q=1" <<<"$h"   && pass "the redirect target is SITE_HOST, never the request's Host" || fail "Host-derived location: $(grep '^location' <<<"$h" || true)"
@@ -216,11 +244,11 @@ docker stop -t 1 "$stub" >/dev/null
 # request fails its dial and reads 502, after it Caddy answers 503 without dialling.
 sleep 9
 h=$(get "$port_gated" "$SITE" /)
-[ "$(status_of "$h")" = 401 ] && grep -qx "$HSTS" <<<"$h" && pass "gated edge, web down, anonymous: 401 with HSTS" || fail "gated, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 401 ] && one_hsts "$h" && pass "gated edge, web down, anonymous: 401 with HSTS" || fail "gated, web down: $(status_of "$h")"
 h=$(get "$port_gated" "$SITE" / -u "$USER_NAME:$PASSWORD")
-[ "$(status_of "$h")" = 503 ] && grep -qx "$HSTS" <<<"$h" && pass "gated edge, web down, past the gate: 503 with HSTS" || fail "gated past the gate, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "gated edge, web down, past the gate: 503 with HSTS" || fail "gated past the gate, web down: $(status_of "$h")"
 h=$(get "$port_open" "$SITE" /)
-[ "$(status_of "$h")" = 503 ] && grep -qx "$HSTS" <<<"$h" && pass "open edge, web down: 503 with HSTS" || fail "open, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "open edge, web down: 503 with HSTS" || fail "open, web down: $(status_of "$h")"
 
 # Gate N-1 on the same open edge: a 5xx writes `http.log.error` with the request, and every key the
 # global filter deletes must be gone from it, with the header map. `keep` is the control that proves

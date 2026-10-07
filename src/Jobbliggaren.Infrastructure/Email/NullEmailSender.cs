@@ -129,6 +129,17 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         return Task.CompletedTask;
     }
 
+    // Unreachable while this sender is registered: the feedback gate stays closed when CanDeliver is
+    // false, so no submission and no notice exist to drop.
+    public Task SendFeedbackReceivedNotificationAsync(
+        string toEmail,
+        FeedbackReceivedNotificationEmail content,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedNotification("feedback-received-notification");
+        return Task.CompletedTask;
+    }
+
     /// <summary>
     /// A dropped convenience. Debug is correct here and is NOT the defect security-auditor measured:
     /// nobody is stranded or blinded by a missed notification, so this one may stay below the floor.

@@ -697,6 +697,89 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         _logger.Records.ShouldBeEmpty();
     }
 
+    // ---------- #1979: what a failure says about whether the provider took the message ----------
+
+    // A 4xx is an answer of refusal, so the message was not taken and a resend cannot duplicate it.
+    // A 5xx is ambiguous: the provider may have queued it before failing. CTO decision 2a,
+    // 2026-10-07: every 4xx counts as not accepted, not only 408 and 429.
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpStatusCode.Unauthorized, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpStatusCode.TooManyRequests, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpStatusCode.InternalServerError, EmailDeliveryDisposition.Unknown)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, EmailDeliveryDisposition.Unknown)]
+    public async Task ScalewayEmailSender_ProviderAnswersWithAFailureStatus_ClassifiesIt(
+        HttpStatusCode status, EmailDeliveryDisposition expected)
+    {
+        _handler.RespondWith(status, "{}");
+        var sut = CreateSut();
+
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
+            await sut.SendFeedbackReceivedNotificationAsync(
+                Recipient, SampleFeedbackContent(), CancellationToken.None));
+
+        ex.Disposition.ShouldBe(expected);
+    }
+
+    // With no response at all, only a failure that happened before the request could be sent is
+    // proof of non-acceptance; a connection that dropped later may already have delivered it.
+    [Theory]
+    [InlineData(HttpRequestError.NameResolutionError, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ConnectionError, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.SecureConnectionError, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ProxyTunnelError, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ResponseEnded, EmailDeliveryDisposition.Unknown)]
+    [InlineData(HttpRequestError.Unknown, EmailDeliveryDisposition.Unknown)]
+    public async Task ScalewayEmailSender_TransportFailsWithoutAResponse_ClassifiesItByPhase(
+        HttpRequestError error, EmailDeliveryDisposition expected)
+    {
+        _handler.ThrowOnSend(new HttpRequestException(error, "transport failure"));
+        var sut = CreateSut();
+
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
+            await sut.SendFeedbackReceivedNotificationAsync(
+                Recipient, SampleFeedbackContent(), CancellationToken.None));
+
+        ex.Disposition.ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task ScalewayEmailSender_SendTimesOut_IsAnUnknownOutcome()
+    {
+        _handler.ThrowOnSend(new TaskCanceledException(
+            "The request was canceled due to the configured HttpClient.Timeout elapsing.",
+            new TimeoutException()));
+        var sut = CreateSut();
+
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
+            await sut.SendFeedbackReceivedNotificationAsync(
+                Recipient, SampleFeedbackContent(), CancellationToken.None));
+
+        ex.Disposition.ShouldBe(EmailDeliveryDisposition.Unknown);
+    }
+
+    [Fact]
+    public async Task ScalewayEmailSender_SendsAFeedbackNotice_SelectsItsTemplateAndCarriesNoUserContent()
+    {
+        var sut = CreateSut();
+
+        await sut.SendFeedbackReceivedNotificationAsync(
+            Recipient, SampleFeedbackContent(), CancellationToken.None);
+
+        SubjectSent().ShouldBe("Ny feedback: Jobbannons");
+        TextSent().ShouldContain("Betyg: 4 av 5");
+        TextSent().ShouldContain(
+            $"{_options.BaseUrl}/admin/feedback?id=7d1c2a3b-0000-4000-8000-000000001979");
+        LoggedSurface().ShouldContain("EmailKind=feedback-received-notification");
+    }
+
+    private static FeedbackReceivedNotificationEmail SampleFeedbackContent() =>
+        new(
+            Jobbliggaren.Domain.Feedback.FeedbackPage.JobAd,
+            Rating: 4,
+            new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+            Guid.Parse("7d1c2a3b-0000-4000-8000-000000001979"));
+
     /// <summary>
     /// The KNOWN RESIDUAL, pinned as measured behaviour rather than left as a claim (code-reviewer
     /// Minor 1, dotnet-architect residual (ii), PR #1339).

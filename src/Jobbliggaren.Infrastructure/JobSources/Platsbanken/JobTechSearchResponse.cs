@@ -37,16 +37,21 @@ internal sealed class JobTechHit
     [JsonPropertyName("application_details")]
     public JobTechApplicationDetails? ApplicationDetails { get; set; }
 
+    // JobTech's dates are Swedish wall-clock time without an offset — the converter reads them as
+    // such instead of as the host's local time (see its remarks).
     [JsonPropertyName("publication_date")]
+    [JsonConverter(typeof(JobTechSwedishDateTimeConverter))]
     public DateTimeOffset? PublicationDate { get; set; }
 
     [JsonPropertyName("last_publication_date")]
+    [JsonConverter(typeof(JobTechSwedishDateTimeConverter))]
     public DateTimeOffset? LastPublicationDate { get; set; }
 
     [JsonPropertyName("removed")]
     public bool? Removed { get; set; }
 
     [JsonPropertyName("removed_date")]
+    [JsonConverter(typeof(JobTechSwedishDateTimeConverter))]
     public DateTimeOffset? RemovedDate { get; set; }
 
     // F6 P4 sök-infrastruktur-fix 2026-05-20 (CTO + dotnet-architect).

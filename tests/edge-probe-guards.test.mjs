@@ -83,6 +83,28 @@ test('assertBodyAbortEvidence_ShouldAccept_WhenEmpty200UsesChunkedTermination', 
   assert.equal(assertBodyAbortEvidence(evidence).protocolStatusAnomaly, true);
 });
 
+// The fixture injects framing outside the valid response contract; only safe rejection is asserted.
+for (const [name, headers, body] of [
+  ['ContentLengthAndChunkedHaveNoTerminalChunk', ['Content-Length: 0', 'Transfer-Encoding: chunked'], ''],
+  ['ContentLengthsConflict', ['Content-Length: 0', 'Content-Length: 100'], ''],
+  ['ContentLengthIsDuplicated', ['Content-Length: 0', 'Content-Length: 0'], ''],
+  ['ContentLengthIsDuplicatedWithDifferentCase', ['Content-Length: 0', 'content-length: 0'], ''],
+  ['ChunkedEncodingIsDuplicated', ['Transfer-Encoding: chunked', 'Transfer-Encoding: chunked'], '0\r\n\r\n'],
+  ['ChunkedEncodingIsDuplicatedWithDifferentCase', ['Transfer-Encoding: chunked', 'transfer-encoding: chunked'], '0\r\n\r\n'],
+  ['TransferEncodingHeadersConflict', ['Transfer-Encoding: chunked', 'Transfer-Encoding: gzip'], '0\r\n\r\n'],
+  ['TransferEncodingIsUnsupported', ['Transfer-Encoding: gzip'], ''],
+  ['ChunkedEncodingFollowsAnotherCoding', ['Transfer-Encoding: gzip, chunked'], '0\r\n\r\n'],
+  ['ChunkedEncodingPrecedesAnotherCoding', ['Transfer-Encoding: chunked, gzip'], '0\r\n\r\n'],
+  ['ContentLengthAndTerminatedChunkedArePresent', ['Content-Length: 0', 'Transfer-Encoding: chunked'], '0\r\n\r\n'],
+  ['NonzeroContentLengthAndTerminatedChunkedArePresent', ['Content-Length: 100', 'Transfer-Encoding: chunked'], '0\r\n\r\n'],
+]) {
+  test(`assertBodyAbortEvidence_ShouldReject_When${name}`, () => {
+    const evidence = abortEvidence();
+    evidence.response.data = `HTTP/1.1 200 OK\r\n${headers.join('\r\n')}\r\n\r\n${body}`;
+    assert.throws(() => assertBodyAbortEvidence(evidence));
+  });
+}
+
 for (const [name, corrupt] of [
   ['all telemetry is missing', e => {e.events = [];}],
   ['positive instrumentation is missing', e => {e.events = e.events.filter(x => x.request !== 'control');}],

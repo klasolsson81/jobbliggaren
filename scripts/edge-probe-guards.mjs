@@ -56,8 +56,16 @@ export function assertBodyAbortEvidence({response, bodyMs, control, controlId, i
   const body = response.data.slice(separator + 4);
   assert(!/"bytes"\s*:/.test(body), 'An application receipt contradicts an incomplete-upload abort');
   if (status === 200) {
-    assert((body === '' && /^content-length:\s*0\s*$/im.test(response.data.slice(0, separator))) || (/^transfer-encoding:\s*chunked\s*$/im.test(response.data.slice(0, separator)) &&
-      body === '0\r\n\r\n'), 'A 200 body cannot prove an empty default response');
+    const fields = response.data.slice(0, separator).split('\r\n').slice(1).map(line => {
+      const field = line.match(/^([^:\s]+):[ \t]*(.*)$/);
+      assert(field, 'Malformed response field');
+      return {name: field[1].toLowerCase(), value: field[2].trim().toLowerCase()};
+    });
+    const lengths = fields.filter(field => field.name === 'content-length');
+    const encodings = fields.filter(field => field.name === 'transfer-encoding');
+    assert((lengths.length === 1 && lengths[0].value === '0' && encodings.length === 0 && body === '') ||
+      (lengths.length === 0 && encodings.length === 1 && encodings[0].value === 'chunked' && body === '0\r\n\r\n'),
+    'An empty 200 requires one unambiguous framing field');
   }
   return {status, protocolStatusAnomaly: status === 200, receivedBytes: 1, declaredBytes: 100,
     completionDelta: negative.filter(e => e.event === 'complete').length};

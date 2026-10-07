@@ -35,7 +35,7 @@ interface CompanyBrowseListProps {
  * `.jp-table`, no zebra, hairline rows); when `followStateByOrgNr` is provided (#560 PR-C) it renders one
  * `CompanyFollowButton` client island per non-masked row. org.nr renders ONLY for an unmasked
  * legal entity; a personnummer-shaped sole-prop arrives masked (`organizationNumber: null` +
- * `isProtectedIdentity: true`, ADR 0087 D8(c)) and shows a "Skyddad identitet" badge, never a raw
+ * `isProtectedIdentity: true`, ADR 0087 D8(c)) and shows a masking badge, never a raw
  * number. The kommun column is the company's REGISTERED SEAT (säteskommun) — the page's help affordance
  * explains that it is not necessarily where the company operates. SNI codes resolve to Swedish names
  * via the reference tree (unknown codes fall back to the raw code).
@@ -119,11 +119,7 @@ export function CompanyBrowseList({
                   column on the 1136px rail but not at the table's minimum width, and under fixed
                   layout an over-long token overflows into Org.nr rather than widening anything. */}
               <td className="wrap-break-word text-text-primary">{company.name}</td>
-              {/* `whitespace-nowrap` is scoped to the NUMBER, not to the cell. A formatted org.nr must
-                  never break across lines; the "Skyddad identitet" badge is prose and may. Measured at
-                  160px (sv) and 161px (en) against a 175px column — narrow enough headroom that a font
-                  fallback could exceed it, and under fixed layout the cell would then overflow into
-                  Säteskommun rather than grow. Letting the badge wrap removes that failure mode. */}
+              {/* `whitespace-nowrap` is scoped to the number; the masking badge is prose and may wrap. */}
               <td className="font-mono text-text-secondary">
                 {company.isProtectedIdentity ? (
                   <span className="inline-flex items-center gap-1 rounded-pill bg-warning-50 px-2 py-0.5 font-sans text-body-sm text-warning-700">

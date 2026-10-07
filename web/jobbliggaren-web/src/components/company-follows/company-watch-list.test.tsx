@@ -99,7 +99,7 @@ describe("CompanyWatchList (#311 #448, ADR 0087 D2/D8(c))", () => {
 
   it("skyddad identitet → flagga visas, INGET org.nr renderas (§12 / D8(c))", () => {
     const { container } = renderList([soleProp]);
-    expect(screen.getByText("Skyddad identitet")).toBeInTheDocument();
+    expect(screen.getByText("Organisationsnummer dolt")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Anna Andersson Konsult" })
     ).toBeInTheDocument();

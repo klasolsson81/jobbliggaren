@@ -17,7 +17,7 @@ interface ApplicationHistoryEmployerCardProps {
  * by `companyName` (public Platsbanken data, server-resolved); a legal-entity org.nr renders only when
  * the backend supplied it (`!isProtectedIdentity && organizationNumber`), while a personnummer-shaped
  * sole-prop org.nr arrives masked (`organizationNumber` null, `isProtectedIdentity` true) and is shown
- * as a "Skyddad identitet" note — never a raw number. The FE adds NO shape-heuristic; the backend
+ * as a note that the organisation number is hidden — never a raw number. The FE adds NO shape-heuristic; the backend
  * (ADR 0087 D8(c)) is the single authoritative guard, pinned by `OrganizationNumberSurfacingGuardTests`.
  *
  * <para>`applicationCount` is the per-employer historik-räknare (#444's projection). The entries live in
@@ -54,8 +54,9 @@ export function ApplicationHistoryEmployerCard({
           <div className="jp-job__meta">
             {item.isProtectedIdentity ? (
               <>
-                <span aria-describedby={hintId}>
-                  <ShieldAlert size={14} aria-hidden="true" /> {t("protectedIdentity")}
+                <span className="inline-flex items-center gap-1" aria-describedby={hintId}>
+                  <ShieldAlert size={14} aria-hidden="true" />
+                  {t("protectedIdentity")}
                 </span>
                 <span id={hintId} className="sr-only">
                   {t("protectedIdentityHint")}

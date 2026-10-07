@@ -5155,10 +5155,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    at 768 with min-width: 940px. */
 .jp-companyBrowse { table-layout: fixed; min-width: calc(175px + 145px + 280px + 220px); }
 .jp-companyBrowse--withFollow { min-width: calc(175px + 145px + 280px + 160px + 220px); }
-/* Floor 161px = "Protected identity" (en; sv "Skyddad identitet" is 160px), which is wider than a
-   formatted org.nr (129px). +14px. The dev register holds zero personnummer-shaped rows, so the
-   badge was measured on its own markup rather than on a row. nowrap is scoped to the NUMBER, not
-   the cell, so a font fallback wraps the badge instead of overflowing into Säteskommun. */
 .jp-companyBrowse__col--orgnr { width: 175px; }
 /* Floor 132px = "Skinnskatteberg", the longest single WORD any kommun name contains. +13px. */
 .jp-companyBrowse__col--seat { width: 145px; }

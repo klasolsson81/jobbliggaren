@@ -106,7 +106,7 @@ describe("ApplicationHistoryList (#311 #448, ADR 0087 D2/D8(c); ADR 0090 R-A4)",
 
   it("skyddad identitet → flagga visas, INGET org.nr/personnummer i DOM (§5 / D8(c))", () => {
     const { container } = render(<ApplicationHistoryList items={[soleProp]} />);
-    expect(screen.getByText("Skyddad identitet")).toBeInTheDocument();
+    expect(screen.getByText("Organisationsnummer dolt")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Anna Andersson Konsult" })
     ).toBeInTheDocument();

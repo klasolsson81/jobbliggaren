@@ -198,6 +198,7 @@
       "deadCode": "That code can no longer be used. Start over to get new codes.",
       "burned": "You have entered the wrong code three times, so the code can no longer be used. Start over to get new codes.",
       "success": "The address has been changed, and you log in with {newEmail} from now on. You are logged out on all other devices.",
+      "committedWithoutSession": "The address has been changed to {newEmail}. Log in again to continue.",
       "unusable": "The new email address cannot be used. Check it or enter a different one.",
       "notDone": "The change was not made, and your address is unchanged.",
       "incomplete": "The change could not be completed, and your address is unchanged. Wait a while.",

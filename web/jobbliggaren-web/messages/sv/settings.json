@@ -198,6 +198,7 @@
       "deadCode": "Koden går inte att använda längre. Börja om för att få nya koder.",
       "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Börja om för att få nya koder.",
       "success": "Adressen är bytt, och du loggar in med {newEmail} från och med nu. Du är utloggad på alla andra enheter.",
+      "committedWithoutSession": "Adressen är bytt till {newEmail}. Logga in igen för att fortsätta.",
       "unusable": "Den nya e-postadressen går inte att använda. Kontrollera den eller skriv in en annan.",
       "notDone": "Bytet genomfördes inte, och din adress är oförändrad.",
       "incomplete": "Bytet kunde inte slutföras, och din adress är oförändrad. Vänta en stund.",

@@ -8,28 +8,40 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 
-internal sealed class AccountLifecycleRaceGate(Guid targetId, string firstPath, string secondPath) : IDisposable
+internal sealed class AccountLifecycleRaceGate(
+    Guid firstParticipantId, string firstPath, string secondPath, Guid? secondParticipantId = null) : IDisposable
 {
     private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _claimed;
 
     internal TaskCompletionSource<HeldTransaction> FirstHeld { get; } =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource<HeldTransaction> SecondHeld { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource SecondAttempted { get; } =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     internal bool Matches(IReadOnlyCollection<Guid> ids, bool lifecycle, string? path) =>
-        lifecycle && ids.Contains(targetId) && (path == firstPath || path == secondPath);
+        lifecycle && (MatchesFirst(ids, path) || MatchesSecond(ids, path));
 
-    internal void BeforeBegin(string path)
+    private bool MatchesFirst(IReadOnlyCollection<Guid> ids, string? path) =>
+        path == firstPath && ids.Contains(firstParticipantId);
+
+    private bool MatchesSecond(IReadOnlyCollection<Guid> ids, string? path) =>
+        path == secondPath && ids.Contains(secondParticipantId ?? firstParticipantId);
+
+    internal void BeforeBegin(IReadOnlyCollection<Guid> ids, string path)
     {
-        if (path == secondPath)
+        if (MatchesSecond(ids, path))
             SecondAttempted.TrySetResult();
     }
 
-    internal async Task AfterBeginAsync(string path, HeldTransaction transaction, CancellationToken ct)
+    internal async Task AfterBeginAsync(
+        IReadOnlyCollection<Guid> ids, string path, HeldTransaction transaction, CancellationToken ct)
     {
-        if (path != firstPath || Interlocked.CompareExchange(ref _claimed, 1, 0) != 0)
+        if (MatchesSecond(ids, path))
+            SecondHeld.TrySetResult(transaction);
+        if (!MatchesFirst(ids, path) || Interlocked.CompareExchange(ref _claimed, 1, 0) != 0)
             return;
         FirstHeld.TrySetResult(transaction);
         await _release.Task.WaitAsync(ct);
@@ -64,7 +76,7 @@ internal sealed class LifecycleRaceCoordinator(
         if (!gate.Matches(userIds, lifecycle, path) || inner.HasActiveScope)
             return await inner.BeginAsync(userIds, lifecycle, cancellationToken);
 
-        gate.BeforeBegin(path!);
+        gate.BeforeBegin(userIds, path!);
         var scope = await inner.BeginAsync(userIds, lifecycle, cancellationToken);
         try
         {
@@ -75,7 +87,7 @@ internal sealed class LifecycleRaceCoordinator(
                 userIds.All(inner.Holds),
                 ReferenceEquals(app.Database.GetDbConnection(), identity.Database.GetDbConnection()),
                 appTransaction is not null && ReferenceEquals(appTransaction, identityTransaction));
-            await gate.AfterBeginAsync(path!, held, cancellationToken);
+            await gate.AfterBeginAsync(userIds, path!, held, cancellationToken);
             return scope;
         }
         catch

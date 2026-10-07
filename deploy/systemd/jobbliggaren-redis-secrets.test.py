@@ -49,7 +49,7 @@ def checked(name, ok):
 
 def run(*args):
     command = ['bash', str(script), *args]
-    if args and args[0] == '--check-images':
+    if args and args[0] in ('--check-images', '--check-transition', '--publish-policy'):
         command = ['bash', '-c', 'exec 9>/run/jobbliggaren-reconcile.lock; flock -n 9 || exit; exec \"$@\"', 'reconcile-fixture'] + command
     return subprocess.run(command, capture_output=True).returncode
 
@@ -98,6 +98,36 @@ checked('static check succeeds without Docker', run('--check') == 0 and not Path
 checked('repeat injection preserves credentials', inject() == 0 and before == {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
 checked('unverified incoming image refuses', run('--check-images', 'api:latest', 'worker:latest') != 0)
 checked('verified incoming reader matches', run('--check-images', 'api@sha256:' + 'a'*64, 'worker@sha256:' + 'b'*64) == 0)
+
+candidate_acls = {store: (root / store / 'users.acl').read_bytes() for store in ('persistent', 'volatile')}
+users = ('api-persistent', 'api-volatile', 'worker-persistent', 'health-persistent', 'health-volatile',
+         'operator-persistent', 'operator-volatile')
+for store in candidate_acls:
+    source = base / 'deploy/redis/predecessor-1976'
+    predecessor = (source / f'{store}.acl.template').read_text().rstrip('\n') + '\n'
+    predecessor += (source / f'operator-{store}.acl.template').read_text().rstrip('\n') + '\n'
+    for user, credential in zip(users, credentials, strict=True):
+        digest = hashlib.sha256(credential.encode()).hexdigest()
+        predecessor = predecessor.replace('{{' + user.upper().replace('-', '_') + '_SHA256}}', digest)
+        if user == f'operator-{store}':
+            predecessor = predecessor.replace('{{OPERATOR_SHA256}}', digest)
+    (root / store / 'users.acl').write_text(predecessor)
+checked('complete predecessor passes', run('--check-predecessor') == 0)
+digests = ('api@sha256:' + 'a'*64, 'worker@sha256:' + 'b'*64)
+checked('policy publication completes both validation passes', run('--publish-policy', *digests) == 0)
+checked('published policy is the complete candidate with identical credentials',
+        before == {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+checked('repeat publication completes without credential rotation', run('--publish-policy', *digests) == 0)
+checked('repeated publication preserves every secret and metadata file',
+        before == {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+readers = root / 'readers'
+reader_bytes = readers.read_bytes()
+readers.write_bytes(reader_bytes + reader_bytes.splitlines(keepends=True)[0])
+malformed_before = {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+checked('duplicate role within one metadata file still refuses publication',
+        run('--publish-policy', *digests) != 0 and
+        malformed_before == {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+readers.write_bytes(reader_bytes)
 ids.write_text('#!/bin/sh\nprintf "1655\\n1654\\n"\n')
 checked('incoming reader drift refuses', run('--check-images', 'api@sha256:' + 'a'*64, 'worker@sha256:' + 'b'*64) != 0)
 ids.write_text('#!/bin/sh\nprintf "1654\\n1654\\n"\n')

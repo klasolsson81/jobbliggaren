@@ -132,6 +132,8 @@ public static class AuthErrorCodes
 
     public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
 
+    public const string SessionUnavailable = "Auth.SessionUnavailable";
+
     /// <summary>
     /// #1975 — an administrator-initiated change no longer fits the account it was started for: the account's address
     /// is not the one the change was started from, or the account now holds Admin. The swap writes nothing. The

@@ -45,6 +45,7 @@ render_policy() {
 
 read_ids() {
   local role uid gid extra
+  reader_uid=(); reader_gid=()
   while read -r role uid gid extra; do
     [[ $role =~ ^(api|worker|redis)$ && $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && -z $extra ]] || fail 'reader metadata is malformed'
     [[ -z ${reader_uid[$role]:-} ]] || fail 'reader metadata repeats a role'

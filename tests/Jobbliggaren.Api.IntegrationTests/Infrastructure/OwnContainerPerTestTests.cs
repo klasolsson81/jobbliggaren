@@ -54,7 +54,7 @@ public sealed class OwnContainerPerTestTests
         typeof(RedisNetworkContractTests),
         // Tests that stop its Redis.
         typeof(RedisSessionStoreFailureTests),
-        // Eight lifecycle boundary cases count effective Admins across the whole Identity database, without other
+        // Lifecycle boundary cases count effective Admins across the whole Identity database, without other
         // tests' holders. They need the full API/App/Identity/Redis host; SharedPostgresFixture is app-only.
         typeof(LastEffectiveAdministratorTests),
     ];

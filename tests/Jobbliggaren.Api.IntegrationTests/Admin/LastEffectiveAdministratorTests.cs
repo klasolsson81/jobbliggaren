@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Authorization;
@@ -213,6 +214,165 @@ public sealed class LastEffectiveAdministratorTests : IAsyncLifetime
         (await EffectiveAdministratorsAsync()).ShouldBe([admin.UserId]);
         (await MeAsync(admin)).ShouldBe(HttpStatusCode.OK);
         (await MeAsync(owner)).ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SuspendAnotherAdministratorAndOwnDelete_ShouldKeepOneEffectiveAdministrator_AndAuditOnlyTheCommittedWrite(
+        bool suspendFirst)
+    {
+        var admin = await BootstrapAdministratorAsync();
+        var other = await HistoricalAdministratorAsync("race-admin");
+        await AddProviderLoginAsync(admin.UserId);
+        await AddProviderLoginAsync(other.UserId);
+        (await EffectiveAdministratorsAsync()).Order().ShouldBe(new[] { admin.UserId, other.UserId }.Order());
+        using var gate = new AccountLifecycleRaceGate(admin.UserId,
+            suspendFirst ? SuspendPath(other.UserId) : DeletePath,
+            suspendFirst ? DeletePath : SuspendPath(other.UserId));
+        using var host = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(gate);
+            services.RemoveAll<IAccountAccessCoordinator>();
+            services.AddScoped<IAccountAccessCoordinator, LifecycleRaceCoordinator>();
+        }));
+        using var client = host.CreateClient();
+        var suspendGrant = await ReauthTestHelpers.MintGrantAsync(_factory, client, admin.SessionId, admin.Email, Ct);
+        await ReauthTestHelpers.LetTheCooldownLapseAsync(_factory, admin.Email, Ct);
+        var deleteGrant = await ReauthTestHelpers.MintGrantAsync(_factory, client, admin.SessionId, admin.Email, Ct);
+        deleteGrant.ShouldNotBe(suspendGrant);
+        var adminBefore = await PrimaryAsync(admin.UserId);
+        var otherBefore = await PrimaryAsync(other.UserId);
+
+        Task<HttpResponseMessage> SuspendAsync() => ReauthTestHelpers.PostAsSessionAsync(client, admin.SessionId,
+            SuspendPath(other.UserId), new { reauthGrant = suspendGrant }, Ct);
+        Task<HttpResponseMessage> DeleteAsync() => ReauthTestHelpers.PostAsSessionAsync(client, admin.SessionId,
+            DeletePath, new { reauthGrant = deleteGrant }, Ct);
+
+        var first = suspendFirst ? SuspendAsync() : DeleteAsync();
+        (await gate.FirstHeld.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct))
+            .ShouldBe(new AccountLifecycleRaceGate.HeldTransaction(true, true, true, true));
+        var second = suspendFirst ? DeleteAsync() : SuspendAsync();
+        await gate.SecondAttempted.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        await WaitForAdvisoryLockWaiterAsync();
+        second.IsCompleted.ShouldBeFalse();
+        gate.Release();
+        var completed = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        (await gate.SecondHeld.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct))
+            .ShouldBe(new AccountLifecycleRaceGate.HeldTransaction(true, true, true, true));
+        var suspended = completed[suspendFirst ? 0 : 1];
+        var deleted = completed[suspendFirst ? 1 : 0];
+        var adminAfter = await PrimaryAsync(admin.UserId);
+        var otherAfter = await PrimaryAsync(other.UserId);
+
+        if (suspendFirst)
+        {
+            suspended.StatusCode.ShouldBe(HttpStatusCode.OK, await suspended.Content.ReadAsStringAsync(Ct));
+            var receipt = await suspended.Content.ReadFromJsonAsync<JsonElement>(Ct);
+            receipt.GetProperty("isSuspended").GetBoolean().ShouldBeTrue();
+            receipt.GetProperty("pendingDeletion").GetBoolean().ShouldBeFalse();
+            await ShouldBeLastAdministratorAsync(deleted);
+            adminAfter.ShouldBe(adminBefore with { Epoch = otherAfter.Epoch });
+            otherAfter.Access.ShouldBe(otherBefore.Access with
+            {
+                IsSuspended = true,
+                AccessRevision = checked(otherBefore.Access.AccessRevision + 1),
+                CredentialCutoff = otherAfter.Epoch,
+            });
+            otherAfter.Epoch.ShouldBe(checked(otherBefore.Epoch + 1));
+            otherAfter.SecurityStamp.ShouldNotBe(otherBefore.SecurityStamp);
+            otherAfter.ConcurrencyStamp.ShouldNotBe(otherBefore.ConcurrencyStamp);
+            otherAfter.ProviderLogins.ShouldBe(otherBefore.ProviderLogins);
+            otherAfter.DeletionAudits.ShouldBe(0);
+            otherAfter.SuspensionAudits.ShouldBe(1);
+            (await EffectiveAdministratorsAsync()).ShouldBe([admin.UserId]);
+            (await MeAsync(admin)).ShouldBe(HttpStatusCode.OK);
+            (await MeAsync(other)).ShouldBe(HttpStatusCode.Unauthorized);
+        }
+        else
+        {
+            deleted.StatusCode.ShouldBe(HttpStatusCode.NoContent, await deleted.Content.ReadAsStringAsync(Ct));
+            suspended.StatusCode.ShouldBe(HttpStatusCode.Unauthorized, await suspended.Content.ReadAsStringAsync(Ct));
+            var refusal = await suspended.Content.ReadFromJsonAsync<JsonElement>(Ct);
+            refusal.GetProperty("title").GetString().ShouldBe(AuthErrorCodes.InvalidCredentials);
+            otherAfter.ShouldBe(otherBefore with { Epoch = adminAfter.Epoch });
+            adminAfter.Access.DeletedAt.ShouldNotBeNull();
+            adminAfter.Access.IsSuspended.ShouldBeFalse();
+            adminAfter.Access.IsEffectiveAdmin.ShouldBeFalse();
+            adminAfter.ProviderLogins.ShouldBe(0);
+            adminAfter.DeletionAudits.ShouldBe(1);
+            adminAfter.SuspensionAudits.ShouldBe(0);
+            (await EffectiveAdministratorsAsync()).ShouldBe([other.UserId]);
+            (await MeAsync(admin)).ShouldBe(HttpStatusCode.Unauthorized);
+            (await MeAsync(other)).ShouldBe(HttpStatusCode.OK);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConcurrentAdministratorOwnDeletes_ShouldRefuseTheSecondDeletion_AndKeepItsSessionAndProviderLink(
+        bool bootstrapFirst)
+    {
+        var bootstrap = await BootstrapAdministratorAsync();
+        var historical = await HistoricalAdministratorAsync("delete-admin");
+        await AddProviderLoginAsync(bootstrap.UserId);
+        await AddProviderLoginAsync(historical.UserId);
+        (await EffectiveAdministratorsAsync()).Order().ShouldBe(new[] { bootstrap.UserId, historical.UserId }.Order());
+        var firstAccount = bootstrapFirst ? bootstrap : historical;
+        var secondAccount = bootstrapFirst ? historical : bootstrap;
+        using var gate = new AccountLifecycleRaceGate(firstAccount.UserId, DeletePath, DeletePath, secondAccount.UserId);
+        using var host = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(gate);
+            services.RemoveAll<IAccountAccessCoordinator>();
+            services.AddScoped<IAccountAccessCoordinator, LifecycleRaceCoordinator>();
+        }));
+        using var client = host.CreateClient();
+        var firstGrant = await ReauthTestHelpers.MintGrantAsync(
+            _factory, client, firstAccount.SessionId, firstAccount.Email, Ct);
+        var secondGrant = await ReauthTestHelpers.MintGrantAsync(
+            _factory, client, secondAccount.SessionId, secondAccount.Email, Ct);
+        secondGrant.ShouldNotBe(firstGrant);
+        var secondBefore = await PrimaryAsync(secondAccount.UserId);
+
+        var first = ReauthTestHelpers.PostAsSessionAsync(client, firstAccount.SessionId,
+            DeletePath, new { reauthGrant = firstGrant }, Ct);
+        (await gate.FirstHeld.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct))
+            .ShouldBe(new AccountLifecycleRaceGate.HeldTransaction(true, true, true, true));
+        var second = ReauthTestHelpers.PostAsSessionAsync(client, secondAccount.SessionId,
+            DeletePath, new { reauthGrant = secondGrant }, Ct);
+        await gate.SecondAttempted.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        await WaitForAdvisoryLockWaiterAsync();
+        second.IsCompleted.ShouldBeFalse();
+        gate.Release();
+        var completed = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        (await gate.SecondHeld.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct))
+            .ShouldBe(new AccountLifecycleRaceGate.HeldTransaction(true, true, true, true));
+
+        completed[0].StatusCode.ShouldBe(HttpStatusCode.NoContent, await completed[0].Content.ReadAsStringAsync(Ct));
+        await ShouldBeLastAdministratorAsync(completed[1]);
+        var firstAfter = await PrimaryAsync(firstAccount.UserId);
+        var secondAfter = await PrimaryAsync(secondAccount.UserId);
+        secondAfter.ShouldBe(secondBefore with { Epoch = firstAfter.Epoch });
+        firstAfter.Access.DeletedAt.ShouldNotBeNull();
+        firstAfter.Access.IsSuspended.ShouldBeFalse();
+        firstAfter.Access.IsEffectiveAdmin.ShouldBeFalse();
+        firstAfter.ProviderLogins.ShouldBe(0);
+        firstAfter.DeletionAudits.ShouldBe(1);
+        firstAfter.SuspensionAudits.ShouldBe(0);
+        (firstAfter.DeletionAudits + secondAfter.DeletionAudits).ShouldBe(1);
+        (await EffectiveAdministratorsAsync()).ShouldBe([secondAccount.UserId]);
+        (await MeAsync(firstAccount)).ShouldBe(HttpStatusCode.Unauthorized);
+        (await MeAsync(secondAccount)).ShouldBe(HttpStatusCode.OK);
+    }
+
+    private async Task<Account> HistoricalAdministratorAsync(string label)
+    {
+        var account = await AccountAsync(label);
+        await AccountEmailChangeKit.GrantAdminAsTheRetiredSeederDidAsync(_factory, account.UserId);
+        (await PrimaryAsync(account.UserId)).Access.IsEffectiveAdmin.ShouldBeTrue();
+        return account;
     }
 
     private async Task WaitForAdvisoryLockWaiterAsync()

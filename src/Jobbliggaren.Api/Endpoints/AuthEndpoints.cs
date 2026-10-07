@@ -173,7 +173,7 @@ public static class AuthEndpoints
 
             if (reissued is null)
                 return Results.Problem(statusCode: StatusCodes.Status401Unauthorized,
-                    title: "Auth.SessionUnavailable",
+                    title: AuthErrorCodes.SessionUnavailable,
                     detail: "E-postadressen har ändrats. Logga in igen för att fortsätta.");
 
             return Results.Ok(new

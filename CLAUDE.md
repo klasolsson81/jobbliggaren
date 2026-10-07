@@ -530,9 +530,9 @@ command, the report-only prompt, the verdict-table format and the label checklis
   unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307
   every internal call and break the app, while `UseHsts` stays inert either way because
   the API's responses are consumed by a Next route handler and never reach a browser.
-  Browser-visible HSTS is owed **outside ASP.NET**, on **both** response paths — the
-  Caddyfile in #196 for the 401 that never reaches Next, and `buildSecurityHeaders` for
-  the Next path (ADR 0050 Amendment 2026-08-04 §5, gate M-5a). Never by flipping this flag.
+  Browser-visible HSTS is owed **outside ASP.NET**: Caddy emits one host-only field on
+  both its own and proxied Next responses, removing upstream HSTS. Direct Next keeps
+  its own policy (ADR 0050 §5, Amendment 2026-10-07; M-5a). Never by flipping this flag.
   ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
   **preserved** `infra/terraform/`, which still carries the **old `Alb__HttpsEnabled`**
   injection — deliberately, as a **record of what ran**, not as live config. Do not

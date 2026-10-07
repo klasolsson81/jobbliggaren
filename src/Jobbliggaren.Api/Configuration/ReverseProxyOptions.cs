@@ -20,9 +20,10 @@ namespace Jobbliggaren.Api.Configuration;
 /// would make <c>UseHttpsRedirection()</c> answer 307 to every internal Next-to-API call
 /// and break the app. <c>UseHsts()</c> is inert for a second, independent reason: the
 /// API's response headers are consumed by a Next route handler and never reach a
-/// browser, so browser-visible HSTS is owed outside ASP.NET, on BOTH response paths —
-/// Caddy for the 401 that never reaches Next, and <c>buildSecurityHeaders</c> for the
-/// Next path. See CLAUDE.md §11 (ADR 0050 Amendment 2026-08-04 §5; gate M-5a).
+/// browser. Caddy emits the single browser-visible HSTS field on both its own
+/// responses and proxied Next responses, removing upstream HSTS; direct Next
+/// responses retain their own policy. See CLAUDE.md §11 (ADR 0050 §5, Amendment
+/// 2026-10-07; gate M-5a).
 /// </para>
 ///
 /// <para>

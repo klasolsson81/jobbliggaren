@@ -61,3 +61,6 @@ deploy/docker-compose.yml text eol=lf
 AGENTS.md text eol=lf
 web/jobbliggaren-web/AGENTS.md text eol=lf
 .codex/agents/* text eol=lf
+
+# pnpm's lockfile binds patches by byte hash across Windows and Linux checkouts.
+web/jobbliggaren-web/patches/*.patch text eol=lf

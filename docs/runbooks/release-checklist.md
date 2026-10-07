@@ -1558,7 +1558,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       skrevs. Två trackade hemvister med olika mängd för samma faktum, och den felaktiga styrde
       skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 87 flippas INTE**, och de återstående planerat-meningarna — SCB-vägen — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
       falska, vilket är den dyra riktningen.
-      **The measurement covers both notification tables:** no row has left `Pending`
+      **The measurement covers both notification tables:** check whether any row has left `Pending`
       in `user_job_ad_matches` or `followed_company_ad_hits` — de två
       tabellerna som ÄR notis-armen. ⚠ **Formen är `Pending`, aldrig `sent_at IS NULL`:** i
       claim-then-send-spinen sätts `MarkQueued` **före** utskicket, så en `Queued`-rad kan ha

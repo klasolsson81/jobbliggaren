@@ -29,6 +29,7 @@ FROM node:22-alpine AS deps
 RUN npm install --global pnpm@9
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------

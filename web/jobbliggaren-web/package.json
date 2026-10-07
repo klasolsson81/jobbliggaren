@@ -66,7 +66,15 @@
       "brace-expansion@>=2.0.0 <=5.0.7": "^5.0.8",
       "@puppeteer/browsers@<3.0.0": "^3.2.3",
       "uuid@<11.1.1": "^11.1.1",
-      "basic-ftp@<=6.2.0": "^6.2.1"
+      "basic-ftp@<=6.2.0": "^6.2.1",
+      "source-map-js@>=1.0.0 <1.2.2": "^1.2.2",
+      "proxy-addr@>=1.1.0 <2.0.8": "^2.0.8",
+      "compression@<1.8.2": "^1.8.2",
+      "@lhci/utils@0.15.1>js-yaml@^3.13.1": "^4.3.2"
+    },
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch",
+      "@lhci/utils@0.15.1": "patches/@lhci__utils@0.15.1.patch"
     }
   }
 }

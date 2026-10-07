@@ -290,47 +290,169 @@
       "title": "Feedback"
     },
     "heading": "Feedback",
+    "availability": {
+      "disabled": "Feedback is switched off.",
+      "noRecipient": "Feedback is closed: no recipient for notices is set.",
+      "cannotDeliver": "Feedback is closed: the email service is not sending.",
+      "unknown": "It is not possible to see whether feedback is open."
+    },
     "filter": {
-      "label": "Show reports",
+      "label": "Filter by status",
       "all": "All",
-      "new": "New",
-      "inProgress": "In progress",
-      "resolved": "Resolved",
-      "skipped": "Dismissed"
+      "count": "{label} ({count})"
+    },
+    "scope": {
+      "page": "Page: {page}",
+      "clear": "Show all pages"
     },
     "list": {
-      "label": "Reports"
+      "label": "Submissions",
+      "empty": "No submissions.",
+      "emptyFiltered": "No submissions match the filter.",
+      "pageMissing": "The page does not exist.",
+      "firstPage": "To the first page",
+      "notice": "Notice: {state}"
     },
-    "detail": {
-      "label": "Selected report",
-      "reply": "Reply",
-      "send": "Send reply",
-      "statusLabel": "Status",
-      "saveStatus": "Save status",
-      "meta": {
-        "page": "Page",
-        "screen": "Screen",
-        "device": "Device",
-        "version": "Version"
-      },
-      "replies": "Sent replies",
-      "noReplies": "No replies yet.",
-      "replyHint": "The reply goes to {email}.",
-      "sent": "The reply was sent to {email}.",
-      "sending": "Sending…"
-    },
-    "filterCount": "{label} ({count})",
-    "empty": "No reports.",
     "status": {
       "new": "New",
       "inProgress": "In progress",
       "resolved": "Resolved",
-      "skipped": "Dismissed"
+      "declined": "Declined"
     },
-    "category": {
-      "bug": "Bug",
-      "suggestion": "Suggestion",
-      "question": "Question"
+    "rating": {
+      "value": "{rating} of 5",
+      "none": "No rating"
+    },
+    "pages": {
+      "overview": "Overview",
+      "jobs": "Jobs",
+      "job-ad": "Job ad",
+      "matches": "Matches",
+      "saved-ads": "Saved ads",
+      "saved-searches": "Searches",
+      "applications": "Applications",
+      "application": "Application",
+      "new-application": "New application",
+      "statistics": "Statistics",
+      "activity-report": "Activity report",
+      "followed-companies": "Followed companies",
+      "company-search": "Search companies",
+      "industry-watches": "Industry watches",
+      "application-history": "Application history",
+      "cv": "CV",
+      "cv-import": "Import CV",
+      "cv-review": "CV review",
+      "my-pages": "My pages"
+    },
+    "detail": {
+      "label": "Selected submission",
+      "notFound": "The submission does not exist.",
+      "noComment": "No text.",
+      "facts": {
+        "reporter": "Sender",
+        "page": "Page",
+        "rating": "Rating",
+        "submitted": "Sent",
+        "statusChanged": "Status changed"
+      },
+      "status": {
+        "label": "Status",
+        "save": "Save status",
+        "saving": "Saving…",
+        "saved": "The status is changed to {status}.",
+        "unchanged": "The submission already has that status."
+      },
+      "notice": {
+        "heading": "Notice",
+        "state": "State",
+        "attempts": "Attempts",
+        "nextAttempt": "Next attempt",
+        "states": {
+          "queued": "Queued",
+          "sending": "Sending",
+          "accepted": "Accepted by the email service",
+          "failed": "Failed",
+          "unknown": "Outcome unknown"
+        },
+        "retry": "Try again",
+        "resend": "Send the notice again",
+        "queueing": "Queueing…",
+        "queued": "The notice is queued again.",
+        "confirm": {
+          "title": "Send the notice again?",
+          "body": "The notice may already have arrived. A new send can cause a duplicate.",
+          "confirm": "Send the notice again"
+        }
+      },
+      "client": {
+        "heading": "Reported by the browser",
+        "viewport": "Window",
+        "screen": "Screen",
+        "pixelRatio": "Pixel density",
+        "theme": "Theme",
+        "device": "Device",
+        "os": "Operating system",
+        "browser": "Browser",
+        "version": "App version",
+        "size": "{width} × {height}",
+        "themes": {
+          "light": "Light",
+          "dark": "Dark"
+        },
+        "devices": {
+          "mobile": "Mobile",
+          "tablet": "Tablet",
+          "desktop": "Desktop"
+        },
+        "systems": {
+          "windows": "Windows",
+          "macOs": "macOS",
+          "ios": "iOS",
+          "android": "Android",
+          "linux": "Linux",
+          "chromeOs": "ChromeOS",
+          "other": "Other"
+        },
+        "browsers": {
+          "chrome": "Chrome",
+          "edge": "Edge",
+          "firefox": "Firefox",
+          "safari": "Safari",
+          "samsungInternet": "Samsung Internet",
+          "opera": "Opera",
+          "other": "Other"
+        }
+      },
+      "reply": "Reply",
+      "send": "Send reply"
+    },
+    "summary": {
+      "heading": "Ratings per page",
+      "windowLabel": "Period",
+      "windows": {
+        "d7": "7 days",
+        "d30": "30 days",
+        "d90": "90 days"
+      },
+      "caption": "Ratings per page over the last {days} days",
+      "page": "Page",
+      "raters": "Ratings",
+      "rated": "Rating {rating}",
+      "mean": "Mean",
+      "submissions": "Submissions",
+      "empty": "No submissions in the period."
+    },
+    "errors": {
+      "unauthorized": "You are no longer signed in. Sign in and try again.",
+      "forbidden": "Your session does not have the Admin role.",
+      "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "gone": "The submission does not exist.",
+      "statusRefused": "The status was not saved. Reload the page and try again.",
+      "statusUnknown": "We could not confirm that the status was saved. Reload the page to see the saved status.",
+      "noticeRefused": "The notice was not queued. Reload the page and try again.",
+      "noticeAlreadyQueued": "The notice is already queued or sent.",
+      "noticeChanged": "The notice's state has changed. Check it before you send it again.",
+      "noticeUnknown": "We could not confirm that the notice was queued. Reload the page to see its state."
     }
   },
   "logs": {

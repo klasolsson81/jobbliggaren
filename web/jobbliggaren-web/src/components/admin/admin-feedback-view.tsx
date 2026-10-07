@@ -1,355 +1,410 @@
-"use client";
-
-// "use client": the view holds the filter, the open report and the reply being written.
-import { useEffect, useId, useRef, useState, useTransition } from "react";
-import { flushSync } from "react-dom";
+import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { Send } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime } from "@/lib/i18n/format";
-import { showAdminToast } from "@/lib/admin/toast-store";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import {
+  FEEDBACK_STATUSES,
+  FEEDBACK_WINDOWS,
+  feedbackHref,
+  isFeedbackPageKey,
+  withId,
+  withPage,
+  withPageNumber,
+  withStatus,
+  withWindow,
+  type AdminFeedbackQuery,
+  type AdminFeedbackRefusal,
+} from "@/lib/admin/feedback";
 import type {
+  AdminFeedbackAvailability,
   AdminFeedbackItem,
+  AdminFeedbackListItem,
+  AdminFeedbackListPage,
+  AdminFeedbackPageSummary,
   AdminFeedbackStatus,
   AdminRegion,
+  AdminValueRegion,
 } from "@/lib/admin/view-models";
-import { AdminBusyLabel } from "./admin-busy-label";
+import { formatDateTime } from "@/lib/i18n/format";
+import { AdminFeedbackDetail } from "./admin-feedback-detail";
+import { FeedbackNoticeState, FeedbackRating, FeedbackStatusPill, useFeedbackPageLabel } from "./admin-feedback-parts";
 import { AdminRegionLine } from "./admin-region-line";
-import { AdminSegment } from "./admin-segment";
-import { ComingSoon } from "./coming-soon";
+import { AdminTableScroll } from "./admin-table-scroll";
 import { AdminUnknown } from "./admin-unknown";
 
-type Filter = "all" | AdminFeedbackStatus;
-
-const FILTERS: ReadonlyArray<Filter> = ["all", "new", "inProgress", "resolved", "skipped"];
-const STATUSES: ReadonlyArray<AdminFeedbackStatus> = ["new", "inProgress", "resolved", "skipped"];
-const STATUS_TONE: Readonly<Record<AdminFeedbackStatus, string>> = {
-  new: "jp-pill--info",
-  inProgress: "jp-pill--warning",
-  resolved: "jp-pill--success",
-  skipped: "jp-pill--neutral",
-};
-const LIST_SOON_ID = "admin-feedback-list-soon";
-const DETAIL_SOON_ID = "admin-feedback-detail-soon";
-const EXCERPT_LENGTH = 90;
-
-function excerpt(text: string): string {
-  return text.length <= EXCERPT_LENGTH ? text : `${text.slice(0, EXCERPT_LENGTH).trimEnd()}…`;
+export interface AdminFeedbackViewProps {
+  /** "/admin/feedback", or the local preview's own route (ADR 0150 D5). */
+  readonly basePath: string;
+  /** What the URL asks for; every link keeps it and changes one part. */
+  readonly query: AdminFeedbackQuery;
+  readonly availability: AdminValueRegion<AdminFeedbackAvailability>;
+  /** A list that answered with no submissions is loaded and empty: its counts are still known. */
+  readonly list: AdminValueRegion<AdminFeedbackListPage>;
+  /** Null while the URL opens no submission; `empty` when the one it names does not exist. */
+  readonly detail: AdminRegion<AdminFeedbackItem> | null;
+  readonly summary: AdminRegion<ReadonlyArray<AdminFeedbackPageSummary>>;
+  /** A refused read's own line, by region; a region without one shows the shared failed line. */
+  readonly failedLines?: { readonly list?: string; readonly detail?: string; readonly summary?: string };
+  readonly onStatus: (id: string, status: AdminFeedbackStatus) => Promise<AdminFeedbackRefusal>;
+  readonly onRequeue: (id: string, acknowledgeDuplicateRisk: boolean) => Promise<AdminFeedbackRefusal>;
 }
 
-type FeedbackRegion = AdminRegion<ReadonlyArray<AdminFeedbackItem>>;
-
-/** An unavailable region takes no handlers; every other state needs both. */
-export type AdminFeedbackViewProps =
-  | { readonly region: Extract<FeedbackRegion, { readonly kind: "unavailable" }> }
-  | {
-      readonly region: Exclude<FeedbackRegion, { readonly kind: "unavailable" }>;
-      readonly onReply: (id: string, text: string) => Promise<void>;
-      readonly onStatus: (id: string, status: AdminFeedbackStatus) => void;
-    };
+const sameId = (left: string, right: string | null) => right !== null && left.toLowerCase() === right.toLowerCase();
 
 /**
- * Reports from the app's feedback button as a master/detail layout (ADR 0150). Until #1979 the
- * region is unavailable: the filter, the list and the reply form keep their structure, disabled
- * and described by their "Kommer snart" lines, and no count, report or reply is shown (D2).
+ * Feedback from the app's feedback button (#1979, ADR 0150): a status line while feedback is closed, the
+ * submissions as a master/detail layout and the ratings per page. Everything is driven by the URL, so the
+ * notice mail's link opens the submission it names, and every filter, page and window is a link. Each
+ * region is one state of ADR 0150 D2's union, and one failing read never blanks another.
+ *
+ * No directive: on the live page the list, the filters and the summary render on the server, and only the
+ * open submission, which holds a status choice and runs commands, is a client island.
  */
-export function AdminFeedbackView(props: AdminFeedbackViewProps) {
-  const { region } = props;
+export function AdminFeedbackView({
+  basePath,
+  query,
+  availability,
+  list,
+  detail,
+  summary,
+  failedLines,
+  onStatus,
+  onRequeue,
+}: AdminFeedbackViewProps) {
   const t = useTranslations("admin.feedback");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selections, setSelections] = useState(0);
-  const loaded = region.kind === "loaded";
-  const items = loaded ? region.data : [];
-  const shown = filter === "all" ? items : items.filter((item) => item.status === filter);
-  // A report stays open when a change moves it out of the filter.
-  const selected = items.find((item) => item.id === selectedId) ?? shown[0] ?? null;
-
-  const filters = (
-    <AdminSegment
-      label={t("filter.label")}
-      options={FILTERS.map((value) => ({
-        value,
-        label: loaded
-          ? t("filterCount", {
-              label: t(`filter.${value}`),
-              count: value === "all" ? items.length : items.filter((item) => item.status === value).length,
-            })
-          : t(`filter.${value}`),
-      }))}
-      value={filter}
-      onChange={loaded ? setFilter : undefined}
-      describedBy={region.kind === "unavailable" ? LIST_SOON_ID : undefined}
-    />
-  );
-
-  if (!("onReply" in props)) {
-    return (
-      <>
-        {filters}
-        <div className="jp-adminfeedback">
-          <section aria-labelledby="admin-feedback-list">
-            <h2 id="admin-feedback-list" className="sr-only">
-              {t("list.label")}
-            </h2>
-            <ComingSoon id={LIST_SOON_ID} region />
-          </section>
-          <section aria-labelledby="admin-feedback-detail" className="jp-adminfeedback__detail">
-            <h2 id="admin-feedback-detail" className="sr-only">
-              {t("detail.label")}
-            </h2>
-            <div className="jp-adminfeedback__reply">
-              <Label htmlFor="admin-feedback-reply">{t("detail.reply")}</Label>
-              <Textarea id="admin-feedback-reply" disabled aria-describedby={DETAIL_SOON_ID} />
-              <div>
-                <button
-                  type="button"
-                  className="jp-btn jp-btn--secondary"
-                  disabled
-                  aria-describedby={DETAIL_SOON_ID}
-                >
-                  <Send size={16} aria-hidden="true" />
-                  {t("detail.send")}
-                </button>
-              </div>
-            </div>
-            <ComingSoon id={DETAIL_SOON_ID} />
-          </section>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
-      {filters}
-      <div className={selected === null ? undefined : "jp-adminfeedback"}>
-        <section aria-labelledby="admin-feedback-list">
-          <h2 id="admin-feedback-list" className="sr-only">
-            {t("list.label")}
-          </h2>
-          {region.kind !== "loaded" ? (
-            <AdminRegionLine kind={region.kind} empty={t("empty")} region />
-          ) : shown.length === 0 ? (
-            <AdminRegionLine kind="empty" empty={t("empty")} region />
-          ) : (
-            <ol className="jp-adminfeedback__list">
-              {shown.map((item) => (
-                <li key={item.id}>
-                  <FeedbackListItem
-                    item={item}
-                    selected={item.id === selected?.id}
-                    onSelect={() => {
-                      setSelectedId(item.id);
-                      setSelections((count) => count + 1);
-                    }}
-                  />
-                </li>
-              ))}
-            </ol>
+      <FeedbackAvailabilityLine region={availability} />
+      <div>
+        <FeedbackStatusFilter basePath={basePath} query={query} list={list} />
+        <FeedbackScope basePath={basePath} query={query} />
+        <div className={detail === null ? undefined : "jp-adminfeedback"}>
+          <section aria-labelledby="admin-feedback-list" className="jp-adminfeedback__master">
+            <h2 id="admin-feedback-list" className="sr-only">
+              {t("list.label")}
+            </h2>
+            <FeedbackList basePath={basePath} query={query} region={list} failed={failedLines?.list} />
+          </section>
+          {detail === null ? null : (
+            <AdminFeedbackDetail
+              key={query.id ?? ""}
+              region={detail}
+              failed={failedLines?.detail}
+              onStatus={onStatus}
+              onRequeue={onRequeue}
+            />
           )}
-        </section>
-        {selected === null ? null : (
-          <FeedbackDetail
-            key={selected.id}
-            item={selected}
-            selections={selections}
-            onKeepOpen={() => setSelectedId(selected.id)}
-            onReply={props.onReply}
-            onStatus={props.onStatus}
-          />
-        )}
+        </div>
       </div>
+      <FeedbackSummary basePath={basePath} query={query} region={summary} failed={failedLines?.summary} />
     </>
   );
 }
 
-function FeedbackListItem({
-  item,
-  selected,
-  onSelect,
+/** Shown only while feedback is closed, or while whether it is open cannot be read: never as "open". */
+function FeedbackAvailabilityLine({ region }: { readonly region: AdminValueRegion<AdminFeedbackAvailability> }) {
+  const t = useTranslations("admin.feedback.availability");
+  if (region.kind === "failed") {
+    return (
+      <p className="jp-adminfeedback__availability" data-state="unknown">
+        {t("unknown")}
+      </p>
+    );
+  }
+  if (region.kind !== "loaded" || region.data === "open") return null;
+  return <p className="jp-adminfeedback__availability">{t(region.data)}</p>;
+}
+
+/**
+ * One link per status, the house `.jp-subnav`: each status is its own URL (ADR 0150 D8). A count is shown
+ * only when the list answered, so an unknown count is never "(0)" (ADR 0150 D2).
+ */
+function FeedbackStatusFilter({
+  basePath,
+  query,
+  list,
 }: {
-  readonly item: AdminFeedbackItem;
-  readonly selected: boolean;
-  readonly onSelect: () => void;
+  readonly basePath: string;
+  readonly query: AdminFeedbackQuery;
+  readonly list: AdminValueRegion<AdminFeedbackListPage>;
 }) {
   const t = useTranslations("admin.feedback");
-  const format = useFormatter();
+  if (list.kind === "unavailable") return null;
+  const counts = list.kind === "loaded" ? list.data.counts : null;
+  const options: ReadonlyArray<AdminFeedbackStatus | null> = [null, ...FEEDBACK_STATUSES];
+
   return (
-    <button
-      type="button"
-      className="jp-adminfeedback__item"
-      aria-current={selected ? "true" : undefined}
-      onClick={onSelect}
-    >
-      <span className="jp-adminfeedback__itemhead">
-        <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
-        <span className="jp-adminfeedback__category">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? <AdminUnknown />}</span>
-      </span>
-      <span className="jp-adminfeedback__excerpt">{excerpt(item.text)}</span>
-      <span className="jp-adminfeedback__sender">{item.senderEmail}</span>
-    </button>
+    <nav className="jp-subnav" aria-label={t("filter.label")}>
+      {options.map((status) => {
+        const active = status === query.status;
+        const label = status === null ? t("filter.all") : t(`status.${status}`);
+        const count = counts === null ? null : status === null ? counts.all : counts[status];
+        return (
+          <Link
+            key={status ?? "all"}
+            href={feedbackHref(basePath, withStatus(query, status))}
+            className="jp-subnav__item"
+            data-active={active}
+            aria-current={active ? "true" : undefined}
+          >
+            {count === null ? label : t("filter.count", { label, count })}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
-function FeedbackDetail({
-  item,
-  selections,
-  onKeepOpen,
-  onReply,
-  onStatus,
+/** The page filter in force, set from the summary's page names, and the link that lifts it. */
+function FeedbackScope({ basePath, query }: { readonly basePath: string; readonly query: AdminFeedbackQuery }) {
+  const t = useTranslations("admin.feedback.scope");
+  const pageLabel = useFeedbackPageLabel();
+  if (query.page === null) return null;
+  return (
+    <p className="jp-adminfeedback__scope">
+      <span>{t("page", { page: pageLabel(query.page) })}</span>
+      <Link href={feedbackHref(basePath, withPage(query, null))}>{t("clear")}</Link>
+    </p>
+  );
+}
+
+function FeedbackList({
+  basePath,
+  query,
+  region,
+  failed,
 }: {
-  readonly item: AdminFeedbackItem;
-  /** How many times a report has been chosen in the list; each choice brings the open report into view. */
-  readonly selections: number;
-  /** Keeps this report open when an action on it moves it out of the filter. */
-  readonly onKeepOpen: () => void;
-  readonly onReply: (id: string, text: string) => Promise<void>;
-  readonly onStatus: (id: string, status: AdminFeedbackStatus) => void;
+  readonly basePath: string;
+  readonly query: AdminFeedbackQuery;
+  readonly region: AdminValueRegion<AdminFeedbackListPage>;
+  readonly failed: string | undefined;
 }) {
-  const t = useTranslations("admin.feedback");
-  const format = useFormatter();
-  const [reply, setReply] = useState("");
-  const [status, setStatus] = useState<AdminFeedbackStatus | null>(null);
-  const [sent, setSent] = useState(0);
-  const [pending, startTransition] = useTransition();
-  const sectionRef = useRef<HTMLElement>(null);
-  const repliesRef = useRef<HTMLOListElement>(null);
-  const replyRef = useRef<HTMLTextAreaElement>(null);
-  const statusId = useId();
-  const hintId = useId();
-  const chosenStatus = status ?? item.status;
+  const t = useTranslations("admin.feedback.list");
+  if (region.kind !== "loaded") return <AdminRegionLine kind={region.kind} failed={failed} region />;
 
-  useEffect(() => {
-    if (selections === 0) return;
-    sectionRef.current?.focus({ preventScroll: true });
-    sectionRef.current?.scrollIntoView?.({ block: "start" });
-  }, [selections]);
-
-  useEffect(() => {
-    if (sent === 0) return;
-    const last = repliesRef.current?.lastElementChild;
-    if (last instanceof HTMLElement) last.focus();
-  }, [sent]);
-
-  // A send that throws ends at the nearest error boundary rather than leaving the form disabled.
-  function send() {
-    const text = reply.trim();
-    if (text === "") {
-      flushSync(() => setReply(""));
-      replyRef.current?.reportValidity();
-      return;
-    }
-    // Outside the transition: an update inside it would commit only when the send completes, after the
-    // report had already left the filter and been replaced.
-    onKeepOpen();
-    startTransition(async () => {
-      await onReply(item.id, text);
-      startTransition(() => {
-        setReply("");
-        setSent((count) => count + 1);
-      });
-      showAdminToast(t("detail.sent", { email: item.senderEmail }));
-    });
+  const { items, page, totalPages, totalCount } = region.data;
+  if (items.length === 0 && totalCount > 0) {
+    // A page number past the last page: the submissions exist, this page of them does not.
+    return (
+      <p className="jp-adminsoon jp-adminsoon--region">
+        {t("pageMissing")} <Link href={feedbackHref(basePath, withPageNumber(query, 1))}>{t("firstPage")}</Link>
+      </p>
+    );
   }
-
-  function saveStatus() {
-    onKeepOpen();
-    if (chosenStatus !== item.status) onStatus(item.id, chosenStatus);
-    setStatus(null);
+  if (items.length === 0) {
+    const filtered = query.status !== null || query.page !== null;
+    return <AdminRegionLine kind="empty" empty={filtered ? t("emptyFiltered") : t("empty")} region />;
   }
 
   return (
-    <section
-      ref={sectionRef}
-      tabIndex={-1}
-      aria-labelledby="admin-feedback-detail"
-      className="jp-adminfeedback__detail"
-    >
-      <h2 id="admin-feedback-detail" className="sr-only">
-        {t("detail.label")}
-      </h2>
-      <div className="jp-adminfeedback__detailhead">
-        <span className={`jp-pill ${STATUS_TONE[item.status]}`}>{t(`status.${item.status}`)}</span>
-        <span className="jp-pill jp-pill--neutral">{t(`category.${item.category}`)}</span>
-        <span className="jp-adminfeedback__time">{formatDateTime(format, item.receivedAt) ?? <AdminUnknown />}</span>
-        <span className="jp-adminfeedback__status">
-          <label htmlFor={statusId}>{t("detail.statusLabel")}</label>
-          <select
-            id={statusId}
-            className="jp-adminfeedback__select"
-            value={chosenStatus}
-            onChange={(event) => setStatus(event.target.value as AdminFeedbackStatus)}
-          >
-            {STATUSES.map((option) => (
-              <option key={option} value={option}>
-                {t(`status.${option}`)}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={saveStatus}>
-            {t("detail.saveStatus")}
-          </button>
+    <>
+      <ol className="jp-adminfeedback__list">
+        {items.map((item) => (
+          <li key={item.id}>
+            <FeedbackListLink
+              item={item}
+              href={feedbackHref(basePath, withId(query, item.id))}
+              open={sameId(item.id, query.id)}
+            />
+          </li>
+        ))}
+      </ol>
+      <FeedbackPager basePath={basePath} query={query} page={page} pages={totalPages} />
+    </>
+  );
+}
+
+/**
+ * One submission: its status, page, rating, time, excerpt and notice, and never the reporter's address.
+ * Opening it keeps the scroll where it is; the open submission takes focus itself.
+ */
+function FeedbackListLink({
+  item,
+  href,
+  open,
+}: {
+  readonly item: AdminFeedbackListItem;
+  readonly href: string;
+  readonly open: boolean;
+}) {
+  const format = useFormatter();
+  const pageLabel = useFeedbackPageLabel();
+  return (
+    <Link href={href} scroll={false} className="jp-adminfeedback__item" aria-current={open ? "true" : undefined}>
+      <span className="jp-adminfeedback__itemhead">
+        <FeedbackStatusPill status={item.status} />
+        <span className="jp-adminfeedback__page">{pageLabel(item.page)}</span>
+        <span className="jp-adminfeedback__rating">
+          <FeedbackRating rating={item.rating} />
         </span>
-      </div>
-      <p className="jp-adminfeedback__from">{item.senderEmail}</p>
-      <p className="jp-adminfeedback__text">{item.text}</p>
-      <dl className="jp-admindl jp-adminfeedback__meta">
-        <dt>{t("detail.meta.page")}</dt>
-        <dd>
-          <code>{item.page}</code>
-        </dd>
-        <dt>{t("detail.meta.screen")}</dt>
-        <dd>{item.screen}</dd>
-        <dt>{t("detail.meta.device")}</dt>
-        <dd>{item.device}</dd>
-        <dt>{t("detail.meta.version")}</dt>
-        <dd>
-          <code>{item.version}</code>
-        </dd>
-      </dl>
-      <h3 className="jp-adminfeedback__subhead">{t("detail.replies")}</h3>
-      {item.replies.length === 0 ? (
-        <p className="jp-adminsoon">{t("detail.noReplies")}</p>
-      ) : (
-        <ol ref={repliesRef} className="jp-adminfeedback__replies">
-          {item.replies.map((sentReply) => (
-            <li key={sentReply.id} tabIndex={-1}>
-              <span className="jp-adminfeedback__time">{formatDateTime(format, sentReply.sentAt) ?? <AdminUnknown />}</span>
-              <p>{sentReply.text}</p>
-            </li>
-          ))}
-        </ol>
+        <span className="jp-adminfeedback__time">{formatDateTime(format, item.submittedAt) ?? <AdminUnknown />}</span>
+      </span>
+      {item.excerpt === null ? null : <span className="jp-adminfeedback__excerpt">{item.excerpt}</span>}
+      {item.notice === null ? null : (
+        <span className="jp-adminfeedback__notice">
+          <FeedbackNoticeState state={item.notice} named />
+        </span>
       )}
-      <form
-        className="jp-adminfeedback__reply"
-        onSubmit={(event) => {
-          event.preventDefault();
-          send();
-        }}
-      >
-        <Label htmlFor="admin-feedback-reply">{t("detail.reply")}</Label>
-        <Textarea
-          ref={replyRef}
-          id="admin-feedback-reply"
-          value={reply}
-          onChange={(event) => setReply(event.target.value)}
-          disabled={pending}
-          required
-          aria-describedby={hintId}
-        />
-        <p id={hintId} className="jp-adminfeedback__hint">
-          {t("detail.replyHint", { email: item.senderEmail })}
-        </p>
-        <div>
-          <button type="submit" className="jp-btn jp-btn--primary" disabled={pending}>
-            <Send size={16} aria-hidden="true" />
-            <AdminBusyLabel busy={pending} label={t("detail.send")} busyLabel={t("detail.sending")} />
-          </button>
-        </div>
-      </form>
+    </Link>
+  );
+}
+
+/** "Sida 2 av 3" with Föregående and Nästa as links; a page that does not exist is never offered. */
+function FeedbackPager({
+  basePath,
+  query,
+  page,
+  pages,
+}: {
+  readonly basePath: string;
+  readonly query: AdminFeedbackQuery;
+  readonly page: number;
+  readonly pages: number;
+}) {
+  const t = useTranslations("admin.users.pager");
+  if (pages <= 1) return null;
+  return (
+    <nav className="jp-adminpager" aria-label={t("label")}>
+      <p className="jp-adminpager__position" role="status">
+        {t("position", { page, pages })}
+      </p>
+      <div className="jp-adminpager__buttons">
+        {page > 1 ? (
+          <Link
+            href={feedbackHref(basePath, withPageNumber(query, page - 1))}
+            rel="prev"
+            className="jp-btn jp-btn--sm jp-btn--secondary"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            {t("previous")}
+          </Link>
+        ) : null}
+        {page < pages ? (
+          <Link
+            href={feedbackHref(basePath, withPageNumber(query, page + 1))}
+            rel="next"
+            className="jp-btn jp-btn--sm jp-btn--secondary"
+          >
+            {t("next")}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        ) : null}
+      </div>
+    </nav>
+  );
+}
+
+const RATING_COLUMNS = [1, 2, 3, 4, 5] as const;
+const SUMMARY_CAPTION_ID = "admin-feedback-summary-caption";
+
+/**
+ * Betyg per sida over the window: how many rated each page, the 1–5 spread as numbers, the mean with one
+ * decimal and how many submissions arrived. A page name filters the list to that page.
+ */
+function FeedbackSummary({
+  basePath,
+  query,
+  region,
+  failed,
+}: {
+  readonly basePath: string;
+  readonly query: AdminFeedbackQuery;
+  readonly region: AdminRegion<ReadonlyArray<AdminFeedbackPageSummary>>;
+  readonly failed: string | undefined;
+}) {
+  const t = useTranslations("admin.feedback.summary");
+  const format = useFormatter();
+  const pageLabel = useFeedbackPageLabel();
+
+  return (
+    <section aria-labelledby="admin-feedback-summary" className="jp-adminfeedback__summary">
+      <h2 id="admin-feedback-summary" className="jp-h2">
+        {t("heading")}
+      </h2>
+      {region.kind === "unavailable" ? null : (
+        <nav className="jp-subnav" aria-label={t("windowLabel")}>
+          {FEEDBACK_WINDOWS.map((days) => {
+            const active = days === query.window;
+            return (
+              <Link
+                key={days}
+                href={feedbackHref(basePath, withWindow(query, days))}
+                scroll={false}
+                className="jp-subnav__item"
+                data-active={active}
+                aria-current={active ? "true" : undefined}
+              >
+                {t(`windows.d${days}`)}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+      {region.kind !== "loaded" ? (
+        <AdminRegionLine kind={region.kind} empty={t("empty")} failed={failed} region />
+      ) : (
+        <AdminTableScroll labelledBy={SUMMARY_CAPTION_ID}>
+          <table className="jp-table jp-admintable">
+            <caption id={SUMMARY_CAPTION_ID} className="sr-only">
+              {t("caption", { days: query.window })}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("page")}</th>
+                <th scope="col" className="jp-admintable__num">
+                  {t("raters")}
+                </th>
+                {RATING_COLUMNS.map((rating) => (
+                  <th key={rating} scope="col" className="jp-admintable__num">
+                    <span aria-hidden="true">{rating}</span>
+                    <span className="sr-only">{t("rated", { rating })}</span>
+                  </th>
+                ))}
+                <th scope="col" className="jp-admintable__num">
+                  {t("mean")}
+                </th>
+                <th scope="col" className="jp-admintable__num">
+                  {t("submissions")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {region.data.map((row) => (
+                <tr key={row.page}>
+                  <td>
+                    {isFeedbackPageKey(row.page) ? (
+                      <Link
+                        href={feedbackHref(basePath, withPage(query, row.page))}
+                        className="jp-adminfeedback__pagelink"
+                        aria-current={row.page === query.page ? "true" : undefined}
+                      >
+                        {pageLabel(row.page)}
+                      </Link>
+                    ) : (
+                      row.page
+                    )}
+                  </td>
+                  <td className="jp-admintable__num">{format.number(row.raters)}</td>
+                  {row.ratings.map((ratingCount, index) => (
+                    // The five columns are fixed, so their position is their identity.
+                    <td key={index} className="jp-admintable__num">
+                      {format.number(ratingCount)}
+                    </td>
+                  ))}
+                  <td className="jp-admintable__num">
+                    {row.mean === null ? (
+                      <AdminUnknown />
+                    ) : (
+                      format.number(row.mean, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                    )}
+                  </td>
+                  <td className="jp-admintable__num">{format.number(row.submissions)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </AdminTableScroll>
+      )}
     </section>
   );
 }

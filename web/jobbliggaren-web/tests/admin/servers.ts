@@ -9,13 +9,20 @@ import {
   AUDIT_PAGE,
   EMAIL_CHANGE_INSTANTS,
   FAILED_JOBS,
+  FEEDBACK,
+  FEEDBACK_NOW,
   MEMBER,
   RECURRING_JOBS,
   STEP_UP_CHALLENGE,
   STEP_UP_GRANT,
   accountDetails,
   accountsPage,
+  feedbackDetail,
+  feedbackList,
+  feedbackSummary,
   type AccountAccessState,
+  type FeedbackAvailability,
+  type FeedbackRecord,
 } from "./fixtures";
 
 /**
@@ -37,6 +44,11 @@ export const SESSION_COOKIE = "__Host-jobbliggaren_session";
 export const SESSION_ID = "admin-harness-session";
 
 export type AdminMode = "ok" | "forbidden" | "error" | "rateLimited" | "unauthorized";
+
+/** The four reads the feedback page makes side by side (#1979). */
+export type FeedbackRead = "list" | "detail" | "summary" | "availability";
+
+const FEEDBACK_READS: ReadonlyArray<FeedbackRead> = ["list", "detail", "summary", "availability"];
 export type AccessMode = "ok" | "forbidden" | "rateLimited" | "unauthorized" | "unknown" | "unknownAfterCommit";
 
 export type Harness = {
@@ -65,6 +77,15 @@ export type Harness = {
   readonly requests: string[];
   /** Every account search's request body, as the backend received it. */
   readonly searches: string[];
+  /** #1979 — the feedback backend's submissions, as its two commands leave them. */
+  readonly feedback: Map<string, FeedbackRecord>;
+  /** What each feedback read answers; `mode` refuses them all at once, as it does every admin read. */
+  readonly feedbackReads: Record<FeedbackRead, AdminMode>;
+  feedbackAvailability: FeedbackAvailability;
+  /** Every feedback read's path and query string, as the backend received them. */
+  readonly feedbackQueries: string[];
+  /** Every status change's and requeue's body, as the backend received them. */
+  readonly feedbackCommands: { readonly id: string; readonly command: "status" | "requeue"; readonly body: string }[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -99,6 +120,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const emailChangeRequests: string[] = [];
   const accessRequests: Harness["accessRequests"] = [];
   const reauthVerifications: string[] = [];
+  const feedbackQueries: string[] = [];
+  const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
   let issuedGrants = 0;
@@ -128,6 +151,11 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     misses,
     requests,
     searches,
+    feedback: new Map(FEEDBACK.map((record) => [record.id, record])),
+    feedbackReads: { list: "ok", detail: "ok", summary: "ok", availability: "ok" },
+    feedbackAvailability: "Open",
+    feedbackQueries,
+    feedbackCommands,
     reset() {
       harness.releaseCodeRequests();
       harness.releaseAccessWrites();
@@ -146,6 +174,12 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.gone.clear();
       harness.emailChanges.clear();
       harness.access.clear();
+      harness.feedback.clear();
+      for (const record of FEEDBACK) harness.feedback.set(record.id, record);
+      for (const read of FEEDBACK_READS) harness.feedbackReads[read] = "ok";
+      harness.feedbackAvailability = "Open";
+      feedbackQueries.length = 0;
+      feedbackCommands.length = 0;
     },
     async stop() {
       await Promise.all([close(proxy), close(backend)]);
@@ -156,6 +190,11 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const json = (status: number, value?: unknown, headers: Record<string, string> = {}) => {
       response.writeHead(status, { "Content-Type": "application/json", ...headers });
       response.end(JSON.stringify(value ?? null));
+    };
+    /** A status with no body, as `Results.NotFound()` and `Results.NoContent()` answer. */
+    const bare = (status: number) => {
+      response.writeHead(status, { "Cache-Control": "private, no-store" });
+      response.end();
     };
     const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
@@ -172,8 +211,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => FAILED_JOBS,
     };
-    const refusal = () => {
-      switch (harness.mode) {
+    const refusal = (mode: AdminMode = harness.mode) => {
+      switch (mode) {
         case "forbidden":
           return json(403, { title: "Forbidden", status: 403 });
         case "rateLimited":
@@ -286,6 +325,83 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         emailChangeRequests.push(body);
         harness.emailChanges.add(accountId);
         json(202, EMAIL_CHANGE_INSTANTS);
+      });
+      return;
+    }
+
+    // #1979 — feedback: its list, one submission, the summary and the availability, read side by side, and
+    // the two commands. `mode` refuses every read at once; `feedbackReads` refuses one while the rest answer.
+    const feedbackRead = (read: FeedbackRead, answer: () => { readonly status: number; readonly value?: unknown }) => {
+      feedbackQueries.push(`${url.pathname}${url.search}`);
+      const mode = harness.mode === "ok" ? harness.feedbackReads[read] : harness.mode;
+      if (mode !== "ok") return refusal(mode);
+      const { status, value } = answer();
+      return value === undefined ? bare(status) : json(status, value, { "Cache-Control": "private, no-store" });
+    };
+    const submissions = () => [...harness.feedback.values()];
+    if (route === "GET /api/v1/admin/feedback") {
+      return feedbackRead("list", () => ({
+        status: 200,
+        value: feedbackList(submissions(), {
+          status: url.searchParams.get("status") ?? undefined,
+          pageKey: url.searchParams.get("page") ?? undefined,
+          pageNumber: Number(url.searchParams.get("pageNumber") ?? "1"),
+          pageSize: Number(url.searchParams.get("pageSize") ?? "25"),
+        }),
+      }));
+    }
+    if (route === "GET /api/v1/admin/feedback/summary") {
+      const days = Number(url.searchParams.get("days") ?? "30");
+      return feedbackRead("summary", () =>
+        [7, 30, 90].includes(days)
+          ? { status: 200, value: feedbackSummary(submissions(), days) }
+          : { status: 400, value: { errors: { Days: ["Välj 7, 30 eller 90 dagar."] } } });
+    }
+    if (route === "GET /api/v1/admin/feedback/availability") {
+      return feedbackRead("availability", () => ({ status: 200, value: { availability: harness.feedbackAvailability } }));
+    }
+    const feedbackItem = /^GET \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})$/.exec(route);
+    if (feedbackItem !== null) {
+      const found = harness.feedback.get(feedbackItem[1] ?? "");
+      // The real endpoint answers an id it does not know with a bare 404.
+      return feedbackRead("detail", () => (found === undefined ? { status: 404 } : { status: 200, value: feedbackDetail(found) }));
+    }
+    const feedbackCommand = /^POST \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})\/(status|notification\/requeue)$/.exec(route);
+    if (feedbackCommand !== null) {
+      const feedbackId = feedbackCommand[1] ?? "";
+      const command = feedbackCommand[2] === "status" ? "status" : "requeue";
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        feedbackCommands.push({ id: feedbackId, command, body });
+        const problem = (status: number, title: string) =>
+          json(status, { title, status }, { "Cache-Control": "private, no-store" });
+        if (harness.mode !== "ok") return refusal();
+        const found = harness.feedback.get(feedbackId);
+        if (found === undefined) return problem(404, "Feedback.NotFound");
+        if (command === "status") {
+          const { status } = JSON.parse(body) as { status?: unknown };
+          if (status !== "New" && status !== "InProgress" && status !== "Resolved" && status !== "Declined")
+            return json(400, { errors: { Status: ["Okänd status."] } });
+          if (status === found.status) return problem(400, "Feedback.StatusUnchanged");
+          harness.feedback.set(feedbackId, { ...found, status, statusChangedAt: FEEDBACK_NOW });
+          return bare(204);
+        }
+        // The domain's rule (`FeedbackNotification.Requeue`): only a failed notice, or one whose outcome is
+        // unknown and whose risk of a duplicate is acknowledged, is sent again.
+        const notice = found.notification;
+        if (notice === null) return problem(404, "Feedback.NotFound");
+        const { acknowledgeDuplicateRisk } = JSON.parse(body) as { acknowledgeDuplicateRisk?: unknown };
+        if (notice.state !== "Failed" && notice.state !== "Unknown")
+          return problem(409, "Feedback.NotificationNotRequeueable");
+        if (notice.state === "Unknown" && acknowledgeDuplicateRisk !== true)
+          return problem(409, "Feedback.DuplicateRiskNotAcknowledged");
+        harness.feedback.set(feedbackId, {
+          ...found,
+          notification: { ...notice, state: "Queued", attempts: 0, nextAttemptAt: FEEDBACK_NOW, stateChangedAt: FEEDBACK_NOW },
+        });
+        return bare(204);
       });
       return;
     }

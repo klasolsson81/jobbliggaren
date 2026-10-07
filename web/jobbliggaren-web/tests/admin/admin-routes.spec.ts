@@ -45,9 +45,9 @@ const PAGES = [
   { label: "Granskning", path: "/admin/granskning", heading: "Granskning" },
 ] as const;
 
+// Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts.
 const UNBUILT = [
   "/admin",
-  "/admin/feedback",
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",

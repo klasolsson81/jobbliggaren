@@ -1,3 +1,4 @@
+import { FEEDBACK_PAGE_KEYS } from "@/lib/admin/feedback";
 import type {
   AdminAccountDetail,
   AdminAccountTotals,
@@ -8,7 +9,11 @@ import type {
   AdminEmailOverview,
   AdminEmailPeriod,
   AdminErrorLogRow,
+  AdminFeedbackAvailability,
+  AdminFeedbackClient,
   AdminFeedbackItem,
+  AdminFeedbackPageSummary,
+  AdminFeedbackWindow,
   AdminImportLogRow,
   AdminLogins,
   AdminNewAccounts,
@@ -255,81 +260,186 @@ export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   events: [],
 });
 
+// ── Feedback (#1979) ──────────────────────────────────────────────────────────────────────────
+
+/** What a browser reports when it reports nothing: every value unknown. */
+const NOTHING_REPORTED: AdminFeedbackClient = {
+  viewportWidth: null,
+  viewportHeight: null,
+  screenWidth: null,
+  screenHeight: null,
+  pixelRatio: null,
+  theme: null,
+  deviceClass: null,
+  os: null,
+  browser: null,
+};
+
+/**
+ * Submissions over the last two months, one with each status and each notice state, a rating without a
+ * text and a text without a rating, a reporter whose address cannot be read, a browser that reported
+ * nothing, and one reporter who rated the same page twice, so the summary counts only the latest rating.
+ * The newest notice has been refused twice and waits a minute for its third attempt. The app versions
+ * are commit-shaped, as the web stamps them.
+ */
 export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
   marked({
     id: id(501),
+    page: "applications",
+    rating: 2,
+    comment: "När jag sparar en ansökan och går tillbaka till listan visas den gamla statusen tills jag laddar om sidan.",
     status: "new" as const,
-    category: "bug" as const,
-    receivedAt: daysAgo(0, 7, 12),
-    text: "När jag sparar en ansökan och går tillbaka till listan visas den gamla statusen tills jag laddar om sidan.",
-    senderEmail: address("konto.b"),
-    page: "/ansokningar",
-    screen: "1440 × 900",
-    device: "Firefox 131, Windows",
-    version: "0.1.0",
-    replies: [],
+    submittedAt: daysAgo(0, 7, 55),
+    statusChangedAt: null,
+    reporterEmail: address("konto.b"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 1440, viewportHeight: 789, screenWidth: 1440, screenHeight: 900, pixelRatio: 1, theme: "light" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "firefox" as const },
+    appVersion: "4f2a91c",
+    notice: { state: "queued" as const, attempts: 2, nextAttemptAt: daysAgo(0, 8, 1) },
   }),
   marked({
     id: id(502),
+    page: "saved-ads",
+    rating: 4,
+    comment: "Det vore bra att kunna sortera sparade annonser på sista ansökningsdag.",
     status: "inProgress" as const,
-    category: "suggestion" as const,
-    receivedAt: daysAgo(1, 18, 40),
-    text: "Det vore bra att kunna filtrera sparade jobb på kommun, inte bara på yrke.",
-    senderEmail: address("konto.f"),
-    page: "/sparade",
-    screen: "390 × 844",
-    device: "Safari, iOS 18",
-    version: "0.1.0",
-    replies: [
-      marked({
-        id: id(601),
-        sentAt: daysAgo(0, 7, 55),
-        text: "Tack för förslaget. Vi har lagt det på listan och hör av oss när det finns.",
-      }),
-    ],
+    submittedAt: daysAgo(1, 18, 40),
+    statusChangedAt: daysAgo(0, 7, 55),
+    reporterEmail: address("konto.f"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 390, viewportHeight: 664, screenWidth: 390, screenHeight: 844, pixelRatio: 3, theme: "dark" as const, deviceClass: "mobile" as const, os: "ios" as const, browser: "safari" as const },
+    appVersion: "4f2a91c",
+    notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(1, 18, 40) },
   }),
   marked({
     id: id(503),
+    page: "cv-review",
+    rating: null,
+    comment: "Hur länge sparas mitt uppladdade CV om jag inte loggar in på ett tag?",
     status: "new" as const,
-    category: "question" as const,
-    receivedAt: daysAgo(2, 11, 3),
-    text: "Hur länge sparas mitt uppladdade CV om jag inte loggar in på ett tag?",
-    senderEmail: address("konto.g"),
-    page: "/cv/granska",
-    screen: "1280 × 800",
-    device: "Chrome 129, macOS",
-    version: "0.1.0",
-    replies: [],
+    submittedAt: daysAgo(2, 11, 3),
+    statusChangedAt: null,
+    reporterEmail: address("konto.g"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 1280, viewportHeight: 720, screenWidth: 1280, screenHeight: 800, pixelRatio: 2, theme: "light" as const, deviceClass: "desktop" as const, os: "macOs" as const, browser: "chrome" as const },
+    appVersion: "9c03e7b",
+    notice: { state: "failed" as const, attempts: 5, nextAttemptAt: daysAgo(2, 12, 24) },
   }),
   marked({
     id: id(504),
+    page: "job-ad",
+    rating: 5,
+    comment: null,
     status: "resolved" as const,
-    category: "bug" as const,
-    receivedAt: daysAgo(5, 9, 27),
-    text: "Länken i inloggningsmejlet fungerade inte på min telefon.",
-    senderEmail: address("konto.j"),
-    page: "/logga-in",
-    screen: "412 × 915",
-    device: "Chrome, Android 14",
-    version: "0.1.0",
-    replies: [
-      marked({ id: id(602), sentAt: daysAgo(4, 10, 0), text: "Det är åtgärdat nu. Tack för att du hörde av dig." }),
-    ],
+    submittedAt: daysAgo(5, 9, 27),
+    statusChangedAt: daysAgo(4, 10, 0),
+    reporterEmail: address("konto.j"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 412, viewportHeight: 839, screenWidth: 412, screenHeight: 915, pixelRatio: 2.63, theme: "light" as const, deviceClass: "mobile" as const, os: "android" as const, browser: "samsungInternet" as const },
+    appVersion: "9c03e7b",
+    notice: { state: "unknown" as const, attempts: 1, nextAttemptAt: daysAgo(5, 9, 27) },
   }),
   marked({
     id: id(505),
-    status: "skipped" as const,
-    category: "suggestion" as const,
-    receivedAt: daysAgo(8, 20, 15),
-    text: "Kan ni lägga till mörkt läge?",
-    senderEmail: address("konto.k"),
-    page: "/mina-sidor",
-    screen: "1920 × 1080",
-    device: "Edge 129, Windows",
-    version: "0.1.0",
-    replies: [],
+    page: "my-pages",
+    rating: 3,
+    comment: "Kan ni lägga till ett sätt att exportera mina ansökningar?",
+    status: "declined" as const,
+    submittedAt: daysAgo(8, 20, 15),
+    statusChangedAt: daysAgo(7, 9, 0),
+    reporterEmail: address("konto.k"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 1920, viewportHeight: 969, screenWidth: 1920, screenHeight: 1080, pixelRatio: 1, theme: "dark" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "edge" as const },
+    appVersion: "1b7d0e4",
+    notice: { state: "accepted" as const, attempts: 2, nextAttemptAt: daysAgo(8, 20, 16) },
+  }),
+  marked({
+    id: id(506),
+    page: "jobs",
+    rating: 4,
+    comment: "Sökningen på kommun ger träffar från hela länet.\nJag sökte på Alingsås och fick annonser från Göteborg och Borås.\nDet gör det svårt att hitta jobb nära hemmet.",
+    status: "inProgress" as const,
+    submittedAt: daysAgo(12, 14, 30),
+    statusChangedAt: daysAgo(11, 8, 45),
+    reporterEmail: null,
+    client: NOTHING_REPORTED,
+    appVersion: null,
+    notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(12, 14, 30) },
+  }),
+  marked({
+    id: id(507),
+    page: "applications",
+    rating: 1,
+    comment: "Knappen för att flytta en ansökan till Intervju syns inte på min telefon.",
+    status: "new" as const,
+    submittedAt: daysAgo(20, 8, 5),
+    statusChangedAt: null,
+    reporterEmail: address("konto.b"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 820, viewportHeight: 1106, screenWidth: 820, screenHeight: 1180, pixelRatio: 2, theme: "light" as const, deviceClass: "tablet" as const, os: "ios" as const, browser: "safari" as const },
+    appVersion: "1b7d0e4",
+    notice: { state: "sending" as const, attempts: 1, nextAttemptAt: daysAgo(20, 8, 5) },
+  }),
+  marked({
+    id: id(508),
+    page: "overview",
+    rating: 5,
+    comment: null,
+    status: "resolved" as const,
+    submittedAt: daysAgo(45, 10, 0),
+    statusChangedAt: daysAgo(44, 9, 30),
+    reporterEmail: address("konto.h"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 1366, viewportHeight: 657, screenWidth: 1366, screenHeight: 768, pixelRatio: 1, theme: "light" as const, deviceClass: "desktop" as const, os: "linux" as const, browser: "firefox" as const },
+    appVersion: "e05c2aa",
+    notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(45, 10, 0) },
+  }),
+  marked({
+    id: id(509),
+    page: "statistics",
+    rating: 4,
+    comment: "Statistiken per månad är tydlig.",
+    status: "new" as const,
+    submittedAt: daysAgo(61, 16, 20),
+    statusChangedAt: null,
+    reporterEmail: address("konto.a"),
+    client: { ...NOTHING_REPORTED, viewportWidth: 1536, viewportHeight: 730, screenWidth: 1536, screenHeight: 864, pixelRatio: 1.25, theme: "light" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "chrome" as const },
+    appVersion: "e05c2aa",
+    notice: null,
   }),
 ];
+
+/** Feedback's gate as the preview shows it: closed for want of a recipient, so its line is seen. */
+export const PREVIEW_FEEDBACK_AVAILABILITY: { readonly availability: AdminFeedbackAvailability } = marked({
+  availability: "noRecipient" as const,
+});
+
+const PAGE_ORDER: ReadonlyMap<string, number> = new Map(FEEDBACK_PAGE_KEYS.map((key, index) => [key, index]));
+
+/** The summary the backend would answer for the window: each reporter's latest rating per page counts once. */
+function summaryFor(days: number): ReadonlyArray<AdminFeedbackPageSummary> {
+  const since = Date.parse(FIXTURE_NOW) - days * DAY_MS;
+  const inWindow = PREVIEW_FEEDBACK.filter((item) => Date.parse(item.submittedAt) >= since);
+  const pages = [...new Set(inWindow.map((item) => item.page))].sort(
+    (left, right) => (PAGE_ORDER.get(left) ?? PAGE_ORDER.size) - (PAGE_ORDER.get(right) ?? PAGE_ORDER.size),
+  );
+  return pages.map((page) => {
+    const submissions = inWindow
+      .filter((item) => item.page === page)
+      .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+    const latest = new Map<string, number>();
+    for (const item of submissions) {
+      if (item.rating !== null) latest.set(item.reporterEmail ?? item.id, item.rating);
+    }
+    const ratings = [...latest.values()];
+    const rated = (value: number) => ratings.filter((rating) => rating === value).length;
+    const mean = ratings.length === 0 ? null : ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+    return marked({
+      page,
+      submissions: submissions.length,
+      raters: ratings.length,
+      ratings: [rated(1), rated(2), rated(3), rated(4), rated(5)] as const,
+      mean: mean === null ? null : Math.round(mean * 100) / 100,
+    });
+  });
+}
+
+/** The summary per window, from the submissions above, so the list and the summary agree. */
+export const PREVIEW_FEEDBACK_SUMMARY: Readonly<Record<AdminFeedbackWindow, ReadonlyArray<AdminFeedbackPageSummary>>> =
+  marked({ 7: summaryFor(7), 30: summaryFor(30), 90: summaryFor(90) });
 
 export const PREVIEW_SECURITY_LOG: ReadonlyArray<AdminSecurityLogRow> = [
   marked({ id: id(701), occurredAt: daysAgo(0, 7, 31), kind: "loginFailed" as const, account: mask("konto.d"), ip: "192.0.2.0", count: 3, detail: "Fel kod" }),

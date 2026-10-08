@@ -804,6 +804,7 @@ describe("AdminAccountPanel — fresh deletion preview (#1977)", () => {
     expect(dialog).toHaveAccessibleDescription(/2026-11-08 05:00/);
     expect(dialog).not.toHaveAccessibleDescription(/2026-11-07 05:00/);
     expect(dialog).toHaveAccessibleDescription(/efter din bekräftelsekod/);
+    expect(dialog).toHaveAccessibleDescription(/de faktiska tiderna visas i kontots uppgifter/);
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -831,10 +832,11 @@ describe("AdminAccountPanel — fresh deletion preview (#1977)", () => {
     await waitFor(() => expect(run).toHaveBeenCalledExactlyOnceWith(fresh, { challengeId: "step-up-challenge", code: "123456" }));
     expect(run.mock.calls[0]?.[0]).toBe(fresh);
     const status = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("status");
+    expect(status).toHaveTextContent(`Radering av ${fresh.email}`);
     expect(status).toHaveTextContent("schemalagd 2026-10-08 06:01");
-    expect(status).toHaveTextContent("Respiten slutar 2026-11-07 05:01");
-    expect(status).toHaveTextContent("Första planerade körning 2026-11-08 05:00");
-    expect(status).not.toHaveTextContent("2026-11-07 05:00");
+    expect(status).toHaveTextContent("Åtkomsten är spärrad.");
+    expect(status).not.toHaveTextContent(/Respiten slutar|Första planerade körning|Raderingen är ännu inte genomförd|2026-11-07|2026-11-08/);
+    await waitFor(() => expect(status).toHaveFocus());
   });
 
   it.each(["failed", "pending", "gone"] as const)("rereads on reopen and keeps a retained inbox proof disabled after a %s answer", async (answer) => {

@@ -212,6 +212,7 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     expect(dialog).toHaveAccessibleDescription(/04:00 UTC/);
     expect(dialog).toHaveAccessibleDescription(/adressbyte avbryts permanent/);
     expect(dialog).toHaveAccessibleDescription(/ingen garanti/);
+    expect(dialog).toHaveAccessibleDescription(/de faktiska tiderna visas i kontots uppgifter/);
     expect(dialog).toHaveTextContent(SELF.email);
     expect(requestReauthCodeMock).not.toHaveBeenCalled();
     expect(deletionActionMock).not.toHaveBeenCalled();
@@ -264,7 +265,11 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     await within(panel).findByText("Under radering");
     const status = within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("status");
     expect(status).toHaveTextContent(`Radering av ${A.email} schemalagd`);
-    expect(status).toHaveTextContent("Raderingen är ännu inte genomförd.");
+    expect(status).toHaveTextContent("schemalagd 2026-10-08 14:00");
+    expect(status).toHaveTextContent("Åtkomsten är spärrad.");
+    expect(status).not.toHaveTextContent(/Respiten slutar|Första planerade körning|Raderingen är ännu inte genomförd|2026-11-07|2026-11-08/);
+    expect(within(panel).getByText("Raderas slutgiltigt").nextElementSibling)
+      .toHaveTextContent("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.");
     await waitFor(() => expect(status).toHaveFocus());
     expect(within(panel).queryByText("Adressbyte")).toBeNull();
     expect(deletionActionMock).toHaveBeenCalledExactlyOnceWith(A.id, { challengeId: "step-up-challenge", code: "123456" });
@@ -293,6 +298,9 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
       await user.click(await prove(user, dialog));
       const receipt = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("status");
       expect(receipt).toHaveTextContent(`Radering av ${A.email} schemalagd`);
+      expect(receipt).toHaveTextContent("schemalagd 2026-10-08 14:00");
+      expect(receipt).toHaveTextContent("Åtkomsten är spärrad.");
+      expect(receipt).not.toHaveTextContent(/Respiten slutar|Första planerade körning|Raderingen är ännu inte genomförd|2026-11-07|2026-11-08/);
       await waitFor(() => expect(receipt).toHaveFocus());
       await waitFor(() => expect(callsTo(DETAIL_ROUTE)).toHaveLength(3));
       expect(within(panel).getByText("Under radering", { exact: true })).toBeInTheDocument();
@@ -310,7 +318,11 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
       expect(within(panel).queryByText("Aktiv", { exact: true })).toBeNull();
       expect(within(panel).queryByRole("button", { name: "Radera konto" })).toBeNull();
       expect(receipt).toHaveTextContent(`Radering av ${A.email} schemalagd`);
-      expect(receipt).toHaveTextContent("Raderingen är ännu inte genomförd.");
+      expect(receipt).toHaveTextContent("schemalagd 2026-10-08 14:00");
+      expect(receipt).toHaveTextContent("Åtkomsten är spärrad.");
+      expect(receipt).not.toHaveTextContent(/Respiten slutar|Första planerade körning|Raderingen är ännu inte genomförd|2026-11-07|2026-11-08/);
+      expect(within(panel).getByText("Raderas slutgiltigt").nextElementSibling)
+        .toHaveTextContent("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.");
       expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
       expect(deletionActionMock).toHaveBeenCalledTimes(1);
       expect(callsTo(DETAIL_ROUTE)).toHaveLength(3);

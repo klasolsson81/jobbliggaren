@@ -637,8 +637,6 @@ function PanelContent({
           const text = t("deletion.receipt", {
             email: previewTarget?.email ?? target.email,
             deleted: formatDateTime(format, outcome.value.deletedAt) ?? unknown,
-            eligible: formatDateTime(format, outcome.value.eligibleAt) ?? unknown,
-            run: formatDateTime(format, outcome.value.scheduledRunAt) ?? unknown,
           });
           setNotice({ text, role: "status" });
         } else {

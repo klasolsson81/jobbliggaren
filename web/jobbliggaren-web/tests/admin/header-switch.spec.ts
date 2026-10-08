@@ -4,8 +4,7 @@ import { createRequire } from "node:module";
 import { HARNESS_PORTS, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
-const ports = process.env.HEADER_HARNESS_PORTS === "3170" ? { proxy: 3170, next: 3171, backend: 3172 } : HARNESS_PORTS;
-const origin = `https://localhost:${ports.proxy}`;
+let origin: string;
 const directory = process.env.ADMIN_ACCESS_SCREENSHOT_DIR;
 async function capture(page: import("@playwright/test").Page, name: string) {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png`, fullPage: true });
@@ -13,7 +12,12 @@ async function capture(page: import("@playwright/test").Page, name: string) {
 const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const lighthouseRequire = createRequire(cliRequire.resolve("lighthouse"));
 const axePath = lighthouseRequire.resolve("axe-core/axe.min.js");
-test.beforeAll(async () => { if (directory) mkdirSync(directory, { recursive: true }); harness = await startHarness(ports); });
+test.beforeAll(async ({}, testInfo) => {
+  origin = testInfo.project.use.baseURL ?? `https://localhost:${HARNESS_PORTS.proxy}`;
+  const proxy = Number(new URL(origin).port);
+  if (directory) mkdirSync(directory, { recursive: true });
+  harness = await startHarness({ proxy, next: proxy + 1, backend: proxy + 2 });
+});
 test.afterAll(async () => { await harness.stop(); });
 test.beforeEach(async ({ context }) => {
   harness.reset();
@@ -79,6 +83,14 @@ for (const width of [1280, 1920, 3440, 1024, 768, 375, 320]) {
     await capture(page, `admin-dark-${width}`);
   });
 }
+
+test("the shared shell keeps the footer at the bottom on a short admin page", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await page.goto("/admin/loggar");
+  const footer = await page.getByRole("contentinfo").boundingBox();
+  expect(footer).not.toBeNull();
+  expect(footer!.y + footer!.height).toBe(1200);
+});
 
 test("the ordinary account cannot open admin pages and has no switch", async ({ page }) => {
   harness.who = "member";

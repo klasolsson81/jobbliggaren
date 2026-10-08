@@ -73,5 +73,17 @@
       "disabled": "Reset is disabled on the server. Set DevTools:EnableResetMyData and restart the API.",
       "failed": "The reset failed. Try again."
     }
+  },
+  "adminNav": {
+    "nav": {
+      "label": "Admin navigation",
+      "oversikt": "Overview",
+      "anvandare": "Users",
+      "feedback": "Feedback",
+      "loggar": "Logs",
+      "epost": "Email delivery",
+      "jobb": "Background jobs",
+      "granskning": "Audit log"
+    }
   }
 }

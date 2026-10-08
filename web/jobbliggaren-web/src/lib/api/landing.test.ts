@@ -69,6 +69,25 @@ describe("fetchLandingStats (ADR 0064)", () => {
     expect(result).toBeNull();
   });
 
+  it("aborts a backend that accepts the stats request without responding", async () => {
+    vi.useFakeTimers();
+    try {
+      global.fetch = vi.fn((_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
+        }),
+      );
+      const { fetchLandingStats } = await import("./landing");
+      const result = fetchLandingStats();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(await result).toBeNull();
+      const options = vi.mocked(global.fetch).mock.calls[0]?.[1];
+      expect(options?.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("returnerar null vid shape-mismatch (saknad isStale)", async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(

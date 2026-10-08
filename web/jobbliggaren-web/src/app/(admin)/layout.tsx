@@ -41,6 +41,7 @@ export default async function AdminLayout({
         <AppShell
           email={user.email}
           isAdmin
+          className="flex-1"
           initialStats={initialStats}
           contentClassName="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
         >

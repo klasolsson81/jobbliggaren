@@ -73,5 +73,17 @@
       "disabled": "Återställning är avstängd på servern. Sätt DevTools:EnableResetMyData och starta om API:t.",
       "failed": "Återställningen misslyckades. Försök igen."
     }
+  },
+  "adminNav": {
+    "nav": {
+      "label": "Admin-navigation",
+      "oversikt": "Översikt",
+      "anvandare": "Användare",
+      "feedback": "Feedback",
+      "loggar": "Loggar",
+      "epost": "E-postleverans",
+      "jobb": "Bakgrundsjobb",
+      "granskning": "Granskning"
+    }
   }
 }

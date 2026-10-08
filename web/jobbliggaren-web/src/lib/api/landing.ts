@@ -7,6 +7,8 @@ import {
 } from "@/lib/dto/landing";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
+const LANDING_STATS_TIMEOUT_MS = 2_000;
+
 /**
  * ADR 0064 — publik anonym landing-stats. Server-only fetch mot
  * `GET /api/v1/landing/stats`. Ingen auth-header (endpoint är publik).
@@ -34,6 +36,7 @@ export const fetchLandingStats = cache(
       const res = await fetch(`${env.BACKEND_URL}/api/v1/landing/stats`, {
         headers: await forwardedHeaders(),
         cache: "no-store",
+        signal: AbortSignal.timeout(LANDING_STATS_TIMEOUT_MS),
       });
       if (!res.ok) return null;
       const raw: unknown = await res.json();

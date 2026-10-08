@@ -330,12 +330,14 @@ export function AppShell({
   email,
   isAdmin,
   initialStats,
+  className,
   contentClassName = "jp-content focus:outline-none",
   children,
 }: {
   email: string;
   isAdmin: boolean;
   initialStats: LandingStatsDto;
+  className?: string;
   contentClassName?: string;
   children: React.ReactNode;
 }) {
@@ -349,7 +351,7 @@ export function AppShell({
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   return (
-    <div className="jp-shell">
+    <div className={className ? `jp-shell ${className}` : "jp-shell"}>
       <HeaderStrip brandHref="/oversikt" brandLabel={t("nav.brandHome")} className={isAdmin ? "jp-header--switchable" : undefined}>
         {showAdminNavigation ? <AdminNav variant="header" /> : <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
           {PRIMARY_NAV.map((item) => (

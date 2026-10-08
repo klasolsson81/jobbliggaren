@@ -76,8 +76,8 @@ test.describe("Byt e-postadress (/mina-sidor/konto)", () => {
     ).toBeFocused();
     // No reload: the action re-set the session cookie, and Next re-rendered the page on it.
     await expect(page.getByText(`Din e-postadress är ${newAddress(runId)}.`)).toBeVisible();
-    await page.getByRole("button", { name: "Mina sidor" }).click();
-    await expect(page.getByRole("dialog", { name: "Mina sidor" })).toContainText(newAddress(runId));
+    await page.getByRole("button", { name: "Inställningar" }).click();
+    await expect(page.getByRole("dialog", { name: "Inställningar" })).toContainText(newAddress(runId));
 
     const after = await sessionOf(page.context());
     expect(after).not.toBe(before);

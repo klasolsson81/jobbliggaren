@@ -281,3 +281,32 @@ D5 is implemented under #1973, after this ADR. The spec changes ship in the same
   `web/jobbliggaren-web/src/components/applications/application-toast-host.tsx` (the house toast) ·
   `web/jobbliggaren-web/src/app/(app)/app.css` (the scoping doctrine)
 - Epic #1972 · issue #1973 and the issues of D4
+
+## Amendment 2026-10-08 — Actual overview observations (#1978)
+
+VariantA now reads three existing populations with independent failure states. Retained Identity accounts include
+profileless accounts; the lifecycle partition is `ProfileMissing > PendingDeletion > Suspended > Active`.
+Active is lifecycle state. New registrations instead require a retained Identity account and profile, use the
+profile registration timestamp, include suspension/pending deletion, and exclude missing profiles/hard erasure.
+
+The overview shows today/yesterday/last 7/last 30 Swedish calendar registrations and a 7/30/90-day chart containing
+the current partial day. Injected `IDateTimeProvider` and `ISwedishCalendar` calculate each UTC boundary separately,
+including 23/25-hour DST days; windows are `[start,end)`, ending today's window at the observation instant.
+No login series is synthesized. Activity/logins, host/services, backups and general mail delivery remain unavailable.
+
+Accounts, the five newest stored audit rows (OccurredAt then Id descending), and current failed-job count are
+read server-side in parallel via separate HTTP requests, with a 10-second source deadline. A successful source
+has an observation instant; missing/invalid `X-Admin-Sampled-At` is a failure. Audit crosses the RSC/BFF boundary
+only as event ID/time/type and aggregate type/ID, without subject correlation, actor lookup, address, IP or agent.
+Only count/time crosses for jobs. The overview does not depend on #1958.
+
+Initial page data is server data. The private/no-store `GET /api/admin/oversikt` checks its own cookie and relies
+on the backend's current Admin authorization. Refresh is every 60 seconds while visible, one request maximum,
+abort on hidden/unmount and immediate refresh on becoming visible. An ordinary update failure retains last-good
+data in component memory with an immediate failure marker; each source shows its own time and an old-data
+marker after 5 minutes. Any 401/403 clears every privileged region and stops polling, showing the existing
+session/permission refusal wording. Attention links failed jobs and pending deletion separately; an unknown source
+cannot produce zero or a general all-clear.
+
+The dashboard's existing tokens/layout and the stored audit's existing retention remain unchanged. No migration,
+dependency, Hangfire port, mutation or feedback expansion is introduced.

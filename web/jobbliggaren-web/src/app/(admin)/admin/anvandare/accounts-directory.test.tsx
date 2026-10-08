@@ -29,6 +29,12 @@ vi.mock("@/lib/actions/admin-accounts", () => ({
 }));
 vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: requestReauthCodeMock }));
 
+const replaceRoute = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...await importOriginal<typeof import("next/navigation")>(),
+  useRouter: () => ({ replace: replaceRoute }),
+}));
+
 import { AccountsDirectory } from "./accounts-directory";
 import { DELETION_AFTER_04, DELETION_BEFORE_04 } from "../../../../../tests/admin/fixtures";
 
@@ -162,6 +168,7 @@ function shownAddresses(hidden = false) {
 
 beforeEach(() => {
   fetchMock.mockReset();
+  replaceRoute.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   requestActionMock.mockReset();
   cancelActionMock.mockReset();
@@ -1310,4 +1317,25 @@ describe("AccountsDirectory — suspend and reinstate access (#1976)", () => {
     expect(call(0).body).toMatchObject({ status: "Suspended", page: 1 });
     expect(await screen.findByRole("radio", { name: "Avstängda (1)" })).toHaveAttribute("aria-checked", "true");
   });
+});
+
+it("preserves overview dates during status, search and sorting, and clears only the period", async () => {
+  serve({ [LIST]: () => json(answer([A])) });
+  const from = "2026-09-01T22:00:00Z";
+  const before = "2026-10-08T10:00:00Z";
+  render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([A])) }} self={SELF} initialFilters={{ registeredFrom: from, registeredBefore: before }} />);
+  expect(screen.getByText(/Registrerade från/)).toBeInTheDocument();
+  await userEvent.type(screen.getByRole("searchbox", { name: "Sök på e-postadress" }), "konto.a");
+  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+  const lastBody = () => JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)) as Record<string, unknown>;
+  expect(lastBody()).toMatchObject({ address: "konto.a", registeredFrom: from, registeredBefore: before });
+  await userEvent.click(screen.getByRole("radio", { name: "Aktiva (1)" }));
+  await waitFor(() => expect(lastBody()).toMatchObject({ status: "Active", registeredFrom: from, registeredBefore: before }));
+  await userEvent.click(screen.getByRole("button", { name: "Konto" }));
+  await waitFor(() => expect(lastBody()).toMatchObject({ sort: "AddressAscending", registeredFrom: from, registeredBefore: before }));
+  await userEvent.click(screen.getByRole("button", { name: "Rensa period" }));
+  await waitFor(() => expect(lastBody().registeredFrom).toBeUndefined());
+  expect(lastBody().address).toBe("konto.a");
+  expect(lastBody().registeredBefore).toBeUndefined();
+  expect(replaceRoute).toHaveBeenCalledWith("/admin/anvandare?status=Active", { scroll: false });
 });

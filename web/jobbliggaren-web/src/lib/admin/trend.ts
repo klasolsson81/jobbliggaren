@@ -23,9 +23,9 @@ export interface AdminTrendPeak {
 export interface AdminTrendSummary {
   readonly days: number;
   readonly newAccounts: number;
-  readonly logins: number;
+  readonly logins: number | null;
   readonly newAccountsPeak: AdminTrendPeak;
-  readonly loginsPeak: AdminTrendPeak;
+  readonly loginsPeak: AdminTrendPeak | null;
 }
 
 function peakOf(days: ReadonlyArray<AdminTrendDay>, value: (day: AdminTrendDay) => number): AdminTrendPeak {
@@ -47,11 +47,12 @@ function peakOf(days: ReadonlyArray<AdminTrendDay>, value: (day: AdminTrendDay) 
 
 /** The totals and the busiest day of each series, for the sentence that carries the chart. */
 export function summarizeTrend(days: ReadonlyArray<AdminTrendDay>): AdminTrendSummary {
+  const loginsKnown = days.every((day) => day.logins !== null);
   return {
     days: days.length,
     newAccounts: days.reduce((sum, day) => sum + day.newAccounts, 0),
-    logins: days.reduce((sum, day) => sum + day.logins, 0),
+    logins: loginsKnown ? days.reduce((sum, day) => sum + (day.logins ?? 0), 0) : null,
     newAccountsPeak: peakOf(days, (day) => day.newAccounts),
-    loginsPeak: peakOf(days, (day) => day.logins),
+    loginsPeak: loginsKnown ? peakOf(days, (day) => day.logins ?? 0) : null,
   };
 }

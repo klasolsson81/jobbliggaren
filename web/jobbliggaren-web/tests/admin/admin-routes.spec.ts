@@ -47,7 +47,6 @@ const PAGES = [
 
 // Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts.
 const UNBUILT = [
-  "/admin",
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",

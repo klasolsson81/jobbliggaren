@@ -136,7 +136,7 @@ export interface AdminLogins {
 export interface AdminTrendDay {
   readonly date: string;
   readonly newAccounts: number;
-  readonly logins: number;
+  readonly logins: number | null;
 }
 
 export interface AdminServiceStatus {

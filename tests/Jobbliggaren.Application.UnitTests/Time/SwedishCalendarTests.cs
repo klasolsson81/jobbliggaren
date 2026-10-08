@@ -34,6 +34,56 @@ namespace Jobbliggaren.Application.UnitTests.Time;
 /// </summary>
 public class SwedishCalendarTests
 {
+    [Theory]
+    [InlineData("2026-01-14T23:00:00Z", "2026-01-15")]
+    [InlineData("2026-07-14T21:59:59Z", "2026-07-14")]
+    [InlineData("2026-07-14T22:00:00Z", "2026-07-15")]
+    [InlineData("2026-12-31T23:00:00Z", "2027-01-01")]
+    public void DayOf_ShouldUseTheSwedishDate_WhenUtcAndCivilDatesDiffer(string instant, string expected)
+    {
+        new SwedishCalendar().DayOf(DateTimeOffset.Parse(instant, System.Globalization.CultureInfo.InvariantCulture))
+            .ShouldBe(DateOnly.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void DayOf_ShouldIgnoreTheInputOffset_WhenInstantsAreEqual()
+    {
+        var calendar = new SwedishCalendar();
+        var expected = new DateOnly(2026, 7, 15);
+
+        calendar.DayOf(new DateTimeOffset(2026, 7, 14, 22, 30, 0, TimeSpan.Zero)).ShouldBe(expected);
+        calendar.DayOf(new DateTimeOffset(2026, 7, 15, 0, 30, 0, TimeSpan.FromHours(2))).ShouldBe(expected);
+        calendar.DayOf(new DateTimeOffset(2026, 7, 14, 18, 30, 0, TimeSpan.FromHours(-4))).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("2026-01-15", "2026-01-14T23:00:00Z", "2026-01-15T23:00:00Z", 24)]
+    [InlineData("2026-07-15", "2026-07-14T22:00:00Z", "2026-07-15T22:00:00Z", 24)]
+    [InlineData("2026-03-29", "2026-03-28T23:00:00Z", "2026-03-29T22:00:00Z", 23)]
+    [InlineData("2026-10-25", "2026-10-24T22:00:00Z", "2026-10-25T23:00:00Z", 25)]
+    public void DayWindow_ShouldCarryItsCivilLabelAndUtcBounds_WhenTheDayLengthChanges(
+        string civilDate, string start, string end, int hours)
+    {
+        var day = DateOnly.Parse(civilDate, System.Globalization.CultureInfo.InvariantCulture);
+
+        var window = new SwedishCalendar().DayWindow(day);
+
+        window.Day.ShouldBe(day);
+        window.Start.ShouldBe(DateTimeOffset.Parse(start, System.Globalization.CultureInfo.InvariantCulture));
+        window.End.ShouldBe(DateTimeOffset.Parse(end, System.Globalization.CultureInfo.InvariantCulture));
+        window.Start.Offset.ShouldBe(TimeSpan.Zero);
+        window.End.Offset.ShouldBe(TimeSpan.Zero);
+        (window.End - window.Start).ShouldBe(TimeSpan.FromHours(hours));
+    }
+
+    [Fact]
+    public void DayWindow_ShouldTileTheYearWithoutGaps_WhenBothDstTransitionsAreIncluded()
+    {
+        var calendar = new SwedishCalendar();
+        for (var day = new DateOnly(2026, 1, 1); day.Year == 2026; day = day.AddDays(1))
+            calendar.DayWindow(day).End.ShouldBe(calendar.DayWindow(day.AddDays(1)).Start);
+    }
+
     [Fact]
     public void ZoneId_ResolvesOnThisRuntime()
     {

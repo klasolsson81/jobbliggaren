@@ -62,6 +62,10 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// </summary>
 public interface ISwedishCalendar
 {
+    DateOnly DayOf(DateTimeOffset instant);
+
+    CivilDayWindow DayWindow(DateOnly day);
+
     /// <summary>
     /// The instant at which the Swedish civil day containing <paramref name="instant"/>
     /// began. For 2026-05-23T14:00Z (summer, UTC+2) this is 2026-05-22T22:00Z.

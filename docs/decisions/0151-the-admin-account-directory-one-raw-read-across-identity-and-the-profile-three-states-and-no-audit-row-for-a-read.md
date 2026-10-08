@@ -287,3 +287,30 @@ two account endpoint lines in BUILD.md §6.2 and the index row in `docs/decision
   `src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs` (the orphan sweep) ·
   `src/Jobbliggaren.Api/RateLimiting/RateLimitingOptions.cs` (`AdminRead`) ·
   `tests/Jobbliggaren.Architecture.Tests/AdminAccountDirectoryTests.cs` (D6's consumer pin)
+
+## Amendment 2026-10-08 — Aggregate registrations and exact directory drill-down (#1978)
+
+`IAccountDirectory.GetOverviewAsync` adds one bounded aggregate read, not an account-list fetch. Infrastructure
+reuses its lifecycle CASE in a parameterized command returning totals and at most 90 day rows. The new
+`GetAccountOverviewQuery` implements `IAdminRequest`; its endpoint requires Admin and carries private/no-store
+on successful, failed and refused responses. No Identity/provider dependency is added to Application.
+
+The retained Identity population is the total and lifecycle denominator. Registration periods require a matching
+profile and compare its `created_at`, including soft-deleted/suspended profiles and excluding erased/profileless
+accounts. The handler builds Swedish civil-day UTC windows independently through `ISwedishCalendar`, samples
+the injected clock once and clamps the current day at that instant. See ADR 0150's dated amendment for period
+semantics, observation provenance, projections and refresh behavior.
+
+Search and count contracts accept paired, validated `registeredFrom` / `registeredBefore` UTC instants.
+The directory applies the same half-open profile timestamp predicate before address/status filters.
+Status counts follow address/date constraints across all lifecycle statuses. Equal bounds mean an empty window;
+incomplete or reversed pairs are validation failures. No registration fallback to Identity creation time is added.
+
+Overview totals/statuses/registration links supply exact dates/statuses. The directory preserves the period while
+searching, changing status/sort and paginating; it displays the period and a clear action. Only dates/status enter
+browser URLs. Address search and account detail IDs retain D5's body-only browser contract.
+
+Migrated PostgreSQL tests exercise profile absence, status precedence, both DST transitions, retained registration
+population, permanent erasure, and parity between aggregate windows and directory predicates. Auth tests cover
+anonymous, ordinary, revoked-admin and direct query reads, plus private response headers. The consumer radius pin
+explicitly admits the overview handler.

@@ -31,7 +31,9 @@ public static class AdminAccountsEndpoints
         AccountStatus? Status = null,
         AccountSort Sort = AccountSort.RegisteredNewest,
         int Page = 1,
-        int PageSize = 25)
+        int PageSize = 25,
+        DateTimeOffset? RegisteredFrom = null,
+        DateTimeOffset? RegisteredBefore = null)
     {
         /// <summary>The address names a person, so a record's generated text never prints it.</summary>
         public override string ToString() =>
@@ -68,8 +70,8 @@ public static class AdminAccountsEndpoints
         {
             http.Response.Headers.CacheControl = "private, no-store";
             var accounts = await mediator.Send(
-                new SearchAccountsQuery(body.Address, body.Status, body.Sort, body.Page, body.PageSize), ct);
-            var counts = await mediator.Send(new CountAccountsByStatusQuery(body.Address), ct);
+                new SearchAccountsQuery(body.Address, body.Status, body.Sort, body.Page, body.PageSize, body.RegisteredFrom, body.RegisteredBefore), ct);
+            var counts = await mediator.Send(new CountAccountsByStatusQuery(body.Address, body.RegisteredFrom, body.RegisteredBefore), ct);
             return Results.Ok(new AccountSearchResponse(accounts, counts));
         });
 

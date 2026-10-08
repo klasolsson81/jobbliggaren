@@ -57,6 +57,16 @@ public sealed class SwedishCalendar : ISwedishCalendar
 
     private static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById(ZoneId);
 
+    public DateOnly DayOf(DateTimeOffset instant) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
+
+    public CivilDayWindow DayWindow(DateOnly day)
+    {
+        var next = day.AddDays(1);
+        return new CivilDayWindow(day,
+            ToInstant(day.Year, day.Month, day.Day),
+            ToInstant(next.Year, next.Month, next.Day));
+    }
     public DateTimeOffset StartOfDay(DateTimeOffset instant)
     {
         var local = TimeZoneInfo.ConvertTime(instant, Zone);

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { parseRegistrationBounds } from "./account-filters";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import {
   ACCOUNT_SEARCH_STATUSES,
@@ -48,12 +49,15 @@ export async function readAdminBody(
 /** The island's search request, or null when a field has the wrong shape. Missing fields take their defaults. */
 export function parseSearchCriteria(body: Readonly<Record<string, unknown>>): AccountSearchCriteria | null {
   const { address, status, sort, page = 1, pageSize = 25 } = body;
+  const bounds = parseRegistrationBounds(body.registeredFrom, body.registeredBefore);
+  if (bounds === null) return null;
   if (address !== undefined && (typeof address !== "string" || address.length > MAX_TERM)) return null;
   if (status !== undefined && !ACCOUNT_SEARCH_STATUSES.includes(status as AccountSearchStatus)) return null;
   if (sort !== undefined && !ACCOUNT_SORTS.includes(sort as AccountSort)) return null;
   if (!Number.isInteger(page) || (page as number) < 1) return null;
   if (!Number.isInteger(pageSize) || (pageSize as number) < 1 || (pageSize as number) > MAX_PAGE_SIZE) return null;
   return {
+    ...bounds,
     address: address as string | undefined,
     status: status as AccountSearchStatus | undefined,
     sort: (sort as AccountSort | undefined) ?? "RegisteredNewest",

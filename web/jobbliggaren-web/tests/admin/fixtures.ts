@@ -143,6 +143,8 @@ const MORE = Array.from({ length: 30 }, (_, index) =>
 export interface AccountsQuery {
   readonly page?: number;
   readonly pageSize?: number;
+  readonly registeredFrom?: string;
+  readonly registeredBefore?: string;
   /** Thirty more accounts, so the listing has a second page. */
   readonly many?: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
@@ -173,11 +175,14 @@ function withDeletion(row: ReturnType<typeof withAccess>, deletions: ReadonlyMap
 
 export function accountsPage(
   term: string | undefined,
-  { page = 1, pageSize = 25, many = false, gone = new Set<string>(), status,
+  { page = 1, pageSize = 25, many = false, gone = new Set<string>(), status, registeredFrom, registeredBefore,
     access = new Map<string, AccountAccessState>(), deletions = new Map<string, AccountDeletionState>() }: AccountsQuery = {}
 ) {
   const all = (many ? [...ACCOUNTS, ...MORE] : ACCOUNTS)
-    .filter((row) => !gone.has(row.id)).map((row) => withDeletion(withAccess(row, access), deletions));
+    .filter((row) => !gone.has(row.id)).map((row) => withDeletion(withAccess(row, access), deletions))
+    .filter((row) => registeredFrom === undefined || (row.registeredAt !== null
+      && Date.parse(row.registeredAt) >= Date.parse(registeredFrom)
+      && Date.parse(row.registeredAt) < Date.parse(registeredBefore ?? registeredFrom)));
   const matching = term === undefined ? all : all.filter((row) => row.email.includes(term.toLowerCase()));
   const items = status === undefined ? matching : matching.filter((row) => row.status === status);
   const count = (status: string) => matching.filter((row) => row.status === status).length;
@@ -502,5 +507,42 @@ export function feedbackSummary(records: ReadonlyArray<FeedbackRecord>, days: nu
             : Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 100) / 100,
       };
     }),
+  };
+}
+
+/** Uses the same fictional retained population as the directory and Swedish calendar windows. */
+export function accountOverview(query: AccountsQuery = {}) {
+  const sampledAt = new Date().toISOString();
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm",
+    year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(sampledAt));
+  const midnight = (date: string) => {
+    const utc = Date.parse(`${date}T00:00:00Z`);
+    const offset = new Intl.DateTimeFormat("en", { timeZone: "Europe/Stockholm",
+      timeZoneName: "longOffset" }).formatToParts(new Date(utc)).find(part => part.type === "timeZoneName")?.value;
+    const hours = Number(offset?.match(/GMT\+(\d\d):00/)?.[1]);
+    if (!Number.isFinite(hours)) throw new Error("Expected a Stockholm UTC offset");
+    return new Date(utc - hours * 3_600_000).toISOString();
+  };
+  const dates = Array.from({ length: 91 }, (_, index) =>
+    new Date(Date.parse(`${today}T12:00:00Z`) + (index - 89) * 86_400_000).toISOString().slice(0, 10));
+  const dateAt = (index: number) => {
+    const date = dates[index];
+    if (date === undefined) throw new Error("Date outside the overview window");
+    return date;
+  };
+  const rows = accountsPage(undefined, { ...query, pageSize: 100 }).accounts.items;
+  const count = (from: string, before: string) => rows.filter(row => row.registeredAt !== null
+    && Date.parse(row.registeredAt) >= Date.parse(from) && Date.parse(row.registeredAt) < Date.parse(before)).length;
+  const period = (index: number, before = sampledAt) => {
+    const from = midnight(dateAt(index));
+    return { from, before, count: count(from, before) };
+  };
+  return {
+    sampledAt,
+    counts: accountsPage(undefined, query).counts,
+    newAccounts: { today: period(89), yesterday: period(88, midnight(today)), last7Days: period(83), last30Days: period(60) },
+    days: dates.slice(0, 90).map((date, index) => ({
+      date, newAccounts: count(midnight(date), index === 89 ? sampledAt : midnight(dateAt(index + 1))),
+    })),
   };
 }

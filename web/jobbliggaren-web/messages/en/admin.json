@@ -59,7 +59,9 @@
       "peakNewAccounts": "Most new users in a day: {count}, on {date}.",
       "peakLogins": "Most logins in a day: {count}, on {date}.",
       "peakNewAccountsShared": "Most new users in a day: {count}.",
-      "peakLoginsShared": "Most logins in a day: {count}."
+      "peakLoginsShared": "Most logins in a day: {count}.",
+      "loginsUnavailable": "Coming soon",
+      "registrationsSummary": "{newAccounts, plural, =0 {No new accounts} one {# new account} other {# new accounts}} in the last {days} calendar days. Today ends at the observation time."
     },
     "services": {
       "title": "Services",
@@ -97,7 +99,12 @@
       "empty": "Nothing needs attention right now.",
       "failedJobs": "{count, plural, one {# background job has failed} other {# background jobs have failed}}",
       "pendingDeletions": "{count, plural, one {# account is pending deletion} other {# accounts are pending deletion}}",
-      "failedEmails": "{count, plural, one {# email has failed} other {# emails have failed}}"
+      "failedEmails": "{count, plural, one {# email has failed} other {# emails have failed}}",
+      "noFailedJobs": "No failed background jobs.",
+      "noPendingDeletions": "No accounts pending deletion.",
+      "emailUnknown": "Email failures cannot be assessed yet.",
+      "jobsSource": "Failed background jobs",
+      "deletionsSource": "Pending deletions"
     },
     "events": {
       "title": "Recent events",
@@ -111,6 +118,23 @@
         "emailChangeRequested": "Address change requested",
         "jobFailed": "Job failure"
       }
+    },
+    "population": "New accounts count retained accounts with completed registration.",
+    "observation": {
+      "sampledAt": "Observed at",
+      "refreshFailed": "Refresh failed. Showing the last observation.",
+      "stale": "This observation is older than five minutes."
+    },
+    "registrationPeriods": {
+      "yesterday": "{count} yesterday",
+      "last7Days": "{count} in the last 7 calendar days",
+      "last30Days": "{count} in the last 30 calendar days"
+    },
+    "accountStatus": {
+      "active": "{count} active accounts",
+      "pendingDeletion": "{count} pending deletion",
+      "profileMissing": "{count} missing a profile",
+      "suspended": "{count} suspended"
     }
   },
   "users": {
@@ -169,7 +193,8 @@
       "detailFailed": "The account's details could not be loaded. Try again in a moment.",
       "gone": "The account no longer exists.",
       "retry": "Try again",
-      "signIn": "Sign in"
+      "signIn": "Sign in",
+      "invalidPeriod": "The filter could not be read. Open the account list again."
     },
     "pager": {
       "label": "Page navigation",
@@ -298,7 +323,9 @@
       "scheduleDeletion": "Scheduling…",
       "cancelEmailChange": "Cancelling…",
       "retry": "Fetching…"
-    }
+    },
+    "registrationPeriod": "Registered from {from} until before {before}.",
+    "clearRegistrationPeriod": "Clear period"
   },
   "feedback": {
     "meta": {

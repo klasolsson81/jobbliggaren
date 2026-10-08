@@ -13,7 +13,9 @@ public sealed record SearchAccountsQuery(
     AccountStatus? Status,
     AccountSort Sort,
     int Page,
-    int PageSize)
+    int PageSize,
+    DateTimeOffset? RegisteredFrom = null,
+    DateTimeOffset? RegisteredBefore = null)
     : IQuery<PagedResult<AccountListItemDto>>, IAdminRequest
 {
     public const int MaxPageSize = 100;

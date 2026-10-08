@@ -47,7 +47,7 @@ export default async function JobbPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-4" aria-labelledby="failed-heading">
+      <section id="failed-jobs" className="flex flex-col gap-4" aria-labelledby="failed-heading">
         <h2 id="failed-heading" className="jp-h2">
           {t("failed.heading")}
         </h2>

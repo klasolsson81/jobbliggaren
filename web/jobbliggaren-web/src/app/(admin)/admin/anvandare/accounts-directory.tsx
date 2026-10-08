@@ -4,7 +4,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import type { AccountDirectoryFilters } from "@/lib/admin/account-filters";
+import { accountsHref } from "@/lib/admin/overview";
+import { formatDateTime } from "@/lib/i18n/format";
+import { useFormatter, useTranslations } from "next-intl";
 import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
@@ -61,6 +65,8 @@ const RETURN_PATH = "/admin/anvandare";
 
 interface Criteria {
   readonly term: string;
+  readonly registeredFrom?: string;
+  readonly registeredBefore?: string;
   readonly filter: AdminAccountFilter;
   readonly sort: AdminAccountSort;
   readonly page: number;
@@ -69,6 +75,15 @@ interface Criteria {
 }
 
 const FIRST: Criteria = { term: "", filter: "all", sort: FIRST_SORT, page: 1, generation: 0 };
+function AccountPanelLoading() {
+  const t = useTranslations("admin.users");
+  return <p role="status">{t("panel.loading")}</p>;
+}
+
+const AdminAccountPanel = dynamic(
+  () => import("@/components/admin/admin-account-panel").then((module) => module.AdminAccountPanel),
+  { loading: AccountPanelLoading },
+);
 
 type Answer<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly failure: AccountsFailure; readonly gone: boolean };
 
@@ -141,12 +156,23 @@ const GONE: AdminEmailChangeReread = { kind: "gone" };
  * row at once and its details when they come, its pending address change read beside them (#1975), so a
  * fault on the volatile instance costs that one fact.
  */
-export function AccountsDirectory({ initial, self }: { readonly initial: AccountsListing; readonly self: AdminSelf }) {
+export function AccountsDirectory({ initial, self, initialFilters = {} }: {
+  readonly initial: AccountsListing;
+  readonly self: AdminSelf;
+  readonly initialFilters?: AccountDirectoryFilters;
+}) {
   const t = useTranslations("admin.users");
   const [query, setQuery] = useState("");
-  const [criteria, setCriteria] = useState<Criteria>(FIRST);
+  const format = useFormatter();
+  const router = useRouter();
+  const initialStatus: AdminAccountFilter = initialFilters.status === "Active" ? "active"
+    : initialFilters.status === "PendingDeletion" ? "pendingDeletion"
+    : initialFilters.status === "ProfileMissing" ? "profileMissing"
+    : initialFilters.status === "Suspended" ? "suspended" : "all";
+  const first: Criteria = { ...FIRST, filter: initialStatus, registeredFrom: initialFilters.registeredFrom, registeredBefore: initialFilters.registeredBefore };
+  const [criteria, setCriteria] = useState<Criteria>(first);
   const [listing, setListing] = useState(initial);
-  const [answered, setAnswered] = useState<Criteria>(FIRST);
+  const [answered, setAnswered] = useState<Criteria>(first);
   const [open, setOpen] = useState<AdminAccountRow | null>(null);
   const [panelMounted, setPanelMounted] = useState(false);
   const [details, setDetails] = useState<AdminAccountDetails>({ kind: "loading" });
@@ -173,6 +199,8 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
       {
         address: criteria.term === "" ? undefined : criteria.term,
         status: wireStatus(criteria.filter),
+        registeredFrom: criteria.registeredFrom,
+        registeredBefore: criteria.registeredBefore,
         sort: wireSort(criteria.sort),
         page: criteria.page,
         pageSize: ACCOUNTS_PAGE_SIZE,
@@ -260,6 +288,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
     if (row === undefined) return;
     setPanelMounted(true);
     openId.current = row.id;
+    setPanelMounted(true);
     setOpen(row);
     setEmailChange({ kind: "none" });
     void readAccount(row.id);
@@ -391,6 +420,16 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
 
   return (
     <>
+      {criteria.registeredFrom && criteria.registeredBefore ? <p>
+        {t("registrationPeriod", {
+          from: formatDateTime(format, criteria.registeredFrom) ?? criteria.registeredFrom,
+          before: formatDateTime(format, criteria.registeredBefore) ?? criteria.registeredBefore,
+        })}{" "}
+        <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={() => {
+          setCriteria((current) => ({ ...current, registeredFrom: undefined, registeredBefore: undefined, page: 1 }));
+          router.replace(accountsHref("/admin", undefined, wireStatus(criteria.filter)), { scroll: false });
+        }}>{t("clearRegistrationPeriod")}</button>
+      </p> : null}
       <AdminAccountsToolbar
         filter={criteria.filter}
         query={query}

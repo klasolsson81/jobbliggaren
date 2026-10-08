@@ -1,10 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { overviewSnapshotFixture } from "@/test/fixtures/admin-overview";
+const { load, redirect } = vi.hoisted(() => ({ load: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(path); }) }));
+vi.mock("@/lib/api/admin-overview", () => ({ loadAdminOverview: load }));
+vi.mock("next/navigation", () => ({ redirect }));
 import { render, screen, within } from "@testing-library/react";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import AdminOverviewPage from "./page";
 
 function renderPage() {
-  render(<AdminOverviewPage />);
+  render(<AdminOverview />);
 }
 
 const CARDS = [
@@ -21,7 +25,7 @@ const CARDS = [
   "Senaste händelser",
 ];
 
-describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", () => {
+describe("overview preview — unavailable regions", () => {
   it("is headed Översikt and renders every designed card as a labelled region", () => {
     renderPage();
 
@@ -34,7 +38,7 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
   it("shows no number at all: every value is an en-dash with no unit", () => {
     renderPage();
 
-    // The trend card's only digits are its period labels ("7 dygn"), checked below.
+    // The trend card's only digits are its period labels ("7 dagar"), checked below.
     for (const card of CARDS.filter((name) => name !== "Nya användare och inloggningar")) {
       expect(screen.getByRole("region", { name: card }).textContent ?? "").not.toMatch(/\d/);
     }
@@ -69,7 +73,7 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
 
     const group = screen.getByRole("radiogroup", { name: "Period" });
     const options = within(group).getAllByRole("radio");
-    expect(options.map((option) => option.textContent)).toEqual(["7 dygn", "30 dygn", "90 dygn"]);
+    expect(options.map((option) => option.textContent)).toEqual(["7 dagar", "30 dagar", "90 dagar"]);
     for (const option of options) expect(option).toBeDisabled();
     const describedBy = group.getAttribute("aria-describedby");
     expect(describedBy).not.toBeNull();
@@ -98,5 +102,18 @@ describe("/admin — the overview before its sources exist (ADR 0150 D1/D2)", ()
     expect(
       within(screen.getByRole("region", { name: "Tjänster" })).getByRole("link", { name: "Loggar" }),
     ).toHaveAttribute("href", "/admin/forhandsvisning/loggar");
+  });
+});
+
+describe("/admin initial server data", () => {
+  it("loads privileged data on the server and renders the exact total", async () => {
+    load.mockResolvedValueOnce({ kind: "ok", data: overviewSnapshotFixture(), loadedAt: Date.now() });
+    render(await AdminOverviewPage());
+    expect(within(screen.getByRole("region", { name: "Användare totalt" })).getByRole("link", { name: "12" })).toBeInTheDocument();
+  });
+  it.each([["unauthorized", "/logga-in"], ["forbidden", "/"]])("redirects %s before data render", async (kind, path) => {
+    load.mockResolvedValueOnce({ kind });
+    await expect(AdminOverviewPage()).rejects.toThrow(path);
+    expect(redirect).toHaveBeenCalledWith(path);
   });
 });

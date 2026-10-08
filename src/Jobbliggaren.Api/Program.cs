@@ -394,6 +394,14 @@ if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
 // Private binary reads need these headers on framework refusals as well as successful responses.
 app.Use(async (ctx, next) =>
 {
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/admin/overview"))
+    {
+        ctx.Response.OnStarting(static state =>
+        {
+            ((HttpContext)state).Response.Headers.CacheControl = "private, no-store";
+            return Task.CompletedTask;
+        }, ctx);
+    }
     if (ctx.Request.Path.Value is { } imagePath
         && ((ctx.Request.Path.StartsWithSegments("/api/v1/resumes")
                 && imagePath.TrimEnd('/').EndsWith("/original", StringComparison.OrdinalIgnoreCase))

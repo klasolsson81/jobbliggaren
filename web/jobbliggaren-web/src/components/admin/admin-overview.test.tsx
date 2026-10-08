@@ -126,7 +126,7 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     );
     expect(trend.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
 
-    await userEvent.click(within(trend).getByRole("radio", { name: "7 dygn" }));
+    await userEvent.click(within(trend).getByRole("radio", { name: "7 dagar" }));
     expect(within(trend).getByText(/de senaste 7 dygnen/)).toBeInTheDocument();
   });
 });

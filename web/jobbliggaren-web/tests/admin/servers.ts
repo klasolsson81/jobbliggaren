@@ -18,6 +18,7 @@ import {
   STEP_UP_CHALLENGE,
   STEP_UP_GRANT,
   accountDetails,
+  accountOverview,
   accountsPage,
   feedbackDetail,
   feedbackList,
@@ -40,7 +41,9 @@ import {
  */
 export type HarnessPorts = { readonly proxy: number; readonly next: number; readonly backend: number };
 
-export const HARNESS_PORTS: HarnessPorts = { proxy: 3120, next: 3121, backend: 3122 };
+const portBase = Number(process.env.ADMIN_HARNESS_PORT_BASE ?? "3120");
+if (!Number.isInteger(portBase) || portBase < 1024 || portBase > 65533) throw new Error("Invalid ADMIN_HARNESS_PORT_BASE");
+export const HARNESS_PORTS: HarnessPorts = { proxy: portBase, next: portBase + 1, backend: portBase + 2 };
 
 export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const SESSION_COOKIE = "__Host-jobbliggaren_session";
@@ -58,6 +61,10 @@ export type AccessMode = "ok" | "forbidden" | "rateLimited" | "unauthorized" | "
 export type Harness = {
   who: "admin" | "member";
   mode: AdminMode;
+  readonly overviewReads: Record<"accounts" | "audit" | "jobs", AdminMode>;
+  overviewSampledAt: string | null;
+  overviewEmpty: boolean;
+  overviewDelayMs: number;
   accessMode: AccessMode;
   deletionMode: AccessMode | "alreadyPending" | "lastAdministrator";
   /** The injected server clock's shared AccountDeletionTiming.From result, for preview and commit. */
@@ -150,6 +157,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
+    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok" },
+    overviewSampledAt: new Date().toISOString(),
+    overviewEmpty: false,
+    overviewDelayMs: 0,
     accessMode: "ok",
     deletionMode: "ok",
     deletionTiming: DELETION_TIMING,
@@ -211,6 +222,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       issuedGrants = 0;
       harness.who = "admin";
       harness.mode = "ok";
+      harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = "ok";
+      harness.overviewSampledAt = new Date().toISOString();
+      harness.overviewEmpty = false;
+      harness.overviewDelayMs = 0;
       harness.accessMode = "ok";
       harness.deletionMode = "ok";
       harness.deletionTiming = DELETION_TIMING;
@@ -262,9 +277,13 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       return json(200, { activeCount: 42000, newToday: 62, isStale: false, refreshedAt: "2026-10-03T19:00:00Z" });
 
     const adminRoutes: Record<string, () => unknown> = {
-      "GET /api/v1/admin/audit-log": () => AUDIT_PAGE,
+      "GET /api/v1/admin/overview/accounts": () => accountOverview({
+        many: harness.many, gone: harness.overviewEmpty ? new Set(accountsPage(undefined).accounts.items.map(row => row.id)) : harness.gone,
+        access: harness.access,
+      }),
+      "GET /api/v1/admin/audit-log": () => harness.overviewEmpty ? { ...AUDIT_PAGE, items: [], totalCount: 0 } : AUDIT_PAGE,
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
-      "GET /api/v1/admin/jobs/failed": () => FAILED_JOBS,
+      "GET /api/v1/admin/jobs/failed": () => harness.overviewEmpty ? { ...FAILED_JOBS, items: [], totalCount: 0 } : FAILED_JOBS,
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -286,10 +305,11 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       request.on("end", () => {
         searches.push(body);
         if (harness.mode !== "ok") return refusal();
-        const { address, status, page, pageSize } = JSON.parse(body) as {
+        const { address, status, page, pageSize, registeredFrom, registeredBefore } = JSON.parse(body) as {
           address?: string; status?: string; page?: number; pageSize?: number;
+          registeredFrom?: string; registeredBefore?: string;
         };
-        return json(200, accountsPage(address, { status, page, pageSize, many: harness.many,
+        return json(200, accountsPage(address, { status, page, pageSize, registeredFrom, registeredBefore, many: harness.many,
           gone: harness.gone, access: harness.access, deletions: harness.deletions }));
       });
       return;
@@ -542,14 +562,22 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
 
     const answer = adminRoutes[route];
     if (answer !== undefined) {
-      switch (harness.mode) {
-        case "forbidden":
-          return json(403, { title: "Forbidden", status: 403 });
-        case "error":
-          return json(500, { title: "Internal Server Error", status: 500 });
-        default:
-          return json(200, answer());
+      const source = route.endsWith("/overview/accounts") ? "accounts"
+        : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs" : null;
+      const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
+      const respond = () => {
+        if (mode !== "ok") return refusal(mode);
+        return json(200, answer(), {
+          "Cache-Control": "private, no-store",
+          ...(source !== null && harness.overviewSampledAt !== null ? { "X-Admin-Sampled-At": harness.overviewSampledAt } : {}),
+        });
+      };
+      if (source !== null && harness.overviewDelayMs > 0) {
+        const timer = setTimeout(respond, harness.overviewDelayMs);
+        response.once("close", () => clearTimeout(timer));
+        return;
       }
+      return respond();
     }
 
     misses.push(route);

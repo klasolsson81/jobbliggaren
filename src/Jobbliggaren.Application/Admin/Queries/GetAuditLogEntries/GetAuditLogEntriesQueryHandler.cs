@@ -43,6 +43,7 @@ public sealed class GetAuditLogEntriesQueryHandler(IAppDbContext db)
 
         var entries = await q
             .OrderByDescending(a => a.OccurredAt)
+            .ThenByDescending(a => a.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .Select(a => new AuditLogEntryDto(

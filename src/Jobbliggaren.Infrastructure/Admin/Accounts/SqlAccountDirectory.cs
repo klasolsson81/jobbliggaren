@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Text;
 using Jobbliggaren.Application.Admin.Accounts;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -36,7 +37,8 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
         var address = NormalizedAddress(search.Address);
 
         int total;
-        await using (var count = Command(connection, address, search.Status, "SELECT count(*) FROM classified"))
+        await using (var count = Command(connection, address, search.Status, "SELECT count(*) FROM classified",
+            registeredFrom: search.RegisteredFrom, registeredBefore: search.RegisteredBefore))
         {
             total = Convert.ToInt32(
                 await count.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
@@ -51,10 +53,11 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
         return new AccountDirectoryPage(entries, total);
     }
 
-    public async Task<AccountStatusCounts> CountByStatusAsync(string? address, CancellationToken cancellationToken)
+    public async Task<AccountStatusCounts> CountByStatusAsync(string? address, CancellationToken cancellationToken,
+        DateTimeOffset? registeredFrom = null, DateTimeOffset? registeredBefore = null)
     {
         var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = CountsCommand(connection, NormalizedAddress(address));
+        await using var command = CountsCommand(connection, NormalizedAddress(address), registeredFrom, registeredBefore);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
 
@@ -70,6 +73,44 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             Suspended: reader.GetInt32(4));
     }
 
+    public async Task<AccountDirectoryOverview> GetOverviewAsync(
+        IReadOnlyList<CivilDayWindow> days, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(days);
+        if (days.Count is < 1 or > 90)
+            throw new ArgumentOutOfRangeException(nameof(days));
+        var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = Command(connection, address: null, status: null, """
+            , totals AS (
+                SELECT count(*)::int AS total,
+                    count(*) FILTER (WHERE status = @active)::int AS active,
+                    count(*) FILTER (WHERE status = @pending_deletion)::int AS pending_deletion,
+                    count(*) FILTER (WHERE status = @profile_missing)::int AS profile_missing,
+                    count(*) FILTER (WHERE status = @suspended)::int AS suspended
+                FROM classified
+            ), daily AS (
+                SELECT w.day, count(c.user_id)::int AS new_accounts
+                FROM unnest(@days, @starts, @ends) AS w(day, starts_at, ends_at)
+                LEFT JOIN classified c ON c.registered_at >= w.starts_at AND c.registered_at < w.ends_at
+                GROUP BY w.day
+            )
+            SELECT t.total, t.active, t.pending_deletion, t.profile_missing, t.suspended,
+                d.day, d.new_accounts
+            FROM totals t CROSS JOIN daily d ORDER BY d.day
+            """);
+        command.Parameters.AddWithValue("@days", NpgsqlDbType.Array | NpgsqlDbType.Date, days.Select(day => day.Day).ToArray());
+        command.Parameters.AddWithValue("@starts", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz, days.Select(day => day.Start).ToArray());
+        command.Parameters.AddWithValue("@ends", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz, days.Select(day => day.End).ToArray());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        AccountStatusCounts? counts = null;
+        var registrations = new List<AccountRegistrationDay>(days.Count);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            counts ??= new AccountStatusCounts(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4));
+            registrations.Add(new AccountRegistrationDay(reader.GetFieldValue<DateOnly>(5), reader.GetInt32(6)));
+        }
+        return new AccountDirectoryOverview(counts ?? throw new InvalidOperationException("The account aggregate returned no observation."), registrations);
+    }
     public async Task<AccountDirectoryEntry?> FindAsync(Guid userId, CancellationToken cancellationToken)
     {
         var connection = await OpenConnectionAsync(cancellationToken);
@@ -88,17 +129,19 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             address,
             search.Status,
             $"SELECT {Columns} FROM classified",
-            $" ORDER BY {Ordering(search.Sort)} LIMIT @limit OFFSET @offset");
+            $" ORDER BY {Ordering(search.Sort)} LIMIT @limit OFFSET @offset",
+            search.RegisteredFrom, search.RegisteredBefore);
         command.Parameters.AddWithValue("@limit", NpgsqlDbType.Integer, search.PageSize);
         command.Parameters.AddWithValue("@offset", NpgsqlDbType.Integer, (search.Page - 1) * search.PageSize);
         return command;
     }
 
     /// <summary>
-    /// Every count in one pass. The fifth column counts rows no arm of the CASE takes; the reader requires it
+    /// Every count in one pass. The sixth column counts rows no arm of the CASE takes; the reader requires it
     /// to be zero, so a state the rule does not know fails loudly instead of vanishing from every count.
     /// </summary>
-    internal NpgsqlCommand CountsCommand(NpgsqlConnection connection, string? address) =>
+    internal NpgsqlCommand CountsCommand(NpgsqlConnection connection, string? address,
+        DateTimeOffset? registeredFrom = null, DateTimeOffset? registeredBefore = null) =>
         Command(
             connection,
             address,
@@ -109,7 +152,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             + "count(*) FILTER (WHERE status = @profile_missing)::int, "
             + "count(*) FILTER (WHERE status = @suspended)::int, "
             + "count(*) FILTER (WHERE status IS NULL)::int "
-            + "FROM classified");
+            + "FROM classified", registeredFrom: registeredFrom, registeredBefore: registeredBefore);
 
     /// <summary>
     /// The one place the statement is composed: the <c>classified</c> CTE, then the caller's select over it,
@@ -121,11 +164,13 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
         string? address,
         AccountStatus? status,
         string select,
-        string tail = "")
+        string tail = "",
+        DateTimeOffset? registeredFrom = null,
+        DateTimeOffset? registeredBefore = null)
     {
         var sql = new StringBuilder(
             """
-            WITH classified AS (
+            WITH classified AS NOT MATERIALIZED (
                 SELECT
                     u.id AS user_id,
                     u.email AS email,
@@ -152,8 +197,15 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                 FROM identity."AspNetUsers" u
                 LEFT JOIN public.job_seekers js ON js.user_id = u.id
             """);
+        var predicates = new List<string>();
         if (address is not null)
-            sql.Append("\n    WHERE u.normalized_email LIKE @address ESCAPE '\\'");
+            predicates.Add("u.normalized_email LIKE @address ESCAPE '\\'");
+        if (registeredFrom is not null)
+            predicates.Add("js.created_at >= @registered_from");
+        if (registeredBefore is not null)
+            predicates.Add("js.created_at < @registered_before");
+        if (predicates.Count > 0)
+            sql.Append("\n    WHERE ").AppendJoin(" AND ", predicates);
         sql.Append("\n)\n").Append(select);
         if (status is not null)
             sql.Append(" WHERE status = @status");
@@ -171,6 +223,10 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
             command.Parameters.AddWithValue("@address", NpgsqlDbType.Text, address);
         if (status is not null)
             command.Parameters.AddWithValue("@status", NpgsqlDbType.Text, status.Value.ToString());
+        if (registeredFrom is { } from)
+            command.Parameters.AddWithValue("@registered_from", NpgsqlDbType.TimestampTz, from.ToUniversalTime());
+        if (registeredBefore is { } before)
+            command.Parameters.AddWithValue("@registered_before", NpgsqlDbType.TimestampTz, before.ToUniversalTime());
         return command;
     }
 

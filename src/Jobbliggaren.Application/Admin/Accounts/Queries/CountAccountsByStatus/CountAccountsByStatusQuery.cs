@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.Admin.Accounts.Queries.CountAccountsByStatus;
 /// How many accounts match the address term, in all and per status (ADR 0151). The counts follow the term
 /// but not the status filter, so each filter option shows how many rows choosing it would list.
 /// </summary>
-public sealed record CountAccountsByStatusQuery(string? Address) : IQuery<AccountStatusCountsDto>, IAdminRequest
+public sealed record CountAccountsByStatusQuery(string? Address, DateTimeOffset? RegisteredFrom = null, DateTimeOffset? RegisteredBefore = null) : IQuery<AccountStatusCountsDto>, IAdminRequest
 {
     public override string ToString() =>
         $"CountAccountsByStatusQuery(address {(string.IsNullOrWhiteSpace(Address) ? "none" : "redacted")})";

@@ -18,7 +18,7 @@ public sealed class SearchAccountsQueryHandler(IAccountDirectory directory, IApp
         SearchAccountsQuery query, CancellationToken cancellationToken)
     {
         var page = await directory.SearchAsync(
-            new AccountDirectorySearch(query.Address, query.Status, query.Sort, query.Page, query.PageSize),
+            new AccountDirectorySearch(query.Address, query.Status, query.Sort, query.Page, query.PageSize, query.RegisteredFrom, query.RegisteredBefore),
             cancellationToken);
 
         var active = page.Entries

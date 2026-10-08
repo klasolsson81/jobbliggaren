@@ -352,7 +352,12 @@ export function AppShell({
 
   return (
     <div className={className ? `jp-shell ${className}` : "jp-shell"}>
-      <HeaderStrip brandHref="/oversikt" brandLabel={t("nav.brandHome")} className={isAdmin ? "jp-header--switchable" : undefined}>
+      <HeaderStrip
+        brandHref="/oversikt"
+        brandLabel={t("nav.brandHome")}
+        brandPrefetch={showAdminNavigation ? false : undefined}
+        className={isAdmin ? "jp-header--switchable" : undefined}
+      >
         {showAdminNavigation ? <AdminNav variant="header" /> : <nav className="jp-nav jp-nav--user" aria-label={t("nav.ariaLabel")}>
           {PRIMARY_NAV.map((item) => (
             <Link

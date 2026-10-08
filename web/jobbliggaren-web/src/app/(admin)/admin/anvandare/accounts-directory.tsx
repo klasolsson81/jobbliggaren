@@ -3,13 +3,13 @@
 // "use client": the search, the filter, the sort, the pages and the panel's reads and commands run in the browser.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
 import {
-  AdminAccountPanel,
   type AdminAccountCommands,
   type AdminAccountDetails,
   type AdminLiveAction,
@@ -44,6 +44,16 @@ import {
 } from "@/lib/dto/admin-accounts";
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+function AccountPanelLoading() {
+  const t = useTranslations("admin.users");
+  return <p role="status">{t("panel.loading")}</p>;
+}
+
+const AdminAccountPanel = dynamic(
+  () => import("@/components/admin/admin-account-panel").then((module) => module.AdminAccountPanel),
+  { loading: AccountPanelLoading },
+);
 
 const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate", "scheduleDeletion"]);
 
@@ -133,6 +143,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   const [listing, setListing] = useState(initial);
   const [answered, setAnswered] = useState<Criteria>(FIRST);
   const [open, setOpen] = useState<AdminAccountRow | null>(null);
+  const [panelMounted, setPanelMounted] = useState(false);
   const [details, setDetails] = useState<AdminAccountDetails>({ kind: "loading" });
   const [emailChange, setEmailChange] = useState<AdminEmailChangeState>({ kind: "none" });
   const detailRequest = useRef<AbortController | null>(null);
@@ -240,6 +251,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   function openAccount(id: string) {
     const row = listing.kind === "loaded" ? listing.page.rows.find((candidate) => candidate.id === id) : undefined;
     if (row === undefined) return;
+    setPanelMounted(true);
     openId.current = row.id;
     setOpen(row);
     setEmailChange({ kind: "none" });
@@ -374,7 +386,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
           onPage={(page) => setCriteria((current) => ({ ...current, page }))}
         />
       )}
-      <AdminAccountPanel
+      {panelMounted ? <AdminAccountPanel
         account={open}
         details={details}
         commands={commands}
@@ -391,7 +403,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
           openId.current = null;
           setOpen(null);
         }}
-      />
+      /> : null}
     </>
   );
 }

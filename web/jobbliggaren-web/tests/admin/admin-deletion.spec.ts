@@ -1,11 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
-import { execFile } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { chromium, expect, test, type Locator, type Page } from "@playwright/test";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
-import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 import { ADMIN, DELETION_TIMING } from "./fixtures";
-import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
+import { APP_ORIGIN, HARNESS_PORTS, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
 const TARGET = "00000000-0000-4000-8000-000000000005";
@@ -13,8 +12,18 @@ const EMAIL = "konto.e@example.test";
 const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const lighthouseRequire = createRequire(cliRequire.resolve("lighthouse"));
 const axePath = lighthouseRequire.resolve("axe-core/axe.min.js");
-const executeFile = promisify(execFile);
 type AxeResult = { violations: { id: string; impact: string | null }[] };
+type LighthouseReport = {
+  readonly requestedUrl: string;
+  readonly finalDisplayedUrl: string;
+  readonly runtimeError?: unknown;
+  readonly categories: Readonly<Record<string, { readonly score: number | null }>>;
+  readonly audits: Readonly<Record<string, {
+    readonly numericValue?: number;
+    readonly details?: { readonly items?: ReadonlyArray<Record<string, unknown>> };
+  }>>;
+};
+const median = (values: ReadonlyArray<number>) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 
 function outputDirectory() {
   const supplied = process.env.ADMIN_DELETION_SCREENSHOT_DIR;
@@ -68,6 +77,52 @@ test.beforeEach(async ({ context }) => {
 test.afterEach(() => { expect(harness.misses).toEqual([]); });
 
 for (const width of [1280, 3440]) {
+  test(`lazy account panel announces loading before its dialog at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/anvandare", { waitUntil: "networkidle" });
+    let release: (() => void) | undefined;
+    const released = new Promise<void>(resolve => { release = resolve; });
+    const requested: string[] = [];
+    const chunks = "**/_next/static/chunks/*.js";
+    await page.route(chunks, async route => {
+      requested.push(route.request().url());
+      await released;
+      await route.continue();
+    });
+    try {
+      await page.getByRole("button", { name: EMAIL, exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Hämtar kontots uppgifter…" })).toBeVisible();
+      expect(requested.length).toBeGreaterThan(0);
+      await inspect(page, "deletion-panel-module-loading");
+      release?.();
+      await expect(page.getByRole("dialog", { name: EMAIL, exact: true })).toBeVisible();
+    } finally {
+      release?.();
+      await page.unroute(chunks);
+    }
+  });
+
+  test(`failed panel script keeps the real error frame and focus at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/anvandare", { waitUntil: "networkidle" });
+    const failedScripts: string[] = [];
+    await page.route("**/_next/static/chunks/*.js", async route => {
+      failedScripts.push(route.request().url());
+      await route.abort("failed");
+    });
+    await page.getByRole("button", { name: EMAIL, exact: true }).click();
+    const heading = page.getByRole("heading", { name: "Sidan kunde inte visas", exact: true });
+    await expect(heading).toBeVisible();
+    expect(failedScripts.length).toBeGreaterThan(0);
+    await expect(heading).toBeFocused();
+    await expect(page.getByRole("banner")).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Försök igen", exact: true })).toBeFocused();
+    await page.unroute("**/_next/static/chunks/*.js");
+    await inspect(page, "deletion-panel-module-error");
+  });
+
   test(`deletion confirmation, loading, receipt and actual pending data at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     harness.emailChanges.add(TARGET);
@@ -166,21 +221,86 @@ test("keyboard opens deletion, traps dialog focus and returns to its trigger on 
   expect(harness.deletionRequests).toHaveLength(0);
 });
 
-test("scoped authenticated account directory Lighthouse", async ({ page }) => {
-  test.setTimeout(120_000);
+test("scoped authenticated account directory Lighthouse", async () => {
+  test.setTimeout(180_000);
   const directory = outputDirectory();
   test.skip(directory === null, "Lighthouse evidence needs the explicitly configured external artifact directory.");
-  await page.goto("/admin/anvandare");
-  const output = join(directory!, "deletion-lighthouse.json");
-  await executeFile(process.execPath, [cliRequire.resolve("lighthouse/cli/index.js"), `${APP_ORIGIN}/admin/anvandare`,
-    "--output=json", `--output-path=${output}`, "--only-categories=performance,accessibility,best-practices",
-    "--preset=desktop", "--screenEmulation.mobile=false", "--screenEmulation.width=1280",
-    "--screenEmulation.height=900", "--chrome-flags=--headless --ignore-certificate-errors --no-sandbox",
-    `--extra-headers=${JSON.stringify({ Cookie: `${SESSION_COOKIE}=${SESSION_ID}` })}`],
-  { timeout: 110_000, windowsHide: true });
-  const report = JSON.parse(readFileSync(output, "utf8")) as {
-    finalDisplayedUrl: string; categories: Record<string, { score: number | null }>;
-  };
-  expect(new URL(report.finalDisplayedUrl).pathname).toBe("/admin/anvandare");
-  for (const category of Object.values(report.categories)) expect(category.score).toBeGreaterThan(0.9);
+  const lighthouse = (await import(pathToFileURL(cliRequire.resolve("lighthouse")).href) as {
+    default: (url: string, options: unknown, config: unknown) => Promise<{ lhr: LighthouseReport }>;
+  }).default;
+  const desktopConfig = (await import(pathToFileURL(lighthouseRequire.resolve("./config/desktop-config.js")).href) as {
+    default: unknown;
+  }).default;
+  const port = HARNESS_PORTS.backend + 1;
+  const browser = await chromium.launch({ headless: true,
+    args: ["--ignore-certificate-errors", `--remote-debugging-port=${port}`] });
+  const reports: LighthouseReport[] = [];
+  const observations: unknown[] = [];
+  try {
+    const connected = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    const context = connected.contexts()[0];
+    if (!context) throw new Error("Lighthouse requires the default Chromium context.");
+    await context.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN,
+      secure: true, httpOnly: true, sameSite: "Strict" }]);
+    const control = await context.newPage();
+    const url = `${APP_ORIGIN}/admin/anvandare`;
+    await control.goto(url);
+    await expect(control.getByRole("table", { name: "Konton" })).toContainText(EMAIL);
+    await control.goto("about:blank");
+    for (let run = 0; run < 3; run++) {
+      const requestStart = harness.requests.length;
+      const report = (await lighthouse(url, {
+        port,
+        onlyCategories: ["performance", "accessibility", "best-practices"],
+        formFactor: "desktop",
+        screenEmulation: { mobile: false, width: 1280, height: 900, deviceScaleFactor: 1, disabled: false },
+        throttlingMethod: "simulate",
+        disableStorageReset: false,
+        clearStorageTypes: ["file_systems", "shader_cache", "service_workers", "cache_storage"],
+        logLevel: "error",
+      }, desktopConfig)).lhr;
+      reports.push(report);
+      const read = "POST /api/v1/admin/accounts/search";
+      const witnessed = harness.requests.slice(requestStart).includes(read);
+      observations.push({ run, normalContentPreflight: true, requestedUrl: report.requestedUrl,
+        finalDisplayedUrl: report.finalDisplayedUrl, requiredBackendRead: witnessed });
+      expect(report.runtimeError ?? null).toBeNull();
+      expect(report.requestedUrl).toBe(url);
+      expect(report.finalDisplayedUrl).toBe(url);
+      expect(witnessed).toBe(true);
+    }
+    for (const key of ["performance", "accessibility", "best-practices"])
+      expect(median(reports.map(report => report.categories[key]?.score ?? 0))).toBeGreaterThan(0.9);
+    const config = JSON.parse(readFileSync(join(__dirname, "../../lighthouserc.json"), "utf8")) as {
+      ci: { assert: { assertions: Record<string, unknown> } };
+    };
+    for (const [id, rule] of Object.entries(config.ci.assert.assertions)) {
+      if (!Array.isArray(rule)) continue;
+      if (!id.startsWith("resource-summary:")
+        && id !== "largest-contentful-paint" && id !== "cumulative-layout-shift") continue;
+      const [, resourceType, field] = id.split(":");
+      const budget = rule[1] as { maxNumericValue: number };
+      const values = reports.map(report => {
+        if (!id.startsWith("resource-summary:")) {
+          const observed = report.audits[id]?.numericValue;
+          if (typeof observed !== "number" || !Number.isFinite(observed) || observed < 0)
+            throw new Error(`Missing or invalid Lighthouse timing observation: ${id}`);
+          return observed;
+        }
+        const row = report.audits["resource-summary"]?.details?.items?.find(item => item.resourceType === resourceType);
+        const observed = row?.[field === "size" ? "transferSize" : "requestCount"];
+        if (typeof observed !== "number" || !Number.isFinite(observed) || observed < 0)
+          throw new Error(`Missing or invalid Lighthouse resource observation: ${id}`);
+        return observed;
+      });
+      expect(median(values), id).toBeLessThanOrEqual(budget.maxNumericValue);
+    }
+  } finally {
+    try {
+      writeFileSync(join(directory!, "deletion-lighthouse.json"), JSON.stringify({
+        method: "secure synthetic cookie in default Chromium context; populated preflight; audited-target cache/origin reset retaining cookies; per-run backend-read and exact-URL witnesses; desktop1280x900; three-run medians",
+        observations, reports,
+      }, null, 2));
+    } finally { await browser.close(); }
+  }
 });

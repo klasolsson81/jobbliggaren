@@ -11,6 +11,7 @@ import {
   formatNoticesStamp,
   formatSwedishLongDate,
   formatSwedishShortDate,
+  formatSwedishShortDateWithYear,
   OVERSIKT_DEADLINE_WINDOW_DAYS,
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "./aggregations";
@@ -87,6 +88,18 @@ describe("formatSwedishShortDate", () => {
   it("returnerar streck för ogiltigt datum", () => {
     expect(formatSwedishShortDate("not-a-date")).toBe("–");
   });
+
+  it("shows the Swedish date just after Swedish midnight", () => {
+    // 00:15 on 8 Oct in Sweden, still 7 Oct in UTC.
+    expect(formatSwedishShortDate("2026-10-07T22:15:00Z")).toBe("8 okt");
+  });
+});
+
+describe("formatSwedishShortDateWithYear", () => {
+  it("rolls the year with the Swedish date on New Year's night", () => {
+    // 00:30 on 1 Jan 2027 in Sweden (CET), still 2026 in UTC.
+    expect(formatSwedishShortDateWithYear("2026-12-31T23:30:00Z")).toBe("1 jan 2027");
+  });
 });
 
 describe("formatSwedishLongDate", () => {
@@ -96,6 +109,12 @@ describe("formatSwedishLongDate", () => {
     expect(out.day).toBe(23);
     expect(out.weekday).toBe("lördag");
     expect(out.monthYear).toBe("maj 2026");
+  });
+
+  it("reads day, weekday and month on the Swedish date, not the process zone's", () => {
+    // 00:30 on Friday 1 Jan 2027 in Sweden; UTC still says Thursday 31 Dec 2026.
+    const out = formatSwedishLongDate(new Date("2026-12-31T23:30:00Z"));
+    expect(out).toEqual({ day: 1, weekday: "fredag", monthYear: "januari 2027" });
   });
 });
 
@@ -111,10 +130,18 @@ describe("daysSince", () => {
     expect(daysSince("2026-05-26T00:00:00Z", now)).toBe(-2);
   });
 
-  it("är trunkerad till UTC-dag (DST-säker)", () => {
-    // 2026-03-29 är DST-skifte i Sverige; vi vill ha exakt 1 dag
+  it("räknar svenska kalenderdagar, inte UTC-dagar", () => {
+    // 01:59 and 02:00 on 30 March in Sweden (CEST): the same Swedish date, although UTC
+    // puts the first on the 29th.
     const now = new Date("2026-03-30T00:00:00Z");
-    expect(daysSince("2026-03-29T23:59:00Z", now)).toBe(1);
+    expect(daysSince("2026-03-29T23:59:00Z", now)).toBe(0);
+    // 23:30 on 28 March (CET) to 23:30 on 29 March (CEST) is 23 hours — still one day.
+    expect(daysSince("2026-03-28T22:30:00Z", new Date("2026-03-29T21:30:00Z"))).toBe(1);
+  });
+
+  it("says yesterday for the previous Swedish evening, just after Swedish midnight", () => {
+    // 21:00 on 7 Oct and 01:30 on 8 Oct in Sweden — the same UTC date.
+    expect(daysSince("2026-10-07T19:00:00Z", new Date("2026-10-07T23:30:00Z"))).toBe(1);
   });
 
   it("returnerar 0 för ogiltigt datum", () => {
@@ -324,15 +351,15 @@ describe("findRecentInterviews", () => {
     expect(findRecentInterviews([draft], now)).toEqual([]);
   });
 
-  it("inkluderar intervju ~47h gammal (UTC-kalenderdag-trunkering)", () => {
-    // updatedAt 2026-05-23T01:00Z, now 2026-05-24T23:59Z = ~47h diff
-    // daysSince UTC-kalenderdag-jämför ger 1 → inom fönstret per JSDoc-kontrakt
+  it("inkluderar intervju ~47h gammal (svensk kalenderdag-trunkering)", () => {
+    // updatedAt 00:30 on 23 May, now 23:30 on 24 May in Sweden (CEST) = 47h, one Swedish
+    // calendar day → inside the window per the JSDoc contract.
     const edge = makeApp(
       "InterviewScheduled",
-      "2026-05-23T01:00:00Z",
-      "2026-05-23T01:00:00Z"
+      "2026-05-22T22:30:00Z",
+      "2026-05-22T22:30:00Z"
     );
-    const lateNow = new Date("2026-05-24T23:59:00Z");
+    const lateNow = new Date("2026-05-24T21:30:00Z");
     expect(findRecentInterviews([edge], lateNow)).toEqual([edge]);
   });
 });

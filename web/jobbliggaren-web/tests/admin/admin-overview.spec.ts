@@ -1,7 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, win32 } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve, win32 } from "node:path";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
@@ -18,7 +19,7 @@ test.afterEach(() => expect(harness.misses).toEqual([]));
 const card = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const axePath = createRequire(cliRequire.resolve("lighthouse")).resolve("axe-core/axe.min.js");
-async function verify(page: Page, state: string) {
+async function verify(page: Page, state: string, nativeZoom?: number) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole("radiogroup").evaluateAll(async groups => {
     await Promise.all(groups.flatMap(group => group.getAnimations({ subtree: true })
@@ -37,7 +38,28 @@ async function verify(page: Page, state: string) {
     if (!win32.isAbsolute(directory) || !win32.resolve(directory).toLowerCase().startsWith("c:/tmp/".replaceAll("/", String.fromCharCode(92))))
       throw new Error("Overview screenshots require an absolute external C:/tmp directory");
     mkdirSync(directory, { recursive: true });
-    await page.screenshot({ path: join(directory, `${state}-${page.viewportSize()?.width}.png`), fullPage: true, animations: "disabled" });
+    const screenshotPath = join(directory, `${state}-${page.viewportSize()?.width}.png`);
+    if (nativeZoom !== undefined) {
+      const session = await page.context().newCDPSession(page);
+      try {
+        const { data } = await session.send("Page.captureScreenshot", {
+          format: "png", fromSurface: true, captureBeyondViewport: false,
+        });
+        const png = Buffer.from(data, "base64");
+        const width = png.readUInt32BE(16);
+        const height = png.readUInt32BE(20);
+        expect(width).toBe(page.viewportSize()?.width);
+        expect(height).toBe(page.viewportSize()?.height);
+        writeFileSync(screenshotPath, png);
+        const layout = await page.evaluate(() => ({ pixelRatio: window.devicePixelRatio,
+          innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+        writeFileSync(screenshotPath + ".json", JSON.stringify({
+          capture: "chromium-native-viewport", nativeZoom, width, height, layout,
+        }, null, 2));
+      } finally { await session.detach(); }
+    } else {
+      await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+    }
   }
 }
 
@@ -163,11 +185,64 @@ for (const width of [1280, 3440]) for (const mode of ["unauthorized", "forbidden
   });
 }
 
-test("two-hundred-percent equivalent viewport remains usable", async ({ page }) => {
-  await page.setViewportSize({ width: 640, height: 500 });
-  await page.goto("/admin");
-  await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
-  await verify(page, "zoom-200");
+test("actual two-hundred-percent browser zoom keeps overview and drill-down usable", async () => {
+  const temporaryRoot = resolve(tmpdir());
+  const directory = mkdtempSync(join(temporaryRoot, "admin-overview-zoom-"));
+  let zoomContext: BrowserContext | undefined;
+  try {
+    const extension = join(directory, "extension");
+    mkdirSync(extension);
+    writeFileSync(join(extension, "manifest.json"), JSON.stringify({
+      manifest_version: 3, name: "Local admin zoom verification", version: "1.0",
+      host_permissions: ["https://localhost/*"], background: { service_worker: "background.js" },
+    }));
+    writeFileSync(join(extension, "background.js"), "chrome.runtime.onInstalled.addListener(() => {});");
+    zoomContext = await chromium.launchPersistentContext(join(directory, "profile"), {
+      channel: "chromium", headless: true, ignoreHTTPSErrors: true, baseURL: APP_ORIGIN,
+      viewport: { width: 1280, height: 1000 }, deviceScaleFactor: 1,
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    });
+    await zoomContext.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN,
+      secure: true, httpOnly: true, sameSite: "Strict" }]);
+    const worker = zoomContext.serviceWorkers()[0] ?? await zoomContext.waitForEvent("serviceworker");
+    const page = zoomContext.pages()[0] ?? await zoomContext.newPage();
+    await page.goto("/admin");
+    const zoom = await worker.evaluate(async origin => {
+      const tabs = (globalThis as unknown as { chrome: { tabs: {
+        query: (options: { active: boolean; currentWindow: boolean }) => Promise<{ id?: number; url?: string }[]>;
+        setZoom: (tabId: number, factor: number) => Promise<void>;
+        getZoom: (tabId: number) => Promise<number>;
+      } } }).chrome.tabs;
+      const [tab] = await tabs.query({ active: true, currentWindow: true });
+      if (typeof tab?.id !== "number" || !tab.url?.startsWith(origin + "/"))
+        throw new Error("Zoom verification requires the local admin tab");
+      await tabs.setZoom(tab.id, 2);
+      return await tabs.getZoom(tab.id);
+    }, APP_ORIGIN);
+    expect(zoom).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(640);
+    await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+    await page.getByRole("radio", { name: "30 dagar", exact: true }).focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toBeFocused();
+    await page.getByRole("heading", { level: 1, name: "Översikt", exact: true }).scrollIntoViewIfNeeded();
+    await verify(page, "actual-zoom-200-overview", zoom);
+    await page.getByRole("radiogroup").scrollIntoViewIfNeeded();
+    await verify(page, "actual-zoom-200-chart", zoom);
+    await card(page, "Nya användare").getByRole("link", { name: /senaste 30 kalenderdagarna/i }).click();
+    await expect(page.getByRole("table", { name: "Konton" })).toContainText("konto.b@example.test");
+    await expect(page.getByRole("button", { name: "Rensa period" })).toBeVisible();
+    await page.getByRole("heading", { level: 1, name: "Användare", exact: true }).scrollIntoViewIfNeeded();
+    await verify(page, "actual-zoom-200-directory", zoom);
+  } finally {
+    try { await zoomContext?.close(); }
+    finally {
+      if (dirname(directory) !== temporaryRoot || !basename(directory).startsWith("admin-overview-zoom-"))
+        throw new Error("Zoom cleanup target is outside its temporary root");
+      rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
+  }
 });
 
 for (const width of [1280, 3440]) {

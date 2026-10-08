@@ -534,7 +534,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/preferences`
 - `PATCH /api/v1/me/preferences`
-- `DELETE /api/v1/me` (schedule account deletion: soft delete, immediate access denial and the 30-day product grace period; restore is unavailable)
+- `POST /api/v1/me/delete` (schedule account deletion: soft delete, immediate access denial and the 30-day product grace period; restore is unavailable)
 - `POST /api/v1/me/feedback` (multipart, exactly one JSON `payload` and at most one optional `screenshot`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
 - `GET /api/v1/me/feedback/prompt-state` (om feedback är öppen, och sidorna där användaren redan har svarat)
 
@@ -848,7 +848,7 @@ Alla FK-kolumner har index. Utöver det:
 - Account-owned soft-deletable aggregates use `deleted_at` (timestamptz null).
 - Global EF Core query filter på alla soft-deletable entities
 - The ordinary Hangfire worker performs permanent cleanup strictly after the 30-day product grace period. Its projected daily 04:00 UTC run does not guarantee completed deletion.
-- Owner `DELETE /api/v1/me` and admin `POST /api/v1/admin/accounts/{id}/deletion` share the explicit-target soft-delete cascade. The worker removes the complete current ownership tree, including data without a soft-delete marker; see `docs/runbooks/account-deletion.md`.
+- Owner `POST /api/v1/me/delete` and admin `POST /api/v1/admin/accounts/{id}/deletion` share the explicit-target soft-delete cascade. The worker removes the complete current ownership tree, including data without a soft-delete marker; see `docs/runbooks/account-deletion.md`.
 - Restore and a restore endpoint are unavailable.
 - **Undantag — användar-initierad per-ansökan-radering** (#782/ADR 0104): `DELETE
   /api/v1/applications/{id}` ("Radera ansökan") är en **hard delete** — raden + barnen

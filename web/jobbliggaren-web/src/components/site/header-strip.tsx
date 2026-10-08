@@ -12,18 +12,6 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * `.jp-header__inner` flex row, and the left brand slot (`<BrandLogo>` linked
  * home). The variable, surface-specific content is COMPOSED in as `children`:
  *
- *   - app:   primary nav + `<HeaderStats>` (server-fed, polls) + actions/drawer
- *   - guest: guest nav + "Logga in"/"Registrera" CTAs
- *   - admin: `<AdminNav>` + account email + logout
- *
- * No `variant` discriminator: the three surfaces share STRUCTURE, not content,
- * and their content is genuinely disjoint — a `variant="full"` would be a false
- * single variant that has to branch app|guest|admin internally and would drag
- * each shell's client logic (drawer focus-trap, popovers, polling) into one file
- * (senior-cto-advisor bind #259, Option C — composition over configuration;
- * mirrors the #258 single-variant rejection). Composition keeps HeaderStrip
- * presentational and server-safe, so each shell's client surface stays its own.
- *
  * The minimal public header (`site-header.tsx`, `.jp-head`, theme-adaptive) is
  * deliberately NOT folded in here: it uses a different CSS contract and a
  * `<nav>`-as-inner structure, and merging the `.jp-head`/`.jp-header` namespaces
@@ -34,13 +22,15 @@ export function HeaderStrip({
   brandHref,
   brandLabel,
   children,
+  className,
 }: {
   brandHref: string;
   brandLabel: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <header className="jp-header" role="banner">
+    <header className={className ? `jp-header ${className}` : "jp-header"} role="banner">
       <div className="jp-header__inner">
         <Link href={brandHref} className="jp-brand" aria-label={brandLabel}>
           <BrandLogo />

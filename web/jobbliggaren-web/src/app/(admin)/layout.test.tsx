@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import svMessages from "../../../messages/sv";
 import { LOGOUT_PATH } from "@/lib/auth/login-paths";
 import AdminLayout from "./layout";
@@ -20,6 +20,8 @@ vi.mock("next-intl/server", () => ({
 // A server component reading the request catalog; this layout's own provider carries a narrower set.
 vi.mock("@/components/site/site-footer", () => ({ SiteFooter: () => null }));
 
+vi.mock("@/lib/api/landing", () => ({ fetchLandingStats: async () => null }));
+
 type Session = { userId: string; email: string; roles: string[] } | null;
 const ADMIN_SESSION: Session = { userId: "u-1", email: "admin@example.se", roles: ["Admin"] };
 const session = vi.hoisted(() => ({ current: null as Session }));
@@ -38,7 +40,8 @@ describe("(admin)/layout — Logga ut (#1956)", () => {
   it("posts natively to the logout route, as the other two logout forms do", async () => {
     render(await AdminLayout({ children: null }));
 
-    const form = screen.getByRole("button", { name: "nav.logout" }).closest("form");
+    fireEvent.click(screen.getByRole("button", { name: "Inställningar" }));
+    const form = screen.getByRole("button", { name: "Logga ut" }).closest("form");
     expect(form).toHaveAttribute("action", LOGOUT_PATH);
     expect(form).toHaveAttribute("method", "post");
   });

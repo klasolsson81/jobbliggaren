@@ -7,7 +7,7 @@
     "ansokningar": "My applications",
     "foretag": "Companies",
     "cv": "CV",
-    "minaSidor": "My pages",
+    "minaSidor": "Settings",
     "brandHome": "Jobbliggaren, start page"
   },
   "header": {
@@ -17,7 +17,11 @@
     "deltaAriaLabel": "{count} new since the last check",
     "openMenu": "Open menu",
     "valueDash": "–",
-    "activeCountUnmeasured": "active job ads"
+    "activeCountUnmeasured": "active job ads",
+    "admin": "Admin",
+    "adminNavigation": "Admin navigation",
+    "showAdminNavigation": "Show admin navigation",
+    "showUserNavigation": "Show user navigation"
   },
   "notifications": {
     "buttonAriaLabel": "Notifications",
@@ -30,15 +34,13 @@
     "sparadeAnnonser": "Saved job ads",
     "minaMatchningar": "My matches",
     "minaCv": "My CVs",
-    "granskning": "Audit log",
     "loggaUt": "Log out"
   },
   "drawer": {
     "title": "Menu",
     "navAriaLabel": "Menu",
     "close": "Close",
-    "closeAriaLabel": "Close menu",
-    "granskning": "Audit log"
+    "closeAriaLabel": "Close menu"
   },
   "modal": {
     "closeAriaLabel": "Close the dialog"
@@ -70,6 +72,18 @@
       "serverUnreachable": "Could not reach the server. Try again.",
       "disabled": "Reset is disabled on the server. Set DevTools:EnableResetMyData and restart the API.",
       "failed": "The reset failed. Try again."
+    }
+  },
+  "adminNav": {
+    "nav": {
+      "label": "Admin navigation",
+      "oversikt": "Overview",
+      "anvandare": "Users",
+      "feedback": "Feedback",
+      "loggar": "Logs",
+      "epost": "Email delivery",
+      "jobb": "Background jobs",
+      "granskning": "Audit log"
     }
   }
 }

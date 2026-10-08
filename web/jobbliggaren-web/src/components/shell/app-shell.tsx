@@ -15,11 +15,12 @@ import {
   LogOut,
   Menu,
   ScrollText,
-  ShieldCheck,
+  ArrowLeftRight,
   Target,
   UserRound,
   X,
 } from "lucide-react";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { LogoutForm } from "@/components/auth/logout-form";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
@@ -104,21 +105,14 @@ function NotificationsBell() {
   );
 }
 
-function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
+function UserMenu({ email }: { email: string }) {
   const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  // One knowledge piece -- "this is how this menu closes" -- used by the
-  // dismissable hook and by all seven links below.
   const close = () => setOpen(false);
   const ref = useDismissable(open, close, triggerRef);
   const headId = useId();
 
-  // ADR 0142 "Page form", "Mina sidor" (design M6): a neutral account icon named "Mina sidor", never
-  // the address's initials. The popup is a dialog, the one role `aria-haspopup="dialog"` promises;
-  // `menu` would promise arrow-key navigation it does not have. Its name is the shared label, so a
-  // visible title would print "Mina sidor" twice above the item of the same name; the head, which
-  // says who is logged in, describes it.
   return (
     <div className="relative">
       <button
@@ -188,18 +182,6 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
           >
             <ScrollText size={16} aria-hidden="true" /> {t("userMenu.minaCv")}
           </Link>
-          {isAdmin && (
-            <>
-              <div className="jp-usermenu__sep" role="separator" />
-              <Link
-                href="/admin/granskning"
-                className="jp-usermenu__item"
-                onClick={(e) => onPlainNav(e, close)}
-              >
-                <ShieldCheck size={16} aria-hidden="true" /> {t("userMenu.granskning")}
-              </Link>
-            </>
-          )}
           <div className="jp-usermenu__sep" role="separator" />
           <LogoutForm>
             <button
@@ -219,13 +201,13 @@ function Drawer({
   open,
   onClose,
   pathname,
-  isAdmin,
+  adminNavigation,
   triggerRef,
 }: {
   open: boolean;
   onClose: () => void;
   pathname: string;
-  isAdmin: boolean;
+  adminNavigation: boolean;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const t = useTranslations("common");
@@ -315,7 +297,7 @@ function Drawer({
             {t("drawer.close")} <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <nav className="jp-drawer__list" aria-label={t("drawer.navAriaLabel")}>
+        {adminNavigation ? <AdminNav variant="drawer" onNavigate={handleNav} /> : <nav className="jp-drawer__list" aria-label={t("drawer.navAriaLabel")}>
           {PRIMARY_NAV.map((item) => {
             const Icon = item.icon;
             return (
@@ -338,19 +320,7 @@ function Drawer({
           >
             <UserRound size={18} aria-hidden="true" /> {t("nav.minaSidor")}
           </Link>
-          {isAdmin && (
-            <Link
-              href="/admin/granskning"
-              className="jp-drawer__item"
-              aria-current={
-                isActive(pathname, "/admin/granskning") ? "page" : undefined
-              }
-              onClick={(e) => onPlainNav(e, handleNav)}
-            >
-              <ShieldCheck size={18} aria-hidden="true" /> {t("drawer.granskning")}
-            </Link>
-          )}
-        </nav>
+        </nav>}
       </aside>
     </>
   );
@@ -360,24 +330,30 @@ export function AppShell({
   email,
   isAdmin,
   initialStats,
+  className,
+  contentClassName = "jp-content focus:outline-none",
   children,
 }: {
   email: string;
   isAdmin: boolean;
   initialStats: LandingStatsDto;
+  className?: string;
+  contentClassName?: string;
   children: React.ReactNode;
 }) {
   const t = useTranslations("common");
   const pathname = usePathname();
+  const [adminNavigation, setAdminNavigation] = useState(() => isAdmin && isActive(pathname, "/admin"));
+  const showAdminNavigation = isAdmin && adminNavigation;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   return (
-    <div className="jp-shell">
-      <HeaderStrip brandHref="/oversikt" brandLabel={t("nav.brandHome")}>
-        <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
+    <div className={className ? `jp-shell ${className}` : "jp-shell"}>
+      <HeaderStrip brandHref="/oversikt" brandLabel={t("nav.brandHome")} className={isAdmin ? "jp-header--switchable" : undefined}>
+        {showAdminNavigation ? <AdminNav variant="header" /> : <nav className="jp-nav" aria-label={t("nav.ariaLabel")}>
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
@@ -390,7 +366,20 @@ export function AppShell({
               {t(`nav.${item.labelKey}`)}
             </Link>
           ))}
-        </nav>
+        </nav>}
+
+        {isAdmin && (
+          <button
+            type="button"
+            className="jp-nav-switch jp-icon-btn"
+            aria-label={t("header.adminNavigation")}
+            aria-pressed={showAdminNavigation}
+            title={t(showAdminNavigation ? "header.showUserNavigation" : "header.showAdminNavigation")}
+            onClick={() => setAdminNavigation((value) => !value)}
+          >
+            <ArrowLeftRight size={16} aria-hidden="true" />
+          </button>
+        )}
 
         <span className="jp-header__spacer" />
 
@@ -403,7 +392,7 @@ export function AppShell({
 
         <div className="jp-header__actions">
           <NotificationsBell />
-          <UserMenu email={email} isAdmin={isAdmin} />
+          <UserMenu email={email} />
           <button
             ref={drawerTriggerRef}
             type="button"
@@ -422,11 +411,11 @@ export function AppShell({
         open={drawerOpen}
         onClose={closeDrawer}
         pathname={pathname}
-        isAdmin={isAdmin}
+        adminNavigation={showAdminNavigation}
         triggerRef={drawerTriggerRef}
       />
 
-      <main id="main" tabIndex={-1} className="jp-content focus:outline-none">
+      <main id="main" tabIndex={-1} className={contentClassName}>
         {children}
       </main>
     </div>

@@ -4,11 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
 import { getServerSession, ROLES } from "@/lib/auth/session";
-import { LogoutForm } from "@/components/auth/logout-form";
-import { Button } from "@/components/ui/button";
-import { AdminNav } from "@/components/admin/admin-nav";
+import { AppShell } from "@/components/shell/app-shell";
+import { fetchLandingStats } from "@/lib/api/landing";
+import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
 import { AdminToastHost } from "@/components/admin/admin-toast-host";
-import { HeaderStrip } from "@/components/site/header-strip";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
 import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
@@ -18,6 +17,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const statsPromise = fetchLandingStats();
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
@@ -29,47 +29,25 @@ export default async function AdminLayout({
   // civic-utility-värde — en uppriktig redirect är rakare).
   if (!user.roles.includes(ROLES.Admin)) redirect("/");
 
-  // #737 — this boundary declares the namespaces its own client subtree reads
-  // (AdminNav + the admin tables/filters). React context replaces rather than
-  // merges, so the set must be complete for the subtree, not a delta on root's
-  // (which is empty). timeZone is inherited from the server request config.
-  // The declaration is verified for EQUALITY against the import graph by
-  // client-namespace-payload.test.ts — do not edit it by hand-reasoning.
-  // `pages` and `settings` are the shared re-authentication dialog's, which the
-  // account panel opens for an address change (#1975).
+  const initialStats = (await statsPromise) ?? LANDING_STATS_UNKNOWN_DTO;
+
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "pages", "settings"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "landing", "pages", "settings"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <div className="min-h-full flex flex-col bg-background">
-        {/* LP-5b (#259): admin adopts the shared `.jp-header` strip via
-            HeaderStrip — same white sticky chrome + `<BrandLogo>` as the
-            app/guest shells, replacing the legacy raw `border-b
-            bg-surface-secondary` bar and the literal "Jobbliggaren" text brand.
-            AdminNav + account email + logout compose in unchanged. */}
-        <HeaderStrip brandHref="/" brandLabel={t("layout.brandAriaLabel")}>
-          <AdminNav />
-          <div className="jp-adminaccount">
-            <span className="jp-adminaccount__email" title={user.email}>
-              {user.email}
-            </span>
-            <LogoutForm>
-              <Button type="submit" variant="ghost" size="sm">
-                {t("nav.logout")}
-              </Button>
-            </LogoutForm>
-          </div>
-        </HeaderStrip>
-        <main
-          id="main"
-          tabIndex={-1}
-          className="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
+        <AppShell
+          email={user.email}
+          isAdmin
+          className="flex-1"
+          initialStats={initialStats}
+          contentClassName="flex-1 mx-auto w-full max-w-[1200px] px-5 sm:px-8 py-8 focus:outline-none"
         >
           <ReloadedAfterUpdateNotice placement="inline" />
           {children}
-        </main>
+        </AppShell>
         {/* LP-3 (#256): shared deep-green footer at the bottom of the admin
             flex column. */}
         <SiteFooter />

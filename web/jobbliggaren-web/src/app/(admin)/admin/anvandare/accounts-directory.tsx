@@ -288,7 +288,26 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         const outcome = await scheduleAccountDeletionAction(account.id, proof);
         if (!stillOpen(account.id)) return outcome;
         if (outcome.ok || outcome.kind === "operationRefused") {
-          if (outcome.ok) setEmailChange({ kind: "none" });
+          if (outcome.ok) {
+            setEmailChange({ kind: "none" });
+            const receipt = outcome.value;
+            setDetails((current): AdminAccountDetails => {
+              if (!stillOpen(account.id) || current.kind !== "loaded"
+                || current.data.id.toLowerCase() !== account.id.toLowerCase()
+                || receipt.userId.toLowerCase() !== account.id.toLowerCase()) return current;
+              return { kind: "loaded", data: {
+                ...current.data,
+                status: "pendingDeletion",
+                isSuspended: current.data.isSuspended ?? current.data.status === "suspended",
+                deletionEarliest: receipt.eligibleAt.slice(0, 10),
+                deletion: { deletedAt: receipt.deletedAt, eligibleAt: receipt.eligibleAt, scheduledRunAt: receipt.scheduledRunAt },
+                deletionPreview: null,
+                applicationCount: null,
+                savedSearchCount: null,
+                resumeCount: null,
+              } };
+            });
+          }
           setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
           void readAccount(account.id, true);
         } else if (outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);

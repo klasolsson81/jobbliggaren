@@ -1,9 +1,9 @@
-import { chromium, expect, test, type Locator, type Page } from "@playwright/test";
+import { chromium, expect, test, type Locator, type Page, type Request, type Response } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
-import { ADMIN, DELETION_AFTER_04, DELETION_BEFORE_04 } from "./fixtures";
+import { ADMIN, DELETION_AFTER_04, DELETION_BEFORE_04, DELETION_TIMING } from "./fixtures";
 import { APP_ORIGIN, HARNESS_PORTS, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
@@ -141,29 +141,39 @@ for (const width of [1280, 3440]) {
     await page.setViewportSize({ width, height: 900 });
     harness.deletionTiming = DELETION_BEFORE_04;
     const panel = await open(page);
-    harness.deletionTiming = DELETION_AFTER_04;
-    let release: (() => void) | undefined;
-    const released = new Promise<void>(resolve => { release = resolve; });
-    const reads = "**/api/admin/konton/detalj";
-    await page.route(reads, async route => { await released; await route.continue(); });
+    harness.holdAccountDetails = true;
+    const abortedReads: string[] = [];
+    const observeAbort = (request: Request) => {
+      if (new URL(request.url()).pathname === "/api/admin/konton/detalj")
+        abortedReads.push(request.failure()?.errorText ?? "Missing request failure");
+    };
+    page.on("requestfailed", observeAbort);
     try {
       const dialog = await begin(page, panel);
       const send = dialog.getByRole("button", { name: `Skicka kod till ${ADMIN.email}`, exact: true });
+      await expect.poll(() => harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(2);
+      // The HTTP answer has captured the pre-04 calculation; advancing the clock cannot rewrite it on release.
+      harness.deletionTiming = DELETION_AFTER_04;
       await expect(dialog).toHaveAccessibleDescription(/Läser in kontots aktuella status/);
       await expect(send).toBeDisabled();
       await expect(dialog.getByRole("button", { name: "Avbryt", exact: true })).toBeFocused();
       await inspect(page, "deletion-preview-loading");
       await page.keyboard.press("Enter");
       await expect(dialog).not.toBeVisible();
+      await expect.poll(() => abortedReads).toEqual(["net::ERR_ABORTED"]);
+      await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeFocused();
       expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(0);
       // A close aborts the old read. The next opening must make its own successful live read.
-      release?.();
-      await page.unroute(reads);
+      harness.releaseAccountDetails();
+      await expect(page.getByRole("dialog", { name: `Radera ${EMAIL}?`, exact: true })).toHaveCount(0);
+      expect(harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(2);
       const reopened = await begin(page, panel);
       await expect(reopened).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 06:01/);
       await expect(reopened).toHaveAccessibleDescription(/2026-11-08 05:00/);
       await expect(reopened).not.toHaveAccessibleDescription(/2026-11-07 05:00/);
       await expect(reopened).toHaveAccessibleDescription(/de faktiska tiderna visas i kvittot/);
+      await expect(reopened.getByRole("button", { name: `Skicka kod till ${ADMIN.email}`, exact: true })).toBeEnabled();
+      expect(harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
       await inspect(page, "deletion-preview-current");
       await prove(reopened);
       await page.keyboard.press("Escape");
@@ -176,14 +186,15 @@ for (const width of [1280, 3440]) {
       await expect(failed.getByLabel(`Kod till ${ADMIN.email}`)).toBeDisabled();
       await expect(failed.getByRole("button", { name: "Radera konto", exact: true })).toBeDisabled();
       await inspect(page, "deletion-preview-refused");
+      expect(harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(4);
       expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
       expect(harness.reauthVerifications).toHaveLength(0);
       expect(harness.deletionRequests).toHaveLength(0);
       await page.keyboard.press("Escape");
       await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeFocused();
     } finally {
-      release?.();
-      await page.unroute(reads);
+      harness.releaseAccountDetails();
+      page.off("requestfailed", observeAbort);
     }
   });
 
@@ -232,6 +243,105 @@ for (const width of [1280, 3440]) {
     await expect(page.getByRole("radio", { name: "Under radering (2)" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Konton" })).toContainText("Planerad körning");
     await inspect(page, "deletion-pending-directory");
+  });
+
+  test(`known deletion receipt stays pending when its automatic detail refresh fails at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    harness.accountDetailFailuresAfterDeletion.add(TARGET);
+    harness.emailChanges.add(TARGET);
+    const panel = await open(page);
+    const dialog = await begin(page, panel);
+    await prove(dialog);
+    harness.holdAccountDetails = true;
+    const detailResponses: Response[] = [];
+    const observeDetailResponse = (response: Response) => {
+      if (new URL(response.url()).pathname === "/api/admin/konton/detalj")
+        detailResponses.push(response);
+    };
+    await page.evaluate(() => {
+      const witnessedWindow = window as Window & {
+        deletionDetailFetchWitness?: { readonly statuses: number[]; readonly restore: () => void };
+      };
+      const originalFetch = window.fetch;
+      const realFetch = originalFetch.bind(window);
+      const statuses: number[] = [];
+      const observedFetch: typeof window.fetch = async (...args) => {
+        const response = await realFetch(...args);
+        if (new URL(response.url).pathname === "/api/admin/konton/detalj") statuses.push(response.status);
+        return response;
+      };
+      window.fetch = observedFetch;
+      witnessedWindow.deletionDetailFetchWitness = {
+        statuses,
+        restore: () => { window.fetch = originalFetch; delete witnessedWindow.deletionDetailFetchWitness; },
+      };
+    });
+    page.on("response", observeDetailResponse);
+    try {
+      await dialog.getByRole("button", { name: "Radera konto", exact: true }).click();
+      const receipt = panel.getByRole("region", { name: "Åtgärder", exact: true }).getByRole("status");
+      await expect(receipt).toContainText(`Radering av ${EMAIL} schemalagd`);
+      await expect(receipt).toContainText("schemalagd 2026-10-08 14:00");
+      await expect(receipt).toContainText("Respiten slutar 2026-11-07 13:00");
+      await expect(receipt).toContainText("Första planerade körning 2026-11-08 05:00");
+      await expect(receipt).toBeFocused();
+      await expect.poll(() => harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
+      expect(detailResponses).toHaveLength(0);
+      await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+      await expect(panel.getByText("Aktiv", { exact: true })).toHaveCount(0);
+      await expect(panel).toContainText("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.");
+      await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
+      await expect(panel.getByText("Adressbyte", { exact: true })).toHaveCount(0);
+      expect(harness.deletions.get(TARGET)).toEqual(DELETION_TIMING);
+      expect(harness.deletionRequests).toHaveLength(1);
+      await inspect(page, "deletion-known-receipt-refresh-held");
+
+      await test.step("the production detail fetch resolves with the real BFF failure", async () => {
+        harness.releaseAccountDetails();
+        await expect.poll(() => detailResponses.length).toBe(1);
+        const failedRefresh = detailResponses[0];
+        if (failedRefresh === undefined) throw new Error("The automatic detail refresh must answer its held HTTP failure.");
+        expect(failedRefresh.status()).toBe(502);
+        // The production non-ok path settles at status without consuming the error body.
+        await expect.poll(() => page.evaluate(() => {
+          const witnessedWindow = window as Window & {
+            deletionDetailFetchWitness?: { readonly statuses: number[] };
+          };
+          return witnessedWindow.deletionDetailFetchWitness?.statuses ?? [];
+        }), { timeout: 5000 }).toEqual([502]);
+      });
+      await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+      await expect(panel.getByText("Aktiv", { exact: true })).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
+      await expect(receipt).toContainText(`Radering av ${EMAIL} schemalagd`);
+      await expect(receipt).toContainText("Raderingen är ännu inte genomförd.");
+      expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+      expect(harness.reauthVerifications).toHaveLength(1);
+      expect(harness.deletionRequests).toHaveLength(1);
+      expect(harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
+      await inspect(page, "deletion-known-receipt-refresh-failed");
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("radio", { name: "Under radering (2)" })).toBeVisible();
+      await expect(page.getByRole("radio", { name: "Aktiva (2)" })).toBeVisible();
+      const row = page.getByRole("table", { name: "Konton" }).getByRole("row").filter({
+        has: page.getByRole("button", { name: EMAIL, exact: true }),
+      });
+      await expect(row).toHaveCount(1);
+      await expect(row).toContainText("Under radering");
+      await expect(row).toContainText("2026-11-08 05:00");
+      expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+      expect(harness.reauthVerifications).toHaveLength(1);
+      expect(harness.deletionRequests).toHaveLength(1);
+    } finally {
+      harness.releaseAccountDetails();
+      page.off("response", observeDetailResponse);
+      await page.evaluate(() => {
+        const witnessedWindow = window as Window & {
+          deletionDetailFetchWitness?: { readonly restore: () => void };
+        };
+        witnessedWindow.deletionDetailFetchWitness?.restore();
+      });
+    }
   });
 
   test(`known deletion refusal receives focus without a success receipt at ${width}px`, async ({ page }) => {
@@ -283,7 +393,8 @@ for (const width of [1280, 3440]) {
     harness.mode = "ok";
     await panel.getByRole("button", { name: "Försök igen", exact: true }).click();
     await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
-    await expect(panel).toContainText("Planerad körning");
+    await expect(panel).toContainText("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.");
+    expect(harness.deletions.get(TARGET)).toEqual(DELETION_TIMING);
     await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Läs in kontots status", exact: true })).toHaveCount(0);
     expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(4);

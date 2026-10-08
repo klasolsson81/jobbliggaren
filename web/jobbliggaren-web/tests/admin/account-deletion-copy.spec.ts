@@ -155,7 +155,10 @@ for (const locale of ["sv", "en"] as const) {
       // login-flow.test.ts pins its accepted encoding. Only its rendered presentation is asserted here.
       await presentFlow(context, { phase: "outcome", result: { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-19" } });
       await page.goto("/logga-in/kod");
-      const status = page.getByRole("main").getByRole("status");
+      const status = page.getByRole("main").getByRole("status").filter({
+        has: page.getByRole("heading", { level: 2, name: copy.pendingTitle, exact: true }),
+      });
+      await expect(status).toHaveCount(1);
       await expect(status.getByRole("heading", { level: 2 })).toHaveText(copy.pendingTitle);
       await expect(status).toContainText(copy.noRestore);
       await expect(status).toBeFocused();
@@ -176,7 +179,10 @@ for (const locale of ["sv", "en"] as const) {
       await presentFlow(context, { phase: "notice", notice: "accountDeleted" });
       await page.goto("/logga-in");
       const main = page.getByRole("main");
-      const status = main.getByRole("status");
+      const status = main.getByRole("status").filter({
+        has: page.getByRole("heading", { level: 2, name: copy.noticeTitle, exact: true }),
+      });
+      await expect(status).toHaveCount(1);
       await expect(status.getByRole("heading", { level: 2 })).toHaveText(copy.noticeTitle);
       for (const fact of [copy.noticeBlock, copy.retained.replace(/\.$/, ""), copy.noticeJob, copy.noRestore])
         await expect(status).toContainText(fact);

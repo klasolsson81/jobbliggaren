@@ -65,6 +65,8 @@ export type Harness = {
   codeMode: "ok" | "unauthorized" | "rateLimited";
   holdCodeRequests: boolean;
   holdAccessWrites: boolean;
+  holdAccountDetails: boolean;
+  readonly accountDetailFailuresAfterDeletion: Set<string>;
   readonly access: Map<string, AccountAccessState>;
   readonly deletions: Map<string, AccountDeletionState>;
   readonly deletionRequests: { accountId: string; body: string }[];
@@ -72,6 +74,7 @@ export type Harness = {
   readonly reauthVerifications: string[];
   releaseCodeRequests(): void;
   releaseAccessWrites(): void;
+  releaseAccountDetails(): void;
   /** The account directory holds thirty more accounts, so its listing has a second page. */
   many: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
@@ -140,6 +143,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
+  const pendingAccountDetails: (() => void)[] = [];
   const pendingFeedbackScreenshots: (() => void)[] = [];
   let issuedGrants = 0;
 
@@ -152,6 +156,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     codeMode: "ok",
     holdCodeRequests: false,
     holdAccessWrites: false,
+    holdAccountDetails: false,
+    accountDetailFailuresAfterDeletion: new Set(),
     access: new Map(),
     deletions: new Map(),
     deletionRequests,
@@ -164,6 +170,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     releaseAccessWrites() {
       harness.holdAccessWrites = false;
       for (const answer of pendingAccessWrites.splice(0)) answer();
+    },
+    releaseAccountDetails() {
+      harness.holdAccountDetails = false;
+      for (const answer of pendingAccountDetails.splice(0)) answer();
     },
     many: false,
     gone: new Set(),
@@ -189,6 +199,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     reset() {
       harness.releaseCodeRequests();
       harness.releaseAccessWrites();
+      harness.releaseAccountDetails();
       harness.releaseFeedbackScreenshots();
       misses.length = 0;
       requests.length = 0;
@@ -209,6 +220,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.emailChanges.clear();
       harness.access.clear();
       harness.deletions.clear();
+      harness.accountDetailFailuresAfterDeletion.clear();
       harness.feedback.clear();
       for (const record of FEEDBACK) harness.feedback.set(record.id, record);
       harness.feedbackScreenshots.clear();
@@ -221,6 +233,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       feedbackCommands.length = 0;
     },
     async stop() {
+      harness.releaseAccountDetails();
       harness.releaseFeedbackScreenshots();
       await Promise.all([close(proxy), close(backend)]);
     },
@@ -514,9 +527,17 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
 
     const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
     if (detail !== null) {
-      if (harness.mode !== "ok") return refusal();
-      const found = accountDetails(detail[1] ?? "", harness.gone, harness.access, harness.deletions, harness.deletionTiming);
-      return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+      const accountId = detail[1] ?? "";
+      const mode = harness.accountDetailFailuresAfterDeletion.has(accountId) && harness.deletions.has(accountId)
+        ? "error" : harness.mode;
+      const found = accountDetails(accountId, harness.gone, harness.access, harness.deletions, harness.deletionTiming);
+      const answer = () => {
+        if (mode !== "ok") return refusal(mode);
+        return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+      };
+      if (harness.holdAccountDetails) pendingAccountDetails.push(answer);
+      else answer();
+      return;
     }
 
     const answer = adminRoutes[route];

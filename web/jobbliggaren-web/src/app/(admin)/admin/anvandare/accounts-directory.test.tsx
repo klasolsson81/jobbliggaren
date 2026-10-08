@@ -277,6 +277,59 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     expect(screen.getByRole("table", { name: "Konton" })).toHaveTextContent("Planerad körning");
   });
 
+  it("keeps the committed deletion receipt and pending dates when its automatic detail refresh fails without allowing another code or write", async () => {
+    let answerRefresh: (response: Response) => void = () => {};
+    const refresh = new Promise<Response>((resolve) => { answerRefresh = resolve; });
+    serve({
+      [DETAIL_ROUTE]: [() => json(preview), () => json(preview), () => refresh],
+      [EMAIL_CHANGE_ROUTE]: [() => json(pending), NOTHING_PENDING],
+      [LIST]: () => json(answer([deleted, B, C])),
+    });
+    deletionActionMock.mockResolvedValue({ ok: true, value: { userId: A.id, ...timing } });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    try {
+      const { panel, dialog } = await begin(user);
+      await user.click(await prove(user, dialog));
+      const receipt = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("status");
+      expect(receipt).toHaveTextContent(`Radering av ${A.email} schemalagd`);
+      await waitFor(() => expect(receipt).toHaveFocus());
+      await waitFor(() => expect(callsTo(DETAIL_ROUTE)).toHaveLength(3));
+      expect(within(panel).getByText("Under radering", { exact: true })).toBeInTheDocument();
+      expect(within(panel).queryByText("Aktiv", { exact: true })).toBeNull();
+      expect(within(panel).getByText("Raderas slutgiltigt").nextElementSibling)
+        .toHaveTextContent("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.");
+      expect(within(panel).queryByRole("button", { name: "Radera konto" })).toBeNull();
+      expect(within(panel).queryByText("Adressbyte", { exact: true })).toBeNull();
+      expect(deletionActionMock).toHaveBeenCalledExactlyOnceWith(A.id,
+        { challengeId: "step-up-challenge", code: "123456" });
+
+      await act(async () => answerRefresh(json({ title: "Internal Server Error", status: 500 }, 500)));
+
+      expect(within(panel).getByText("Under radering", { exact: true })).toBeInTheDocument();
+      expect(within(panel).queryByText("Aktiv", { exact: true })).toBeNull();
+      expect(within(panel).queryByRole("button", { name: "Radera konto" })).toBeNull();
+      expect(receipt).toHaveTextContent(`Radering av ${A.email} schemalagd`);
+      expect(receipt).toHaveTextContent("Raderingen är ännu inte genomförd.");
+      expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
+      expect(deletionActionMock).toHaveBeenCalledTimes(1);
+      expect(callsTo(DETAIL_ROUTE)).toHaveLength(3);
+      expect(callsTo(EMAIL_CHANGE_ROUTE)).toHaveLength(2);
+      await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+      await user.keyboard("{Escape}");
+      expect(await screen.findByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "Aktiva (0)" })).toBeInTheDocument();
+      const row = within(screen.getByRole("table", { name: "Konton" })).getByRole("row", { name: /konto\.a@example\.test/ });
+      expect(row).toHaveTextContent("Under radering");
+      expect(row).toHaveTextContent("2026-11-08 05:00");
+      expect(requestReauthCodeMock).toHaveBeenCalledTimes(1);
+      expect(deletionActionMock).toHaveBeenCalledTimes(1);
+      expect(getAdminToastSnapshot()).toBeNull();
+    } finally {
+      await act(async () => answerRefresh(json({ title: "Internal Server Error", status: 500 }, 500)));
+    }
+  });
+
   it("focuses a known no-op refusal without any success receipt", async () => {
     const refusal = "Kontot väntar redan på radering. Datumet har inte ändrats.";
     serve({ [DETAIL_ROUTE]: [() => json(preview), () => json(preview), () => json({ ...DETAIL, ...deleted })],

@@ -67,3 +67,16 @@ The first combined directory measurements exceeded the unchanged document budget
 | Registration-filtered `/admin/anvandare` | 898 ms | 28,992 / 30,720 | 337,212 / 358,400 | 530,471 / 819,200 |
 
 Both three-run medians remain 99 performance / 100 accessibility / 96 best practices, CLS 0 / TBT 0. The separately audited unfiltered directory document is 28,858 bytes with the same 337,212 script bytes. Stylesheets, fonts, images, total transfers and third-party counts pass their unchanged budgets. These are local synthetic measurements; publication and Klas's signed-in acceptance remain separate delivery steps.
+
+## Committed review corrections — 2026-10-08 19:36 UTC
+
+The fresh ordinary production build at 19:33:31 UTC contains the source committed as `7f7e2e8c216507601ef2e01ae796125f6e257982`, on actual #1977 base `0b163d1b48fafe74a60ea497392142a461aa449f`. All 96 combined overview, admin-route, deletion and Lighthouse browser cases passed without retries or changed timeouts. The corrections reconcile same-page directory navigation, enlarge introduced drill-down targets and constrain long stored audit codes. No backend source/test, translation, dependency or budget changed.
+
+The current overview/drill-down artifact timestamp is `2026-10-08T19:36:01.110Z`; exact URLs, backend-read witnesses, complete finite resource observations and zero unhandled harness requests passed. Both three-run medians are 99 performance / 100 accessibility / 96 best practices, CLS 0 / TBT 0.
+
+| Route | LCP | Document bytes / budget | Script bytes / budget | Total bytes / budget |
+|---|---:|---:|---:|---:|
+| `/admin` | 902 ms | 27,093 / 30,720 | 333,884 / 358,400 | 486,479 / 819,200 |
+| Registration-filtered `/admin/anvandare` | 899 ms | 28,989 / 30,720 | 337,319 / 358,400 | 527,840 / 819,200 |
+
+The separate unfiltered directory case and all stylesheet, font, image and third-party budgets passed. The 31 current state renders include 1280, 1920 and 3440 px layouts, readable full long codes/references at 1024/1280/3440, and native browser 200% zoom (zoom 2, DPR 2, CSS viewport/scroll width 640). Computed target floors, non-overlap, keyboard drill-down and axe checks passed. Original defect captures are retained separately. These remain local synthetic observations, distinct from release and signed-in acceptance.

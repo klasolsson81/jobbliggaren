@@ -32,3 +32,31 @@ charter=.claude/agents/code-reviewer.md bytes=9874
 **0 Blocker / 1 Major / 0 Minor.** Fix before merge, then invoke this issuer for a report-only recheck scoped to the fix delta under §9.6.
 
 The inherited native Security Low/P3 fanout finding remains unresolved and routed to security/CTO; this review does not regrade or defer it.
+
+---
+
+charter=.claude/agents/code-reviewer.md bytes=9874
+
+## Code-review: Admin overview scoped recheck (PR #2059)
+
+**Status:** ✓ Approved within recheck scope
+
+**Authority:** CLAUDE.md §§4, 8, 9.6
+
+**Scope:** Commit `7f7e2e8c216507601ef2e01ae796125f6e257982`: five frontend/CSS/regression files and four preserved first-round reports. Working tree clean.
+
+### Blockers / Major / Minor
+
+**Original Major closed — header navigation retains obsolete directory filters.**
+
+File: `web/jobbliggaren-web/src/app/(admin)/admin/anvandare/accounts-directory.tsx:416`.
+
+Changed route filters now reconcile criteria and server-provided results, close the panel and cancel its detail read. Period clearing preserves local search, status and sorting.
+
+The same production-browser measurement that established the defect now passes for both dated and Suspended URLs → actual header “Användare”: plain URL, no period control, unfiltered rows and “Alla (5)”. Verified in [production log](C:/tmp/admin-overview-1978-review-production.log). Directory unit tests also pass **56/56**.
+
+**No new-in-delta findings.**
+
+### Summary
+
+**0 Blocker / 0 Major / 0 Minor outstanding in this issuer’s scope.** The original Major is closed under §9.6. No further code-review repair or delegation required.

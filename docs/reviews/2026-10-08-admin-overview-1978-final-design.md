@@ -40,3 +40,37 @@ All 31 current overview renders were inspected, alongside relevant access/deleti
 ### Summary
 
 **1 Blocker, 1 Major, 0 Minor.** Route both fixes through the driving session. After the committed batch, request one same-issuer, report-only recheck scoped to these corrections and their rendered evidence under CLAUDE.md §9.6.
+
+---
+
+charter=.claude/agents/design-reviewer.md bytes=6862
+
+## Design-review: Admin overview #1978 — scoped recheck (PR #2059)
+
+**Status:** ✓ Approved
+
+**Authority:** DESIGN.md §§1.1, 4, 5; design-a11y §9; CLAUDE.md §9.6.
+
+**Reviewed HEAD:** `7f7e2e8c216507601ef2e01ae796125f6e257982`.
+
+### Blockers / Major / Minor
+
+1. **Previous Blocker — Closed: overview link targets.**
+
+   **File:** `web/jobbliggaren-web/src/app/(admin)/admin.css:197`.
+
+   All 11 normal-state and nine empty-state links—including single-digit zero and attention links—pass computed target-size and non-overlap checks at 1280 and 640 px. The shared class provides 36 px desktop minimums and 44 px at ≤768 px. Current normal, empty and native 200% zoom renders retain readable layout. Evidence: `C:/tmp/admin-overview-1978-review-production.log:72`.
+
+2. **Previous Major — Closed: long audit-code composition.**
+
+   **File:** `web/jobbliggaren-web/src/app/(admin)/admin.css:940`.
+
+   The timestamp spans both columns; event and aggregate tracks share constrained space. Current long-event renders at 1024, 1280 and 3440 px preserve complete codes and IDs without the vertical-column collapse. Computed reference widths ≥120 px and wrapping ≤4 lines pass alongside axe and overflow checks. Evidence: production log lines 88–90 and `review-fix/long-stored-event-{1024,1280,3440}.png`.
+
+### Praise
+
+- Both corrections address the original measured failures and add regressions using the same measurements.
+
+### Summary
+
+**0 unresolved Blockers, 0 Major, 0 Minor; no new-in-delta design findings.** Both issued findings are closed against the committed fix and fresh rendered evidence. Dark rendering remains unreachable under `DARK_MODE_ENABLED=false`; theme tokens are unchanged. This report completes the single issuer-scoped recheck.

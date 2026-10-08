@@ -187,3 +187,13 @@ test("invalid registration period offers a clear recovery", async ({ page }) => 
   await expect(page.getByRole("link", { name: "Rensa period", exact: true })).toBeVisible();
   await verify(page, "invalid-registration-period");
 });
+
+for (const width of [1024, 1280, 3440]) {
+  test(`stored long audit event codes remain readable at ${width}px`, async ({ page }) => {
+    harness.overviewLongEvent = true;
+    await page.setViewportSize({ width, height: 1200 });
+    await page.goto("/admin");
+    await expect(card(page, "Senaste händelser")).toContainText("JobSeeker.FollowedCompanyNotificationConsentUpdated");
+    await verify(page, "long-stored-event");
+  });
+}

@@ -22,7 +22,7 @@ Regenerate in PowerShell from the worktree:
 
 ```powershell
 $env:JBL_ADMIN_OVERVIEW_PERFORMANCE_OUTPUT = 'C:/tmp/admin-overview-performance.txt'
-dotnet test --project tests/Jobbliggaren.Api.IntegrationTests -- --filter-class '*AdminAccountOverviewTests' --filter-method '*CurrentMvpPopulation*'
+dotnet test --project tests/Jobbliggaren.Api.IntegrationTests -- --filter-class '*AdminAccountOverviewTests' --filter-method '*RetainedMvpPopulation*'
 ```
 
 The emitted report includes the actual template digest, numerical plan nodes, sample counts, percentiles and limits. A successful MTP run must include a positive `total:` and `failed: 0`.

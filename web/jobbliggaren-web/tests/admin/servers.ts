@@ -65,6 +65,7 @@ export type Harness = {
   overviewSampledAt: string | null;
   overviewEmpty: boolean;
   overviewDelayMs: number;
+  overviewLongEvent: boolean;
   accessMode: AccessMode;
   deletionMode: AccessMode | "alreadyPending" | "lastAdministrator";
   /** The injected server clock's shared AccountDeletionTiming.From result, for preview and commit. */
@@ -161,6 +162,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     overviewSampledAt: new Date().toISOString(),
     overviewEmpty: false,
     overviewDelayMs: 0,
+    overviewLongEvent: false,
     accessMode: "ok",
     deletionMode: "ok",
     deletionTiming: DELETION_TIMING,
@@ -226,6 +228,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.overviewSampledAt = new Date().toISOString();
       harness.overviewEmpty = false;
       harness.overviewDelayMs = 0;
+      harness.overviewLongEvent = false;
       harness.accessMode = "ok";
       harness.deletionMode = "ok";
       harness.deletionTiming = DELETION_TIMING;
@@ -281,7 +284,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         many: harness.many, gone: harness.overviewEmpty ? new Set(accountsPage(undefined).accounts.items.map(row => row.id)) : harness.gone,
         access: harness.access,
       }),
-      "GET /api/v1/admin/audit-log": () => harness.overviewEmpty ? { ...AUDIT_PAGE, items: [], totalCount: 0 } : AUDIT_PAGE,
+      "GET /api/v1/admin/audit-log": () => harness.overviewEmpty ? { ...AUDIT_PAGE, items: [], totalCount: 0 }
+        : harness.overviewLongEvent ? { ...AUDIT_PAGE, items: AUDIT_PAGE.items.map(row => ({ ...row,
+          eventType: "JobSeeker.FollowedCompanyNotificationConsentUpdated", aggregateType: "JobSeeker" })) } : AUDIT_PAGE,
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => harness.overviewEmpty ? { ...FAILED_JOBS, items: [], totalCount: 0 } : FAILED_JOBS,
     };

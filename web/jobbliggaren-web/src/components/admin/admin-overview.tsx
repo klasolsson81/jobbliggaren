@@ -480,7 +480,7 @@ function ObservedEvents({ observations, now }: { readonly observations: AdminOve
     {audit.data.length === 0 ? <AdminRegionLine quiet kind="empty" empty={t("empty")} region /> : <ol className="jp-adminevents">
       {audit.data.map((event) => <li key={event.id}>
         <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? <AdminUnknown />}</time>
-        <code>{event.eventType}</code>
+        <code className="jp-adminevents__subject">{event.eventType}</code>
         <span className="jp-adminevents__subject">{event.aggregateType} · {event.aggregateId}</span>
       </li>)}
     </ol>}

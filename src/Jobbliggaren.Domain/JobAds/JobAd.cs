@@ -348,6 +348,10 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // mot redan-existerande JobAd. Refreshar mutable fält + raw_payload.
     // Inga domain events — sync-job-runs auditeras aggregerat via
     // JobAdsSyncedDomainEvent (ADR 0032 §8).
+    //
+    // PublishedAt is source-owned, like Title and ExpiresAt: every re-ingest mirrors the
+    // source's value, and the pair is validated as one unit (ValidateCore). Why this
+    // changed, and the heal it performs: ADR 0032 Amendment 2026-10-08.
     public Result UpdateFromSource(
         string? title,
         string? description,
@@ -355,6 +359,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         string? rawPayload,
         JobAdFacets facets,
         IReadOnlyList<AdContact> declaredContacts,
+        DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         JobAdTermExtraction extractTerms)
     {
@@ -384,7 +389,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
                 DomainError.Validation("JobAd.Erased",
                     "Annonsen är raderad (GDPR art. 17) och hämtas inte in igen."));
 
-        var validation = ValidateCore(title, description, url, PublishedAt, expiresAt);
+        var validation = ValidateCore(title, description, url, publishedAt, expiresAt);
         if (validation.IsFailure)
             return validation;
 
@@ -396,6 +401,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Title = title!.Trim();
         Description = description!.Trim();
         Url = url!;
+        PublishedAt = publishedAt;
         ExpiresAt = expiresAt;
         SetSourcePayload(rawPayload, facets, declaredContacts, extractTerms);
 

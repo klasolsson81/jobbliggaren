@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
@@ -8,26 +9,11 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.JobSources;
 
 /// <summary>
-/// Regressionslås för ADR 0066 timezone-bugg (senior-cto-advisor-beslut
-/// 2026-06-06). JobTech-datum (<c>publication_date</c>/<c>last_publication_date</c>,
-/// <see cref="DateTimeOffset"/>?) deserialiseras av System.Text.Json med LOKAL
-/// maskin-offset (+02:00 i Sverige). De skrevs tidigare orörda till
-/// <c>job_ads.published_at</c>/<c>expires_at</c> (Postgres <c>timestamptz</c>),
-/// vilket Npgsql avvisar — kravet är Offset=0/UTC. Buggen var osynlig på Fargate
-/// (UTC-värd) men failade lokalt.
-///
-/// <para>
-/// Fixen i <see cref="PlatsbankenJobSource"/> är <c>.ToUniversalTime()</c> på
-/// <c>publishedAt</c>/<c>expiresAt</c> (TryConvertToImportItem) och hela
-/// <c>occurredAt</c>-null-coalesce-kedjan (StreamChangesAsync).
-/// </para>
-///
-/// <para>
-/// Assertet <c>Offset == TimeSpan.Zero</c> ÄR regressionslåset — det är
-/// ekvivalent med Npgsql timestamptz-kravet. Ingen riktig Postgres behövs:
-/// om någon tar bort <c>.ToUniversalTime()</c> kvarstår +02:00-offseten och
-/// dessa tester blir röda, exakt som Npgsql skulle ha avvisat värdet i prod.
-/// </para>
+/// ACL-level regression for JobTech's dates (ADR 0032 Amendment 2026-10-08). The hits are built
+/// from wire JSON through the real converter, so an offsetless Swedish time must leave
+/// <see cref="PlatsbankenJobSource"/> as the instant it names, at <c>Offset == 0</c> — the shape
+/// Npgsql <c>timestamptz</c> requires. The expected instants are hard-coded UTC, so these hold on
+/// any host zone.
 ///
 /// <para>
 /// OBS: <see cref="IJobTechStreamClient"/>/<see cref="IJobTechSearchClient"/> är
@@ -40,31 +26,28 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.JobSources;
 /// </summary>
 public class PlatsbankenJobSourceUtcNormalizationTests
 {
-    // Input med +02:00 (svensk sommartid) — exakt den offset System.Text.Json
-    // tilldelar på en svensk dev-maskin. 12:00 +02:00 == 10:00 UTC.
-    private static readonly DateTimeOffset PublishedLocal =
-        new(2026, 6, 6, 12, 0, 0, TimeSpan.FromHours(2));
+    // Wire values: 12:00 Swedish summer time (CEST, +02:00) is 10:00 UTC.
+    private static readonly DateTime PublishedUtc = new(2026, 6, 6, 10, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime ExpiresUtc = new(2026, 7, 6, 10, 0, 0, DateTimeKind.Utc);
 
-    private static readonly DateTimeOffset ExpiresLocal =
-        new(2026, 7, 6, 12, 0, 0, TimeSpan.FromHours(2));
-
-    // clock.UtcNow är redan UTC — fakad till valfri UTC-tid.
     private static readonly DateTimeOffset FakeNow =
         new(2026, 6, 6, 0, 0, 0, TimeSpan.Zero);
 
     private static JobTechHit ValidHit(
         string id = "ext-utc-1",
-        bool removed = false) => new()
-        {
-            Id = id,
-            Headline = "Backend-utvecklare",
-            Description = new JobTechDescription { Text = "Beskrivning av tjänsten." },
-            Employer = new JobTechEmployer { Name = "Klarna" },
-            WebpageUrl = "https://arbetsformedlingen.se/platsbanken/annonser/" + id,
-            PublicationDate = PublishedLocal,
-            LastPublicationDate = ExpiresLocal,
-            Removed = removed,
-        };
+        bool removed = false) =>
+        JsonSerializer.Deserialize<JobTechHit>($$"""
+            {
+              "id": "{{id}}",
+              "headline": "Backend-utvecklare",
+              "description": { "text": "Beskrivning av tjänsten." },
+              "employer": { "name": "Klarna" },
+              "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{id}}",
+              "publication_date": "2026-06-06T12:00:00",
+              "last_publication_date": "2026-07-06T12:00:00",
+              "removed": {{(removed ? "true" : "false")}}
+            }
+            """)!;
 
     private static PlatsbankenJobSource CreateSut(
         IJobTechStreamClient? streamClient = null,
@@ -76,7 +59,7 @@ public class PlatsbankenJobSourceUtcNormalizationTests
             NullLogger<PlatsbankenJobSource>.Instance);
 
     [Fact]
-    public async Task RefetchByExternalIdAsync_ShouldNormalizeDatesToUtc_WhenSourceReturnsLocalOffset()
+    public async Task RefetchByExternalIdAsync_ReturnsTheSwedishWireTimes_AsUtcInstants()
     {
         var searchClient = new FakeSearchClient(ValidHit("ext-utc-1"));
         var sut = CreateSut(searchClient: searchClient);
@@ -85,22 +68,15 @@ public class PlatsbankenJobSourceUtcNormalizationTests
             "ext-utc-1", TestContext.Current.CancellationToken);
 
         item.ShouldNotBeNull();
-
-        // Regressionslås: Npgsql timestamptz kräver Offset=0.
         item.PublishedAt.Offset.ShouldBe(TimeSpan.Zero);
+        item.PublishedAt.UtcDateTime.ShouldBe(PublishedUtc);
         item.ExpiresAt.ShouldNotBeNull();
         item.ExpiresAt.Value.Offset.ShouldBe(TimeSpan.Zero);
-
-        // Instanten bevaras — UTC-normalisering ändrar offset, inte tidpunkt.
-        // 12:00 +02:00 == 10:00 UTC.
-        item.PublishedAt.UtcDateTime.ShouldBe(PublishedLocal.UtcDateTime);
-        item.PublishedAt.UtcDateTime.ShouldBe(
-            new DateTime(2026, 6, 6, 10, 0, 0, DateTimeKind.Utc));
-        item.ExpiresAt.Value.UtcDateTime.ShouldBe(ExpiresLocal.UtcDateTime);
+        item.ExpiresAt.Value.UtcDateTime.ShouldBe(ExpiresUtc);
     }
 
     [Fact]
-    public async Task StreamChangesAsync_ShouldNormalizeUpsertItemAndOccurredAtToUtc_WhenSourceReturnsLocalOffset()
+    public async Task StreamChangesAsync_ReturnsUpsertItemAndOccurredAt_AsUtcInstants()
     {
         var streamClient = new FakeStreamClient(ValidHit("ext-upsert", removed: false));
         var sut = CreateSut(streamClient: streamClient);
@@ -116,17 +92,19 @@ public class PlatsbankenJobSourceUtcNormalizationTests
 
         // Item-grenen (TryConvertToImportItem).
         upsert.Item.PublishedAt.Offset.ShouldBe(TimeSpan.Zero);
+        upsert.Item.PublishedAt.UtcDateTime.ShouldBe(PublishedUtc);
         upsert.Item.ExpiresAt.ShouldNotBeNull();
         upsert.Item.ExpiresAt.Value.Offset.ShouldBe(TimeSpan.Zero);
+        upsert.Item.ExpiresAt.Value.UtcDateTime.ShouldBe(ExpiresUtc);
 
         // occurredAt-grenen (null-coalesce-kedjan i StreamChangesAsync).
         // last_publication_date är satt → den vinner i kedjan.
         upsert.OccurredAt.Offset.ShouldBe(TimeSpan.Zero);
-        upsert.OccurredAt.UtcDateTime.ShouldBe(ExpiresLocal.UtcDateTime);
+        upsert.OccurredAt.UtcDateTime.ShouldBe(ExpiresUtc);
     }
 
     [Fact]
-    public async Task StreamChangesAsync_ShouldNormalizeRemovalOccurredAtToUtc_WhenRemovalHitHasLocalOffset()
+    public async Task StreamChangesAsync_ReturnsRemovalOccurredAt_AsUtcInstant()
     {
         var streamClient = new FakeStreamClient(ValidHit("ext-removed", removed: true));
         var sut = CreateSut(streamClient: streamClient);
@@ -140,9 +118,8 @@ public class PlatsbankenJobSourceUtcNormalizationTests
 
         var removal = changes.ShouldHaveSingleItem().ShouldBeOfType<JobAdRemoval>();
 
-        // occurredAt-grenen för removal — last_publication_date (+02:00) → UTC.
         removal.OccurredAt.Offset.ShouldBe(TimeSpan.Zero);
-        removal.OccurredAt.UtcDateTime.ShouldBe(ExpiresLocal.UtcDateTime);
+        removal.OccurredAt.UtcDateTime.ShouldBe(ExpiresUtc);
     }
 
     // Hand-skrivna fakes — internal-interfacen kan inte NSubstitute-proxy:as

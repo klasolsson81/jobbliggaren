@@ -1683,3 +1683,73 @@ to escalate and handle it manually *"because no automated erasure path exists"* 
 the governing ADR routes a live rights request away from the automated path that exists. Art. 5(2)/24
 with an Art. 12(3)/17 consequence. **Klas ruled on the gate's status on 2026-07-26 (PR #1089); the
 ruling is recorded in ADR 0106, which is gitignored per ADR 0072 - not restated here.**
+
+---
+
+## Amendment 2026-10-08 - JobTech time is Swedish wall clock; PublishedAt mirrors the source (#2054)
+
+**Status:** Accepted - amends §4's `UpdateFromSource` contract and adds one sentence to how C2's axis
+is read. It changes no retention rule.
+
+### D1 - the wire convention, and its one home
+
+JobTech's date fields - `publication_date`, `last_publication_date`, `removed_date` - carry Swedish
+wall-clock time **with no offset**. Measured 2026-10-07 17:10Z against `jobsearch.api.jobtechdev.se/search`:
+`"2026-10-07T19:09:40"`. JobStream, the path that writes almost every row, follows the same convention,
+and production showed it before anyone measured: `/jobb` printed "idag, kl. 20:53" at 19:04, a
+publication 1 h 49 min in the future, which is impossible if the wire digits were UTC.
+
+System.Text.Json reads an offsetless string as the **host's** local time. On a UTC host (the box) every
+Swedish time became the same digits in UTC - two hours late in summer, one in winter - and a
+`last_publication_date` of 23:59:59 on the 6th rendered as the 7th. On a Swedish dev machine the same
+reading happened to be right, which is why the defect was invisible locally.
+
+`JobTechSwedishDateTimeConverter` is the convention's **one home**: an offsetless value is read as
+Swedish wall clock through `SwedishCalendar`, an explicit `Z` or offset is honoured as written, the
+result is normalised to `Offset == 0`, and anything it cannot read becomes a `JsonException`, so
+`JobTechStreamClient` skips that one element. No other code interprets a JobTech date.
+
+### D2 - §4 changes: `UpdateFromSource` mirrors `PublishedAt`
+
+§4 listed what a re-ingest refreshes, and `PublishedAt` was not on it - it was written once, at
+import. It is now source-owned like `Title` and `ExpiresAt`: every re-ingest writes the source's
+value, and the date pair is validated as one unit (`ExpiresAt` against the incoming `PublishedAt`,
+not against the stored one). `publishedAt` is a **required** parameter, for the same reason the facets
+and contacts are: a re-ingest that forgets it does not compile.
+
+### D3 - why a resync and not a data migration
+
+The shift a stored row carries depends on the zone of the host that wrote it, so a migration would
+have to guess which rows were shifted. It would not be idempotent, and it would double-shift a dev
+database filled on a Swedish host. A resync has no such dependence: it writes the source's instant,
+whatever the row held.
+
+**Residuals, accepted:**
+- archived rows that have left the feed keep their shifted `PublishedAt`; nothing re-ingests them;
+- frozen `AdSnapshot` copies (`snapshot_published_at` / `snapshot_expires_at`) keep the values they
+  were frozen with;
+- a truncated snapshot's tail heals only when a complete snapshot reaches it;
+- until then the list is mixed: new ads carry the right time, older ones sort one to two hours late.
+
+### D4 - how C2's axis reads now
+
+C2 measures purge eligibility from `published_at`. That column now means **the publication time the
+source last stated**, not the time first ingested; C2's rule and C5's ruling stand as written. A
+source-stated `published_at` in the future postpones eligibility for as long as the source says it -
+the same gap `Import` always had, now also reachable on re-ingest, and also correctable by the source
+on the next one. C2 remains the rule's only home.
+
+### D5 - not changed here: `updated-after`
+
+`JobTechStreamClient` sends `since` as UTC digits without an offset under the comment "UTC
+implicit". Measured 2026-10-08 05:06Z with counts only: `updated-after` = UTC now + 90 min returned 16
+events and UTC now + 125 min returned 0 - JobStream reads the parameter as **Swedish** time. Each
+10-minute run therefore fetches about 2 h 15 min rather than 15 min. The error direction is safe
+(Sweden is ahead of UTC, so every reading starts earlier, never later: over-fetch into an idempotent
+upsert, no loss), and it is a separate change-reason, tracked in #2056.
+
+### Referenser
+
+- PR #2054; `JobTechSwedishDateTimeConverter`, `JobAd.UpdateFromSource`, `SwedishCalendar`
+- §4 (the original contract), Amendment 2026-05-13 (`updated-after`), Amendment 2026-05-16
+  (snapshot truncation and convergence), Amendment 2026-07-26 §C2/§C3/§C5 (the retention axis, one home)

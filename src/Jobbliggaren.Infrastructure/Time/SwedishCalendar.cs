@@ -111,8 +111,7 @@ public sealed class SwedishCalendar : ISwedishCalendar
     /// `timestamp with time zone` <i>only</i> when the offset is zero — a
     /// non-zero one throws. This repository has already been bitten by exactly
     /// that: `PlatsbankenJobSource` normalises JobTech dates at the ACL
-    /// boundary for the same reason, and records that the bug was invisible on
-    /// a UTC host and fired locally in Sweden at +02:00.
+    /// boundary for the same reason.
     /// </para>
     /// <para>
     /// Normalising here rather than at each call site keeps the one dangerous
@@ -121,9 +120,14 @@ public sealed class SwedishCalendar : ISwedishCalendar
     /// the representation and not merely of the instant.
     /// </para>
     /// </summary>
-    private static DateTimeOffset ToInstant(int year, int month, int day)
-    {
-        var midnight = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
-        return new DateTimeOffset(midnight, Zone.GetUtcOffset(midnight)).ToUniversalTime();
-    }
+    private static DateTimeOffset ToInstant(int year, int month, int day) =>
+        FromSwedishWallClock(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified));
+
+    /// <summary>
+    /// The UTC instant a Swedish wall-clock time names, at <c>Offset == Zero</c>. A time in the
+    /// repeated autumn hour resolves to standard time, and one in the spring gap takes the standard
+    /// offset.
+    /// </summary>
+    internal static DateTimeOffset FromSwedishWallClock(DateTime wallClock) =>
+        new DateTimeOffset(wallClock, Zone.GetUtcOffset(wallClock)).ToUniversalTime();
 }

@@ -108,6 +108,7 @@ public class JobAdContactRedactionTests
             rawPayload: """{"id":"ext-1","description":{"text":"Kontakta anna@acme.se eller ring 070-123 45 67."}}""",
             facets: TestFacets.None,
             declaredContacts: [],
+            publishedAt: Clock.UtcNow,
             expiresAt: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         ad.Description.ShouldBe(descriptionAfterFirst);
@@ -135,6 +136,7 @@ public class JobAdContactRedactionTests
             [
                 AdContact.TryCreate("Anna", null, "anna@acme.se", null, AdContactOrigin.Declared)!,
             ],
+            publishedAt: Clock.UtcNow,
             expiresAt: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         ad.Description.ShouldNotContain("jobb@acme.se"); // the body scrub runs in EVERY status

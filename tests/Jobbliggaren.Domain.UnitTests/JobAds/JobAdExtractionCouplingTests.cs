@@ -81,6 +81,7 @@ public class JobAdExtractionCouplingTests
             rawPayload: Payload,
             facets: TestFacets.None,
             declaredContacts: [],
+            publishedAt: Clock.UtcNow,
             expiresAt: null,
             extractTerms: (_, description) => { seen = description; return OneKeyword("ny"); })
             .IsSuccess.ShouldBeTrue();
@@ -126,6 +127,7 @@ public class JobAdExtractionCouplingTests
             rawPayload: Payload,
             facets: TestFacets.None,
             declaredContacts: [],
+            publishedAt: Clock.UtcNow,
             expiresAt: null,
             extractTerms: null!));
     }

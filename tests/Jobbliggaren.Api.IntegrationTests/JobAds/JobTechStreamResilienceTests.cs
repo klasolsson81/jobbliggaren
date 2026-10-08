@@ -168,6 +168,38 @@ public class JobTechStreamResilienceTests
     }
 
     [Fact]
+    public async Task FetchSnapshotAsync_OutOfRangeSwedishDateMidArray_SkipsPoisonAndKeepsTheNeighboursInstants()
+    {
+        // "0001-01-01T00:00:00" is valid ISO but, read as Swedish wall clock, falls before
+        // DateTimeOffset.MinValue. It must be a per-element skip like any malformed date, and the
+        // neighbours in the live offsetless form must arrive as their UTC instants.
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        var poisonedBody =
+            """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"2026-10-07T19:09:40"},{"id":"poison-2","headline":"Dev2","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/2","publication_date":"0001-01-01T00:00:00"},{"id":"hit-3","headline":"Dev3","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/3","publication_date":"2026-10-07T19:09:40"}]""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(poisonedBody));
+
+        var jobSource = BuildJobSource(server.Url!);
+        var recorder = new SnapshotOutcomeRecorder();
+
+        var items = new List<JobAdImportItem>();
+        await foreach (var item in jobSource.FetchSnapshotAsync(recorder, ct))
+            items.Add(item);
+
+        items.Select(i => i.ExternalId).ShouldBe(["hit-1", "hit-3"]);
+        items.ShouldAllBe(i => i.PublishedAt == new DateTimeOffset(2026, 10, 7, 17, 9, 40, TimeSpan.Zero));
+        recorder.Outcome.ShouldNotBeNull();
+        recorder.Outcome.TruncatedAndExhausted.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task FetchSnapshotAsync_WithoutPoison_YieldsEveryElement_AndLogsNoSkipEvents()
     {
         // Counterfactual for the poison-skip test: the same shape WITHOUT the poison

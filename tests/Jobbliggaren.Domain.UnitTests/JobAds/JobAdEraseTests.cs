@@ -164,6 +164,7 @@ public class JobAdEraseTests
             url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
             rawPayload: """{"id":"ext-1","employer":{"name":"Acme AB"}}""",
             facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
+            publishedAt: Clock.UtcNow,
             expiresAt: null, declaredContacts: [], extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue(

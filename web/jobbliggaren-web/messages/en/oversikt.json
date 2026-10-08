@@ -32,7 +32,6 @@
     "anchor": "{count, plural, one {# industry watch} other {# industry watches}}",
     "link": "View industry watches",
     "emptyTitle": "You have no industry watches yet",
-    "emptyBody": "A saved search by industry and municipality.",
     "emptyCta": "New industry watch",
     "unavailable": "Industry watches could not be loaded. Refresh the page.",
     "adsTooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here.",
@@ -135,7 +134,7 @@
     "companiesLabel": "Watch",
     "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View new ads",
-    "calloutText": "You have not stated which occupations you are looking for.",
+    "calloutText": "You have not chosen any occupations yet",
     "calloutCta": "Set up matching"
   },
   "relativeTime": {

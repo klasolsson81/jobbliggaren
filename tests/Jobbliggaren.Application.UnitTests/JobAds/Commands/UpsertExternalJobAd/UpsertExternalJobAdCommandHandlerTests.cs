@@ -175,6 +175,40 @@ public class UpsertExternalJobAdCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_OnUpdatePath_RefreshesPublishedAtFromTheItem()
+    {
+        var seedDb = TestAppDbContextFactory.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await SeedExistingExternalJobAdAsync(
+            seedDb, "ext-published", "Title", ct, publishedAt: Now.AddDays(-1).AddHours(2));
+
+        var db = Substitute.For<IAppDbContext>();
+        db.JobAds.Returns(seedDb.JobAds);
+        var saveCallCount = 0;
+        db.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                saveCallCount++;
+                if (saveCallCount == 1)
+                    throw new DbUpdateException("UNIQUE-violation simulerad");
+                return Task.FromResult(1);
+            });
+        var inspector = Substitute.For<IDbExceptionInspector>();
+        inspector.IsUniqueConstraintViolation(Arg.Any<DbUpdateException>()).Returns(true);
+
+        var handler = CreateHandler(db, inspector);
+        var item = ValidItem("ext-published");
+        var command = new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-published", item);
+
+        var result = await handler.Handle(command, ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Updated);
+        var existing = await seedDb.JobAds
+            .FirstAsync(j => j.External!.ExternalId == "ext-published", ct);
+        existing.PublishedAt.ShouldBe(item.PublishedAt);
+    }
+
+    [Fact]
     public async Task Handle_WhenUniqueViolationButExistingMissing_ReturnsSkipped()
     {
         // Empty store — INSERT skall failas av oss, men "reload" hittar inget.
@@ -401,7 +435,8 @@ public class UpsertExternalJobAdCommandHandlerTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         string externalId,
         string title,
-        CancellationToken ct)
+        CancellationToken ct,
+        DateTimeOffset? publishedAt = null)
     {
         var company = Company.Create("Klarna").Value;
         var external = ExternalReference.Create(JobSource.Platsbanken, externalId).Value;
@@ -410,7 +445,7 @@ public class UpsertExternalJobAdCommandHandlerTests
             title, company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             [],
-            Now.AddDays(-1), Now.AddDays(30), clock, extractTerms: TestKeywordExtraction.None).Value;
+            publishedAt ?? Now.AddDays(-1), Now.AddDays(30), clock, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

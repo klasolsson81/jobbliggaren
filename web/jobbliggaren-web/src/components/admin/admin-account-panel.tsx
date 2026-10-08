@@ -197,7 +197,6 @@ function actionsFor(
   if (status === "active" && !emailConfirmed) general.push("markVerified");
   const suspended = isSuspended ?? status === "suspended";
   if (suspended) general.push("reinstate");
-  if (status === "pendingDeletion") general.push("restore");
   const destructive: AdminAccountAction[] = [];
   if (!suspended && (status === "active" || status === "pendingDeletion")) destructive.push("suspend");
   if (status !== "pendingDeletion") destructive.push("scheduleDeletion");

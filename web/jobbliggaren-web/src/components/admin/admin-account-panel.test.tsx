@@ -287,14 +287,14 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(within(screen.getByRole("region", { name: "Åtgärder" })).queryByRole("paragraph")).toBeNull();
   });
 
-  it("offers no edit and no second deletion to an account already pending deletion", () => {
+  it("offers no edit, undo or second deletion to an account already pending deletion", () => {
     renderPanel(PENDING);
     expect(actionNames()).toEqual([
       "Agera som användaren Kommer snart",
-      "Ångra radering Kommer snart",
       "Stäng av åtkomst",
       "Radera permanent Kommer snart",
     ]);
+    expect(screen.queryByRole("button", { name: /Ångra radering/ })).toBeNull();
   });
 
   it("states a pending deletion's date first, and leaves out the counts it does not know", () => {

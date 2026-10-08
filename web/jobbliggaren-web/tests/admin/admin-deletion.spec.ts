@@ -235,6 +235,7 @@ for (const width of [1280, 3440]) {
     await expect(panel.getByText("Respiten slutar 2026-11-07 05:01. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.", { exact: true })).toBeVisible();
     await expect(receipt).toBeFocused();
     await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+    await expect(panel.getByRole("button", { name: /Ångra radering/ })).toHaveCount(0);
     await expect(panel.getByText("Adressbyte", { exact: true })).toHaveCount(0);
     expect(harness.deletionRequests).toHaveLength(1);
     expect(harness.deletions.get(TARGET)).toEqual(DELETION_AFTER_04);
@@ -288,6 +289,7 @@ for (const width of [1280, 3440]) {
       await expect.poll(() => harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
       expect(detailResponses).toHaveLength(0);
       await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+      await expect(panel.getByRole("button", { name: /Ångra radering/ })).toHaveCount(0);
       await expect(panel.getByText("Aktiv", { exact: true })).toHaveCount(0);
       await expect(panel.getByText("Respiten slutar 2026-11-07 13:00. Första planerade körning 2026-11-08 05:00, svensk tid. Raderingen är ännu inte genomförd.", { exact: true })).toBeVisible();
       await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
@@ -311,6 +313,7 @@ for (const width of [1280, 3440]) {
         }), { timeout: 5000 }).toEqual([502]);
       });
       await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+      await expect(panel.getByRole("button", { name: /Ångra radering/ })).toHaveCount(0);
       await expect(panel.getByText("Aktiv", { exact: true })).toHaveCount(0);
       await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
       await expect(receipt).toContainText(`Radering av ${EMAIL} schemalagd`);

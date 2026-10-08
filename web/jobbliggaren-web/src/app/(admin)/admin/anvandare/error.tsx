@@ -9,5 +9,5 @@ export default function AdminAccountsError({ error, retry }: ErrorInfo) {
   const reloading = useReloadOnStaleBuild(error);
   if (reloading) return null;
 
-  return <AdminErrorSurface retry={retry} />;
+  return <AdminErrorSurface error={error} retry={retry} />;
 }

@@ -102,7 +102,7 @@ for (const width of [1280, 3440]) {
     }
   });
 
-  test(`failed panel script keeps the real error frame and focus at ${width}px`, async ({ page }) => {
+  test(`failed panel script keeps the real error frame and focus then recovers at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/admin/anvandare", { waitUntil: "networkidle" });
     const failedScripts: string[] = [];
@@ -121,6 +121,20 @@ for (const width of [1280, 3440]) {
     await expect(page.getByRole("button", { name: "Försök igen", exact: true })).toBeFocused();
     await page.unroute("**/_next/static/chunks/*.js");
     await inspect(page, "deletion-panel-module-error");
+    await page.getByRole("button", { name: "Försök igen", exact: true }).click();
+    await expect(page.getByRole("table", { name: "Konton" })).toContainText(EMAIL);
+    await expect(heading).not.toBeVisible();
+    await page.getByRole("button", { name: EMAIL, exact: true }).click();
+    const panel = page.getByRole("dialog", { name: EMAIL, exact: true });
+    await expect(panel.getByRole("region", { name: "Åtgärder", exact: true })).toBeVisible();
+    await inspect(page, "deletion-panel-module-recovered");
+    const dialog = await begin(page, panel);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAccessibleDescription(/30 dagars respit/);
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeFocused();
+    expect(harness.deletionRequests).toHaveLength(0);
   });
 
   test(`deletion confirmation, loading, receipt and actual pending data at ${width}px`, async ({ page }) => {

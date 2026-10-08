@@ -15,9 +15,9 @@ import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
  *
  * Client Component by Next convention. The `error` prop is read by
  * `useReloadOnStaleBuild` (ADR 0148: a page from a previous build reloads once
- * instead of this surface) and nowhere else — never shown to the user (no
- * stack trace), never logged here: Next reports uncaught errors on its own,
- * and console output is a §5 anti-pattern.
+ * instead of this surface) and the surface's explicit retry control — never
+ * shown to the user (no stack trace), never logged here: Next reports uncaught
+ * errors on its own, and console output is a §5 anti-pattern.
  */
 export default function AdminError({ error, retry }: ErrorInfo) {
   // The surface is its own component so its hooks mount WITH it: when the stamp
@@ -28,5 +28,5 @@ export default function AdminError({ error, retry }: ErrorInfo) {
   const reloading = useReloadOnStaleBuild(error);
   if (reloading) return null;
 
-  return <AdminErrorSurface retry={retry} />;
+  return <AdminErrorSurface error={error} retry={retry} />;
 }

@@ -185,7 +185,8 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
 
   async function begin(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: A.email! }));
-    const panel = await screen.findByRole("dialog", { name: A.email! });
+    // The first real lazy import also transforms its module in the Vitest worker.
+    const panel = await screen.findByRole("dialog", { name: A.email! }, { timeout: 5_000 });
     await within(panel).findByText("CV:n");
     await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
     const dialog = await screen.findByRole("dialog", { name: `Radera ${A.email}?` });
@@ -454,7 +455,7 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
     render(<AccountsDirectory initial={FIRST} self={SELF} />);
 
     await userEvent.click(screen.getByRole("button", { name: "konto.a@example.test" }));
-    const dialog = await screen.findByRole("dialog", { name: "konto.a@example.test" });
+    const dialog = await screen.findByRole("dialog", { name: "konto.a@example.test" }, { timeout: 5_000 });
     expect(within(dialog).getByRole("status")).toHaveTextContent("Hämtar kontots uppgifter…");
     const { path, body } = call(0);
     expect(path).toBe(DETAIL_ROUTE);
@@ -875,7 +876,7 @@ describe("AccountsDirectory — suspend and reinstate access (#1976)", () => {
 
   async function openAccount() {
     await userEvent.click(screen.getByRole("button", { name: A.email! }));
-    const panel = await screen.findByRole("dialog", { name: A.email! });
+    const panel = await screen.findByRole("dialog", { name: A.email! }, { timeout: 5_000 });
     await within(panel).findByText("CV:n");
     return panel;
   }

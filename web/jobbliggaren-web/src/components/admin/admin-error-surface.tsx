@@ -5,18 +5,28 @@ import type { ErrorInfo } from "next/error";
 import { useTranslations } from "next-intl";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
+import { reloadDocument } from "@/lib/stale-build/reload-document";
 
-export function AdminErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
+export function AdminErrorSurface({ error, retry }: Pick<ErrorInfo, "error" | "retry">) {
   const t = useTranslations("fallback");
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   useFocusMainOnUnmount();
+
+  function handleRetry() {
+    // A rejected lazy import stays cached until the document is replaced.
+    if (error instanceof Error && error.name === "ChunkLoadError") {
+      reloadDocument();
+      return;
+    }
+    retry();
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div>
-        <button type="button" onClick={() => retry()} className="jp-btn jp-btn--primary">
+        <button type="button" onClick={handleRetry} className="jp-btn jp-btn--primary">
           {t("retry")}
         </button>
       </div>

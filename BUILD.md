@@ -534,6 +534,8 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/me/preferences`
 - `PATCH /api/v1/me/preferences`
 - `DELETE /api/v1/me` (GDPR-radering, soft delete + 30-dagars restore)
+- `POST /api/v1/me/feedback` (multipart, ett JSON-fält `payload`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
+- `GET /api/v1/me/feedback/prompt-state` (om feedback är öppen, och sidorna där användaren redan har svarat)
 
 **Resumes**
 - `GET /api/v1/resumes` (paginerad lista)
@@ -617,6 +619,11 @@ Admin access writes use `AdminWrite`, private/no-store responses and separate au
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
 - `POST /api/v1/admin/job-sources/{source}/resync`
+- `GET /api/v1/admin/feedback?status&page&pageNumber&pageSize` — feedback list with per-status counts and excerpts, no reporter address (#1979, ADR 0156)
+- `GET /api/v1/admin/feedback/{id}` — one submission, with the reporter's address read on the server and the notice's delivery state (#1979, ADR 0156)
+- `GET /api/v1/admin/feedback/summary?days=7|30|90` — per page: raters (latest rating per user), the 1–5 distribution, the mean and the submission count (#1979, ADR 0156)
+- `GET /api/v1/admin/feedback/availability` — why feedback is open or closed (#1979, ADR 0156)
+- `POST /api/v1/admin/feedback/{id}/status` and `POST /api/v1/admin/feedback/{id}/notification/requeue` — triage and notice requeue, audited; a requeue from Unknown needs the duplicate risk acknowledged (#1979, ADR 0156)
 
 **Health & meta**
 - `GET /api/health`
@@ -1878,6 +1885,8 @@ inom 30 s består oavsett plattform.
 | `digest-dispatch-daily` | 06:00 daglig | Strong-match-digest, daglig kadens (ADR 0080 Våg 4 PR-4b) |
 | `digest-dispatch-weekly` | måndag 06:00 | Strong-match-digest, veckovis kadens (civic-default) |
 | `refresh-landing-stats` | `*/5 * * * *` | Publik landing-stats pre-compute (ADR 0064) |
+| `dispatch-feedback-notifications` | `* * * * *` | Operatörsavisering per sparad feedback; aldrig omsändning vid okänt utfall (#1979, ADR 0156) |
+| `feedback-retention` | 04:50 daglig | Radera feedback och dess aviseringar efter 90 dagar (#1979, ADR 0156) |
 
 **Planerat / ej registrerat** (speccat men inte byggt — finns inte i
 `RecurringJobRegistrar`):

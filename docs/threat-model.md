@@ -171,6 +171,14 @@ work. ScalewayEmailSender and ScalewayClientRegistration implement an external
 HTTPS email flow; inspect recipients, duplicate/retry semantics, destination
 changes and logging. Region validation does not prove a live DPA or residency.
 
+Feedback (#1979, ADR 0156) is stored in plaintext by the controller's decision and
+deleted after 90 days and at account deletion. Each saved submission queues one
+notice to a server-configured operator address; the mail carries the page, the
+rating, the time and an admin link, never the text. The notice is claimed before
+the provider call and never resent automatically when its outcome is unknown.
+Review recipients, the gate that keeps feedback closed without a recipient or a
+delivering transport, and the admin reads of reporters' addresses.
+
 Account erasure crosses DeleteAccountCommandHandler, HardDeleteAccountsJob and
 `src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs`. New storage must
 include originals, derived artifacts, identities, audit handling and DEKs in its

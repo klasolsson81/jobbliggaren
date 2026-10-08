@@ -290,47 +290,170 @@
       "title": "Feedback"
     },
     "heading": "Feedback",
+    "availability": {
+      "disabled": "Feedback är avstängd.",
+      "noRecipient": "Feedback är stängd: ingen mottagare för aviseringar är inställd.",
+      "cannotDeliver": "Feedback är stängd: e-posttjänsten skickar inte.",
+      "unknown": "Det går inte att se om feedback är öppen."
+    },
     "filter": {
-      "label": "Visa rapporter",
+      "label": "Filtrera på status",
       "all": "Alla",
-      "new": "Nya",
-      "inProgress": "Pågår",
-      "resolved": "Lösta",
-      "skipped": "Avfärdade"
+      "count": "{label} ({count})"
+    },
+    "scope": {
+      "page": "Sida: {page}",
+      "clear": "Visa inskick från alla sidor"
     },
     "list": {
-      "label": "Rapporter"
+      "label": "Inskick",
+      "empty": "Inga inskick.",
+      "emptyFiltered": "Inga inskick matchar filtret.",
+      "pageMissing": "Sidan finns inte.",
+      "firstPage": "Till första sidan",
+      "notice": "Avisering: {state}"
     },
-    "detail": {
-      "label": "Vald rapport",
-      "reply": "Svar",
-      "send": "Skicka svar",
-      "statusLabel": "Status",
-      "saveStatus": "Spara status",
-      "meta": {
-        "page": "Sida",
-        "screen": "Skärm",
-        "device": "Enhet",
-        "version": "Version"
-      },
-      "replies": "Skickade svar",
-      "noReplies": "Inga svar än.",
-      "replyHint": "Svaret skickas till {email}.",
-      "sent": "Svaret skickades till {email}.",
-      "sending": "Skickar…"
-    },
-    "filterCount": "{label} ({count})",
-    "empty": "Inga rapporter.",
     "status": {
       "new": "Ny",
       "inProgress": "Pågår",
-      "resolved": "Löst",
-      "skipped": "Avfärdad"
+      "resolved": "Åtgärdad",
+      "declined": "Avstår"
     },
-    "category": {
-      "bug": "Fel",
-      "suggestion": "Förslag",
-      "question": "Fråga"
+    "rating": {
+      "value": "{rating} av 5",
+      "none": "Inget betyg"
+    },
+    "pages": {
+      "overview": "Översikt",
+      "jobs": "Jobb",
+      "job-ad": "Jobbannons",
+      "matches": "Matchningar",
+      "saved-ads": "Sparade annonser",
+      "saved-searches": "Sökningar",
+      "applications": "Ansökningar",
+      "application": "Ansökan",
+      "new-application": "Ny ansökan",
+      "statistics": "Statistik",
+      "activity-report": "Aktivitetsrapport-hjälp",
+      "followed-companies": "Bevakade företag",
+      "company-search": "Sök företag",
+      "industry-watches": "Branschbevakningar",
+      "application-history": "Ansökningshistorik",
+      "cv": "CV",
+      "cv-import": "Importera CV",
+      "cv-review": "CV-granskning",
+      "my-pages": "Mina sidor"
+    },
+    "detail": {
+      "label": "Valt inskick",
+      "back": "Alla inskick",
+      "notFound": "Inskicket finns inte.",
+      "noComment": "Ingen text.",
+      "facts": {
+        "reporter": "Avsändare",
+        "page": "Sida",
+        "rating": "Betyg",
+        "submitted": "Skickat",
+        "statusChanged": "Status ändrad"
+      },
+      "status": {
+        "label": "Status",
+        "save": "Spara status",
+        "saving": "Sparar…",
+        "saved": "Statusen är ändrad till {status}.",
+        "unchanged": "Inskicket har redan den statusen."
+      },
+      "notice": {
+        "heading": "Avisering",
+        "state": "Läge",
+        "attempts": "Försök",
+        "nextAttempt": "Nästa försök",
+        "states": {
+          "queued": "Köad",
+          "sending": "Skickas",
+          "accepted": "Mottagen av e-posttjänsten",
+          "failed": "Misslyckades",
+          "unknown": "Utfall okänt"
+        },
+        "retry": "Försök igen",
+        "resend": "Skicka avisering igen",
+        "queueing": "Köar…",
+        "queued": "Aviseringen är köad igen.",
+        "confirm": {
+          "title": "Skicka aviseringen igen?",
+          "body": "Aviseringen kan redan ha kommit fram. Ett nytt utskick kan ge en dubblett.",
+          "confirm": "Skicka avisering igen"
+        }
+      },
+      "client": {
+        "heading": "Rapporterat av webbläsaren",
+        "viewport": "Fönster",
+        "screen": "Skärm",
+        "pixelRatio": "Pixeltäthet",
+        "theme": "Tema",
+        "device": "Enhet",
+        "os": "Operativsystem",
+        "browser": "Webbläsare",
+        "version": "Appversion",
+        "size": "{width} × {height}",
+        "themes": {
+          "light": "Ljust",
+          "dark": "Mörkt"
+        },
+        "devices": {
+          "mobile": "Mobil",
+          "tablet": "Surfplatta",
+          "desktop": "Dator"
+        },
+        "systems": {
+          "windows": "Windows",
+          "macOs": "macOS",
+          "ios": "iOS",
+          "android": "Android",
+          "linux": "Linux",
+          "chromeOs": "ChromeOS",
+          "other": "Annat"
+        },
+        "browsers": {
+          "chrome": "Chrome",
+          "edge": "Edge",
+          "firefox": "Firefox",
+          "safari": "Safari",
+          "samsungInternet": "Samsung Internet",
+          "opera": "Opera",
+          "other": "Annan"
+        }
+      },
+      "reply": "Svar",
+      "send": "Skicka svar"
+    },
+    "summary": {
+      "heading": "Betyg per sida",
+      "windowLabel": "Period",
+      "windows": {
+        "d7": "7 dygn",
+        "d30": "30 dygn",
+        "d90": "90 dygn"
+      },
+      "caption": "Betyg per sida de senaste {days} dygnen",
+      "page": "Sida",
+      "raters": "Antal betyg",
+      "rated": "Betyg {rating}",
+      "mean": "Medel",
+      "submissions": "Inskick",
+      "empty": "Inga inskick under perioden."
+    },
+    "errors": {
+      "unauthorized": "Du är inte inloggad längre. Logga in och försök igen.",
+      "forbidden": "Din session saknar Admin-rollen.",
+      "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "gone": "Inskicket finns inte.",
+      "statusRefused": "Statusen sparades inte. Ladda om sidan och försök igen.",
+      "statusUnknown": "Det gick inte att bekräfta att statusen sparades. Ladda om sidan för att se den sparade statusen.",
+      "noticeRefused": "Aviseringen köades inte. Ladda om sidan och försök igen.",
+      "noticeAlreadyQueued": "Aviseringen är redan köad eller skickad.",
+      "noticeChanged": "Aviseringens läge har ändrats. Kontrollera det innan du skickar den igen.",
+      "noticeUnknown": "Det gick inte att bekräfta att aviseringen köades. Ladda om sidan för att se dess läge."
     }
   },
   "logs": {

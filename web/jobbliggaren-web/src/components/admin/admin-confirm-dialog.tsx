@@ -18,13 +18,20 @@ interface AdminConfirmDialogProps {
   readonly onCancel: () => void;
   /** Where focus goes when the dialog closes; the control that opened it may be gone by then. */
   readonly onCloseAutoFocus?: (event: Event) => void;
+  /**
+   * The confirming button's tone. `danger`, the default, is for an action that removes or locks
+   * something, such as suspending an account. `neutral` is for one that destroys nothing and whose
+   * consequence the body states, such as a notice sent again: its button is the dialog's one primary.
+   */
+  readonly tone?: "danger" | "neutral";
 }
 
 /**
- * The confirmation a destructive account action asks for (DESIGN.md §6). Focus starts on Avbryt,
- * the confirming button names the action, and a refusal stays in the dialog as an alert that takes
- * focus. The dialog closes only when the action went through: the caller closes it then. A command
- * that throws ends at the nearest error boundary rather than holding the dialog open.
+ * The confirmation an administrator's action asks for before it runs (DESIGN.md §6): a destructive
+ * account action, or one whose consequence must be read first. Focus starts on Avbryt, the confirming
+ * button names the action, and a refusal stays in the dialog as an alert that takes focus. The dialog
+ * closes only when the action went through: the caller closes it then. A command that throws ends at
+ * the nearest error boundary rather than holding the dialog open.
  */
 export function AdminConfirmDialog({
   open,
@@ -35,6 +42,7 @@ export function AdminConfirmDialog({
   onConfirm,
   onCancel,
   onCloseAutoFocus,
+  tone = "danger",
 }: AdminConfirmDialogProps) {
   const t = useTranslations("admin.users.confirm");
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -84,7 +92,12 @@ export function AdminConfirmDialog({
             <AlertDialog.Cancel ref={cancelRef} className="jp-btn jp-btn--secondary" disabled={pending}>
               {t("cancel")}
             </AlertDialog.Cancel>
-            <button type="button" className="jp-btn jp-btn--danger" disabled={pending} onClick={confirm}>
+            <button
+              type="button"
+              className={tone === "neutral" ? "jp-btn jp-btn--primary" : "jp-btn jp-btn--danger"}
+              disabled={pending}
+              onClick={confirm}
+            >
               <AdminBusyLabel busy={pending} label={confirmLabel} busyLabel={busyLabel} />
             </button>
           </div>

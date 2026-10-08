@@ -124,6 +124,25 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_FeedbackSubmit_Is10Per600s()
+    {
+        var sut = new RateLimitingOptions();
+
+        sut.FeedbackSubmit.PermitLimit.ShouldBe(10);
+        sut.FeedbackSubmit.WindowSeconds.ShouldBe(600);
+    }
+
+    [Fact]
+    public void Defaults_FeedbackPromptState_Is120Per60s_TokenBucket()
+    {
+        var sut = new RateLimitingOptions();
+
+        sut.FeedbackPromptState.PermitLimit.ShouldBe(120);
+        sut.FeedbackPromptState.WindowSeconds.ShouldBe(60);
+        sut.FeedbackPromptState.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_ResumeRender_Is8Per60s()
     {
         var sut = new RateLimitingOptions();

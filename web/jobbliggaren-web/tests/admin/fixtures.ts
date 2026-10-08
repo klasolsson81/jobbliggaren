@@ -1,8 +1,9 @@
 /**
  * Fictional data for the admin harness (#1973, ADR 0150 D5): reserved domains (RFC 2606/6761) and
  * documentation IP ranges (RFC 5737) only. The shapes follow the app's own zod schemas in
- * `src/lib/dto/me.ts` and `src/lib/dto/admin.ts`, so a page that parses them renders exactly what it
- * would render from the backend.
+ * `src/lib/dto/me.ts`, `src/lib/dto/admin.ts`, `src/lib/dto/admin-accounts.ts` and
+ * `src/lib/dto/admin-feedback.ts`, so a page that parses them renders exactly what it would render from the
+ * backend.
  */
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -171,4 +172,291 @@ export function accountDetails(accountId: string, gone: ReadonlySet<string> = ne
   const current = withAccess(row, access);
   const live = current.status === "Active" || current.status === "Suspended";
   return { ...current, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
+}
+
+// ── Feedback (#1979) ──────────────────────────────────────────────────────────────────────────
+//
+// The submissions the feedback endpoints answer, in the backend's own JSON: camelCase, enums by their
+// .NET names, instants as ISO strings (`AdminFeedbackEndpoints`, `ListFeedbackQuery`,
+// `GetFeedbackDetailQuery`, `GetFeedbackSummaryQuery`). Every notice state is here once, and so are a
+// submission with no rating, one with no text, and one whose reporter and browser are unknown.
+
+/** The backend's clock: the summary's window is counted back from it. No submission is under 8 days old. */
+export const FEEDBACK_NOW = "2026-10-07T08:00:00Z";
+
+const DAY_MS = 86_400_000;
+
+export type FeedbackStatus = "New" | "InProgress" | "Resolved" | "Declined";
+export type FeedbackNoticeState = "Queued" | "Sending" | "Accepted" | "Failed" | "Unknown";
+export type FeedbackAvailability = "Open" | "Disabled" | "NoRecipient" | "CannotDeliver";
+
+export interface FeedbackNotice {
+  readonly state: FeedbackNoticeState;
+  readonly attempts: number;
+  readonly nextAttemptAt: string;
+  readonly acceptedAt: string | null;
+  readonly stateChangedAt: string | null;
+}
+
+export interface FeedbackRecord {
+  readonly id: string;
+  readonly pageKey: string;
+  readonly rating: number | null;
+  readonly comment: string | null;
+  readonly status: FeedbackStatus;
+  readonly submittedAt: string;
+  readonly statusChangedAt: string | null;
+  readonly reporterEmail: string | null;
+  readonly client: {
+    readonly viewportWidth: number | null;
+    readonly viewportHeight: number | null;
+    readonly screenWidth: number | null;
+    readonly screenHeight: number | null;
+    readonly pixelRatio: number | null;
+    readonly theme: "Light" | "Dark" | null;
+    readonly deviceClass: "Mobile" | "Tablet" | "Desktop" | null;
+    readonly osFamily: string | null;
+    readonly browserFamily: string | null;
+  };
+  readonly appVersion: string | null;
+  readonly notification: FeedbackNotice | null;
+}
+
+/** Each submission named by its notice's state, which is what the tests open it for. */
+export const FEEDBACK_IDS = {
+  queued: id(701),
+  failed: id(702),
+  unknown: id(703),
+  accepted: id(704),
+  sending: id(705),
+  unreported: id(706),
+} as const;
+
+const NOTHING_REPORTED: FeedbackRecord["client"] = {
+  viewportWidth: null,
+  viewportHeight: null,
+  screenWidth: null,
+  screenHeight: null,
+  pixelRatio: null,
+  theme: null,
+  deviceClass: null,
+  osFamily: null,
+  browserFamily: null,
+};
+
+const notice = (state: FeedbackNoticeState, attempts: number, at: string): FeedbackNotice => ({
+  state,
+  attempts,
+  nextAttemptAt: at,
+  acceptedAt: state === "Accepted" ? at : null,
+  stateChangedAt: at,
+});
+
+export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
+  {
+    id: FEEDBACK_IDS.queued,
+    pageKey: "applications",
+    rating: 2,
+    comment: "När jag sparar en ansökan och går tillbaka till listan visas den gamla statusen tills jag laddar om sidan.",
+    status: "New",
+    submittedAt: "2026-09-29T07:10:00Z",
+    statusChangedAt: null,
+    reporterEmail: "konto.b@example.test",
+    client: { viewportWidth: 1440, viewportHeight: 789, screenWidth: 1440, screenHeight: 900, pixelRatio: 1,
+      theme: "Light", deviceClass: "Desktop", osFamily: "Windows", browserFamily: "Firefox" },
+    appVersion: "4f2a91c",
+    notification: notice("Queued", 2, "2026-09-29T07:16:00Z"),
+  },
+  {
+    id: FEEDBACK_IDS.failed,
+    pageKey: "cv-review",
+    rating: null,
+    comment: "Hur länge sparas mitt uppladdade CV om jag inte loggar in på ett tag?",
+    status: "New",
+    submittedAt: "2026-09-26T13:03:00Z",
+    statusChangedAt: null,
+    reporterEmail: "konto.g@example.test",
+    client: { viewportWidth: 1280, viewportHeight: 720, screenWidth: 1280, screenHeight: 800, pixelRatio: 2,
+      theme: "Light", deviceClass: "Desktop", osFamily: "MacOs", browserFamily: "Chrome" },
+    appVersion: "9c03e7b",
+    notification: notice("Failed", 5, "2026-09-26T14:24:00Z"),
+  },
+  {
+    id: FEEDBACK_IDS.unknown,
+    pageKey: "job-ad",
+    rating: 5,
+    comment: null,
+    status: "Resolved",
+    submittedAt: "2026-09-24T09:27:00Z",
+    statusChangedAt: "2026-09-25T10:00:00Z",
+    reporterEmail: "konto.j@example.test",
+    client: { viewportWidth: 412, viewportHeight: 839, screenWidth: 412, screenHeight: 915, pixelRatio: 2.63,
+      theme: "Light", deviceClass: "Mobile", osFamily: "Android", browserFamily: "SamsungInternet" },
+    appVersion: "9c03e7b",
+    notification: notice("Unknown", 1, "2026-09-24T09:37:00Z"),
+  },
+  {
+    id: FEEDBACK_IDS.accepted,
+    pageKey: "saved-ads",
+    rating: 4,
+    comment: "Det vore bra att kunna sortera sparade annonser på sista ansökningsdag.",
+    status: "InProgress",
+    submittedAt: "2026-09-20T18:40:00Z",
+    statusChangedAt: "2026-09-21T07:55:00Z",
+    reporterEmail: "konto.f@example.test",
+    client: { viewportWidth: 390, viewportHeight: 664, screenWidth: 390, screenHeight: 844, pixelRatio: 3,
+      theme: "Dark", deviceClass: "Mobile", osFamily: "Ios", browserFamily: "Safari" },
+    appVersion: "1b7d0e4",
+    notification: notice("Accepted", 1, "2026-09-20T18:41:00Z"),
+  },
+  {
+    id: FEEDBACK_IDS.sending,
+    pageKey: "my-pages",
+    rating: 3,
+    comment: "Kan jag exportera mina ansökningar?",
+    status: "Declined",
+    submittedAt: "2026-09-15T20:15:00Z",
+    statusChangedAt: "2026-09-16T09:00:00Z",
+    reporterEmail: "konto.k@example.test",
+    client: { viewportWidth: 1920, viewportHeight: 969, screenWidth: 1920, screenHeight: 1080, pixelRatio: 1,
+      theme: "Dark", deviceClass: "Desktop", osFamily: "Windows", browserFamily: "Edge" },
+    appVersion: "1b7d0e4",
+    notification: notice("Sending", 1, "2026-09-15T20:16:00Z"),
+  },
+  {
+    id: FEEDBACK_IDS.unreported,
+    pageKey: "jobs",
+    rating: 4,
+    comment: "Sökningen på kommun ger träffar från hela länet.\nJag sökte på Alingsås och fick annonser från Göteborg.",
+    status: "InProgress",
+    submittedAt: "2026-09-12T14:30:00Z",
+    statusChangedAt: "2026-09-13T08:45:00Z",
+    reporterEmail: null,
+    client: NOTHING_REPORTED,
+    appVersion: null,
+    notification: notice("Accepted", 1, "2026-09-12T14:31:00Z"),
+  },
+];
+
+/**
+ * `count` more submissions about /jobb, each older than every one above, that fill the list past one page
+ * of 25: the pager's bounds, and a submission the notice mail opens that is not on the list's first page.
+ */
+export function manyFeedback(count: number): ReadonlyArray<FeedbackRecord> {
+  return Array.from({ length: count }, (_, index) => {
+    const at = new Date(Date.parse("2026-09-01T08:00:00Z") - index * 3_600_000).toISOString();
+    return {
+      id: id(800 + index),
+      pageKey: "jobs",
+      rating: (index % 5) + 1,
+      comment: `Inskick ${index + 1}: sökningen på yrke visar annonser från fel län.`,
+      status: "New",
+      submittedAt: at,
+      statusChangedAt: null,
+      reporterEmail: `konto.m${index + 1}@example.test`,
+      client: NOTHING_REPORTED,
+      appVersion: null,
+      notification: notice("Accepted", 1, at),
+    };
+  });
+}
+
+const EXCERPT_LENGTH = 90;
+
+const excerpt = (comment: string | null) =>
+  comment === null || comment.length <= EXCERPT_LENGTH ? comment : `${comment.slice(0, EXCERPT_LENGTH).trimEnd()}…`;
+
+const newestFirst = (left: FeedbackRecord, right: FeedbackRecord) =>
+  right.submittedAt.localeCompare(left.submittedAt) || left.id.localeCompare(right.id);
+
+/** `GET /api/v1/admin/feedback`: newest first, with the counts per status inside the page filter. */
+export function feedbackList(
+  records: ReadonlyArray<FeedbackRecord>,
+  { status, pageKey, pageNumber, pageSize }: {
+    readonly status?: string; readonly pageKey?: string; readonly pageNumber: number; readonly pageSize: number;
+  },
+) {
+  const onPage = pageKey === undefined ? records : records.filter((record) => record.pageKey === pageKey);
+  const shown = (status === undefined ? onPage : onPage.filter((record) => record.status === status))
+    .slice().sort(newestFirst);
+  const count = (value: FeedbackStatus) => onPage.filter((record) => record.status === value).length;
+  return {
+    items: {
+      items: shown.slice((pageNumber - 1) * pageSize, pageNumber * pageSize).map((record) => ({
+        id: record.id,
+        pageKey: record.pageKey,
+        rating: record.rating,
+        excerpt: excerpt(record.comment),
+        status: record.status,
+        submittedAt: record.submittedAt,
+        notificationState: record.notification?.state ?? null,
+      })),
+      totalCount: shown.length,
+      page: pageNumber,
+      pageSize,
+      totalPages: Math.ceil(shown.length / pageSize),
+    },
+    counts: {
+      all: onPage.length,
+      new: count("New"),
+      inProgress: count("InProgress"),
+      resolved: count("Resolved"),
+      declined: count("Declined"),
+    },
+  };
+}
+
+/** `GET /api/v1/admin/feedback/{id}`. */
+export function feedbackDetail(record: FeedbackRecord) {
+  return {
+    id: record.id,
+    pageKey: record.pageKey,
+    rating: record.rating,
+    comment: record.comment,
+    status: record.status,
+    submittedAt: record.submittedAt,
+    statusChangedAt: record.statusChangedAt,
+    reporterEmail: record.reporterEmail,
+    client: record.client,
+    appVersion: record.appVersion,
+    notification: record.notification,
+  };
+}
+
+/**
+ * `GET /api/v1/admin/feedback/summary?days=`: per page, ordered by key as the SQL orders it, each reporter's
+ * latest rating counted once and every submission counted as a submission.
+ */
+export function feedbackSummary(records: ReadonlyArray<FeedbackRecord>, days: number) {
+  const since = Date.parse(FEEDBACK_NOW) - days * DAY_MS;
+  const inWindow = records.filter((record) => Date.parse(record.submittedAt) >= since);
+  const pages = [...new Set(inWindow.map((record) => record.pageKey))].sort();
+  return {
+    days,
+    pages: pages.map((pageKey) => {
+      const submissions = inWindow
+        .filter((record) => record.pageKey === pageKey)
+        .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+      const latest = new Map<string, number>();
+      for (const record of submissions) {
+        if (record.rating !== null) latest.set(record.reporterEmail ?? record.id, record.rating);
+      }
+      const ratings = [...latest.values()];
+      const rated = (value: number) => ratings.filter((rating) => rating === value).length;
+      return {
+        pageKey,
+        submissions: submissions.length,
+        raters: ratings.length,
+        rated1: rated(1),
+        rated2: rated(2),
+        rated3: rated(3),
+        rated4: rated(4),
+        rated5: rated(5),
+        mean:
+          ratings.length === 0
+            ? null
+            : Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 100) / 100,
+      };
+    }),
+  };
 }

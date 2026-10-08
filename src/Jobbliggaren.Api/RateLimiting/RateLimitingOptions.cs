@@ -579,6 +579,28 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// POST /api/v1/me/feedback (#1979), per UserId. Ten in ten minutes covers a user who rates
+    /// several pages and adds a comment or two in one sitting, while each accepted submission queues
+    /// one mail to the operator, so a flood is capped before it reaches his inbox. A starting value;
+    /// security-auditor verifies it as a blocking check.
+    /// </summary>
+    public PolicyOptions FeedbackSubmit { get; init; } = new()
+    {
+        PermitLimit = 10,
+        WindowSeconds = 600,
+    };
+
+    /// <summary>
+    /// GET /api/v1/me/feedback/prompt-state (#1979), per UserId: read once per product page render,
+    /// so it carries MeListRead's numbers in a bucket of its own.
+    /// </summary>
+    public PolicyOptions FeedbackPromptState { get; init; } = new()
+    {
+        PermitLimit = 120,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
     /// GET /api/v1/resumes/parsed/{id}/render (deterministic QuestPDF CV-render, Fas 4 STEG B)
     /// — partitionerat per UserId (claim "sub"), anonym → NoLimiter (RequireAuthorization-gated).
     /// Egen policy (ej MeListRead-återanvändning) — least common mechanism (Saltzer/Schroeder) +

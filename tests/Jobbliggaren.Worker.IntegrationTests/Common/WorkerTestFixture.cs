@@ -180,6 +180,12 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
 
+        // #1979: same — the feedback notice dispatch and the 90-day feedback retention.
+        services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.DispatchFeedbackNotifications.FeedbackNotificationDispatchJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackNotificationDispatchWorker>();
+        services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
+
         // #664: same — the one-off source_file_name mask backfill (admin-enqueued, no recurring worker)
         // is registered in AddJobSources (which this fixture does not call), so mirror it here for its
         // integration test to resolve it (parity #544's job, minus a worker wrapper).

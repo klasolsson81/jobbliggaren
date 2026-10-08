@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace Jobbliggaren.Application.BackgroundJobs;
 
 /// <summary>
-/// Single source of truth for the 17 Hangfire recurring-job ids. Used both by the
+/// Single source of truth for the Hangfire recurring-job ids. Used both by the
 /// Worker's <c>RecurringJobRegistrar</c> (registration) and by the admin operator
 /// surface's trigger validator (the closed allowlist).
 ///
@@ -79,6 +79,12 @@ public static class RecurringJobIds
     /// </summary>
     public const string BuildOccupationDivisionProfile = "build-occupation-division-profile";
 
+    /// <summary>#1979 — sends the operator notices for saved feedback, every minute.</summary>
+    public const string DispatchFeedbackNotifications = "dispatch-feedback-notifications";
+
+    /// <summary>#1979 — deletes feedback older than 90 days, daily.</summary>
+    public const string FeedbackRetention = "feedback-retention";
+
     /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
@@ -104,5 +110,7 @@ public static class RecurringJobIds
         MaterialiseCompanyWatchCriteria,
         SweepChangedCompanyWatchCriteria,
         BuildOccupationDivisionProfile,
+        DispatchFeedbackNotifications,
+        FeedbackRetention,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

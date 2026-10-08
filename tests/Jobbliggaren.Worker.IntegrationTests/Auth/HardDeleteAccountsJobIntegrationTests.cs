@@ -8,6 +8,7 @@ using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -574,6 +575,91 @@ $fn$ LANGUAGE plpgsql;";
                 s => s.Id == new SavedJobAdId(savedJobAdId), ct);
         savedJobAdAfter.ShouldBeNull(
             "SavedJobAd ska cascade-raderas vid hard-delete (GDPR Art. 17, ADR 0024 amend 2026-05-23)");
+    }
+
+    [Fact]
+    public async Task RunAsync_CascadesHardDelete_ToFeedbackItsNoticesAndPromptSuppressions()
+    {
+        // GDPR Art. 17 (#1979): feedback_submissions, feedback_notifications and feedback_prompt_suppressions are
+        // FK-less by-JobSeekerId aggregates (ADR 0011) stored in plaintext, so HardDeleteAccountAsync must delete the
+        // rows themselves. A queued notice is included on purpose: no pending send may outlive the account.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
+        var (_, jobSeekerId) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+        var otherJobSeekerId = await JobSeekerIdOfAsync(await SeedActiveAccountAsync(ct), ct);
+
+        // Sent while the account was live (it registered a day before its deletion). One notice is still Queued: the
+        // dispatch job claims nothing while no recipient is deliverable
+        // (FeedbackNotificationDispatchJobTests.RunAsync_WithoutADeliverableRecipient_ClaimsAndSendsNothing). The
+        // other was accepted through the job's own claim-then-outcome transforms.
+        var sentAt = oldDeletedAt.AddHours(-12);
+        await SeedFeedbackAsync(jobSeekerId, FeedbackPage.Jobs, sentAt, accepted: false, ct);
+        await SeedFeedbackAsync(jobSeekerId, FeedbackPage.Cv, sentAt.AddMinutes(5), accepted: true, ct);
+        await SeedFeedbackAsync(otherJobSeekerId, FeedbackPage.Jobs, now.AddDays(-1), accepted: false, ct);
+
+        (await CountFeedbackAsync(jobSeekerId, ct)).ShouldBe((2, 2, 2), "seed: two submissions, two notices, two pages");
+        (await CountQueuedNoticesAsync(jobSeekerId, ct)).ShouldBe(1, "seed: one notice is still waiting to be sent");
+        (await CountFeedbackAsync(otherJobSeekerId, ct)).ShouldBe((1, 1, 1), "seed: another account's feedback");
+
+        await RunJobAsync(now, ct);
+
+        (await CountFeedbackAsync(jobSeekerId, ct)).ShouldBe((0, 0, 0),
+            "the account's feedback, its notices (queued included) and its prompt suppressions are hard-deleted (GDPR Art. 17)");
+        (await CountFeedbackAsync(otherJobSeekerId, ct)).ShouldBe((1, 1, 1),
+            "the cascade is scoped to the deleted account");
+    }
+
+    // The submit handler's one save at sentAt (the submission, its notice, the page's first suppression), and when
+    // accepted, FeedbackNotificationDispatchJob's claim and outcome saved in its order.
+    private async Task SeedFeedbackAsync(
+        JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var submission = FeedbackSubmission.Submit(
+            owner, Guid.NewGuid(), page, FeedbackRating.Create(4).Value, FeedbackComment.Create("Bra sida.").Value,
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt).Value;
+        var notice = FeedbackNotification.QueueFor(submission);
+        db.FeedbackSubmissions.Add(submission);
+        db.FeedbackNotifications.Add(notice);
+        if (!await db.FeedbackPromptSuppressions.AnyAsync(s => s.JobSeekerId == owner && s.Page == page, ct))
+            db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page));
+        await db.SaveChangesAsync(ct);
+
+        if (!accepted)
+            return;
+        var sendAt = sentAt.AddMinutes(1);
+        notice.Claim(sendAt).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+        notice.RecordAccepted(sendAt).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<(int Submissions, int Notices, int Suppressions)> CountFeedbackAsync(
+        JobSeekerId owner, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.FeedbackSubmissions.AsNoTracking().CountAsync(s => s.JobSeekerId == owner, ct),
+            await db.FeedbackNotifications.AsNoTracking().CountAsync(n => n.JobSeekerId == owner, ct),
+            await db.FeedbackPromptSuppressions.AsNoTracking().CountAsync(s => s.JobSeekerId == owner, ct));
+    }
+
+    private async Task<int> CountQueuedNoticesAsync(JobSeekerId owner, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().FeedbackNotifications.AsNoTracking()
+            .CountAsync(n => n.JobSeekerId == owner && n.State == FeedbackNotificationState.Queued, ct);
+    }
+
+    private async Task<JobSeekerId> JobSeekerIdOfAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().JobSeekers.AsNoTracking()
+            .Where(js => js.UserId == userId)
+            .Select(js => js.Id)
+            .SingleAsync(ct);
     }
 
     [Fact]

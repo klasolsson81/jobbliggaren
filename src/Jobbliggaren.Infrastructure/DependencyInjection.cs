@@ -1562,6 +1562,9 @@ public static class DependencyInjection
         services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldOpener,
             Security.BinaryFieldOpener>();
 
+        // #1979 — the feedback switch, recipient and statistics read, for both hosts.
+        Feedback.FeedbackServiceCollectionExtensions.AddFeedback(services, configuration);
+
         return services;
     }
 

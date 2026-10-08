@@ -124,6 +124,7 @@ public sealed record EraseRecruiterAdsCommand(
         ["companyWatchFollows"] = counts.CompanyWatchFollows,
         ["jobSeekerProfiles"] = counts.JobSeekerProfiles,
         ["resumeMetadata"] = counts.ResumeMetadata,
+        ["feedbackComments"] = counts.FeedbackComments,
         ["applicationsReferencingMatchedAds"] = counts.ApplicationsReferencingMatchedAds,
     };
 }

@@ -1,232 +1,461 @@
-import { Component, useState, type ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { AdminFeedbackItem, AdminFeedbackStatus } from "@/lib/admin/view-models";
-import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-store";
-import { AdminFeedbackView } from "./admin-feedback-view";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { DEFAULT_FEEDBACK_QUERY, type AdminFeedbackQuery } from "@/lib/admin/feedback";
+import type { AdminFeedbackItem, AdminFeedbackListPage, AdminFeedbackPageSummary } from "@/lib/admin/view-models";
+import { AdminFeedbackView, type AdminFeedbackViewProps } from "./admin-feedback-view";
 
-class Boundary extends Component<{ readonly children: ReactNode }, { readonly failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  render() {
-    return this.state.failed ? <p>Något gick fel.</p> : this.props.children;
-  }
-}
+const BASE = "/admin/feedback";
+const FIRST = "00000000-0000-4000-8000-000000000501";
+const SECOND = "00000000-0000-4000-8000-000000000502";
 
-const base = {
-  screen: "1440 × 900",
-  device: "Firefox 131, Windows",
-  version: "0.1.0",
-  replies: [],
-} as const;
+const LIST: AdminFeedbackListPage = {
+  items: [
+    {
+      id: FIRST,
+      page: "applications",
+      rating: 2,
+      excerpt: "När jag sparar en ansökan visas den gamla statusen.",
+      status: "new",
+      submittedAt: "2026-10-04T05:12:00Z",
+      notice: "failed",
+    },
+    {
+      id: SECOND,
+      page: "job-ad",
+      rating: null,
+      excerpt: null,
+      status: "declined",
+      submittedAt: "2026-10-02T09:03:00Z",
+      notice: null,
+    },
+  ],
+  page: 1,
+  totalPages: 1,
+  totalCount: 2,
+  counts: { all: 7, new: 3, inProgress: 0, resolved: 2, declined: 2 },
+};
 
-const ITEMS: ReadonlyArray<AdminFeedbackItem> = [
-  {
-    ...base,
-    id: "f1",
-    status: "new",
-    category: "bug",
-    receivedAt: "2026-10-04T05:12:00Z",
-    text: "När jag sparar en ansökan och går tillbaka till listan visas den gamla statusen tills jag laddar om sidan.",
-    senderEmail: "konto.b@example.test",
-    page: "/ansokningar",
+const ITEM: AdminFeedbackItem = {
+  id: FIRST,
+  page: "applications",
+  rating: 2,
+  comment: "När jag sparar en ansökan visas den gamla statusen.",
+  status: "new",
+  submittedAt: "2026-10-04T05:12:00Z",
+  statusChangedAt: null,
+  reporterEmail: "konto.b@example.test",
+  client: {
+    viewportWidth: 390,
+    viewportHeight: 664,
+    screenWidth: 390,
+    screenHeight: 844,
+    pixelRatio: 2.5,
+    theme: "dark",
+    deviceClass: "mobile",
+    os: "ios",
+    browser: "safari",
   },
-  {
-    ...base,
-    id: "f2",
-    status: "resolved",
-    category: "question",
-    receivedAt: "2026-10-02T09:03:00Z",
-    text: "Hur länge sparas mitt CV?",
-    senderEmail: "konto.g@example.test",
-    page: "/cv/granska",
-    replies: [{ id: "r1", sentAt: "2026-10-03T08:00:00Z", text: "I tolv månader." }],
-  },
+  appVersion: "4f2a91c",
+  notice: { state: "accepted", attempts: 1, nextAttemptAt: "2026-10-04T05:12:00Z" },
+};
+
+const SUMMARY: ReadonlyArray<AdminFeedbackPageSummary> = [
+  { page: "jobs", submissions: 4, raters: 3, ratings: [0, 1, 0, 1, 1], mean: 3.6666 },
+  { page: "cv-review", submissions: 2, raters: 0, ratings: [0, 0, 0, 0, 0], mean: null },
 ];
 
-const list = () => screen.getByRole("region", { name: "Rapporter" });
-const noReply = async () => {};
-const noStatus = () => {};
-const detail = () => screen.getByRole("region", { name: "Vald rapport" });
+const noCommand = async () => null;
 
-/**
- * The caller the preview is: a sent reply joins its report and moves a new report to Pågår, and a saved
- * status replaces the report's.
- */
-function Reports({
-  onReply = noReply,
-  onStatus = noStatus,
-}: {
-  readonly onReply?: (id: string, text: string) => void | Promise<void>;
-  readonly onStatus?: (id: string, status: AdminFeedbackStatus) => void;
-}) {
-  const [items, setItems] = useState(ITEMS);
-  return (
-    <AdminFeedbackView
-      region={{ kind: "loaded", data: items }}
-      onReply={async (id, text) => {
-        await onReply(id, text);
-        setItems((previous) =>
-          previous.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  status: item.status === "new" ? "inProgress" : item.status,
-                  replies: [...item.replies, { id: `${id}-sent`, sentAt: "2026-10-04T08:00:00Z", text }],
-                }
-              : item,
-          ),
-        );
-      }}
-      onStatus={(id, status) => {
-        onStatus(id, status);
-        setItems((previous) => previous.map((item) => (item.id === id ? { ...item, status } : item)));
-      }}
-    />
-  );
+/** The element at the index, which the test has just rendered. */
+function nth<T>(items: ReadonlyArray<T>, index: number): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`nothing at ${index}`);
+  return item;
 }
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  const toast = getAdminToastSnapshot();
-  if (toast !== null) dismissAdminToast(toast.token);
-});
+function present<T>(value: T | null): T {
+  if (value === null) throw new Error("not rendered");
+  return value;
+}
 
-describe("AdminFeedbackView with reports (ADR 0150)", () => {
-  it("counts each filter, lists the reports and opens the first", () => {
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={noReply} onStatus={noStatus} />);
+function renderView(overrides: Partial<AdminFeedbackViewProps> = {}) {
+  const props: AdminFeedbackViewProps = {
+    basePath: BASE,
+    query: DEFAULT_FEEDBACK_QUERY,
+    availability: { kind: "loaded", data: "open" },
+    list: { kind: "loaded", data: LIST },
+    detail: null,
+    summary: { kind: "loaded", data: SUMMARY },
+    onStatus: noCommand,
+    onRequeue: noCommand,
+    ...overrides,
+  };
+  return render(<AdminFeedbackView {...props} />);
+}
 
-    expect(
-      within(screen.getByRole("radiogroup", { name: "Visa rapporter" }))
-        .getAllByRole("radio")
-        .map((radio) => radio.textContent),
-    ).toEqual(["Alla (2)", "Nya (1)", "Pågår (0)", "Lösta (1)", "Avfärdade (0)"]);
-    const items = within(list()).getAllByRole("button");
-    expect(items[0]).toHaveAttribute("aria-current", "true");
-    expect(items[0]).toHaveTextContent(
-      "NyFel2026-10-04 07:12När jag sparar en ansökan och går tillbaka till listan visas den gamla statusen tills jag…konto.b@example.test",
+const listRegion = () => screen.getByRole("region", { name: "Inskick" });
+const statusNav = () => screen.getByRole("navigation", { name: "Filtrera på status" });
+
+describe("AdminFeedbackView — the list (#1979)", () => {
+  it("shows each submission as a link to its own URL, with its status, page, rating, time, excerpt and notice", () => {
+    renderView();
+
+    const links = within(listRegion()).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([`${BASE}?id=${FIRST}`, `${BASE}?id=${SECOND}`]);
+    expect(links[0]).toHaveTextContent(
+      "NyAnsökningar2 av 52026-10-04 07:12När jag sparar en ansökan visas den gamla statusen.Avisering: Misslyckades",
     );
-    expect(detail()).toHaveTextContent("konto.b@example.test");
-    expect(within(detail()).getByText("Sida").nextElementSibling).toHaveTextContent("/ansokningar");
+    expect(links[1]).toHaveTextContent("AvstårJobbannonsInget betyg2026-10-02 11:03");
+    expect(links[1]).not.toHaveTextContent("Avisering");
+    // The list never carries an address: an address is read one submission at a time.
+    expect(listRegion()).not.toHaveTextContent("@");
   });
 
-  it("opens the report pressed in the list and moves focus to it, and narrows the list by status", async () => {
-    render(<AdminFeedbackView region={{ kind: "loaded", data: ITEMS }} onReply={noReply} onStatus={noStatus} />);
+  it("marks the open submission, whatever the case of its id in the URL", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST.toUpperCase() } });
 
-    await userEvent.click(within(list()).getByRole("button", { name: /Hur länge sparas/ }));
-    expect(within(list()).getByRole("button", { name: /Hur länge sparas/ })).toHaveAttribute("aria-current", "true");
-    expect(within(detail()).getByText("I tolv månader.")).toBeInTheDocument();
-    expect(detail()).toHaveFocus();
-
-    await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
-    expect(within(list()).getAllByRole("button")).toHaveLength(1);
-    await userEvent.click(screen.getByRole("radio", { name: "Pågår (0)" }));
-    expect(list()).toHaveTextContent("Inga rapporter.");
+    const [first, second] = within(listRegion()).getAllByRole("link");
+    expect(first).toHaveAttribute("aria-current", "true");
+    expect(second).not.toHaveAttribute("aria-current");
   });
 
-  it("sends no empty reply, and confirms a sent one with a receipt and focus on it", async () => {
-    const onReply = vi.fn();
-    render(<Reports onReply={onReply} />);
+  it("keeps every other part of the URL in each submission's link", () => {
+    const query: AdminFeedbackQuery = { status: "new", page: "applications", pageNumber: 2, id: SECOND, window: 7 };
+    renderView({ query, list: { kind: "loaded", data: { ...LIST, page: 2, totalPages: 2 } } });
 
-    const send = within(detail()).getByRole("button", { name: "Skicka svar" });
-    expect(send).toHaveClass("jp-btn--primary");
-    const field = within(detail()).getByRole("textbox", { name: "Svar" });
-    expect(field).toBeRequired();
-    expect(field).toHaveAccessibleDescription("Svaret skickas till konto.b@example.test.");
-    await userEvent.click(send);
-    expect(onReply).not.toHaveBeenCalled();
-
-    const refused = vi.fn();
-    field.addEventListener("invalid", refused);
-    await userEvent.type(field, "   ");
-    await userEvent.click(send);
-    expect(onReply).not.toHaveBeenCalled();
-    expect(field).toHaveValue("");
-    expect(refused).toHaveBeenCalledTimes(1);
-
-    await userEvent.type(field, "Tack, vi tittar på det.");
-    await userEvent.click(send);
-    expect(onReply).toHaveBeenCalledWith("f1", "Tack, vi tittar på det.");
-    expect(field).toHaveValue("");
-    expect(getAdminToastSnapshot()?.message).toBe("Svaret skickades till konto.b@example.test.");
-    await waitFor(() => expect(within(detail()).getByText("Tack, vi tittar på det.").closest("li")).toHaveFocus());
-  });
-
-  it("keeps a report open and focuses its new reply when the reply moves it out of the filter", async () => {
-    render(<Reports />);
-
-    await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
-    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Vi har rättat det.");
-    await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
-
-    await waitFor(() => expect(within(detail()).getByText("Vi har rättat det.").closest("li")).toHaveFocus());
-    expect(detail()).toHaveTextContent("konto.b@example.test");
-    expect(list()).toHaveTextContent("Inga rapporter.");
-  });
-
-  it("names the reply while it is sent", async () => {
-    let settle: () => void = () => {};
-    render(
-      <AdminFeedbackView
-        region={{ kind: "loaded", data: ITEMS }}
-        onReply={() => new Promise<void>((resolve) => (settle = resolve))}
-        onStatus={noStatus}
-      />,
+    expect(within(listRegion()).getAllByRole("link")[0]).toHaveAttribute(
+      "href",
+      `${BASE}?status=ny&sida=applications&sidnr=2&fonster=7&id=${FIRST}`,
     );
-
-    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Hej");
-    await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
-    expect(within(detail()).getByRole("button", { name: "Skickar…" })).toBeDisabled();
-
-    settle();
-    expect(await within(detail()).findByRole("button", { name: "Skicka svar" })).toBeEnabled();
   });
 
-  it("hands a send that throws to the nearest error boundary instead of holding the form disabled", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    render(
-      <Boundary>
-        <AdminFeedbackView
-          region={{ kind: "loaded", data: ITEMS }}
-          onReply={async () => Promise.reject(new Error("network"))}
-          onStatus={noStatus}
-        />
-      </Boundary>,
-    );
+  it("filters by status with one link per status, each counted, the chosen one marked", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, status: "resolved", pageNumber: 3, id: FIRST } });
 
-    await userEvent.type(within(detail()).getByRole("textbox", { name: "Svar" }), "Hej");
-    await userEvent.click(within(detail()).getByRole("button", { name: "Skicka svar" }));
-    expect(await screen.findByText("Något gick fel.")).toBeInTheDocument();
-    expect(getAdminToastSnapshot()).toBeNull();
+    const links = within(statusNav()).getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Alla (7)", `${BASE}?id=${FIRST}`],
+      ["Ny (3)", `${BASE}?status=ny&id=${FIRST}`],
+      ["Pågår (0)", `${BASE}?status=pagar&id=${FIRST}`],
+      ["Åtgärdad (2)", `${BASE}?status=atgardad&id=${FIRST}`],
+      ["Avstår (2)", `${BASE}?status=avstar&id=${FIRST}`],
+    ]);
+    expect(links.filter((link) => link.getAttribute("aria-current") === "true").map((link) => link.textContent)).toEqual([
+      "Åtgärdad (2)",
+    ]);
   });
 
-  it("saves a status only when it is pressed, and keeps the report open when it leaves the filter", async () => {
-    const onStatus = vi.fn();
-    render(<Reports onStatus={onStatus} />);
+  it("pages with links, both controls on every page", () => {
+    renderView({ list: { kind: "loaded", data: { ...LIST, page: 2, totalPages: 3, totalCount: 60 } } });
 
-    await userEvent.click(screen.getByRole("radio", { name: "Nya (1)" }));
-    await userEvent.selectOptions(within(detail()).getByRole("combobox", { name: "Status" }), "Pågår");
-    expect(onStatus).not.toHaveBeenCalled();
+    const pager = screen.getByRole("navigation", { name: "Sidnavigering" });
+    expect(within(pager).getByRole("status")).toHaveTextContent("Sida 2 av 3");
+    const previous = within(pager).getByRole("link", { name: "Föregående" });
+    const next = within(pager).getByRole("link", { name: "Nästa" });
+    expect(previous).toHaveAttribute("href", BASE);
+    expect(previous).toHaveAttribute("rel", "prev");
+    expect(next).toHaveAttribute("href", `${BASE}?sidnr=3`);
+    expect(next).toHaveAttribute("rel", "next");
+    for (const control of [previous, next]) expect(control).not.toHaveAttribute("aria-disabled");
+  });
 
-    const save = within(detail()).getByRole("button", { name: "Spara status" });
-    await userEvent.click(save);
-    expect(onStatus).toHaveBeenCalledWith("f1", "inProgress");
-    expect(list()).toHaveTextContent("Inga rapporter.");
-    expect(detail()).toHaveTextContent("konto.b@example.test");
-    expect(save).toHaveFocus();
+  it("shows no pager for one page", () => {
+    renderView();
+    expect(screen.queryByRole("navigation", { name: "Sidnavigering" })).toBeNull();
   });
 
   it.each([
-    ["empty", "Inga rapporter."],
+    ["Föregående", "the first", 1, BASE],
+    ["Nästa", "the last", 2, `${BASE}?sidnr=2`],
+  ])("keeps %s at %s page, inert in its place, so the control a keyboard pressed keeps focus", (name, _bound, page, href) => {
+    renderView({ list: { kind: "loaded", data: { ...LIST, page, totalPages: 2, totalCount: 30 } } });
+
+    const control = within(screen.getByRole("navigation", { name: "Sidnavigering" })).getByRole("link", { name });
+    expect(control).toHaveAttribute("aria-disabled", "true");
+    expect(control).toHaveAttribute("href", href);
+    expect(control).not.toHaveAttribute("rel");
+    control.focus();
+    // A cancelled click: the link goes nowhere, and it is still the control that holds focus.
+    expect(fireEvent.click(control)).toBe(false);
+    expect(control).toHaveFocus();
+  });
+
+  it.each([
+    ["no filter", DEFAULT_FEEDBACK_QUERY, "Inga inskick."],
+    ["a status filter", { ...DEFAULT_FEEDBACK_QUERY, status: "inProgress" as const }, "Inga inskick matchar filtret."],
+    ["a page filter", { ...DEFAULT_FEEDBACK_QUERY, page: "cv" as const }, "Inga inskick matchar filtret."],
+  ])("says so when %s finds nothing, keeping the counts", (_label, query, line) => {
+    renderView({
+      query,
+      list: { kind: "loaded", data: { ...LIST, items: [], totalCount: 0, totalPages: 0, counts: { ...LIST.counts, inProgress: 0 } } },
+    });
+
+    expect(listRegion()).toHaveTextContent(line);
+    expect(within(statusNav()).getByRole("link", { name: "Pågår (0)" })).toBeInTheDocument();
+  });
+
+  it("says a page past the last does not exist, and links to the first", () => {
+    renderView({
+      query: { ...DEFAULT_FEEDBACK_QUERY, pageNumber: 9 },
+      list: { kind: "loaded", data: { ...LIST, items: [], page: 9, totalPages: 1, totalCount: 2 } },
+    });
+
+    expect(listRegion()).toHaveTextContent("Sidan finns inte.");
+    expect(within(listRegion()).getByRole("link", { name: "Till första sidan" })).toHaveAttribute("href", BASE);
+    // Where focus lands once the line it stood in is gone (admin-feedback-focus.tsx).
+    expect(listRegion()).toHaveAttribute("data-feedback-focus", "list");
+    expect(listRegion()).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("shows a failed list as one alert, with no count in the filter, and keeps the summary", () => {
+    renderView({ list: { kind: "failed" } });
+
+    expect(within(listRegion()).getByRole("alert")).toHaveTextContent(
+      "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
+    );
+    expect(statusNav().textContent ?? "").not.toMatch(/\d/);
+    expect(screen.getByRole("table", { name: "Betyg per sida de senaste 30 dygnen" })).toBeInTheDocument();
+  });
+
+  it("shows the page filter in force, and the link that lifts it", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, page: "cv-review", status: "new", pageNumber: 2 } });
+
+    const scope = present(screen.getByText("Sida: CV-granskning").parentElement);
+    expect(within(scope).getByRole("link", { name: "Visa inskick från alla sidor" })).toHaveAttribute(
+      "href",
+      `${BASE}?status=ny`,
+    );
+    // The line a page name in the summary sends focus to.
+    expect(scope).toHaveAttribute("data-feedback-focus", "scope");
+    expect(scope).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("names each row for the focus that returns to it", () => {
+    renderView();
+
+    expect(within(listRegion()).getAllByRole("link").map((link) => link.getAttribute("data-feedback-item"))).toEqual([
+      FIRST,
+      SECOND,
+    ]);
+  });
+});
+
+describe("AdminFeedbackView — whether feedback is open (#1979)", () => {
+  it.each([
+    ["disabled", "Feedback är avstängd."],
+    ["noRecipient", "Feedback är stängd: ingen mottagare för aviseringar är inställd."],
+    ["cannotDeliver", "Feedback är stängd: e-posttjänsten skickar inte."],
+  ] as const)("says why it is closed (%s)", (data, line) => {
+    renderView({ availability: { kind: "loaded", data } });
+
+    expect(screen.getByText(line)).toBeInTheDocument();
+  });
+
+  it("says nothing while it is open, and reads a failed read as unknown, never as open", () => {
+    const { unmount } = renderView();
+    expect(screen.queryByText(/Feedback är/)).toBeNull();
+    unmount();
+
+    renderView({ availability: { kind: "failed" } });
+    expect(screen.getByText("Det går inte att se om feedback är öppen.")).toHaveAttribute("data-state", "unknown");
+  });
+});
+
+describe("AdminFeedbackView — the summary (#1979)", () => {
+  const table = () => screen.getByRole("table", { name: "Betyg per sida de senaste 30 dygnen" });
+
+  it("counts the ratings per page with the mean to one decimal, and a page with no rating as an en-dash", () => {
+    renderView();
+
+    expect(within(table()).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      "Sida",
+      "Antal betyg",
+      "1Betyg 1",
+      "2Betyg 2",
+      "3Betyg 3",
+      "4Betyg 4",
+      "5Betyg 5",
+      "Medel",
+      "Inskick",
+    ]);
+    const rows = within(table()).getAllByRole("row").slice(1);
+    expect(within(nth(rows, 0)).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "Jobb",
+      "3",
+      "0",
+      "1",
+      "0",
+      "1",
+      "1",
+      "3,7",
+      "4",
+    ]);
+    expect(nth(within(nth(rows, 1)).getAllByRole("cell"), 7)).toHaveTextContent("–Uppgift saknas");
+    expect(table()).not.toHaveTextContent("%");
+  });
+
+  it("filters the list to a page from its name, closing the open submission, and marks the page in force", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, page: "jobs", pageNumber: 2, id: FIRST } });
+
+    expect(within(table()).getByRole("link", { name: "Jobb" })).toHaveAttribute("href", `${BASE}?sida=jobs`);
+    expect(within(table()).getByRole("link", { name: "Jobb" })).toHaveAttribute("aria-current", "true");
+    expect(within(table()).getByRole("link", { name: "CV-granskning" })).toHaveAttribute("href", `${BASE}?sida=cv-review`);
+  });
+
+  it("chooses its window with one link per window, the chosen one marked", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, window: 7, id: FIRST } });
+
+    const windows = screen.getByRole("navigation", { name: "Period" });
+    expect(within(windows).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["7 dygn", `${BASE}?fonster=7&id=${FIRST}`],
+      ["30 dygn", `${BASE}?id=${FIRST}`],
+      ["90 dygn", `${BASE}?fonster=90&id=${FIRST}`],
+    ]);
+    expect(within(windows).getByRole("link", { name: "7 dygn" })).toHaveAttribute("aria-current", "true");
+  });
+
+  it.each([
+    ["empty", "Inga inskick under perioden."],
     ["failed", "Uppgifterna kunde inte hämtas. Försök igen om en stund."],
     ["loading", "Hämtar uppgifter…"],
-  ] as const)("in the %s state shows one line and no report", (kind, line) => {
-    render(<AdminFeedbackView region={{ kind }} onReply={noReply} onStatus={noStatus} />);
+  ] as const)("shows one line for the %s state and no table", (kind, line) => {
+    renderView({ summary: { kind } });
 
-    expect(list()).toHaveTextContent(line);
-    expect(screen.queryByRole("region", { name: "Vald rapport" })).toBeNull();
+    const summary = screen.getByRole("region", { name: "Betyg per sida" });
+    expect(summary).toHaveTextContent(line);
+    expect(within(summary).queryByRole("table")).toBeNull();
   });
+});
+
+describe("AdminFeedbackView — the open submission (#1979)", () => {
+  const detail = () => screen.getByRole("region", { name: "Valt inskick" });
+
+  it("opens nothing while the URL names nothing", () => {
+    const { container } = renderView();
+    expect(screen.queryByRole("region", { name: "Valt inskick" })).toBeNull();
+    expect(container.querySelector(".jp-adminfeedback")).not.toHaveClass("jp-adminfeedback--open");
+  });
+
+  it("is a step of its own below 1100 px: the filters and the list come first in the DOM, and it leads back", () => {
+    const query: AdminFeedbackQuery = { ...DEFAULT_FEEDBACK_QUERY, status: "new", pageNumber: 2, id: FIRST.toUpperCase() };
+    const { container } = renderView({
+      query,
+      list: { kind: "loaded", data: { ...LIST, page: 2, totalPages: 2 } },
+      detail: { kind: "loaded", data: ITEM },
+    });
+
+    // admin.css hides the filters and the list under this modifier below 1100 px.
+    expect(container.querySelector(".jp-adminfeedback")).toHaveClass("jp-adminfeedback--open");
+    const follows = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(statusNav(), listRegion())).toBe(true);
+    expect(follows(listRegion(), detail())).toBe(true);
+
+    const back = within(detail()).getByRole("link", { name: "Alla inskick" });
+    expect(back).toHaveAttribute("href", `${BASE}?status=ny&sidnr=2`);
+    expect(back).toHaveClass("jp-adminfeedback__back");
+    expect(detail().firstElementChild).toBe(back);
+  });
+
+  it("shows the whole text, the reporter, the page, the rating and the time; a status never changed has no line", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind: "loaded", data: ITEM } });
+
+    expect(within(detail()).getByText("När jag sparar en ansökan visas den gamla statusen.")).toBeInTheDocument();
+    const facts = (term: string) => within(detail()).getByText(term, { selector: "dt" }).nextElementSibling;
+    expect(facts("Avsändare")).toHaveTextContent("konto.b@example.test");
+    expect(facts("Sida")).toHaveTextContent("Ansökningar");
+    expect(facts("Betyg")).toHaveTextContent("2 av 5");
+    expect(facts("Skickat")).toHaveTextContent("2026-10-04 07:12");
+    expect(within(detail()).queryByText("Status ändrad")).toBeNull();
+  });
+
+  it("says what the browser reported, sizes as width × height", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind: "loaded", data: ITEM } });
+
+    const reported = present(within(detail()).getByText("Fönster").closest("dl"));
+    const rows = within(reported).getAllByRole("definition").map((dd) => dd.textContent);
+    expect(rows).toEqual(["390 × 664", "390 × 844", "2,5", "Mörkt", "Mobil", "iOS", "Safari", "4f2a91c"]);
+  });
+
+  it("shows what is unknown as an en-dash, never as 0, and what is absent in words", () => {
+    const unknown: AdminFeedbackItem = {
+      ...ITEM,
+      rating: null,
+      comment: null,
+      reporterEmail: null,
+      statusChangedAt: "2026-10-05T08:00:00Z",
+      client: {
+        viewportWidth: 390,
+        viewportHeight: null,
+        screenWidth: null,
+        screenHeight: null,
+        pixelRatio: null,
+        theme: null,
+        deviceClass: null,
+        os: null,
+        browser: null,
+      },
+      appVersion: null,
+      notice: null,
+    };
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind: "loaded", data: unknown } });
+
+    expect(within(detail()).getByText("Ingen text.")).toBeInTheDocument();
+    const fact = (term: string) => within(detail()).getByText(term, { selector: "dt" }).nextElementSibling;
+    expect(fact("Avsändare")).toHaveTextContent("–Uppgift saknas");
+    expect(fact("Betyg")).toHaveTextContent("Inget betyg");
+    expect(fact("Status ändrad")).toHaveTextContent("2026-10-05 10:00");
+    expect(fact("Läge")).toHaveTextContent("–Uppgift saknas");
+    expect(within(detail()).queryByText("Försök")).toBeNull();
+    const reported = present(within(detail()).getByText("Fönster").closest("dl"));
+    for (const value of within(reported).getAllByRole("definition")) {
+      expect(value).toHaveTextContent("–Uppgift saknas");
+    }
+    expect(detail().textContent ?? "").not.toMatch(/\b0\b/);
+  });
+
+  it.each([
+    ["empty", "Inskicket finns inte."],
+    ["failed", "Uppgifterna kunde inte hämtas. Försök igen om en stund."],
+  ] as const)("shows one line in the %s state, while the list stays", (kind, line) => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind } });
+
+    expect(detail()).toHaveTextContent(line);
+    expect(within(detail()).getByRole("link", { name: "Alla inskick" })).toHaveAttribute("href", BASE);
+    expect(within(listRegion()).getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("keeps replies an unbuilt action: disabled, described by its Kommer snart line, never a primary", () => {
+    renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind: "loaded", data: ITEM } });
+
+    const reply = within(detail()).getByRole("textbox", { name: "Svar" });
+    expect(reply).toBeDisabled();
+    expect(reply).toHaveAccessibleDescription("Kommer snart");
+    const send = within(detail()).getByRole("button", { name: "Skicka svar" });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAccessibleDescription("Kommer snart");
+    expect(send).not.toHaveClass("jp-btn--primary");
+  });
+});
+
+describe("AdminFeedbackView — every region in the preview's states (ADR 0150 D2)", () => {
+  it.each(["loading", "failed", "unavailable"] as const)(
+    "renders %s in every region at once, with no submission and no count",
+    (kind) => {
+      const region = { kind } as const;
+      renderView({
+        query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST },
+        availability: region,
+        list: region,
+        detail: region,
+        summary: region,
+        onStatus: vi.fn(),
+        onRequeue: vi.fn(),
+      });
+
+      expect(within(listRegion()).queryAllByRole("link")).toEqual([]);
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(document.body.textContent ?? "").not.toMatch(/\(\d+\)/);
+    },
+  );
 });

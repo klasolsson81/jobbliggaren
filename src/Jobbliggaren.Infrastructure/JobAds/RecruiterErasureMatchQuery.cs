@@ -786,6 +786,22 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
             """, cancellationToken);
     }
 
+    public async Task<int> CountFeedbackCommentsAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var patterns = WrittenFormPatterns(identifier);
+
+        // Feedback is deleted hard (90-day retention, account deletion), so the physical table is
+        // every row we hold.
+        return await CountAsync($"""
+            SELECT count(*)::int AS "Value"
+            FROM feedback_submissions
+            WHERE lower(coalesce(comment, '')) LIKE ANY({patterns})
+            """, cancellationToken);
+    }
+
     /// <summary>
     /// The <see cref="Domain.JobAds.AdContactOrigin"/> names as they sit in a serialised
     /// <c>AdContacts</c> document, lower-cased for comparison against a lower-cased jsonb value.

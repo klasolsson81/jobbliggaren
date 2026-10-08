@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.TestSupport;
@@ -80,6 +81,17 @@ public class ConsoleEmailSenderReservedRecipientTests
                 to,
                 new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 10, 9, 12, 30, 0, TimeSpan.Zero),
+                CancellationToken.None),
+            CarriesProbe: false),
+
+        new(nameof(IEmailSender.SendFeedbackReceivedNotificationAsync), "feedback-received-notification",
+            (s, to) => s.SendFeedbackReceivedNotificationAsync(
+                to,
+                new FeedbackReceivedNotificationEmail(
+                    FeedbackPage.JobAd,
+                    Rating: 4,
+                    new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+                    Guid.Parse("7d1c2a3b-0000-4000-8000-000000001979")),
                 CancellationToken.None),
             CarriesProbe: false),
 

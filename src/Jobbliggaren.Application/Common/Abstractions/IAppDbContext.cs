@@ -1,5 +1,6 @@
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -44,6 +45,10 @@ public interface IAppDbContext
     // firewall: no handler may join the register against personnummer-lookup output — pinned by
     // ScbCompanyRegisterLayerTests.IAppDbContext_exposes_only_Domain_types).
     DbSet<CompanyWatchCriterion> CompanyWatchCriteria { get; }
+    // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
+    DbSet<FeedbackSubmission> FeedbackSubmissions { get; }
+    DbSet<FeedbackNotification> FeedbackNotifications { get; }
+    DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

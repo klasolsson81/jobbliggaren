@@ -63,6 +63,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>ADR 0146 — holds one user's job_seekers write until a second request has committed.</summary>
     internal JobSeekerSaveRace JobSeekerSaveRace => _jobSeekerSaveRace;
 
+    // #1979 — disarmed unless a race test arms it; registered on the host's own AppDbContext.
+    private readonly FeedbackSaveRace _feedbackSaveRace = new();
+
+    /// <summary>#1979 — holds one owner's feedback save until a second request has committed.</summary>
+    internal FeedbackSaveRace FeedbackSaveRace => _feedbackSaveRace;
+
     // #1975 — disarmed unless a test arms them for one account: the address change's teardown and its audit row.
     private readonly SessionTeardownFaults _sessionTeardownFaults = new();
     private readonly AuditRowSaveFailure _auditRowSaveFailure = new();
@@ -216,6 +222,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(
                         _jobSeekerSaveRace,
+                        _feedbackSaveRace,
                         _auditRowSaveFailure,
                         _commitAcknowledgementLoss,
                         _emailChangeActivationFaults.AuditSaveFailure,
@@ -470,6 +477,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // test calls them more often than the burst allows.
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", "60");
+        // #1979 — feedback: the two buckets raised for the shared collection, and the feature opened with
+        // a reserved-domain recipient, so the gate reads Open while RecordingEmailSender can deliver.
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__WindowSeconds", "60");
+        Environment.SetEnvironmentVariable("Feedback__Enabled", "true");
+        Environment.SetEnvironmentVariable("Feedback__NotificationRecipient", "feedback-operator@example.test");
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod
@@ -537,6 +552,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__FeedbackPromptState__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("Feedback__Enabled", null);
+        Environment.SetEnvironmentVariable("Feedback__NotificationRecipient", null);
 
         await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();

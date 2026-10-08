@@ -43,6 +43,8 @@ public static partial class RateLimitingExtensions
     public const string ResumeRenderPolicy = "resume-render";
     public const string AdminWritePolicy = "admin-write";
     public const string AdminReadPolicy = "admin-read";
+    public const string FeedbackSubmitPolicy = "feedback-submit";
+    public const string FeedbackPromptStatePolicy = "feedback-prompt-state";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -635,6 +637,45 @@ public static partial class RateLimitingExtensions
                         PermitLimit = rateLimitOpts.ResumeImport.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.ResumeImport.WindowSeconds),
                         QueueLimit = 0,
+                    });
+            });
+
+            // #1979 — feedback submissions, per UserId. Its own bucket: a submission is a write that
+            // queues a mail to the operator, so a flood is capped here rather than in his inbox.
+            options.AddPolicy(FeedbackSubmitPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-feedback-submit");
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.FeedbackSubmit.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.FeedbackSubmit.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // #1979 — the prompt state a product page reads on render, per UserId. A token bucket like
+            // MeListRead, apart from it so page renders and list reads never starve each other.
+            options.AddPolicy(FeedbackPromptStatePolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-feedback-prompt-state");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.FeedbackPromptState.PermitLimit,
+                        TokensPerPeriod = Math.Max(1,
+                            rateLimitOpts.FeedbackPromptState.PermitLimit / rateLimitOpts.FeedbackPromptState.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.FeedbackPromptState.WindowSeconds
+                            / (double)rateLimitOpts.FeedbackPromptState.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 

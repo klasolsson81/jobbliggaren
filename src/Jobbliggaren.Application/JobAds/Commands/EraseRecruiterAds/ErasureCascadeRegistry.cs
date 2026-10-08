@@ -150,6 +150,7 @@ public static class ErasureCascadeRegistry
         "CompanyWatchFollows",
         "JobSeekerProfiles",
         "ResumeMetadata",
+        "FeedbackComments",
         "ApplicationsReferencingMatchedAds",
     };
 
@@ -284,6 +285,12 @@ public static class ErasureCascadeRegistry
                 "resumes.top_skills",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.CountResumeMetadataAsync)),
+
+        new("FeedbackComments",
+            [
+                "feedback_submissions.comment",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountFeedbackCommentsAsync)),
 
         new("ApplicationsReferencingMatchedAds",
             [],
@@ -639,6 +646,16 @@ public static class ErasureCascadeRegistry
             ["occupation_division_profiles.occupation_group_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["occupation_division_profiles.division_code"] = ErasureColumnDisposition.NotRecruiterData,
             ["occupation_division_profile_runs.profile_key"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── feedback_submissions (#1979): plaintext user text, SEARCHED; the rest closed ──
+            ["feedback_submissions.comment"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["feedback_submissions.page_key"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.status"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.app_version"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.reported_theme"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.reported_device_class"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.reported_os_family"] = ErasureColumnDisposition.NotRecruiterData,
+            ["feedback_submissions.reported_browser_family"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
@@ -772,6 +789,25 @@ public static class ErasureCascadeRegistry
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
                 + "No key is named in the SQL, so a member added to the container is searched the "
                 + "day it lands.",
+
+            ["feedback_submissions:MatchedHumanErases"] =
+                "USER-AUTHORED FREE TEXT: comment holds up to 2000 characters a user wrote about a "
+                + "page, with no content validation beyond trimming and the length cap. It is "
+                + "PLAINTEXT by Klas's decision of 2026-10-07 (feedback is not secret data), which is "
+                + "exactly what makes it searchable - and a user describing an ad can name its "
+                + "recruiter. Her right reaches it (Art. 6(1)(f), which Art. 21(1) reaches). We SEARCH "
+                + "it and REPORT it; a HUMAN erases it by deleting the submission, which is the "
+                + "operator's own correspondence and nothing else depends on. The 90-day retention "
+                + "removes it regardless.",
+
+            ["feedback_submissions:NotRecruiterData"] =
+                "CLOSED DOMAINS, each set by the write path, never free text. page_key is the name of "
+                + "a FeedbackPage, validated by FeedbackPage.TryFromKey before the aggregate exists. "
+                + "status is a FeedbackStatus enum persisted BY NAME, changed only by "
+                + "FeedbackSubmission.ChangeStatus. app_version must match ^[0-9a-f]{7,40}$ - a commit "
+                + "hash, which no name can be typed into. reported_theme, reported_device_class, "
+                + "reported_os_family and reported_browser_family are enums persisted BY NAME; the "
+                + "request carries their names and anything outside the enum is dropped, never stored.",
 
             ["job_seekers:NotRecruiterData"] =
                 "Closed domain: terms_version and privacy_policy_version are the version tokens of the "

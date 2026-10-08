@@ -154,4 +154,15 @@ public interface IEmailSender
         string toEmail,
         LoginChallengeEmail content,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #1979 — tells the operator that a feedback submission was saved. The recipient is server
+    /// configuration, and <paramref name="content"/> never carries what the user wrote. Duplicates are
+    /// prevented by the feedback notification's own state machine, which never resends an outcome it
+    /// cannot prove was refused (<see cref="Exceptions.EmailDeliveryException.Disposition"/>).
+    /// </summary>
+    Task SendFeedbackReceivedNotificationAsync(
+        string toEmail,
+        FeedbackReceivedNotificationEmail content,
+        CancellationToken cancellationToken);
 }

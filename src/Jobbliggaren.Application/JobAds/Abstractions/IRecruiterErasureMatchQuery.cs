@@ -208,6 +208,18 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// How many feedback submissions carry <paramref name="identifier"/> in their user-written
+    /// <c>comment</c> (#1979). <b>Counted and REPORTED; a human erases it</b> by deleting the
+    /// submission — the operator's own correspondence, which nothing else depends on.
+    /// </summary>
+    /// <remarks>
+    /// The comment is plaintext by Klas's decision (2026-10-07), so unlike an encrypted note it can
+    /// be searched, and a user writing about an ad can name its recruiter.
+    /// </remarks>
+    Task<int> CountFeedbackCommentsAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// How many company-watch FOLLOWS carry <paramref name="identifier"/> — in the follow key
     /// <c>company_watches.organization_number</c> or in the per-watch <c>filter</c> jsonb.
     /// <b>Counted and REPORTED; a human erases it</b>, and here NEITHER remedy is free: clearing

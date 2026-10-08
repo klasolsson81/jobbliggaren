@@ -13,6 +13,7 @@ using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
@@ -916,6 +917,60 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         label.ShouldBe($"Bevakning {RecruiterName}",
             "the criterion — and its label — survive. Report-only: a human nulls it.");
+    }
+
+    /// <summary>
+    /// <b><c>feedback_submissions.comment</c> (#1979) — plaintext by Klas's decision, so it is
+    /// searched.</b> A user who writes <i>"Annonsen från Magnus Fagerberg saknar lön"</i> holds the
+    /// recruiter's name in feedback to the operator. Matched and reported; a human deletes the
+    /// submission.
+    /// </summary>
+    [Fact]
+    public async Task A_feedback_comment_naming_her_is_MATCHED_and_SURVIVES_the_erasure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var submissionId = await SeedFeedbackSubmissionAsync($"Annonsen från {RecruiterName} saknar lön.", ct);
+
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        probe.Matched.FeedbackComments.ShouldBe(1,
+            "feedback_submissions.comment is scanned. If this is 0 the column is classified, "
+            + "reported in the reply, and never looked at.");
+
+        var response = await EraseAsync(RecruiterName, ct);
+
+        response.Matched.FeedbackComments.ShouldBe(1);
+        response.Erased.FeedbackComments.ShouldBe(0);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await db.FeedbackSubmissions.AnyAsync(s => s.Id == submissionId, ct)).ShouldBeTrue(
+            "the submission survives the automated run. Report-only: a human deletes it.");
+    }
+
+    /// <summary>
+    /// Feedback whose comment names the recruiter, created through <see cref="FeedbackSubmission.Submit"/>
+    /// exactly as the submit command creates it. The owner id is unresolved, as in
+    /// <see cref="SeedCompanyWatchCriterionAsync"/>: the search reads the comment and nothing else.
+    /// </summary>
+    private async Task<FeedbackSubmissionId> SeedFeedbackSubmissionAsync(string comment, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var submission = FeedbackSubmission.Submit(
+            new JobSeekerId(Guid.NewGuid()), Guid.NewGuid(), FeedbackPage.JobAd, rating: null,
+            FeedbackComment.Create(comment).Value, ReportedClientContext.Empty, appVersion: null,
+            clock.UtcNow).Value;
+
+        db.FeedbackSubmissions.Add(submission);
+        await db.SaveChangesAsync(ct);
+
+        return submission.Id;
     }
 
     // ================================================================================
@@ -2955,6 +3010,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         public Task<int> CountResumeMetadataAsync(
             string identifier, CancellationToken cancellationToken) =>
             inner.CountResumeMetadataAsync(identifier, cancellationToken);
+
+        public Task<int> CountFeedbackCommentsAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountFeedbackCommentsAsync(identifier, cancellationToken);
 
         public Task<int> CountApplicationsReferencingAsync(
             IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken) =>

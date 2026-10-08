@@ -605,7 +605,8 @@
 .jp-adminbusy__off { visibility: hidden; }
 .jp-adminpanel__refusal,
 .jp-adminconfirm__refusal,
-.jp-admineditform__refusal {
+.jp-admineditform__refusal,
+.jp-adminfeedback__refusal {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-danger-700);
@@ -792,7 +793,9 @@
 }
 
 /* ── Feedback: master/detail ─────────────────────────────────────────────────────────── */
-.jp-adminfeedback {
+/* The list and the open submission side by side. Below 1100 px the open submission is a step of
+   its own, and the wrapper's `--open` hides the filters and the list (the responsive block). */
+.jp-adminfeedback__grid {
   display: grid;
   grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 24px;
@@ -811,6 +814,40 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* The line that says feedback is closed, on the warning edge; while its state cannot be read the
+   edge is neutral, as the overview's attention card is (ADR 0150 D1), so an unknown raises no alarm. */
+.jp-adminfeedback__availability {
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--jp-warning);
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-warning-bg);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body);
+}
+.jp-adminfeedback__availability[data-state="unknown"] {
+  border-left-color: var(--jp-border-strong);
+  background: var(--jp-surface-2);
+}
+/* The list and its pages. */
+.jp-adminfeedback__master {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* Betyg per sida: its heading, the window's links and the table. */
+.jp-adminfeedback__summary .jp-h2 { margin-bottom: 12px; }
+/* The page filter in force, and the link that lifts it. */
+.jp-adminfeedback__scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0 0 16px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 
 /* ── E-postleverans: summary ─────────────────────────────────────────────────────────── */
@@ -921,7 +958,7 @@
   .jp-adminevents__subject { flex: 1 1 100%; }
 }
 
-/* ── Feedback: the list and the open report ──────────────────────────────────────────────── */
+/* ── Feedback: the list and the open submission ──────────────────────────────────────────── */
 .jp-adminfeedback__list {
   display: flex;
   flex-direction: column;
@@ -930,20 +967,22 @@
   padding: 0;
   list-style: none;
 }
+/* Each submission is a link to its own URL (#1979); the row's edge and fill carry the click cue. */
 .jp-adminfeedback__item {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--jp-border);
   border-left: 3px solid transparent;
   border-radius: var(--jp-r-md);
   background: var(--jp-surface);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
+  text-decoration: none;
 }
+/* (0,2,1) and (0,3,1) beat the global link colour and its hover (globals.css, "G3 rotfix"), so the
+   row's words stay ink at rest and on hover. */
+.jp-adminfeedback__list a.jp-adminfeedback__item,
+.jp-adminfeedback__list a.jp-adminfeedback__item:hover { color: var(--jp-ink-1); }
 .jp-adminfeedback__item:hover { background: var(--jp-surface-3); }
 .jp-adminfeedback__item[aria-current="true"] {
   border-left-color: var(--jp-accent-700);
@@ -956,10 +995,15 @@
   align-items: center;
   gap: 8px 10px;
 }
-.jp-adminfeedback__category {
+.jp-adminfeedback__page {
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
+}
+.jp-adminfeedback__rating {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
 }
 .jp-adminfeedback__time {
   font-size: var(--text-body-sm);
@@ -967,22 +1011,27 @@
   font-variant-numeric: tabular-nums;
 }
 .jp-adminfeedback__itemhead .jp-adminfeedback__time { margin-left: auto; }
+/* The pill keeps to the status row's line when a refusal under the field makes the form taller. */
+.jp-adminfeedback__detailhead { align-items: baseline; }
 .jp-adminfeedback__excerpt {
   font-size: var(--text-ui);
   color: var(--jp-ink-1);
-}
-.jp-adminfeedback__sender {
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
   overflow-wrap: anywhere;
 }
+/* The notice's dot and words at the size of the metadata around them. */
+.jp-adminfeedback__notice .jp-statusDot { font-size: var(--text-body-sm); }
 .jp-adminfeedback__status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-left: auto;
   font-size: var(--text-body-sm);
+}
+.jp-adminfeedback__statusrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .jp-adminfeedback__status .jp-btn { white-space: nowrap; }
 .jp-adminfeedback__select {
@@ -994,15 +1043,19 @@
   color: var(--jp-ink-1);
   font: inherit;
 }
-.jp-adminfeedback__from {
-  margin: 0;
-  font-weight: var(--jp-fw-semibold);
-  overflow-wrap: anywhere;
-}
+/* The reporter's own words: their line breaks kept, a long word or link wrapped. */
 .jp-adminfeedback__text {
   margin: 0;
+  max-width: 68ch;
   font-size: var(--text-body-lg);
   line-height: 1.55;
+  color: var(--jp-ink-1);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.jp-adminfeedback__none {
+  margin: 0;
+  font-size: var(--text-body);
   color: var(--jp-ink-1);
 }
 .jp-adminfeedback__meta {
@@ -1016,25 +1069,37 @@
   font-weight: var(--jp-fw-bold);
   color: var(--jp-heading-2);
 }
-.jp-adminfeedback__replies {
+/* The notice and the browser's report: a heading, its facts, and the notice's one action. */
+.jp-adminfeedback__block {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: flex-start;
+  gap: 10px;
 }
-.jp-adminfeedback__replies li {
-  padding: 10px 14px;
-  border-left: 3px solid var(--jp-border-strong);
-  background: var(--jp-surface-2);
+.jp-adminfeedback__block > .jp-admindl { align-self: stretch; }
+.jp-adminfeedback__block .jp-statusDot { font-size: var(--text-body-sm); }
+/* The current page filter's row in the summary. */
+.jp-adminfeedback__pagelink[aria-current="true"] { font-weight: var(--jp-fw-semibold); }
+/* The summary's page names, the filter's lift, "Till första sidan" and "Alla inskick": text links at
+   the in-app floor (DESIGN.md §5), 44 px at 768 px and below (the responsive block). */
+.jp-adminfeedback__textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
 }
-.jp-adminfeedback__replies p { margin: 4px 0 0; }
-.jp-adminfeedback__hint {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
+/* Only where the open submission is a step of its own (the responsive block). */
+.jp-adminfeedback__back {
+  display: none;
+  align-self: flex-start;
 }
+/* A refusal of the status, under its field. `contain` keeps its words from widening the form, so
+   the form stays beside the pill and the words wrap to its width. */
+.jp-adminfeedback__status .jp-adminfeedback__refusal { contain: inline-size; }
+/* One label column for the open submission's facts, its notice and the browser's report; the
+   report's box pads its own, so its column is that much narrower and the values line up. */
+.jp-adminfeedback__detail .jp-admindl { grid-template-columns: 9rem minmax(0, 1fr); }
+.jp-adminfeedback__detail .jp-adminfeedback__meta { grid-template-columns: calc(9rem - 16px) minmax(0, 1fr); }
 
 /* ── Log and delivery cells ──────────────────────────────────────────────────────────────── */
 .jp-table .jp-admintable__num {
@@ -1092,7 +1157,13 @@
   .jp-admincard[data-span="5"],
   .jp-admincard[data-span="7"],
   .jp-admincard[data-span="8"] { grid-column: span 12; }
-  .jp-adminfeedback { grid-template-columns: minmax(0, 1fr); }
+  .jp-adminfeedback__grid { grid-template-columns: minmax(0, 1fr); }
+  /* An open submission is a step of its own (#1979): the status filter, the page filter and the list
+     step aside, and "Alla inskick" leads back. The DOM order stays the visual order. */
+  .jp-adminfeedback--open > .jp-subnav,
+  .jp-adminfeedback--open > .jp-adminfeedback__scope,
+  .jp-adminfeedback--open .jp-adminfeedback__master { display: none; }
+  .jp-adminfeedback__back { display: inline-flex; }
 }
 @media (max-width: 768px) {
   /* Touch floor (DESIGN.md §5): the card links, the sort controls and the account buttons reach 44 px. */
@@ -1104,7 +1175,8 @@
     align-items: center;
     min-height: 44px;
   }
-  .jp-adminfeedback__select { min-height: 44px; }
+  .jp-adminfeedback__select,
+  .jp-adminfeedback__textlink { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
   .jp-adminfeedback__detail { padding: 20px 16px; }

@@ -20,7 +20,8 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 [#1973](https://github.com/klasolsson81/jobbliggaren/issues/1973) (the issue this ADR ships under)
 **Measured against:** `origin/main` at `7c21f8117`, 2026-10-04.
 **Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions;
-2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary.
+2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary;
+2026-10-07 by ADR 0156 (#1979): five D8 rows for feedback's rating, statuses, list, page and filters, and a dated note on the screenshot and reply rows.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -206,14 +207,19 @@ The handoff is a design reference, not production code. What ships departs from 
 | An Åtgärder column of two icon buttons per row, "Agera som användaren" and "Redigera" | No column: an account's actions are in its panel, named in words | A row holds one control, the button that opens the panel |
 | Filter and period buttons with `aria-pressed` | The house `Segment`, a radio group | One choice among several; `components/ui/segment.tsx` is the house control for it |
 | The impersonation banner's "Allt du gör loggas dubbelt i granskningsloggen." | Cut | Impersonation is #1984 (D4); D2 |
-| A screenshot thumbnail in the feedback detail | None | No feedback store holds a screenshot (#1979, D4); D2 |
-| The reply line "Skickas från kontakt@… till {e-post}" | "Svaret skickas till {e-post}." | The sending address is #1979's to decide (D4) |
+| A screenshot thumbnail in the feedback detail | None | No feedback store holds a screenshot (#1979, D4); D2 *(2026-10-07, ADR 0156 D9: still none after the backend PR; the screenshot is stored and shown from PR2)* |
+| The reply line "Skickas från kontakt@… till {e-post}" | "Svaret skickas till {e-post}." | The sending address is #1979's to decide (D4) *(2026-10-07, ADR 0156 D8: #1979 builds no replies, so the line is gone and the area stays an unbuilt action until a later issue decides the sending address)* |
 | Live search, filters, period buttons and "Skicka svar" as a solid primary button | Natively disabled while their region is unbuilt, each pointing to its "Kommer snart" line, never with a solid primary fill | D2; DESIGN.md §6 |
 | Bakgrundsjobb and Granskning restyled: grey identifier and time cells, a red error category, smaller status pills | Both pages as delivered, apart from the new header and a labelled scroll region around each table | The prompt keeps both working; the house table paints its cells in ink-1 (`.jp-table tbody td`), and the pill is the delivered `JobStateBadge` |
 | Statuses Aktiv, Suspenderad, Ej verifierad and Under radering, one per account | Aktiv, Under radering and Ofullständig; "E-post ej bekräftad" as a line under the status | Measured: the address's confirmation can go with every state, and #1974 lists accounts without a profile (ADR 0151) |
 | Filters Alla, Aktiva, Suspenderade, Ej verifierade and Under radering | Alla, Aktiva, Under radering and Ofullständiga | No account can be suspended before #1976 (D4); an option that overlaps the others breaks the counts' sum (ADR 0047) |
 | Activity counts on every account | Active accounts only: "–" in the ledger, and no count rows in the panel | Measured: the counts are reliable only for an active account (ADR 0151); ADR 0120 |
 | Actions on every account | None on an incomplete account, and one line instead | It has no profile to act on; D2 |
+| A category on each feedback item (Fel, Förslag, Fråga) | A rating, "4 av 5" or "Inget betyg"; no category | A submission is a rating, a text or both for one of 19 pages and nothing asks for a category (ADR 0156 D1) |
+| Statuses Ny, Pågår, Löst and Avfärdad | Ny, Pågår, Åtgärdad and Avstår | ADR 0156 D8 |
+| The sender's address in every feedback list row | None in the list; the detail reads it on the server | The list carries no personal data (ADR 0156 D8); the account has no name (D3) |
+| The page as the app path the report was sent from | The page's name from a closed set of 19; no URL or query string is collected | ADR 0156 D2 |
+| Feedback's status filter and summary period as the house `Segment` | `.jp-subnav` links, one URL each | The page is driven by its URL, so the notice's link opens its item; a filter that is client state (Användare) keeps `Segment` |
 
 ## Alternatives considered
 

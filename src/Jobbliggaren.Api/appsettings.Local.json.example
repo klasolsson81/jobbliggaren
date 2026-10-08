@@ -84,5 +84,13 @@
       "SecretKey": "FILL IN: Scaleway API secret key (sent as the X-Auth-Token header)",
       "ProjectId": "FILL IN: Scaleway project id the mail is billed to"
     }
+  },
+
+  "Feedback": {
+    "//": "OPTIONAL (#1979). Feedback stays closed unless Enabled is true, NotificationRecipient is a usable",
+    "//1": "address and the mail transport delivers. No startup check: a missing value keeps the feature",
+    "//2": "closed and the admin page says why. Use a .test address locally so ConsoleEmailSender logs the notice.",
+    "Enabled": false,
+    "NotificationRecipient": "feedback-operator@example.test"
   }
 }

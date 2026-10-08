@@ -433,6 +433,162 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("followed_company_ad_hits", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTimeOffset?>("SendingStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sending_started_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset?>("StateChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("state_changed_at");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feedback_notifications");
+
+                    b.HasIndex("JobSeekerId")
+                        .HasDatabaseName("ix_feedback_notifications_job_seeker_id");
+
+                    b.HasIndex("SubmissionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_feedback_notifications_submission_id");
+
+                    b.HasIndex("State", "NextAttemptAt")
+                        .HasDatabaseName("ix_feedback_notifications_state_next_attempt_at");
+
+                    b.ToTable("feedback_notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackPromptSuppression", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<string>("Page")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("page_key");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feedback_prompt_suppressions");
+
+                    b.HasIndex("JobSeekerId", "Page")
+                        .IsUnique()
+                        .HasDatabaseName("ux_feedback_prompt_suppressions_job_seeker_page");
+
+                    b.ToTable("feedback_prompt_suppressions", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("app_version");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<string>("Page")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("page_key");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("StatusChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("status_changed_at");
+
+                    b.Property<Guid>("SubmissionKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_key");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feedback_submissions");
+
+                    b.HasIndex("SubmittedAt")
+                        .HasDatabaseName("ix_feedback_submissions_submitted_at");
+
+                    b.HasIndex("JobSeekerId", "SubmissionKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_feedback_submissions_job_seeker_submission_key");
+
+                    b.ToTable("feedback_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_feedback_submissions_rating", "rating BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAd", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1680,6 +1836,68 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_application_status_changes_applications_application_id");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackSubmission", b =>
+                {
+                    b.OwnsOne("Jobbliggaren.Domain.Feedback.ReportedClientContext", "Context", b1 =>
+                        {
+                            b1.Property<Guid>("FeedbackSubmissionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("BrowserFamily")
+                                .HasMaxLength(24)
+                                .HasColumnType("character varying(24)")
+                                .HasColumnName("reported_browser_family");
+
+                            b1.Property<string>("DeviceClass")
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("reported_device_class");
+
+                            b1.Property<string>("OsFamily")
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("reported_os_family");
+
+                            b1.Property<decimal?>("PixelRatio")
+                                .HasPrecision(4, 2)
+                                .HasColumnType("numeric(4,2)")
+                                .HasColumnName("pixel_ratio");
+
+                            b1.Property<int?>("ScreenHeight")
+                                .HasColumnType("integer")
+                                .HasColumnName("screen_height");
+
+                            b1.Property<int?>("ScreenWidth")
+                                .HasColumnType("integer")
+                                .HasColumnName("screen_width");
+
+                            b1.Property<string>("Theme")
+                                .HasMaxLength(16)
+                                .HasColumnType("character varying(16)")
+                                .HasColumnName("reported_theme");
+
+                            b1.Property<int?>("ViewportHeight")
+                                .HasColumnType("integer")
+                                .HasColumnName("viewport_height");
+
+                            b1.Property<int?>("ViewportWidth")
+                                .HasColumnType("integer")
+                                .HasColumnName("viewport_width");
+
+                            b1.HasKey("FeedbackSubmissionId");
+
+                            b1.ToTable("feedback_submissions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("FeedbackSubmissionId")
+                                .HasConstraintName("fk_feedback_submissions_feedback_submissions_id");
+                        });
+
+                    b.Navigation("Context")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAd", b =>

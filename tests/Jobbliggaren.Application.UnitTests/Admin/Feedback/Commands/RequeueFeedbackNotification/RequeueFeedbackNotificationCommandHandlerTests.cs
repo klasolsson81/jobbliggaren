@@ -16,15 +16,24 @@ namespace Jobbliggaren.Application.UnitTests.Admin.Feedback.Commands.RequeueFeed
 /// acknowledged. Failed and Unknown are reached through <c>FeedbackNotificationDispatchJob</c>'s own transforms (the
 /// claim, then the outcome it records), the order its unit tests pin.
 /// </summary>
-public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncDisposable
+public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset T0 = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Later = T0.AddDays(1);
 
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
-    private readonly JobSeekerId _owner = new(Guid.NewGuid());
+    private static readonly FakeDateTimeProvider RegistrationClock = new(T0);
+    private readonly JobSeeker _reporter = JobSeeker.Register(
+        Guid.NewGuid(), TermsAcceptance.AcceptCurrent(RegistrationClock), RegistrationClock).Value;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public async ValueTask InitializeAsync()
+    {
+        _db.JobSeekers.Add(_reporter);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -33,7 +42,7 @@ public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncDispo
     }
 
     private Task<FeedbackRows.Saved> SubmitAsync() =>
-        FeedbackRows.SubmitAsync(_db, _owner, FeedbackPage.Jobs, 3, null, T0, Ct);
+        FeedbackRows.SubmitAsync(_db, _reporter.Id, FeedbackPage.Jobs, 3, null, T0, Ct);
 
     private async Task MoveAsync(FeedbackRows.Saved saved, Action<FeedbackNotification> transform)
     {
@@ -168,5 +177,36 @@ public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncDispo
         result.IsFailure.ShouldBeTrue();
         result.Error.Kind.ShouldBe(ErrorKind.NotFound);
         result.Error.Code.ShouldBe("Feedback.NotFound");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_ShouldRefuseWithoutChangingTheNotice_WhenTheReporterIsPendingDeletion(bool unknownOutcome)
+    {
+        var saved = await SubmitAsync();
+        if (unknownOutcome)
+            await LoseTheOutcomeAsync(saved);
+        else
+            await FailAsync(saved);
+        var before = await NoticeAsync(saved);
+        var reporter = await _db.JobSeekers.SingleAsync(value => value.Id == _reporter.Id, Ct);
+        reporter.SoftDelete(new FakeDateTimeProvider(Later));
+        reporter.DeletedAt.ShouldBe(Later);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        var result = await RequeueAsync(saved.SubmissionId.Value, acknowledgeDuplicateRisk: true);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
+        result.Error.Code.ShouldBe("Feedback.ReporterUnavailable");
+        var after = await NoticeAsync(saved);
+        after.State.ShouldBe(before.State);
+        after.Attempts.ShouldBe(before.Attempts);
+        after.NextAttemptAt.ShouldBe(before.NextAttemptAt);
+        after.SendingStartedAt.ShouldBe(before.SendingStartedAt);
+        after.AcceptedAt.ShouldBe(before.AcceptedAt);
+        after.StateChangedAt.ShouldBe(before.StateChangedAt);
     }
 }

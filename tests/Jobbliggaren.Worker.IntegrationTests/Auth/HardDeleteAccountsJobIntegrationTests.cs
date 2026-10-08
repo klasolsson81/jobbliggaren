@@ -39,7 +39,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auth;
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]
-public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
+public partial class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
 {
     private readonly WorkerTestFixture _fixture = fixture;
 
@@ -1002,9 +1002,9 @@ $fn$ LANGUAGE plpgsql;";
     /// uses. A PII-bearing <c>source_file_name</c> ("CV_Test_Person.pdf") makes the
     /// orphan-leak the test guards against concrete.
     /// </summary>
-    private async Task SeedParsedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    private async Task SeedParsedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct, DateTimeOffset? createdAt = null)
     {
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(createdAt ?? DateTimeOffset.UtcNow);
 
         using var scope = _fixture.Services.CreateScope();
 
@@ -1053,9 +1053,9 @@ $fn$ LANGUAGE plpgsql;";
     /// <c>GetOrCreateDataKeyAsync</c>) before <c>SaveChangesAsync</c> — the same pattern
     /// <see cref="SeedParsedResumeForJobSeekerAsync"/> and <c>ResumeEncryptionTests</c> use.
     /// </summary>
-    private async Task SeedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    private async Task SeedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct, DateTimeOffset? createdAt = null)
     {
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(createdAt ?? DateTimeOffset.UtcNow);
 
         using var scope = _fixture.Services.CreateScope();
 
@@ -1118,7 +1118,7 @@ $fn$ LANGUAGE plpgsql;";
         return (user.Id, jobSeeker.Id);
     }
 
-    private async Task<Guid> SeedActiveAccountAsync(CancellationToken ct)
+    private async Task<Guid> SeedActiveAccountAsync(CancellationToken ct, DateTimeOffset? registeredAt = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -1130,7 +1130,7 @@ $fn$ LANGUAGE plpgsql;";
         await using var transaction = await coordinator.BeginAsync([user.Id], lifecycle: false, ct);
         (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(registeredAt ?? DateTimeOffset.UtcNow);
         var seekerResult = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock);
         seekerResult.IsSuccess.ShouldBeTrue();
         db.JobSeekers.Add(seekerResult.Value);

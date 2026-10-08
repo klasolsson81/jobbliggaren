@@ -436,6 +436,42 @@ scoped Lighthouse checks. Authenticated HTTP latency must be measured. Test and 
 final-head review evidence, concrete GO and release readback belong in the PR and session
 evidence; none is claimed by this ADR's Accepted status.
 
+## Amendment 2026-10-08 — Explicit administrator deletion (#1977)
+
+The approved #1977 plan reuses this lifecycle through an explicit-target
+`AccountDeletionScheduler`, called by separate owner and administrator handlers.
+The administrator retains its own identity, session and inbox proof; the target
+never becomes an impersonated actor or a data-key owner in that scope.
+
+Scheduling advances epoch, revision, cutoff and stamps even for a suspended
+target, without changing suspension. Profile/application/resume soft-delete,
+provider-link erasure and the separate actor/target audit commit together.
+The application cascade loads notes, follow-ups and status changes; each child
+receives the same deletion stamp while an unrelated account's timeline remains live.
+After known commit, selective session and pending-address cleanup remains best
+effort; primary-database access denial remains authoritative. Unknown commit is
+never replayed automatically. Admin self-deletion, last-effective-admin removal
+and already pending deletion refuse; the no-op changes no dates, revision or
+success audit. Existing self-service HTTP/refusal contracts remain intact.
+
+New scheduling stamps capture one clock instant at millisecond precision for the
+whole cascade and events, so returned and persisted receipt timestamps agree.
+Historical timestamps keep their stored precision. Eligibility is the actual
+stamp plus the 30-day product grace; the first daily 04:00 UTC run strictly after
+eligibility is a projected run, not proof of completed erasure. Restore remains
+unavailable. This amendment adds no migration or legal retention rule.
+
+The existing worker shares one physical App/Identity transaction for owned
+graph/DEK erasure and audit anonymization. A real Identity-delete failure retains
+the whole account, isolates subsequent accounts and permits a later ordinary
+retry. Feedback dispatch/requeue use live-profile checks. Top-direct matching,
+match digests and followed-company digests repeat the live-profile/consent check
+after the persisted claim and immediately before transport, retaining `Queued`
+without automatic replay when access is no longer admitted. No transaction spans
+mail transport; mail already handed off cannot be recalled.
+Implementation, final-head review and live acceptance evidence remain separate
+from this approved plan and amendment.
+
 ## References
 
 - AGENTS.md §§2.1, 5, 6, 7, 8, 12 · CLAUDE.md §§6.5, 9.2, 9.6 · BUILD.md §§4, 6.2, 11, 13

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddValidatorsFromAssemblyContaining<AssemblyMarker>();
+        services.AddScoped<AccountDeletionScheduler>();
 
         // ADR 0067 Fas D2 — residual-fritext-parser. Ren CPU, stateless,
         // trådsäker → singleton (paritet IIpAnonymizer). Bor i Application

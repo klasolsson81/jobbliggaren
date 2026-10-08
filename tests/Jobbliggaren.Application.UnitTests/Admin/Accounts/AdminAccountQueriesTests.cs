@@ -69,7 +69,7 @@ public sealed class AdminAccountQueriesTests
         var directory = Substitute.For<IAccountDirectory>();
         directory.FindAsync(pending.UserId, Arg.Any<CancellationToken>()).Returns(pending);
         await using var db = TestAppDbContextFactory.Create();
-        var handler = new GetAccountDetailsQueryHandler(directory, db);
+        var handler = new GetAccountDetailsQueryHandler(directory, db, FakeDateTimeProvider.Default);
 
         (await handler.Handle(new GetAccountDetailsQuery(Guid.NewGuid()), Ct)).ShouldBeNull();
 
@@ -131,7 +131,7 @@ public sealed class AdminAccountQueriesTests
         {
             SearchAccountsQuery search => await new SearchAccountsQueryHandler(directory, db).Handle(search, ct),
             CountAccountsByStatusQuery counts => await new CountAccountsByStatusQueryHandler(directory).Handle(counts, ct),
-            GetAccountDetailsQuery details => await new GetAccountDetailsQueryHandler(directory, db).Handle(details, ct),
+            GetAccountDetailsQuery details => await new GetAccountDetailsQueryHandler(directory, db, FakeDateTimeProvider.Default).Handle(details, ct),
             _ => throw new InvalidOperationException("Not an account query."),
         };
     }

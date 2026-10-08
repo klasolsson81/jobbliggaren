@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+
 namespace Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
 
 /// <summary>
@@ -16,5 +18,6 @@ public sealed record AccountListItemDto(
     int? ApplicationCount,
     bool IsSuspended = false)
 {
+    public AccountDeletionTiming? Deletion { get; init; }
     public override string ToString() => $"AccountListItemDto({Id}, {Status})";
 }

@@ -11,6 +11,7 @@ import {
   AppRouterContext,
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import AdminAccountsError from "./(admin)/admin/anvandare/error";
 import AdminError from "./(admin)/error";
 import AppError from "./(app)/error";
 import AuthError from "./(auth)/error";
@@ -60,6 +61,7 @@ function errorBoundaryFiles(dir: string, acc: string[] = []): string[] {
 // shrink the pin.
 const table: { path: string; Boundary: ComponentType<ErrorInfo> }[] = [
   { path: "(admin)/error.tsx", Boundary: AdminError },
+  { path: "(admin)/admin/anvandare/error.tsx", Boundary: AdminAccountsError },
   { path: "(app)/error.tsx", Boundary: AppError },
   { path: "(auth)/error.tsx", Boundary: AuthError },
   { path: "(guest)/gast/error.tsx", Boundary: GuestError },

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Jobbliggaren.Application.Admin.Accounts.Commands.ReinstateAccount;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Admin.Accounts.Commands.SuspendAccount;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
@@ -35,6 +36,10 @@ public sealed class ReauthGrantRulesTests
         {
             nameof(ReinstateAccountCommand), grant => new ReinstateAccountCommand(Guid.NewGuid(), grant),
             () => new ReinstateAccountCommandValidator()
+        },
+        {
+            nameof(ScheduleAccountDeletionCommand), grant => new ScheduleAccountDeletionCommand(Guid.NewGuid(), grant),
+            () => new ScheduleAccountDeletionCommandValidator()
         },
     };
 
@@ -86,7 +91,7 @@ public sealed class ReauthGrantRulesTests
             .Select(t => t.Name)
             .Order(StringComparer.Ordinal)
             .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand), nameof(ReinstateAccountCommand),
-                nameof(RequestAccountEmailChangeCommand), nameof(SuspendAccountCommand)]);
+                nameof(RequestAccountEmailChangeCommand), nameof(ScheduleAccountDeletionCommand), nameof(SuspendAccountCommand)]);
     }
 
     [Fact]

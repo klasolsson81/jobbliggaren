@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Mediator;
 
@@ -23,5 +24,7 @@ public sealed record AccountDetailsDto(
     int? SavedSearchCount,
     bool IsSuspended = false)
 {
+    public AccountDeletionTiming? Deletion { get; init; }
+    public AccountDeletionTiming? DeletionPreview { get; init; }
     public override string ToString() => $"AccountDetailsDto({Id}, {Status})";
 }

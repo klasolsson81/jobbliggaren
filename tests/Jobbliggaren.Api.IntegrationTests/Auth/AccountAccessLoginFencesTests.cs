@@ -351,4 +351,43 @@ public sealed class AccountAccessLoginFencesTests(ApiFactory factory) : IAsyncLi
             await ShouldHaveUsableSessionAsync(await LoginOutcomeAsync(await ProveAsync(fresh, method == "link"), "signedIn"));
         }
     }
+
+    [Theory]
+    [InlineData("code", false)]
+    [InlineData("link", false)]
+    [InlineData("google", false)]
+    [InlineData("github", false)]
+    [InlineData("linkedin", false)]
+    [InlineData("code", true)]
+    [InlineData("link", true)]
+    [InlineData("google", true)]
+    [InlineData("github", true)]
+    [InlineData("linkedin", true)]
+    public async Task ProvenLogin_ShouldIssueNoSessionOrProviderLink_WhenAdminDeletionWinsBeforeAdmissionOrIssuance(
+        string method, bool afterProofCommit)
+    {
+        var owner = await OwnerAsync();
+        var admin = await AccountEmailChangeKit.AdminAsync(factory, AdminAccountsKit.NewToken(), Ct);
+        OAuthFlow? oauth = null;
+        MailedChallenge? challenge = null;
+        if (method is "code" or "link") challenge = await ChallengeAsync(owner.Email);
+        else oauth = await StartAsync(method);
+        using var gate = afterProofCommit
+            ? factory.AccountAccessFlowGates.PauseBeforeSession(owner.Id)
+            : factory.AccountAccessFlowGates.PauseBeforeAdmission(owner.Id);
+        var login = challenge is not null
+            ? ProveAsync(challenge, method == "link")
+            : CallbackAsync(oauth.ShouldNotBeNull(), owner.Email);
+        await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        var grant = await ReauthTestHelpers.MintGrantAsync(factory, admin.Client, admin.SessionId, admin.Email, Ct);
+        (await admin.Client.PostAsJsonAsync($"/api/v1/admin/accounts/{owner.Id}/deletion", new { reauthGrant = grant }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        gate.Release();
+        var refused = await LoginOutcomeAsync(await login.WaitAsync(TimeSpan.FromSeconds(30), Ct), "accountUnavailable");
+        refused.TryGetProperty("sessionId", out _).ShouldBeFalse();
+        (await ProviderRowsAsync(owner.Id)).ShouldBe(0);
+        using var oldSessionClient = factory.CreateClient();
+        oldSessionClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", owner.Session);
+        (await oldSessionClient.GetAsync("/api/v1/me", Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
 }

@@ -16,6 +16,15 @@ const accountStatusSchema = z.enum(["Active", "PendingDeletion", "ProfileMissing
 const accountRoleSchema = z.enum(["User", "Admin"]);
 const count = z.number().int().nonnegative();
 
+const deletionTimingSchema = z.object({
+  deletedAt: instant,
+  eligibleAt: instant,
+  scheduledRunAt: instant,
+}).refine((value) => Date.parse(value.eligibleAt) > Date.parse(value.deletedAt)
+  && Date.parse(value.scheduledRunAt) > Date.parse(value.eligibleAt));
+
+export const accountDeletionReceiptSchema = deletionTimingSchema.safeExtend({ userId: z.guid() });
+
 export const accountAccessReceiptSchema = z.object({
   userId: z.guid(),
   isSuspended: z.boolean(),
@@ -32,12 +41,14 @@ const accountListItemSchema = z.object({
   isSuspended: z.boolean(),
   registeredAt: z.string().nullable(),
   deletionEarliest: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  deletion: deletionTimingSchema.nullable().default(null),
   applicationCount: count.nullable(),
 });
 
 export const accountDetailsSchema = accountListItemSchema.extend({
   resumeCount: count.nullable(),
   savedSearchCount: count.nullable(),
+  deletionPreview: deletionTimingSchema.nullable().default(null),
 });
 
 export const accountStatusCountsSchema = z.object({
@@ -92,11 +103,13 @@ export function toAccountRow(item: z.infer<typeof accountListItemSchema>): Admin
     registeredAt: item.registeredAt,
     applicationCount: item.applicationCount,
     deletionEarliest: item.deletionEarliest,
+    deletion: item.deletion,
   };
 }
 
 export function toAccountDetail(item: AccountDetailsDto): AdminAccountDetail {
-  return { ...toAccountRow(item), resumeCount: item.resumeCount, savedSearchCount: item.savedSearchCount };
+  return { ...toAccountRow(item), resumeCount: item.resumeCount, savedSearchCount: item.savedSearchCount,
+    deletionPreview: item.deletionPreview };
 }
 
 /** The filters the directory counts, keyed as the toolbar names them. */

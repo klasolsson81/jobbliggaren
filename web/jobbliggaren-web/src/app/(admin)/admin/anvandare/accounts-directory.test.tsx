@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountsListing } from "@/lib/admin/account-directory";
 import type { AdminAccessOperation, AdminAccessOutcome } from "@/lib/admin/account-access";
+import type { AdminDeletionOutcome } from "@/lib/admin/account-deletion";
 import type {
   AdminEmailChangeCancelOutcome,
   AdminEmailChangeRequestOutcome,
@@ -12,10 +13,11 @@ import type { AdminSelf } from "@/lib/admin/view-models";
 import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { toAccountsPage, type AccountDetailsDto, type AccountSearchResponse } from "@/lib/dto/admin-accounts";
 
-const { requestActionMock, cancelActionMock, accessActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
+const { requestActionMock, cancelActionMock, accessActionMock, deletionActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
   requestActionMock: vi.fn<(accountId: string, newEmail: string, proof: CodeProof) => Promise<AdminEmailChangeRequestOutcome>>(),
   cancelActionMock: vi.fn<(accountId: string) => Promise<AdminEmailChangeCancelOutcome>>(),
   accessActionMock: vi.fn<(accountId: string, operation: AdminAccessOperation, proof: CodeProof) => Promise<AdminAccessOutcome>>(),
+  deletionActionMock: vi.fn<(accountId: string, proof: CodeProof) => Promise<AdminDeletionOutcome>>(),
   requestReauthCodeMock: vi.fn<() => Promise<ReauthRequestResult>>(),
 }));
 
@@ -23,6 +25,7 @@ vi.mock("@/lib/actions/admin-accounts", () => ({
   requestAccountEmailChangeAction: requestActionMock,
   cancelAccountEmailChangeAction: cancelActionMock,
   changeAccountAccessAction: accessActionMock,
+  scheduleAccountDeletionAction: deletionActionMock,
 }));
 vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: requestReauthCodeMock }));
 
@@ -41,7 +44,7 @@ const A: Item = {
   emailConfirmed: true,
   isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
-  deletionEarliest: null,
+  deletionEarliest: null, deletion: null,
   applicationCount: 4,
 };
 
@@ -53,7 +56,7 @@ const B: Item = {
   emailConfirmed: true,
   isSuspended: false,
   registeredAt: null,
-  deletionEarliest: null,
+  deletionEarliest: null, deletion: null,
   applicationCount: null,
 };
 
@@ -80,7 +83,7 @@ function answer(items: ReadonlyArray<Item>, matched: ReadonlyArray<Item> = items
 
 const FIRST: AccountsListing = { kind: "loaded", page: toAccountsPage(answer([A, B, C])) };
 
-const DETAIL: AccountDetailsDto = { ...A, resumeCount: 2, savedSearchCount: 3 };
+const DETAIL: AccountDetailsDto = { ...A, resumeCount: 2, deletionPreview: null, savedSearchCount: 3 };
 
 const MANY: ReadonlyArray<Item> = Array.from({ length: 60 }, (_, index) => ({
   ...(index % 2 === 0 ? A : B),
@@ -162,6 +165,7 @@ beforeEach(() => {
   requestActionMock.mockReset();
   cancelActionMock.mockReset();
   accessActionMock.mockReset();
+  deletionActionMock.mockReset();
   requestReauthCodeMock.mockReset();
   requestReauthCodeMock.mockResolvedValue({ ok: true, challengeId: "step-up-challenge" });
 });
@@ -171,6 +175,114 @@ afterEach(() => {
   vi.restoreAllMocks();
   const toast = getAdminToastSnapshot();
   if (toast !== null) dismissAdminToast(toast.token);
+});
+
+describe("AccountsDirectory — scheduled deletion (#1977)", () => {
+  const timing = { deletedAt: "2026-10-08T12:00:00Z", eligibleAt: "2026-11-07T12:00:00Z", scheduledRunAt: "2026-11-08T04:00:00Z" };
+  const preview = { ...DETAIL, deletionPreview: timing };
+  const deleted: Item = { ...A, status: "PendingDeletion", deletionEarliest: "2026-11-07", deletion: timing, applicationCount: null };
+  const pending = { pending: { state: "Pending", completableFrom: "2026-10-08T12:00:00Z", expiresAt: "2026-10-09T12:00:00Z" } };
+
+  async function begin(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: A.email! }));
+    const panel = screen.getByRole("dialog", { name: A.email! });
+    await within(panel).findByText("CV:n");
+    await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
+    const dialog = await screen.findByRole("dialog", { name: `Radera ${A.email}?` });
+    return { panel, dialog };
+  }
+
+  async function prove(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
+    await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` }));
+    const code = await within(dialog).findByLabelText(`Kod till ${SELF.email}`);
+    await waitFor(() => expect(code).toHaveFocus());
+    await user.type(code, "123456");
+    return within(dialog).getByRole("button", { name: "Radera konto" });
+  }
+
+  it("shows target, server timeline, real effect and permanent address interruption before asking for an actor code", async () => {
+    serve({ [DETAIL_ROUTE]: () => json(preview), [EMAIL_CHANGE_ROUTE]: () => json(pending) });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const { dialog } = await begin(user);
+    expect(dialog).toHaveAccessibleDescription(/30 dagars respit/);
+    expect(dialog).toHaveAccessibleDescription(/04:00 UTC/);
+    expect(dialog).toHaveAccessibleDescription(/adressbyte avbryts permanent/);
+    expect(dialog).toHaveAccessibleDescription(/ingen garanti/);
+    expect(dialog).toHaveTextContent(SELF.email);
+    expect(requestReauthCodeMock).not.toHaveBeenCalled();
+    expect(deletionActionMock).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Radera konto" })).toHaveFocus());
+  });
+
+  it("waits for the actual receipt, then refreshes panel, list, counters and permanent address cancellation", async () => {
+    serve({
+      [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+      [EMAIL_CHANGE_ROUTE]: [() => json(pending), NOTHING_PENDING],
+      [LIST]: () => json(answer([deleted, B, C])),
+    });
+    let complete: (value: AdminDeletionOutcome) => void = () => {};
+    deletionActionMock.mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const { panel, dialog } = await begin(user);
+    await user.click(await prove(user, dialog));
+    expect(within(dialog).getByRole("button", { name: "Schemalägger…" })).toBeDisabled();
+    expect(getAdminToastSnapshot()).toBeNull();
+    await act(async () => complete({ ok: true, value: { userId: A.id, ...timing } }));
+    await within(panel).findByText("Under radering");
+    const status = within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("status");
+    expect(status).toHaveTextContent(`Radering av ${A.email} schemalagd`);
+    expect(within(panel).getByText(/Raderingen är ännu inte genomförd/)).toBeInTheDocument();
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(within(panel).queryByText("Adressbyte")).toBeNull();
+    expect(deletionActionMock).toHaveBeenCalledExactlyOnceWith(A.id, { challengeId: "step-up-challenge", code: "123456" });
+    await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(2);
+    expect(getAdminToastSnapshot()).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Aktiva (0)" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Konton" })).toHaveTextContent("Planerad körning");
+  });
+
+  it("focuses a known no-op refusal without any success receipt", async () => {
+    const refusal = "Kontot väntar redan på radering. Datumet har inte ändrats.";
+    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([deleted])) });
+    deletionActionMock.mockResolvedValue({ ok: false, kind: "operationRefused", channel: "status", error: refusal });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const { panel, dialog } = await begin(user);
+    await user.click(await prove(user, dialog));
+    const alert = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("alert");
+    expect(alert).toHaveTextContent(refusal);
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("keeps a lost outcome unknown until explicit status reread and never replays deletion", async () => {
+    const uncertainty = "Det går inte att bekräfta om raderingen schemalades.";
+    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([deleted])) });
+    deletionActionMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: uncertainty });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    const { panel, dialog } = await begin(user);
+    await user.click(await prove(user, dialog));
+    const status = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("status");
+    expect(status).toHaveTextContent(uncertainty);
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(1);
+    expect(callsTo(LIST)).toHaveLength(0);
+    expect(getAdminToastSnapshot()).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Läs in kontots status" }));
+    await within(panel).findByText("Under radering");
+    await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+    expect(deletionActionMock).toHaveBeenCalledTimes(1);
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
 });
 
 describe("AccountsDirectory (#1974, ADR 0151)", () => {
@@ -474,7 +586,7 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
   it("tells the administrator's own account by the session's id, and points it to Mina sidor", async () => {
     const own = { ...A, id: SELF.userId, email: SELF.email, role: "Admin" as const };
     serve({
-      [DETAIL_ROUTE]: () => json({ ...own, resumeCount: 2, savedSearchCount: 3 }),
+      [DETAIL_ROUTE]: () => json({ ...own, resumeCount: 2, deletionPreview: null, savedSearchCount: 3 }),
       [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
     });
     render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([own, B])) }} self={SELF} />);
@@ -724,7 +836,7 @@ describe("AccountsDirectory — an account's address change (#1975, ADR 0153)", 
     const D: Item = { ...A, id: "00000000-0000-4000-8000-000000000004", email: D_EMAIL };
     fetchMock.mockImplementation(async (path, init) => {
       const { id } = JSON.parse(String(init.body)) as { readonly id: string };
-      if (path === DETAIL_ROUTE) return json({ ...(id === D.id ? D : A), resumeCount: 2, savedSearchCount: 3 });
+      if (path === DETAIL_ROUTE) return json({ ...(id === D.id ? D : A), resumeCount: 2, deletionPreview: null, savedSearchCount: 3 });
       if (path === EMAIL_CHANGE_ROUTE) return json(PENDING_READ);
       throw new Error(`unexpected path ${path}`);
     });

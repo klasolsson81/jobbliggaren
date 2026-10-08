@@ -115,30 +115,11 @@ public static class MeEndpoints
         group.MapPost("/delete", async (
             DeleteAccountRequest body,
             IMediator mediator,
-            ISessionStore sessions,
-            ICurrentUser currentUser,
-            ILoggerFactory loggers,
             CancellationToken ct) =>
         {
             var result = await mediator.Send(new DeleteAccountCommand(body.ReauthGrant), ct);
             if (result.IsFailure)
                 return result.Error.ToProblemResult();
-
-            // Primary-profile liveness already denies authentication after the known commit.
-            if (currentUser.UserId.HasValue)
-            {
-                // Redis cleanup proceeds after a disconnect; its failure cannot undo the receipt.
-                try
-                {
-                    await sessions.MarkUserDeletedAsync(currentUser.UserId.Value, CancellationToken.None);
-                    await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    AccountEmailChangeLog.TeardownFailed(loggers.CreateLogger("AccountDeletion"),
-                        currentUser.UserId.Value, ex.GetType().Name);
-                }
-            }
 
             return Results.NoContent();
         }).RequireAuthorization()

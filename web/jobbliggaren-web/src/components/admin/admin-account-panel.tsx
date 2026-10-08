@@ -46,6 +46,7 @@ import { AdminUnknown } from "./admin-unknown";
 import { isInAdminToast } from "./admin-toast-host";
 import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import type { AdminAccessOperation, AdminAccessOutcome, AdminAccessReceipt } from "@/lib/admin/account-access";
+import type { AdminDeletionOutcome, AdminDeletionReceipt } from "@/lib/admin/account-deletion";
 
 /** The actions whose flows exist in the MVP (#1975–#1977); every other action is "Kommer snart" here. */
 export type AdminLiveAction = Extract<
@@ -96,6 +97,11 @@ export interface AdminAccountCommands {
     readonly run: (account: AdminAddressedAccount, operation: AdminAccessOperation, proof: CodeProof) => Promise<AdminAccessOutcome>;
     readonly returnPath: string;
   };
+  readonly deletion?: {
+    readonly requestCode: () => Promise<ReauthRequestResult>;
+    readonly run: (account: AdminAddressedAccount, proof: CodeProof) => Promise<AdminDeletionOutcome>;
+    readonly returnPath: string;
+  };
 }
 
 /**
@@ -114,6 +120,7 @@ type Confirming = "suspend" | "scheduleDeletion";
 interface Notice {
   readonly text: string;
   readonly role: "alert" | "status";
+  readonly reread?: boolean;
 }
 
 type FocusTarget = "title" | "notice";
@@ -286,6 +293,7 @@ function PanelContent({
   const live = commands?.live ?? NO_LIVE_ACTIONS;
   const emailChangeCommands = commands?.emailChange;
   const accessCommands = commands?.access;
+  const deletionCommands = commands?.deletion;
   // The administrator's own account, by its id: an address is no identity (security-auditor, #1975 C-1).
   const ownAccount = self !== undefined && sameId(head.id, self.userId);
   const administrator = head.role === "admin" || ownAccount;
@@ -394,6 +402,9 @@ function PanelContent({
       case "suspend":
       case "reinstate":
         return (accessCommands !== undefined && self !== undefined) || commands?.run !== undefined;
+      case "scheduleDeletion":
+        return (deletionCommands !== undefined && self !== undefined && account?.deletionPreview != null)
+          || commands?.run !== undefined;
       default:
         return commands?.run !== undefined;
     }
@@ -549,6 +560,58 @@ function PanelContent({
         </li>
       );
     }
+    if (action === "scheduleDeletion" && deletionCommands !== undefined && self !== undefined && target.deletionPreview != null) {
+      const preview = target.deletionPreview;
+      const description = t("deletion.confirm", {
+        days: (Date.parse(preview.eligibleAt) - Date.parse(preview.deletedAt)) / 86_400_000,
+        eligible: formatDateTime(format, preview.eligibleAt) ?? unknown,
+        run: formatDateTime(format, preview.scheduledRunAt) ?? unknown,
+      });
+      const handOff = (outcome: ReauthHandOff<AdminDeletionReceipt>) => {
+        if (outcome.kind === "verified") {
+          const text = t("deletion.receipt", {
+            email: target.email,
+            deleted: formatDateTime(format, outcome.value.deletedAt) ?? unknown,
+          });
+          setNotice({ text, role: "status" });
+        } else {
+          setNotice({ text: outcome.error ?? t("deletion.deliveryUnavailable"),
+            role: outcome.kind === "outcomeUnknown" ? "status" : "alert",
+            reread: outcome.kind === "outcomeUnknown" });
+        }
+        exitFocus.current = "notice";
+      };
+      return (
+        <li key={action}>
+          <ReAuthCodeDialog<AdminDeletionReceipt>
+            trigger={
+              <button type="button" className="jp-btn jp-btn--danger jp-adminpanel__action"
+                ref={(element) => { actionRefs.current[action] = element; }} onClick={() => setNotice(null)}>
+                <Icon size={18} aria-hidden="true" />{t("actions.scheduleDeletion")}
+              </button>
+            }
+            className="jp-adminstepup"
+            title={t("confirm.scheduleDeletion.title", { email: target.email })}
+            description={description}
+            currentEmail={self.email}
+            codeRecipientLabels={{
+              request: t("deletion.sendCode", { email: self.email }),
+              pending: t("deletion.sendingCode", { email: self.email }),
+              field: t("deletion.code", { email: self.email }),
+            }}
+            confirmLabel={t("confirm.scheduleDeletion.confirm")}
+            pendingLabel={t("busy.scheduleDeletion")}
+            cancelLabel={t("confirm.cancel")}
+            variant="destructive"
+            returnPath={deletionCommands.returnPath}
+            requestCode={deletionCommands.requestCode}
+            action={(proof) => deletionCommands.run(target, proof)}
+            onHandOff={handOff}
+            focusAfterHandOff={focusAfterExit}
+          />
+        </li>
+      );
+    }
     if ((action === "suspend" || action === "reinstate") && accessCommands !== undefined && self !== undefined) {
       const description = t(`confirm.${action}.body`)
         + (action === "suspend" && emailChange.kind === "pending" ? ` ${t("access.cancelsPending")}` : "")
@@ -671,7 +734,13 @@ function PanelContent({
           <>
             <dt>{t("panel.deletion")}</dt>
             <dd>
-              {detail.deletionEarliest === null ? (
+              {detail.deletion != null ? (
+                t.rich("deletion.pending", {
+                  eligible: formatDateTime(format, detail.deletion.eligibleAt) ?? unknown,
+                  run: formatDateTime(format, detail.deletion.scheduledRunAt) ?? unknown,
+                  nowrap: unbroken,
+                })
+              ) : detail.deletionEarliest === null ? (
                 <AdminUnknown />
               ) : (
                 t.rich("panel.deletionEarliest", { date: detail.deletionEarliest, nowrap: unbroken })
@@ -730,6 +799,13 @@ function PanelContent({
             {notice.text}
           </p>
         )}
+        {notice?.reread && onRetry !== undefined ? (
+          <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={() => {
+            setNotice(null);
+            pendingFocus.current = "title";
+            onRetry();
+          }}>{t("deletion.reread")}</button>
+        ) : null}
       </section>
     );
   }

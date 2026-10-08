@@ -154,6 +154,7 @@
     },
     "statusLine": {
       "deletionEarliest": "Permanently no earlier than <nowrap>{date}</nowrap>",
+      "deletionScheduled": "Planned run <nowrap>{date}</nowrap>",
       "emailUnconfirmed": "Email not confirmed"
     },
     "regions": {
@@ -244,6 +245,18 @@
       "deliveryUnavailable": "Email sending is not enabled right now, so no code can be sent. Access is unchanged.",
       "unknown": "We cannot confirm whether the action completed. Check the account's current status before deciding your next step."
     },
+    "deletion": {
+      "confirm": "Access is blocked immediately on all devices. The account and saved data await permanent deletion after a {days}-day grace period. If scheduled now, the grace period ends {eligible} and the first planned run is {run}, Swedish time. The job runs daily at 04:00 UTC; this is no guarantee that deletion will be complete then. A pending address change is permanently cancelled. Deletion cannot be undone here.",
+      "receipt": "Deletion of {email} scheduled {deleted}. Access is blocked.",
+      "sendCode": "Send code to {email}",
+      "sendingCode": "Sending code to {email}…",
+      "code": "Code to {email}",
+      "pending": "Grace period ends <nowrap>{eligible}</nowrap>. First planned run <nowrap>{run}</nowrap>, Swedish time. Deletion is not complete yet.",
+      "alreadyPending": "The account already awaits deletion. Its date has not changed.",
+      "unknown": "We cannot confirm whether deletion was scheduled.",
+      "reread": "Reload account status",
+      "deliveryUnavailable": "No confirmation code could be sent. Deletion has not been scheduled."
+    },
     "confirm": {
       "cancel": "Cancel",
       "suspend": {
@@ -266,7 +279,7 @@
       "close": "Close the message",
       "suspended": "The account {email} is suspended.",
       "reinstated": "The suspension of {email} is lifted.",
-      "deletionScheduled": "The account {email} will be permanently deleted no earlier than {date}.",
+      "deletionScheduled": "Deletion of {email} is scheduled. Planned run {date}.",
       "emailChangeRequested": "A code has been sent to {email}. The address changes when the account owner has used the code, no earlier than <nowrap>{from}</nowrap>.",
       "emailChangeCancelled": "The address change is cancelled. The code to the new address no longer works."
     },
@@ -280,7 +293,7 @@
     "busy": {
       "suspend": "Suspending…",
       "reinstate": "Reinstating…",
-      "scheduleDeletion": "Deleting…",
+      "scheduleDeletion": "Scheduling…",
       "cancelEmailChange": "Cancelling…",
       "retry": "Fetching…"
     }

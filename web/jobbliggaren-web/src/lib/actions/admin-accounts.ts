@@ -19,8 +19,65 @@ import { readProblemTitle } from "@/lib/http/problem";
 import { codeProofSchema } from "./me-schemas";
 import { ADMIN_ACCESS_ERRORS, type AdminAccessOperation, type AdminAccessOutcome } from "@/lib/admin/account-access";
 import { accountAccessReceiptSchema } from "@/lib/dto/admin-accounts";
+import { accountDeletionReceiptSchema } from "@/lib/dto/admin-accounts";
+import type { AdminDeletionOutcome } from "@/lib/admin/account-deletion";
 
 const REQUEST_CONTEXT = "POST /api/v1/admin/accounts/{id}/email-change";
+
+export async function scheduleAccountDeletionAction(accountId: string, proof: CodeProof): Promise<AdminDeletionOutcome> {
+  const t = await getTranslations("admin.users");
+  const ts = await getTranslations("settings");
+  const tp = await getTranslations("pages");
+  if (!isAccountId(accountId)) return { ok: false, kind: "inputRefused", error: t("errors.gone") };
+  const code = codeProofSchema.safeParse(proof);
+  if (!code.success) return { ok: false, kind: "wrongCode", error: tp("auth.passwordless.code.malformedCode") };
+  const session = await getServerSession();
+  if (!session) return { ok: false, kind: "notLoggedIn" };
+  if (!session.roles.includes(ROLES.Admin)) return { ok: false, kind: "status", error: t("errors.forbidden") };
+  const sessionId = await getSessionId();
+  if (!sessionId) return { ok: false, kind: "notLoggedIn" };
+  const verified = await verifyBoundCode("reauth", sessionId, code.data);
+  if (!verified.ok) return codeRefusalOutcome(verified, {
+    wrongCode: tp("auth.passwordless.code.wrongCode"),
+    lastAttempt: tp("auth.passwordless.code.lastAttempt"),
+    tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
+    unavailable: ts("account.reauth.verifyUnavailable"),
+  });
+  const spent = (message: string) => `${message} ${ts("account.reauth.codeSpent")}`;
+  const unknown: AdminDeletionOutcome = { ok: false, kind: "outcomeUnknown", error: spent(t("deletion.unknown")) };
+  const refused = (message: string): AdminDeletionOutcome => ({
+    ok: false, kind: "operationRefused", channel: "status", error: spent(message),
+  });
+  let res: Response;
+  try {
+    res = await authedFetch(sessionId, `/api/v1/admin/accounts/${encodeURIComponent(accountId)}/deletion`, {
+      method: "POST", body: JSON.stringify({ reauthGrant: verified.grant }),
+    });
+  } catch { return unknown; }
+  if (res.status === 202) {
+    try {
+      const value = await parseResponse(res, accountDeletionReceiptSchema, "POST /api/v1/admin/accounts/{id}/deletion");
+      return value.userId.toLowerCase() === accountId.toLowerCase() ? { ok: true, value } : unknown;
+    } catch { return unknown; }
+  }
+  const title = await readProblemTitle(res);
+  switch (res.status) {
+    case 401: return title === AUTH_ERROR_CODES.InvalidCredentials
+      ? refused(t("emailChange.notConfirmed")) : { ok: false, kind: "notLoggedIn" };
+    case 403: return refused(t("errors.forbidden"));
+    case 404: return title === ADMIN_ACCESS_ERRORS.accountNotFound ? refused(t("errors.gone")) : unknown;
+    case 410: return title === ADMIN_ACCESS_ERRORS.profileUnavailable ? refused(t("access.profileUnavailable")) : unknown;
+    case 409:
+      switch (title) {
+        case ADMIN_ACCESS_ERRORS.alreadyPendingDeletion: return refused(t("deletion.alreadyPending"));
+        case ADMIN_ACCESS_ERRORS.selfDeletion: return refused(t("refusal.ownAccount.scheduleDeletion"));
+        case ADMIN_ACCESS_ERRORS.lastAdministrator: return refused(t("access.lastAdministrator"));
+        default: return unknown;
+      }
+    case 429: return refused(t("errors.rateLimited", { seconds: parseRetryAfter(res.headers.get("Retry-After")) }));
+    default: return unknown;
+  }
+}
 
 export async function changeAccountAccessAction(
   accountId: string, operation: AdminAccessOperation, proof: CodeProof,

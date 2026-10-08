@@ -17,6 +17,13 @@ public sealed class RequeueFeedbackNotificationCommandHandler(IAppDbContext db, 
         if (notice is null)
             return Result.Failure(DomainError.NotFound("Feedback", command.Id));
 
+        var profiles = db.JobSeekers;
+        if (!await db.FeedbackSubmissions.AsNoTracking().AnyAsync(
+                submission => submission.Id == submissionId
+                    && profiles.Any(seeker => seeker.Id == submission.JobSeekerId), cancellationToken))
+            return Result.Failure(DomainError.Gone(
+                "Feedback.ReporterUnavailable", "Kontoägaren saknar en aktiv profil. Aviseringen skickas inte igen."));
+
         return notice.Requeue(command.AcknowledgeDuplicateRisk, clock.UtcNow);
     }
 }

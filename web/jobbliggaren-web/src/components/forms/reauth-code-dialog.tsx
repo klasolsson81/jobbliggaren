@@ -77,6 +77,8 @@ type ReAuthCodeDialogProps<T, C> = {
   /** What the operation does and what it costs. Plain text: nothing focusable before the first field. */
   description: string;
   currentEmail: string;
+  /** Identifies the code recipient on the controls instead of adding a second description. */
+  codeRecipientLabels?: { request: string; pending: string; field: string };
   confirmLabel: string;
   pendingLabel: string;
   cancelLabel: string;
@@ -112,6 +114,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   title,
   description,
   currentEmail,
+  codeRecipientLabels,
   confirmLabel,
   pendingLabel,
   cancelLabel,
@@ -380,10 +383,10 @@ export function ReAuthCodeDialog<T, C = undefined>({
           <DialogDescription asChild>
             <div className="flex flex-col gap-2 [overflow-wrap:anywhere]">
               <p>{description}</p>
-              {panel === null && step === "request" && (
+              {codeRecipientLabels === undefined && panel === null && step === "request" && (
                 <p>{t("account.reauth.request", { email: currentEmail })}</p>
               )}
-              {panel === null && step === "code" && (
+              {codeRecipientLabels === undefined && panel === null && step === "code" && (
                 <p id={sentLineId}>{t("account.reauth.sent", { email: currentEmail })}</p>
               )}
             </div>
@@ -450,11 +453,12 @@ export function ReAuthCodeDialog<T, C = undefined>({
               >
                 {cancelLabel}
               </Button>
-              <Button type="submit" disabled={isPending} className="max-md:h-11">
+              <Button type="submit" disabled={isPending}
+                className={cn("max-md:h-11", codeRecipientLabels !== undefined && "h-auto min-h-10 whitespace-normal [overflow-wrap:anywhere]")}>
                 <PendingLabel
                   pending={isPending}
-                  idle={t("account.reauth.send")}
-                  busy={t("account.reauth.sending")}
+                  idle={codeRecipientLabels?.request ?? t("account.reauth.send")}
+                  busy={codeRecipientLabels?.pending ?? t("account.reauth.sending")}
                 />
               </Button>
             </DialogFooter>
@@ -465,11 +469,11 @@ export function ReAuthCodeDialog<T, C = undefined>({
               <CodeField
                 id={codeId}
                 hintId={hintId}
-                label={tp("auth.passwordless.code.codeLabel")}
+                label={codeRecipientLabels?.field ?? tp("auth.passwordless.code.codeLabel")}
                 hint={codeHint}
                 invalid={message?.channel === "field"}
                 errorId={messageId}
-                leadingDescriptionId={sentLineId}
+                leadingDescriptionId={codeRecipientLabels === undefined ? sentLineId : undefined}
                 inputRef={codeRef}
                 value={code}
                 onValueChange={setCode}

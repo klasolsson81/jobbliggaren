@@ -10,14 +10,20 @@ internal sealed class CommitAcknowledgementLoss : DbTransactionInterceptor
 {
     private readonly Lock _gate = new();
     private Guid? _target;
+    private string _eventType = "User.EmailChanged";
     private int _fired;
     internal int Fired => Volatile.Read(ref _fired);
 
-    internal IDisposable AfterAddressChangeCommit(Guid target)
+    internal IDisposable AfterAddressChangeCommit(Guid target) => Arm(target, "User.EmailChanged");
+
+    internal IDisposable AfterDeletionCommit(Guid target) => Arm(target, "Admin.AccountDeletionScheduled");
+
+    private Scope Arm(Guid target, string eventType)
     {
         lock (_gate)
         {
             _target = target;
+            _eventType = eventType;
             _fired = 0;
         }
         return new Scope(this);
@@ -30,12 +36,12 @@ internal sealed class CommitAcknowledgementLoss : DbTransactionInterceptor
         {
             if (_target is { } target && eventData.Context is AppDbContext app
                 && app.ChangeTracker.Entries<AuditLogEntry>().Any(entry => entry.Entity.AggregateId == target
-                    && entry.Entity.EventType == "User.EmailChanged"))
+                    && entry.Entity.EventType == _eventType))
             {
                 _target = null;
                 Interlocked.Increment(ref _fired);
                 // The real server commit has finished; its caller loses the acknowledgement before it can attest it.
-                throw new NpgsqlException("The address transition commit acknowledgement was lost.");
+                throw new NpgsqlException("The account lifecycle commit acknowledgement was lost.");
             }
         }
         return Task.CompletedTask;

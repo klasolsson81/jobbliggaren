@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 using DotNet.Testcontainers.Containers;
-using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Security;
@@ -9,17 +7,19 @@ namespace Jobbliggaren.Api.IntegrationTests.Security;
 public sealed class RedisAccountMaintenanceTests
 {
     [Fact]
-    public void Runbook_DefaultTombstoneExample_MatchesSourceDefault()
+    public void Runbook_RequiresDeployedTombstoneTtlAndVerifiedHelperReceipt()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Jobbliggaren.sln")))
             root = root.Parent;
         root.ShouldNotBeNull();
         var runbook = File.ReadAllText(Path.Combine(root.FullName, "docs/runbooks/account-deletion.md"));
-        var example = Regex.Match(runbook, @"source default example is `(\d+)` seconds");
-        example.Success.ShouldBeTrue();
-        double.Parse(example.Groups[1].Value, CultureInfo.InvariantCulture)
-            .ShouldBe(new SessionStoreOptions().DeletionTombstoneTtl.TotalSeconds);
+        var contract = Regex.Replace(runbook, @"\s+", " ");
+        contract.ShouldContain("sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh");
+        contract.ShouldContain("positive whole-second deployed `SessionStoreOptions.DeletionTombstoneTtl`, including overrides");
+        contract.ShouldContain("bind its revision and `TTL_SECONDS` in private operation evidence");
+        contract.ShouldContain("Source default is not deployment proof.");
+        contract.ShouldContain("The helper has no default; require its verified-presence receipt.");
     }
 
     [Theory]

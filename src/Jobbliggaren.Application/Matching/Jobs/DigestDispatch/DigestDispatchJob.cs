@@ -297,6 +297,8 @@ public sealed partial class DigestDispatchJob(
         // Scaleway arm registers no resilience handler (#183).
         try
         {
+            if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+                return false;
             await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -567,6 +569,8 @@ public sealed partial class DigestDispatchJob(
         // dedupe, and a claimed hit set is never re-sent.
         try
         {
+            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+                return false;
             await emailSender.SendFollowedCompanyNotificationEmailAsync(toEmail, content, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

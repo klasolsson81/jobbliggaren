@@ -14,11 +14,8 @@ namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 public interface IAccountHardDeleter
 {
     /// <summary>
-    /// Steg 0 — Orphan-cleanup. Hittar ApplicationUsers utan matchande JobSeeker
-    /// (varken aktiv eller soft-deletad — Identity-rader som hängde kvar från
-    /// tidigare körning där Steg 2 h failade). För varje orphan: UserManager.DeleteAsync.
-    /// Idempotent — om Identity redan tog bort raden mellan SELECT och DELETE
-    /// är det inget fel.
+    /// Cleans historical Identity-only orphans after the grace period.
+    /// Current registration and hard deletion share an atomic lifecycle transaction.
     /// </summary>
     /// <returns>Antal Identity-rader som rensades.</returns>
     Task<int> CleanupIdentityOrphansAsync(CancellationToken cancellationToken);
@@ -32,11 +29,9 @@ public interface IAccountHardDeleter
         DateTimeOffset cutoff, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Steg 2 — Hard-delete enskilt konto. Anonymisering av audit-trail +
-    /// hard-delete av alla user-ägda aggregat (FK CASCADE tar barnen) sker
-    /// inom explicit transaction. Identity-DELETE körs efter transactionen
-    /// committats — om den failer plockas Identity-raden upp av nästa
-    /// CleanupIdentityOrphansAsync-körning (idempotent fail-recovery).
+    /// Erases one eligible account's owned graph and DEK, anonymizes its audit,
+    /// and deletes Identity in one protected physical transaction.
+    /// Failure retains the whole account for a later attempt.
     /// </summary>
     Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken cancellationToken);
 

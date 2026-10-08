@@ -14,7 +14,8 @@ import {
   type AdminAccountDetails,
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
-import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction } from "@/lib/actions/admin-accounts";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction,
+  scheduleAccountDeletionAction } from "@/lib/actions/admin-accounts";
 import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
 import {
   ACCOUNTS_PAGE_SIZE,
@@ -44,7 +45,7 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate"]);
+const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate", "scheduleDeletion"]);
 
 const RETURN_PATH = "/admin/anvandare";
 
@@ -254,6 +255,20 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   // request or a cancel answers becomes the panel's pending change, never what the form held.
   const commands: AdminAccountCommands = {
     live: LIVE,
+    deletion: {
+      requestCode: requestReauthCode,
+      returnPath: RETURN_PATH,
+      run: async (account, proof) => {
+        const outcome = await scheduleAccountDeletionAction(account.id, proof);
+        if (!stillOpen(account.id)) return outcome;
+        if (outcome.ok || outcome.kind === "operationRefused") {
+          if (outcome.ok) setEmailChange({ kind: "none" });
+          setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+          void readAccount(account.id, true);
+        } else if (outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
+        return outcome;
+      },
+    },
     access: {
       requestCode: requestReauthCode,
       returnPath: RETURN_PATH,
@@ -365,7 +380,10 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         commands={commands}
         self={self}
         emailChange={emailChange}
-        onRetry={open === null ? undefined : () => void readAccount(open.id)}
+        onRetry={open === null ? undefined : () => {
+          setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+          void readAccount(open.id);
+        }}
         onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {

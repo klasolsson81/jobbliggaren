@@ -55,6 +55,7 @@ public sealed record AccountAccessChanged(
 public interface IAccountAccessWriter
 {
     Task<AccountAccessSnapshot> AdvanceCredentialsAsync(Guid userId, CancellationToken cancellationToken);
+    Task<AccountAccessSnapshot> AdvanceDeletionAsync(Guid userId, CancellationToken cancellationToken);
 
     Task<Result<AccountAccessChanged>> ChangeAsync(
         Guid actorId,
@@ -79,6 +80,8 @@ public static class AccountAccessErrors
     public const string AlreadySuspended = "Admin.AccountAlreadySuspended";
     public const string AlreadyReinstated = "Admin.AccountAlreadyReinstated";
     public const string SelfSuspension = "Admin.SelfSuspension";
+    public const string SelfDeletion = "Admin.SelfDeletion";
+    public const string AlreadyPendingDeletion = "Admin.AccountAlreadyPendingDeletion";
     public const string LastAdministrator = "Admin.LastAdministrator";
     public const string ProfileUnavailable = "Admin.ProfileUnavailable";
     public const string AccountNotFound = "Admin.AccountNotFound";

@@ -1,7 +1,10 @@
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -52,6 +55,8 @@ public sealed class AccountAccessMutationBehaviorTests : IAsyncDisposable
     private long _epoch = 6;
     private CommittedSessionAuthorization? _issued;
     private int _handlerInvocations;
+    private readonly Guid _deletionTargetId = Guid.NewGuid();
+    private AccountDeletionScheduled? _deletionScheduled;
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
     private ISessionStore Sessions => _sessions;
 
@@ -290,6 +295,125 @@ public sealed class AccountAccessMutationBehaviorTests : IAsyncDisposable
         _save.SawEmailAudit.ShouldBeFalse();
         await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, default!, Ct);
         await _sender.DidNotReceiveWithAnyArgs().SendEmailChangedNotificationAsync(default!, Ct);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_ShouldCleanupTheCapturedDeletionRevision_AfterKnownCommitAndScopeDisposal(bool suspended)
+    {
+        var cleanup = Substitute.For<IAccountAccessCleanup>();
+        var cleanupCallbacks = 0;
+        var commitsObservedByCleanup = -1;
+        bool? activeScopeObservedByCleanup = null;
+        cleanup.CompleteAsync(Arg.Any<AccountAccessChanged>(), Arg.Is<CancellationToken>(token => !token.CanBeCanceled)).Returns(_ =>
+        {
+            cleanupCallbacks++;
+            commitsObservedByCleanup = _coordinator.Commits;
+            activeScopeObservedByCleanup = _coordinator.HasActiveScope;
+            return Task.CompletedTask;
+        });
+
+        var result = await ScheduleDeletionThroughPipelineAsync(cleanup, suspended);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeSameAs(_deletionScheduled);
+        result.Value.AccessRevision.ShouldBe(4);
+        cleanupCallbacks.ShouldBe(1, "the callback must observe the state during cleanup");
+        commitsObservedByCleanup.ShouldBe(1);
+        activeScopeObservedByCleanup.ShouldBe(false);
+        await cleanup.Received(1).CompleteAsync(new AccountAccessChanged(
+            _deletionTargetId, suspended, AccessRevision: 4, PendingDeletion: true), Arg.Is<CancellationToken>(token => !token.CanBeCanceled));
+        await cleanup.Received(1).CompleteAsync(Arg.Any<AccountAccessChanged>(), Arg.Any<CancellationToken>());
+        await cleanup.DidNotReceive().CompleteAsync(
+            Arg.Is<AccountAccessChanged>(change => change.UserId == UserId), Arg.Any<CancellationToken>());
+        _handlerInvocations.ShouldBe(1);
+        _coordinator.Commits.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNeverCleanupOrReplayDeletion_WhenTheCommitOutcomeIsUnknown()
+    {
+        var cleanup = Substitute.For<IAccountAccessCleanup>();
+        var uncertain = new AccountAccessCommitUncertainException(new TimeoutException());
+        _coordinator.CommitFailure = uncertain;
+
+        var actual = await Should.ThrowAsync<AccountAccessCommitUncertainException>(
+            () => ScheduleDeletionThroughPipelineAsync(cleanup));
+
+        actual.ShouldBeSameAs(uncertain);
+        _deletionScheduled.ShouldNotBeNull();
+        _handlerInvocations.ShouldBe(1);
+        _coordinator.Commits.ShouldBe(0);
+        _coordinator.HasActiveScope.ShouldBeFalse();
+        await cleanup.DidNotReceiveWithAnyArgs().CompleteAsync(default!, Ct);
+    }
+
+    private async Task<Result<AccountDeletionScheduled>> ScheduleDeletionThroughPipelineAsync(
+        IAccountAccessCleanup cleanup, bool suspended = false)
+    {
+        _db.JobSeekers.AddRange(
+            JobSeeker.Register(UserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value,
+            JobSeeker.Register(_deletionTargetId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value);
+        await _db.SaveChangesAsync(Ct);
+        var targetAccount = AccountAccessTestKit.Account(_deletionTargetId, "target@example.test") with
+        {
+            IsSuspended = suspended,
+            AccessRevision = 3,
+            CredentialCutoff = 6,
+        };
+        var deletionEpoch = 6L;
+        var reader = AccountAccessTestKit.Reader(id =>
+        {
+            if (id != UserId && id != _deletionTargetId)
+                return null;
+            var profile = _db.JobSeekers.IgnoreQueryFilters().AsNoTracking().Single(value => value.UserId == id);
+            var account = id == UserId ? AccountAccessTestKit.Account(UserId, OldEmail) : targetAccount;
+            return account with
+            {
+                IsAdmin = id == UserId,
+                DeletedAt = profile.DeletedAt,
+            };
+        });
+        reader.ReadEpochAsync(Arg.Any<CancellationToken>()).Returns(_ => deletionEpoch);
+        var writer = Substitute.For<IAccountAccessWriter>();
+        writer.CanRemoveAccessAsync(_deletionTargetId, Ct).Returns(true);
+        writer.AdvanceDeletionAsync(_deletionTargetId, Ct)
+            .Returns(_ =>
+            {
+                targetAccount = targetAccount with { AccessRevision = 4, CredentialCutoff = ++deletionEpoch };
+                return targetAccount;
+            });
+        var scheduler = new AccountDeletionScheduler(_db, Clock, reader, writer, Substitute.For<IExternalLoginEraser>());
+        var handler = new ScheduleAccountDeletionCommandHandler(scheduler, _currentUser);
+        var command = new ScheduleAccountDeletionCommand(_deletionTargetId, Grant.Reveal());
+        var audit = new AuditBehavior<ScheduleAccountDeletionCommand, Result<AccountDeletionScheduled>>(
+            _db, _currentUser, Clock, Substitute.For<ICorrelationIdProvider>(),
+            Substitute.For<IRequestContextProvider>(), Substitute.For<IIdentifierPseudonymizer>());
+        var unitOfWork = new UnitOfWorkBehavior<ScheduleAccountDeletionCommand, Result<AccountDeletionScheduled>>(
+            _db, NullLogger<UnitOfWorkBehavior<ScheduleAccountDeletionCommand, Result<AccountDeletionScheduled>>>.Instance);
+        var access = new AccountAccessMutationBehavior<ScheduleAccountDeletionCommand, Result<AccountDeletionScheduled>>(
+            [_coordinator], [reader], [cleanup], _currentUser, []);
+        _coordinator.BeforeCommit = () =>
+        {
+            var entry = _db.AuditLogEntries.Single(value => value.EventType == "Admin.AccountDeletionScheduled");
+            entry.UserId.ShouldBe(UserId);
+            entry.AggregateId.ShouldBe(_deletionTargetId);
+            _deletionScheduled.ShouldNotBeNull();
+            cleanup.DidNotReceiveWithAnyArgs().CompleteAsync(default!, Ct);
+        };
+        MessageHandlerDelegate<ScheduleAccountDeletionCommand, Result<AccountDeletionScheduled>> handle = async (message, token) =>
+        {
+            _handlerInvocations++;
+            var result = await handler.Handle(message, token);
+            if (result.IsSuccess)
+                _deletionScheduled = result.Value;
+            await cleanup.DidNotReceiveWithAnyArgs().CompleteAsync(default!, Ct);
+            return result;
+        };
+        return await access.Handle(command,
+            (message, token) => unitOfWork.Handle(message,
+                (audited, cancellation) => audit.Handle(audited, handle, cancellation), token), Ct);
     }
 
     private sealed class SaveProbe : SaveChangesInterceptor

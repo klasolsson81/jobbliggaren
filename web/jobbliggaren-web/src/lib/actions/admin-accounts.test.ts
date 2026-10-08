@@ -23,7 +23,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
 
-import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction } from "./admin-accounts";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction, scheduleAccountDeletionAction } from "./admin-accounts";
 import { ADMIN_ACCESS_ERRORS, type AdminAccessOperation } from "@/lib/admin/account-access";
 
 const ACCOUNT = "00000000-0000-4000-8000-000000000007";
@@ -52,6 +52,55 @@ function backend(routes: Record<string, () => Response | Promise<Response>>) {
 const verified = () => json(200, { reauthGrant: GRANT });
 const paths = () => authedFetchMock.mock.calls.map((call) => call[1]);
 const request = () => requestAccountEmailChangeAction(ACCOUNT, NEW, PROOF);
+
+describe("scheduleAccountDeletionAction", () => {
+  const deletionPath = `/api/v1/admin/accounts/${ACCOUNT}/deletion`;
+  const receipt = { userId: ACCOUNT, deletedAt: "2026-10-08T12:00:00Z", eligibleAt: "2026-11-07T12:00:00Z", scheduledRunAt: "2026-11-08T04:00:00Z" };
+  const schedule = () => scheduleAccountDeletionAction(ACCOUNT, PROOF);
+
+  it("verifies the actor's inbox code and sends the grant internally once, returning the actual target receipt", async () => {
+    backend({ "/api/v1/auth/reauth/verify": verified, [deletionPath]: () => json(202, receipt) });
+    const result = await schedule();
+    expect(result).toEqual({ ok: true, value: receipt });
+    expect(paths()).toEqual(["/api/v1/auth/reauth/verify", deletionPath]);
+    expect(authedFetchMock).toHaveBeenLastCalledWith("session-under-test", deletionPath, {
+      method: "POST", body: JSON.stringify({ reauthGrant: GRANT }),
+    });
+    expect(JSON.stringify(result)).not.toContain(GRANT);
+  });
+
+  it("rejects invalid inputs and an ordinary session before spending any inbox code", async () => {
+    expect(await scheduleAccountDeletionAction("../search", PROOF)).toMatchObject({ ok: false, kind: "inputRefused" });
+    expect(await scheduleAccountDeletionAction(ACCOUNT, { ...PROOF, code: "ab" })).toMatchObject({ ok: false, kind: "wrongCode" });
+    getServerSessionMock.mockResolvedValueOnce({ userId: "u", roles: [] });
+    expect(await schedule()).toEqual({ ok: false, kind: "status", error: "admin.users.errors.forbidden" });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [409, ADMIN_ACCESS_ERRORS.alreadyPendingDeletion, "deletion.alreadyPending"],
+    [409, ADMIN_ACCESS_ERRORS.selfDeletion, "refusal.ownAccount.scheduleDeletion"],
+    [409, ADMIN_ACCESS_ERRORS.lastAdministrator, "access.lastAdministrator"],
+    [404, ADMIN_ACCESS_ERRORS.accountNotFound, "errors.gone"],
+    [410, ADMIN_ACCESS_ERRORS.profileUnavailable, "access.profileUnavailable"],
+  ] as const)("reports the known %s refusal %s without claiming success", async (status, title, key) => {
+    backend({ "/api/v1/auth/reauth/verify": verified, [deletionPath]: () => problem(status, title) });
+    expect(await schedule()).toEqual({ ok: false, kind: "operationRefused", channel: "status", error: `admin.users.${key} ${SPENT}` });
+    expect(paths()).toEqual(["/api/v1/auth/reauth/verify", deletionPath]);
+  });
+
+  it.each([
+    ["a lost response", () => Promise.reject(new Error("connection lost"))],
+    ["a server failure", () => json(500, {})],
+    ["an unknown conflict", () => problem(409, "Admin.Unrecognized")],
+    ["a malformed receipt", () => json(202, { ...receipt, eligibleAt: receipt.deletedAt })],
+    ["a receipt for another target", () => json(202, { ...receipt, userId: "00000000-0000-4000-8000-000000000008" })],
+  ])("keeps %s unknown and never automatically replays the mutation", async (_label, answer) => {
+    backend({ "/api/v1/auth/reauth/verify": verified, [deletionPath]: answer });
+    expect(await schedule()).toEqual({ ok: false, kind: "outcomeUnknown", error: `admin.users.deletion.unknown ${SPENT}` });
+    expect(paths()).toEqual(["/api/v1/auth/reauth/verify", deletionPath]);
+  });
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

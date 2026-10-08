@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { useFormatter } from "next-intl";
+import { formatDateTime } from "@/lib/i18n/format";
 import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
 import type {
   AdminAccountRole,
@@ -27,13 +29,20 @@ export function AdminAccountStatus({ status }: Pick<AdminAccountRow, "status">) 
 export function AdminAccountStatusCell({
   status,
   deletionEarliest,
+  deletion,
   emailConfirmed,
-}: Pick<AdminAccountRow, "status" | "deletionEarliest" | "emailConfirmed">) {
+}: Pick<AdminAccountRow, "status" | "deletionEarliest" | "deletion" | "emailConfirmed">) {
   const t = useTranslations("admin.users.statusLine");
+  const unavailable = useTranslations("admin.unavailable");
+  const format = useFormatter();
   return (
     <div className="jp-adminusers__status">
       <AdminAccountStatus status={status} />
-      {status === "pendingDeletion" && deletionEarliest !== null ? (
+      {status === "pendingDeletion" && deletion != null ? (
+        <span className="jp-adminusers__statusline">
+          {t.rich("deletionScheduled", { date: formatDateTime(format, deletion.scheduledRunAt) ?? unavailable("unknownValue"), nowrap: unbroken })}
+        </span>
+      ) : status === "pendingDeletion" && deletionEarliest !== null ? (
         <span className="jp-adminusers__statusline">
           {t.rich("deletionEarliest", { date: deletionEarliest, nowrap: unbroken })}
         </span>

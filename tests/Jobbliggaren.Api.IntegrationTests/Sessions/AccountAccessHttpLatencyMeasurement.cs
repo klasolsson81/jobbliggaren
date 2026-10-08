@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Admin;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -86,10 +88,50 @@ public sealed class AccountAccessHttpLatencyMeasurement(ApiFactory factory, ITes
             + "it does not replace the existing NBomber suite.");
     }
 
-    private static async Task<double> SuccessfulRoundTripAsync(HttpClient client, CancellationToken ct)
+    [Fact]
+    public async Task AuthenticatedAdminReads_ShouldMeasureDirectoryAndDeletionPreview_OverActualHttp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = factory.WithWebHostBuilder(_ => { });
+        host.UseKestrel(0);
+        using var startupClient = host.CreateClient();
+        var server = host.Services.GetRequiredService<IServer>();
+        var listener = server.Features.Get<IServerAddressesFeature>().ShouldNotBeNull().Addresses
+            .Select(address => new Uri(address, UriKind.Absolute))
+            .Where(address => address.Scheme == Uri.UriSchemeHttp && address.IsLoopback && address.Port > 0)
+            .ShouldHaveSingleItem();
+        var administrator = await AdminAccountsKit.AdminAsync(host, AdminAccountsKit.NewToken(), ct);
+        var targetEmail = AdminAccountsKit.Address(AdminAccountsKit.NewToken(), "latency-target");
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(host, targetEmail, ct: ct);
+        var target = await AdminAccountsKit.UserIdAsync(host, targetEmail, ct);
+        using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false })
+        {
+            BaseAddress = listener,
+        };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", administrator.SessionId);
+        foreach (var path in new[] { AdminAccountsKit.SearchPath, AdminAccountsKit.DetailPath(target) })
+        {
+            for (var sample = 0; sample < WarmupRequests; sample++)
+                await SuccessfulRoundTripAsync(client, ct, path);
+            var samples = new double[MeasuredRequests];
+            for (var sample = 0; sample < samples.Length; sample++)
+                samples[sample] = await SuccessfulRoundTripAsync(client, ct, path);
+            Array.Sort(samples);
+            var label = path == AdminAccountsKit.SearchPath ? "admin_directory" : "admin_deletion_preview";
+            output.WriteLine(FormattableString.Invariant(
+                $"OBSERVE-ONLY {label}: warmup={WarmupRequests}; samples={MeasuredRequests}; all=200; p50_ms={Percentile(samples, 0.50):F3}; p95_ms={Percentile(samples, 0.95):F3}; p99_ms={Percentile(samples, 0.99):F3}."));
+            var classification = Percentile(samples, 0.95) <= ReadQueryReferenceP95Milliseconds ? "within_reference" : "above_reference";
+            output.WriteLine($"ADR 0045 class (a) p95 reference=300 ms; local_proxy={classification}; no latency assertion.");
+        }
+        output.WriteLine("Whole buffered loopback HTTP on a Development host with real PostgreSQL/Redis, small synthetic fixtures, warmed connections and raised fixture rate limits; no TLS, concurrent load or production-scale/server-handler claim.");
+    }
+
+    private static async Task<double> SuccessfulRoundTripAsync(HttpClient client, CancellationToken ct, string path = "/api/v1/me")
     {
         var elapsed = Stopwatch.StartNew();
-        using var response = await client.GetAsync("/api/v1/me", HttpCompletionOption.ResponseContentRead, ct);
+        using var response = path == AdminAccountsKit.SearchPath
+            ? await client.PostAsJsonAsync(path, new { }, ct)
+            : await client.GetAsync(path, HttpCompletionOption.ResponseContentRead, ct);
         elapsed.Stop();
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         return elapsed.Elapsed.TotalMilliseconds;

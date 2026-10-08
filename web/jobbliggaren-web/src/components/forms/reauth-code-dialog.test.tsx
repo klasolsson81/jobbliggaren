@@ -26,10 +26,12 @@ function Harness({
   operation,
   onHandOff = () => {},
   onOpenChange,
+  codeRecipientLabels,
 }: {
   operation: Operation;
   onHandOff?: (handOff: ReauthHandOff<string>) => void;
   onOpenChange?: (open: boolean) => void;
+  codeRecipientLabels?: { request: string; pending: string; field: string };
 }) {
   const target = useRef<HTMLDivElement>(null);
   return (
@@ -39,6 +41,7 @@ function Harness({
         title="Gör något"
         description="Det här gör operationen."
         currentEmail={ADDRESS}
+        codeRecipientLabels={codeRecipientLabels}
         confirmLabel="Utför"
         pendingLabel="Utför…"
         cancelLabel="Avbryt"
@@ -102,6 +105,25 @@ describe("ReAuthCodeDialog", () => {
     expect(field).toHaveAccessibleDescription(
       `Vi har skickat en kod till ${ADDRESS}. Koden gäller i 15 minuter.`
     );
+  });
+
+  it("identifies the recipient on the controls when the consumer supplies the sole consequence description", async () => {
+    const user = userEvent.setup();
+    render(<Harness operation={operation} codeRecipientLabels={{
+      request: `Skicka kod till ${ADDRESS}`,
+      pending: `Skickar kod till ${ADDRESS}…`,
+      field: `Kod till ${ADDRESS}`,
+    }} />);
+    const dialog = await open(user);
+    expect(dialog).toHaveAccessibleDescription("Det här gör operationen.");
+    await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${ADDRESS}` }));
+    const field = await within(dialog).findByLabelText(`Kod till ${ADDRESS}`);
+    await waitFor(() => expect(field).toHaveFocus());
+    expect(dialog).toHaveAccessibleDescription("Det här gör operationen.");
+    expect(field).not.toHaveAccessibleDescription(/Vi har skickat/);
+    await user.type(field, "123456");
+    await user.click(within(dialog).getByRole("button", { name: "Utför" }));
+    expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" });
   });
 
   it("keeps the request step on a status, the message taking focus", async () => {

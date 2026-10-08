@@ -160,6 +160,19 @@ public sealed partial class SqlAccountAccess(
             ?? throw new InvalidOperationException("The transitioned account is unavailable.");
     }
 
+    public async Task<AccountAccessSnapshot> AdvanceDeletionAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        RequireLifecycle(userId);
+        if ((await ReadAsync(userId, cancellationToken))?.HasLiveProfile != true)
+            throw new InvalidOperationException("A deletion transition requires a live target profile.");
+        var user = await identity.Users.SingleAsync(user => user.Id == userId, cancellationToken);
+        var epoch = await identity.AccountSecurityEpochs.SingleAsync(cancellationToken);
+        user.AdvanceCredentials(epoch.Advance());
+        await identity.SaveChangesAsync(cancellationToken);
+        return await ReadAsync(userId, cancellationToken)
+            ?? throw new InvalidOperationException("The transitioned account is unavailable.");
+    }
+
     public async Task<bool> CanRemoveAccessAsync(Guid userId, CancellationToken cancellationToken)
     {
         RequireLifecycle(userId);

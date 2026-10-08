@@ -331,6 +331,9 @@ public sealed partial class BackgroundMatchingJob(
                 // provider key only ever covered a transport retry WITHIN this one send, and no such
                 // retry exists: the Scaleway arm registers no resilience handler (#183, and
                 // ScalewayClientRegistration says why none may be added).
+                if (!await db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria)
+                    .AnyAsync(seeker => seeker.UserId == userId, ct))
+                    return;
                 await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
 
                 match.MarkSent(clock);

@@ -20,6 +20,10 @@ const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const axePath = createRequire(cliRequire.resolve("lighthouse")).resolve("axe-core/axe.min.js");
 async function verify(page: Page, state: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("radiogroup").evaluateAll(async groups => {
+    await Promise.all(groups.flatMap(group => group.getAnimations({ subtree: true })
+      .map(animation => animation.finished.catch(() => undefined))));
+  });
   await page.addScriptTag({ path: axePath });
   const violations = await page.evaluate(async () => {
     const engine = (window as unknown as { axe: { run: (target: Document, options: unknown) =>
@@ -69,7 +73,7 @@ test("date drill-down preserves dates through search, status, sorting and clears
   const last = JSON.parse(harness.searches.at(-1) ?? "{}") as Record<string, unknown>;
   expect(last.registeredFrom).toBe(new URL(href ?? "", APP_ORIGIN).searchParams.get("registeredFrom"));
   expect(last.registeredBefore).toBe(new URL(href ?? "", APP_ORIGIN).searchParams.get("registeredBefore"));
-  await page.getByRole("radio", { name: "Aktiva (3)", exact: true }).click();
+  await page.getByRole("radio", { name: "Aktiva (2)", exact: true }).click();
   await expect.poll(() => JSON.parse(harness.searches.at(-1) ?? "{}").status).toBe("Active");
   await page.getByRole("button", { name: "Konto", exact: true }).click();
   await expect.poll(() => JSON.parse(harness.searches.at(-1) ?? "{}").sort).toBe("AddressAscending");

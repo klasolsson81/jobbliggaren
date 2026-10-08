@@ -39,3 +39,18 @@ pnpm exec playwright test -c playwright.admin.config.ts tests/admin/admin-overvi
 ```
 
 The JSON output records the dated measurements and each unchanged budget. Final frontend results are recorded in the scope verification report after the merged #1977 contract and UI are integrated.
+
+## Cold-cache browser measurement — 2026-10-08 11:45 UTC
+
+The caller owns Chromium and installs the secure synthetic cookie in its default context. Lighthouse resets origin/cache state on each audited target with explicit storage types that exclude cookies. Populated-content preflights run before measurement and then navigate away, so their polling cannot satisfy a measurement's backend-read witnesses. Every run pins the requested/final URL and the required backend reads. Missing or invalid resource observations fail the test. Cleanup runs even when imports, reports or assertions fail.
+
+On base `7b66eb0b82f8878aea7923fb0def74ebfd7caff2`, a verified cold-cache overview first exceeded the existing script budget: 380,878 bytes versus 358,400. The network trace and compiled route manifests identified speculative user-overview chunks fetched through the shared header's brand link. The brand keeps its target; automatic prefetch is disabled while admin navigation is displayed. User navigation and other HeaderStrip consumers retain the default.
+
+The source-delta recheck exited successfully: one Lighthouse test, six measurements, no unhandled harness requests. Both three-run medians were 99 performance, 100 accessibility and 96 best practices, with CLS 0 and TBT 0.
+
+| Route | LCP | Document bytes / budget | Script bytes / budget | Total bytes / budget |
+|---|---:|---:|---:|---:|
+| `/admin` | 890 ms | 26,291 / 30,720 | 333,666 / 358,400 | 486,276 / 819,200 |
+| Registration-filtered `/admin/anvandare` | 901 ms | 30,550 / 30,720 | 336,562 / 358,400 | 527,707 / 819,200 |
+
+Stylesheets, fonts, images and third-party request counts also met the unchanged budgets. Existing header, guest-shell and translation-boundary tests passed 33 cases. The artifact's measurement timestamp is `2026-10-08T11:45:04.899Z`. These are local pre-integration results; the merged #1977 lifecycle contract still requires the combined final check.

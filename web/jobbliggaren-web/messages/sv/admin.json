@@ -246,8 +246,10 @@
       "unknown": "Det går inte att bekräfta om åtgärden genomfördes. Kontrollera kontots aktuella status innan du bestämmer nästa steg."
     },
     "deletion": {
-      "confirm": "Åtkomsten spärras direkt på alla enheter. Kontot och sparade uppgifter väntar på permanent radering efter {days} dagars respit. Om du schemalägger nu slutar respiten {eligible} och den första planerade körningen är {run}, svensk tid. Körningen sker dagligen kl. 04:00 UTC och är ingen garanti för att raderingen är färdig då. Ett väntande adressbyte avbryts permanent. Raderingen kan inte ångras här.",
-      "receipt": "Radering av {email} schemalagd {deleted}. Åtkomsten är spärrad.",
+      "confirm": "Åtkomsten spärras direkt på alla enheter. Kontot och sparade uppgifter väntar på permanent radering efter {days} dagars respit. Den här förhandsvisningen beräknades av servern {calculated}, svensk tid: respiten skulle sluta {eligible} och den första planerade körningen vara {run}. Respiten börjar när schemaläggningen genomförs efter din bekräftelsekod. Då beräknas datumen på nytt och de faktiska tiderna visas i kvittot. Körningen sker dagligen kl. 04:00 UTC och är ingen garanti för att raderingen är färdig då. Ett väntande adressbyte avbryts permanent. Raderingen kan inte ångras här.",
+      "previewLoading": "Läser in kontots aktuella status och en ny förhandsvisning från servern innan du kan bekräfta radering.",
+      "previewUnavailable": "Radering kan inte bekräftas utan en aktuell förhandsvisning. Stäng dialogen och öppna den igen för att läsa in kontots status.",
+      "receipt": "Radering av {email} schemalagd {deleted}. Åtkomsten är spärrad. Respiten slutar {eligible}. Första planerade körning {run}, svensk tid. Raderingen är ännu inte genomförd.",
       "sendCode": "Skicka kod till {email}",
       "sendingCode": "Skickar kod till {email}…",
       "code": "Kod till {email}",

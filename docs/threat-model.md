@@ -196,8 +196,12 @@ Feedback screenshots are untrusted personal data, potentially a plaintext copy o
 
 Dispatch reads metadata only and rechecks a live reporter before claim and
 after persisted `Sending`, before transport; a deleted reporter's unsent notice
-is removed while feedback remains until retention/hard deletion. Requeue refuses
-a deleted reporter without changing its notice. No transaction crosses transport,
+is removed while feedback remains until retention/hard deletion. Requeue holds
+the reporter's lifecycle-compatible owner lock through its live-profile check,
+notice change and success-only audit commit; it rechecks the administrator's
+original authority under the same sorted locks. A deleted reporter is refused
+without changing its notice. A precommit conflict rolls back, while an unknown
+commit is never replayed. No transaction crosses transport,
 and mail already handed off cannot be recalled.
 
 Top-direct matching, match digests and followed-company digests recheck the live

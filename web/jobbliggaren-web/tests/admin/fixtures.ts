@@ -23,6 +23,23 @@ export const DELETION_TIMING = {
 
 export type AccountDeletionState = typeof DELETION_TIMING;
 
+/**
+ * The injected server clock crosses 04:00 UTC. AccountDeletionTiming.From produces these snapshots;
+ * AccountRestoreWindowTests.From_ShouldProduceTheServerPreviewAndReceiptSnapshots_WhenTheClockCrossesFourUtc
+ * pins these exact triples; AccountDeletionSchedulerTests pins the single-clock basis.
+ */
+export const DELETION_BEFORE_04: AccountDeletionState = {
+  deletedAt: "2026-10-08T03:59:00Z",
+  eligibleAt: "2026-11-07T03:59:00Z",
+  scheduledRunAt: "2026-11-07T04:00:00Z",
+};
+
+export const DELETION_AFTER_04: AccountDeletionState = {
+  deletedAt: "2026-10-08T04:01:00Z",
+  eligibleAt: "2026-11-07T04:01:00Z",
+  scheduledRunAt: "2026-11-08T04:00:00Z",
+};
+
 /** A pending address change's two instants, as the request answers them and the read reports them. */
 export const EMAIL_CHANGE_INSTANTS = {
   completableFrom: "2026-10-08T12:00:00+00:00",
@@ -183,12 +200,13 @@ export function accountsPage(
 }
 
 export function accountDetails(accountId: string, gone: ReadonlySet<string> = new Set(),
-  access: ReadonlyMap<string, AccountAccessState> = new Map(), deletions: ReadonlyMap<string, AccountDeletionState> = new Map()) {
+  access: ReadonlyMap<string, AccountAccessState> = new Map(), deletions: ReadonlyMap<string, AccountDeletionState> = new Map(),
+  previewTiming: AccountDeletionState = DELETION_TIMING) {
   const row = gone.has(accountId) ? undefined : [...ACCOUNTS, ...MORE].find((candidate) => candidate.id === accountId);
   if (row === undefined) return undefined;
   const current = withDeletion(withAccess(row, access), deletions);
   const live = current.status === "Active" || current.status === "Suspended";
-  return { ...current, deletionPreview: live ? DELETION_TIMING : null, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
+  return { ...current, deletionPreview: live ? previewTiming : null, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
 }
 
 // ── Feedback (#1979) ──────────────────────────────────────────────────────────────────────────

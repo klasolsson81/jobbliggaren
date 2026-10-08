@@ -30,6 +30,7 @@ vi.mock("@/lib/actions/admin-accounts", () => ({
 vi.mock("@/lib/auth/reauth-actions", () => ({ requestReauthCode: requestReauthCodeMock }));
 
 import { AccountsDirectory } from "./accounts-directory";
+import { DELETION_AFTER_04, DELETION_BEFORE_04 } from "../../../../../tests/admin/fixtures";
 
 /** The signed-in administrator, as the page reads them from the session. */
 const SELF: AdminSelf = { userId: "00000000-0000-4000-8000-000000000999", email: "admin@example.test" };
@@ -190,6 +191,7 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     await within(panel).findByText("CV:n");
     await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
     const dialog = await screen.findByRole("dialog", { name: `Radera ${A.email}?` });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
     return { panel, dialog };
   }
 
@@ -217,9 +219,36 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Radera konto" })).toHaveFocus());
   });
 
+  it("reads the protected detail BFF again for the dialog without replacing the panel's cached facts", async () => {
+    // CompleteAccountEmailChangeCommand and SuspendAccountCommand can change the same account before this read.
+    const fresh = { ...preview, email: "aktuell@example.test", status: "Suspended", isSuspended: true,
+      deletionPreview: DELETION_AFTER_04 };
+    serve({ [DETAIL_ROUTE]: [() => json({ ...preview, deletionPreview: DELETION_BEFORE_04 }), () => json(fresh)],
+      [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING });
+    const user = userEvent.setup();
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+    await user.click(screen.getByRole("button", { name: A.email! }));
+    const panel = await screen.findByRole("dialog", { name: A.email! });
+    await within(panel).findByText("CV:n");
+    await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
+    const dialog = await screen.findByRole("dialog", { name: `Radera ${fresh.email}?` });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
+    expect(dialog).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 06:01/);
+    expect(callsTo(DETAIL_ROUTE)).toEqual([{ id: A.id }, { id: A.id }]);
+    const signal = fetchMock.mock.calls.filter(([path]) => path === DETAIL_ROUTE)[1]?.[1].signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+    expect(requestReauthCodeMock).not.toHaveBeenCalled();
+    expect(deletionActionMock).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(screen.getByRole("dialog", { name: A.email! })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog", { name: A.email! })).getByText("Aktiv", { exact: true })).toBeInTheDocument();
+  });
+
   it("waits for the actual receipt, then refreshes panel, list, counters and permanent address cancellation", async () => {
     serve({
-      [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+      [DETAIL_ROUTE]: [() => json(preview), () => json(preview), () => json({ ...DETAIL, ...deleted })],
       [EMAIL_CHANGE_ROUTE]: [() => json(pending), NOTHING_PENDING],
       [LIST]: () => json(answer([deleted, B, C])),
     });
@@ -235,12 +264,12 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     await within(panel).findByText("Under radering");
     const status = within(within(panel).getByRole("region", { name: "Åtgärder" })).getByRole("status");
     expect(status).toHaveTextContent(`Radering av ${A.email} schemalagd`);
-    expect(within(panel).getByText(/Raderingen är ännu inte genomförd/)).toBeInTheDocument();
+    expect(status).toHaveTextContent("Raderingen är ännu inte genomförd.");
     await waitFor(() => expect(status).toHaveFocus());
     expect(within(panel).queryByText("Adressbyte")).toBeNull();
     expect(deletionActionMock).toHaveBeenCalledExactlyOnceWith(A.id, { challengeId: "step-up-challenge", code: "123456" });
     await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
-    expect(callsTo(DETAIL_ROUTE)).toHaveLength(2);
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(3);
     expect(getAdminToastSnapshot()).toBeNull();
     await user.keyboard("{Escape}");
     expect(await screen.findByRole("radio", { name: "Under radering (1)" })).toBeInTheDocument();
@@ -250,7 +279,7 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
 
   it("focuses a known no-op refusal without any success receipt", async () => {
     const refusal = "Kontot väntar redan på radering. Datumet har inte ändrats.";
-    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json(preview), () => json({ ...DETAIL, ...deleted })],
       [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([deleted])) });
     deletionActionMock.mockResolvedValue({ ok: false, kind: "operationRefused", channel: "status", error: refusal });
     const user = userEvent.setup();
@@ -265,7 +294,7 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
 
   it("keeps a lost outcome unknown until explicit status reread and never replays deletion", async () => {
     const uncertainty = "Det går inte att bekräfta om raderingen schemalades.";
-    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json({ ...DETAIL, ...deleted })],
+    serve({ [DETAIL_ROUTE]: [() => json(preview), () => json(preview), () => json({ ...DETAIL, ...deleted })],
       [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING, [LIST]: () => json(answer([deleted])) });
     deletionActionMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: uncertainty });
     const user = userEvent.setup();
@@ -275,7 +304,7 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     const status = await within(within(panel).getByRole("region", { name: "Åtgärder" })).findByRole("status");
     expect(status).toHaveTextContent(uncertainty);
     await waitFor(() => expect(status).toHaveFocus());
-    expect(callsTo(DETAIL_ROUTE)).toHaveLength(1);
+    expect(callsTo(DETAIL_ROUTE)).toHaveLength(2);
     expect(callsTo(LIST)).toHaveLength(0);
     expect(getAdminToastSnapshot()).toBeNull();
     await user.click(within(panel).getByRole("button", { name: "Läs in kontots status" }));
@@ -284,6 +313,109 @@ describe("AccountsDirectory — scheduled deletion (#1977)", () => {
     expect(deletionActionMock).toHaveBeenCalledTimes(1);
     expect(getAdminToastSnapshot()).toBeNull();
   });
+
+  it.each(["during verification", "after the unknown outcome"] as const)(
+    "keeps deletion fenced when suspension's earlier ordinary read arrives %s until a post-outcome explicit read succeeds",
+    async (arrival) => {
+      const suspended: Item = { ...A, status: "Suspended", isSuspended: true };
+      const suspendedDetail: AccountDetailsDto = { ...preview, ...suspended };
+      const uncertainty = "Det går inte att bekräfta om raderingen schemalades.";
+      const accessChallenge = "00000000-0000-4000-8000-000000000101";
+      const deletionChallenge = "00000000-0000-4000-8000-000000000102";
+      requestReauthCodeMock.mockResolvedValueOnce({ ok: true, challengeId: accessChallenge })
+        .mockResolvedValueOnce({ ok: true, challengeId: deletionChallenge });
+      let answerOlder: (response: Response) => void = () => {};
+      const olderRead = new Promise<Response>((resolve) => { answerOlder = resolve; });
+      let answerExplicit: (response: Response) => void = () => {};
+      const explicitRead = new Promise<Response>((resolve) => { answerExplicit = resolve; });
+      let answerDeletion: (outcome: AdminDeletionOutcome) => void = () => {};
+      deletionActionMock.mockImplementation(() => new Promise((resolve) => { answerDeletion = resolve; }));
+      accessActionMock.mockResolvedValue({ ok: true,
+        value: { userId: A.id, isSuspended: true, accessRevision: 1, pendingDeletion: false } });
+      serve({
+        [DETAIL_ROUTE]: [() => json(preview), () => olderRead, () => json(suspendedDetail),
+          () => explicitRead, () => json(suspendedDetail)],
+        [EMAIL_CHANGE_ROUTE]: NOTHING_PENDING,
+        [LIST]: () => json(answer([suspended, B, C])),
+      });
+      const user = userEvent.setup();
+      render(<AccountsDirectory initial={FIRST} self={SELF} />);
+      try {
+        await user.click(screen.getByRole("button", { name: A.email! }));
+        const panel = await screen.findByRole("dialog", { name: A.email! }, { timeout: 5_000 });
+        await within(panel).findByText("CV:n");
+        await user.click(within(panel).getByRole("button", { name: "Stäng av åtkomst" }));
+        const accessDialog = await screen.findByRole("dialog", { name: `Stäng av åtkomsten för ${A.email}?` });
+        await user.click(within(accessDialog).getByRole("button", { name: "Skicka kod" }));
+        await user.type(await within(accessDialog).findByLabelText("Sexsiffrig kod"), "123456");
+        await user.click(within(accessDialog).getByRole("button", { name: "Stäng av åtkomst" }));
+        expect(accessActionMock).toHaveBeenCalledExactlyOnceWith(A.id, "suspend",
+          { challengeId: accessChallenge, code: "123456" });
+        await waitFor(() => expect(callsTo(DETAIL_ROUTE)).toHaveLength(2));
+        await waitFor(() => expect(callsTo(LIST)).toHaveLength(1));
+        await waitFor(() => expect(screen.queryByRole("dialog", { name: `Stäng av åtkomsten för ${A.email}?` })).toBeNull());
+        expect(within(panel).getByText("Aktiv", { exact: true })).toBeInTheDocument();
+
+        // A successful access action really starts this ordinary reread before deletion's separate preview.
+        await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
+        const dialog = await screen.findByRole("dialog", { name: `Radera ${A.email}?` });
+        await waitFor(() => expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
+        expect(callsTo(DETAIL_ROUTE)).toHaveLength(3);
+        await user.click(await prove(user, dialog));
+        expect(within(dialog).getByRole("button", { name: "Schemalägger…" })).toBeDisabled();
+        expect(deletionActionMock).toHaveBeenCalledExactlyOnceWith(A.id,
+          { challengeId: deletionChallenge, code: "123456" });
+
+        if (arrival === "during verification") {
+          await act(async () => answerOlder(json(suspendedDetail)));
+          expect(within(panel).getByText("Avstängd", { exact: true })).toBeInTheDocument();
+          expect(within(dialog).getByRole("button", { name: "Schemalägger…" })).toBeDisabled();
+        }
+        await act(async () => answerDeletion({ ok: false, kind: "outcomeUnknown", error: uncertainty }));
+        const actions = within(panel).getByRole("region", { name: "Åtgärder" });
+        expect(await within(actions).findByRole("status")).toHaveTextContent(uncertainty);
+        if (arrival === "after the unknown outcome") {
+          await act(async () => answerOlder(json(suspendedDetail)));
+          expect(within(panel).getByText("Avstängd", { exact: true })).toBeInTheDocument();
+        }
+
+        const trigger = within(panel).getByRole("button", { name: "Radera konto" });
+        expect(trigger).toBeDisabled();
+        expect(within(actions).getByRole("status")).toHaveTextContent(uncertainty);
+        await user.click(trigger);
+        expect(screen.queryByRole("dialog", { name: `Radera ${A.email}?` })).toBeNull();
+        expect(requestReauthCodeMock).toHaveBeenCalledTimes(2);
+        expect(deletionActionMock).toHaveBeenCalledTimes(1);
+        expect(callsTo(DETAIL_ROUTE)).toHaveLength(3);
+
+        // Only the explicit read issued after the unknown result may reconcile its outcome.
+        await user.click(within(panel).getByRole("button", { name: "Läs in kontots status" }));
+        await waitFor(() => expect(callsTo(DETAIL_ROUTE)).toHaveLength(4));
+        expect(deletionActionMock).toHaveBeenCalledTimes(1);
+        expect(requestReauthCodeMock).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole("dialog", { name: `Radera ${A.email}?` })).toBeNull();
+        await act(async () => answerExplicit(json(suspendedDetail)));
+        await waitFor(() => expect(within(panel).getByRole("button", { name: "Radera konto" })).toBeEnabled());
+        expect(within(panel).queryByRole("button", { name: "Läs in kontots status" })).toBeNull();
+        expect(within(panel).getByText("Avstängd", { exact: true })).toBeInTheDocument();
+        expect(accessActionMock).toHaveBeenCalledTimes(1);
+        expect(deletionActionMock).toHaveBeenCalledTimes(1);
+        expect(requestReauthCodeMock).toHaveBeenCalledTimes(2);
+        await user.click(within(panel).getByRole("button", { name: "Radera konto" }));
+        const reopened = await screen.findByRole("dialog", { name: `Radera ${A.email}?` });
+        await waitFor(() => expect(within(reopened).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
+        expect(requestReauthCodeMock).toHaveBeenCalledTimes(2);
+        expect(deletionActionMock).toHaveBeenCalledTimes(1);
+        await user.keyboard("{Escape}");
+      } finally {
+        await act(async () => {
+          answerOlder(json(suspendedDetail));
+          answerExplicit(json(suspendedDetail));
+          answerDeletion({ ok: false, kind: "outcomeUnknown", error: uncertainty });
+        });
+      }
+    },
+  );
 });
 
 describe("AccountsDirectory (#1974, ADR 0151)", () => {

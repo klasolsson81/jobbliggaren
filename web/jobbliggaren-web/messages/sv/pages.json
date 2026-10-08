@@ -658,8 +658,8 @@
           "body": "Försök igen senare, eller kontakta oss på <mail>kontakt@jobbliggaren.se</mail>."
         },
         "pendingDeletion": {
-          "title": "Ditt konto raderas permanent {date}.",
-          "body": "Fram till dess kan du få det återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+          "title": "Ditt konto raderas permanent tidigast {date}.",
+          "body": "Du kan inte återställa kontot eller avbryta raderingen. Har du frågor kan du mejla <mail>kontakt@jobbliggaren.se</mail>."
         }
       },
       "notice": {
@@ -672,8 +672,8 @@
           "body": "En inloggning gäller i 15 minuter. Skriv in din e-postadress nedan och börja om."
         },
         "accountDeleted": {
-          "title": "Ditt konto är raderat",
-          "body": "Du är utloggad på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+          "title": "Radering av ditt konto är schemalagd",
+          "body": "Du är utloggad på alla enheter. Dina sparade uppgifter finns kvar i 30 dagar och rensas sedan permanent av den dagliga raderingskörningen. Du kan inte återställa kontot eller avbryta raderingen. Har du frågor kan du mejla <mail>kontakt@jobbliggaren.se</mail>."
         },
         "externalUnverified": {
           "title": "{provider} kan inte intyga din e-postadress",

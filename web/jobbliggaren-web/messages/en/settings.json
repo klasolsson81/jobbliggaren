@@ -149,7 +149,7 @@
     "delete": {
       "trigger": "Delete account",
       "title": "Delete your account",
-      "description": "Your account and everything you have saved are deleted, and you are logged out on all devices. For 30 days you can have the account restored by emailing kontakt@jobbliggaren.se. After that it is deleted for good and cannot be recovered.",
+      "description": "Deletion of your account is scheduled and you are logged out on all devices immediately. Your saved data remains for 30 days. After that, the daily deletion job removes it permanently. You cannot restore the account or cancel deletion.",
       "confirmEmailLabel": "Enter your email address to confirm",
       "expected": "Your email address is {email}.",
       "confirmMismatch": "Enter your email address as it appears below the field.",

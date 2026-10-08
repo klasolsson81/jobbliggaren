@@ -6,6 +6,19 @@ namespace Jobbliggaren.Application.UnitTests.Auth.Jobs.HardDeleteAccounts;
 
 public sealed class AccountRestoreWindowTests
 {
+    [Theory]
+    [InlineData("2026-10-08T03:59:00Z", "2026-11-07T03:59:00Z", "2026-11-07T04:00:00Z")]
+    [InlineData("2026-10-08T04:01:00Z", "2026-11-07T04:01:00Z", "2026-11-08T04:00:00Z")]
+    public void From_ShouldProduceTheServerPreviewAndReceiptSnapshots_WhenTheClockCrossesFourUtc(
+        string deletedAt, string eligibleAt, string scheduledRunAt)
+    {
+        var actual = AccountDeletionTiming.From(Parse(deletedAt));
+
+        actual.DeletedAt.ShouldBe(Parse(deletedAt));
+        actual.EligibleAt.ShouldBe(Parse(eligibleAt));
+        actual.ScheduledRunAt.ShouldBe(Parse(scheduledRunAt));
+    }
+
     [Fact]
     public void EligibleAt_ShouldEndTheThirtyDayRespite_WhenDeletionCrossesTheYearBoundary()
     {

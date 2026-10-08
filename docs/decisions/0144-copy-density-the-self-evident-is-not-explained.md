@@ -301,8 +301,9 @@ the #1829 report Decision 4 cites); the shortenings remove words and no element,
 texts themselves live in the templates, each changed block pinned word for word in both
 parts of its mail. Four elements join Decision 4's set:
 
-- Row 12: and in `LoginPendingDeletion`, the earliest permanent-deletion date and the
-  restore route via kontakt@
+- Row 12: and in `LoginPendingDeletion`, the earliest permanent-deletion date,
+  unavailable restoration/cancellation and the questions contact via kontakt@
+  (the #1977 amendment below supersedes the earlier restore promise)
 - Row 13: and AddressChangeCode's line to a recipient who did not ask ('Bortser du från
   meddelandet ändras ingenting: adressen kopplas aldrig till kontot.'), the counterpart
   of condition 20's last sentence
@@ -490,3 +491,14 @@ another block nor another notice. Source liveness and status never refill cleare
 The whole sv/en strings, /kontaktperson-i-annons route, permanent underline, font/contrast
 constraints and row18's visible derived provenance remain unchanged. The public notice and
 information duties remain available independently of this local presentation gate.
+
+## Amendment 2026-10-08 — #1977: pending deletion is not restoration
+
+Row 12's pending-deletion email paragraphs now state the earliest permanent
+cleanup date and that the account cannot be restored or deletion cancelled.
+The separate questions paragraph retains kontakt@ without promising a way back.
+`EmailTemplatesLoginChallengeTests` pins each whole paragraph in both plain text
+and HTML and their order. The owner confirmation, scheduling receipt/login
+outcome and sv/en privacy notice carry the same lifecycle meaning; the earliest
+date never claims completed erasure. Security-auditor binds the changed strings
+against the actual #1977 implementation before the final merge gate.

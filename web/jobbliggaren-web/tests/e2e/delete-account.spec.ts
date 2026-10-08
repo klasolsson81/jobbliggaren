@@ -34,7 +34,8 @@ test.describe("Radera konto (/mina-sidor/sekretess)", () => {
 
     const dialog = await requestCode(page, "fel@example.se");
 
-    await expect(dialog).toContainText("I 30 dagar kan du få kontot återställt");
+    await expect(dialog).toContainText("Dina sparade uppgifter finns kvar i 30 dagar.");
+    await expect(dialog).toContainText("Du kan inte återställa kontot eller avbryta raderingen.");
     await expect(dialog.getByRole("alert")).toHaveText(
       "Skriv din e-postadress som den står under fältet."
     );
@@ -60,7 +61,7 @@ test.describe("Radera konto (/mina-sidor/sekretess)", () => {
     await dialog.getByRole("button", { name: "Radera mitt konto" }).click();
 
     await page.waitForURL("**/logga-in");
-    await expect(page.getByRole("heading", { name: "Ditt konto är raderat" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Radering av ditt konto är schemalagd" })).toBeVisible();
     // ADR 0024 D4, GDPR Art. 17: the session is gone in Redis, not only its cookie in this browser.
     const me = await fetch(`${BACKEND_URL}/api/v1/me`, {
       headers: { Authorization: `Bearer ${session}` },

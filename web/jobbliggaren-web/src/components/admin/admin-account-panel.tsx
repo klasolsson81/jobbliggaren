@@ -87,8 +87,7 @@ export interface AdminAccountCommands {
   /** Suspend, reinstate and schedule deletion (#1976, #1977). */
   readonly run?: (account: AdminAddressedAccount, command: AdminAccountCommand) => Promise<AdminCommandRefusal>;
   /**
-   * `YYYY-MM-DD`: the earliest permanent deletion a deletion scheduled now would get. Absent where scheduling
-   * deletion is not built, so no date is made up for it.
+   * Legacy preview-only `YYYY-MM-DD` seam. Live deletion reads its server calculation through `deletion.readPreview`.
    */
   readonly deletionEarliestIfScheduledNow?: string;
   readonly emailChange?: AdminEmailChangeCommands;
@@ -98,6 +97,7 @@ export interface AdminAccountCommands {
     readonly returnPath: string;
   };
   readonly deletion?: {
+    readonly readPreview: (account: AdminAddressedAccount, signal: AbortSignal) => Promise<AdminAccountDetails>;
     readonly requestCode: () => Promise<ReauthRequestResult>;
     readonly run: (account: AdminAddressedAccount, proof: CodeProof) => Promise<AdminDeletionOutcome>;
     readonly returnPath: string;
@@ -123,6 +123,10 @@ interface Notice {
   readonly reread?: boolean;
 }
 
+interface UncertainDeletion {
+  readonly message: string;
+}
+
 type FocusTarget = "title" | "notice";
 
 type RereadFocus = "title" | "retry" | "emailChangeValue" | "emailChangeAction";
@@ -140,8 +144,8 @@ interface AdminAccountPanelProps {
   readonly self?: AdminSelf;
   /** The open account's pending address change, as the caller last read it or a command left it (#1975). */
   readonly emailChange?: AdminEmailChangeState;
-  /** Reads the details again, for a failure whose recovery is a retry. */
-  readonly onRetry?: () => void;
+  /** An explicit detail read; its successful answer can resolve an earlier unknown deletion outcome. */
+  readonly onRetry?: () => void | Promise<AdminAccountDetails>;
   /** Reads the pending address change again, for a read that failed. */
   readonly onRetryEmailChange?: () => Promise<AdminEmailChangeReread>;
   /** Where focus goes on close when the row that opened the panel is gone. */
@@ -225,6 +229,22 @@ export function AdminAccountPanel({
   onRetryEmailChange,
   fallbackFocus,
 }: AdminAccountPanelProps) {
+  const [uncertainDeletions, setUncertainDeletions] = useState<ReadonlyMap<string, UncertainDeletion>>(new Map());
+  const retry = onRetry === undefined ? undefined : () => {
+    const id = account?.id.toLowerCase();
+    const uncertain = id === undefined ? undefined : uncertainDeletions.get(id);
+    const read = onRetry();
+    if (id === undefined || uncertain === undefined) return;
+    void Promise.resolve(read).then((answer) => {
+      if (answer === undefined || answer.kind !== "loaded" || !sameId(answer.data.id, id)) return;
+      setUncertainDeletions((current) => {
+        if (current.get(id) !== uncertain) return current;
+        const next = new Map(current);
+        next.delete(id);
+        return next;
+      });
+    });
+  };
   const open = account !== null;
   const { onCloseAutoFocus: returnToOpener } = useReturnFocus(open);
   const onCloseAutoFocus = useCallback(
@@ -253,9 +273,12 @@ export function AdminAccountPanel({
             commands={commands}
             self={self}
             emailChange={emailChange}
-            onRetry={onRetry}
+            onRetry={retry}
             onRetryEmailChange={onRetryEmailChange}
             onCloseAutoFocus={onCloseAutoFocus}
+            uncertainDeletion={uncertainDeletions.get(account.id.toLowerCase())}
+            onDeletionUnknown={(id, message) => setUncertainDeletions((current) =>
+              new Map(current).set(id.toLowerCase(), { message }))}
           />
         )}
       </Dialog.Portal>
@@ -272,6 +295,8 @@ function PanelContent({
   onRetry,
   onRetryEmailChange,
   onCloseAutoFocus,
+  uncertainDeletion,
+  onDeletionUnknown,
 }: {
   readonly row: AdminAccountRow;
   readonly details: AdminAccountDetails;
@@ -281,6 +306,8 @@ function PanelContent({
   readonly onRetry: (() => void) | undefined;
   readonly onRetryEmailChange: (() => Promise<AdminEmailChangeReread>) | undefined;
   readonly onCloseAutoFocus: (event: Event) => void;
+  readonly uncertainDeletion: UncertainDeletion | undefined;
+  readonly onDeletionUnknown: (id: string, message: string) => void;
 }) {
   const t = useTranslations("admin.users");
   const soon = useTranslations("admin.unavailable")("comingSoon");
@@ -301,6 +328,12 @@ function PanelContent({
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [deletionDialog, setDeletionDialog] = useState<{
+    account: AdminAddressedAccount;
+    read: NonNullable<AdminAccountCommands["deletion"]>["readPreview"];
+  } | null>(null);
+  const [deletionPreview, setDeletionPreview] = useState<AdminAccountDetails>({ kind: "loading" });
+  const previewNoticeRef = useRef<HTMLSpanElement>(null);
   const [pending, startTransition] = useTransition();
   const [running, setRunning] = useState<AdminLiveAction | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -319,6 +352,28 @@ function PanelContent({
   const emailChangeValueRef = useRef<HTMLElement>(null);
   const rereadFocus = useRef<RereadFocus | null>(null);
   const unknownNoteId = useId();
+
+  useEffect(() => {
+    if (deletionDialog === null) return;
+    const controller = new AbortController();
+    void deletionDialog.read(deletionDialog.account, controller.signal).then((answer) => {
+      if (controller.signal.aborted) return;
+      if (answer.kind === "loaded" && (!sameId(answer.data.id, deletionDialog.account.id)
+        || !isAddressed(answer.data) || (answer.data.status !== "active" && answer.data.status !== "suspended")
+        || answer.data.deletionPreview == null)) {
+        setDeletionPreview({ kind: "failed", message: sameId(answer.data.id, deletionDialog.account.id)
+          && answer.data.status === "pendingDeletion"
+          ? t("deletion.alreadyPending") : t("deletion.previewUnavailable"), recovery: "none" });
+      } else if (answer.kind === "gone") {
+        setDeletionPreview({ kind: "failed", message: t("errors.gone"), recovery: "none" });
+      } else setDeletionPreview(answer);
+    });
+    return () => controller.abort();
+  }, [deletionDialog, t]);
+
+  useEffect(() => {
+    if (deletionPreview.kind === "failed") previewNoticeRef.current?.focus();
+  }, [deletionPreview]);
 
   // A receipt published while the panel holds focus waits for the panel to close (WCAG 2.2.1).
   useEffect(() => holdAdminToasts(), []);
@@ -568,21 +623,28 @@ function PanelContent({
       );
     }
     if (action === "scheduleDeletion" && deletionCommands !== undefined && self !== undefined && target.deletionPreview != null) {
-      const preview = target.deletionPreview;
-      const description = t("deletion.confirm", {
+      const previewTarget = deletionPreview.kind === "loaded" && isAddressed(deletionPreview.data)
+        ? deletionPreview.data : null;
+      const preview = previewTarget?.deletionPreview;
+      const description = preview == null ? t("deletion.previewLoading") : t("deletion.confirm", {
         days: (Date.parse(preview.eligibleAt) - Date.parse(preview.deletedAt)) / 86_400_000,
+        calculated: formatDateTime(format, preview.deletedAt) ?? unknown,
         eligible: formatDateTime(format, preview.eligibleAt) ?? unknown,
         run: formatDateTime(format, preview.scheduledRunAt) ?? unknown,
       });
       const handOff = (outcome: ReauthHandOff<AdminDeletionReceipt>) => {
         if (outcome.kind === "verified") {
           const text = t("deletion.receipt", {
-            email: target.email,
+            email: previewTarget?.email ?? target.email,
             deleted: formatDateTime(format, outcome.value.deletedAt) ?? unknown,
+            eligible: formatDateTime(format, outcome.value.eligibleAt) ?? unknown,
+            run: formatDateTime(format, outcome.value.scheduledRunAt) ?? unknown,
           });
           setNotice({ text, role: "status" });
         } else {
-          setNotice({ text: outcome.error ?? t("deletion.deliveryUnavailable"),
+          const text = outcome.error ?? t("deletion.deliveryUnavailable");
+          if (outcome.kind === "outcomeUnknown") onDeletionUnknown(target.id, text);
+          setNotice({ text,
             role: outcome.kind === "outcomeUnknown" ? "status" : "alert",
             reread: outcome.kind === "outcomeUnknown" });
         }
@@ -592,16 +654,30 @@ function PanelContent({
         <li key={action}>
           <ReAuthCodeDialog<AdminDeletionReceipt>
             dialogRef={(handle) => { reauthDialogRefs.current[action] = handle; }}
-            onOpenChange={(next) => onReauthOpenChange(action, next)}
+            onOpenChange={(next) => {
+              onReauthOpenChange(action, next);
+              setDeletionPreview({ kind: "loading" });
+              setDeletionDialog(next ? { account: target, read: deletionCommands.readPreview } : null);
+            }}
             trigger={
               <button type="button" className="jp-btn jp-btn--danger jp-adminpanel__action"
+                disabled={uncertainDeletion !== undefined}
                 ref={(element) => { actionRefs.current[action] = element; }} onClick={() => setNotice(null)}>
                 <Icon size={18} aria-hidden="true" />{t("actions.scheduleDeletion")}
               </button>
             }
             className="jp-adminstepup"
-            title={t("confirm.scheduleDeletion.title", { email: target.email })}
-            description={description}
+            title={t("confirm.scheduleDeletion.title", { email: previewTarget?.email ?? target.email })}
+            description={deletionPreview.kind === "failed" ? t("deletion.previewUnavailable") : description}
+            operationDisabled={preview == null}
+            requestFields={deletionPreview.kind === "failed" ? (
+              <span ref={previewNoticeRef} tabIndex={-1} role="alert" className="text-body-sm text-text-primary">
+                {deletionPreview.message}
+              </span>
+            ) : undefined}
+            codeHint={deletionPreview.kind === "failed" ? (
+              <span ref={previewNoticeRef} tabIndex={-1} role="alert">{deletionPreview.message}</span>
+            ) : undefined}
             currentEmail={self.email}
             codeRecipientLabels={{
               request: t("deletion.sendCode", { email: self.email }),
@@ -614,7 +690,9 @@ function PanelContent({
             variant="destructive"
             returnPath={deletionCommands.returnPath}
             requestCode={deletionCommands.requestCode}
-            action={(proof) => deletionCommands.run(target, proof)}
+            action={(proof) => previewTarget === null
+              ? Promise.resolve({ ok: false, kind: "status", error: t("deletion.previewUnavailable") })
+              : deletionCommands.run(previewTarget, proof)}
             onHandOff={handOff}
             focusAfterHandOff={focusAfterExit}
           />
@@ -672,7 +750,7 @@ function PanelContent({
             actionRefs.current[action] = element;
           }}
           className={`jp-btn ${destructive ? "jp-btn--danger" : "jp-btn--secondary"} jp-adminpanel__action`}
-          disabled={pending}
+          disabled={pending || (action === "scheduleDeletion" && uncertainDeletion !== undefined)}
           onClick={() => activate(target, action)}
         >
           <Icon size={18} aria-hidden="true" />
@@ -789,6 +867,9 @@ function PanelContent({
 
   function actions(target: AdminAddressedAccount) {
     const { general, destructive } = actionsFor(target, emailChange, administrator);
+    const shownNotice: Notice | null = notice ?? (uncertainDeletion === undefined ? null : {
+      text: uncertainDeletion.message, role: "status",
+    });
     return (
       <section className="jp-adminpanel__actions" aria-label={t("panel.actions")}>
         <ul className="jp-adminpanel__list">
@@ -800,17 +881,17 @@ function PanelContent({
         </ul>
         <hr className="jp-adminpanel__rule" />
         <ul className="jp-adminpanel__list">{destructive.map((action) => actionButton(target, action, true))}</ul>
-        {notice === null ? null : (
+        {shownNotice === null ? null : (
           <p
             ref={noticeRef}
             tabIndex={-1}
-            className={notice.role === "alert" ? "jp-adminpanel__refusal" : "jp-adminpanel__status"}
-            role={notice.role}
+            className={shownNotice.role === "alert" ? "jp-adminpanel__refusal" : "jp-adminpanel__status"}
+            role={shownNotice.role}
           >
-            {notice.text}
+            {shownNotice.text}
           </p>
         )}
-        {notice?.reread && onRetry !== undefined ? (
+        {(uncertainDeletion !== undefined || notice?.reread) && onRetry !== undefined ? (
           <button type="button" className="jp-btn jp-btn--secondary jp-btn--sm" onClick={() => {
             setNotice(null);
             pendingFocus.current = "title";

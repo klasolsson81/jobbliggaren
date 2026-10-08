@@ -16,14 +16,14 @@ describe("LoginOutcomePanel", () => {
     const panel = screen.getByRole("status");
     // The panel's first sentence IS its heading; nothing restates it.
     expect(
-      screen.getByRole("heading", { level: 2, name: "Ditt konto raderas permanent 19 okt. 2026." })
+      screen.getByRole("heading", { level: 2, name: "Ditt konto raderas permanent tidigast 19 okt. 2026." })
     ).toBeInTheDocument();
-    expect(panel).toHaveTextContent("Fram till dess kan du få det återställt genom att mejla");
+    expect(panel).toHaveTextContent("Du kan inte återställa kontot eller avbryta raderingen.");
+    expect(panel).not.toHaveTextContent("kan du få det återställt");
     expect(screen.getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
       "href",
       "mailto:kontakt@jobbliggaren.se"
     );
-    // No "Ångra" that does not exist: restoring goes through support.
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     await waitFor(() => expect(panel).toHaveFocus());
   });
@@ -109,12 +109,14 @@ describe("LoginFlowNotice", () => {
     await waitFor(() => expect(panel).toHaveFocus());
   });
 
-  it("says the account is deleted, with the restore route as a mail link, and takes focus", async () => {
+  it("states scheduled deletion and product grace without promising restore, and takes focus", async () => {
     render(<LoginFlowNotice notice="accountDeleted" />);
 
     const panel = screen.getByRole("status");
-    expect(screen.getByRole("heading", { level: 2, name: "Ditt konto är raderat" })).toBeInTheDocument();
-    expect(panel).toHaveTextContent("I 30 dagar kan du få kontot återställt");
+    expect(screen.getByRole("heading", { level: 2, name: "Radering av ditt konto är schemalagd" })).toBeInTheDocument();
+    expect(panel).toHaveTextContent("Dina sparade uppgifter finns kvar i 30 dagar");
+    expect(panel).toHaveTextContent("Du kan inte återställa kontot eller avbryta raderingen.");
+    expect(panel).not.toHaveTextContent("kan du få kontot återställt");
     expect(within(panel).getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
       "href",
       "mailto:kontakt@jobbliggaren.se"

@@ -246,8 +246,10 @@
       "unknown": "We cannot confirm whether the action completed. Check the account's current status before deciding your next step."
     },
     "deletion": {
-      "confirm": "Access is blocked immediately on all devices. The account and saved data await permanent deletion after a {days}-day grace period. If scheduled now, the grace period ends {eligible} and the first planned run is {run}, Swedish time. The job runs daily at 04:00 UTC; this is no guarantee that deletion will be complete then. A pending address change is permanently cancelled. Deletion cannot be undone here.",
-      "receipt": "Deletion of {email} scheduled {deleted}. Access is blocked.",
+      "confirm": "Access is blocked immediately on all devices. The account and saved data await permanent deletion after a {days}-day grace period. The server calculated this preview at {calculated}, Swedish time: the grace period would end {eligible} and the first planned run would be {run}. The grace period begins when scheduling completes after your confirmation code. The dates are recalculated then and the actual times appear in the receipt. The job runs daily at 04:00 UTC; this is no guarantee that deletion will be complete then. A pending address change is permanently cancelled. Deletion cannot be undone here.",
+      "previewLoading": "Reading the account's current status and a new preview from the server before you can confirm deletion.",
+      "previewUnavailable": "Deletion cannot be confirmed without a current preview. Close the dialog and open it again to reload account status.",
+      "receipt": "Deletion of {email} scheduled {deleted}. Access is blocked. Grace period ends {eligible}. First planned run {run}, Swedish time. Deletion is not complete yet.",
       "sendCode": "Send code to {email}",
       "sendingCode": "Sending code to {email}…",
       "code": "Code to {email}",

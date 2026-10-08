@@ -149,7 +149,7 @@
     "delete": {
       "trigger": "Radera konto",
       "title": "Radera ditt konto",
-      "description": "Ditt konto och allt du har sparat raderas, och du loggas ut på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla kontakt@jobbliggaren.se. Därefter raderas det slutgiltigt och går inte att få tillbaka.",
+      "description": "Radering av ditt konto schemaläggs och du loggas ut på alla enheter direkt. Dina sparade uppgifter finns kvar i 30 dagar. Därefter rensas de permanent av den dagliga raderingskörningen. Du kan inte återställa kontot eller avbryta raderingen.",
       "confirmEmailLabel": "Skriv din e-postadress för att bekräfta",
       "expected": "Din e-postadress är {email}.",
       "confirmMismatch": "Skriv din e-postadress som den står under fältet.",

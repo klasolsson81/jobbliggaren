@@ -1,4 +1,9 @@
 using Jobbliggaren.Application.Admin.Feedback.Commands.RequeueFeedbackNotification;
+using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.UnitTests.Auth;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Application.UnitTests.Feedback;
 using Jobbliggaren.Domain.Common;
@@ -6,6 +11,7 @@ using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Admin.Feedback.Commands.RequeueFeedbackNotification;
@@ -25,18 +31,29 @@ public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncLifet
     private static readonly FakeDateTimeProvider RegistrationClock = new(T0);
     private readonly JobSeeker _reporter = JobSeeker.Register(
         Guid.NewGuid(), TermsAcceptance.AcceptCurrent(RegistrationClock), RegistrationClock).Value;
+    private readonly JobSeeker _administrator = JobSeeker.Register(
+        Guid.NewGuid(), TermsAcceptance.AcceptCurrent(RegistrationClock), RegistrationClock).Value;
+    private readonly AccountAccessTestKit.RecordingAccountAccessCoordinator _coordinator = AccountAccessTestKit.Coordinator();
+    private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
+    private readonly ICorrelationIdProvider _correlationId = Substitute.For<ICorrelationIdProvider>();
+    private readonly IRequestContextProvider _requestContext = Substitute.For<IRequestContextProvider>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
     {
-        _db.JobSeekers.Add(_reporter);
+        _db.JobSeekers.AddRange(_reporter, _administrator);
+        _currentUser.UserId.Returns(_administrator.UserId);
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.AccessRevision.Returns(0L);
+        _correlationId.Current.Returns(Guid.NewGuid());
         await _db.SaveChangesAsync(Ct);
         _db.ClearTracking();
     }
 
     public async ValueTask DisposeAsync()
     {
+        await _coordinator.DisposeAsync();
         await _db.DisposeAsync();
         GC.SuppressFinalize(this);
     }
@@ -72,12 +89,22 @@ public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncLifet
         notice.RecordUnknown(T0).IsSuccess.ShouldBeTrue();
     });
 
-    /// <summary>The handler's call, then the save <c>UnitOfWorkBehavior</c> makes after it.</summary>
+    /// <summary>The recording scope witnesses ownership calls; PostgreSQL tests witness atomic rollback.</summary>
     private async Task<Result> RequeueAsync(Guid submissionId, bool acknowledgeDuplicateRisk)
     {
-        var result = await new RequeueFeedbackNotificationCommandHandler(_db, new FakeDateTimeProvider(Later))
+        var profiles = AccountAccessTestKit.ReaderFromProfiles(_db, userId =>
+            userId == _administrator.UserId ? "administrator@example.se" : null);
+        var actor = (await profiles.ReadAsync(_administrator.UserId, Ct)).ShouldNotBeNull() with { IsAdmin = true };
+        var access = AccountAccessTestKit.Reader(userId => userId == _administrator.UserId ? actor : null);
+        var result = await new RequeueFeedbackNotificationCommandHandler(_db, new FakeDateTimeProvider(Later),
+                _currentUser, _coordinator, access, _correlationId, _requestContext)
             .Handle(new RequeueFeedbackNotificationCommand(submissionId, acknowledgeDuplicateRisk), Ct);
-        await _db.SaveChangesAsync(Ct);
+        _coordinator.HasActiveScope.ShouldBeFalse();
+        if (result.IsFailure)
+        {
+            _coordinator.Commits.ShouldBe(0);
+            (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
+        }
         _db.ClearTracking();
         return result;
     }
@@ -92,6 +119,54 @@ public sealed class RequeueFeedbackNotificationCommandHandlerTests : IAsyncLifet
         notice.NextAttemptAt.ShouldBe(Later);
         notice.SendingStartedAt.ShouldBeNull();
         notice.StateChangedAt.ShouldBe(Later);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldSaveOneSuccessAuditBeforeOwnedCommit_WhenTheReporterIsLive()
+    {
+        var saved = await SubmitAsync();
+        await LoseTheOutcomeAsync(saved);
+        var commitObserved = false;
+        _coordinator.BeforeCommit = () =>
+        {
+            _coordinator.Holds(_administrator.UserId).ShouldBeTrue();
+            _coordinator.Holds(_reporter.UserId).ShouldBeTrue();
+            var audit = _db.AuditLogEntries.AsNoTracking().Single();
+            audit.EventType.ShouldBe("Admin.FeedbackNotificationRequeued");
+            audit.AggregateId.ShouldBe(saved.SubmissionId.Value);
+            audit.UserId.ShouldBe(_administrator.UserId);
+            commitObserved = true;
+        };
+
+        var result = await RequeueAsync(saved.SubmissionId.Value, acknowledgeDuplicateRisk: true);
+
+        result.IsSuccess.ShouldBeTrue();
+        commitObserved.ShouldBeTrue();
+        _coordinator.Commits.ShouldBe(1);
+        var begun = _coordinator.BegunScopes.ShouldHaveSingleItem();
+        begun.Lifecycle.ShouldBeFalse();
+        begun.UserIds.Order().ShouldBe(new[] { _administrator.UserId, _reporter.UserId }.Distinct().Order());
+        ShouldBeAFreshRound(await NoticeAsync(saved));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRefuseWithoutAuditOrCommit_WhenTheActorProfileWasActuallySoftDeleted()
+    {
+        var saved = await SubmitAsync();
+        await LoseTheOutcomeAsync(saved);
+        var actor = await _db.JobSeekers.SingleAsync(profile => profile.Id == _administrator.Id, Ct);
+        actor.SoftDelete(new FakeDateTimeProvider(Later));
+        actor.DeletedAt.ShouldBe(Later);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        await Should.ThrowAsync<ReauthenticationFailedException>(async () =>
+            await RequeueAsync(saved.SubmissionId.Value, acknowledgeDuplicateRisk: true));
+
+        _coordinator.HasActiveScope.ShouldBeFalse();
+        _coordinator.Commits.ShouldBe(0);
+        (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
+        (await NoticeAsync(saved)).State.ShouldBe(FeedbackNotificationState.Unknown);
     }
 
     [Theory]

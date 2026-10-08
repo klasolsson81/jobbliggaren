@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useRef, type Ref } from "react";
 import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
@@ -28,12 +28,14 @@ function Harness({
   onOpenChange,
   codeRecipientLabels,
   dialogRef,
+  operationDisabled,
 }: {
   operation: Operation;
   onHandOff?: (handOff: ReauthHandOff<string>) => void;
   onOpenChange?: (open: boolean) => void;
   codeRecipientLabels?: { request: string; pending: string; field: string };
   dialogRef?: Ref<ReauthDialogHandle>;
+  operationDisabled?: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   return (
@@ -45,6 +47,7 @@ function Harness({
         description="Det här gör operationen."
         currentEmail={ADDRESS}
         codeRecipientLabels={codeRecipientLabels}
+        operationDisabled={operationDisabled}
         confirmLabel="Utför"
         pendingLabel="Utför…"
         cancelLabel="Avbryt"
@@ -322,6 +325,37 @@ describe("ReAuthCodeDialog", () => {
     await act(async () => settle({ ok: false, kind: "status", error: "Försök igen." }));
   });
 
+  it("gates requests and retained code submission on the consumer's fresh read, while leaving close available", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Harness operation={operation} operationDisabled />);
+    const dialog = await open(user);
+    const send = within(dialog).getByRole("button", { name: "Skicka kod" });
+    expect(send).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeEnabled();
+    fireEvent.submit(send.closest("form")!);
+    expect(requestCodeMock).not.toHaveBeenCalled();
+
+    rerender(<Harness operation={operation} operationDisabled={false} />);
+    await user.click(send);
+    const code = await within(dialog).findByLabelText("Sexsiffrig kod");
+    await user.type(code, "123456");
+    rerender(<Harness operation={operation} operationDisabled />);
+    const confirm = within(dialog).getByRole("button", { name: "Utför" });
+    expect(code).toBeDisabled();
+    expect(confirm).toBeDisabled();
+    fireEvent.submit(confirm.closest("form")!);
+    expect(operation).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await open(user);
+    expect(screen.getByLabelText("Sexsiffrig kod")).toBeDisabled();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+
+    rerender(<Harness operation={operation} operationDisabled={false} />);
+    await submit(user);
+    await waitFor(() => expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" }));
+  });
+
   it("closes through the parent's handle without running the action, then reuses the live challenge on reopening", async () => {
     const dialogRef = createRef<ReauthDialogHandle>();
     const onOpenChange = vi.fn();
@@ -442,6 +476,24 @@ describe("ReAuthCodeDialog", () => {
       act(() => {
         vi.advanceTimersByTime(seconds * 1000);
       });
+
+    it("keeps an otherwise due resend unavailable until the consumer's fresh read completes", async () => {
+      const user = clockedUser();
+      const { rerender } = render(<Harness operation={operation} />);
+      await toCodeStep(user);
+      await wait(60);
+      expect(resend()).toBeEnabled();
+      rerender(<Harness operation={operation} operationDisabled />);
+      expect(resend()).toBeDisabled();
+      await user.click(resend());
+      expect(requestCodeMock).toHaveBeenCalledTimes(1);
+      expect(operation).not.toHaveBeenCalled();
+      rerender(<Harness operation={operation} operationDisabled={false} />);
+      requestCodeMock.mockResolvedValueOnce({ ok: true, challengeId: SECOND });
+      await user.click(resend());
+      await submit(user);
+      await waitFor(() => expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: SECOND, code: "123456" }));
+    });
 
     it("refuses the parent's close handle while an enabled resend runs, then uses the replacement challenge", async () => {
       const dialogRef = createRef<ReauthDialogHandle>();

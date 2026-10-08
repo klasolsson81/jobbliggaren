@@ -18,6 +18,8 @@ internal sealed class CommitAcknowledgementLoss : DbTransactionInterceptor
 
     internal IDisposable AfterDeletionCommit(Guid target) => Arm(target, "Admin.AccountDeletionScheduled");
 
+    internal IDisposable AfterFeedbackRequeueCommit(Guid submissionId) => Arm(submissionId, "Admin.FeedbackNotificationRequeued");
+
     private Scope Arm(Guid target, string eventType)
     {
         lock (_gate)

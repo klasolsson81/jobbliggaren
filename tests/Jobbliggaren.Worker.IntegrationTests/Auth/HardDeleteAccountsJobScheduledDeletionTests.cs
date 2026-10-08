@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
@@ -31,8 +33,10 @@ public partial class HardDeleteAccountsJobIntegrationTests
         await SeedResumeForJobSeekerAsync(targetProfile, ct, deletedAt.AddHours(-1));
         await SeedParsedResumeForJobSeekerAsync(targetProfile, ct, deletedAt.AddHours(-1));
         await SeedResumeForJobSeekerAsync(controlProfile, ct);
-        await SeedFeedbackAsync(targetProfile, FeedbackPage.Jobs, deletedAt.AddHours(-1), false, ct);
-        await SeedFeedbackAsync(controlProfile, FeedbackPage.Jobs, now, false, ct);
+        await SeedFeedbackAsync(targetProfile, FeedbackPage.Jobs, deletedAt.AddHours(-1), false, ct, withScreenshot: true);
+        await SeedFeedbackAsync(controlProfile, FeedbackPage.Jobs, now, false, ct, withScreenshot: true);
+        var targetScreenshot = await FeedbackScreenshotAsync(targetProfile, ct);
+        var controlScreenshot = await FeedbackScreenshotAsync(controlProfile, ct);
         await SeedAuditEntryAsync(target, targetProfile.Value, ct);
         await SeedAuditEntryAsync(control, controlProfile.Value, ct);
         await LinkEveryKnownProviderAsync(target, ct);
@@ -51,6 +55,8 @@ public partial class HardDeleteAccountsJobIntegrationTests
         (await TimelineStampsAsync(targetApplication, ct)).ShouldHaveSingleItem().ShouldBe(receipt.DeletedAt);
         (await TimelineStampsAsync(controlApplication, ct)).ShouldHaveSingleItem().ShouldBeNull();
         (await CountFeedbackAsync(targetProfile, ct)).ShouldBe((1, 1, 1));
+        await AssertFeedbackScreenshotUnchangedAsync(targetScreenshot, ct);
+        await AssertFeedbackScreenshotUnchangedAsync(controlScreenshot, ct);
         using (var scope = _fixture.Services.CreateScope())
         {
             var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessReader>().ReadAsync(target, ct);
@@ -66,6 +72,8 @@ public partial class HardDeleteAccountsJobIntegrationTests
         await AssertOwnedGraphAsync(control, controlProfile, present: true, ct);
         (await CountFeedbackAsync(targetProfile, ct)).ShouldBe((0, 0, 0));
         (await CountFeedbackAsync(controlProfile, ct)).ShouldBe((1, 1, 1));
+        (await FeedbackScreenshotCountAsync(targetProfile, ct)).ShouldBe(0);
+        await AssertFeedbackScreenshotUnchangedAsync(controlScreenshot, ct);
         using var verify = _fixture.Services.CreateScope();
         var db = verify.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.ParsedResumes.CountAsync(resume => resume.JobSeekerId == targetProfile, ct)).ShouldBe(0);
@@ -90,14 +98,17 @@ public partial class HardDeleteAccountsJobIntegrationTests
             [first] = await ProfileIdAsync(first, ct),
             [second] = await ProfileIdAsync(second, ct),
         };
+        var screenshots = new Dictionary<Guid, FeedbackScreenshot>();
         foreach (var (user, profile) in profiles)
         {
             await SeedEncryptedApplicationAsync(profile, deletedAt.AddHours(-1), ct);
             await SeedResumeForJobSeekerAsync(profile, ct, deletedAt.AddHours(-1));
             await SeedParsedResumeForJobSeekerAsync(profile, ct, deletedAt.AddHours(-1));
-            await SeedFeedbackAsync(profile, FeedbackPage.Cv, deletedAt.AddHours(-1), false, ct);
+            await SeedFeedbackAsync(profile, FeedbackPage.Cv, deletedAt.AddHours(-1), false, ct, withScreenshot: true);
+            screenshots[user] = await FeedbackScreenshotAsync(profile, ct);
             await SeedAuditEntryAsync(user, profile.Value, ct);
             await ScheduleAtAsync(user, deletedAt, ct);
+            await AssertFeedbackScreenshotUnchangedAsync(screenshots[user], ct);
         }
 
         var run = Guid.NewGuid().ToString("N")[..20];
@@ -117,6 +128,8 @@ public partial class HardDeleteAccountsJobIntegrationTests
         await AssertOwnedGraphAsync(completed, profiles[completed], present: false, ct);
         (await CountFeedbackAsync(profiles[failed], ct)).ShouldBe((1, 1, 1));
         (await CountFeedbackAsync(profiles[completed], ct)).ShouldBe((0, 0, 0));
+        await AssertFeedbackScreenshotUnchangedAsync(screenshots[failed], ct);
+        (await FeedbackScreenshotCountAsync(profiles[completed], ct)).ShouldBe(0);
         using (var scope = _fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -132,9 +145,76 @@ public partial class HardDeleteAccountsJobIntegrationTests
 
         await AssertOwnedGraphAsync(failed, profiles[failed], present: false, ct);
         (await CountFeedbackAsync(profiles[failed], ct)).ShouldBe((0, 0, 0));
+        (await FeedbackScreenshotCountAsync(profiles[failed], ct)).ShouldBe(0);
         using var finalScope = _fixture.Services.CreateScope();
         (await finalScope.ServiceProvider.GetRequiredService<AppDbContext>().AuditLogEntries.AsNoTracking()
             .SingleAsync(row => row.AggregateId == profiles[failed].Value, ct)).UserId.ShouldBeNull();
+    }
+
+    private async Task<FeedbackScreenshot> FeedbackScreenshotAsync(JobSeekerId profile, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var screenshot = await db.FeedbackScreenshots.AsNoTracking()
+            .SingleAsync(row => row.JobSeekerId == profile, ct);
+        var submission = await db.FeedbackSubmissions.AsNoTracking()
+            .Where(row => row.Id == screenshot.SubmissionId)
+            .Select(row => new { row.JobSeekerId, row.SubmittedAt }).SingleAsync(ct);
+        screenshot.JobSeekerId.ShouldBe(submission.JobSeekerId);
+        screenshot.SubmittedAt.ShouldBe(submission.SubmittedAt);
+        return screenshot;
+    }
+
+    private async Task<int> FeedbackScreenshotCountAsync(JobSeekerId profile, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().FeedbackScreenshots
+            .CountAsync(screenshot => screenshot.JobSeekerId == profile, ct);
+    }
+
+    private async Task AssertFeedbackScreenshotUnchangedAsync(FeedbackScreenshot expected, CancellationToken ct)
+    {
+        var actual = await FeedbackScreenshotAsync(expected.JobSeekerId, ct);
+        actual.Id.ShouldBe(expected.Id);
+        actual.SubmissionId.ShouldBe(expected.SubmissionId);
+        actual.JobSeekerId.ShouldBe(expected.JobSeekerId);
+        actual.SubmittedAt.ShouldBe(expected.SubmittedAt);
+        actual.Width.ShouldBe(expected.Width);
+        actual.Height.ShouldBe(expected.Height);
+        actual.Content.ToArray().ShouldBe(expected.Content.ToArray());
+    }
+
+    // The complete 1x1 encoder shape used by FeedbackScreenshotTests.AttachTo_NormalizedPng_CopiesTheSubmissionIdentityAndRetentionInstant.
+    // FeedbackScreenshotNormalizerTests.NormalizeAsync_AStaticAllowedImage_EmitsOneLosslessRgba8Png pins the real writer's RGBA8 format.
+    private static byte[] EncodeFeedbackOnePixelPng()
+    {
+        using var png = new MemoryStream();
+        png.Write([137, 80, 78, 71, 13, 10, 26, 10]);
+        WriteFeedbackPngChunk(png, "IHDR"u8, [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed, CompressionLevel.SmallestSize, leaveOpen: true))
+            zlib.Write([0, 20, 40, 60, 255]);
+        WriteFeedbackPngChunk(png, "IDAT"u8, compressed.ToArray());
+        WriteFeedbackPngChunk(png, "IEND"u8, []);
+        return png.ToArray();
+    }
+
+    private static void WriteFeedbackPngChunk(Stream output, ReadOnlySpan<byte> kind, ReadOnlySpan<byte> data)
+    {
+        Span<byte> word = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(word, data.Length);
+        output.Write(word);
+        output.Write(kind);
+        output.Write(data);
+        var crc = uint.MaxValue;
+        foreach (var value in kind.ToArray().Concat(data.ToArray()))
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+                crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0 : 0xedb88320u);
+        }
+        BinaryPrimitives.WriteUInt32BigEndian(word, ~crc);
+        output.Write(word);
     }
 
     private async Task<JobSeekerId> ProfileIdAsync(Guid user, CancellationToken ct)

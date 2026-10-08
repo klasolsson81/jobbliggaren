@@ -464,7 +464,11 @@ unavailable. This amendment adds no migration or legal retention rule.
 The existing worker shares one physical App/Identity transaction for owned
 graph/DEK erasure and audit anonymization. A real Identity-delete failure retains
 the whole account, isolates subsequent accounts and permits a later ordinary
-retry. Feedback dispatch/requeue use live-profile checks. Top-direct matching,
+retry. Feedback dispatch uses live-profile checks. Requeue resolves immutable
+reporter ownership before admission, then holds sorted actor/reporter locks
+through a fresh administrator proof, exact live-profile check, notice change,
+success-only audit, save and commit. It owns the transaction; a concurrent write
+refuses after rollback and an unknown commit is never replayed. Top-direct matching,
 match digests and followed-company digests repeat the live-profile/consent check
 after the persisted claim and immediately before transport, retaining `Queued`
 without automatic replay when access is no longer admitted. No transaction spans

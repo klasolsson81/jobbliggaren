@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
-import { ADMIN, DELETION_TIMING } from "./fixtures";
+import { ADMIN, DELETION_AFTER_04, DELETION_BEFORE_04 } from "./fixtures";
 import { APP_ORIGIN, HARNESS_PORTS, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
@@ -137,21 +137,79 @@ for (const width of [1280, 3440]) {
     expect(harness.deletionRequests).toHaveLength(0);
   });
 
+  test(`deletion preview rereads after 04 UTC, gates codes and fails closed on reopening at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    harness.deletionTiming = DELETION_BEFORE_04;
+    const panel = await open(page);
+    harness.deletionTiming = DELETION_AFTER_04;
+    let release: (() => void) | undefined;
+    const released = new Promise<void>(resolve => { release = resolve; });
+    const reads = "**/api/admin/konton/detalj";
+    await page.route(reads, async route => { await released; await route.continue(); });
+    try {
+      const dialog = await begin(page, panel);
+      const send = dialog.getByRole("button", { name: `Skicka kod till ${ADMIN.email}`, exact: true });
+      await expect(dialog).toHaveAccessibleDescription(/Läser in kontots aktuella status/);
+      await expect(send).toBeDisabled();
+      await expect(dialog.getByRole("button", { name: "Avbryt", exact: true })).toBeFocused();
+      await inspect(page, "deletion-preview-loading");
+      await page.keyboard.press("Enter");
+      await expect(dialog).not.toBeVisible();
+      expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(0);
+      // A close aborts the old read. The next opening must make its own successful live read.
+      release?.();
+      await page.unroute(reads);
+      const reopened = await begin(page, panel);
+      await expect(reopened).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 06:01/);
+      await expect(reopened).toHaveAccessibleDescription(/2026-11-08 05:00/);
+      await expect(reopened).not.toHaveAccessibleDescription(/2026-11-07 05:00/);
+      await expect(reopened).toHaveAccessibleDescription(/de faktiska tiderna visas i kvittot/);
+      await inspect(page, "deletion-preview-current");
+      await prove(reopened);
+      await page.keyboard.press("Escape");
+      await expect(reopened).not.toBeVisible();
+      harness.mode = "error";
+      const failed = await begin(page, panel);
+      const alert = failed.getByRole("alert");
+      await expect(alert).toContainText("Kontots uppgifter kunde inte hämtas.");
+      await expect(alert).toBeFocused();
+      await expect(failed.getByLabel(`Kod till ${ADMIN.email}`)).toBeDisabled();
+      await expect(failed.getByRole("button", { name: "Radera konto", exact: true })).toBeDisabled();
+      await inspect(page, "deletion-preview-refused");
+      expect(harness.requests.filter(path => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+      expect(harness.reauthVerifications).toHaveLength(0);
+      expect(harness.deletionRequests).toHaveLength(0);
+      await page.keyboard.press("Escape");
+      await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeFocused();
+    } finally {
+      release?.();
+      await page.unroute(reads);
+    }
+  });
+
   test(`deletion confirmation, loading, receipt and actual pending data at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
+    harness.deletionTiming = DELETION_BEFORE_04;
     harness.emailChanges.add(TARGET);
     const panel = await open(page);
     const dialog = await begin(page, panel);
     await expect(dialog).toHaveAccessibleDescription(/30 dagars respit/);
     await expect(dialog).toHaveAccessibleDescription(/adressbyte avbryts permanent/);
     await expect(dialog).toHaveAccessibleDescription(/ingen garanti/);
+    await expect(dialog).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 05:59/);
+    await expect(dialog).toHaveAccessibleDescription(/2026-11-07 05:00/);
     await inspect(page, "deletion-confirmation");
     harness.holdCodeRequests = true;
     await dialog.getByRole("button", { name: `Skicka kod till ${ADMIN.email}`, exact: true }).click();
     await expect(dialog.getByRole("button", { name: `Skickar kod till ${ADMIN.email}…` })).toBeDisabled();
     await inspect(page, "deletion-code-loading");
+    // The real injected-clock producer advances while the administrator waits for their inbox code.
+    harness.deletionTiming = DELETION_AFTER_04;
     harness.releaseCodeRequests();
     await expect(dialog.getByLabel(`Kod till ${ADMIN.email}`)).toBeFocused();
+    await expect(dialog).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 05:59/);
+    await expect(dialog).toHaveAccessibleDescription(/2026-11-07 05:00/);
+    expect(harness.requests.filter(path => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(2);
     await dialog.getByLabel(`Kod till ${ADMIN.email}`).fill("123456");
     harness.holdAccessWrites = true;
     await dialog.getByRole("button", { name: "Radera konto", exact: true }).click();
@@ -160,12 +218,15 @@ for (const width of [1280, 3440]) {
     harness.releaseAccessWrites();
     const receipt = panel.getByRole("region", { name: "Åtgärder", exact: true }).getByRole("status");
     await expect(receipt).toContainText(`Radering av ${EMAIL} schemalagd`);
+    await expect(receipt).toContainText("schemalagd 2026-10-08 06:01");
+    await expect(receipt).toContainText("Respiten slutar 2026-11-07 05:01");
+    await expect(receipt).toContainText("Första planerade körning 2026-11-08 05:00");
     await expect(panel).toContainText("Raderingen är ännu inte genomförd.");
     await expect(receipt).toBeFocused();
     await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
     await expect(panel.getByText("Adressbyte", { exact: true })).toHaveCount(0);
     expect(harness.deletionRequests).toHaveLength(1);
-    expect(harness.deletions.get(TARGET)).toEqual(DELETION_TIMING);
+    expect(harness.deletions.get(TARGET)).toEqual(DELETION_AFTER_04);
     await inspect(page, "deletion-receipt");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("radio", { name: "Under radering (2)" })).toBeVisible();
@@ -198,12 +259,74 @@ for (const width of [1280, 3440]) {
     await expect(status).toContainText("Det går inte att bekräfta om raderingen schemalades.");
     await expect(status).toBeFocused();
     await expect(panel.getByText("Under radering", { exact: true })).toHaveCount(0);
-    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(1);
+    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(2);
+    const trigger = panel.getByRole("button", { name: "Radera konto", exact: true });
+    await expect(trigger).toBeDisabled();
+    // Send a real pointer press to the unavailable trigger: it must not open another code flow.
+    await trigger.click({ force: true });
+    await expect(page.getByRole("dialog", { name: `Radera ${EMAIL}?`, exact: true })).toHaveCount(0);
+    expect(harness.requests.filter((path) => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
+    expect(harness.deletionRequests).toHaveLength(1);
     await inspect(page, "deletion-outcome-unknown");
+
+    harness.mode = "error";
     await panel.getByRole("button", { name: "Läs in kontots status", exact: true }).click();
+    await expect(panel.getByRole("alert")).toContainText("Kontots uppgifter kunde inte hämtas.");
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
+    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
+    expect(harness.requests.filter((path) => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
+    expect(harness.deletionRequests).toHaveLength(1);
+    await inspect(page, "deletion-unknown-reread-failed");
+
+    harness.mode = "ok";
+    await panel.getByRole("button", { name: "Försök igen", exact: true }).click();
     await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
+    await expect(panel).toContainText("Planerad körning");
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: "Läs in kontots status", exact: true })).toHaveCount(0);
+    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(4);
+    expect(harness.requests.filter((path) => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
     expect(harness.deletionRequests).toHaveLength(1);
     await inspect(page, "deletion-reread-pending");
+  });
+
+  test(`unknown deletion before commit unlocks only after a successful explicit reread at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    // The harness returns 503 before its deletion transition; unknownAfterCommit covers the other outcome.
+    harness.deletionMode = "unknown";
+    const panel = await open(page);
+    const dialog = await begin(page, panel);
+    await prove(dialog);
+    await dialog.getByRole("button", { name: "Radera konto", exact: true }).click();
+    const status = panel.getByRole("region", { name: "Åtgärder", exact: true }).getByRole("status");
+    await expect(status).toContainText("Det går inte att bekräfta om raderingen schemalades.");
+    await expect(status).toBeFocused();
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeDisabled();
+    expect(harness.deletions.size).toBe(0);
+    expect(harness.deletionRequests).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
+    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(2);
+
+    await panel.getByRole("button", { name: "Läs in kontots status", exact: true }).click();
+    await expect(panel.getByText("Aktiv", { exact: true })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeEnabled();
+    await expect(panel.getByRole("button", { name: "Läs in kontots status", exact: true })).toHaveCount(0);
+    expect(harness.requests.filter((path) => path === `GET /api/v1/admin/accounts/${TARGET}`)).toHaveLength(3);
+    expect(harness.requests.filter((path) => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
+    expect(harness.deletionRequests).toHaveLength(1);
+    await inspect(page, "deletion-reread-active");
+
+    const retryDialog = await begin(page, panel);
+    await expect(retryDialog.getByRole("button", { name: `Skicka kod till ${ADMIN.email}`, exact: true })).toBeEnabled();
+    expect(harness.requests.filter((path) => path === "POST /api/v1/auth/reauth")).toHaveLength(1);
+    expect(harness.reauthVerifications).toHaveLength(1);
+    expect(harness.deletionRequests).toHaveLength(1);
+    await page.keyboard.press("Escape");
+    await expect(panel.getByRole("button", { name: "Radera konto", exact: true })).toBeFocused();
   });
 
   test(`code refusal remains in the real dialog at ${width}px`, async ({ page }) => {

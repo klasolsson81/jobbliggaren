@@ -72,6 +72,11 @@ const FIRST: Criteria = { term: "", filter: "all", sort: FIRST_SORT, page: 1, ge
 
 type Answer<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly failure: AccountsFailure; readonly gone: boolean };
 
+type AccountReread = {
+  readonly details: AdminAccountDetails;
+  readonly emailChange: AdminEmailChangeReread;
+};
+
 /** One BFF read. The body carries every value, so no term and no account id enters a URL. */
 async function post<T>(path: string, body: unknown, parse: (json: unknown) => T | null, signal: AbortSignal): Promise<Answer<T>> {
   try {
@@ -219,32 +224,34 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
    * Reads one account's details and its pending address change, side by side, and shows them together. Again,
    * after a command, it keeps what the panel shows until the answers arrive, and a failed read changes nothing.
    */
-  function readAccount(id: string, again = false): Promise<AdminEmailChangeReread> {
+  function readAccount(id: string, again = false): Promise<AccountReread> {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
     if (!again) setDetails({ kind: "loading" });
     const detail = post("/api/admin/konton/detalj", { id }, parseDetail, controller.signal);
     const change = post("/api/admin/konton/adressbyte", { id }, parseEmailChange, controller.signal);
-    return Promise.all([detail, change]).then(([answer, pending]): AdminEmailChangeReread => {
-      if (controller.signal.aborted) return UNKNOWN_EMAIL_CHANGE;
+    return Promise.all([detail, change]).then(([answer, pending]): AccountReread => {
+      if (controller.signal.aborted || openId.current !== id)
+        return { details: { kind: "loading" }, emailChange: UNKNOWN_EMAIL_CHANGE };
       const read = pending.ok ? pending.data : UNKNOWN_EMAIL_CHANGE;
       if (pending.ok || !again) setEmailChange(read);
       if (answer.ok) {
-        setDetails({ kind: "loaded", data: answer.data });
-        return read;
+        const loaded: AdminAccountDetails = { kind: "loaded", data: answer.data };
+        setDetails(loaded);
+        return { details: loaded, emailChange: read };
       }
       if (answer.gone) {
         markGone();
-        return GONE;
+        return { details: { kind: "gone" }, emailChange: GONE };
       }
-      if (again) return read;
-      setDetails({
+      const failed: AdminAccountDetails = {
         kind: "failed",
         message: failureText(answer.failure, t("errors.detailFailed")),
         recovery: recoveryOf(answer.failure),
-      });
-      return read;
+      };
+      if (!again) setDetails(failed);
+      return { details: failed, emailChange: read };
     });
   }
 
@@ -268,6 +275,13 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   const commands: AdminAccountCommands = {
     live: LIVE,
     deletion: {
+      readPreview: async (account, signal) => {
+        const answer = await post("/api/admin/konton/detalj", { id: account.id }, parseDetail, signal);
+        if (answer.ok) return { kind: "loaded", data: answer.data };
+        if (answer.gone) return { kind: "gone" };
+        return { kind: "failed", message: failureText(answer.failure, t("errors.detailFailed")),
+          recovery: recoveryOf(answer.failure) };
+      },
       requestCode: requestReauthCode,
       returnPath: RETURN_PATH,
       run: async (account, proof) => {
@@ -394,9 +408,9 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
         emailChange={emailChange}
         onRetry={open === null ? undefined : () => {
           setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
-          void readAccount(open.id);
+          return readAccount(open.id).then((read) => read.details);
         }}
-        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
+        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true).then((read) => read.emailChange)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {
           detailRequest.current?.abort();

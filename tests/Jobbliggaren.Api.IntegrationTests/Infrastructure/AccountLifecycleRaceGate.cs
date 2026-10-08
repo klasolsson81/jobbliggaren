@@ -9,10 +9,13 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 
 internal sealed class AccountLifecycleRaceGate(
-    Guid firstParticipantId, string firstPath, string secondPath, Guid? secondParticipantId = null) : IDisposable
+    Guid firstParticipantId, string firstPath, string secondPath, Guid? secondParticipantId = null,
+    bool firstLifecycle = true, bool secondLifecycle = true, bool holdSecond = false) : IDisposable
 {
     private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseSecond = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _claimed;
+    private int _secondClaimed;
 
     internal TaskCompletionSource<HeldTransaction> FirstHeld { get; } =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -22,7 +25,8 @@ internal sealed class AccountLifecycleRaceGate(
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     internal bool Matches(IReadOnlyCollection<Guid> ids, bool lifecycle, string? path) =>
-        lifecycle && (MatchesFirst(ids, path) || MatchesSecond(ids, path));
+        (lifecycle == firstLifecycle && MatchesFirst(ids, path))
+        || (lifecycle == secondLifecycle && MatchesSecond(ids, path));
 
     private bool MatchesFirst(IReadOnlyCollection<Guid> ids, string? path) =>
         path == firstPath && ids.Contains(firstParticipantId);
@@ -39,8 +43,12 @@ internal sealed class AccountLifecycleRaceGate(
     internal async Task AfterBeginAsync(
         IReadOnlyCollection<Guid> ids, string path, HeldTransaction transaction, CancellationToken ct)
     {
-        if (MatchesSecond(ids, path))
+        if (MatchesSecond(ids, path) && Interlocked.CompareExchange(ref _secondClaimed, 1, 0) == 0)
+        {
             SecondHeld.TrySetResult(transaction);
+            if (holdSecond)
+                await _releaseSecond.Task.WaitAsync(ct);
+        }
         if (!MatchesFirst(ids, path) || Interlocked.CompareExchange(ref _claimed, 1, 0) != 0)
             return;
         FirstHeld.TrySetResult(transaction);
@@ -48,10 +56,12 @@ internal sealed class AccountLifecycleRaceGate(
     }
 
     internal void Release() => _release.TrySetResult();
+    internal void ReleaseSecond() => _releaseSecond.TrySetResult();
 
     public void Dispose()
     {
         Release();
+        ReleaseSecond();
         GC.SuppressFinalize(this);
     }
 

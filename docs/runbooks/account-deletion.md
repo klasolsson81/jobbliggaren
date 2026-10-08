@@ -20,6 +20,11 @@ The Server Action verifies the administrator's inbox code and passes its grant
 internally. It neither impersonates the target nor obtains its data key. The
 confirmation identifies the target, immediate access loss, permanent interruption
 of pending address changes, grace period and projected worker run.
+Every opening reads a fresh same-target live status and server-calculated preview
+before enabling code request, verification or resend. The calculation timestamp
+labels the frozen preview during inbox confirmation. The committed receipt uses
+the actual scheduling instant and recalculates eligibility and the projected run;
+crossing 04:00 UTC during confirmation can move that run to the next day.
 
 The receipt contains `userId`, `deletedAt`, `eligibleAt` and `scheduledRunAt`.
 New deletion stamps use one captured UTC instant at millisecond precision for the
@@ -81,12 +86,16 @@ registration. Every run performs its normal four steps:
 The cascade includes applications/children, resumes/versions, parsed CVs and
 originals, matching/digest state, saved searches/job ads, recent searches,
 company watches/hits/criteria and database-cascaded derived rows, and feedback
-submissions/notices/prompt suppressions. The cascade map and worker integration
-tests pin the current inventory. #1979 owns future screenshot storage until it
-merges; this runbook does not claim cleanup of an unmerged feature.
+screenshots/submissions/notices/prompt suppressions. Screenshots are removed before
+their submissions. The cascade map and worker integration tests pin the current
+inventory, including screenshot preservation while scheduled, rollback on Identity
+failure and target-only removal by the ordinary worker.
 
 Feedback dispatch checks live reporter before claim and again after persisted
-`Sending`, immediately before transport. Requeue refuses a deleted reporter.
+`Sending`, immediately before transport. Requeue holds sorted actor/reporter
+locks through fresh administrator authority, the live-profile check, notice
+change, success-only audit, save and commit. It refuses a deleted reporter,
+rolls back concurrent-write conflicts and never replays an unknown commit.
 Application timeline status changes receive the same scheduling stamp as their
 aggregate; the scheduler explicitly loads that navigation before soft deletion.
 Matching and watch scans exclude deleted profiles. Top-direct, match digest and

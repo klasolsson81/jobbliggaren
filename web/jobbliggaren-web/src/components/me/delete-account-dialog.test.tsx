@@ -51,9 +51,10 @@ describe("DeleteAccountDialog", () => {
     await user.click(screen.getByRole("button", { name: "Radera konto" }));
 
     const dialog = screen.getByRole("dialog", { name: "Radera ditt konto" });
-    expect(dialog).toHaveTextContent(/I 30 dagar kan du få kontot återställt/);
+    expect(dialog).toHaveTextContent("du loggas ut på alla enheter direkt");
+    expect(dialog).toHaveTextContent("Dina sparade uppgifter finns kvar i 30 dagar.");
+    expect(dialog).toHaveTextContent("Du kan inte återställa kontot eller avbryta raderingen.");
     expect(dialog).toHaveTextContent(`skickar vi en sexsiffrig kod till ${ADDRESS}`);
-    // Nothing focusable before the typed field: the restore address is text, not a link.
     expect(within(dialog).queryByRole("link")).not.toBeInTheDocument();
   });
 

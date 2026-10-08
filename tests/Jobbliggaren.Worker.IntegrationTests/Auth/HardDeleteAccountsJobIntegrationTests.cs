@@ -613,15 +613,32 @@ $fn$ LANGUAGE plpgsql;";
     // The submit handler's one save at sentAt (the submission, its notice, the page's first suppression), and when
     // accepted, FeedbackNotificationDispatchJob's claim and outcome saved in its order.
     private async Task SeedFeedbackAsync(
-        JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct)
+        JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct,
+        bool withScreenshot = false)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var submission = FeedbackSubmission.Submit(
+        var submitted = FeedbackSubmission.Submit(
             owner, Guid.NewGuid(), page, FeedbackRating.Create(4).Value, FeedbackComment.Create("Bra sida.").Value,
-            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt).Value;
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt);
+        submitted.IsSuccess.ShouldBeTrue();
+        var submission = submitted.Value;
         var notice = FeedbackNotification.QueueFor(submission);
         db.FeedbackSubmissions.Add(submission);
+        if (withScreenshot)
+        {
+            var png = EncodeFeedbackOnePixelPng();
+            var attached = FeedbackScreenshot.AttachTo(submission, png, 1, 1);
+            attached.IsSuccess.ShouldBeTrue();
+            var screenshot = attached.Value;
+            screenshot.SubmissionId.ShouldBe(submission.Id);
+            screenshot.JobSeekerId.ShouldBe(owner);
+            screenshot.SubmittedAt.ShouldBe(submission.SubmittedAt);
+            screenshot.Width.ShouldBe(1);
+            screenshot.Height.ShouldBe(1);
+            screenshot.Content.ToArray().ShouldBe(png);
+            db.FeedbackScreenshots.Add(screenshot);
+        }
         db.FeedbackNotifications.Add(notice);
         if (!await db.FeedbackPromptSuppressions.AnyAsync(s => s.JobSeekerId == owner && s.Page == page, ct))
             db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page));

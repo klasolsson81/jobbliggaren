@@ -1,3 +1,4 @@
+// Retry controls and focus restoration run in the browser.
 "use client";
 
 import type { ErrorInfo } from "next/error";

@@ -1,3 +1,4 @@
+// Runtime retry and stale-build recovery require a client error boundary.
 "use client";
 
 import type { ErrorInfo } from "next/error";

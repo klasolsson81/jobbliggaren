@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join, win32 } from "node:path";
 import { FEEDBACK_IDS, manyFeedback } from "./fixtures";
+import { FEEDBACK_SCREENSHOT } from "./screenshot-fixture";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
@@ -624,4 +625,221 @@ test("an id that names no submission says so; one of the wrong shape opens nothi
   );
   expect(hrefs.length).toBeGreaterThan(0);
   expect(hrefs.filter((href) => href.includes("inte-ett-id"))).toEqual([]);
+});
+
+const screenshotSection = (page: Page) => detailRegion(page).getByRole("region", { name: "Skärmbild", exact: true });
+const imagePane = (page: Page) =>
+  screenshotSection(page).getByRole("region", { name: "Skärmbild som bifogats feedbacken", exact: true });
+const screenshotImage = (page: Page) =>
+  screenshotSection(page).getByRole("img", { name: "Skärmbild som bifogats feedbacken", exact: true });
+
+function attachScreenshot(id: string) {
+  const record = harness.feedback.get(id);
+  if (record === undefined) throw new Error("The fixture has no submission to attach the screenshot to.");
+  harness.feedbackScreenshots.set(id, FEEDBACK_SCREENSHOT);
+  harness.feedback.set(id, {
+    ...record,
+    screenshot: { width: FEEDBACK_SCREENSHOT.width, height: FEEDBACK_SCREENSHOT.height },
+  });
+}
+
+async function pageFits(page: Page, state: string) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, state + " scrolls the page sideways").toBeLessThanOrEqual(0);
+}
+
+function screenshotReply(page: Page) {
+  return page.waitForResponse((reply) =>
+    new URL(reply.url()).pathname === "/api/admin/feedback/screenshot" && reply.request().method() === "POST");
+}
+
+type ScreenshotAudit = { created: string[]; revoked: string[]; aborted: string[] };
+
+async function installScreenshotAudit(page: Page) {
+  await page.addInitScript(() => {
+    const audit: ScreenshotAudit = { created: [], revoked: [], aborted: [] };
+    (window as typeof window & { __feedbackScreenshotAudit: ScreenshotAudit }).__feedbackScreenshotAudit = audit;
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (object) => {
+      const url = create(object);
+      audit.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      audit.revoked.push(url);
+      revoke(url);
+    };
+    const fetchOriginal = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const address = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (new URL(address, window.location.href).pathname === "/api/admin/feedback/screenshot") {
+        let id = "";
+        if (typeof init?.body === "string") {
+          const body: unknown = JSON.parse(init.body);
+          if (body !== null && typeof body === "object" && "id" in body && typeof body.id === "string")
+            id = body.id;
+        }
+        const signal = init?.signal ?? (input instanceof Request ? input.signal : null);
+        signal?.addEventListener("abort", () => audit.aborted.push(id), { once: true });
+      }
+      return fetchOriginal(input, init);
+    };
+  });
+}
+
+async function screenshotAudit(page: Page) {
+  return page.evaluate(() =>
+    (window as typeof window & { __feedbackScreenshotAudit: ScreenshotAudit }).__feedbackScreenshotAudit);
+}
+
+for (const width of [1280, 1920, 3440, 375]) {
+  test("a real PNG has a thumbnail and a keyboard-scrollable full size contained in the detail at " + width + " px", async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 375 ? PHONE.height : 900 });
+    attachScreenshot(ids.queued);
+    const replied = screenshotReply(page);
+    await page.goto(PAGE + "?id=" + ids.queued);
+    const response = await replied;
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("image/png");
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+
+    const section = screenshotSection(page);
+    const image = screenshotImage(page);
+    await expect(image).toBeVisible();
+    await expect.poll(() => image.evaluate((element) => {
+      const image = element as HTMLImageElement;
+      return { width: image.naturalWidth, height: image.naturalHeight, complete: image.complete };
+    })).toEqual({ width: FEEDBACK_SCREENSHOT.width, height: FEEDBACK_SCREENSHOT.height, complete: true });
+    const thumbnail = await image.boundingBox();
+    expect(thumbnail).not.toBeNull();
+    expect(thumbnail?.width ?? Infinity).toBeLessThan(FEEDBACK_SCREENSHOT.width);
+    expect(thumbnail?.height ?? Infinity).toBeLessThan(FEEDBACK_SCREENSHOT.height);
+    expect(thumbnail?.width ?? Infinity).toBeLessThanOrEqual((await section.boundingBox())?.width ?? 0);
+    await pageFits(page, "screenshot thumbnail at " + width);
+    await capture(page, "screenshot-thumbnail");
+
+    const toggle = section.getByRole("button");
+    await expectFloor(toggle, width === 375 ? 44 : 32);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await pressEnter(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(toggle).toHaveText("Visa miniatyr");
+    await expect(toggle).toBeFocused();
+    const pane = imagePane(page);
+    await expect(pane).toHaveAttribute("data-full-size", "true");
+    await expect(pane).toHaveAttribute("tabindex", "0");
+    const paneId = await pane.getAttribute("id");
+    expect(paneId).not.toBeNull();
+    await expect(toggle).toHaveAttribute("aria-controls", paneId ?? "");
+    await toggle.press("Tab");
+    await expect(pane).toBeFocused();
+    const bounds = await pane.evaluate((element) => ({
+      scrollWidth: element.scrollWidth, width: element.clientWidth,
+      scrollHeight: element.scrollHeight, height: element.clientHeight,
+    }));
+    expect(bounds.scrollWidth).toBeGreaterThan(bounds.width);
+    expect(bounds.scrollHeight).toBeGreaterThan(bounds.height);
+    await expect.poll(() => image.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+      .toBe(FEEDBACK_SCREENSHOT.width);
+    await pageFits(page, "screenshot full size at " + width);
+    await capture(page, "screenshot-full-size");
+
+    const windowPosition = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+    await pane.press("ArrowRight");
+    await expect.poll(() => pane.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    await pane.press("PageDown");
+    await expect.poll(() => pane.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(windowPosition);
+    await pane.press("Shift+Tab");
+    await expect(toggle).toBeFocused();
+    await toggle.press(" ");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toHaveText("Visa full storlek");
+    await expect(pane).not.toHaveAttribute("tabindex", "0");
+    expect(harness.feedbackScreenshotRequests).toEqual([ids.queued]);
+    if (width === 375) await expect(list(page)).toBeHidden();
+    else await expect(list(page)).toBeVisible();
+  });
+}
+
+for (const width of [1280, 3440, 375]) {
+  for (const state of ["absent", "notFound", "error", "loading"] as const) {
+    test("the screenshot's " + state + " state is rendered truthfully at " + width + " px", async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 375 ? PHONE.height : 900 });
+      if (state !== "absent") {
+        attachScreenshot(ids.queued);
+        // A 404 models the documented operator deleting only the image after the detail metadata was read.
+        harness.feedbackScreenshotReads.set(ids.queued, state);
+      }
+      const reply = state === "error" || state === "notFound" ? screenshotReply(page) : null;
+      try {
+        await page.goto(PAGE + "?id=" + ids.queued);
+        const section = screenshotSection(page);
+        if (state === "loading") {
+          await expect(section.getByRole("status")).toHaveText("Hämtar skärmbilden…");
+          await expect.poll(() => harness.feedbackScreenshotRequests).toEqual([ids.queued]);
+          expect(harness.feedbackScreenshotAnswers).toEqual([]);
+        } else {
+          const message = state === "error" ? "Skärmbilden kunde inte hämtas. Ladda om sidan." : "Det finns ingen skärmbild.";
+          await expect(section.getByText(message, { exact: true })).toBeVisible();
+          await expect(section.getByRole("status")).toHaveText(message);
+        }
+        await expect(section.getByRole("img")).toHaveCount(0);
+        await expect(section.getByRole("button", { name: "Visa full storlek", exact: true })).toHaveCount(0);
+        if (reply !== null) {
+          const response = await reply;
+          expect(response.status()).toBe(state === "notFound" ? 404 : 502);
+          expect(response.headers()["content-type"]).toContain("application/json");
+          expect(response.headers()["cache-control"]).toContain("no-store");
+          expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+        }
+        if (state === "absent") expect(harness.feedbackScreenshotRequests).toEqual([]);
+        await pageFits(page, "screenshot " + state + " at " + width);
+        await capture(page, "screenshot-" + state);
+      } finally {
+        harness.releaseFeedbackScreenshots();
+      }
+    });
+  }
+}
+
+test("changing details revokes the real blob and aborts a held image read without showing a stale image", async ({ page }) => {
+  attachScreenshot(ids.queued);
+  await installScreenshotAudit(page);
+  await page.goto(PAGE + "?id=" + ids.queued);
+  await expect(screenshotImage(page)).toBeVisible();
+  const firstUrl = await screenshotImage(page).getAttribute("src");
+  expect(firstUrl).not.toBeNull();
+  await expect.poll(async () => (await screenshotAudit(page)).created).toEqual([firstUrl]);
+
+  await pressEnter(row(page, ids.accepted));
+  await expect(page).toHaveURL(PAGE + "?id=" + ids.accepted);
+  await expect(screenshotSection(page)).toContainText("Det finns ingen skärmbild.");
+  await expect(screenshotSection(page).getByRole("img")).toHaveCount(0);
+  await expect.poll(async () => (await screenshotAudit(page)).revoked).toEqual([firstUrl]);
+  expect(await page.evaluate(async (url) => {
+    try { return (await fetch(url)).ok; } catch { return false; }
+  }, firstUrl ?? "")).toBe(false);
+  expect(harness.feedbackScreenshotRequests).toEqual([ids.queued]);
+
+  harness.feedbackScreenshotReads.set(ids.queued, "loading");
+  try {
+    await pressEnter(row(page, ids.queued));
+    await expect(screenshotSection(page).getByRole("status")).toHaveText("Hämtar skärmbilden…");
+    await expect.poll(() => harness.feedbackScreenshotRequests).toEqual([ids.queued, ids.queued]);
+    await pressEnter(row(page, ids.accepted));
+    await expect(screenshotSection(page)).toContainText("Det finns ingen skärmbild.");
+    await expect.poll(async () => (await screenshotAudit(page)).aborted).toEqual([ids.queued, ids.queued]);
+  } finally {
+    harness.releaseFeedbackScreenshots();
+  }
+  await expect.poll(() => harness.feedbackScreenshotAnswers).toEqual([ids.queued, ids.queued]);
+  expect((await screenshotAudit(page)).created).toEqual([firstUrl]);
+  expect((await screenshotAudit(page)).revoked).toEqual([firstUrl]);
+  await expect(screenshotSection(page).getByRole("img")).toHaveCount(0);
+  await expect(screenshotSection(page).getByRole("status")).toHaveText("Det finns ingen skärmbild.");
+  await pageFits(page, "screenshot detail cleanup");
+  await capture(page, "screenshot-detail-cleanup");
 });

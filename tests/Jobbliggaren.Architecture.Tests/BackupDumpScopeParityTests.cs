@@ -288,9 +288,16 @@ public class BackupDumpScopeParityTests
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .ToHashSet(StringComparer.Ordinal);
 
-        var scriptTokens = Regex.Matches(MainDumpInvocation(), @"--exclude-schema=\w+")
+        var mechanism = File.ReadAllText(Path.Combine(RepositoryRoot(), BackupScript));
+        var dekTable = Regex.Match(mechanism, @"(?m)^readonly DEK_TABLE=(\w+)");
+        dekTable.Success.ShouldBeTrue("the mechanism's DEK table must remain identifiable");
+        var resolvedInvocation = MainDumpInvocation().Replace("\"$DEK_TABLE\"", dekTable.Groups[1].Value, StringComparison.Ordinal);
+        var scriptTokens = Regex.Matches(resolvedInvocation, @"--exclude-(?:schema|table-data)=[\w.]+")
             .Select(m => m.Value)
             .ToHashSet(StringComparer.Ordinal);
+
+        Regex.Count(resolvedInvocation, @"--exclude-[\w-]+").ShouldBe(scriptTokens.Count,
+            "an exclusion flag has a shape the parity check cannot resolve; do not certify a partial scope");
 
         declaredTokens.ShouldBe(scriptTokens, ignoreOrder: true,
             "the drill dumps with different flags than deploy/systemd/jobbliggaren-backup.sh, so " +

@@ -44,6 +44,7 @@ const ITEM: AdminFeedbackItem = {
   submittedAt: "2026-10-04T05:12:00Z",
   statusChangedAt: null,
   reporterEmail: "konto.b@example.test",
+  screenshot: null,
   client: {
     viewportWidth: 390,
     viewportHeight: 664,
@@ -383,6 +384,7 @@ describe("AdminFeedbackView — the open submission (#1979)", () => {
       rating: null,
       comment: null,
       reporterEmail: null,
+      screenshot: null,
       statusChangedAt: "2026-10-05T08:00:00Z",
       client: {
         viewportWidth: 390,

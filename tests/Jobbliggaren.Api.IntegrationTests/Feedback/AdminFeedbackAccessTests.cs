@@ -13,7 +13,7 @@ using static Jobbliggaren.Api.IntegrationTests.Feedback.FeedbackKit;
 namespace Jobbliggaren.Api.IntegrationTests.Feedback;
 
 /// <summary>
-/// #1979 — who may use the admin feedback routes: the Admin policy on every one of the six, answered before any
+/// #1979 — who may use the admin feedback routes: the Admin policy on every route, answered before any
 /// handler runs, and every answer an administrator gets is private and never stored.
 /// </summary>
 [Collection("Api")]
@@ -23,10 +23,10 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
 
     private sealed record Answer(string Route, HttpStatusCode Status, CacheControlHeaderValue? CacheControl);
 
-    /// <summary>The four reads, then a status change and an acknowledged requeue of <paramref name="id"/>.</summary>
+    /// <summary>The reads, then a status change and an acknowledged requeue of <paramref name="id"/>.</summary>
     private static async Task<IReadOnlyList<Answer>> EveryRouteAsync(HttpClient client, Guid id)
     {
-        string[] reads = [AdminPath, DetailPath(id), SummaryPath(30), $"{AdminPath}/availability"];
+        string[] reads = [AdminPath, DetailPath(id), SummaryPath(30), $"{AdminPath}/availability", $"{DetailPath(id)}/screenshot"];
         var answers = new List<Answer>();
         foreach (var path in reads)
         {
@@ -65,7 +65,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
     {
         var answers = await EveryRouteAsync(factory.CreateClient(), Guid.NewGuid());
 
-        answers.Count.ShouldBe(6);
+        answers.Count.ShouldBe(7);
         answers.ShouldAllBe(answer => answer.Status == HttpStatusCode.Unauthorized);
     }
 
@@ -76,7 +76,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
 
         var answers = await EveryRouteAsync(reporter.Client, id);
 
-        answers.Count.ShouldBe(6);
+        answers.Count.ShouldBe(7);
         answers.ShouldAllBe(answer => answer.Status == HttpStatusCode.Forbidden);
         (await StoredAsync(id)).ShouldBe((FeedbackStatus.New, FeedbackNotificationState.Unknown));
     }
@@ -92,6 +92,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
         answers.Select(answer => answer.Status).ShouldBe(
         [
             HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK,
+            HttpStatusCode.NotFound,
             HttpStatusCode.NoContent, HttpStatusCode.NoContent,
         ]);
         foreach (var answer in answers)

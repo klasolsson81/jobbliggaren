@@ -184,3 +184,7 @@ tools/sni-aliases/.cache/
 
 .redis-dev/
 .redis-dev.staging-*/
+
+# ImageSharp build credentials are supplied through environment or BuildKit secrets.
+**/sixlabors.lic
+**/sixlabors.*.lic

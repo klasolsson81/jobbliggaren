@@ -24,11 +24,12 @@ COPY src/Jobbliggaren.Application/ src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/ src/Jobbliggaren.Infrastructure/
 COPY src/Jobbliggaren.Api/ src/Jobbliggaren.Api/
 
-RUN dotnet publish src/Jobbliggaren.Api/Jobbliggaren.Api.csproj \
+RUN --mount=type=secret,id=sixlabors_license,required=true dotnet publish src/Jobbliggaren.Api/Jobbliggaren.Api.csproj \
     -c Release \
     -o /app/publish \
     --no-restore \
-    /p:UseAppHost=false
+    /p:UseAppHost=false \
+    /p:SixLaborsLicenseFile=/run/secrets/sixlabors_license
 
 # ---------------------------------------------------------------------------
 # Stage 2: runtime
@@ -48,6 +49,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY licenses/SixLabors.ImageSharp/ /app/licenses/SixLabors.ImageSharp/
 
 # #1350 - mount point for the Data-Protection keyring, created and OWNED here. A named volume
 # mounted over a path the image does not have is created root:root 0755, and Docker only copies

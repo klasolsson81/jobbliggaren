@@ -38,7 +38,8 @@ public sealed record SubmitFeedbackCommand(
     int? Rating,
     string? Comment,
     ReportedClient Client,
-    string? AppVersion)
+    string? AppVersion,
+    ReadOnlyMemory<byte>? Screenshot = null)
     : ICommand<Result<FeedbackSubmitted>>, IAuthenticatedRequest
 {
     public override string ToString() =>

@@ -525,6 +525,50 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("feedback_prompt_suppressions", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackScreenshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.Property<byte[]>("_content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feedback_screenshots");
+
+                    b.HasIndex("JobSeekerId")
+                        .HasDatabaseName("ix_feedback_screenshots_job_seeker_id");
+
+                    b.HasIndex("SubmissionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_feedback_screenshots_submission_id");
+
+                    b.ToTable("feedback_screenshots", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackSubmission", b =>
                 {
                     b.Property<Guid>("Id")

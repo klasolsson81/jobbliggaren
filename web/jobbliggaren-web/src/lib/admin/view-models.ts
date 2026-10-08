@@ -324,6 +324,7 @@ export interface AdminFeedbackItem {
   readonly appVersion: string | null;
   /** Null when the submission has no notice. */
   readonly notice: AdminFeedbackNotice | null;
+  readonly screenshot: { readonly width: number; readonly height: number } | null;
 }
 
 /** One page's ratings over the window: each user's latest rating counts once. */

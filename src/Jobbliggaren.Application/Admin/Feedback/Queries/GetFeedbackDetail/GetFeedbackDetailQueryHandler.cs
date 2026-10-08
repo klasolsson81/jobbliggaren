@@ -29,6 +29,11 @@ public sealed class GetFeedbackDetailQueryHandler(IAppDbContext db, IUserAccount
             .FirstOrDefaultAsync(cancellationToken);
         var email = userId is { } owner ? await userAccounts.GetEmailAsync(owner, cancellationToken) : null;
 
+        var screenshot = await db.FeedbackScreenshots.AsNoTracking()
+            .Where(s => s.SubmissionId == id)
+            .Select(s => new FeedbackScreenshotMetadataDto(s.Width, s.Height))
+            .FirstOrDefaultAsync(cancellationToken);
+
         var context = submission.Context;
         return new FeedbackDetailDto(
             submission.Id.Value,
@@ -46,6 +51,7 @@ public sealed class GetFeedbackDetailQueryHandler(IAppDbContext db, IUserAccount
             notice is null
                 ? null
                 : new FeedbackNotificationDto(
-                    notice.State, notice.Attempts, notice.NextAttemptAt, notice.AcceptedAt, notice.StateChangedAt));
+                    notice.State, notice.Attempts, notice.NextAttemptAt, notice.AcceptedAt, notice.StateChangedAt),
+            screenshot);
     }
 }

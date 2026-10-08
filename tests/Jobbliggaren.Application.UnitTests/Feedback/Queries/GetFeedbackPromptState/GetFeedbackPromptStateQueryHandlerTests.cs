@@ -51,7 +51,8 @@ public sealed class GetFeedbackPromptStateQueryHandlerTests : IAsyncDisposable
     private async Task SubmitAsync(ICurrentUser user, string page)
     {
         var handler = new SubmitFeedbackCommandHandler(
-            _db, user, Gate(), _clock, Substitute.For<IDbExceptionInspector>());
+            _db, user, Gate(), _clock, Substitute.For<IDbExceptionInspector>(),
+            Substitute.For<IFeedbackScreenshotNormalizer>());
         var result = await handler.Handle(
             new SubmitFeedbackCommand(Guid.NewGuid(), page, 4, null, ReportedClient.None, null), Ct);
         result.IsSuccess.ShouldBeTrue();

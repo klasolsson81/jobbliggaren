@@ -496,3 +496,9 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
   AWS-yta alls** — den sista var ett utgående HTTPS-anrop till Amazon SES, och e-posten ligger nu
   hos Scaleway i `fr-par`. Även den är avstängd lokalt: Scaleway-armen registreras bara när du
   själv sätter `Email:Provider=Scaleway`, och den skickar då riktig post som kostar pengar.
+
+## ImageSharp build licence (#1979 PR2)
+
+ImageSharp 4.1.2 is a direct Infrastructure dependency. Obtain your own community licence through [Six Labors](https://licensing.sixlabors.com/) and keep the supplied file outside the checkout. Supply its **full contents**, not just its Key field, as `SIXLABORS_LICENSE_KEY` in the build process environment; `Directory.Build.props` maps it to the package's validated property. Never echo it, pass it as a command-line key, commit it, or publish a diagnostic binary log containing evaluated properties. The repo ignores `sixlabors.lic` defensively and the Docker context excludes it.
+
+The repository Actions secret `SIXLABORS_LICENSE_KEY` supplies the same full licence content to the coverage build and BuildKit. Mirror it under the same name as a repository Dependabot secret for Dependabot-triggered Actions builds, which cannot read ordinary Actions secrets. Api, Worker and Migrate use the required secret `sixlabors_license`, mounted only during publish and referenced by file path; there is no Docker ARG/ENV or COPY of the credential. A local build uses `docker build --secret id=sixlabors_license,src=<outside-checkout-licence-file> -f src/Jobbliggaren.Api/Dockerfile .` (substitute Worker/Migrate for the other hosts). Missing/invalid credentials fail the normal licence check; do not disable it. No licence secret is needed on the VPS at runtime.

@@ -21,6 +21,7 @@ import type {
   AdminRegion,
 } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
+import { AdminFeedbackScreenshot } from "./admin-feedback-screenshot";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { FeedbackFocusLink } from "./admin-feedback-focus";
@@ -248,6 +249,8 @@ function FeedbackItemBody({
       ) : (
         <p className="jp-adminfeedback__text">{item.comment}</p>
       )}
+
+      <AdminFeedbackScreenshot key={item.id} id={item.id} metadata={item.screenshot} />
 
       <dl className="jp-admindl">
         <dt>{t("detail.facts.reporter")}</dt>

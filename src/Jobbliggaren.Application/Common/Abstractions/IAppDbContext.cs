@@ -47,6 +47,7 @@ public interface IAppDbContext
     DbSet<CompanyWatchCriterion> CompanyWatchCriteria { get; }
     // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
     DbSet<FeedbackSubmission> FeedbackSubmissions { get; }
+    DbSet<FeedbackScreenshot> FeedbackScreenshots { get; }
     DbSet<FeedbackNotification> FeedbackNotifications { get; }
     DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

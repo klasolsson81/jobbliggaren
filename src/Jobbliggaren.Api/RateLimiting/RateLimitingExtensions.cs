@@ -61,6 +61,14 @@ public static partial class RateLimitingExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName == FeedbackSubmitPolicy
+                    ? RateLimitPartition.GetConcurrencyLimiter("feedback-ingress", _ => new ConcurrencyLimiterOptions
+                    {
+                        PermitLimit = 2,
+                        QueueLimit = 0,
+                    })
+                    : RateLimitPartition.GetNoLimiter("other-endpoints"));
 
             // OnRejected — strukturerad warning + Retry-After-header (Sec-Major-3).
             // Loggar inte PII (klient-IP är personuppgift per GDPR Recital 30; email/

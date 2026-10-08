@@ -30,6 +30,7 @@
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.7.2 | Community v3.0 (source-available, non-copyleft). Eligible on the **revenue** ground — categories (1)/(6), USD 1M threshold — never on category (5) open-source, which requires an OSI-approved licence and ours is PolyForm Noncommercial (ADR 0072). Public-sector entities are ineligible regardless of revenue. *(Non-copyleft is assessed against the server-side, non-distributed model ADR 0050 locks — the repo idiom this row used as "ADR 0050-safe", now written out. **ADR 0071** carries the dependency-licence table and its 2026-06-14 License correction, and designates this section as the authoritative source; licence facts land here.)*; `QuestPDF.Settings.License = LicenseType.Community` i startup |
+| Screenshot normalization | SixLabors.ImageSharp | 4.1.2 | Apache-2.0 granted by the version's [Split License](https://raw.githubusercontent.com/SixLabors/ImageSharp/v4.1.2/LICENSE), on the **Source Available** software ground (this repository uses PolyForm Noncommercial, ADR 0072). This is a direct dependency; ImageSharp 4.x also requires a valid community build licence. Infrastructure only; PNG/JPEG/WebP input, lossless 8-bit RGBA-PNG output. Full licence-file content is supplied as `SIXLABORS_LICENSE_KEY` locally/in Actions and a BuildKit secret for Api/Worker/Migrate; never source, image or logs. |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
 | NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket. **Beroende-kandidat, utdömd för v1** — `Jobbliggaren.Infrastructure.csproj` säger "Catalyst medvetet UTE (OQ1)"; `Directory.Packages.props` bär CTO-domen (Snowball/libstemmer-only; YAGNI + Worker-minnesbudget ADR 0045) **och återinträdes-triggern: läggs till reaktivt först om ett mätt F4-9/10-kriterium bevisar POS/lemma-behov** |
 | Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |
@@ -534,7 +535,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/me/preferences`
 - `PATCH /api/v1/me/preferences`
 - `DELETE /api/v1/me` (GDPR-radering, soft delete + 30-dagars restore)
-- `POST /api/v1/me/feedback` (multipart, ett JSON-fält `payload`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
+- `POST /api/v1/me/feedback` (multipart, exactly one JSON `payload` and at most one optional `screenshot`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
 - `GET /api/v1/me/feedback/prompt-state` (om feedback är öppen, och sidorna där användaren redan har svarat)
 
 **Resumes**
@@ -621,6 +622,7 @@ Admin access writes use `AdminWrite`, private/no-store responses and separate au
 - `POST /api/v1/admin/job-sources/{source}/resync`
 - `GET /api/v1/admin/feedback?status&page&pageNumber&pageSize` — feedback list with per-status counts and excerpts, no reporter address (#1979, ADR 0156)
 - `GET /api/v1/admin/feedback/{id}` — one submission, with the reporter's address read on the server and the notice's delivery state (#1979, ADR 0156)
+- `GET /api/v1/admin/feedback/{id}/screenshot` — protected PNG binary read through `POST /api/admin/feedback/screenshot` with an id body; all responses use no-store/nosniff, successful responses image/png; the detail carries nullable dimensions from the actual image row, never bytes.
 - `GET /api/v1/admin/feedback/summary?days=7|30|90` — per page: raters (latest rating per user), the 1–5 distribution, the mean and the submission count (#1979, ADR 0156)
 - `GET /api/v1/admin/feedback/availability` — why feedback is open or closed (#1979, ADR 0156)
 - `POST /api/v1/admin/feedback/{id}/status` and `POST /api/v1/admin/feedback/{id}/notification/requeue` — triage and notice requeue, audited; a requeue from Unknown needs the duplicate risk acknowledged (#1979, ADR 0156)
@@ -1886,7 +1888,7 @@ inom 30 s består oavsett plattform.
 | `digest-dispatch-weekly` | måndag 06:00 | Strong-match-digest, veckovis kadens (civic-default) |
 | `refresh-landing-stats` | `*/5 * * * *` | Publik landing-stats pre-compute (ADR 0064) |
 | `dispatch-feedback-notifications` | `* * * * *` | Operatörsavisering per sparad feedback; aldrig omsändning vid okänt utfall (#1979, ADR 0156) |
-| `feedback-retention` | 04:50 daglig | Radera feedback och dess aviseringar efter 90 dagar (#1979, ADR 0156) |
+| `feedback-retention` | 04:50 daglig | Delete feedback screenshots first, then notices and submissions after 90 days from submission (#1979, ADR 0156) |
 
 **Planerat / ej registrerat** (speccat men inte byggt — finns inte i
 `RecurringJobRegistrar`):

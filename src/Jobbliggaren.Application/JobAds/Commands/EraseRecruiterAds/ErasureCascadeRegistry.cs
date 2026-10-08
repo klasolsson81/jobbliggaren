@@ -27,13 +27,14 @@ public enum ErasureColumnDisposition
     MatchedHumanErases,
 
     /// <summary>
-    /// We HOLD it and we CANNOT search it. The column is encrypted at rest under PER-USER keys —
+    /// We hold it but cannot search it. This includes plaintext screenshot pixels and columns
+    /// encrypted at rest under per-user keys —
     /// Form A in-place text, Form B encrypted VO shadows, or Form C sealed binary (ADR 0049
     /// C3/C4 / ADR 0066) — so a plaintext <c>LIKE</c> compares her name against ciphertext and
     /// matches nothing — not "nothing today", but structurally, on every request, forever.
     /// </summary>
     /// <remarks>
-    /// Reading these would mean decrypting EVERY user's private texts to serve ONE third party's
+    /// Searching the encrypted columns would mean decrypting EVERY user's private texts to serve ONE third party's
     /// request. That is refused on the merits, not on difficulty: the envelope exists precisely so
     /// that no single operation can read everyone's content (Art. 25(2)/32), and we have no lawful
     /// basis toward the other data subjects (Art. 6). <b>We refuse the mechanism, never the
@@ -648,6 +649,7 @@ public static class ErasureCascadeRegistry
             ["occupation_division_profile_runs.profile_key"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── feedback_submissions (#1979): plaintext user text, SEARCHED; the rest closed ──
+            ["feedback_screenshots.content"] = ErasureColumnDisposition.HeldButNotSearchable,
             ["feedback_submissions.comment"] = ErasureColumnDisposition.MatchedHumanErases,
             ["feedback_submissions.page_key"] = ErasureColumnDisposition.NotRecruiterData,
             ["feedback_submissions.status"] = ErasureColumnDisposition.NotRecruiterData,
@@ -790,6 +792,15 @@ public static class ErasureCascadeRegistry
                 + "No key is named in the SQL, so a member added to the container is searched the "
                 + "day it lands.",
 
+            ["feedback_screenshots:HeldButNotSearchable"] =
+                "The content column stores plaintext PNG pixels, not searched text. It may show "
+                + "a recruiter, another person or a CV; no OCR or corpus-wide image search runs. "
+                + "Every erasure response discloses this surface even when the comment scan found "
+                + "nothing. A human reviews identified images in the protected admin detail and "
+                + "deletes the image alone, or the image, notice and submission together, within "
+                + "the Art. 12(3) deadline (recruiter-pii-erasure.md). Retention is 90 days from "
+                + "submission; account hard deletion also deletes the image. Logical dumps exclude "
+                + "only this table's data (ADR 0156 PR2 amendment, 2026-10-08).",
             ["feedback_submissions:MatchedHumanErases"] =
                 "USER-AUTHORED FREE TEXT: comment holds up to 2000 characters a user wrote about a "
                 + "page, with no content validation beyond trimming and the length cap. It is "

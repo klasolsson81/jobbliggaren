@@ -2,18 +2,27 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackDetail;
+using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackScreenshot;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Feedback;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using NSubstitute;
 using Shouldly;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
 using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Worker.IntegrationTests.Backup;
@@ -148,7 +157,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
     /// emitting the two GIN indexes that need it. It was aimed at the wrong command, not absent.
     /// </para>
     /// </summary>
-    private const string BackupDumpScope = "--exclude-schema=hangfire";
+    private const string BackupDumpScope = "--exclude-schema=hangfire --exclude-table-data=user_data_keys --exclude-table-data=public.feedback_screenshots";
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {
@@ -172,6 +181,10 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         // not reach into this port (CLAUDE.md §5 Tests:).
         var erased = await SeedUserWithEncryptedCoverLetterAsync(ErasedUserCoverLetter, softDeleted: true, ct);
         var survivor = await SeedUserWithEncryptedCoverLetterAsync(SurvivorCoverLetter, softDeleted: false, ct);
+        var erasedFeedback = await SeedFeedbackWithScreenshotAsync(erased.JobSeekerId, ct);
+        var survivorFeedback = await SeedFeedbackWithScreenshotAsync(survivor.JobSeekerId, ct);
+        (await ScalarAsync(_fixture.SourceServices, "SELECT count(*) FROM feedback_screenshots", ct))
+            .ShouldBe("2", "the source really contains image bytes before the dump excludes them");
 
         // ── THE MAIN ARTEFACT (jobbliggaren-backup.sh:270) ─────────────────────────────────────
         //
@@ -179,7 +192,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         // artefact has somewhere to land. The polarity itself is pinned in the script's own
         // fixture suite; what is proved here is what the pair RESTORES to.
         await ExecOkAsync(_fixture.Source,
-            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} --exclude-table-data=user_data_keys > /tmp/main.dump",
+            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} > /tmp/main.dump",
             "the main artefact", ct);
 
         // ── THE ERASURE, produced by the production actor ──────────────────────────────────────
@@ -191,6 +204,14 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         {
             await scope.ServiceProvider.GetRequiredService<IAccountHardDeleter>()
                 .HardDeleteAccountAsync(erased.JobSeekerId.Value, ct);
+        }
+        using (var scope = _fixture.SourceServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.FeedbackScreenshots.AnyAsync(s => s.Id == erasedFeedback.ScreenshotId, ct)).ShouldBeFalse();
+            (await db.FeedbackSubmissions.AnyAsync(s => s.Id == erasedFeedback.SubmissionId, ct)).ShouldBeFalse();
+            (await db.FeedbackNotifications.AnyAsync(n => n.Id == erasedFeedback.NoticeId, ct)).ShouldBeFalse();
+            (await db.FeedbackScreenshots.AnyAsync(s => s.Id == survivorFeedback.ScreenshotId, ct)).ShouldBeTrue();
         }
 
         // A user who registers BETWEEN the two dumps. Present in the DEK artefact, absent from the
@@ -242,6 +263,27 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         mainRestore.Stderr.Contains("errors ignored on restore", StringComparison.Ordinal).ShouldBeFalse(
             $"§5 step 3 restored with ignored errors, which pg_restore does NOT surface in its exit " +
             $"code. stderr: {mainRestore.Stderr}");
+
+        (await ScalarAsync(_fixture.RestoredServices,
+            "SELECT to_regclass('public.feedback_screenshots')::text", ct)).ShouldNotBeNull();
+        (await ScalarAsync(_fixture.RestoredServices, "SELECT count(*) FROM feedback_screenshots", ct))
+            .ShouldBe("0", "image data is excluded, while its table definition is restored");
+        using (var scope = _fixture.RestoredServices.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var accounts = Substitute.For<IUserAccountService>();
+            foreach (var saved in new[] { erasedFeedback, survivorFeedback })
+            {
+                (await db.FeedbackSubmissions.AnyAsync(s => s.Id == saved.SubmissionId, ct)).ShouldBeTrue();
+                (await db.FeedbackNotifications.AnyAsync(n => n.Id == saved.NoticeId, ct)).ShouldBeTrue();
+                var detail = await new GetFeedbackDetailQueryHandler(db, accounts)
+                    .Handle(new GetFeedbackDetailQuery(saved.SubmissionId.Value), ct);
+                detail.ShouldNotBeNull().Screenshot.ShouldBeNull();
+                detail.Notification.ShouldNotBeNull();
+                (await new GetFeedbackScreenshotQueryHandler(db)
+                    .Handle(new GetFeedbackScreenshotQuery(saved.SubmissionId.Value), ct)).ShouldBeNull();
+            }
+        }
 
         // ── §5 STEP 4: load the DEKs THROUGH A STAGING TABLE ───────────────────────────────────
         await ExecOkAsync(_fixture.Target,
@@ -453,7 +495,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
         // A main artefact NEWER than the DEK artefact already on the target. This is the reversal.
         await ExecOkAsync(_fixture.Source,
-            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} --exclude-table-data=user_data_keys > /tmp/main-newer.dump",
+            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} > /tmp/main-newer.dump",
             "a main artefact newer than the DEK generation", ct);
         await TransportAsync("/tmp/main-newer.dump", ct);
 
@@ -531,6 +573,36 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────────────────────
+
+    private async Task<(FeedbackSubmissionId SubmissionId, FeedbackNotificationId NoticeId, FeedbackScreenshotId ScreenshotId)>
+        SeedFeedbackWithScreenshotAsync(JobSeekerId ownerId, CancellationToken ct)
+    {
+        using var scope = _fixture.SourceServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.Id == ownerId, ct);
+        // The clock reproduces feedback sent before the account's later soft deletion.
+        var submittedAt = owner.DeletedAt?.AddDays(-1)
+            ?? scope.ServiceProvider.GetRequiredService<IDateTimeProvider>().UtcNow;
+        using var image = new Image<Rgba32>(1, 1, new Rgba32(20, 40, 60, 255));
+        using var png = new MemoryStream();
+        await image.SaveAsync(png, new PngEncoder(), ct);
+        using var normalizer = new FeedbackScreenshotNormalizer();
+        var normalized = await normalizer.NormalizeAsync(png.ToArray(), ct);
+        normalized.IsSuccess.ShouldBeTrue();
+        var submission = FeedbackSubmission.Submit(ownerId, Guid.NewGuid(), FeedbackPage.Jobs,
+            FeedbackRating.Create(4).Value, null,
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null),
+            null, submittedAt).Value;
+        var notice = FeedbackNotification.QueueFor(submission);
+        var screenshot = FeedbackScreenshot.AttachTo(submission,
+            normalized.Value.Content, normalized.Value.Width, normalized.Value.Height).Value;
+        db.FeedbackSubmissions.Add(submission);
+        db.FeedbackNotifications.Add(notice);
+        db.FeedbackScreenshots.Add(screenshot);
+        db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(ownerId, FeedbackPage.Jobs));
+        await db.SaveChangesAsync(ct);
+        return (submission.Id, notice.Id, screenshot.Id);
+    }
 
     /// <summary>
     /// Runs a single-line shell command in <paramref name="container"/> and requires exit 0,

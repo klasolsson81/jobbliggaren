@@ -326,6 +326,10 @@ check "the staged DEK object exists too" [ -f "$(stored "jbl-backup:jobbliggaren
 # everywhere except in the argv the container was handed.
 check "the main dump excludes user_data_keys DATA (not the table)" \
   grep -q -- '--exclude-table-data=user_data_keys' "$CALLS/docker"
+check "the main dump excludes screenshot DATA while keeping its definition" \
+  bash -c 'm=$(grep -- "--exclude-table-data=user_data_keys" "'"$CALLS"'/docker");
+    [ -n "$m" ] && printf "%s" "$m" | grep -q -- "--exclude-table-data=public.feedback_screenshots" &&
+    ! printf "%s" "$m" | grep -Eq -- "--exclude-table=([^ ]*\.)?feedback_screenshots"'
 # The dump scope is the OTHER invisible decision in the same argv, and both arms are pinned because
 # only the pair fails a swap back to the allow-list form.
 #

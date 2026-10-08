@@ -1,17 +1,15 @@
 # Third-party notices
 
-Jobbliggaren bundles the third-party components listed below. They are required
-for the local, deterministic NLP tier (Fas 4 STEG 2 / F4-2, Swedish; STEG 9 /
+Jobbliggaren bundles the third-party components listed below. They support screenshot normalization and the local, deterministic NLP tier (Fas 4 STEG 2 / F4-2, Swedish; STEG 9 /
 F4-9, English): tokenisation, Snowball stemming, and Hunspell spell-checking. No
 AI/LLM is used (ADR 0071). This file is the notice obligation referenced in
 BUILD §3.1 — permissive licenses (MIT, BSD-3-Clause, SCOWL/Ispell BSD) are not
 notice-free, and the copyleft licenses (MPL 1.1, LGPL) require their notices to
 accompany the deploy artefact.
 
-## Copyleft separation (server-side, non-distributed)
+## Copyleft separation
 
-Jobbliggaren runs server-side on a VPS (ADR 0050); the product is **not**
-distributed as a binary and consumers interact only over HTTP. None of the
+Jobbliggaren runs server-side on a VPS (ADR 0050); end users interact over HTTP. None of the
 licenses below is AGPL (no network-use clause), so no copyleft attaches to the
 product code. As additional margin, the two copyleft artefacts
 (WeCantSpell.Hunspell and the sv_SE DSSO dictionary) are consumed as
@@ -116,3 +114,11 @@ does not extend to the application.
   (ADR 0050), and the snapshots are our own reprojection, not modified EPL source
   files — so no copyleft attaches to the application (same posture as the MPL/LGPL
   components above).
+
+### SixLabors.ImageSharp 4.1.2 — feedback screenshot normalization
+
+- **Granted licence:** Apache-2.0 under the [versioned Six Labors Split License](https://raw.githubusercontent.com/SixLabors/ImageSharp/v4.1.2/LICENSE), because Jobbliggaren is Source Available software (PolyForm Noncommercial, ADR 0072). BUILD §3.1 owns the eligibility decision.
+- **Copyright:** © Six Labors.
+- **Source:** https://github.com/SixLabors/ImageSharp/tree/v4.1.2
+- **Licence text:** [Apache-2.0](licenses/SixLabors.ImageSharp/LICENSE), shipped with the copyright notice in Api/Worker/Migrate images under `/app/licenses/SixLabors.ImageSharp/`.
+- **Use:** unmodified NuGet binary in Infrastructure, restricted PNG/JPEG/WebP decoding and fixed RGBA-PNG encoding for feedback screenshots. A valid community licence is supplied only at build time; credentials are never notices or deployment content.

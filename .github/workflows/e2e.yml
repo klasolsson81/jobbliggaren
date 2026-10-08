@@ -158,6 +158,8 @@ jobs:
           echo "CvReviewFingerprintPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Restore + build backend (Api)
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           dotnet restore Jobbliggaren.sln
           dotnet build src/Jobbliggaren.Api/Jobbliggaren.Api.csproj --no-restore -c Release

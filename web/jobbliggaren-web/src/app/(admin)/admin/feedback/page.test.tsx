@@ -74,6 +74,7 @@ const DETAIL: FeedbackDetailDto = {
   submittedAt: "2026-10-04T05:12:00+00:00",
   statusChangedAt: null,
   reporterEmail: "konto.b@example.test",
+  screenshot: null,
   client: {
     viewportWidth: 1440,
     viewportHeight: 789,

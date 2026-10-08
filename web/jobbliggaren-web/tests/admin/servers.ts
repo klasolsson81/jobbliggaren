@@ -4,6 +4,7 @@ import { createServer, request as forward, type Server } from "node:http";
 import { createServer as createTlsServer, type Server as TlsServer } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { FEEDBACK_SCREENSHOT } from "./screenshot-fixture";
 import {
   ADMIN,
   AUDIT_PAGE,
@@ -47,6 +48,7 @@ export type AdminMode = "ok" | "forbidden" | "error" | "rateLimited" | "unauthor
 
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
+export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
 
 const FEEDBACK_READS: ReadonlyArray<FeedbackRead> = ["list", "detail", "summary", "availability"];
 export type AccessMode = "ok" | "forbidden" | "rateLimited" | "unauthorized" | "unknown" | "unknownAfterCommit";
@@ -81,6 +83,12 @@ export type Harness = {
   readonly feedback: Map<string, FeedbackRecord>;
   /** What each feedback read answers; `mode` refuses them all at once, as it does every admin read. */
   readonly feedbackReads: Record<FeedbackRead, AdminMode>;
+  /** Actual normalized PNG rows, independently of the metadata the detail read already returned. */
+  readonly feedbackScreenshots: Map<string, typeof FEEDBACK_SCREENSHOT>;
+  readonly feedbackScreenshotReads: Map<string, FeedbackScreenshotRead>;
+  readonly feedbackScreenshotRequests: string[];
+  readonly feedbackScreenshotAnswers: string[];
+  releaseFeedbackScreenshots(): void;
   feedbackAvailability: FeedbackAvailability;
   /** Every feedback read's path and query string, as the backend received them. */
   readonly feedbackQueries: string[];
@@ -124,6 +132,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
+  const pendingFeedbackScreenshots: (() => void)[] = [];
   let issuedGrants = 0;
 
   const harness: Harness = {
@@ -153,12 +162,22 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     searches,
     feedback: new Map(FEEDBACK.map((record) => [record.id, record])),
     feedbackReads: { list: "ok", detail: "ok", summary: "ok", availability: "ok" },
+    feedbackScreenshots: new Map(),
+    feedbackScreenshotReads: new Map(),
+    feedbackScreenshotRequests: [],
+    feedbackScreenshotAnswers: [],
+    releaseFeedbackScreenshots() {
+      for (const [id, mode] of harness.feedbackScreenshotReads)
+        if (mode === "loading") harness.feedbackScreenshotReads.set(id, "ok");
+      for (const answer of pendingFeedbackScreenshots.splice(0)) answer();
+    },
     feedbackAvailability: "Open",
     feedbackQueries,
     feedbackCommands,
     reset() {
       harness.releaseCodeRequests();
       harness.releaseAccessWrites();
+      harness.releaseFeedbackScreenshots();
       misses.length = 0;
       requests.length = 0;
       searches.length = 0;
@@ -176,12 +195,17 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.access.clear();
       harness.feedback.clear();
       for (const record of FEEDBACK) harness.feedback.set(record.id, record);
+      harness.feedbackScreenshots.clear();
+      harness.feedbackScreenshotReads.clear();
+      harness.feedbackScreenshotRequests.length = 0;
+      harness.feedbackScreenshotAnswers.length = 0;
       for (const read of FEEDBACK_READS) harness.feedbackReads[read] = "ok";
       harness.feedbackAvailability = "Open";
       feedbackQueries.length = 0;
       feedbackCommands.length = 0;
     },
     async stop() {
+      harness.releaseFeedbackScreenshots();
       await Promise.all([close(proxy), close(backend)]);
     },
   };
@@ -359,6 +383,34 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     }
     if (route === "GET /api/v1/admin/feedback/availability") {
       return feedbackRead("availability", () => ({ status: 200, value: { availability: harness.feedbackAvailability } }));
+    }
+    const feedbackScreenshot = /^GET \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})\/screenshot$/.exec(route);
+    if (feedbackScreenshot !== null) {
+      const id = feedbackScreenshot[1] ?? "";
+      harness.feedbackScreenshotRequests.push(id);
+      const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
+      const problem = (status: number, title: string, extra: Record<string, string> = {}) =>
+        json(status, { status, title }, { ...headers, ...extra });
+      if (harness.mode !== "ok") {
+        const status = { forbidden: 403, unauthorized: 401, error: 500, rateLimited: 429 }[harness.mode];
+        return problem(status, "Screenshot read refused", status === 429 ? { "Retry-After": "6" } : {});
+      }
+      const mode = harness.feedbackScreenshotReads.get(id) ?? "ok";
+      const answer = () => {
+        harness.feedbackScreenshotAnswers.push(id);
+        if (response.destroyed) return;
+        const found = harness.feedbackScreenshots.get(id);
+        if (mode === "notFound" || found === undefined || harness.feedback.get(id)?.screenshot == null)
+          return problem(404, "Feedback.ScreenshotNotFound");
+        if (mode === "error") return problem(500, "Internal Server Error");
+        response.writeHead(200, {
+          ...headers, "Content-Type": "image/png", "Content-Length": String(found.content.length),
+        });
+        response.end(found.content);
+      };
+      if (mode === "loading") pendingFeedbackScreenshots.push(answer);
+      else answer();
+      return;
     }
     const feedbackItem = /^GET \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})$/.exec(route);
     if (feedbackItem !== null) {

@@ -187,7 +187,7 @@ a false negative costs a false confirmation to a named person.
 > tells you her name is in a search filter and the dry run reports zero, run it again with
 > the underscored form as a second identifier.
 
-> ⛔ **SEVEN COLUMNS ARE NOT SEARCHED, AND YOU MUST SAY SO.**
+> ⛔ **THE ENCRYPTED COLUMNS AND SCREENSHOT PIXELS ARE NOT SEARCHED; DISCLOSE BOTH.**
 > `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,
 > `parsed_resumes.raw_text`, `parsed_resumes.parsed_content_enc`,
 > `resume_versions.content_enc` and `resume_files.content` — the notes, the cover
@@ -373,7 +373,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.snapshot_contacts` (the frozen recruiter contact block, #842 Tier A) | ✅ **Yes**, surgically | ITS OWN surface (`ApplicationSnapshotContacts`), never folded into the body columns below — one surface, one disposition, one honest Matched−Erased meaning (T2 CTO 2026-07-16). The contact block is HER data whose follow-up purpose is spent at the erasure request; 17(3)(e) retains the applicant's aktivitetsrapport spine, not the recruiter's phone number. `Application.EraseAdSnapshotContacts()` removes ONLY the contacts and leaves the applicant's record intact — durable by construction, the funnel never rewrites a snapshot. |
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
 | CV metadata: `parsed_resumes.source_file_name`, `resume_files.file_name`, `resumes.name` / `latest_role` / `top_skills` (`resumeMetadata`) | ⚠️ **Not automatically — a HUMAN erases it, with the CV's owner in the loop** | The PLAINTEXT text around a user's CV: the uploaded file's name (twice — two tables, same file), the CV's own name (typed via rename), and the denormalised role/skill projections. "Ansokan_Magnus_Fagerberg.pdf" is not exotic — the repo already masks personnummer out of file names (#465) precisely because users type arbitrary text there. Searched and reported; a job does not silently rename a user's own files. The CV BODY is `couldNotSearch`, not this row. |
-| `feedback_submissions.comment` (feedback a user sent about a page, #1979) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | Free text a user wrote to the operator, plaintext by Klas's decision (2026-10-07). A user describing an ad can name its recruiter. Searched and reported as `feedbackComments`; a human deletes the submission (and its notice), which is the operator's own correspondence and nothing else depends on. The 90-day retention removes it regardless. |
+| `feedback_submissions.comment` (feedback a user sent about a page, #1979) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | Free text a user wrote to the operator, plaintext by Klas's decision (2026-10-07). A user describing an ad can name its recruiter. Searched and reported as `feedbackComments`; a human deletes the submission (and its image and notice), which is the operator's own correspondence and nothing else depends on. The 90-day retention removes it regardless. |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
@@ -530,3 +530,31 @@ human-handled surfaces). Pick the sentence that is true for the case at hand:
 not start without it** — deliberately: an HMAC under an absent key looks protected
 while being trivially reversible, and a control that only appears to work is the
 entire subject of this issue. Generate one with `openssl rand -base64 32`.
+
+## Feedback image review and erasure — 2026-10-08 (#1979 PR2)
+
+`feedback_screenshots.content` is `HeldButNotSearchable`: it contains plaintext PNG pixels, potentially recruiter data or a separate CV copy. No OCR or automatic image search runs. `couldNotSearch` includes this column on **every** outcome, including zero comment matches. Offer manual review in every response and handle identified images inside the Art. 12(3) deadline; zero searched matches do not establish absence in images.
+
+Use the authenticated admin detail to inspect an identified submission's image, in context and with the affected user involved. Do not export images, paste their contents into logs/reports, or decrypt unrelated CVs to search the corpus. If the requester cannot identify the feedback, ask for a page/time/context that narrows the manual review; keep the deadline and disclose the remaining scope honestly. An identified image can be erased without deleting the rating/comment. If the whole submission is to be erased, remove its image and notice first, then the submission in one transaction. Per-page prompt suppression remains: it is not the text/image and the 90-day job retains it too.
+
+For a reviewed submission UUID, use parameterized commands on the operator database connection. Separate-image erasure is:
+
+```sql
+DELETE FROM public.feedback_screenshots WHERE submission_id = @submission_id;
+```
+
+Whole-submission erasure is:
+
+```sql
+BEGIN;
+DELETE FROM public.feedback_screenshots WHERE submission_id = @submission_id;
+DELETE FROM public.feedback_notifications WHERE submission_id = @submission_id;
+DELETE FROM public.feedback_submissions WHERE id = @submission_id;
+COMMIT;
+```
+
+The `@submission_id` parameter is bound by the client; it is not SQL text interpolation or a psql literal. Check affected row counts, re-read the admin detail (missing image or missing submission), and record the case/confirmation/outcome without image bytes or personal text. A no-image result after restore is expected: logical dumps retain schema/feedback but exclude this table's data. Source-CV deletion does not erase this independent copy.
+
+Add to the mandatory closing in every requester reply:
+
+> Skärmbilder som användare har bifogat sina synpunkter är separata kopior som vi inte söker igenom automatiskt. Om du vet att dina uppgifter finns i en sådan bild, hör av dig med sammanhanget, så granskar och hanterar vi den manuellt.

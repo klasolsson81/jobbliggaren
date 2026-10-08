@@ -149,6 +149,8 @@ jobs:
       # byggas för att SAST ska se den.
       - name: Build (C#, manual build-mode)
         if: matrix.language == 'csharp'
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           dotnet restore Jobbliggaren.sln
           dotnet build Jobbliggaren.sln --no-restore -c Release

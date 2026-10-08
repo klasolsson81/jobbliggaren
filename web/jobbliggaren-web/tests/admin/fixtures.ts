@@ -220,6 +220,7 @@ export interface FeedbackRecord {
   };
   readonly appVersion: string | null;
   readonly notification: FeedbackNotice | null;
+  readonly screenshot: { readonly width: number; readonly height: number } | null;
 }
 
 /** Each submission named by its notice's state, which is what the tests open it for. */
@@ -266,6 +267,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
       theme: "Light", deviceClass: "Desktop", osFamily: "Windows", browserFamily: "Firefox" },
     appVersion: "4f2a91c",
     notification: notice("Queued", 2, "2026-09-29T07:16:00Z"),
+    screenshot: null,
   },
   {
     id: FEEDBACK_IDS.failed,
@@ -280,6 +282,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
       theme: "Light", deviceClass: "Desktop", osFamily: "MacOs", browserFamily: "Chrome" },
     appVersion: "9c03e7b",
     notification: notice("Failed", 5, "2026-09-26T14:24:00Z"),
+    screenshot: null,
   },
   {
     id: FEEDBACK_IDS.unknown,
@@ -294,6 +297,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
       theme: "Light", deviceClass: "Mobile", osFamily: "Android", browserFamily: "SamsungInternet" },
     appVersion: "9c03e7b",
     notification: notice("Unknown", 1, "2026-09-24T09:37:00Z"),
+    screenshot: null,
   },
   {
     id: FEEDBACK_IDS.accepted,
@@ -308,6 +312,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
       theme: "Dark", deviceClass: "Mobile", osFamily: "Ios", browserFamily: "Safari" },
     appVersion: "1b7d0e4",
     notification: notice("Accepted", 1, "2026-09-20T18:41:00Z"),
+    screenshot: null,
   },
   {
     id: FEEDBACK_IDS.sending,
@@ -322,6 +327,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
       theme: "Dark", deviceClass: "Desktop", osFamily: "Windows", browserFamily: "Edge" },
     appVersion: "1b7d0e4",
     notification: notice("Sending", 1, "2026-09-15T20:16:00Z"),
+    screenshot: null,
   },
   {
     id: FEEDBACK_IDS.unreported,
@@ -335,6 +341,7 @@ export const FEEDBACK: ReadonlyArray<FeedbackRecord> = [
     client: NOTHING_REPORTED,
     appVersion: null,
     notification: notice("Accepted", 1, "2026-09-12T14:31:00Z"),
+    screenshot: null,
   },
 ];
 
@@ -357,6 +364,7 @@ export function manyFeedback(count: number): ReadonlyArray<FeedbackRecord> {
       client: NOTHING_REPORTED,
       appVersion: null,
       notification: notice("Accepted", 1, at),
+      screenshot: null,
     };
   });
 }
@@ -420,6 +428,7 @@ export function feedbackDetail(record: FeedbackRecord) {
     client: record.client,
     appVersion: record.appVersion,
     notification: record.notification,
+    screenshot: record.screenshot,
   };
 }
 

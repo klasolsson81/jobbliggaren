@@ -51,6 +51,8 @@ jobs:
   # restated here: ADR 0044's amendments of 2026-08-02 (#1145) and 2026-09-25 (#1785) hold the
   # dated, paired measurements; measure again rather than trust a numeral copied to a second place.
   coverage:
+    env:
+      SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
     name: coverage (.NET 10)
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -1023,6 +1025,8 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build ${{ matrix.name }}
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ (matrix.name == 'api' || matrix.name == 'worker' || matrix.name == 'migrate') && secrets.SIXLABORS_LICENSE_KEY || '' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ${{ matrix.context }}
@@ -1033,6 +1037,8 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
           no-cache-filters: ${{ matrix.nocache }}
+          secret-envs: |
+            sixlabors_license=SIXLABORS_LICENSE_KEY
           # web-imagen bakar in NEXT_PUBLIC_* vid build och kan inte rättas vid runtime.
           # Värdet här är CI:ns, inte produktionens — jobbet bevisar att bygget går, inte
           # vad som publiceras. Release-workflowen skickar sitt eget.

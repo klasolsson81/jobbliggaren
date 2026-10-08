@@ -349,6 +349,15 @@
       "back": "All submissions",
       "notFound": "The submission does not exist.",
       "noComment": "No text.",
+      "screenshot": {
+        "heading": "Screenshot",
+        "alt": "Screenshot attached to the feedback",
+        "loading": "Loading the screenshot…",
+        "absent": "There is no screenshot.",
+        "failed": "The screenshot could not be loaded. Reload the page.",
+        "showFullSize": "Show full size",
+        "showThumbnail": "Show thumbnail"
+      },
       "facts": {
         "reporter": "Sender",
         "page": "Page",

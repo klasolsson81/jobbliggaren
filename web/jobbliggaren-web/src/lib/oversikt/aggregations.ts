@@ -5,6 +5,7 @@ import type {
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import { formatTime, type JpFormatter } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
+import { swedishDateParts } from "@/lib/time/swedish-calendar";
 
 // Relative-time helpers live in `lib/i18n/relative-time` now (#336 DRY
 // extraction). Re-exported here so existing oversikt consumers keep their
@@ -19,9 +20,8 @@ export {
 /**
  * F6 P5 Punkt 4 — Översikt-aggregeringar.
  *
- * Pure helpers — testbara utan request-kontext. Inga date-FNS/Intl-tunga
- * dependencies; svensk lokal-formatering är kort nog att handrullas och
- * speglar CLAUDE.md §10.2 (datum "14 apr 2026", tid 24h).
+ * Pure helpers — testbara utan request-kontext. Svensk lokal-formatering är kort nog att
+ * handrullas och speglar AGENTS.md §10 (datum "14 apr 2026", tid 24h).
  */
 
 /**
@@ -80,21 +80,18 @@ const SV_MONTHS_SHORT = [
 ];
 
 /**
- * Svensk kortform "13 maj" (CLAUDE.md §10.2 — "14 apr 2026" eller "13 maj").
+ * Svensk kortform "13 maj" (AGENTS.md §10 — "14 apr 2026" eller "13 maj").
  * Returnerar "–" vid ogiltig input istället för att kasta.
- *
- * Lokal kalenderdag-trunkering: använder klientens lokala tidszon (server
- * körs UTC men UI:t serverrenderas och hydrerar identiskt — datum-strings
- * från BE är ISO och Date-parsade konsistent).
  */
 export function formatSwedishShortDate(isoString: string): string {
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "–";
-  return `${d.getDate()} ${SV_MONTHS_SHORT[d.getMonth()]}`;
+  const { day, month } = swedishDateParts(d);
+  return `${day} ${SV_MONTHS_SHORT[month - 1]}`;
 }
 
 /**
- * Svensk kortform MED år ("14 jun 2026", CLAUDE.md §10.2). Använd där posterna
+ * Svensk kortform MED år ("14 jun 2026", AGENTS.md §10). Använd där posterna
  * ackumuleras över tid och året bär betydelse (t.ex. "Mina matchningar"-vyn,
  * ADR 0080) — till skillnad från `formatSwedishShortDate` som utelämnar året för
  * kompakt, samma-säsong-kontext. Återanvänder samma `SV_MONTHS_SHORT` så formerna
@@ -103,7 +100,8 @@ export function formatSwedishShortDate(isoString: string): string {
 export function formatSwedishShortDateWithYear(isoString: string): string {
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "–";
-  return `${d.getDate()} ${SV_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const { day, month, year } = swedishDateParts(d);
+  return `${day} ${SV_MONTHS_SHORT[month - 1]} ${year}`;
 }
 
 export interface SwedishLongDate {
@@ -117,10 +115,11 @@ export interface SwedishLongDate {
  * { day: 23, weekday: "lördag", monthYear: "maj 2026" }
  */
 export function formatSwedishLongDate(date: Date): SwedishLongDate {
+  const { day, month, year, weekday } = swedishDateParts(date);
   return {
-    day: date.getDate(),
-    weekday: SV_WEEKDAYS[date.getDay()] ?? "",
-    monthYear: `${SV_MONTHS_LONG[date.getMonth()] ?? ""} ${date.getFullYear()}`,
+    day,
+    weekday: SV_WEEKDAYS[weekday] ?? "",
+    monthYear: `${SV_MONTHS_LONG[month - 1] ?? ""} ${year}`,
   };
 }
 
@@ -172,7 +171,7 @@ export function findFollowUpCandidates(
  * alltid två timmar efter en svensk läsares klocka under CEST — omöjligt att skilja från en
  * frusen och gammal siffra (#1549). Motiveringen som stod här var att UTC var konsekvent
  * med `daysSince`-trunkeringen, men de två är olika saker: `daysSince` räknar
- * kalenderdagars SKILLNAD och trunkerar i UTC för DST-stabilitet, medan den här stämpeln är
+ * kalenderdagars SKILLNAD, medan den här stämpeln är
  * en absolut väggklocka som läsaren jämför med sin egen. Tidszonen ägs nu av next-intls
  * formaterare, som resten av appen (AGENTS.md §10).
  *
@@ -190,8 +189,7 @@ export function formatNoticesStamp(format: JpFormatter, date: Date): string {
 
 /**
  * Returnerar nyligen bekräftade intervjuer: status === InterviewScheduled
- * och `updatedAt` ligger inom 1 UTC-kalenderdag bakåt från `now` (kan i
- * praktiken vara upp till ~47h gammal pga `daysSince`-trunkering). Driver
+ * och `updatedAt` ligger inom 1 svensk kalenderdag bakåt från `now`. Driver
  * Intervju-bekräftelse-notisen — fönstret är kalenderdag-bundet, inte
  * 24h rullande, för att matcha "igår"/"idag"-copyn.
  */

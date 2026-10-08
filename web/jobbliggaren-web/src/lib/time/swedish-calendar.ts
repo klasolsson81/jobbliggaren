@@ -107,11 +107,18 @@ const SWEDISH_DATE = new Intl.DateTimeFormat("en-CA", {
  * `en-CA` rather than the app formatter — and no human ever reads it.
  */
 export function swedishDateSlug(instant: Date): string {
-  const parts = SWEDISH_DATE.formatToParts(instant);
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
+  const { year, month, day } = swedishDateFields(instant);
   return `${year}-${month}-${day}`;
+}
+
+/** The Swedish date's zero-padded fields, read by name from SWEDISH_DATE. */
+function swedishDateFields(instant: Date): { year?: string; month?: string; day?: string } {
+  const parts = SWEDISH_DATE.formatToParts(instant);
+  return {
+    year: parts.find((p) => p.type === "year")?.value,
+    month: parts.find((p) => p.type === "month")?.value,
+    day: parts.find((p) => p.type === "day")?.value,
+  };
 }
 
 /**
@@ -124,12 +131,44 @@ export function swedishDateSlug(instant: Date): string {
  * civil date, then labelled by `swedishDateSlug` itself — one formatter, one padding.
  */
 export function previousSwedishDateSlug(instant: Date): string {
-  const parts = SWEDISH_DATE.formatToParts(instant);
-  const year = Number(parts.find((p) => p.type === "year")?.value);
-  const month = Number(parts.find((p) => p.type === "month")?.value);
-  const day = Number(parts.find((p) => p.type === "day")?.value);
+  const { year, month, day } = swedishDateParts(instant);
   // Date.UTC rolls day 0 back into the previous month (and year), so the 1st needs no branch.
   return swedishDateSlug(new Date(Date.UTC(year, month - 1, day - 1, 12)));
+}
+
+/** A Swedish civil date as numbers: `month` 1–12, `weekday` 0 (Sunday) – 6. */
+export type SwedishDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  weekday: number;
+};
+
+/**
+ * The Swedish civil date `instant` falls on, for code that renders a day, a month or a
+ * weekday — never `getDate()`/`getDay()`, which read the process zone (UTC on the server).
+ * The weekday comes from the calendar date itself, so it needs no second zone lookup.
+ */
+export function swedishDateParts(instant: Date): SwedishDateParts {
+  const fields = swedishDateFields(instant);
+  const year = Number(fields.year);
+  const month = Number(fields.month);
+  const day = Number(fields.day);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return { year, month, day, weekday };
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whole Swedish calendar days from `from` to `to`: 0 on the same Swedish date, 1 when `from`
+ * was the Swedish day before, negative when `from` is later. Counted between calendar dates,
+ * so a 23- or 25-hour DST day is still one day.
+ */
+export function swedishDaysBetween(from: Date, to: Date): number {
+  const a = swedishDateParts(from);
+  const b = swedishDateParts(to);
+  return (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / MS_PER_DAY;
 }
 
 /**

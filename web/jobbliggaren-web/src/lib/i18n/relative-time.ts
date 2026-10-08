@@ -5,26 +5,16 @@
 // under the `lib/i18n` concern next to `format.ts`. `aggregations.ts` re-exports
 // these for its existing consumers; new code imports from here directly.
 
+import { swedishDaysBetween } from "@/lib/time/swedish-calendar";
+
 /**
- * Heltal kalenderdagar mellan `isoString` och `now` (default: Date.now()).
- * Negativ siffra om datumet ligger i framtiden. Använder UTC-trunkering
- * för stabilitet över DST-gränser.
+ * Whole Swedish calendar days between `isoString` and `now` (default: Date.now());
+ * negative when the date is in the future.
  */
 export function daysSince(isoString: string, now: Date = new Date()): number {
   const start = new Date(isoString);
   if (Number.isNaN(start.getTime())) return 0;
-  const msPerDay = 86_400_000;
-  const startUtc = Date.UTC(
-    start.getUTCFullYear(),
-    start.getUTCMonth(),
-    start.getUTCDate()
-  );
-  const nowUtc = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate()
-  );
-  return Math.floor((nowUtc - startUtc) / msPerDay);
+  return swedishDaysBetween(start, now);
 }
 
 /**

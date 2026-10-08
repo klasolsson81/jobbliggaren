@@ -111,7 +111,7 @@ describe("compareApplications — status (PIPELINE_ORDER)", () => {
 });
 
 describe("compareApplications — days (I steget), null sorteras ALLTID sist", () => {
-  // NOW = 2026-07-10. daysInStatus = hela UTC-dagar sedan lastStatusChangeAt.
+  // NOW = 2026-07-10. daysInStatus = hela svenska kalenderdagar sedan lastStatusChangeAt.
   const oldest = makeApp({ lastStatusChangeAt: "2026-07-01T00:00:00Z" }); // 9 dgr
   const middle = makeApp({ lastStatusChangeAt: "2026-07-05T00:00:00Z" }); // 5 dgr
   const newest = makeApp({ lastStatusChangeAt: "2026-07-10T00:00:00Z" }); // 0 dgr

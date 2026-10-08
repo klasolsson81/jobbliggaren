@@ -194,6 +194,19 @@
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+.jp-adminoverview__link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 36px;
+  min-height: 36px;
+  max-width: 100%;
+}
+@media (max-width: 768px) {
+  .jp-adminoverview__link {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 .jp-adminkpi__unit {
   font-size: var(--text-ui);
   color: var(--jp-ink-2);
@@ -924,6 +937,10 @@
   grid-template-columns: auto auto minmax(0, 1fr);
   column-gap: 12px;
 }
+.jp-adminevents--observed {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.jp-adminevents--observed time { grid-column: 1 / -1; }
 .jp-adminevents li {
   display: grid;
   grid-column: 1 / -1;

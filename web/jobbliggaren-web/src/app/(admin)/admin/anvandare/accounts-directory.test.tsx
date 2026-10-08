@@ -1323,7 +1323,7 @@ it("preserves overview dates during status, search and sorting, and clears only 
   serve({ [LIST]: () => json(answer([A])) });
   const from = "2026-09-01T22:00:00Z";
   const before = "2026-10-08T10:00:00Z";
-  render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([A])) }} self={SELF} initialFilters={{ registeredFrom: from, registeredBefore: before }} />);
+  const { rerender } = render(<AccountsDirectory initial={{ kind: "loaded", page: toAccountsPage(answer([A])) }} self={SELF} initialFilters={{ registeredFrom: from, registeredBefore: before }} />);
   expect(screen.getByText(/Registrerade från/)).toBeInTheDocument();
   await userEvent.type(screen.getByRole("searchbox", { name: "Sök på e-postadress" }), "konto.a");
   await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -1338,4 +1338,23 @@ it("preserves overview dates during status, search and sorting, and clears only 
   expect(lastBody().address).toBe("konto.a");
   expect(lastBody().registeredBefore).toBeUndefined();
   expect(replaceRoute).toHaveBeenCalledWith("/admin/anvandare?status=Active", { scroll: false });
+  rerender(<AccountsDirectory initial={FIRST} self={SELF} initialFilters={{ status: "Active" }} />);
+  expect(screen.getByRole("searchbox", { name: "Sök på e-postadress" })).toHaveValue("konto.a");
+  expect(screen.getByRole("radio", { name: "Aktiva (1)" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByRole("table", { name: "Konton" })).not.toHaveTextContent(B.email!);
+});
+
+it.each([
+  { registeredFrom: "2026-09-01T22:00:00Z", registeredBefore: "2026-10-08T10:00:00Z" },
+  { status: "Suspended" as const },
+])("replaces displayed filters and rows when the server navigates to all accounts (%o)", (initialFilters) => {
+  const initial: AccountsListing = { kind: "loaded", page: toAccountsPage(
+    "status" in initialFilters ? answer([], [A, B, C]) : answer([A]),
+  ) };
+  const { rerender } = render(<AccountsDirectory initial={initial} initialFilters={initialFilters} self={SELF} />);
+  rerender(<AccountsDirectory initial={FIRST} initialFilters={{}} self={SELF} />);
+  expect(screen.queryByRole("button", { name: "Rensa period" })).toBeNull();
+  expect(screen.getByRole("radio", { name: "Alla (3)" })).toHaveAttribute("aria-checked", "true");
+  expect(shownAddresses()).toEqual([A.email, B.email, C.email]);
+  expect(fetchMock).not.toHaveBeenCalled();
 });

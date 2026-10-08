@@ -284,7 +284,7 @@ function ValueCard<T>({
   return (
     <AdminCard id={id} title={title} icon={icon} span={span} aside={aside}>
       <p className="jp-adminkpi">
-        <span className="jp-adminkpi__value">{shown.href ? <Link href={shown.href}>{format.number(shown.value)}</Link> : format.number(shown.value)}</span>
+        <span className="jp-adminkpi__value">{shown.href ? <Link href={shown.href} className="jp-adminoverview__link">{format.number(shown.value)}</Link> : format.number(shown.value)}</span>
         <span className="jp-adminkpi__unit">{shown.unit}</span>
       </p>
       <p className="jp-adminkpi__sub">{shown.sub}</p>
@@ -432,7 +432,7 @@ function RegistrationLinks({ basePath, periods }: {
 }) {
   const t = useTranslations("admin.overview.registrationPeriods");
   return <>{(["yesterday", "last7Days", "last30Days"] as const).map((key, index) =>
-    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, periods[key])}>{t(key, { count: periods[key].count })}</Link></span>)}</>;
+    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, periods[key])} className="jp-adminoverview__link">{t(key, { count: periods[key].count })}</Link></span>)}</>;
 }
 
 function AccountStatusLinks({ basePath, counts }: {
@@ -442,7 +442,7 @@ function AccountStatusLinks({ basePath, counts }: {
   const t = useTranslations("admin.overview.accountStatus");
   const statuses = { active: "Active", pendingDeletion: "PendingDeletion", profileMissing: "ProfileMissing", suspended: "Suspended" } as const;
   return <>{(Object.keys(statuses) as Array<keyof typeof statuses>).map((key, index) =>
-    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, undefined, statuses[key])}>{t(key, { count: counts[key] })}</Link></span>)}</>;
+    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, undefined, statuses[key])} className="jp-adminoverview__link">{t(key, { count: counts[key] })}</Link></span>)}</>;
 }
 
 function overviewAttentionState(snapshot: AdminOverviewSnapshot): "unknown" | "raised" {
@@ -460,11 +460,11 @@ function ObservedAttention({ observations, now, basePath }: {
   const { accounts, jobs } = observations;
   return <div className="jp-admincard__body">
     {jobs.kind === "loaded" || jobs.kind === "empty" ? <p>{jobs.data.totalCount > 0
-      ? <Link href={`${basePath}/jobb#failed-jobs`}>{t("failedJobs", { count: jobs.data.totalCount })}</Link>
+      ? <Link href={`${basePath}/jobb#failed-jobs`} className="jp-adminoverview__link">{t("failedJobs", { count: jobs.data.totalCount })}</Link>
       : t("noFailedJobs")}</p> : <div><p>{t("jobsSource")}</p><AdminRegionLine kind={jobs.kind} quiet /></div>}
     <AdminObservationNote observation={jobs} now={now} />
     {accounts.kind === "loaded" || accounts.kind === "empty" ? <p>{accounts.data.counts.pendingDeletion > 0
-      ? <Link href={accountsHref(basePath, undefined, "PendingDeletion")}>{t("pendingDeletions", { count: accounts.data.counts.pendingDeletion })}</Link>
+      ? <Link href={accountsHref(basePath, undefined, "PendingDeletion")} className="jp-adminoverview__link">{t("pendingDeletions", { count: accounts.data.counts.pendingDeletion })}</Link>
       : t("noPendingDeletions")}</p> : <div><p>{t("deletionsSource")}</p><AdminRegionLine kind={accounts.kind} quiet /></div>}
     <AdminObservationNote observation={accounts} now={now} />
     <p>{t("emailUnknown")}</p>
@@ -477,7 +477,7 @@ function ObservedEvents({ observations, now }: { readonly observations: AdminOve
   const audit = observations.audit;
   if (audit.kind === "failed" || audit.kind === "loading") return <AdminRegionLine quiet kind={audit.kind} region />;
   return <>
-    {audit.data.length === 0 ? <AdminRegionLine quiet kind="empty" empty={t("empty")} region /> : <ol className="jp-adminevents">
+    {audit.data.length === 0 ? <AdminRegionLine quiet kind="empty" empty={t("empty")} region /> : <ol className="jp-adminevents jp-adminevents--observed">
       {audit.data.map((event) => <li key={event.id}>
         <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? <AdminUnknown />}</time>
         <code className="jp-adminevents__subject">{event.eventType}</code>

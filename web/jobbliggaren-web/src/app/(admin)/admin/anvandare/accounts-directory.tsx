@@ -161,6 +161,7 @@ export function AccountsDirectory({ initial, self, initialFilters = {} }: {
     : initialFilters.status === "ProfileMissing" ? "profileMissing"
     : initialFilters.status === "Suspended" ? "suspended" : "all";
   const first: Criteria = { ...FIRST, filter: initialStatus, registeredFrom: initialFilters.registeredFrom, registeredBefore: initialFilters.registeredBefore };
+  const [seenFilters, setSeenFilters] = useState(initialFilters);
   const [criteria, setCriteria] = useState<Criteria>(first);
   const [listing, setListing] = useState(initial);
   const [answered, setAnswered] = useState<Criteria>(first);
@@ -207,6 +208,12 @@ export function AccountsDirectory({ initial, self, initialFilters = {} }: {
   }, [criteria, answered]);
 
   useEffect(() => () => detailRequest.current?.abort(), []);
+  useEffect(() => {
+    if (open === null) {
+      openId.current = null;
+      detailRequest.current?.abort();
+    }
+  }, [open]);
 
   // The retry button leaves with the failed line once rows arrive, and the browser drops its focus.
   useEffect(() => {
@@ -404,6 +411,22 @@ export function AccountsDirectory({ initial, self, initialFilters = {} }: {
           ? { key, direction: current.sort.direction === "ascending" ? "descending" : "ascending" }
           : { key, direction: key === "email" ? "ascending" : "descending" },
     }));
+  }
+
+  if (seenFilters.status !== initialFilters.status
+    || seenFilters.registeredFrom !== initialFilters.registeredFrom
+    || seenFilters.registeredBefore !== initialFilters.registeredBefore) {
+    setSeenFilters(initialFilters);
+    if (criteria.filter !== first.filter
+      || criteria.registeredFrom !== first.registeredFrom
+      || criteria.registeredBefore !== first.registeredBefore) {
+      setQuery("");
+      setCriteria(first);
+      setAnswered(first);
+      setListing(initial);
+      setOpen(null);
+      setPanelMounted(false);
+    }
   }
 
   const loaded = listing.kind === "loaded" ? listing.page : null;

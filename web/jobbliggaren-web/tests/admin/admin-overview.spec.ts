@@ -104,7 +104,52 @@ test("date drill-down preserves dates through search, status, sorting and clears
   expect(sorted.registeredBefore).toBe(last.registeredBefore);
   await page.getByRole("button", { name: "Rensa period" }).click();
   await expect(page).not.toHaveURL(/registeredFrom|registeredBefore/);
+  await expect(page.getByRole("searchbox", { name: /Sök/ })).toHaveValue("konto");
+  await expect(page.getByRole("radio", { name: "Aktiva (2)", exact: true })).toHaveAttribute("aria-checked", "true");
 });
+
+for (const query of [
+  "registeredFrom=2026-09-08T22%3A00%3A00.000Z&registeredBefore=2026-10-08T12%3A00%3A00.000Z",
+  "status=Suspended",
+]) {
+  test(`header users navigation resets directory filters: ${query}`, async ({ page }) => {
+    await page.goto(`/admin/anvandare?${query}`);
+    await expect(page.getByRole("table", { name: "Konton" })).not.toContainText("konto.c@example.test");
+    await page.getByRole("link", { name: "Användare", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/anvandare$/);
+    await expect(page.getByRole("button", { name: "Rensa period" })).toHaveCount(0);
+    await expect(page.getByRole("table", { name: "Konton" })).toContainText("konto.c@example.test");
+    await expect(page.getByRole("radio", { name: "Alla (5)", exact: true })).toHaveAttribute("aria-checked", "true");
+  });
+}
+
+for (const width of [1280, 640]) {
+  test(`overview drill links meet hit targets without overlap at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    for (const empty of [false, true]) {
+      harness.overviewEmpty = empty;
+      await page.goto("/admin");
+      const targets = await card(page, "Nya användare").getByRole("link")
+        .or(card(page, "Användare totalt").getByRole("link"))
+        .or(card(page, "Kräver uppmärksamhet").getByRole("link")).evaluateAll(links => links.map(link => {
+        const rect = link.getBoundingClientRect();
+        return { text: link.textContent, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }));
+      expect(targets).toHaveLength(empty ? 9 : 11);
+      const minimum = width <= 768 ? 44 : 32;
+      for (const target of targets) {
+        expect(target.width, target.text ?? "link width").toBeGreaterThanOrEqual(minimum);
+        expect(target.height, target.text ?? "link height").toBeGreaterThanOrEqual(minimum);
+      }
+      for (let index = 0; index < targets.length; index++) for (const other of targets.slice(index + 1)) {
+        const target = targets[index]!;
+        const overlaps = target.x < other.x + other.width && other.x < target.x + target.width
+          && target.y < other.y + other.height && other.y < target.y + target.height;
+        expect(overlaps, `${target.text} / ${other.text}`).toBe(false);
+      }
+    }
+  });
+}
 
 test("empty sources retain real zero counts and restricted attention statements", async ({ page }) => {
   harness.overviewEmpty = true;
@@ -283,6 +328,16 @@ for (const width of [1024, 1280, 3440]) {
     await page.setViewportSize({ width, height: 1200 });
     await page.goto("/admin");
     await expect(card(page, "Senaste händelser")).toContainText("JobSeeker.FollowedCompanyNotificationConsentUpdated");
+    await expect(card(page, "Senaste händelser")).toContainText("00000000-0000-4000-8000-000000000021");
+    const references = await card(page, "Senaste händelser").locator("li > span").evaluateAll(items => items.map(item => {
+      const rect = item.getBoundingClientRect();
+      const lineHeight = Number.parseFloat(getComputedStyle(item).lineHeight);
+      return { width: rect.width, lines: rect.height / lineHeight };
+    }));
+    for (const reference of references) {
+      expect(reference.width).toBeGreaterThanOrEqual(120);
+      expect(reference.lines).toBeLessThanOrEqual(4);
+    }
     await verify(page, "long-stored-event");
   });
 }

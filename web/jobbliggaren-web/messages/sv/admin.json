@@ -123,7 +123,14 @@
     "observation": {
       "sampledAt": "Uppgift från",
       "refreshFailed": "Uppdateringen misslyckades. Senaste uppgiften visas.",
-      "stale": "Uppgiften är äldre än fem minuter."
+      "stale": "Uppgiften är äldre än fem minuter.",
+      "current": "Uppgifterna är aktuella.",
+      "announcement": "{source}: {state}",
+      "sources": {
+        "accounts": "Kontostatistik",
+        "audit": "Granskningshändelser",
+        "jobs": "Misslyckade bakgrundsjobb"
+      }
     },
     "registrationPeriods": {
       "yesterday": "{count} igår",

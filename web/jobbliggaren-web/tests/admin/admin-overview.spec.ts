@@ -129,7 +129,17 @@ test("refresh retains good values on ordinary failure and projects data before t
   expect(body).not.toMatch(/192\.0\.2|userAgent|correlationId|userId|jobId|jobType|errorCategory/);
   await expect(card(page, "Användare totalt")).toContainText("Uppdateringen misslyckades");
   await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+  const announcement = page.getByRole("status").filter({ hasText: "Kontostatistik:" });
+  await expect(announcement).toHaveAttribute("aria-live", "polite");
+  await expect(announcement).toHaveAttribute("aria-atomic", "true");
+  await expect(announcement).toContainText("Uppdateringen misslyckades");
   await verify(page, "retained-after-failure");
+  harness.overviewReads.accounts = "ok";
+  harness.overviewSampledAt = new Date().toISOString();
+  const recovered = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(60_000);
+  await recovered;
+  await expect(announcement).toContainText("Uppgifterna är aktuella.");
 });
 
 for (const width of [1280, 3440]) for (const mode of ["unauthorized", "forbidden"] as const) {
@@ -195,5 +205,29 @@ for (const width of [1024, 1280, 3440]) {
     await page.goto("/admin");
     await expect(card(page, "Senaste händelser")).toContainText("JobSeeker.FollowedCompanyNotificationConsentUpdated");
     await verify(page, "long-stored-event");
+  });
+}
+
+for (const width of [1280, 3440, 640]) {
+  test("account runtime boundary keeps the frame and heading focus at " + width + "px", async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 640 ? 500 : 1200 });
+    await page.goto("/admin/anvandare", { waitUntil: "networkidle" });
+    // The browser's failed script request is the actor; the panel's lazy import rejects.
+    const failedScripts: string[] = [];
+    await page.route("**/_next/static/chunks/*.js", async route => {
+      failedScripts.push(route.request().url());
+      await route.abort("failed");
+    });
+    await page.getByRole("button", { name: "konto.e@example.test", exact: true }).click();
+    const heading = page.getByRole("heading", { name: "Sidan kunde inte visas", exact: true });
+    await expect(heading).toBeVisible();
+    expect(failedScripts.length).toBeGreaterThan(0);
+    await expect(heading).toBeFocused();
+    await expect(page.getByRole("banner")).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Försök igen", exact: true })).toBeFocused();
+    await page.unroute("**/_next/static/chunks/*.js");
+    await verify(page, "account-runtime-error");
   });
 }

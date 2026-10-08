@@ -6,6 +6,7 @@ import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { useTranslations } from "next-intl";
 import { overviewSnapshotSchema, type AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 import { OVERVIEW_REFRESH_MS, retainOverview } from "@/lib/admin/overview";
+import { AdminOverviewAnnouncements } from "./admin-overview-announcements";
 import { AdminOverview } from "./admin-overview";
 
 type State =
@@ -83,5 +84,10 @@ export function AdminOverviewLive({ initial, initialNow }: {
       {state.kind === "unauthorized" ? <Link href="/logga-in" className={STANDALONE_LINK}>{t("signIn")}</Link> : null}
     </div>;
   }
-  return <AdminOverview observations={state.data} now={now} />;
+  return (
+    <>
+      <AdminOverviewAnnouncements observations={state.data} now={now} />
+      <AdminOverview observations={state.data} now={now} />
+    </>
+  );
 }

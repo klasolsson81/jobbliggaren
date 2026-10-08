@@ -1104,6 +1104,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
     left: 6px;
     right: 6px;
   }
+  .jp-header--switchable .jp-nav--user { gap: 4px; }
+  .jp-header--switchable .jp-nav--user .jp-nav__link {
+    padding: 10px 14px;
+    font-size: var(--text-ui);
+  }
+  .jp-header--switchable .jp-nav--user .jp-nav__link[aria-current="page"]::after {
+    left: 14px;
+    right: 14px;
+  }
   .jp-header--switchable .jp-header__spacer { min-width: 0; }
 }
 .jp-nav-switch { flex: 0 0 auto; }

@@ -107,11 +107,18 @@ const SWEDISH_DATE = new Intl.DateTimeFormat("en-CA", {
  * `en-CA` rather than the app formatter — and no human ever reads it.
  */
 export function swedishDateSlug(instant: Date): string {
-  const parts = SWEDISH_DATE.formatToParts(instant);
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
+  const { year, month, day } = swedishDateFields(instant);
   return `${year}-${month}-${day}`;
+}
+
+/** The Swedish date's zero-padded fields, read by name from SWEDISH_DATE. */
+function swedishDateFields(instant: Date): { year?: string; month?: string; day?: string } {
+  const parts = SWEDISH_DATE.formatToParts(instant);
+  return {
+    year: parts.find((p) => p.type === "year")?.value,
+    month: parts.find((p) => p.type === "month")?.value,
+    day: parts.find((p) => p.type === "day")?.value,
+  };
 }
 
 /**
@@ -143,10 +150,10 @@ export type SwedishDateParts = {
  * The weekday comes from the calendar date itself, so it needs no second zone lookup.
  */
 export function swedishDateParts(instant: Date): SwedishDateParts {
-  const parts = SWEDISH_DATE.formatToParts(instant);
-  const year = Number(parts.find((p) => p.type === "year")?.value);
-  const month = Number(parts.find((p) => p.type === "month")?.value);
-  const day = Number(parts.find((p) => p.type === "day")?.value);
+  const fields = swedishDateFields(instant);
+  const year = Number(fields.year);
+  const month = Number(fields.month);
+  const day = Number(fields.day);
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return { year, month, day, weekday };
 }

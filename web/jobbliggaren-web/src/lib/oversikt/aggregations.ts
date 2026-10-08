@@ -20,9 +20,8 @@ export {
 /**
  * F6 P5 Punkt 4 — Översikt-aggregeringar.
  *
- * Pure helpers — testbara utan request-kontext. Inga date-FNS/Intl-tunga
- * dependencies; svensk lokal-formatering är kort nog att handrullas och
- * speglar CLAUDE.md §10.2 (datum "14 apr 2026", tid 24h).
+ * Pure helpers — testbara utan request-kontext. Svensk lokal-formatering är kort nog att
+ * handrullas och speglar AGENTS.md §10 (datum "14 apr 2026", tid 24h).
  */
 
 /**
@@ -81,8 +80,8 @@ const SV_MONTHS_SHORT = [
 ];
 
 /**
- * Svensk kortform "13 maj" (CLAUDE.md §10.2 — "14 apr 2026" eller "13 maj").
- * Returnerar "–" vid ogiltig input istället för att kasta. The date is the Swedish one.
+ * Svensk kortform "13 maj" (AGENTS.md §10 — "14 apr 2026" eller "13 maj").
+ * Returnerar "–" vid ogiltig input istället för att kasta.
  */
 export function formatSwedishShortDate(isoString: string): string {
   const d = new Date(isoString);
@@ -92,7 +91,7 @@ export function formatSwedishShortDate(isoString: string): string {
 }
 
 /**
- * Svensk kortform MED år ("14 jun 2026", CLAUDE.md §10.2). Använd där posterna
+ * Svensk kortform MED år ("14 jun 2026", AGENTS.md §10). Använd där posterna
  * ackumuleras över tid och året bär betydelse (t.ex. "Mina matchningar"-vyn,
  * ADR 0080) — till skillnad från `formatSwedishShortDate` som utelämnar året för
  * kompakt, samma-säsong-kontext. Återanvänder samma `SV_MONTHS_SHORT` så formerna
@@ -190,8 +189,7 @@ export function formatNoticesStamp(format: JpFormatter, date: Date): string {
 
 /**
  * Returnerar nyligen bekräftade intervjuer: status === InterviewScheduled
- * och `updatedAt` ligger inom 1 svensk kalenderdag bakåt från `now` (kan i
- * praktiken vara upp till ~47h gammal pga `daysSince`-trunkering). Driver
+ * och `updatedAt` ligger inom 1 svensk kalenderdag bakåt från `now`. Driver
  * Intervju-bekräftelse-notisen — fönstret är kalenderdag-bundet, inte
  * 24h rullande, för att matcha "igår"/"idag"-copyn.
  */

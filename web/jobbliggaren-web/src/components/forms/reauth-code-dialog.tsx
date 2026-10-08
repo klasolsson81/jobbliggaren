@@ -3,9 +3,11 @@
 import {
   type FormEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
   useTransition,
@@ -54,6 +56,10 @@ export type ReauthHandOff<T> =
   | { kind: "outcomeUnknown"; error: string }
   | { kind: "refused"; error?: string };
 
+export interface ReauthDialogHandle {
+  close: () => void;
+}
+
 type Challenge<C> = {
   /** Null once the backend has answered 410 for it: the step stays, but nothing is left to verify. */
   id: string | null;
@@ -69,6 +75,7 @@ type FocusTarget = "code" | "message" | "panel" | "resend";
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 type ReAuthCodeDialogProps<T, C> = {
+  dialogRef?: Ref<ReauthDialogHandle>;
   /** The element that opens the dialog; its own `onClick` may `preventDefault()` to keep it closed. */
   trigger: ReactNode;
   /** A class for the dialog's content, for a surface that layers it (the admin panel's, #1975). */
@@ -109,6 +116,7 @@ type ReAuthCodeDialogProps<T, C> = {
     });
 
 export function ReAuthCodeDialog<T, C = undefined>({
+  dialogRef,
   trigger,
   className,
   title,
@@ -161,6 +169,8 @@ export function ReAuthCodeDialog<T, C = undefined>({
   const sentLineId = useId();
   const messageId = useId();
   const consequenceId = useId();
+
+  useImperativeHandle(dialogRef, () => ({ close: () => handleOpenChange(false) }));
 
   // Focus follows the state it belongs to, once that state is on screen.
   useEffect(() => {

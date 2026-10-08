@@ -541,6 +541,38 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Stäng av åtkomst" })).toHaveFocus());
   });
 
+  it("closes only the deletion code dialog on the first Escape and the panel on the next, without requesting or scheduling", async () => {
+    const timing = {
+      deletedAt: "2026-10-08T12:00:00Z",
+      eligibleAt: "2026-11-07T12:00:00Z",
+      scheduledRunAt: "2026-11-08T04:00:00Z",
+    };
+    const target: AdminAddressedAccount = { ...ACTIVE, deletionPreview: timing };
+    const run = vi.fn<NonNullable<AdminAccountCommands["deletion"]>["run"]>();
+    run.mockResolvedValue({ ok: true, value: { userId: target.id, ...timing } });
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<AdminAccountPanel account={target} details={loaded(target)} onClose={onClose} self={SELF}
+      commands={{ ...commands(), deletion: { requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } }} />);
+    const trigger = screen.getByRole("button", { name: "Radera konto" });
+    await user.click(trigger);
+    const child = await screen.findByRole("dialog", { name: `Radera ${ACTIVE.email}?` });
+    expect(child).toBeVisible();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: `Radera ${ACTIVE.email}?` })).toBeNull());
+    expect(screen.getByRole("dialog", { name: ACTIVE.email! })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(requestCodeMock).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("names a direct command while it runs, then publishes its receipt and moves focus to the title", async () => {
     let settle: (refusal: AdminCommandRefusal) => void = () => {};
     renderPanel({ ...ACTIVE, status: "suspended", isSuspended: true }, () => new Promise((resolve) => (settle = resolve)));

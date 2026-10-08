@@ -44,7 +44,7 @@ import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
 import { isInAdminToast } from "./admin-toast-host";
-import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
+import { ReAuthCodeDialog, type ReauthDialogHandle, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import type { AdminAccessOperation, AdminAccessOutcome, AdminAccessReceipt } from "@/lib/admin/account-access";
 import type { AdminDeletionOutcome, AdminDeletionReceipt } from "@/lib/admin/account-deletion";
 
@@ -306,6 +306,8 @@ function PanelContent({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const actionRefs = useRef<Partial<Record<AdminLiveAction, HTMLButtonElement | null>>>({});
+  const reauthDialogRefs = useRef<Partial<Record<AdminAccountCommand["kind"], ReauthDialogHandle | null>>>({});
+  const reauthOpener = useRef<AdminAccountCommand["kind"] | null>(null);
   const confirmOpener = useRef<Confirming | null>(null);
   const focusTitleAfterConfirm = useRef(false);
   const leftEdit = useRef(false);
@@ -542,6 +544,11 @@ function PanelContent({
     if (target !== null) focusOn(target);
   }
 
+  function onReauthOpenChange(action: AdminAccountCommand["kind"], next: boolean) {
+    if (next) reauthOpener.current = action;
+    else if (reauthOpener.current === action) reauthOpener.current = null;
+  }
+
   function actionButton(target: AdminAddressedAccount, action: AdminAccountAction, destructive: boolean) {
     const Icon = ICONS[action];
     if (!isLive(action)) {
@@ -584,6 +591,8 @@ function PanelContent({
       return (
         <li key={action}>
           <ReAuthCodeDialog<AdminDeletionReceipt>
+            dialogRef={(handle) => { reauthDialogRefs.current[action] = handle; }}
+            onOpenChange={(next) => onReauthOpenChange(action, next)}
             trigger={
               <button type="button" className="jp-btn jp-btn--danger jp-adminpanel__action"
                 ref={(element) => { actionRefs.current[action] = element; }} onClick={() => setNotice(null)}>
@@ -630,6 +639,8 @@ function PanelContent({
       return (
         <li key={action}>
           <ReAuthCodeDialog<AdminAccessReceipt>
+            dialogRef={(handle) => { reauthDialogRefs.current[action] = handle; }}
+            onOpenChange={(next) => onReauthOpenChange(action, next)}
             trigger={
               <button type="button" className={`jp-btn ${destructive ? "jp-btn--danger" : "jp-btn--secondary"} jp-adminpanel__action`}
                 ref={(element) => { actionRefs.current[action] = element; }} onClick={() => setNotice(null)}>
@@ -867,6 +878,17 @@ function PanelContent({
       aria-describedby={undefined}
       onCloseAutoFocus={onCloseAutoFocus}
       onEscapeKeyDown={(event) => {
+        if (event.defaultPrevented) return;
+        const reauthAction = reauthOpener.current;
+        if (reauthAction !== null) {
+          const reauthDialog = reauthDialogRefs.current[reauthAction];
+          if (reauthDialog != null) {
+            event.preventDefault();
+            reauthDialog.close();
+            return;
+          }
+          reauthOpener.current = null;
+        }
         // Right after a confirmation opens, Escape can still reach the panel: it cancels the
         // confirmation, never the panel.
         if (confirming !== null) {

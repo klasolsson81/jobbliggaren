@@ -314,3 +314,8 @@ Migrated PostgreSQL tests exercise profile absence, status precedence, both DST 
 population, permanent erasure, and parity between aggregate windows and directory predicates. Auth tests cover
 anonymous, ordinary, revoked-admin and direct query reads, plus private response headers. The consumer radius pin
 explicitly admits the overview handler.
+The account route's client message provider carries only settings.account.reauth for the shared step-up dialog,
+alongside its required shared catalogs. The provider picker accepts literal subtree paths; the import-graph
+fitness function checks coverage of full translation paths and rejects unused declarations. The shared admin
+catalog stays shared with the outer provider. This bounds document transport without changing the dialog's
+copy, command/security contract or the overview layout; the dated performance report records regeneration.

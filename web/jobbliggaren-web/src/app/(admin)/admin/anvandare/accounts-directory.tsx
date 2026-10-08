@@ -75,15 +75,6 @@ interface Criteria {
 }
 
 const FIRST: Criteria = { term: "", filter: "all", sort: FIRST_SORT, page: 1, generation: 0 };
-function AccountPanelLoading() {
-  const t = useTranslations("admin.users");
-  return <p role="status">{t("panel.loading")}</p>;
-}
-
-const AdminAccountPanel = dynamic(
-  () => import("@/components/admin/admin-account-panel").then((module) => module.AdminAccountPanel),
-  { loading: AccountPanelLoading },
-);
 
 type Answer<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly failure: AccountsFailure; readonly gone: boolean };
 
@@ -288,7 +279,6 @@ export function AccountsDirectory({ initial, self, initialFilters = {} }: {
     if (row === undefined) return;
     setPanelMounted(true);
     openId.current = row.id;
-    setPanelMounted(true);
     setOpen(row);
     setEmailChange({ kind: "none" });
     void readAccount(row.id);

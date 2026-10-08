@@ -1,24 +1,24 @@
 # Admin overview performance verification — 2026-10-08
 
-Scope: #1978, the account overview handler and its authenticated endpoint. Measurements are a dated local experiment, not a claim about production capacity.
+Scope: #1978, the account overview handler and its authenticated endpoint. Measurements are a dated local experiment, not a claim about production capacity. The combined backend experiment ran on HEAD b9c9e10f16a9aea1eac22eea49c1afacf9d8a05f and actual merged #1977 base 0b163d1b48fafe74a60ea497392142a461aa449f; its artifact was written at 2026-10-08T18:26:13.1469055Z.
 
 ## PostgreSQL query plan
 
 The integration probe runs the actual `SqlAccountDirectory` command against migrated PostgreSQL in an isolated Testcontainer. Session-local `auto_explain` records JSON ANALYZE/BUFFERS for the raw Npgsql aggregate; an EF interceptor would not observe this command. No production logging/configuration is changed. The report projects only plan-node names and numerical counters, never account identifiers or SQL parameter values.
 
-The fixture adds 200 retained accounts through production registration/deletion/suspension actors, with registrations across 90 Swedish calendar days. Twenty historical incomplete rows cite the current registration atomicity test's writer pin. With the baseline administrator the observed population is 201. Tables are analyzed once for this diagnostic; this reproduces a statistics regime continuous production DML can produce and makes no production auto-analyze claim.
+The fixture adds 200 retained accounts through production registration/deletion/suspension actors, with registrations across 90 Swedish calendar days. Twenty historical incomplete rows cite the current registration atomicity test's writer pin. The ordinary serial Admin suite left 82 retained synthetic baseline accounts; the probe added 200, producing an observed population of 282. Tables are analyzed once for this diagnostic; this reproduces a statistics regime continuous production DML can produce and makes no production auto-analyze claim.
 
-Observed actual command-template SHA-256: `F3F96A56680505CD706AE80D9C7F22484A234B9DD1C7B0A912F18B24B5459715`.
+Observed actual command-template SHA-256: `00ABAE36070B05B9909861B434D22DC2A90CE4F4933274AAEC598B4462BE6FD6`.
 
-The plan returns exactly 90 daily rows. A totals aggregate and a grouped bounded `unnest` of daily intervals share the same classified population predicate. The planner prunes the account-list-only projections from the nonmaterialized CTE. The daily branch materializes the small joined population once and visits it for each of the 90 intervals. This local plan uses sequential scans and hash joins, with no temporary reads/writes. Top-node execution time was 1.650 ms, with 72 shared-buffer hits and no shared reads. This is appropriate for the measured MVP population; no 10k-account or concurrent-load conclusion is claimed.
+The plan returns exactly 90 daily rows. A totals aggregate and a grouped bounded `unnest` of daily intervals share the same classified population predicate. The planner prunes the account-list-only projections from the nonmaterialized CTE. The daily branch materializes the small joined population once and visits it for each of the 90 intervals. This local plan uses sequential scans and hash joins, with no temporary reads/writes. Top-node execution time was 2.288 ms, with 94 shared-buffer hits and no shared reads. This is appropriate for the measured MVP population; no 10k-account or concurrent-load conclusion is claimed.
 
 ## Timing verdict
 
-After 20 warmups, 100 direct handler samples gave p50 2.230 ms, p95 2.442 ms and p99 2.819 ms. The handler p95 is within ADR 0045's 300 ms read/list budget. It includes all account totals and 90 independently calculated Swedish daily boundaries, using a reused scoped DbContext/connection.
+After 20 warmups, 100 direct handler samples gave p50 2.646 ms, p95 3.163 ms and p99 3.821 ms. The handler p95 is within ADR 0045's 300 ms read/list budget. It includes all account totals and 90 independently calculated Swedish daily boundaries, using a reused scoped DbContext/connection.
 
-Authenticated loopback HTTP is measured separately: two warmups and 20 successful requests through the real socket, session authentication, authorization and rate limiter gave p50 13.218 ms, p95 37.503 ms and p99 47.748 ms. This Development-host experiment includes no TLS and is not the handler's p95. Timing stays observe-only; functional assertions cover successful responses, population parity and bounded output.
+Authenticated loopback HTTP is measured separately: two warmups and 20 successful requests through the real socket, session authentication, authorization and rate limiter gave p50 10.357 ms, p95 12.335 ms and p99 38.554 ms. This Development-host experiment includes no TLS and is not the handler's p95. Timing stays observe-only; functional assertions cover successful responses, population parity and bounded output.
 
-Regenerate in PowerShell from the worktree:
+Regenerate in PowerShell from the worktree after the process-environment licence setup in [local-dev-setup.md](../runbooks/local-dev-setup.md#imagesharp-build-licence-1979-pr2). Retain normal licence validation; never echo credentials or include them in arguments or evaluated binlogs:
 
 ```powershell
 $env:JBL_ADMIN_OVERVIEW_PERFORMANCE_OUTPUT = 'C:/tmp/admin-overview-performance.txt'
@@ -29,7 +29,7 @@ The emitted report includes the actual template digest, numerical plan nodes, sa
 
 ## Frontend measurement
 
-The production-build admin harness measures `/admin` and a registration-filtered `/admin/anvandare` using the bundled Lighthouse desktop preset at 1280×900, simulated desktop throttling and three-run medians. Account authentication is local and synthetic; the agent does not access signed-in production data. The test reads the unchanged resource budgets from `lighthouserc.json`, alongside the page score, LCP and CLS checks. The directory's account panel is deferred until first opened and kept mounted thereafter so close/focus behavior remains intact. A nested account-route translation provider avoids sending the shared reauthentication catalog with the overview; the existing import-graph equality fitness function verifies both providers.
+The production-build admin harness measures `/admin` and a registration-filtered `/admin/anvandare` using the bundled Lighthouse desktop preset at 1280×900, simulated desktop throttling and three-run medians. Account authentication is local and synthetic; the agent does not access signed-in production data. The test reads the unchanged resource budgets from `lighthouserc.json`, alongside the page score, LCP and CLS checks. The directory's account panel is deferred until first opened and kept mounted thereafter so close/focus behavior remains intact. A nested account-route translation provider avoids sending the reauthentication catalog with the overview. It selects settings.account.reauth alongside the required shared catalogs. The static import graph verifies every full client translation path is covered and every declared namespace is used; a selected subtree cannot satisfy a sibling read.
 
 ```powershell
 $env:PATH = 'C:/Program Files/Git/usr/bin;' + $env:PATH
@@ -54,3 +54,16 @@ The source-delta recheck exited successfully: one Lighthouse test, six measureme
 | Registration-filtered `/admin/anvandare` | 901 ms | 30,550 / 30,720 | 336,562 / 358,400 | 527,707 / 819,200 |
 
 Stylesheets, fonts, images and third-party request counts also met the unchanged budgets. Existing header, guest-shell and translation-boundary tests passed 33 cases. The artifact's measurement timestamp is `2026-10-08T11:45:04.899Z`. These are local pre-integration results; the merged #1977 lifecycle contract still requires the combined final check.
+
+## Actual merged #1977 base — 2026-10-08 18:54 UTC
+
+The combined source uses actual main 0b163d1b48fafe74a60ea497392142a461aa449f, including #1977's deletion lifecycle, legal copy, feedback race repair and error/focus behavior. Ordinary production build and both authenticated Lighthouse cases passed: two tests, nine audited navigations, exact URLs and backend-read witnesses, no unhandled harness request. The overview/drill-down artifact timestamp is 2026-10-08T18:54:42.897Z.
+
+The first combined directory measurements exceeded the unchanged document budget: 31,061 bytes unfiltered and 31,199 with registration dates, against 30,720. The delivered repair selects only settings.account.reauth at the existing account-route provider, while retaining the shared admin catalog reference and all existing messages. The reauthentication component reads that same branch explicitly. Source/runtime import-graph checks retain the top-level consumer contract and additionally verify full translation-path coverage; server-only descendants remain excluded. No copy, resource budget, dependency or lockfile changed.
+
+| Route | LCP | Document bytes / budget | Script bytes / budget | Total bytes / budget |
+|---|---:|---:|---:|---:|
+| `/admin` | 892 ms | 27,079 / 30,720 | 333,862 / 358,400 | 485,325 / 819,200 |
+| Registration-filtered `/admin/anvandare` | 898 ms | 28,992 / 30,720 | 337,212 / 358,400 | 530,471 / 819,200 |
+
+Both three-run medians remain 99 performance / 100 accessibility / 96 best practices, CLS 0 / TBT 0. The separately audited unfiltered directory document is 28,858 bytes with the same 337,212 script bytes. Stylesheets, fonts, images, total transfers and third-party counts pass their unchanged budgets. These are local synthetic measurements; publication and Klas's signed-in acceptance remain separate delivery steps.

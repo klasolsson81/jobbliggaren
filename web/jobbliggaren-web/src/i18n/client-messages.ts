@@ -17,8 +17,9 @@
  * Every `NextIntlClientProvider` in the app passes a payload built here, with
  * the namespaces its boundary needs written as an ARRAY LITERAL at the call
  * site. The fitness function `client-namespace-payload.test.ts` computes each
- * boundary's reachable namespaces from the import graph and asserts the
- * declaration EQUALS it — so a declaration is a measured fact, not a guess:
+ * boundary's reachable translation paths from the import graph. Declarations
+ * may name a subtree such as admin.users. Every reached path must be covered,
+ * and every declaration must be used — so the payload is verified:
  *
  *   - too small → a client component reads a namespace the provider does not
  *     carry, which is a blank / `MISSING_MESSAGE` at runtime on that route;
@@ -47,7 +48,8 @@
 
 /** Namespaces that must never reach a client payload (see the doc comment). */
 export function isServerOnlyNamespace(namespace: string): boolean {
-  return namespace.startsWith("content-") || namespace === "metadata" || namespace === "errors";
+  const root = namespace.split(".")[0] ?? namespace;
+  return root.startsWith("content-") || root === "metadata" || root === "errors";
 }
 
 export function pickClientMessages<T extends Record<string, unknown>>(
@@ -55,9 +57,16 @@ export function pickClientMessages<T extends Record<string, unknown>>(
   namespaces: readonly string[]
 ): T {
   const wanted = new Set(namespaces);
-  return Object.fromEntries(
-    Object.entries(messages).filter(
-      ([namespace]) => wanted.has(namespace) && !isServerOnlyNamespace(namespace)
-    )
-  ) as T;
+  function select(source: Record<string, unknown>, prefix = ""): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(source).flatMap(([key, value]) => {
+      const path = prefix ? prefix + "." + key : key;
+      if (isServerOnlyNamespace(path)) return [];
+      if (wanted.has(path)) return [[key, value]];
+      if (![...wanted].some(namespace => namespace.startsWith(path + "."))
+        || value === null || typeof value !== "object" || Array.isArray(value)) return [];
+      const nested = select(value as Record<string, unknown>, path);
+      return Object.keys(nested).length > 0 ? [[key, nested]] : [];
+    }));
+  }
+  return select(messages) as T;
 }

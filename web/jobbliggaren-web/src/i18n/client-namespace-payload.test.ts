@@ -16,8 +16,10 @@ import {
  * supersedes the #740/#774 single-payload guard).
  *
  * Each `NextIntlClientProvider` declares the namespaces its boundary needs as an
- * array literal at the call site. This test recomputes that set from the import
- * graph and asserts EQUALITY:
+ * array literal at the call site. This test recomputes the full translation
+ * paths from the import graph: each path must be covered by a declaration,
+ * and each declaration must cover a used path. A subtree declaration cannot
+ * satisfy a sibling's read:
  *
  *   - declared ⊉ required → a client component reads a namespace the provider
  *     does not carry: a blank / `MISSING_MESSAGE` at runtime on that route.
@@ -308,7 +310,7 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
     }
   });
 
-  it("each boundary's declaration EQUALS what its client subtree reaches (R3)", () => {
+  it("each boundary declares every reached translation path and no unused namespace (R3)", () => {
     const problems: string[] = [];
 
     for (const boundary of BOUNDARIES) {
@@ -316,10 +318,13 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
       const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
       const declared = new Set(declaration.namespaces);
 
-      const missing = [...reach.namespaces].filter((ns) => !declared.has(ns)).sort();
+      const covers = (declaration: string, scope: string) =>
+        scope === declaration || scope.startsWith(declaration + ".");
+      const missing = [...reach.translationScopes]
+        .filter(scope => ![...declared].some(namespace => covers(namespace, scope))).sort();
       const unused = [...declared]
-        .filter((ns) => !reach.namespaces.has(ns) && !declaration.allowed.has(ns))
-        .sort();
+        .filter(namespace => ![...reach.translationScopes].some(scope => covers(namespace, scope))
+          && !declaration.allowed.has(namespace)).sort();
 
       if (missing.length > 0) {
         problems.push(

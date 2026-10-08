@@ -472,6 +472,11 @@ test("an address change goes through the administrator's own step-up, above the 
   await expect(stepUp).toContainText("En kod skickas till ny.adress@example.test och ett meddelande till konto.e@example.test.");
   await expect(stepUp).toContainText("skickar vi en sexsiffrig kod till admin@example.test");
 
+  await stepUp.evaluate(async element => {
+    await Promise.all(element.getAnimations({ subtree: true })
+      .map(animation => animation.finished.catch(() => undefined)));
+  });
+
   // The step-up sits above the panel, by the stylesheet's layers and not by portal order: what is drawn at the
   // panel's head is the step-up's overlay, and at the step-up's middle the step-up itself. The open step-up turns
   // the panel's pointer events off, and elementFromPoint skips such an element, so they are on for the probe:

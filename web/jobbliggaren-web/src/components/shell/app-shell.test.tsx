@@ -77,7 +77,7 @@ describe("AppShell (v3 header-shell)", () => {
     );
   });
 
-  it("öppnar Mina sidor från en neutral ikonknapp: inga initialer, huvudet säger vem som är inloggad", async () => {
+  it("öppnar Inställningar från en neutral ikonknapp: inga initialer, huvudet säger vem som är inloggad", async () => {
     const user = userEvent.setup();
     render(
       <AppShell email="klas.olsson@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
@@ -85,9 +85,9 @@ describe("AppShell (v3 header-shell)", () => {
       </AppShell>,
     );
 
-    // ADR 0142 "Page form", "Mina sidor" (design M6): an icon, named by the shared label, and no text
+    // ADR 0142 "Page form", "Inställningar" (design M6): an icon, named by the shared label, and no text
     // of its own, so no initials of the address.
-    const trigger = screen.getByRole("button", { name: "Mina sidor" });
+    const trigger = screen.getByRole("button", { name: "Inställningar" });
     expect(trigger).toHaveClass("jp-icon-btn");
     expect(trigger.textContent).toBe("");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
@@ -96,7 +96,7 @@ describe("AppShell (v3 header-shell)", () => {
     await user.click(trigger);
 
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const menu = screen.getByRole("dialog", { name: "Mina sidor" });
+    const menu = screen.getByRole("dialog", { name: "Inställningar" });
     const head = document.getElementById(menu.getAttribute("aria-describedby") ?? "");
     expect(head).not.toBeNull();
     expect(within(head!).getByText("Inloggad som")).toBeInTheDocument();
@@ -104,36 +104,58 @@ describe("AppShell (v3 header-shell)", () => {
     // The address's local part is no longer shown as if it were a name.
     expect(within(menu).queryByText("klas.olsson")).not.toBeInTheDocument();
     expect(
-      within(menu).getByRole("link", { name: "Mina sidor" }),
+      within(menu).getByRole("link", { name: "Inställningar" }),
     ).toHaveAttribute("href", "/mina-sidor");
     const logout = within(menu).getByRole("button", { name: /Logga ut/ }).closest("form");
     expect(logout).toHaveAttribute("action", LOGOUT_PATH);
     expect(logout).toHaveAttribute("method", "post");
   });
 
-  it("döljer Granskning för icke-admin men visar den för admin", async () => {
+  it("only administrators can switch links while the header and page stay mounted", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(
-      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
-        <p />
-      </AppShell>,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Mina sidor" }));
-    expect(
-      screen.queryByRole("link", { name: /Granskning/ }),
-    ).not.toBeInTheDocument();
+    const { unmount } = render(<AppShell email="member@example.test" isAdmin={false} initialStats={STATS_FIXTURE}><p>Content</p></AppShell>);
+    expect(screen.queryByRole("button", { name: "Adminmeny" })).toBeNull();
     unmount();
+    render(<AppShell email="admin@example.test" isAdmin initialStats={STATS_FIXTURE}><p>Content</p></AppShell>);
+    const main = screen.getByRole("main");
+    const stats = screen.getByTestId("header-stats");
+    const account = screen.getByRole("button", { name: "Inställningar" });
+    const toggle = screen.getByRole("button", { name: "Adminmeny" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
+    expect(within(nav).getAllByRole("link")).toHaveLength(7);
+    expect(within(nav).getByRole("link", { name: "Granskning" })).toHaveAttribute("href", "/admin/granskning");
+    expect(screen.queryByRole("navigation", { name: "Huvudnavigation" })).toBeNull();
+    expect(screen.getByRole("main")).toBe(main);
+    expect(screen.getByTestId("header-stats")).toBe(stats);
+    expect(screen.getByRole("button", { name: "Inställningar" })).toBe(account);
+    await user.click(account);
+    expect(within(screen.getByRole("dialog", { name: "Inställningar" })).queryByRole("link", { name: "Granskning" })).toBeNull();
+    await user.click(account);
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("navigation", { name: "Huvudnavigation" })).toBeInTheDocument();
+  });
 
-    render(
-      <AppShell email="k@example.se" isAdmin initialStats={STATS_FIXTURE}>
-        <p />
-      </AppShell>,
-    );
-    await user.click(screen.getByRole("button", { name: "Mina sidor" }));
-    expect(
-      screen.getByRole("link", { name: /Granskning/ }),
-    ).toHaveAttribute("href", "/admin/granskning");
+  it("starts with admin links on an admin deep link and switches the mobile links too", async () => {
+    pathnameMock.mockReturnValue("/admin/granskning");
+    const user = userEvent.setup();
+    render(<AppShell email="admin@example.test" isAdmin initialStats={STATS_FIXTURE}><p /></AppShell>);
+    const toggle = screen.getByRole("button", { name: "Adminmeny" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
+    expect(within(nav).getByRole("link", { name: "Granskning" })).toHaveAttribute("aria-current", "page");
+    await user.click(screen.getByRole("button", { name: "Öppna meny" }));
+    const drawer = screen.getByRole("dialog", { name: "Meny" });
+    expect(within(drawer).getByRole("link", { name: "Användare" })).toHaveAttribute("href", "/admin/anvandare");
+    await user.keyboard("{Escape}");
+    toggle.focus();
+    await user.keyboard(" ");
+    expect(toggle).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Öppna meny" }));
+    expect(within(screen.getByRole("dialog", { name: "Meny" })).getByRole("link", { name: "Jobb" })).toHaveAttribute("href", "/jobb");
   });
 
   it("öppnar mobil-drawern med samma länkar och stänger via Stäng-knappen", async () => {
@@ -152,7 +174,7 @@ describe("AppShell (v3 header-shell)", () => {
       within(drawer).getByRole("link", { name: /Jobb/ }),
     ).toHaveAttribute("href", "/jobb");
     expect(
-      within(drawer).getByRole("link", { name: "Mina sidor" }),
+      within(drawer).getByRole("link", { name: "Inställningar" }),
     ).toHaveAttribute("href", "/mina-sidor");
 
     await user.click(
@@ -173,14 +195,14 @@ describe("AppShell (v3 header-shell)", () => {
       </AppShell>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Mina sidor" }));
-    const menu = screen.getByRole("dialog", { name: "Mina sidor" });
-    const link = within(menu).getByRole("link", { name: "Mina sidor" });
+    await user.click(screen.getByRole("button", { name: "Inställningar" }));
+    const menu = screen.getByRole("dialog", { name: "Inställningar" });
+    const link = within(menu).getByRole("link", { name: "Inställningar" });
 
     fireEvent.click(link, { ctrlKey: true });
 
     expect(
-      screen.getByRole("dialog", { name: "Mina sidor" }),
+      screen.getByRole("dialog", { name: "Inställningar" }),
     ).toBeInTheDocument();
   });
 
@@ -192,13 +214,13 @@ describe("AppShell (v3 header-shell)", () => {
       </AppShell>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Mina sidor" }));
-    const menu = screen.getByRole("dialog", { name: "Mina sidor" });
+    await user.click(screen.getByRole("button", { name: "Inställningar" }));
+    const menu = screen.getByRole("dialog", { name: "Inställningar" });
 
-    fireEvent.click(within(menu).getByRole("link", { name: "Mina sidor" }));
+    fireEvent.click(within(menu).getByRole("link", { name: "Inställningar" }));
 
     expect(
-      screen.queryByRole("dialog", { name: "Mina sidor" }),
+      screen.queryByRole("dialog", { name: "Inställningar" }),
     ).not.toBeInTheDocument();
   });
 
@@ -213,7 +235,7 @@ describe("AppShell (v3 header-shell)", () => {
     const burger = screen.getByRole("button", { name: "Öppna meny" });
     await user.click(burger);
     const drawer = screen.getByRole("dialog", { name: "Meny" });
-    const link = within(drawer).getByRole("link", { name: "Mina sidor" });
+    const link = within(drawer).getByRole("link", { name: "Inställningar" });
 
     fireEvent.click(link, { ctrlKey: true });
 
@@ -235,12 +257,12 @@ describe("AppShell (v3 header-shell)", () => {
     await user.click(screen.getByRole("button", { name: "Öppna meny" }));
     const drawer = screen.getByRole("dialog", { name: "Meny" });
 
-    fireEvent.click(within(drawer).getByRole("link", { name: "Mina sidor" }));
+    fireEvent.click(within(drawer).getByRole("link", { name: "Inställningar" }));
 
     expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
   });
 
-  it("markerar Mina sidor som aktuell sida i drawern när man står på /mina-sidor", async () => {
+  it("markerar Inställningar som aktuell sida i drawern när man står på /mina-sidor", async () => {
     pathnameMock.mockReturnValue("/mina-sidor");
     const user = userEvent.setup();
     render(
@@ -253,7 +275,7 @@ describe("AppShell (v3 header-shell)", () => {
     const drawer = screen.getByRole("dialog", { name: "Meny" });
 
     expect(
-      within(drawer).getByRole("link", { name: "Mina sidor" }),
+      within(drawer).getByRole("link", { name: "Inställningar" }),
     ).toHaveAttribute("aria-current", "page");
   });
 

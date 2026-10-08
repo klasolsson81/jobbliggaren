@@ -54,6 +54,7 @@ export default async function AppLayout({
   // import graph by client-namespace-payload.test.ts.
   const locale = await getLocale();
   const messages = pickClientMessages(await getMessages(), [
+    "admin",
     "aktivitetsrapport",
     "applications",
     "common",

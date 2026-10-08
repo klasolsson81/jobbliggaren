@@ -672,7 +672,7 @@ test("an ordinary account is sent away from the admin surface", async ({ page })
 test("the header reads in DOM order: skip link, brand, the seven links, then the account", async ({ page }) => {
   await page.goto("/admin");
   const order: string[] = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 12; i++) {
     await page.keyboard.press("Tab");
     order.push(
       await page.evaluate(() => {
@@ -685,7 +685,9 @@ test("the header reads in DOM order: skip link, brand, the seven links, then the
     "Hoppa till huvudinnehåll",
     "Jobbliggaren, startsida",
     ...PAGES.map((p) => p.label),
-    "Logga ut",
+    "Adminmeny",
+    "Aviseringar",
+    "Inställningar",
   ]);
 });
 

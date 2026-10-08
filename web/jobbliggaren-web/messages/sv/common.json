@@ -7,7 +7,7 @@
     "ansokningar": "Mina ansökningar",
     "foretag": "Företag",
     "cv": "CV",
-    "minaSidor": "Mina sidor",
+    "minaSidor": "Inställningar",
     "brandHome": "Jobbliggaren, startsida"
   },
   "header": {
@@ -17,7 +17,11 @@
     "deltaAriaLabel": "{count, plural, one {# ny} other {# nya}} sedan senaste kontroll",
     "openMenu": "Öppna meny",
     "valueDash": "–",
-    "activeCountUnmeasured": "aktiva annonser"
+    "activeCountUnmeasured": "aktiva annonser",
+    "admin": "Admin",
+    "adminNavigation": "Adminmeny",
+    "showAdminNavigation": "Visa adminmeny",
+    "showUserNavigation": "Visa användarmeny"
   },
   "notifications": {
     "buttonAriaLabel": "Aviseringar",
@@ -30,15 +34,13 @@
     "sparadeAnnonser": "Sparade annonser",
     "minaMatchningar": "Mina matchningar",
     "minaCv": "Mina CV",
-    "granskning": "Granskning",
     "loggaUt": "Logga ut"
   },
   "drawer": {
     "title": "Meny",
     "navAriaLabel": "Meny",
     "close": "Stäng",
-    "closeAriaLabel": "Stäng meny",
-    "granskning": "Granskning"
+    "closeAriaLabel": "Stäng meny"
   },
   "modal": {
     "closeAriaLabel": "Stäng dialogrutan"

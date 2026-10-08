@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { onPlainNav } from "@/lib/nav/modified-click";
 import { useTranslations } from "next-intl";
 
 // Client-island so the active admin nav link gets `aria-current="page"`
@@ -48,12 +49,16 @@ function isActive(pathname: string, href: string, exact: boolean): boolean {
 }
 
 /** `basePath` is "/admin", or the local preview's own root (ADR 0150 D5). */
-export function AdminNav({ basePath = "/admin" }: { readonly basePath?: string }) {
+export function AdminNav({ basePath = "/admin", variant = "standalone", onNavigate }: {
+  readonly basePath?: string;
+  readonly variant?: "standalone" | "header" | "drawer";
+  readonly onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const t = useTranslations("admin");
 
   return (
-    <nav aria-label={t("nav.label")} className="jp-adminnav">
+    <nav aria-label={t("nav.label")} className={variant === "header" ? "jp-nav" : variant === "drawer" ? "jp-drawer__list" : "jp-adminnav"}>
       {ADMIN_NAV.map((item) => {
         const href = basePath + item.path;
         const active = isActive(pathname, href, item.exact === true);
@@ -62,7 +67,8 @@ export function AdminNav({ basePath = "/admin" }: { readonly basePath?: string }
             key={item.path}
             href={href}
             aria-current={active ? "page" : undefined}
-            className="jp-adminnav__link"
+            className={variant === "header" ? "jp-nav__link" : variant === "drawer" ? "jp-drawer__item" : "jp-adminnav__link"}
+            onClick={onNavigate ? (event) => onPlainNav(event, onNavigate) : undefined}
           >
             {t(item.labelKey)}
           </Link>

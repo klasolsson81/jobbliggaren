@@ -144,9 +144,7 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(screen.getByText("Egen")).toBeInTheDocument();
   });
 
-  // "idag"/"igår" is the Swedish calendar day, the zone the time itself is shown in. The server
-  // runs UTC, so these discriminate only where the test process does too (CI) — on a Swedish
-  // host the old getDate() reading agreed with Sweden by accident.
+  // "idag"/"igår" is the Swedish calendar day, the zone the time itself is shown in.
   describe("published day is the Swedish calendar day", () => {
     afterEach(() => {
       vi.useRealTimers();

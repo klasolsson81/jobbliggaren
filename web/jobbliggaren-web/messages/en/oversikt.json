@@ -134,7 +134,7 @@
     "companiesLabel": "Watch",
     "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View new ads",
-    "calloutText": "You have not stated which occupations you are looking for.",
+    "calloutText": "You have not chosen any occupations yet",
     "calloutCta": "Set up matching"
   },
   "relativeTime": {

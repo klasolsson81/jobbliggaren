@@ -68,9 +68,8 @@ interface JobAdCardProps {
  * locale-medvetna formattern så den förblir en ren render-helper (anropas i
  * RSC:n med komponentens `t`/`format`).
  *
- * "idag"/"igår" är det SVENSKA kalenderdygnet, samma zon som klockslaget formatteras i.
- * `getDate()` läste serverns zon (UTC i containern), så mellan svensk midnatt och 01/02
- * hamnade en annons från strax efter midnatt under "igår".
+ * "idag"/"igår" is the Swedish calendar day — the zone the time is formatted in, never the
+ * server's.
  */
 function formatPublishedAtWithTime(
   iso: string,

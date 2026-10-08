@@ -134,7 +134,7 @@
     "companiesLabel": "Bevakning",
     "companiesText": "Dina bevakade företag har publicerat <b><lnk>{count, plural, one {# ny annons} other {# nya annonser}}</lnk></b> sedan ditt senaste besök.",
     "companiesCta": "Visa nya annonser",
-    "calloutText": "Du har inte angett vilka yrken du söker inom.",
+    "calloutText": "Du har inte angett några yrken än",
     "calloutCta": "Ställ in matchning"
   },
   "relativeTime": {

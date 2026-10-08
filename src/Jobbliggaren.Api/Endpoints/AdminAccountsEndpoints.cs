@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Admin.Accounts.Commands.CancelAccountEmailChange;
 using Jobbliggaren.Application.Admin.Accounts.Commands.ReinstateAccount;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Admin.Accounts.Commands.SuspendAccount;
 using Jobbliggaren.Application.Admin.Accounts.Queries.CountAccountsByStatus;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
@@ -85,6 +86,22 @@ public static class AdminAccountsEndpoints
         var account = app.MapGroup("/api/v1/admin/accounts/{id:guid}")
             .WithTags("Admin")
             .RequireAuthorization(AuthorizationPolicies.Admin);
+
+        account.MapPost("/deletion", async (
+            Guid id, AccountAccessRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new ScheduleAccountDeletionCommand(id, body.ReauthGrant), ct);
+            return result.IsFailure
+                ? result.Error.ToProblemResult()
+                : Results.Accepted(uri: (string?)null, value: new
+                {
+                    result.Value.UserId,
+                    result.Value.DeletedAt,
+                    result.Value.EligibleAt,
+                    result.Value.ScheduledRunAt,
+                });
+        }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
 
         account.MapPost("/suspend", async (
             Guid id, AccountAccessRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>

@@ -3,9 +3,11 @@
 import {
   type FormEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
   useTransition,
@@ -54,6 +56,10 @@ export type ReauthHandOff<T> =
   | { kind: "outcomeUnknown"; error: string }
   | { kind: "refused"; error?: string };
 
+export interface ReauthDialogHandle {
+  close: () => void;
+}
+
 type Challenge<C> = {
   /** Null once the backend has answered 410 for it: the step stays, but nothing is left to verify. */
   id: string | null;
@@ -69,6 +75,7 @@ type FocusTarget = "code" | "message" | "panel" | "resend";
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 type ReAuthCodeDialogProps<T, C> = {
+  dialogRef?: Ref<ReauthDialogHandle>;
   /** The element that opens the dialog; its own `onClick` may `preventDefault()` to keep it closed. */
   trigger: ReactNode;
   /** A class for the dialog's content, for a surface that layers it (the admin panel's, #1975). */
@@ -77,6 +84,10 @@ type ReAuthCodeDialogProps<T, C> = {
   /** What the operation does and what it costs. Plain text: nothing focusable before the first field. */
   description: string;
   currentEmail: string;
+  /** Identifies the code recipient on the controls instead of adding a second description. */
+  codeRecipientLabels?: { request: string; pending: string; field: string };
+  /** A consumer's fresh-read precondition; closing the dialog remains available. */
+  operationDisabled?: boolean;
   confirmLabel: string;
   pendingLabel: string;
   cancelLabel: string;
@@ -107,11 +118,14 @@ type ReAuthCodeDialogProps<T, C> = {
     });
 
 export function ReAuthCodeDialog<T, C = undefined>({
+  dialogRef,
   trigger,
   className,
   title,
   description,
   currentEmail,
+  codeRecipientLabels,
+  operationDisabled = false,
   confirmLabel,
   pendingLabel,
   cancelLabel,
@@ -159,8 +173,11 @@ export function ReAuthCodeDialog<T, C = undefined>({
   const messageId = useId();
   const consequenceId = useId();
 
+  useImperativeHandle(dialogRef, () => ({ close: () => handleOpenChange(false) }));
+
   // Focus follows the state it belongs to, once that state is on screen.
   useEffect(() => {
+    if (operationDisabled) return;
     const target = pendingFocus.current;
     if (!target) return;
     pendingFocus.current = null;
@@ -215,6 +232,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
 
   function onRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (operationDisabled) return;
     let context: C;
     if (onBeforeRequest) {
       const confirmed = onBeforeRequest();
@@ -255,6 +273,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
 
   function onSubmitCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (operationDisabled) return;
     const current = challenge;
     if (!current?.id) return;
     const parsed = codeInputSchema.safeParse(code);
@@ -313,6 +332,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   }
 
   function onResend() {
+    if (operationDisabled) return;
     const current = challenge;
     if (!current) return;
     setResendNotice(null);
@@ -363,7 +383,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
         // taller than that; the content scrolls rather than cutting off its title or its primary.
         className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto", className)}
         onOpenAutoFocus={(event) => {
-          if (step === "code") {
+          if (step === "code" && !operationDisabled) {
             event.preventDefault();
             codeRef.current?.focus();
           }
@@ -380,10 +400,10 @@ export function ReAuthCodeDialog<T, C = undefined>({
           <DialogDescription asChild>
             <div className="flex flex-col gap-2 [overflow-wrap:anywhere]">
               <p>{description}</p>
-              {panel === null && step === "request" && (
+              {codeRecipientLabels === undefined && panel === null && step === "request" && (
                 <p>{t("account.reauth.request", { email: currentEmail })}</p>
               )}
-              {panel === null && step === "code" && (
+              {codeRecipientLabels === undefined && panel === null && step === "code" && (
                 <p id={sentLineId}>{t("account.reauth.sent", { email: currentEmail })}</p>
               )}
             </div>
@@ -428,7 +448,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
         ) : step === "request" ? (
           <form onSubmit={onRequest} noValidate className="flex flex-col gap-4">
             {requestFields && (
-              <fieldset disabled={isPending} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
+              <fieldset disabled={isPending || operationDisabled} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
                 {requestFields}
               </fieldset>
             )}
@@ -450,11 +470,12 @@ export function ReAuthCodeDialog<T, C = undefined>({
               >
                 {cancelLabel}
               </Button>
-              <Button type="submit" disabled={isPending} className="max-md:h-11">
+              <Button type="submit" disabled={isPending || operationDisabled}
+                className={cn("max-md:h-11", codeRecipientLabels !== undefined && "h-auto min-h-10 whitespace-normal [overflow-wrap:anywhere]")}>
                 <PendingLabel
                   pending={isPending}
-                  idle={t("account.reauth.send")}
-                  busy={t("account.reauth.sending")}
+                  idle={codeRecipientLabels?.request ?? t("account.reauth.send")}
+                  busy={codeRecipientLabels?.pending ?? t("account.reauth.sending")}
                 />
               </Button>
             </DialogFooter>
@@ -462,18 +483,20 @@ export function ReAuthCodeDialog<T, C = undefined>({
         ) : (
           <form onSubmit={onSubmitCode} noValidate className="flex flex-col gap-4">
             {dead === null ? (
-              <CodeField
-                id={codeId}
-                hintId={hintId}
-                label={tp("auth.passwordless.code.codeLabel")}
-                hint={codeHint}
-                invalid={message?.channel === "field"}
-                errorId={messageId}
-                leadingDescriptionId={sentLineId}
-                inputRef={codeRef}
-                value={code}
-                onValueChange={setCode}
-              />
+              <fieldset disabled={operationDisabled} className="m-0 min-w-0 border-0 p-0">
+                <CodeField
+                  id={codeId}
+                  hintId={hintId}
+                  label={codeRecipientLabels?.field ?? tp("auth.passwordless.code.codeLabel")}
+                  hint={codeHint}
+                  invalid={message?.channel === "field"}
+                  errorId={messageId}
+                  leadingDescriptionId={codeRecipientLabels === undefined ? sentLineId : undefined}
+                  inputRef={codeRef}
+                  value={code}
+                  onValueChange={setCode}
+                />
+              </fieldset>
             ) : (
               <div ref={panelRef} tabIndex={-1} role="status" aria-live="polite">
                 <p className="text-body text-text-primary">
@@ -496,6 +519,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 clock={resendClock}
                 primary={dead !== null}
                 blocked={resendBlocked}
+                disabled={operationDisabled}
                 pending={isResending}
                 notice={resendNotice}
                 noticeRef={resendRef}
@@ -515,7 +539,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 {cancelLabel}
               </Button>
               {dead === null && (
-                <Button type="submit" variant={variant} disabled={isPending} className="max-md:h-11">
+                <Button type="submit" variant={variant} disabled={isPending || operationDisabled} className="max-md:h-11">
                   <PendingLabel pending={isPending} idle={confirmLabel} busy={pendingLabel} />
                 </Button>
               )}
@@ -534,6 +558,7 @@ function ResendBlock({
   clock,
   primary,
   blocked,
+  disabled,
   pending,
   notice,
   noticeRef,
@@ -546,6 +571,7 @@ function ResendBlock({
   primary: boolean;
   /** The daily budget is spent: no press can succeed today. */
   blocked: boolean;
+  disabled: boolean;
   pending: boolean;
   notice: string | null;
   noticeRef: RefObject<HTMLDivElement | null>;
@@ -563,7 +589,7 @@ function ResendBlock({
         <Button
           type="button"
           variant={primary && !cooling && !blocked ? "default" : "outline"}
-          disabled={pending || cooling || blocked}
+          disabled={pending || cooling || blocked || disabled}
           aria-describedby={consequenceId}
           onClick={onResend}
           className="max-md:h-11"

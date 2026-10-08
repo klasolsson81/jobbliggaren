@@ -3,18 +3,19 @@
 // "use client": the search, the filter, the sort, the pages and the panel's reads and commands run in the browser.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { AdminAccountsToolbar, type AdminAccountFilter } from "@/components/admin/admin-accounts-toolbar";
 import { AdminAccountsTable } from "@/components/admin/admin-accounts-table";
 import { AdminAccountsPager, AdminAccountsSummary } from "@/components/admin/admin-accounts-pager";
 import {
-  AdminAccountPanel,
   type AdminAccountCommands,
   type AdminAccountDetails,
   type AdminLiveAction,
 } from "@/components/admin/admin-account-panel";
-import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction } from "@/lib/actions/admin-accounts";
+import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction,
+  scheduleAccountDeletionAction } from "@/lib/actions/admin-accounts";
 import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
 import {
   ACCOUNTS_PAGE_SIZE,
@@ -44,7 +45,17 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate"]);
+function AccountPanelLoading() {
+  const t = useTranslations("admin.users");
+  return <p role="status">{t("panel.loading")}</p>;
+}
+
+const AdminAccountPanel = dynamic(
+  () => import("@/components/admin/admin-account-panel").then((module) => module.AdminAccountPanel),
+  { loading: AccountPanelLoading },
+);
+
+const LIVE: ReadonlySet<AdminLiveAction> = new Set(["changeEmail", "cancelEmailChange", "suspend", "reinstate", "scheduleDeletion"]);
 
 const RETURN_PATH = "/admin/anvandare";
 
@@ -60,6 +71,11 @@ interface Criteria {
 const FIRST: Criteria = { term: "", filter: "all", sort: FIRST_SORT, page: 1, generation: 0 };
 
 type Answer<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly failure: AccountsFailure; readonly gone: boolean };
+
+type AccountReread = {
+  readonly details: AdminAccountDetails;
+  readonly emailChange: AdminEmailChangeReread;
+};
 
 /** One BFF read. The body carries every value, so no term and no account id enters a URL. */
 async function post<T>(path: string, body: unknown, parse: (json: unknown) => T | null, signal: AbortSignal): Promise<Answer<T>> {
@@ -132,6 +148,7 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   const [listing, setListing] = useState(initial);
   const [answered, setAnswered] = useState<Criteria>(FIRST);
   const [open, setOpen] = useState<AdminAccountRow | null>(null);
+  const [panelMounted, setPanelMounted] = useState(false);
   const [details, setDetails] = useState<AdminAccountDetails>({ kind: "loading" });
   const [emailChange, setEmailChange] = useState<AdminEmailChangeState>({ kind: "none" });
   const detailRequest = useRef<AbortController | null>(null);
@@ -207,38 +224,41 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
    * Reads one account's details and its pending address change, side by side, and shows them together. Again,
    * after a command, it keeps what the panel shows until the answers arrive, and a failed read changes nothing.
    */
-  function readAccount(id: string, again = false): Promise<AdminEmailChangeReread> {
+  function readAccount(id: string, again = false): Promise<AccountReread> {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
     if (!again) setDetails({ kind: "loading" });
     const detail = post("/api/admin/konton/detalj", { id }, parseDetail, controller.signal);
     const change = post("/api/admin/konton/adressbyte", { id }, parseEmailChange, controller.signal);
-    return Promise.all([detail, change]).then(([answer, pending]): AdminEmailChangeReread => {
-      if (controller.signal.aborted) return UNKNOWN_EMAIL_CHANGE;
+    return Promise.all([detail, change]).then(([answer, pending]): AccountReread => {
+      if (controller.signal.aborted || openId.current !== id)
+        return { details: { kind: "loading" }, emailChange: UNKNOWN_EMAIL_CHANGE };
       const read = pending.ok ? pending.data : UNKNOWN_EMAIL_CHANGE;
       if (pending.ok || !again) setEmailChange(read);
       if (answer.ok) {
-        setDetails({ kind: "loaded", data: answer.data });
-        return read;
+        const loaded: AdminAccountDetails = { kind: "loaded", data: answer.data };
+        setDetails(loaded);
+        return { details: loaded, emailChange: read };
       }
       if (answer.gone) {
         markGone();
-        return GONE;
+        return { details: { kind: "gone" }, emailChange: GONE };
       }
-      if (again) return read;
-      setDetails({
+      const failed: AdminAccountDetails = {
         kind: "failed",
         message: failureText(answer.failure, t("errors.detailFailed")),
         recovery: recoveryOf(answer.failure),
-      });
-      return read;
+      };
+      if (!again) setDetails(failed);
+      return { details: failed, emailChange: read };
     });
   }
 
   function openAccount(id: string) {
     const row = listing.kind === "loaded" ? listing.page.rows.find((candidate) => candidate.id === id) : undefined;
     if (row === undefined) return;
+    setPanelMounted(true);
     openId.current = row.id;
     setOpen(row);
     setEmailChange({ kind: "none" });
@@ -254,6 +274,46 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
   // request or a cancel answers becomes the panel's pending change, never what the form held.
   const commands: AdminAccountCommands = {
     live: LIVE,
+    deletion: {
+      readPreview: async (account, signal) => {
+        const answer = await post("/api/admin/konton/detalj", { id: account.id }, parseDetail, signal);
+        if (answer.ok) return { kind: "loaded", data: answer.data };
+        if (answer.gone) return { kind: "gone" };
+        return { kind: "failed", message: failureText(answer.failure, t("errors.detailFailed")),
+          recovery: recoveryOf(answer.failure) };
+      },
+      requestCode: requestReauthCode,
+      returnPath: RETURN_PATH,
+      run: async (account, proof) => {
+        const outcome = await scheduleAccountDeletionAction(account.id, proof);
+        if (!stillOpen(account.id)) return outcome;
+        if (outcome.ok || outcome.kind === "operationRefused") {
+          if (outcome.ok) {
+            setEmailChange({ kind: "none" });
+            const receipt = outcome.value;
+            setDetails((current): AdminAccountDetails => {
+              if (!stillOpen(account.id) || current.kind !== "loaded"
+                || current.data.id.toLowerCase() !== account.id.toLowerCase()
+                || receipt.userId.toLowerCase() !== account.id.toLowerCase()) return current;
+              return { kind: "loaded", data: {
+                ...current.data,
+                status: "pendingDeletion",
+                isSuspended: current.data.isSuspended ?? current.data.status === "suspended",
+                deletionEarliest: receipt.eligibleAt.slice(0, 10),
+                deletion: { deletedAt: receipt.deletedAt, eligibleAt: receipt.eligibleAt, scheduledRunAt: receipt.scheduledRunAt },
+                deletionPreview: null,
+                applicationCount: null,
+                savedSearchCount: null,
+                resumeCount: null,
+              } };
+            });
+          }
+          setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+          void readAccount(account.id, true);
+        } else if (outcome.kind === "outcomeUnknown") setEmailChange(UNKNOWN_EMAIL_CHANGE);
+        return outcome;
+      },
+    },
     access: {
       requestCode: requestReauthCode,
       returnPath: RETURN_PATH,
@@ -359,21 +419,24 @@ export function AccountsDirectory({ initial, self }: { readonly initial: Account
           onPage={(page) => setCriteria((current) => ({ ...current, page }))}
         />
       )}
-      <AdminAccountPanel
+      {panelMounted ? <AdminAccountPanel
         account={open}
         details={details}
         commands={commands}
         self={self}
         emailChange={emailChange}
-        onRetry={open === null ? undefined : () => void readAccount(open.id)}
-        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true)}
+        onRetry={open === null ? undefined : () => {
+          setCriteria((current) => ({ ...current, generation: current.generation + 1 }));
+          return readAccount(open.id).then((read) => read.details);
+        }}
+        onRetryEmailChange={open === null ? undefined : () => readAccount(open.id, true).then((read) => read.emailChange)}
         fallbackFocus={() => tableRegion.current}
         onClose={() => {
           detailRequest.current?.abort();
           openId.current = null;
           setOpen(null);
         }}
-      />
+      /> : null}
     </>
   );
 }

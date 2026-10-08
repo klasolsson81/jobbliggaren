@@ -313,7 +313,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         var listText = JsonSerializer.Serialize(await SearchOkAsync(admin, new { address = token }, Ct));
         var item = Items(await SearchOkAsync(admin, new { address = token }, Ct)).Single();
         item.EnumerateObject().Select(property => property.Name).ShouldBe(
-            ["id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount", "isSuspended"],
+            ["id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount", "isSuspended", "deletion"],
             ignoreOrder: true);
 
         var detailResponse = await admin.GetAsync(DetailPath(userId), Ct);
@@ -321,7 +321,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         JsonDocument.Parse(detailText).RootElement.EnumerateObject().Select(property => property.Name).ShouldBe(
             [
                 "id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest",
-                "applicationCount", "resumeCount", "savedSearchCount", "isSuspended",
+                "applicationCount", "resumeCount", "savedSearchCount", "isSuspended", "deletion", "deletionPreview",
             ],
             ignoreOrder: true);
 

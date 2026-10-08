@@ -51,7 +51,7 @@ public abstract record LoginSubject
 
     public sealed record Suspended(Guid UserId, string AccountEmail) : KnownAccount(UserId, AccountEmail);
 
-    /// <summary>An account in its restore window (its profile is soft-deleted).</summary>
+    /// <summary>An account awaiting permanent cleanup (its profile is soft-deleted).</summary>
     public sealed record PendingDeletion(Guid UserId, string AccountEmail, DateTimeOffset DeletedAt)
         : KnownAccount(UserId, AccountEmail);
 

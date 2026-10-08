@@ -92,6 +92,7 @@ export const FEEDBACK_ERRORS = {
   statusUnchanged: "Feedback.StatusUnchanged",
   duplicateRiskNotAcknowledged: "Feedback.DuplicateRiskNotAcknowledged",
   notificationNotRequeueable: "Feedback.NotificationNotRequeueable",
+  reporterUnavailable: "Feedback.ReporterUnavailable",
 } as const;
 
 // ── The URL ─────────────────────────────────────────────────────────────────────────────────

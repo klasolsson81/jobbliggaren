@@ -73,6 +73,19 @@ re-authentication grant and `AdminWrite`; responses are private and not cached.
 A no-op is Conflict and writes no success-audit row. Audit names the actor and
 target separately, without an address or credential payload.
 
+Admin scheduling (#1977) requires the same Admin policy, `IAdminRequest`,
+`AdminWrite`, own inbox proof, lifecycle marker and audit marker. Its explicit
+target never becomes an impersonated actor or encryption owner. Self-deletion
+is refused; an already pending target returns Conflict without new dates,
+revision or success audit. Epoch/revision/cutoff/stamps advance for both active
+and suspended targets while suspension stays independent. Soft-delete cascade,
+all provider links and `Admin.AccountDeletionScheduled` commit atomically.
+Known-commit cleanup is selective and best effort; the primary profile state
+remains authoritative. The receipt and catalogue use the actual persisted
+millisecond scheduling instant and first daily 04:00 UTC run strictly after the
+30-day product grace. They do not attest completed deletion. Unknown outcomes
+offer explicit reread and never automatic replay; restore remains unavailable.
+
 `AccountAccessMutationBehavior` and `SqlAccountAccess` serialize lifecycle
 writes under the global administrator lock, then sorted actor/target locks.
 Self-suspension and removal of the last effective administrator are refused
@@ -181,7 +194,25 @@ delivering transport, and the admin reads of reporters' addresses.
 
 Feedback screenshots are untrusted personal data, potentially a plaintext copy of a CV or a recruiter's details (ADR 0156 PR2 amendment, 2026-10-08). Review the PNG/JPEG/WebP-only magic-byte and codec restrictions, strict single-frame identification, pixel/input/output bounds, allocator and concurrency budgets, and memory-only multipart buffering. PNG metadata preflight validates chunk boundaries/CRCs and caps cumulative zlib expansion and legacy EXIF/IPTC profiles at 5 MiB before library allocation. Normalization removes metadata and writes fixed 8-bit RGBA-PNG without resizing. Replay cannot replace an image; image, submission and notice share the save. Admin-only binary reads and their dedicated same-origin/session BFF bound bytes and return no-store/nosniff, with image/png only on success. Metadata reads do not fetch bytes. Logs/errors must not carry pixels, filenames, client MIME or build licence secrets. Retention/account erasure delete the image before its submission; recruiter erasure discloses unsearchable pixels and requires human review without OCR. Logical backup excludes only screenshot data, preserving schema and feedback; the deployed backup script must be verified separately before PR3 opens the feature. Deleting a CV does not erase its separate feedback screenshot: PR3 privacy text must disclose that copy.
 
-Account erasure crosses DeleteAccountCommandHandler, HardDeleteAccountsJob and
+Dispatch reads metadata only and rechecks a live reporter before claim and
+after persisted `Sending`, before transport; a deleted reporter's unsent notice
+is removed while feedback remains until retention/hard deletion. Requeue holds
+the reporter's lifecycle-compatible owner lock through its live-profile check,
+notice change and success-only audit commit; it rechecks the administrator's
+original authority under the same sorted locks. A deleted reporter is refused
+without changing its notice. A precommit conflict rolls back, while an unknown
+commit is never replayed. No transaction crosses transport,
+and mail already handed off cannot be recalled.
+
+Top-direct matching, match digests and followed-company digests recheck the live
+profile and the applicable consent after their persisted `Queued` claim and
+immediately before transport. A deletion in that interval stops the send;
+the retained claim prevents automatic replay. Earlier due-set queries also
+exclude deleted profiles. These checks do not recall mail already handed off
+or hold a database transaction over transport.
+
+Account erasure crosses the shared AccountDeletionScheduler, its owner/admin
+handlers, HardDeleteAccountsJob and
 `src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs`. New storage must
 include originals, derived artifacts, identities, audit handling and DEKs in its
 erasure design. Live DEK deletion does not prove backups cannot restore old keys.

@@ -172,7 +172,7 @@ spelling when a row holds the submitted address, and to the submitted spelling o
 2026-09-21). An active account within its code budget → code + link; past it → link
 only; no account → the closed-registration notice, no credential, in 1a — the
 new-account code arm is 1c's (#1737); a missing profile → its record and no mail (Amendment 2026-09-20);
-pending deletion → the restore path, no credential. Redis down →
+pending deletion → the pending-erasure notice, no credential (amended by #1977 below). Redis down →
 uniform 503 through `StoreUnavailableException` (`Program.cs`, the shipped pattern).
 
 **The consumer registers in the Api composition only** (ADR 0023): inside `AddIdentityAndSessions`,
@@ -209,8 +209,8 @@ address that can neither log in nor register: `registrationClosed` while registr
 `{outcome:"consentRequired", grantToken}` for an address without an account proven by its CODE, and
 `{outcome:"accountUnavailable"}` for a missing profile on either arm and for an address without an account
 proven by a LINK (the table is in Amendment 2026-09-20).
-`pendingDeletion` never restores the account through login — the 30-day clock is untouched, and
-restoration is via support (`HardDeleteAccountsJob.cs:28-33`).
+`pendingDeletion` never restores the account through login. The 30-day product grace is untouched;
+restoration and cancellation are unavailable (#1977 amendment below).
 
 **Grants are ONE port with `purpose` as an enum, the bindings asserted inside `Redeem`**
 (architect). `IssueAsync(GrantSubject subject)` returns a minted `GrantToken` (the adapter mints, protects and
@@ -3348,7 +3348,7 @@ while `DARK_MODE_ENABLED` is `false`.
   | burned | status, replaces the field | "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod." | "Skicka ny kod" primary |
   | registration closed | status, replaces the form, never danger colour | "Registreringen är inte öppen ännu." | link "Till startsidan" |
   | account unavailable | status, replaces the form, never danger colour | "Vi kan inte logga in på den här adressen just nu. Försök igen senare, eller kontakta oss på kontakt@jobbliggaren.se." | mail link |
-  | pending deletion | status, replaces the form | "Ditt konto raderas permanent {14 apr 2026}. Fram till dess kan du få det återställt genom att mejla kontakt@jobbliggaren.se." | mail link; no "Ångra" button that does not exist |
+  | pending deletion | status, replaces the form | Earliest permanent-erasure date; restoration and cancellation unavailable; questions contact (#1977 amendment) | mail link; no restore or cancellation action |
   | resting / sent | base render, focus h1 | the resting copy above | field + "Skicka ny kod" + "Byt e-postadress" |
   | throttled (429) or unavailable (503) | status in the form's own message slot, focus to the message, never danger colour | "För många försök. Vänta en stund och försök igen." · "Det går inte att logga in just nu. Försök igen om några minuter." | the form stays |
   | back on `/logga-in` with a notice | status panel with `h2` above the form, focus moved | "Registreringen slutfördes inte" (an unusable grant) · "Inloggningen gick ut" (a code submitted after the flow ran out) · "{provider} kan inte intyga din e-postadress" and "Inloggningen med {provider} slutfördes inte" (an external login, Amendment 2026-09-26 (15)) | the form, which is the remedy |
@@ -3824,6 +3824,23 @@ nullable; applied on the box through `vps-deploy-stack.md` §3c on 2026-09-26, 0
 
 The reports: `docs/reviews/2026-09-17-auth-epic-{cto,architect,security,design}.md`, promoted with
 this ADR because production decisions point at them.
+
+## Amendment 2026-10-08 — Truthful pending-deletion notices (#1977)
+
+The earlier D2/D3 support-restoration promise had no implemented restore path.
+Owner confirmation, post-scheduling login notice, pending-deletion proof outcome,
+login email and both published policy locales now describe immediate access
+denial, the existing 30-day product grace and subsequent ordinary worker cleanup.
+An earliest date is not a completion promise; support answers questions without
+offering restoration or cancellation. No authentication credential is issued for
+a pending-deletion account and login does not move its deletion stamp.
+
+The privacy notice's published date and `CurrentPrivacyPolicyVersion` advance
+together to `2026-10-08`; terms and historical registration stamps remain unchanged.
+The notice distinguishes the active database's permanent cleanup from separately
+retained backups, without claiming immediate physical erasure of those copies.
+ADR 0144's amended row 12 binds the whole new plain/HTML email paragraphs.
+This correction changes no grace period, legal basis, restore capability or schema.
 
 ## References
 

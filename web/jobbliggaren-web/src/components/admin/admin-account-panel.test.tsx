@@ -11,6 +11,8 @@ import type {
   AdminPendingEmailChange,
 } from "@/lib/admin/account-email-change";
 import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
+import { accountDetailsSchema, toAccountDetail } from "@/lib/dto/admin-accounts";
+import { accountDetails, DELETION_AFTER_04, DELETION_BEFORE_04, DELETION_TIMING, type AccountDeletionState } from "../../../tests/admin/fixtures";
 import {
   dismissAdminToast,
   getAdminToastHeld,
@@ -56,6 +58,17 @@ const SELF: AdminSelf = { userId: "admin-id", email: "admin@example.test" };
 
 const NEW = "ny.adress@example.test";
 const SPENT = "Koden du skrev in är förbrukad, så du behöver en ny kod när du försöker igen.";
+const DELETION_TARGET = "00000000-0000-4000-8000-000000000005";
+const DELETION_UNKNOWN = "Det går inte att bekräfta om raderingen schemalades. Läs in kontots status innan du försöker igen.";
+
+/** The directory's actual parser/mapper over the harness endpoint's active or committed-deletion response. */
+function readDeletionDetail(committed = false, timing: AccountDeletionState = DELETION_TIMING): AdminAddressedAccount {
+  const deletions = new Map<string, typeof DELETION_TIMING>();
+  if (committed) deletions.set(DELETION_TARGET, timing);
+  const detail = toAccountDetail(accountDetailsSchema.parse(accountDetails(DELETION_TARGET, new Set(), new Map(), deletions, timing)));
+  if (detail.email === null) throw new Error("The deletion harness target must have its address.");
+  return { ...detail, email: detail.email };
+}
 
 /** A change as the backend's 202 or its read answers it; the instants are Swedish time 2026-10-08 14:00 and 10-09 14:00. */
 const CHANGE: AdminPendingEmailChange = {
@@ -197,6 +210,17 @@ async function requestChange(user: User) {
   await user.click(within(dialog).getByRole("button", { name: "Bekräfta koden" }));
 }
 
+async function requestDeletion(user: User, target: AdminAddressedAccount) {
+  await user.click(screen.getByRole("button", { name: "Radera konto" }));
+  const dialog = await screen.findByRole("dialog", { name: `Radera ${target.email}?` });
+  await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` }));
+  await user.type(await within(dialog).findByLabelText(`Kod till ${SELF.email}`), "123456");
+  await user.click(within(dialog).getByRole("button", { name: "Radera konto" }));
+  const status = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("status");
+  await waitFor(() => expect(status).toHaveFocus());
+  return status;
+}
+
 beforeEach(() => {
   requestCodeMock.mockReset();
   requestCodeMock.mockResolvedValue({ ok: true, challengeId: "step-up-challenge" });
@@ -263,14 +287,14 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(within(screen.getByRole("region", { name: "Åtgärder" })).queryByRole("paragraph")).toBeNull();
   });
 
-  it("offers no edit and no second deletion to an account already pending deletion", () => {
+  it("offers no edit, undo or second deletion to an account already pending deletion", () => {
     renderPanel(PENDING);
     expect(actionNames()).toEqual([
       "Agera som användaren Kommer snart",
-      "Ångra radering Kommer snart",
       "Stäng av åtkomst",
       "Radera permanent Kommer snart",
     ]);
+    expect(screen.queryByRole("button", { name: /Ångra radering/ })).toBeNull();
   });
 
   it("states a pending deletion's date first, and leaves out the counts it does not know", () => {
@@ -541,6 +565,166 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Stäng av åtkomst" })).toHaveFocus());
   });
 
+  it("closes only the deletion code dialog on the first Escape and the panel on the next, without requesting or scheduling", async () => {
+    const timing = {
+      deletedAt: "2026-10-08T12:00:00Z",
+      eligibleAt: "2026-11-07T12:00:00Z",
+      scheduledRunAt: "2026-11-08T04:00:00Z",
+    };
+    const target: AdminAddressedAccount = { ...ACTIVE, deletionPreview: timing };
+    const run = vi.fn<NonNullable<AdminAccountCommands["deletion"]>["run"]>();
+    run.mockResolvedValue({ ok: true, value: { userId: target.id, ...timing } });
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<AdminAccountPanel account={target} details={loaded(target)} onClose={onClose} self={SELF}
+      commands={{ ...commands(), deletion: { readPreview: async () => loaded(target), requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } }} />);
+    const trigger = screen.getByRole("button", { name: "Radera konto" });
+    await user.click(trigger);
+    const child = await screen.findByRole("dialog", { name: `Radera ${ACTIVE.email}?` });
+    expect(child).toBeVisible();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: `Radera ${ACTIVE.email}?` })).toBeNull());
+    expect(screen.getByRole("dialog", { name: ACTIVE.email! })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(requestCodeMock).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("fences unknown deletion across a stale wrapper, failed reread and close/reopen until a fresh committed detail is read", async () => {
+    const target = readDeletionDetail();
+    const run = vi.fn<NonNullable<AdminAccountCommands["deletion"]>["run"]>();
+    run.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: DELETION_UNKNOWN });
+    let answerRetry: (answer: AdminAccountDetails) => void = () => {};
+    const onRetry = vi.fn(() => new Promise<AdminAccountDetails>((resolve) => { answerRetry = resolve; }));
+    const live = { ...commands(), deletion: { readPreview: async () => loaded(target), requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } };
+    const props = { onClose: vi.fn(), self: SELF, commands: live, onRetry };
+    const { rerender } = render(<AdminAccountPanel {...props} account={target} details={loaded(target)} />);
+    const user = userEvent.setup();
+
+    expect(await requestDeletion(user, target)).toHaveTextContent(DELETION_UNKNOWN);
+    const trigger = screen.getByRole("button", { name: "Radera konto" });
+    expect(trigger).toBeDisabled();
+    await user.click(trigger);
+    expect(screen.queryByRole("dialog", { name: `Radera ${target.email}?` })).toBeNull();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledExactlyOnceWith(target, { challengeId: "step-up-challenge", code: "123456" });
+
+    // A new state wrapper carrying the old successful read is not a fresh account read.
+    rerender(<AdminAccountPanel {...props} account={target} details={loaded(target)} />);
+    expect(trigger).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Läs in kontots status" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(trigger).toBeDisabled();
+    rerender(<AdminAccountPanel {...props} account={target} details={{ kind: "loading" }} />);
+    const failed: AdminAccountDetails = { kind: "failed", message: "Kontot kunde inte hämtas.", recovery: "retry" };
+    rerender(<AdminAccountPanel {...props} account={target}
+      details={failed} />);
+    await act(async () => answerRetry(failed));
+    expect(screen.queryByRole("button", { name: "Radera konto" })).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
+
+    rerender(<AdminAccountPanel {...props} account={null} details={loaded(target)} />);
+    rerender(<AdminAccountPanel {...props} account={target} details={loaded(target)} />);
+    expect(screen.getByRole("button", { name: "Radera konto" })).toBeDisabled();
+    expect(within(screen.getByRole("region", { name: "Åtgärder" })).getByRole("status")).toHaveTextContent(DELETION_UNKNOWN);
+    expect(screen.getByRole("button", { name: "Läs in kontots status" })).toBeInTheDocument();
+
+    const committed = readDeletionDetail(true);
+    expect(committed.status).toBe("pendingDeletion");
+    expect(committed.deletionPreview).toBeNull();
+    rerender(<AdminAccountPanel {...props} account={target} details={loaded(committed)} />);
+    expect(screen.getByRole("button", { name: "Läs in kontots status" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Läs in kontots status" }));
+    expect(onRetry).toHaveBeenCalledTimes(2);
+    await act(async () => answerRetry(loaded(committed)));
+    expect(screen.getByText("Under radering", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Radera konto" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Läs in kontots status" })).toBeNull();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("unlocks after a fresh active read of an unknown-before-commit result without replaying deletion", async () => {
+    const target = readDeletionDetail();
+    const run = vi.fn<NonNullable<AdminAccountCommands["deletion"]>["run"]>();
+    run.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: DELETION_UNKNOWN });
+    let answerRetry: (answer: AdminAccountDetails) => void = () => {};
+    const onRetry = vi.fn(() => new Promise<AdminAccountDetails>((resolve) => { answerRetry = resolve; }));
+    const props = { account: target, onClose: vi.fn(), self: SELF, onRetry,
+      commands: { ...commands(), deletion: { readPreview: async () => loaded(target), requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } } };
+    const { rerender } = render(<AdminAccountPanel {...props} details={loaded(target)} />);
+    const user = userEvent.setup();
+    await requestDeletion(user, target);
+    expect(screen.getByRole("button", { name: "Radera konto" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Läs in kontots status" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    const fresh = readDeletionDetail();
+    expect(fresh.status).toBe("active");
+    expect(fresh.deletionPreview).toEqual(DELETION_TIMING);
+    rerender(<AdminAccountPanel {...props} details={loaded(fresh)} />);
+    expect(screen.getByRole("button", { name: "Radera konto" })).toBeDisabled();
+    expect(run).toHaveBeenCalledTimes(1);
+    await act(async () => answerRetry(loaded(fresh)));
+    expect(screen.getByRole("button", { name: "Radera konto" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Läs in kontots status" })).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Radera konto" }));
+    const dialog = await screen.findByRole("dialog", { name: `Radera ${target.email}?` });
+    expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+  });
+
+  it("keeps unknown deletion fenced when an ordinary parent read publishes a new active object before an explicit reread succeeds", async () => {
+    const target = readDeletionDetail();
+    const run = vi.fn<NonNullable<AdminAccountCommands["deletion"]>["run"]>()
+      .mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: DELETION_UNKNOWN });
+    let answerRetry: (answer: AdminAccountDetails) => void = () => {};
+    const onRetry = vi.fn(() => new Promise<AdminAccountDetails>((resolve) => { answerRetry = resolve; }));
+    const props = { account: target, onClose: vi.fn(), self: SELF, onRetry,
+      commands: { ...commands(), deletion: { readPreview: async () => loaded(target), requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } } };
+    const { rerender } = render(<AdminAccountPanel {...props} details={loaded(target)} />);
+    const user = userEvent.setup();
+    await requestDeletion(user, target);
+
+    // The BFF parser creates a new object even when an older read returns the same server facts.
+    const older = readDeletionDetail();
+    expect(older).not.toBe(target);
+    expect(older.status).toBe("active");
+    rerender(<AdminAccountPanel {...props} details={loaded(older)} />);
+    const trigger = screen.getByRole("button", { name: "Radera konto" });
+    expect(trigger).toBeDisabled();
+    await user.click(trigger);
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: `Radera ${target.email}?` })).toBeNull();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledExactlyOnceWith(target, { challengeId: "step-up-challenge", code: "123456" });
+
+    await user.click(screen.getByRole("button", { name: "Läs in kontots status" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    const fresh = readDeletionDetail();
+    try {
+      rerender(<AdminAccountPanel {...props} details={loaded(fresh)} />);
+      expect(trigger).toBeDisabled();
+      expect(requestCodeMock).toHaveBeenCalledTimes(1);
+      expect(run).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => answerRetry(loaded(fresh)));
+    }
+    expect(trigger).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Läs in kontots status" })).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it("names a direct command while it runs, then publishes its receipt and moves focus to the title", async () => {
     let settle: (refusal: AdminCommandRefusal) => void = () => {};
     renderPanel({ ...ACTIVE, status: "suspended", isSuspended: true }, () => new Promise((resolve) => (settle = resolve)));
@@ -579,6 +763,136 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
     expect(alert).toHaveTextContent(refusal);
     await waitFor(() => expect(alert).toHaveFocus());
     expect(getAdminToastSnapshot()).toBeNull();
+  });
+});
+
+describe("AdminAccountPanel — fresh deletion preview (#1977)", () => {
+  type PreviewRead = NonNullable<AdminAccountCommands["deletion"]>["readPreview"];
+  type Delete = NonNullable<AdminAccountCommands["deletion"]>["run"];
+
+  function props(target: AdminAddressedAccount, readPreview: PreviewRead, run: Delete = vi.fn<Delete>()) {
+    return { account: target, details: loaded(target), onClose: vi.fn(), self: SELF,
+      commands: { ...commands(), deletion: { readPreview, requestCode: requestCodeMock, run, returnPath: "/admin/anvandare" } } };
+  }
+
+  async function openDeletion(user: User, email = "konto.e@example.test") {
+    await user.click(screen.getByRole("button", { name: "Radera konto" }));
+    return screen.findByRole("dialog", { name: `Radera ${email}?` });
+  }
+
+  it("waits for the same target's fresh server calculation instead of using the panel's pre-04 snapshot", async () => {
+    const target = readDeletionDetail(false, DELETION_BEFORE_04);
+    const fresh = readDeletionDetail(false, DELETION_AFTER_04);
+    const read = vi.fn<PreviewRead>();
+    let resolve: (value: AdminAccountDetails) => void = () => {};
+    read.mockImplementation(() => new Promise((answer) => { resolve = answer; }));
+    const run = vi.fn<Delete>();
+    render(<AdminAccountPanel {...props(target, read, run)} />);
+    const user = userEvent.setup();
+    const dialog = await openDeletion(user);
+    const send = within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` });
+    expect(send).toBeDisabled();
+    expect(dialog).toHaveAccessibleDescription(/Läser in kontots aktuella status/);
+    fireEvent.submit(send.closest("form")!);
+    expect(requestCodeMock).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledExactlyOnceWith(target, expect.any(AbortSignal));
+
+    await act(async () => resolve(loaded(fresh)));
+
+    expect(send).toBeEnabled();
+    expect(dialog).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 06:01/);
+    expect(dialog).toHaveAccessibleDescription(/2026-11-08 05:00/);
+    expect(dialog).not.toHaveAccessibleDescription(/2026-11-07 05:00/);
+    expect(dialog).toHaveAccessibleDescription(/efter din bekräftelsekod/);
+    expect(dialog).toHaveAccessibleDescription(/de faktiska tiderna visas i kontots uppgifter/);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("freezes the labelled calculation through the inbox wait and uses the fresh target plus actual committed receipt", async () => {
+    const target = readDeletionDetail(false, DELETION_BEFORE_04);
+    const fresh = readDeletionDetail(false, DELETION_BEFORE_04);
+    const read = vi.fn<PreviewRead>().mockResolvedValue(loaded(fresh));
+    const run = vi.fn<Delete>().mockResolvedValue({ ok: true, value: { userId: target.id, ...DELETION_AFTER_04 } });
+    const initial = props(target, read, run);
+    const { rerender } = render(<AdminAccountPanel {...initial} />);
+    const user = userEvent.setup();
+    const dialog = await openDeletion(user);
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
+    await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` }));
+    const code = await within(dialog).findByLabelText(`Kod till ${SELF.email}`);
+    // The injected server clock advances during the inbox wait; a recreated command object is no new opening.
+    read.mockResolvedValue(loaded(readDeletionDetail(false, DELETION_AFTER_04)));
+    rerender(<AdminAccountPanel {...initial} commands={{ ...initial.commands, deletion: { ...initial.commands.deletion } }} />);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(dialog).toHaveAccessibleDescription(/beräknades av servern 2026-10-08 05:59/);
+    expect(dialog).toHaveAccessibleDescription(/2026-11-07 05:00/);
+    await user.type(code, "123456");
+    await user.click(within(dialog).getByRole("button", { name: "Radera konto" }));
+
+    await waitFor(() => expect(run).toHaveBeenCalledExactlyOnceWith(fresh, { challengeId: "step-up-challenge", code: "123456" }));
+    expect(run.mock.calls[0]?.[0]).toBe(fresh);
+    const status = await within(screen.getByRole("region", { name: "Åtgärder" })).findByRole("status");
+    expect(status).toHaveTextContent(`Radering av ${fresh.email}`);
+    expect(status).toHaveTextContent("schemalagd 2026-10-08 06:01");
+    expect(status).toHaveTextContent("Åtkomsten är spärrad.");
+    expect(status).not.toHaveTextContent(/Respiten slutar|Första planerade körning|Raderingen är ännu inte genomförd|2026-11-07|2026-11-08/);
+    await waitFor(() => expect(status).toHaveFocus());
+  });
+
+  it.each(["failed", "pending", "gone"] as const)("rereads on reopen and keeps a retained inbox proof disabled after a %s answer", async (answer) => {
+    const target = readDeletionDetail(false, DELETION_BEFORE_04);
+    const read = vi.fn<PreviewRead>().mockResolvedValueOnce(loaded(target));
+    const failure: AdminAccountDetails = answer === "failed"
+      ? { kind: "failed", message: "Kontots uppgifter kunde inte hämtas.", recovery: "retry" }
+      : answer === "pending" ? loaded(readDeletionDetail(true)) : { kind: "gone" };
+    read.mockResolvedValueOnce(failure);
+    const run = vi.fn<Delete>();
+    render(<AdminAccountPanel {...props(target, read, run)} />);
+    const user = userEvent.setup();
+    const dialog = await openDeletion(user);
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeEnabled());
+    await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${SELF.email}` }));
+    await within(dialog).findByLabelText(`Kod till ${SELF.email}`);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: `Radera ${target.email}?` })).toBeNull());
+    const reopened = await openDeletion(user);
+    const alert = await within(reopened).findByRole("alert");
+    await waitFor(() => expect(alert).toHaveFocus());
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(within(reopened).getByLabelText(`Kod till ${SELF.email}`)).toBeDisabled();
+    const confirm = within(reopened).getByRole("button", { name: "Radera konto" });
+    expect(confirm).toBeDisabled();
+    fireEvent.submit(confirm.closest("form")!);
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+  });
+
+  it("aborts closed and switched-target reads and discards their late successful answers", async () => {
+    const target = readDeletionDetail(false, DELETION_BEFORE_04);
+    const read = vi.fn<PreviewRead>();
+    const answers: ((value: AdminAccountDetails) => void)[] = [];
+    read.mockImplementation(() => new Promise((resolve) => { answers.push(resolve); }));
+    const run = vi.fn<Delete>();
+    const initial = props(target, read, run);
+    const { rerender } = render(<AdminAccountPanel {...initial} />);
+    const user = userEvent.setup();
+    await openDeletion(user);
+    const firstSignal = read.mock.calls[0]?.[1];
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(firstSignal?.aborted).toBe(true));
+    const reopened = await openDeletion(user);
+    await act(async () => answers[0]?.(loaded(readDeletionDetail(false, DELETION_AFTER_04))));
+    expect(within(reopened).getByRole("button", { name: `Skicka kod till ${SELF.email}` })).toBeDisabled();
+    const secondSignal = read.mock.calls[1]?.[1];
+    const other = toAccountDetail(accountDetailsSchema.parse(accountDetails("00000000-0000-4000-8000-000000000002")));
+    rerender(<AdminAccountPanel {...initial} account={other} details={loaded(other)} />);
+    await waitFor(() => expect(secondSignal?.aborted).toBe(true));
+    await act(async () => answers[1]?.(loaded(readDeletionDetail(false, DELETION_AFTER_04))));
+    expect(screen.queryByRole("dialog", { name: `Radera ${target.email}?` })).toBeNull();
+    expect(screen.getByRole("dialog", { name: other.email! })).toBeInTheDocument();
+    expect(requestCodeMock).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
   });
 });
 

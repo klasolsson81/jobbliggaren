@@ -179,6 +179,7 @@ public sealed class LastEffectiveAdministratorTests : IAsyncLifetime
         var adminGrant = await ReauthTestHelpers.MintGrantAsync(_factory, client, admin.SessionId, admin.Email, Ct);
         var ownerGrant = await ReauthTestHelpers.MintGrantAsync(_factory, client, owner.SessionId, owner.Email, Ct);
         var adminBefore = await PrimaryAsync(admin.UserId);
+        var ownerBefore = await PrimaryAsync(owner.UserId);
 
         Task<HttpResponseMessage> SuspendAsync() => ReauthTestHelpers.PostAsSessionAsync(client, admin.SessionId,
             SuspendPath(owner.UserId), new { reauthGrant = adminGrant }, Ct);
@@ -205,7 +206,7 @@ public sealed class LastEffectiveAdministratorTests : IAsyncLifetime
             await deleted.Content.ReadAsStringAsync(Ct));
         var ownerAfter = await PrimaryAsync(owner.UserId);
         ownerAfter.Access.IsSuspended.ShouldBeTrue();
-        ownerAfter.Access.AccessRevision.ShouldBe(1);
+        ownerAfter.Access.AccessRevision.ShouldBe(ownerBefore.Access.AccessRevision + (suspendFirst ? 1 : 2));
         ownerAfter.Access.DeletedAt.HasValue.ShouldBe(!suspendFirst);
         ownerAfter.DeletionAudits.ShouldBe(suspendFirst ? 0 : 1);
         ownerAfter.ProviderLogins.ShouldBe(suspendFirst ? 1 : 0);

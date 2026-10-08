@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
@@ -71,6 +72,9 @@ public sealed class AccountAccessMutationBehavior<TMessage, TResponse>(
         }
         if (response is Result<AccountAccessChanged> { IsSuccess: true } result)
             await cleanup.Single().CompleteAsync(result.Value, CancellationToken.None);
+        if (response is Result<AccountDeletionScheduled> { IsSuccess: true } deletion)
+            await cleanup.Single().CompleteAsync(new AccountAccessChanged(
+                deletion.Value.UserId, deletion.Value.IsSuspended, deletion.Value.AccessRevision, true), CancellationToken.None);
         return response;
     }
 }

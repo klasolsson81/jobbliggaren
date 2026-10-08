@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Api.Endpoints;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
@@ -84,12 +85,18 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Only_the_protected_account_deletion_handler_erases_a_login()
+    public void Only_the_shared_protected_account_deletion_scheduler_erases_a_login()
     {
-        // #1976: provider erasure joins the protected deletion transaction before audit/save/commit.
-        // Its command refuses an xmin conflict instead of replaying any part of that transaction.
-        ConsumersOf(typeof(IExternalLoginEraser)).ShouldBe([typeof(DeleteAccountCommandHandler).FullName!]);
+        ConsumersOf(typeof(IExternalLoginEraser)).ShouldBe([typeof(AccountDeletionScheduler).FullName!]);
     }
+
+    [Fact]
+    public void Only_the_two_protected_deletion_handlers_reach_the_shared_scheduler() =>
+        ConsumersOf(typeof(AccountDeletionScheduler)).ShouldBe(
+        [
+            typeof(ScheduleAccountDeletionCommandHandler).FullName!,
+            typeof(DeleteAccountCommandHandler).FullName!,
+        ]);
 
     [Fact]
     public void The_erasure_and_its_backstop_take_no_provider()

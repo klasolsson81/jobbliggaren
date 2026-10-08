@@ -39,7 +39,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auth;
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]
-public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
+public partial class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
 {
     private readonly WorkerTestFixture _fixture = fixture;
 
@@ -613,15 +613,32 @@ $fn$ LANGUAGE plpgsql;";
     // The submit handler's one save at sentAt (the submission, its notice, the page's first suppression), and when
     // accepted, FeedbackNotificationDispatchJob's claim and outcome saved in its order.
     private async Task SeedFeedbackAsync(
-        JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct)
+        JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct,
+        bool withScreenshot = false)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var submission = FeedbackSubmission.Submit(
+        var submitted = FeedbackSubmission.Submit(
             owner, Guid.NewGuid(), page, FeedbackRating.Create(4).Value, FeedbackComment.Create("Bra sida.").Value,
-            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt).Value;
+            ReportedClientContext.FromReported(null, null, null, null, null, null, null, null, null), null, sentAt);
+        submitted.IsSuccess.ShouldBeTrue();
+        var submission = submitted.Value;
         var notice = FeedbackNotification.QueueFor(submission);
         db.FeedbackSubmissions.Add(submission);
+        if (withScreenshot)
+        {
+            var png = EncodeFeedbackOnePixelPng();
+            var attached = FeedbackScreenshot.AttachTo(submission, png, 1, 1);
+            attached.IsSuccess.ShouldBeTrue();
+            var screenshot = attached.Value;
+            screenshot.SubmissionId.ShouldBe(submission.Id);
+            screenshot.JobSeekerId.ShouldBe(owner);
+            screenshot.SubmittedAt.ShouldBe(submission.SubmittedAt);
+            screenshot.Width.ShouldBe(1);
+            screenshot.Height.ShouldBe(1);
+            screenshot.Content.ToArray().ShouldBe(png);
+            db.FeedbackScreenshots.Add(screenshot);
+        }
         db.FeedbackNotifications.Add(notice);
         if (!await db.FeedbackPromptSuppressions.AnyAsync(s => s.JobSeekerId == owner && s.Page == page, ct))
             db.FeedbackPromptSuppressions.Add(FeedbackPromptSuppression.Record(owner, page));
@@ -1002,9 +1019,9 @@ $fn$ LANGUAGE plpgsql;";
     /// uses. A PII-bearing <c>source_file_name</c> ("CV_Test_Person.pdf") makes the
     /// orphan-leak the test guards against concrete.
     /// </summary>
-    private async Task SeedParsedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    private async Task SeedParsedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct, DateTimeOffset? createdAt = null)
     {
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(createdAt ?? DateTimeOffset.UtcNow);
 
         using var scope = _fixture.Services.CreateScope();
 
@@ -1053,9 +1070,9 @@ $fn$ LANGUAGE plpgsql;";
     /// <c>GetOrCreateDataKeyAsync</c>) before <c>SaveChangesAsync</c> — the same pattern
     /// <see cref="SeedParsedResumeForJobSeekerAsync"/> and <c>ResumeEncryptionTests</c> use.
     /// </summary>
-    private async Task SeedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct)
+    private async Task SeedResumeForJobSeekerAsync(JobSeekerId jobSeekerId, CancellationToken ct, DateTimeOffset? createdAt = null)
     {
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(createdAt ?? DateTimeOffset.UtcNow);
 
         using var scope = _fixture.Services.CreateScope();
 
@@ -1118,7 +1135,7 @@ $fn$ LANGUAGE plpgsql;";
         return (user.Id, jobSeeker.Id);
     }
 
-    private async Task<Guid> SeedActiveAccountAsync(CancellationToken ct)
+    private async Task<Guid> SeedActiveAccountAsync(CancellationToken ct, DateTimeOffset? registeredAt = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -1130,7 +1147,7 @@ $fn$ LANGUAGE plpgsql;";
         await using var transaction = await coordinator.BeginAsync([user.Id], lifecycle: false, ct);
         (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = new FixedClock(registeredAt ?? DateTimeOffset.UtcNow);
         var seekerResult = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock);
         seekerResult.IsSuccess.ShouldBeTrue();
         db.JobSeekers.Add(seekerResult.Value);

@@ -25,7 +25,7 @@ namespace Jobbliggaren.Application.UnitTests.Feedback.Jobs.DispatchFeedbackNotif
 /// as each Hangfire run gets a fresh scope. The xmin claim guard needs Postgres and is proven in
 /// <c>FeedbackNotificationDispatchJobIntegrationTests</c> (Worker).
 /// </summary>
-public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
+public sealed class FeedbackNotificationDispatchJobTests : IAsyncLifetime
 {
     private const string Recipient = "feedback-operator@example.test";
     private static readonly DateTimeOffset T0 = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
@@ -35,11 +35,23 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     private readonly MutableFakeDateTimeProvider _clock = new() { UtcNow = T0 };
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
     private readonly RecordingLogger<FeedbackNotificationDispatchJob> _log = new();
-    private readonly JobSeekerId _owner = new(Guid.NewGuid());
+    private readonly JobSeeker _reporter;
+    private JobSeekerId Owner => _reporter.Id;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public FeedbackNotificationDispatchJobTests() => _sender.CanDeliver.Returns(true);
+    public FeedbackNotificationDispatchJobTests()
+    {
+        _reporter = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
+        _sender.CanDeliver.Returns(true);
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        _db.JobSeekers.Add(_reporter);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -58,7 +70,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     }
 
     private Task<FeedbackRows.Saved> SubmitAsync(DateTimeOffset at, FeedbackPage? page = null, int? rating = 3) =>
-        FeedbackRows.SubmitAsync(_db, _owner, page ?? FeedbackPage.Jobs, rating, null, at, Ct);
+        FeedbackRows.SubmitAsync(_db, Owner, page ?? FeedbackPage.Jobs, rating, null, at, Ct);
 
     private static Task<FeedbackNotification> NoticeAsync(AppDbContext db, FeedbackNotificationId id) =>
         db.FeedbackNotifications.AsNoTracking().SingleAsync(n => n.Id == id, Ct);
@@ -127,7 +139,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     [Fact]
     public async Task RunAsync_TextOnlyFeedback_IsSentWithoutARating()
     {
-        var saved = await FeedbackRows.SubmitAsync(_db, _owner, FeedbackPage.Cv, null, "Texten är för liten.", T0, Ct);
+        var saved = await FeedbackRows.SubmitAsync(_db, Owner, FeedbackPage.Cv, null, "Texten är för liten.", T0, Ct);
 
         await RunAsync(_db);
 
@@ -281,7 +293,8 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
     {
         var shutdownAtTheClaim = new ShutdownDuringTheClaimSave();
         await using var db = TestAppDbContextFactory.Create(shutdownAtTheClaim);
-        var saved = await FeedbackRows.SubmitAsync(db, _owner, FeedbackPage.Jobs, 3, null, T0, Ct);
+        var reporter = await RegisterReporterAsync(db);
+        var saved = await FeedbackRows.SubmitAsync(db, reporter.Id, FeedbackPage.Jobs, 3, null, T0, Ct);
 
         await Should.ThrowAsync<OperationCanceledException>(() => Job(db).RunAsync(Ct));
 
@@ -338,7 +351,7 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
         // one transaction — so no path in src/ leaves this orphan behind. The branch exists for a deletion between
         // the job's two reads. Asserted only as the read side's safe degradation if that invariant breaks: the orphan
         // is removed, nothing is sent for it, and the notice behind it still goes out.
-        var orphan = FeedbackSubmission.Submit(_owner, Guid.NewGuid(), FeedbackPage.Jobs, null,
+        var orphan = FeedbackSubmission.Submit(Owner, Guid.NewGuid(), FeedbackPage.Jobs, null,
             FeedbackComment.Create("Utan sin inskickning.").Value, FeedbackRows.NoClient(), null, T0).Value;
         var orphanNotice = FeedbackNotification.QueueFor(orphan);
         _db.FeedbackNotifications.Add(orphanNotice);
@@ -449,6 +462,100 @@ public sealed class FeedbackNotificationDispatchJobTests : IAsyncDisposable
         await RunAsync(_db);
 
         SendCount().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRemoveTheNeverSentNoticeWithoutReadingContent_WhenTheReporterIsPendingDeletion()
+    {
+        var content = new FeedbackContentReadProbe();
+        await using var db = TestAppDbContextFactory.Create(content);
+        var reporter = await RegisterReporterAsync(db);
+        var saved = await FeedbackRows.SubmitAsync(db, reporter.Id, FeedbackPage.Jobs, null,
+            "Private feedback retained for triage.", T0, Ct);
+        var profile = await db.JobSeekers.SingleAsync(value => value.Id == reporter.Id, Ct);
+        profile.SoftDelete(_clock);
+        profile.DeletedAt.ShouldBe(T0);
+        await db.SaveChangesAsync(Ct);
+        content.Materializations.ShouldBe(0);
+
+        await RunAsync(db);
+
+        SendCount().ShouldBe(0);
+        content.Materializations.ShouldBe(0);
+        (await db.FeedbackNotifications.AnyAsync(value => value.Id == saved.NoticeId, Ct)).ShouldBeFalse();
+        (await db.FeedbackSubmissions.AnyAsync(value => value.Id == saved.SubmissionId, Ct)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRefuseTransportAfterTheClaim_WhenTheReporterIsDeletedDuringTheClaimSave()
+    {
+        var content = new FeedbackContentReadProbe();
+        var deletion = new DeleteReporterAfterTheClaimSave(_clock);
+        await using var db = TestAppDbContextFactory.Create(content, deletion);
+        var reporter = await RegisterReporterAsync(db);
+        var saved = await FeedbackRows.SubmitAsync(db, reporter.Id, FeedbackPage.Jobs, null,
+            "Private feedback retained for triage.", T0, Ct);
+
+        await RunAsync(db);
+
+        deletion.Fired.ShouldBe(1);
+        deletion.SawPersistedSending.ShouldBeTrue();
+        SendCount().ShouldBe(0);
+        content.Materializations.ShouldBe(0);
+        (await db.JobSeekers.IgnoreQueryFilters().SingleAsync(value => value.Id == reporter.Id, Ct))
+            .DeletedAt.ShouldBe(T0);
+        (await db.FeedbackNotifications.AnyAsync(value => value.Id == saved.NoticeId, Ct)).ShouldBeFalse();
+        (await db.FeedbackSubmissions.AnyAsync(value => value.Id == saved.SubmissionId, Ct)).ShouldBeTrue();
+    }
+
+    private async Task<JobSeeker> RegisterReporterAsync(AppDbContext db)
+    {
+        var reporter = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
+        db.JobSeekers.Add(reporter);
+        await db.SaveChangesAsync(Ct);
+        db.ClearTracking();
+        return reporter;
+    }
+
+    private sealed class FeedbackContentReadProbe : IMaterializationInterceptor
+    {
+        public int Materializations { get; private set; }
+
+        public object InitializedInstance(MaterializationInterceptionData materializationData, object instance)
+        {
+            if (instance is FeedbackSubmission)
+            {
+                Materializations++;
+                throw new InvalidOperationException("The dispatch path must not materialize private feedback content.");
+            }
+            return instance;
+        }
+    }
+
+    private sealed class DeleteReporterAfterTheClaimSave(MutableFakeDateTimeProvider clock) : SaveChangesInterceptor
+    {
+        public int Fired { get; private set; }
+        public bool SawPersistedSending { get; private set; }
+
+        public override async ValueTask<int> SavedChangesAsync(
+            SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+        {
+            if (Fired > 0 || eventData.Context is not AppDbContext db)
+                return result;
+            var claimed = db.FeedbackNotifications.Local.SingleOrDefault(value => value.State == FeedbackNotificationState.Sending);
+            if (claimed is null)
+                return result;
+
+            Fired++;
+            var persisted = await db.FeedbackNotifications.AsNoTracking()
+                .SingleAsync(value => value.Id == claimed.Id, cancellationToken);
+            SawPersistedSending = persisted.State == FeedbackNotificationState.Sending;
+            var reporter = await db.JobSeekers.SingleAsync(value => value.Id == claimed.JobSeekerId, cancellationToken);
+            reporter.SoftDelete(clock);
+            reporter.DeletedAt.ShouldBe(clock.UtcNow);
+            await db.SaveChangesAsync(cancellationToken);
+            return result;
+        }
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

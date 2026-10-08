@@ -266,12 +266,31 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Fact]
-    public void PendingDeletion_names_the_earliest_date_and_the_way_back()
+    public async Task PendingDeletion_names_the_earliest_date_without_promising_restore_or_completed_erasure()
     {
         var rendered = Render(new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)));
 
         rendered.PlainTextBody.ShouldContain("tidigast 2026-10-19");
         rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
+        foreach (var part in new[] { Unwrapped(rendered.PlainTextBody), Unwrapped(Tag.Replace(rendered.HtmlBody, " ")) })
+        {
+            part.ShouldContain("Du kan inte återställa kontot eller avbryta raderingen.");
+            part.ShouldNotContain("kan du få det återställt");
+            part.ShouldNotContain("Fram till dess");
+        }
+        var output = Environment.GetEnvironmentVariable("ACCOUNT_DELETION_MAIL_RENDER_DIR");
+        if (output is not null)
+        {
+            var directory = Path.GetFullPath(output);
+            if (!Path.IsPathFullyQualified(output)
+                || !directory.StartsWith(Path.GetFullPath("C:/tmp/"), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Deletion mail renders require an absolute external C:/tmp directory.");
+            Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(Path.Combine(directory, "pending-deletion-mail.html"), rendered.HtmlBody,
+                TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory, "pending-deletion-mail.txt"), rendered.PlainTextBody,
+                TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]
@@ -382,9 +401,9 @@ public sealed class EmailTemplatesLoginChallengeTests
         ["account-email-change-retention"] =
             "Vi sparar adressen skyddad, och ett avtryck av den, i högst 96 timmar. Slutförs bytet sparas adressen så "
             + "länge kontot finns. " + SignedProcessor,
-        ["pending-deletion-restore"] =
-            "Kontot raderas permanent tidigast 2026-10-19. Fram till dess kan du få det återställt genom att skriva "
-            + "till oss: " + EmailTemplates.ContactAddress,
+        ["pending-deletion-scheduled"] =
+            "Kontot raderas permanent tidigast 2026-10-19. Du kan inte återställa kontot eller avbryta raderingen.",
+        ["pending-deletion-questions"] = "Har du frågor kan du skriva till oss: " + EmailTemplates.ContactAddress,
     };
 
     private static readonly Dictionary<string, string[]> SignedOrder = new()
@@ -406,7 +425,7 @@ public sealed class EmailTemplatesLoginChallengeTests
             "controller-and-rights", "complaint",
         ],
         ["reauthentication-code"] = ["reauth-opening", "reauth-detection"],
-        ["pending-deletion"] = ["pending-deletion-restore"],
+        ["pending-deletion"] = ["pending-deletion-scheduled", "pending-deletion-questions"],
     };
 
     public static TheoryData<string> SignedVariants()

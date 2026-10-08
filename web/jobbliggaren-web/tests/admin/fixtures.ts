@@ -15,6 +15,31 @@ export const MEMBER = { userId: id(902), email: "medlem@example.test", roles: []
 export const STEP_UP_CHALLENGE = "admin-harness-step-up";
 export const STEP_UP_GRANT = "admin-harness-grant";
 
+export const DELETION_TIMING = {
+  deletedAt: "2026-10-08T12:00:00Z",
+  eligibleAt: "2026-11-07T12:00:00Z",
+  scheduledRunAt: "2026-11-08T04:00:00Z",
+};
+
+export type AccountDeletionState = typeof DELETION_TIMING;
+
+/**
+ * The injected server clock crosses 04:00 UTC. AccountDeletionTiming.From produces these snapshots;
+ * AccountRestoreWindowTests.From_ShouldProduceTheServerPreviewAndReceiptSnapshots_WhenTheClockCrossesFourUtc
+ * pins these exact triples; AccountDeletionSchedulerTests pins the single-clock basis.
+ */
+export const DELETION_BEFORE_04: AccountDeletionState = {
+  deletedAt: "2026-10-08T03:59:00Z",
+  eligibleAt: "2026-11-07T03:59:00Z",
+  scheduledRunAt: "2026-11-07T04:00:00Z",
+};
+
+export const DELETION_AFTER_04: AccountDeletionState = {
+  deletedAt: "2026-10-08T04:01:00Z",
+  eligibleAt: "2026-11-07T04:01:00Z",
+  scheduledRunAt: "2026-11-08T04:00:00Z",
+};
+
 /** A pending address change's two instants, as the request answers them and the read reports them. */
 export const EMAIL_CHANGE_INSTANTS = {
   completableFrom: "2026-10-08T12:00:00+00:00",
@@ -93,6 +118,7 @@ const account = (n: number, local: string, status: string, extra: Record<string,
   isSuspended: status === "Suspended",
   registeredAt: `2026-09-${String(10 + n).padStart(2, "0")}T09:00:00Z`,
   deletionEarliest: null,
+  deletion: null as AccountDeletionState | null,
   applicationCount: status === "Active" ? n : null,
   ...extra,
 });
@@ -123,6 +149,7 @@ export interface AccountsQuery {
   readonly gone?: ReadonlySet<string>;
   readonly status?: string;
   readonly access?: ReadonlyMap<string, AccountAccessState>;
+  readonly deletions?: ReadonlyMap<string, AccountDeletionState>;
 }
 
 export interface AccountAccessState {
@@ -137,13 +164,20 @@ function withAccess(row: (typeof ACCOUNTS)[number], access: ReadonlyMap<string, 
   return { ...row, status, isSuspended };
 }
 
+function withDeletion(row: ReturnType<typeof withAccess>, deletions: ReadonlyMap<string, AccountDeletionState>) {
+  const deletion = deletions.get(row.id) ?? row.deletion;
+  return deletion === null || row.status === "ProfileMissing" ? row : {
+    ...row, status: "PendingDeletion", deletion, deletionEarliest: deletion.eligibleAt.slice(0, 10), applicationCount: null,
+  };
+}
+
 export function accountsPage(
   term: string | undefined,
   { page = 1, pageSize = 25, many = false, gone = new Set<string>(), status,
-    access = new Map<string, AccountAccessState>() }: AccountsQuery = {}
+    access = new Map<string, AccountAccessState>(), deletions = new Map<string, AccountDeletionState>() }: AccountsQuery = {}
 ) {
   const all = (many ? [...ACCOUNTS, ...MORE] : ACCOUNTS)
-    .filter((row) => !gone.has(row.id)).map((row) => withAccess(row, access));
+    .filter((row) => !gone.has(row.id)).map((row) => withDeletion(withAccess(row, access), deletions));
   const matching = term === undefined ? all : all.filter((row) => row.email.includes(term.toLowerCase()));
   const items = status === undefined ? matching : matching.filter((row) => row.status === status);
   const count = (status: string) => matching.filter((row) => row.status === status).length;
@@ -166,12 +200,13 @@ export function accountsPage(
 }
 
 export function accountDetails(accountId: string, gone: ReadonlySet<string> = new Set(),
-  access: ReadonlyMap<string, AccountAccessState> = new Map()) {
+  access: ReadonlyMap<string, AccountAccessState> = new Map(), deletions: ReadonlyMap<string, AccountDeletionState> = new Map(),
+  previewTiming: AccountDeletionState = DELETION_TIMING) {
   const row = gone.has(accountId) ? undefined : [...ACCOUNTS, ...MORE].find((candidate) => candidate.id === accountId);
   if (row === undefined) return undefined;
-  const current = withAccess(row, access);
+  const current = withDeletion(withAccess(row, access), deletions);
   const live = current.status === "Active" || current.status === "Suspended";
-  return { ...current, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
+  return { ...current, deletionPreview: live ? previewTiming : null, resumeCount: live ? 2 : null, savedSearchCount: live ? 1 : null };
 }
 
 // ── Feedback (#1979) ──────────────────────────────────────────────────────────────────────────

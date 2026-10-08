@@ -20,6 +20,8 @@ const DETAIL = {
   isSuspended: false,
   registeredAt: "2026-09-28T12:02:00Z",
   deletionEarliest: null,
+  deletion: null,
+  deletionPreview: null,
   applicationCount: 4,
   resumeCount: 2,
   savedSearchCount: 3,

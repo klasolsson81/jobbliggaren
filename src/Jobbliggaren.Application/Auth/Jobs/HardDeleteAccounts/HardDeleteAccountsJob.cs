@@ -4,14 +4,14 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 
 /// <summary>
-/// Schemalagt orchestrator-jobb som hard-deletar konton vars 30-dagars
-/// restore-fönster gått ut (ADR 0024 D6 + GDPR Art. 17).
+/// Scheduled permanent account cleanup after the product grace period (ADR 0024 D6).
+/// Restore is unavailable.
 ///
 /// Fyra-stegs-algoritm:
 /// 1. Steg 0 — Orphan-cleanup (Identity-rader utan matchande JobSeeker)
 /// 2. Steg 1 — Hämta soft-deletade JobSeekers äldre än cutoff (= now − 30d)
 /// 3. Steg 2 — Per JobSeeker: anonymize audit + hard-delete cascade
-///    (transactional) + Identity-DELETE (separat boundary)
+///    and Identity-DELETE in one protected transaction
 /// 4. Steg 3 — Bakstopp: externa inloggningar som ligger kvar på
 ///    soft-deletade konton (ADR 0142 Amendment (20)), vid varje körning
 ///
@@ -27,11 +27,8 @@ public sealed partial class HardDeleteAccountsJob(
     ILogger<HardDeleteAccountsJob> logger)
 {
     /// <summary>
-    /// 30-dagars restore-fönster per ADR 0024 D5. Användaren har 30 dagar
-    /// från soft-delete att kontakta support för återställning innan kontot
-    /// hard-deletas permanent. Hardcoded i Fas 1 — flippas till IOptions
-    /// om policy förändras. Public since #1735: the login challenge's pending-deletion mail names the
-    /// earliest deletion date from the same number.
+    /// Product grace period from scheduling to hard-delete eligibility (ADR 0024).
+    /// Restore is unavailable. Login mail, admin preview, receipt and worker share this value.
     /// </summary>
     public const int RestoreWindowDays = 30;
 
@@ -41,8 +38,7 @@ public sealed partial class HardDeleteAccountsJob(
     {
         var now = clock.UtcNow;
 
-        // Steg 0 — Orphan-cleanup. Skyddar mot Identity-rader som hängde kvar
-        // efter tidigare körning där Steg 2 h failade.
+        // Historical Identity-only rows; current lifecycle writes commit both contexts atomically.
         var orphansCleaned = await hardDeleter.CleanupIdentityOrphansAsync(cancellationToken);
         LogOrphansCleaned(logger, orphansCleaned);
 

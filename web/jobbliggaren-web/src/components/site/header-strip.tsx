@@ -21,18 +21,20 @@ import { BrandLogo } from "@/components/brand/brand-logo";
 export function HeaderStrip({
   brandHref,
   brandLabel,
+  brandPrefetch,
   children,
   className,
 }: {
   brandHref: string;
   brandLabel: string;
+  brandPrefetch?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <header className={className ? `jp-header ${className}` : "jp-header"} role="banner">
       <div className="jp-header__inner">
-        <Link href={brandHref} className="jp-brand" aria-label={brandLabel}>
+        <Link href={brandHref} prefetch={brandPrefetch} className="jp-brand" aria-label={brandLabel}>
           <BrandLogo />
         </Link>
         {children}

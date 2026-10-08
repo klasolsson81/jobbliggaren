@@ -9,6 +9,7 @@ import {
   ADMIN,
   AUDIT_PAGE,
   EMAIL_CHANGE_INSTANTS,
+  DELETION_TIMING,
   FAILED_JOBS,
   FEEDBACK,
   FEEDBACK_NOW,
@@ -22,6 +23,7 @@ import {
   feedbackList,
   feedbackSummary,
   type AccountAccessState,
+  type AccountDeletionState,
   type FeedbackAvailability,
   type FeedbackRecord,
 } from "./fixtures";
@@ -57,14 +59,22 @@ export type Harness = {
   who: "admin" | "member";
   mode: AdminMode;
   accessMode: AccessMode;
+  deletionMode: AccessMode | "alreadyPending" | "lastAdministrator";
+  /** The injected server clock's shared AccountDeletionTiming.From result, for preview and commit. */
+  deletionTiming: AccountDeletionState;
   codeMode: "ok" | "unauthorized" | "rateLimited";
   holdCodeRequests: boolean;
   holdAccessWrites: boolean;
+  holdAccountDetails: boolean;
+  readonly accountDetailFailuresAfterDeletion: Set<string>;
   readonly access: Map<string, AccountAccessState>;
+  readonly deletions: Map<string, AccountDeletionState>;
+  readonly deletionRequests: { accountId: string; body: string }[];
   readonly accessRequests: { accountId: string; operation: "suspend" | "reinstate"; body: string }[];
   readonly reauthVerifications: string[];
   releaseCodeRequests(): void;
   releaseAccessWrites(): void;
+  releaseAccountDetails(): void;
   /** The account directory holds thirty more accounts, so its listing has a second page. */
   many: boolean;
   /** Accounts removed since the page was read: they no longer list, and their details answer 404. */
@@ -127,11 +137,13 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const searches: string[] = [];
   const emailChangeRequests: string[] = [];
   const accessRequests: Harness["accessRequests"] = [];
+  const deletionRequests: Harness["deletionRequests"] = [];
   const reauthVerifications: string[] = [];
   const feedbackQueries: string[] = [];
   const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
+  const pendingAccountDetails: (() => void)[] = [];
   const pendingFeedbackScreenshots: (() => void)[] = [];
   let issuedGrants = 0;
 
@@ -139,10 +151,16 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     who: "admin",
     mode: "ok",
     accessMode: "ok",
+    deletionMode: "ok",
+    deletionTiming: DELETION_TIMING,
     codeMode: "ok",
     holdCodeRequests: false,
     holdAccessWrites: false,
+    holdAccountDetails: false,
+    accountDetailFailuresAfterDeletion: new Set(),
     access: new Map(),
+    deletions: new Map(),
+    deletionRequests,
     accessRequests,
     reauthVerifications,
     releaseCodeRequests() {
@@ -152,6 +170,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     releaseAccessWrites() {
       harness.holdAccessWrites = false;
       for (const answer of pendingAccessWrites.splice(0)) answer();
+    },
+    releaseAccountDetails() {
+      harness.holdAccountDetails = false;
+      for (const answer of pendingAccountDetails.splice(0)) answer();
     },
     many: false,
     gone: new Set(),
@@ -177,22 +199,28 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     reset() {
       harness.releaseCodeRequests();
       harness.releaseAccessWrites();
+      harness.releaseAccountDetails();
       harness.releaseFeedbackScreenshots();
       misses.length = 0;
       requests.length = 0;
       searches.length = 0;
       emailChangeRequests.length = 0;
       accessRequests.length = 0;
+      deletionRequests.length = 0;
       reauthVerifications.length = 0;
       issuedGrants = 0;
       harness.who = "admin";
       harness.mode = "ok";
       harness.accessMode = "ok";
+      harness.deletionMode = "ok";
+      harness.deletionTiming = DELETION_TIMING;
       harness.codeMode = "ok";
       harness.many = false;
       harness.gone.clear();
       harness.emailChanges.clear();
       harness.access.clear();
+      harness.deletions.clear();
+      harness.accountDetailFailuresAfterDeletion.clear();
       harness.feedback.clear();
       for (const record of FEEDBACK) harness.feedback.set(record.id, record);
       harness.feedbackScreenshots.clear();
@@ -205,6 +233,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       feedbackCommands.length = 0;
     },
     async stop() {
+      harness.releaseAccountDetails();
       harness.releaseFeedbackScreenshots();
       await Promise.all([close(proxy), close(backend)]);
     },
@@ -226,6 +255,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
 
     if (route === "GET /api/v1/me") return json(200, harness.who === "admin" ? ADMIN : MEMBER);
     if (route === "POST /api/v1/auth/refresh") return json(200, { rotated: false, sessionId: null });
+    // AuthEndpoints returns an empty provider list when this host has no OAuth keys.
+    if (route === "GET /api/v1/auth/oauth/providers") return json(200, []);
     // The start page an ordinary account is sent to reads the landing figures.
     if (route === "GET /api/v1/landing/stats")
       return json(200, { activeCount: 42000, newToday: 62, isStale: false, refreshedAt: "2026-10-03T19:00:00Z" });
@@ -259,7 +290,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           address?: string; status?: string; page?: number; pageSize?: number;
         };
         return json(200, accountsPage(address, { status, page, pageSize, many: harness.many,
-          gone: harness.gone, access: harness.access }));
+          gone: harness.gone, access: harness.access, deletions: harness.deletions }));
       });
       return;
     }
@@ -311,7 +342,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
             return reply(429, { title: "Too Many Requests", status: 429 }, { "Retry-After": "6" });
           if (harness.accessMode === "unauthorized") return reply(401, { title: "Unauthorized", status: 401 });
           if (harness.accessMode === "unknown") return reply(503, { title: "Unavailable", status: 503 });
-          const found = accountDetails(accountId, harness.gone, harness.access);
+          const found = accountDetails(accountId, harness.gone, harness.access, harness.deletions);
           if (found === undefined) return reply(404, { title: "Admin.AccountNotFound", status: 404 });
           if (found.status === "ProfileMissing")
             return reply(410, { title: "Admin.ProfileUnavailable", status: 410 });
@@ -324,6 +355,42 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           if (harness.accessMode === "unknownAfterCommit") return reply(503, { title: "Unavailable", status: 503 });
           return reply(200, { userId: accountId, isSuspended: suspended, accessRevision,
             pendingDeletion: found.status === "PendingDeletion" });
+        };
+        if (harness.holdAccessWrites) pendingAccessWrites.push(answer);
+        else answer();
+      });
+      return;
+    }
+    const deletionCommand = /^POST \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})\/deletion$/.exec(route);
+    if (deletionCommand !== null) {
+      const accountId = deletionCommand[1] ?? "";
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => (body += chunk));
+      request.on("end", () => {
+        deletionRequests.push({ accountId, body });
+        const reply = (status: number, value: unknown) => json(status, value, { "Cache-Control": "private, no-store" });
+        const input = JSON.parse(body) as { reauthGrant?: unknown };
+        if (harness.who !== "admin") return reply(403, { title: "Forbidden", status: 403 });
+        if (input.reauthGrant !== STEP_UP_GRANT || issuedGrants === 0)
+          return reply(401, { title: "Auth.InvalidCredentials", status: 401 });
+        issuedGrants--;
+        const answer = () => {
+          const mode = harness.deletionMode;
+          if (mode === "unknown") return reply(503, { title: "Unavailable", status: 503 });
+          if (mode === "forbidden" || mode === "unauthorized" || mode === "rateLimited")
+            return refusal(mode);
+          const found = accountDetails(accountId, harness.gone, harness.access, harness.deletions);
+          if (found === undefined) return reply(404, { title: "Admin.AccountNotFound", status: 404 });
+          if (found.status === "ProfileMissing") return reply(410, { title: "Admin.ProfileUnavailable", status: 410 });
+          if (found.status === "PendingDeletion" || mode === "alreadyPending")
+            return reply(409, { title: "Admin.AccountAlreadyPendingDeletion", status: 409 });
+          if (accountId === ADMIN.userId) return reply(409, { title: "Admin.SelfDeletion", status: 409 });
+          if (mode === "lastAdministrator") return reply(409, { title: "Admin.LastAdministrator", status: 409 });
+          harness.deletions.set(accountId, harness.deletionTiming);
+          harness.emailChanges.delete(accountId);
+          if (mode === "unknownAfterCommit") return reply(503, { title: "Unavailable", status: 503 });
+          return reply(202, { userId: accountId, ...harness.deletionTiming });
         };
         if (harness.holdAccessWrites) pendingAccessWrites.push(answer);
         else answer();
@@ -460,9 +527,17 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
 
     const detail = /^GET \/api\/v1\/admin\/accounts\/([0-9a-f-]{36})$/.exec(route);
     if (detail !== null) {
-      if (harness.mode !== "ok") return refusal();
-      const found = accountDetails(detail[1] ?? "", harness.gone, harness.access);
-      return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+      const accountId = detail[1] ?? "";
+      const mode = harness.accountDetailFailuresAfterDeletion.has(accountId) && harness.deletions.has(accountId)
+        ? "error" : harness.mode;
+      const found = accountDetails(accountId, harness.gone, harness.access, harness.deletions, harness.deletionTiming);
+      const answer = () => {
+        if (mode !== "ok") return refusal(mode);
+        return found === undefined ? json(404, { title: "Not Found", status: 404 }) : json(200, found);
+      };
+      if (harness.holdAccountDetails) pendingAccountDetails.push(answer);
+      else answer();
+      return;
     }
 
     const answer = adminRoutes[route];

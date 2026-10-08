@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Feedback;
+using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -70,9 +71,9 @@ public sealed partial class FeedbackNotificationDispatchJob(
             var submission = await db.FeedbackSubmissions
                 .AsNoTracking()
                 .Where(s => s.Id == notification.SubmissionId)
-                .Select(s => new { s.Page, s.Rating, s.SubmittedAt })
+                .Select(s => new { s.JobSeekerId, s.Page, s.Rating, s.SubmittedAt })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (submission is null)
+            if (submission is null || !await HasLiveReporterAsync(submission.JobSeekerId, cancellationToken))
             {
                 // Retention or an account deletion took the submission between the two reads, and
                 // usually the notice with it.
@@ -91,6 +92,14 @@ public sealed partial class FeedbackNotificationDispatchJob(
                 return;
             }
 
+            if (!await HasLiveReporterAsync(submission.JobSeekerId, cancellationToken))
+            {
+                db.FeedbackNotifications.Remove(notification);
+                await TrySaveAsync(CancellationToken.None);
+                db.ClearTracking();
+                continue;
+            }
+
             budgetLeft--;
             var accepted = await SendAsync(recipient, notification, submission.Page, submission.Rating,
                 submission.SubmittedAt, cancellationToken);
@@ -101,6 +110,9 @@ public sealed partial class FeedbackNotificationDispatchJob(
                 return;
         }
     }
+
+    private Task<bool> HasLiveReporterAsync(JobSeekerId profileId, CancellationToken cancellationToken) =>
+        db.JobSeekers.AsNoTracking().AnyAsync(seeker => seeker.Id == profileId, cancellationToken);
 
     private async Task<bool> SendAsync(
         string recipient,

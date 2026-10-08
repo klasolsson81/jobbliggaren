@@ -1,4 +1,6 @@
+using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +10,7 @@ namespace Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
 /// The account comes from the directory, and an active account's three counts from one projection over
 /// <see cref="IAppDbContext"/>, whose query filters define what is live.
 /// </summary>
-public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, IAppDbContext db)
+public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, IAppDbContext db, IDateTimeProvider clock)
     : IQueryHandler<GetAccountDetailsQuery, AccountDetailsDto?>
 {
     public async ValueTask<AccountDetailsDto?> Handle(GetAccountDetailsQuery query, CancellationToken cancellationToken)
@@ -18,12 +20,15 @@ public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, I
 
         var role = entry.IsAdmin ? AccountRole.Admin : AccountRole.User;
         var deletionEarliest = entry.PermanentDeletionEarliest;
+        var preview = entry.JobSeekerId is not null && entry.DeletedAt is null
+            ? AccountDeletionTiming.From(clock.UtcNow) : null;
 
         if (entry.Status != AccountStatus.Active || entry.JobSeekerId is not { } jobSeekerId)
         {
             return new AccountDetailsDto(
                 entry.UserId, entry.Email, role, entry.Status, entry.EmailConfirmed,
-                entry.RegisteredAt, deletionEarliest, null, null, null, entry.IsSuspended);
+                entry.RegisteredAt, deletionEarliest, null, null, null, entry.IsSuspended)
+            { Deletion = entry.Deletion, DeletionPreview = preview };
         }
 
         var applications = db.Applications;
@@ -43,6 +48,7 @@ public sealed class GetAccountDetailsQueryHandler(IAccountDirectory directory, I
         return new AccountDetailsDto(
             entry.UserId, entry.Email, role, entry.Status, entry.EmailConfirmed,
             entry.RegisteredAt, deletionEarliest,
-            counts?.Applications, counts?.Resumes, counts?.SavedSearches, entry.IsSuspended);
+            counts?.Applications, counts?.Resumes, counts?.SavedSearches, entry.IsSuspended)
+        { Deletion = entry.Deletion, DeletionPreview = preview };
     }
 }

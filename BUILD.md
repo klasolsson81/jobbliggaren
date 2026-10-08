@@ -534,7 +534,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/preferences`
 - `PATCH /api/v1/me/preferences`
-- `DELETE /api/v1/me` (GDPR-radering, soft delete + 30-dagars restore)
+- `POST /api/v1/me/delete` (schedule account deletion: soft delete, immediate access denial and the 30-day product grace period; restore is unavailable)
 - `POST /api/v1/me/feedback` (multipart, exactly one JSON `payload` and at most one optional `screenshot`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
 - `GET /api/v1/me/feedback/prompt-state` (om feedback är öppen, och sidorna där användaren redan har svarat)
 
@@ -614,8 +614,11 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/admin/accounts/{id}/email-change` — kontots väntande adressbyte, utan adress (#1975, ADR 0153)
 - `POST /api/v1/admin/accounts/{id}/suspend` — suspends access and permanently invalidates earlier sessions/authentication proofs and pending address changes; the administrator's own inbox grant is required (#1976, ADR 0155).
 - `POST /api/v1/admin/accounts/{id}/reinstate` — permits a fresh login; old sessions stay invalid and pending deletion continues. Requires the administrator's own inbox grant (#1976, ADR 0155).
+- `POST /api/v1/admin/accounts/{id}/deletion` — schedules permanent account deletion with immediate access denial. Requires the administrator's own inbox grant; returns `202` with the target and actual `deletedAt`, `eligibleAt` and first planned 04:00 UTC run strictly after eligibility (#1977, ADR 0155).
 
 Admin access writes use `AdminWrite`, private/no-store responses and separate audit actor/target. A no-op is Conflict and writes no success audit. Self-suspension and removing the last effective administrator are refused atomically. Directory status priority is `ProfileMissing > PendingDeletion > Suspended > Active`; details expose `isSuspended` separately.
+
+Admin deletion shares the owner lifecycle without impersonation or a target data key. Self-deletion and already pending deletion are Conflict; the latter changes neither dates nor revision. The panel confirms the 30-day product grace, permanent address-change interruption and projected run, then refreshes actual panel/list/counter data after a receipt. Unknown commit outcomes require explicit status reread, never automatic replay. Restore and immediate permanent deletion remain unavailable. Scheduling does not attest completed erasure or define a statutory 30-day deadline.
 - `POST /api/v1/admin/accounts/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
@@ -842,11 +845,11 @@ Alla FK-kolumner har index. Utöver det:
 
 ### 7.3 Soft delete-strategi
 
-- Alla user-ägda aggregates har `deleted_at` (timestamptz null)
+- Account-owned soft-deletable aggregates use `deleted_at` (timestamptz null).
 - Global EF Core query filter på alla soft-deletable entities
-- Hard delete efter 30 dagar via schedulerad Hangfire-job
-- `DELETE /me` sätter `deleted_at` på alla aggregat tillhörande användaren
-- Restore-endpoint (`POST /api/v1/admin/users/{id}/restore`) återställer inom 30 dagar
+- The ordinary Hangfire worker performs permanent cleanup strictly after the 30-day product grace period. Its projected daily 04:00 UTC run does not guarantee completed deletion.
+- Owner `POST /api/v1/me/delete` and admin `POST /api/v1/admin/accounts/{id}/deletion` share the explicit-target soft-delete cascade. The worker removes the complete current ownership tree, including data without a soft-delete marker; see `docs/runbooks/account-deletion.md`.
+- Restore and a restore endpoint are unavailable.
 - **Undantag — användar-initierad per-ansökan-radering** (#782/ADR 0104): `DELETE
   /api/v1/applications/{id}` ("Radera ansökan") är en **hard delete** — raden + barnen
   (follow_ups/application_notes/application_status_changes via FK-cascade) tas bort
@@ -1325,11 +1328,12 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 - Loggas som `DataExportRequestedEvent`
 
 **Rätt till radering (Art. 17):**
-- `DELETE /me` sätter `deleted_at` på alla aggregat
-- 30-dagars restore-fönster
-- Hard delete-job rensar efter 30 dagar
-- Härledda CV-artefakter (parsad `ResumeContent`, granskningsresultat, match_scores) raderas samtidigt
-- Audit log behålls i 90 dagar (rättslig grund)
+- `POST /api/v1/me/delete` and the explicit admin deletion entry schedule deletion and immediately block account access.
+- The product grace is 30 days; restore remains unavailable. It is not a statutory GDPR deadline.
+- The ordinary daily 04:00 UTC worker selects accounts strictly past that grace and rechecks eligibility under lifecycle locks.
+- Owned records, derived CV artifacts, originals, feedback, Identity and DEK deletion, plus audit anonymization, commit in one shared transaction. A failed account remains retryable while the run continues with others.
+- Scheduling loads application notes, follow-ups and status changes for the soft-delete cascade. Matching and company-watch scans exclude deleted profiles; top-direct and both digest transports repeat live-profile/consent admission after their persisted claim. Feedback dispatch and requeue also require a live reporter. No transaction spans transport, and already handed-off mail cannot be recalled.
+- Audit retention follows ADR 0024 and its runbook; a scheduling receipt is not proof of completed erasure.
 
 **Dataportabilitet (Art. 20):**
 - Export i strukturerad JSON + DOCX för CVs
@@ -1879,7 +1883,7 @@ inom 30 s består oavsett plattform.
 | `retain-platsbanken-job-ads` | 03:15 daglig | Snapshot-miss-retention (ADR 0032-amend) |
 | `background-matching` | 03:20 daglig | Per-user matchnings-scan: JobAds → `UserJobAdMatch` (ADR 0080 Våg 4) |
 | `expire-job-ads` | 03:45 daglig | `ExpiresAt`-cron, defense-in-depth (ADR 0032-amend) |
-| `hard-delete-accounts` | 04:00 daglig | Permanent radera soft-deleted efter 30 dagar (GDPR Art. 17) |
+| `hard-delete-accounts` | 04:00 daglig | Due-account cleanup strictly after the 30-day product grace period; independent orphan sweep (ADR 0024) |
 | `purge-stale-raw-payloads` | 04:30 daglig | Rensa mognad `raw_payload`-jsonb (TD-73 p2) |
 | `reap-stranded-matches` | 04:45 daglig | `UserJobAdMatch` fast i Queued → terminal Failed (TD-114) |
 | `backfill-field-encryption` | 05:00 daglig | DEK-backfill av PII-fält (ADR 0049) |

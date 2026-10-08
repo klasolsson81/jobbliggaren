@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef } from "react";
+import { createRef, useRef, type Ref } from "react";
 import type { CodeProof, ReauthOutcome, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
-import { ReAuthCodeDialog, type ReauthHandOff } from "./reauth-code-dialog";
+import { ReAuthCodeDialog, type ReauthDialogHandle, type ReauthHandOff } from "./reauth-code-dialog";
 
 // #1740 — the shared re-authentication dialog, through a consumer of its own, in every D1 state
 // design-reviewer bound: request, code, resend, the panels, the hand-offs, and a close. `render` is
@@ -26,19 +26,28 @@ function Harness({
   operation,
   onHandOff = () => {},
   onOpenChange,
+  codeRecipientLabels,
+  dialogRef,
+  operationDisabled,
 }: {
   operation: Operation;
   onHandOff?: (handOff: ReauthHandOff<string>) => void;
   onOpenChange?: (open: boolean) => void;
+  codeRecipientLabels?: { request: string; pending: string; field: string };
+  dialogRef?: Ref<ReauthDialogHandle>;
+  operationDisabled?: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   return (
     <>
       <ReAuthCodeDialog<string>
+        dialogRef={dialogRef}
         trigger={<button type="button">Öppna</button>}
         title="Gör något"
         description="Det här gör operationen."
         currentEmail={ADDRESS}
+        codeRecipientLabels={codeRecipientLabels}
+        operationDisabled={operationDisabled}
         confirmLabel="Utför"
         pendingLabel="Utför…"
         cancelLabel="Avbryt"
@@ -102,6 +111,25 @@ describe("ReAuthCodeDialog", () => {
     expect(field).toHaveAccessibleDescription(
       `Vi har skickat en kod till ${ADDRESS}. Koden gäller i 15 minuter.`
     );
+  });
+
+  it("identifies the recipient on the controls when the consumer supplies the sole consequence description", async () => {
+    const user = userEvent.setup();
+    render(<Harness operation={operation} codeRecipientLabels={{
+      request: `Skicka kod till ${ADDRESS}`,
+      pending: `Skickar kod till ${ADDRESS}…`,
+      field: `Kod till ${ADDRESS}`,
+    }} />);
+    const dialog = await open(user);
+    expect(dialog).toHaveAccessibleDescription("Det här gör operationen.");
+    await user.click(within(dialog).getByRole("button", { name: `Skicka kod till ${ADDRESS}` }));
+    const field = await within(dialog).findByLabelText(`Kod till ${ADDRESS}`);
+    await waitFor(() => expect(field).toHaveFocus());
+    expect(dialog).toHaveAccessibleDescription("Det här gör operationen.");
+    expect(field).not.toHaveAccessibleDescription(/Vi har skickat/);
+    await user.type(field, "123456");
+    await user.click(within(dialog).getByRole("button", { name: "Utför" }));
+    expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" });
   });
 
   it("keeps the request step on a status, the message taking focus", async () => {
@@ -297,6 +325,97 @@ describe("ReAuthCodeDialog", () => {
     await act(async () => settle({ ok: false, kind: "status", error: "Försök igen." }));
   });
 
+  it("gates requests and retained code submission on the consumer's fresh read, while leaving close available", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Harness operation={operation} operationDisabled />);
+    const dialog = await open(user);
+    const send = within(dialog).getByRole("button", { name: "Skicka kod" });
+    expect(send).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeEnabled();
+    fireEvent.submit(send.closest("form")!);
+    expect(requestCodeMock).not.toHaveBeenCalled();
+
+    rerender(<Harness operation={operation} operationDisabled={false} />);
+    await user.click(send);
+    const code = await within(dialog).findByLabelText("Sexsiffrig kod");
+    await user.type(code, "123456");
+    rerender(<Harness operation={operation} operationDisabled />);
+    const confirm = within(dialog).getByRole("button", { name: "Utför" });
+    expect(code).toBeDisabled();
+    expect(confirm).toBeDisabled();
+    fireEvent.submit(confirm.closest("form")!);
+    expect(operation).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Avbryt" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await open(user);
+    expect(screen.getByLabelText("Sexsiffrig kod")).toBeDisabled();
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+
+    rerender(<Harness operation={operation} operationDisabled={false} />);
+    await submit(user);
+    await waitFor(() => expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" }));
+  });
+
+  it("closes through the parent's handle without running the action, then reuses the live challenge on reopening", async () => {
+    const dialogRef = createRef<ReauthDialogHandle>();
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness operation={operation} dialogRef={dialogRef} onOpenChange={onOpenChange} />);
+
+    const field = await toCodeStep(user);
+    await user.type(field, "1234");
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(dialogRef.current).not.toBeNull();
+
+    act(() => dialogRef.current!.close());
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Gör något" })).not.toBeInTheDocument());
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(operation).not.toHaveBeenCalled();
+    const reopened = await open(user);
+    expect(within(reopened).getByLabelText("Sexsiffrig kod")).toHaveValue("");
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(operation).not.toHaveBeenCalled();
+
+    await submit(user);
+
+    expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" });
+  });
+
+  it("refuses the parent's close handle while a real code request or submission is pending", async () => {
+    let settleRequest: (result: ReauthRequestResult) => void = () => {};
+    requestCodeMock.mockImplementationOnce(() => new Promise((resolve) => (settleRequest = resolve)));
+    let settleOperation: (outcome: ReauthOutcome<string>) => void = () => {};
+    operation.mockImplementationOnce(() => new Promise((resolve) => (settleOperation = resolve)));
+    const dialogRef = createRef<ReauthDialogHandle>();
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness operation={operation} dialogRef={dialogRef} onOpenChange={onOpenChange} />);
+    const dialog = await open(user);
+    await user.click(within(dialog).getByRole("button", { name: "Skicka kod" }));
+    expect(requestCodeMock).toHaveBeenCalledTimes(1);
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
+    expect(dialogRef.current).not.toBeNull();
+
+    act(() => dialogRef.current!.close());
+
+    expect(dialog).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(operation).not.toHaveBeenCalled();
+    await act(async () => settleRequest({ ok: true, challengeId: FIRST }));
+    await within(dialog).findByLabelText("Sexsiffrig kod");
+    await submit(user);
+    expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: FIRST, code: "123456" });
+    expect(within(dialog).getByRole("button", { name: "Utför…" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Avbryt" })).toBeDisabled();
+
+    act(() => dialogRef.current!.close());
+
+    expect(dialog).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    await act(async () => settleOperation({ ok: false, kind: "status", error: "Försök igen." }));
+  });
+
   it("resets the code and the message on a user close, and re-opens on the live code's step", async () => {
     operation.mockResolvedValue({ ok: false, kind: "wrongCode", error: "Koden stämmer inte." });
     const user = userEvent.setup();
@@ -357,6 +476,56 @@ describe("ReAuthCodeDialog", () => {
       act(() => {
         vi.advanceTimersByTime(seconds * 1000);
       });
+
+    it("keeps an otherwise due resend unavailable until the consumer's fresh read completes", async () => {
+      const user = clockedUser();
+      const { rerender } = render(<Harness operation={operation} />);
+      await toCodeStep(user);
+      await wait(60);
+      expect(resend()).toBeEnabled();
+      rerender(<Harness operation={operation} operationDisabled />);
+      expect(resend()).toBeDisabled();
+      await user.click(resend());
+      expect(requestCodeMock).toHaveBeenCalledTimes(1);
+      expect(operation).not.toHaveBeenCalled();
+      rerender(<Harness operation={operation} operationDisabled={false} />);
+      requestCodeMock.mockResolvedValueOnce({ ok: true, challengeId: SECOND });
+      await user.click(resend());
+      await submit(user);
+      await waitFor(() => expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: SECOND, code: "123456" }));
+    });
+
+    it("refuses the parent's close handle while an enabled resend runs, then uses the replacement challenge", async () => {
+      const dialogRef = createRef<ReauthDialogHandle>();
+      const onOpenChange = vi.fn();
+      const user = clockedUser();
+      render(<Harness operation={operation} dialogRef={dialogRef} onOpenChange={onOpenChange} />);
+      await toCodeStep(user);
+      await wait(60);
+      expect(resend()).toBeEnabled();
+      let settle: (result: ReauthRequestResult) => void = () => {};
+      requestCodeMock.mockImplementationOnce(() => new Promise((resolve) => (settle = resolve)));
+      try {
+        await user.click(resend());
+        const dialog = screen.getByRole("dialog", { name: "Gör något" });
+        expect(requestCodeMock).toHaveBeenCalledTimes(2);
+        expect(await within(dialog).findByRole("button", { name: "Skickar…" })).toBeDisabled();
+        expect(dialogRef.current).not.toBeNull();
+
+        act(() => dialogRef.current!.close());
+
+        expect(dialog).toBeInTheDocument();
+        expect(onOpenChange).not.toHaveBeenCalledWith(false);
+        expect(operation).not.toHaveBeenCalled();
+        await act(async () => settle({ ok: true, challengeId: SECOND }));
+        await within(dialog).findByText("Vi har skickat en ny kod. Skriv in koden från det senaste mejlet.");
+        await submit(user);
+
+        expect(operation).toHaveBeenCalledExactlyOnceWith({ challengeId: SECOND, code: "123456" });
+      } finally {
+        await act(async () => settle({ ok: true, challengeId: SECOND }));
+      }
+    });
 
     it("counts the resend down outside the live region, then sends a code the next attempt uses", async () => {
       const user = clockedUser();

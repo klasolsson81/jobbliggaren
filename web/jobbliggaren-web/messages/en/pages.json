@@ -658,8 +658,8 @@
           "body": "Try again later, or contact us at <mail>kontakt@jobbliggaren.se</mail>."
         },
         "pendingDeletion": {
-          "title": "Your account is permanently deleted on {date}.",
-          "body": "Until then you can have it restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+          "title": "Your account will be permanently deleted no earlier than {date}.",
+          "body": "You cannot restore the account or cancel deletion. If you have questions, email <mail>kontakt@jobbliggaren.se</mail>."
         }
       },
       "notice": {
@@ -672,8 +672,8 @@
           "body": "A login is valid for 15 minutes. Enter your email address below and start again."
         },
         "accountDeleted": {
-          "title": "Your account has been deleted",
-          "body": "You are logged out on all devices. For 30 days you can have the account restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+          "title": "Deletion of your account is scheduled",
+          "body": "You are logged out on all devices. Your saved data remains for 30 days and is then removed permanently by the daily deletion job. You cannot restore the account or cancel deletion. If you have questions, email <mail>kontakt@jobbliggaren.se</mail>."
         },
         "externalUnverified": {
           "title": "{provider} cannot vouch for your email address",

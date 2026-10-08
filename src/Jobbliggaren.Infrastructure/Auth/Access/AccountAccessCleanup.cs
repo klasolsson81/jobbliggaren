@@ -13,6 +13,8 @@ public sealed partial class AccountAccessCleanup(
     {
         try
         {
+            if (change.PendingDeletion)
+                await sessions.MarkUserDeletedAsync(change.UserId, cancellationToken);
             await sessions.InvalidateBeforeRevisionAsync(change.UserId, change.AccessRevision, cancellationToken);
         }
         catch (StoreUnavailableException exception)

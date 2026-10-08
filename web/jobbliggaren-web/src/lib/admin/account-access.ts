@@ -18,4 +18,6 @@ export const ADMIN_ACCESS_ERRORS = {
   lastAdministrator: "Admin.LastAdministrator",
   profileUnavailable: "Admin.ProfileUnavailable",
   accountNotFound: "Admin.AccountNotFound",
+  alreadyPendingDeletion: "Admin.AccountAlreadyPendingDeletion",
+  selfDeletion: "Admin.SelfDeletion",
 } as const;

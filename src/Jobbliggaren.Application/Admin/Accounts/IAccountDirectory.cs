@@ -51,6 +51,8 @@ public sealed record AccountDirectoryEntry(
     long AccessRevision = 0,
     long CredentialCutoff = 0)
 {
+    public AccountDeletionTiming? Deletion => DeletedAt is { } deletedAt
+        ? AccountDeletionTiming.From(deletedAt) : null;
     /// <summary>The earliest permanent deletion, while deletion is pending.</summary>
     public DateOnly? PermanentDeletionEarliest =>
         Status == AccountStatus.PendingDeletion && DeletedAt is { } deletedAt

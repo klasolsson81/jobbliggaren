@@ -1,6 +1,7 @@
 using System.Reflection;
 using Jobbliggaren.Application.Admin.Accounts.Commands.ReinstateAccount;
 using Jobbliggaren.Application.Admin.Accounts.Commands.RequestAccountEmailChange;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Admin.Accounts.Commands.SuspendAccount;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
@@ -18,6 +19,7 @@ public sealed class AccountAccessProtocolTests
     [Theory]
     [InlineData(typeof(SuspendAccountCommand))]
     [InlineData(typeof(ReinstateAccountCommand))]
+    [InlineData(typeof(ScheduleAccountDeletionCommand))]
     public void Administrator_access_commands_must_carry_all_server_enforcement_markers(Type command)
     {
         command.IsAssignableTo(typeof(IAdminRequest)).ShouldBeTrue();

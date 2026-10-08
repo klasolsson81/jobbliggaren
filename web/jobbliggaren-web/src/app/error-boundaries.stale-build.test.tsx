@@ -16,6 +16,7 @@ import {
   STALE_BUILD_RELOADED_NOTICE_KEY,
   STALE_BUILD_RELOAD_STAMP_KEY,
 } from "@/lib/stale-build/stale-build-reload";
+import AdminAccountsError from "./(admin)/admin/anvandare/error";
 import AdminError from "./(admin)/error";
 import AppError from "./(app)/error";
 import AuthError from "./(auth)/error";
@@ -54,6 +55,7 @@ function errorBoundaryFiles(dir: string, acc: string[] = []): string[] {
 
 const table: { path: string; Boundary: ComponentType<ErrorInfo> }[] = [
   { path: "(admin)/error.tsx", Boundary: AdminError },
+  { path: "(admin)/admin/anvandare/error.tsx", Boundary: AdminAccountsError },
   { path: "(app)/error.tsx", Boundary: AppError },
   { path: "(auth)/error.tsx", Boundary: AuthError },
   { path: "(guest)/gast/error.tsx", Boundary: GuestError },

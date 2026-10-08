@@ -1,4 +1,5 @@
 using System.Reflection;
+using Jobbliggaren.Application.Admin.Accounts.Commands.ScheduleAccountDeletion;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -56,16 +57,16 @@ public class JobSeekerWriterReplayGuardTests
     ];
 
     [Fact]
-    public void Every_writer_of_a_job_seeker_retries_or_is_the_one_protected_deletion_handler_that_refuses_conflicts()
+    public void Every_writer_of_a_job_seeker_retries_or_is_the_shared_protected_deletion_scheduler_that_refuses_conflicts()
     {
         var writers = TypesCallingAJobSeekerMutator();
         writers.ShouldContain(typeof(UpdateNotificationConsentCommandHandler), "the sweep must see the writers it guards");
         writers.ShouldContain(typeof(BackgroundMatchingJob), "the sweep must see the writers it guards");
-        writers.ShouldContain(typeof(DeleteAccountCommandHandler), "the sweep must see the explicit non-replay exception");
+        writers.ShouldContain(typeof(AccountDeletionScheduler), "the sweep must see the explicit non-replay exception");
 
         var unmarked = writers
             .Where(type => !ScansWithTheirOwnRetry.Contains(type) && !HandlesAMarkedCommand(type)
-                && type != typeof(DeleteAccountCommandHandler))
+                && type != typeof(AccountDeletionScheduler))
             .Select(type => type.FullName)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -75,16 +76,18 @@ public class JobSeekerWriterReplayGuardTests
             + string.Join(", ", unmarked));
     }
 
-    [Fact]
-    public void The_one_non_replay_deletion_exception_requires_the_protected_reauthenticated_audited_scope()
+    [Theory]
+    [InlineData(typeof(DeleteAccountCommand), typeof(DeleteAccountCommandHandler))]
+    [InlineData(typeof(ScheduleAccountDeletionCommand), typeof(ScheduleAccountDeletionCommandHandler))]
+    public void Every_entry_to_the_non_replay_deletion_exception_requires_the_protected_reauthenticated_audited_scope(
+        Type command, Type handler)
     {
-        var command = typeof(DeleteAccountCommand);
         command.IsAssignableTo(typeof(IAccountAccessMutation)).ShouldBeTrue();
         command.IsAssignableTo(typeof(IReauthenticatingRequest)).ShouldBeTrue();
         command.IsAssignableTo(typeof(IAuditableCommand)).ShouldBeTrue();
         command.IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeTrue();
         command.IsAssignableTo(typeof(IReplayOnConcurrencyConflict)).ShouldBeFalse();
-        HandlesAMarkedCommand(typeof(DeleteAccountCommandHandler)).ShouldBeFalse();
+        HandlesAMarkedCommand(handler).ShouldBeFalse();
     }
 
     [Fact]

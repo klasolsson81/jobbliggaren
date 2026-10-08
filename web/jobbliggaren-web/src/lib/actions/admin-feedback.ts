@@ -146,6 +146,10 @@ export async function requeueFeedbackNotificationAction(
         title === FEEDBACK_ERRORS.notificationNotRequeueable ? t("errors.noticeAlreadyQueued") : t("errors.noticeChanged"),
       );
     }
+    case 410:
+      if ((await readProblemTitle(res)) !== FEEDBACK_ERRORS.reporterUnavailable) return commandRefusal(t("errors.noticeUnknown"));
+      revalidatePath(FEEDBACK_ROUTE);
+      return commandRefusal(t("errors.noticeRefused"));
     default:
       return commandRefusal(t("errors.noticeUnknown"));
   }

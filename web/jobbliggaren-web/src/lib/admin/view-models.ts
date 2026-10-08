@@ -1,4 +1,5 @@
 /** The admin surface's view models (ADR 0150). */
+import type { AdminDeletionTiming } from "./account-deletion";
 
 /**
  * A data region is exactly one of these (ADR 0150 D2). `unavailable` means no source exists yet,
@@ -32,8 +33,7 @@ export type AdminAccountRole = "user" | "admin";
 
 /**
  * An account's lifecycle state (ADR 0151); every account is in exactly one. Whether the address is
- * confirmed is a separate fact, since it can go with any state. Only the preview produces `suspended`
- * until #1976 builds suspension.
+ * confirmed is a separate fact, since it can go with any state.
  */
 export type AdminAccountStatus = "active" | "pendingDeletion" | "profileMissing" | "suspended";
 
@@ -54,11 +54,13 @@ export interface AdminAccountRow {
   readonly registeredAt: string | null;
   /** Null when the count is unknown for this account. */
   readonly applicationCount: number | null;
-  /** `YYYY-MM-DD`, only while the status is `pendingDeletion`: the earliest permanent deletion. */
+  /** Legacy `YYYY-MM-DD` eligibility date; the actual schedule is carried by `deletion`. */
   readonly deletionEarliest: string | null;
+  readonly deletion?: AdminDeletionTiming | null;
 }
 
 export interface AdminAccountDetail extends AdminAccountRow {
+  readonly deletionPreview?: AdminDeletionTiming | null;
   readonly savedSearchCount: number | null;
   readonly resumeCount: number | null;
 }

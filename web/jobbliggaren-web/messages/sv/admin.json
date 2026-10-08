@@ -154,6 +154,7 @@
     },
     "statusLine": {
       "deletionEarliest": "Slutgiltigt tidigast <nowrap>{date}</nowrap>",
+      "deletionScheduled": "Planerad körning <nowrap>{date}</nowrap>",
       "emailUnconfirmed": "E-post ej bekräftad"
     },
     "regions": {
@@ -244,6 +245,20 @@
       "deliveryUnavailable": "E-postutskick är inte aktiverat just nu, så ingen kod kan skickas. Åtkomsten är oförändrad.",
       "unknown": "Det går inte att bekräfta om åtgärden genomfördes. Kontrollera kontots aktuella status innan du bestämmer nästa steg."
     },
+    "deletion": {
+      "confirm": "Åtkomsten spärras direkt på alla enheter. Kontot och sparade uppgifter väntar på permanent radering efter {days} dagars respit. Den här förhandsvisningen beräknades av servern {calculated}, svensk tid: respiten skulle sluta {eligible} och den första planerade körningen vara {run}. Respiten börjar när schemaläggningen genomförs efter din bekräftelsekod. Då beräknas datumen på nytt och de faktiska tiderna visas i kontots uppgifter. Körningen sker dagligen kl. 04:00 UTC och är ingen garanti för att raderingen är färdig då. Ett väntande adressbyte avbryts permanent. Raderingen kan inte ångras här.",
+      "previewLoading": "Läser in kontots aktuella status och en ny förhandsvisning från servern innan du kan bekräfta radering.",
+      "previewUnavailable": "Radering kan inte bekräftas utan en aktuell förhandsvisning. Stäng dialogen och öppna den igen för att läsa in kontots status.",
+      "receipt": "Radering av {email} schemalagd {deleted}. Åtkomsten är spärrad.",
+      "sendCode": "Skicka kod till {email}",
+      "sendingCode": "Skickar kod till {email}…",
+      "code": "Kod till {email}",
+      "pending": "Respiten slutar <nowrap>{eligible}</nowrap>. Första planerade körning <nowrap>{run}</nowrap>, svensk tid. Raderingen är ännu inte genomförd.",
+      "alreadyPending": "Kontot väntar redan på radering. Datumet har inte ändrats.",
+      "unknown": "Det går inte att bekräfta om raderingen schemalades.",
+      "reread": "Läs in kontots status",
+      "deliveryUnavailable": "Ingen bekräftelsekod kunde skickas. Radering har inte schemalagts."
+    },
     "confirm": {
       "cancel": "Avbryt",
       "suspend": {
@@ -266,7 +281,7 @@
       "close": "Stäng meddelandet",
       "suspended": "Åtkomsten för {email} är avstängd.",
       "reinstated": "Åtkomsten för {email} är återaktiverad. Kontoägaren behöver logga in igen.",
-      "deletionScheduled": "Kontot {email} raderas slutgiltigt tidigast {date}.",
+      "deletionScheduled": "Radering av {email} är schemalagd. Planerad körning {date}.",
       "emailChangeRequested": "En kod har skickats till {email}. Adressen byts när kontoägaren har använt koden, tidigast <nowrap>{from}</nowrap>.",
       "emailChangeCancelled": "Adressbytet är avbrutet. Koden till den nya adressen gäller inte längre."
     },
@@ -280,7 +295,7 @@
     "busy": {
       "suspend": "Stänger av…",
       "reinstate": "Återaktiverar…",
-      "scheduleDeletion": "Raderar…",
+      "scheduleDeletion": "Schemalägger…",
       "cancelEmailChange": "Avbryter…",
       "retry": "Hämtar…"
     }

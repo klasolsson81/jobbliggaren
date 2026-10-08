@@ -47,8 +47,7 @@ public class DeleteAccountCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
-            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+        var handler = CreateHandler(db, currentUser, Clock);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
@@ -63,8 +62,7 @@ public class DeleteAccountCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var currentUser = AuthenticatedAs(Guid.NewGuid());
 
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
-            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+        var handler = CreateHandler(db, currentUser, Clock);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
@@ -91,8 +89,7 @@ public class DeleteAccountCommandHandlerTests
         // skrivas om med detta senare värde.
         var laterClock = new FakeDateTimeProvider(Clock.UtcNow.AddDays(1));
         var currentUser = AuthenticatedAs(userId);
-        var handler = new DeleteAccountCommandHandler(db, currentUser, laterClock,
-            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+        var handler = CreateHandler(db, currentUser, laterClock);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
@@ -142,14 +139,14 @@ public class DeleteAccountCommandHandlerTests
         db.ChangeTracker.Clear();
 
         var currentUser = AuthenticatedAs(userId);
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
-            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+        var handler = CreateHandler(db, currentUser, Clock);
 
         var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
         await db.SaveChangesAsync(CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBe(seeker.Id.Value);
+        result.Value.ProfileId.ShouldBe(seeker.Id.Value);
+        result.Value.UserId.ShouldBe(userId);
         await _eraser.Received(1).EraseAllAsync(userId, CancellationToken.None);
 
         // GDPR cascade-completeness: bevisa att INGET user-ägt aggregat lämnas
@@ -199,8 +196,7 @@ public class DeleteAccountCommandHandlerTests
         var currentUser = AuthenticatedAs(userId);
         var fault = new InvalidOperationException("provider-erasure-fault");
         _eraser.EraseAllAsync(userId, CancellationToken.None).ThrowsAsync(fault);
-        var handler = new DeleteAccountCommandHandler(db, currentUser, Clock,
-            AccountAccessTestKit.OrdinaryRemoval(currentUser), _eraser);
+        var handler = CreateHandler(db, currentUser, Clock);
 
         var actual = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new DeleteAccountCommand(null), CancellationToken.None).AsTask());
@@ -213,5 +209,21 @@ public class DeleteAccountCommandHandlerTests
         db.ChangeTracker.Clear();
         (await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.UserId == userId, CancellationToken.None))
             .DeletedAt.ShouldBeNull();
+    }
+
+    private DeleteAccountCommandHandler CreateHandler(
+        IAppDbContext db, ICurrentUser currentUser, Jobbliggaren.Domain.Common.IDateTimeProvider clock)
+    {
+        var userId = currentUser.UserId ?? Guid.Empty;
+        var reader = AccountAccessTestKit.ReaderFromProfiles(db,
+            id => id == userId ? "owner@example.test" : null);
+        var writer = AccountAccessTestKit.OrdinaryRemoval(currentUser);
+        writer.AdvanceDeletionAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AccountAccessTestKit.Account(userId, "owner@example.test") with
+            {
+                AccessRevision = 1,
+                CredentialCutoff = 1,
+            });
+        return new DeleteAccountCommandHandler(new AccountDeletionScheduler(db, clock, reader, writer, _eraser), currentUser);
     }
 }

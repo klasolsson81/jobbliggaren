@@ -43,7 +43,7 @@ const RESPONSE: AccountSearchResponse = {
         emailConfirmed: true,
         isSuspended: false,
         registeredAt: "2026-09-28T12:02:00Z",
-        deletionEarliest: null,
+        deletionEarliest: null, deletion: null,
         applicationCount: 4,
       },
       {
@@ -54,7 +54,7 @@ const RESPONSE: AccountSearchResponse = {
         emailConfirmed: true,
         isSuspended: false,
         registeredAt: null,
-        deletionEarliest: null,
+        deletionEarliest: null, deletion: null,
         applicationCount: null,
       },
       {
@@ -65,7 +65,7 @@ const RESPONSE: AccountSearchResponse = {
         emailConfirmed: true,
         isSuspended: false,
         registeredAt: null,
-        deletionEarliest: null,
+        deletionEarliest: null, deletion: null,
         applicationCount: null,
       },
     ],

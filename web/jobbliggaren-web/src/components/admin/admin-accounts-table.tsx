@@ -130,6 +130,7 @@ export function AdminAccountsTable({
                   <AdminAccountStatusCell
                     status={row.status}
                     deletionEarliest={row.deletionEarliest}
+                    deletion={row.deletion}
                     emailConfirmed={row.emailConfirmed}
                   />
                 </td>

@@ -18,16 +18,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// och direkt för bakstoppet som raderar externa inloggningar).
 /// Architecture test verifierar att porten endast anropas av HardDeleteAccountsJob.
 ///
-/// Atomicitet-modell (per ADR 0024 D6 + delbeslut 3-tillägg + TD-13 C6):
-/// - Domain-delete + audit-anonymisering + crypto-erasure (per-användare-DEK,
-///   ADR 0049 Beslut 2) atomic via explicit BeginTransactionAsync på
-///   AppDbContext (Steg 2 a-g)
-/// - Identity-DELETE separat boundary efter transactionen committats (Steg 2 h)
-/// - Vid Identity-fail: orphan plockas upp av Steg 0 nästa körning
-///
-/// Detta är medveten design som följer Clean Arch:s context-isolering — inga
-/// distribuerade transaktioner mot samma fysiska Postgres bara för nominell
-/// atomicitet.
+/// ADR 0155: domain erasure, audit anonymization, DEK erasure and Identity deletion
+/// share the lifecycle locks and one physical PostgreSQL transaction.
 /// </summary>
 public sealed partial class AccountHardDeleter(
     AppDbContext db,
@@ -83,8 +75,8 @@ public sealed partial class AccountHardDeleter(
         // locked out and can never exercise Art. 17. We SURFACE it (Warning) for remediation
         // but never delete it here (a separate concern, #1409 — #524 was closed and was about
         // sentinel-colliding plaintext rows, not this). Count only — no name/email/CV
-        // PII is logged (CLAUDE.md §5); the runbook §3.3 reverse-orphan query surfaces the
-        // UserId set to ops on demand, and §4.2 is the erasure procedure for one.
+        // PII is logged (CLAUDE.md §5). The account-deletion runbook requires separate,
+        // account-bound operator approval for any historical reverse-orphan remediation.
         var identityUserIds = identityUsers.Select(u => u.Id).ToHashSet();
         var reverseOrphanCount = domainUserIds.Count(id => !identityUserIds.Contains(id));
         if (reverseOrphanCount > 0)
@@ -110,16 +102,7 @@ public sealed partial class AccountHardDeleter(
             }
             else
             {
-                // #1349 - the second discarded IdentityResult, found by the same sweep that
-                // found the first. The job reports only `cleaned`, so N systematically failed
-                // deletions surfaced as "rensade 0 Identity-orphans" - indistinguishable from
-                // "found none", which is the state an operator is actively hoping for.
-                //
-                // Not the same as the discard at the ROW-erasure site further down: that one
-                // carries a written compensating path (the row is picked up by step 0 on the
-                // next run). This one carried nothing.
-                //
-                // Codes, never Descriptions - same discipline as UserAccountService.
+                // Codes only; a refused orphan remains eligible and is not counted as cleaned.
                 LogOrphanDeleteFailed(
                     logger, orphanId, string.Join(", ", result.Errors.Select(e => e.Code)));
             }
@@ -166,7 +149,7 @@ public sealed partial class AccountHardDeleter(
 
         // Hämta alla user-ägda aggregat. IgnoreQueryFilters för att se
         // soft-deletade barn också (de är raderade vid DeleteAccountCommand).
-        // FK CASCADE i DB tar Application→{FollowUps, Notes} + Resume→Versions
+        // FK CASCADE i DB tar Application→{FollowUps, Notes, StatusChanges} + Resume→Versions
         // när vi RemoveRange:ar parents.
         var applications = await db.Applications
             .IgnoreQueryFilters()
@@ -312,19 +295,10 @@ public sealed partial class AccountHardDeleter(
                 .Where(s => s.JobSeekerId == jsId)
                 .ExecuteDeleteAsync(cancellationToken);
 
-            // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,
-            // GDPR Art. 17). Kastar användarens per-användare-DEK INOM samma
-            // transaktion → backup-resident ciphertext (cover_letter/
-            // application_notes.content/follow_ups.note/resume_versions.
-            // content_enc/parsed_resumes.raw_text/parsed_content_enc) blir
-            // omedelbart olesbar. ExecuteDeleteAsync deltar
-            // i den ambienta BeginTransactionAsync-transaktionen (dotnet-
-            // architect-verifierad 2026-05-19, Microsoft Learn): vid rollback
-            // rullas DEK-deletet med aggregat-deletet → ingen partiell
-            // Art. 17-erasure. Idempotent (0 DEK-rader = no-op).
+            // ADR 0049: DEK erasure commits with the owner graph. Backups can retain older
+            // keys and ciphertext; the account-deletion runbook states those retention limits.
             await dataKeyStore.DeleteDataKeysAsync(jsId, cancellationToken);
 
-            // Steg 2 f — SaveChanges + Steg 2 g — Commit.
             await db.SaveChangesAsync(cancellationToken);
             var user = await userManager.FindByIdAsync(userId.ToString());
             if (user is not null)

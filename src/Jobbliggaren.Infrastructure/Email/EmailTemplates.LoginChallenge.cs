@@ -170,9 +170,8 @@ internal static partial class EmailTemplates
     }
 
     /// <summary>
-    /// An account in its restore window: login does not restore it (the 30-day clock is untouched, ADR 0142
-    /// D3), so the mail names the earliest date the account goes and the one way back, the contact address.
-    /// "Tidigast" because the hard-delete job runs daily, so the deletion lands on or after that date.
+    /// Login cannot restore a pending-deletion account or change its product grace period.
+    /// The date is the earliest eligibility date, never proof of completed worker cleanup.
     /// </summary>
     internal static EmailContent LoginPendingDeletion(LoginChallengeEmail.PendingDeletion content)
     {
@@ -183,11 +182,11 @@ internal static partial class EmailTemplates
             PlainTextBody: $"""
                 Någon har begärt att logga in på ditt konto, men det går inte.
 
-                Kontot raderas permanent tidigast {date}. Fram till dess kan du få det
-                återställt genom att skriva till oss:
-                {ContactAddress}
+                Kontot raderas permanent tidigast {date}. Du kan inte återställa kontot
+                eller avbryta raderingen.
 
-                Om du inte vill ha kvar kontot behöver du inte göra något.
+                Har du frågor kan du skriva till oss:
+                {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -196,12 +195,12 @@ internal static partial class EmailTemplates
                 title: "Ditt konto är markerat för radering",
                 preheader: $"Kontot raderas permanent tidigast {date}.",
                 body: EmailHtml.P("Någon har begärt att logga in på ditt konto, men det går inte.")
+                    + EmailHtml.P($"Kontot raderas permanent tidigast {date}. Du kan inte återställa kontot "
+                        + "eller avbryta raderingen.")
                     + EmailHtml.LinkParagraph(
-                        $"Kontot raderas permanent tidigast {date}. Fram till dess kan du få det "
-                        + "återställt genom att skriva till oss:",
+                        "Har du frågor kan du skriva till oss:",
                         $"mailto:{ContactAddress}",
                         ContactAddress)
-                    + EmailHtml.P("Om du inte vill ha kvar kontot behöver du inte göra något.")
                     + EmailHtml.SignOff()));
     }
 

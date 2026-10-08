@@ -32,4 +32,23 @@ describe("/integritet published policy date (#1917)", () => {
     expect(date.closest('[aria-hidden="true"], .sr-only, details, [role="tooltip"]')).toBeNull();
     expect(screen.getAllByText(catalogue.privacy.updated)).toHaveLength(1);
   });
+
+  it.each(["sv", "en"] as const)("publishes the grace period, unavailable restore and separate backup boundary (%s)", async (language) => {
+    locale = language;
+    render(await IntegritetPage());
+
+    if (language === "sv") {
+      expect(screen.getByText(/När du begär radering av ditt konto spärras åtkomsten direkt/))
+        .toHaveTextContent("Du kan inte återställa kontot eller avbryta raderingen.");
+      expect(screen.getByText(/När den permanenta raderingskörningen rensar ditt konto/))
+        .toHaveTextContent("Kontoraderingen tar inte bort säkerhetskopior omedelbart.");
+      expect(screen.queryByText(/ett konto kan återställas|även från en eventuell säkerhetskopia/)).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByText(/When you request deletion of your account, access is blocked immediately/))
+        .toHaveTextContent("You cannot restore the account or cancel deletion.");
+      expect(screen.getByText(/When the permanent deletion job cleans up your account/))
+        .toHaveTextContent("Account deletion does not remove backups immediately.");
+      expect(screen.queryByText(/an account can be restored|even from a possible backup/)).not.toBeInTheDocument();
+    }
+  });
 });

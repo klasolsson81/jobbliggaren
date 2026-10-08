@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-10-07",
+    "updated": "Last updated: 2026-10-08",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -117,7 +117,7 @@
         "list": [
           "Your account and content (CV, applications, letters, notes, follow-ups) are kept for as long as your account is active, so that you can use the service. You can delete individual content or your entire account at any time.",
           "Your uploaded original CV file. The original file belongs to the CV or draft you imported it into. If you remove the draft or delete the CV, the original file is deleted immediately too, and if you delete your entire account it is removed together with your other data. If you start an import without completing it, the file is cleaned up automatically after at most 90 days.",
-          "When you delete your account, the data is removed and the encrypted data is made permanently unreadable, see the section on security. After you have requested deletion, there is a 30-day period during which an account can be restored, before it is deleted permanently.",
+          "When you request deletion of your account, access is blocked immediately. The data remains during a 30-day grace period. After that, the daily deletion job permanently removes the account and its data, including the encryption key that makes the encrypted data unreadable. You cannot restore the account or cancel deletion.",
           "The security and event log is kept for 90 days and is then cleared automatically. When your account is deleted permanently, the data in the log that can be linked to you is de-identified.",
           "Your recent searches. We keep the 20 most recent searches you have run under Jobs. They are kept until further notice, with no fixed retention period: a search is not removed automatically over time, but when it falls out of your 20 most recent and a new search takes its place. You can remove a search whenever you like in the Recent searches list, and when you delete your account all your searches are removed in accordance with the points above.",
           "Job ads and the employer's identity. Ads are kept indefinitely, with no fixed retention period. An ad is not deleted automatically. Once it can no longer be found in the service it is archived and the contact details are deleted, but the ad and the organisation number remain.",
@@ -164,7 +164,7 @@
         "heading": "Security",
         "paragraphs": [
           "We protect your data with technical and organisational measures. Your most sensitive data, that is your CV, your cover letters, your notes and your follow-ups, is encrypted field by field with strong encryption (AES-256-GCM) and with an encryption key that is unique to you.",
-          "When you delete your account, your encryption key is destroyed. This makes your encrypted data permanently unreadable and impossible to recreate, even from a possible backup (so-called crypto-erasure). In this way your data truly disappears when you choose to leave the service."
+          "When the permanent deletion job cleans up your account, your encryption key is removed from the active database. Remaining encrypted data there can no longer be read (crypto-erasure). Older backups may contain data and keys until those backups expire under their separate retention periods. Account deletion does not remove backups immediately."
         ]
       },
       {

@@ -163,10 +163,19 @@ describe("requeueFeedbackNotificationAction", () => {
   it.each([
     ["a 500", () => json(500, {})],
     ["a lost response", () => Promise.reject(new Error("socket hang up"))],
+    ["a 410 nobody named", () => problem(410, "Other.Unavailable")],
   ])("claims nothing about %s: the notice may have been queued", async (_label, answer) => {
     authedFetchMock.mockImplementation(async () => answer());
 
     expect(await requeueFeedbackNotificationAction(ID, true)).toEqual(command("admin.feedback.errors.noticeUnknown"));
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("states a deleted reporter's refusal definitively and rereads current feedback", async () => {
+    authedFetchMock.mockResolvedValue(problem(410, "Feedback.ReporterUnavailable"));
+
+    expect(await requeueFeedbackNotificationAction(ID, true)).toEqual(command("admin.feedback.errors.noticeRefused"));
+    expect(authedFetchMock).toHaveBeenCalledTimes(1);
+    expect(revalidatePathMock).toHaveBeenCalledWith(ROUTE);
   });
 });

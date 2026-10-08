@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-10-07",
+    "updated": "Senast uppdaterad: 2026-10-08",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -117,7 +117,7 @@
         "list": [
           "Ditt konto och innehåll (cv, ansökningar, brev, anteckningar, uppföljningar) sparas så länge ditt konto är aktivt, så att du kan använda tjänsten. Du kan när som helst radera enskilt innehåll eller hela ditt konto.",
           "Din uppladdade originalfil av cv:t. Originalfilen hör ihop med det cv eller utkast du importerade den till. Tar du bort utkastet eller raderar cv:t raderas även originalfilen direkt, och raderar du hela ditt konto tas den bort tillsammans med dina övriga uppgifter. Påbörjar du en import utan att slutföra den rensas filen automatiskt efter som mest 90 dagar.",
-          "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
+          "När du begär radering av ditt konto spärras åtkomsten direkt. Uppgifterna finns kvar under en respit på 30 dagar. Därefter rensar den dagliga raderingskörningen kontot och dess uppgifter permanent, inklusive krypteringsnyckeln som gör de krypterade uppgifterna oläsbara. Du kan inte återställa kontot eller avbryta raderingen.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
           "Dina senaste sökningar. Vi sparar de 20 senaste sökningar du har gjort under Jobb. De sparas tills vidare, utan bestämd lagringstid: en sökning tas inte bort automatiskt med tiden, utan när den faller ur dina 20 senaste och en ny sökning tar dess plats. Du kan ta bort en sökning när du vill i listan Senaste sökningar, och när du raderar ditt konto tas alla dina sökningar bort enligt punkterna ovan.",
           "Jobbannonser och arbetsgivarens identitet. Annonserna sparas tills vidare, utan bestämd lagringstid. En annons tas inte bort automatiskt. När den inte längre går att söka i tjänsten arkiveras den och kontaktuppgifterna raderas, men annonsen och organisationsnumret finns kvar.",
@@ -164,7 +164,7 @@
         "heading": "Säkerhet",
         "paragraphs": [
           "Vi skyddar dina uppgifter med tekniska och organisatoriska åtgärder. Dina känsligaste uppgifter, det vill säga ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar, krypteras fält för fält med stark kryptering (AES-256-GCM) och med en krypteringsnyckel som är unik för just dig.",
-          "När du raderar ditt konto förstörs din krypteringsnyckel. Det gör att dina krypterade uppgifter blir permanent oläsbara och inte kan återskapas, även från en eventuell säkerhetskopia (så kallad kryptoradering). På så sätt försvinner dina uppgifter på riktigt när du väljer att lämna tjänsten."
+          "När den permanenta raderingskörningen rensar ditt konto tas din krypteringsnyckel bort ur den aktiva databasen. Kvarvarande krypterade uppgifter där går då inte att läsa (kryptoradering). Äldre säkerhetskopior kan innehålla uppgifter och nycklar tills kopiorna gallras enligt sina separata lagringstider. Kontoraderingen tar inte bort säkerhetskopior omedelbart."
         ]
       },
       {

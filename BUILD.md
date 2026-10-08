@@ -534,7 +534,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/preferences`
 - `PATCH /api/v1/me/preferences`
-- `DELETE /api/v1/me` (GDPR-radering, soft delete + 30-dagars restore)
+- `DELETE /api/v1/me` (schedule account deletion: soft delete, immediate access denial and the 30-day product grace period; restore is unavailable)
 - `POST /api/v1/me/feedback` (multipart, exactly one JSON `payload` and at most one optional `screenshot`; betyg och/eller text för en av 19 fasta sidnycklar; idempotent på `submissionKey`; stängd tills `Feedback:Enabled`, en användbar mottagare och en levererande e-posttransport finns — #1979, ADR 0156)
 - `GET /api/v1/me/feedback/prompt-state` (om feedback är öppen, och sidorna där användaren redan har svarat)
 
@@ -845,11 +845,11 @@ Alla FK-kolumner har index. Utöver det:
 
 ### 7.3 Soft delete-strategi
 
-- Alla user-ägda aggregates har `deleted_at` (timestamptz null)
+- Account-owned soft-deletable aggregates use `deleted_at` (timestamptz null).
 - Global EF Core query filter på alla soft-deletable entities
-- Hard delete efter 30 dagar via schedulerad Hangfire-job
-- `DELETE /me` sätter `deleted_at` på alla aggregat tillhörande användaren
-- Restore-endpoint (`POST /api/v1/admin/users/{id}/restore`) återställer inom 30 dagar
+- The ordinary Hangfire worker performs permanent cleanup strictly after the 30-day product grace period. Its projected daily 04:00 UTC run does not guarantee completed deletion.
+- Owner `DELETE /api/v1/me` and admin `POST /api/v1/admin/accounts/{id}/deletion` share the explicit-target soft-delete cascade. The worker removes the complete current ownership tree, including data without a soft-delete marker; see `docs/runbooks/account-deletion.md`.
+- Restore and a restore endpoint are unavailable.
 - **Undantag — användar-initierad per-ansökan-radering** (#782/ADR 0104): `DELETE
   /api/v1/applications/{id}` ("Radera ansökan") är en **hard delete** — raden + barnen
   (follow_ups/application_notes/application_status_changes via FK-cascade) tas bort
@@ -1883,7 +1883,7 @@ inom 30 s består oavsett plattform.
 | `retain-platsbanken-job-ads` | 03:15 daglig | Snapshot-miss-retention (ADR 0032-amend) |
 | `background-matching` | 03:20 daglig | Per-user matchnings-scan: JobAds → `UserJobAdMatch` (ADR 0080 Våg 4) |
 | `expire-job-ads` | 03:45 daglig | `ExpiresAt`-cron, defense-in-depth (ADR 0032-amend) |
-| `hard-delete-accounts` | 04:00 daglig | Permanent radera soft-deleted efter 30 dagar (GDPR Art. 17) |
+| `hard-delete-accounts` | 04:00 daglig | Due-account cleanup strictly after the 30-day product grace period; independent orphan sweep (ADR 0024) |
 | `purge-stale-raw-payloads` | 04:30 daglig | Rensa mognad `raw_payload`-jsonb (TD-73 p2) |
 | `reap-stranded-matches` | 04:45 daglig | `UserJobAdMatch` fast i Queued → terminal Failed (TD-114) |
 | `backfill-field-encryption` | 05:00 daglig | DEK-backfill av PII-fält (ADR 0049) |

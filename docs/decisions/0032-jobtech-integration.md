@@ -1724,11 +1724,6 @@ have to guess which rows were shifted. It would not be idempotent, and it would 
 database filled on a Swedish host. A resync has no such dependence: it writes the source's instant,
 whatever the row held.
 
-**When the heal is complete:** at the first snapshot after deploy that is not truncated
-(`TruncatedAndExhausted: false`; see Amendment 2026-05-16 on truncation and convergence) - not
-"tonight's snapshot" as such. Verify it from counts in the worker journal (EventId 5002,
-converted/total), never by reading `job_ads` rows.
-
 **Residuals, accepted:**
 - archived rows that have left the feed keep their shifted `PublishedAt`; nothing re-ingests them;
 - frozen `AdSnapshot` copies (`snapshot_published_at` / `snapshot_expires_at`) keep the values they

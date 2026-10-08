@@ -140,7 +140,7 @@ describe("CriteriaCard — one watch", () => {
     render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_ASSESSED })])} reference={REFERENCE} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     expect(within(card()).queryByRole("link", { name: "Ställ in matchning" })).toBeNull();
-    expect(within(card()).queryByText(/vilka yrken du söker inom/)).toBeNull();
+    expect(within(card()).queryByText(COPY.notices.calloutText)).toBeNull();
     expect(within(card()).getByRole("link", { name: "42 aktiva annonser" })).toBeInTheDocument();
   });
 
@@ -239,7 +239,7 @@ describe("CriteriaCard — two or more watches", () => {
     );
     expect(within(card()).getAllByRole("link", { name: "42 aktiva annonser" })).toHaveLength(2);
     expect(within(card()).queryByRole("link", { name: "Ställ in matchning" })).toBeNull();
-    expect(within(card()).queryByText(/vilka yrken du söker inom/)).toBeNull();
+    expect(within(card()).queryByText(COPY.notices.calloutText)).toBeNull();
   });
 
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {

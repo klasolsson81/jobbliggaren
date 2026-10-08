@@ -46,6 +46,7 @@ concurrency:
 jobs:
   e2e:
     name: playwright e2e (observe-only)
+    environment: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'sixlabors-main-build' || 'sixlabors-pr-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: true # observe-only Fas 1 (ADR 0045) — never blocks merge
@@ -98,6 +99,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
 
       - name: Generate isolated Redis identities
         shell: pwsh

@@ -238,6 +238,13 @@ not independent machine validation of a native report. Preserve CI and the
 local panel; apply the external same-PR Medium+ loop to Codex work as specified
 in [the review runbook](runbooks/codex-pr-review.md).
 
+Build licences are credentials too. Keep SIXLABORS_LICENSE_KEY only in
+sixlabors-pr-build (manual controller review of the exact head/run; no admin
+bypass) and sixlabors-main-build (the exact main branch only). Use no repository
+or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch main
+code may select the main environment. Review PR code before approving its
+environment; new heads require new review.
+
 ## Release chain and the deploy box
 
 `.github/workflows/release-images.yml` publishes and

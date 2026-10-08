@@ -2,7 +2,7 @@
 
 // "use client": the open submission holds the status being chosen, the command that runs, its refusal
 // and the requeue's confirmation, and moves focus to itself when it is opened from the list.
-import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowLeft, Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,6 @@ import type {
   AdminRegion,
 } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
-import { AdminFeedbackScreenshot } from "./admin-feedback-screenshot";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { FeedbackFocusLink } from "./admin-feedback-focus";
@@ -35,6 +34,7 @@ const LIST_SELECTOR = ".jp-adminfeedback__list";
 
 export interface AdminFeedbackDetailProps {
   readonly region: AdminRegion<AdminFeedbackItem>;
+  readonly screenshot?: ReactNode;
   /** The submission the URL opens: "Alla inskick" returns focus to its row in the list. */
   readonly openId: string;
   /** The list it was opened from: the same URL without the open submission. */
@@ -50,7 +50,7 @@ export interface AdminFeedbackDetailProps {
  * submission's id, so each submission starts with no choice, no refusal and no confirmation of its own.
  * Below 1100 px it is a step of its own, and "Alla inskick" leads back to the list it was opened from.
  */
-export function AdminFeedbackDetail({ region, openId, backHref, failed, onStatus, onRequeue }: AdminFeedbackDetailProps) {
+export function AdminFeedbackDetail({ region, screenshot, openId, backHref, failed, onStatus, onRequeue }: AdminFeedbackDetailProps) {
   const t = useTranslations("admin.feedback.detail");
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -83,7 +83,7 @@ export function AdminFeedbackDetail({ region, openId, backHref, failed, onStatus
         {t("label")}
       </h2>
       {region.kind === "loaded" ? (
-        <FeedbackItemBody item={region.data} onStatus={onStatus} onRequeue={onRequeue} />
+        <FeedbackItemBody item={region.data} screenshot={screenshot} onStatus={onStatus} onRequeue={onRequeue} />
       ) : (
         <AdminRegionLine kind={region.kind} empty={t("notFound")} failed={failed} />
       )}
@@ -101,10 +101,12 @@ type FocusTarget = "field" | "refusal" | "notice";
 
 function FeedbackItemBody({
   item,
+  screenshot,
   onStatus,
   onRequeue,
 }: {
   readonly item: AdminFeedbackItem;
+  readonly screenshot?: ReactNode;
   readonly onStatus: AdminFeedbackDetailProps["onStatus"];
   readonly onRequeue: AdminFeedbackDetailProps["onRequeue"];
 }) {
@@ -250,7 +252,7 @@ function FeedbackItemBody({
         <p className="jp-adminfeedback__text">{item.comment}</p>
       )}
 
-      <AdminFeedbackScreenshot key={item.id} id={item.id} metadata={item.screenshot} />
+      {screenshot}
 
       <dl className="jp-admindl">
         <dt>{t("detail.facts.reporter")}</dt>

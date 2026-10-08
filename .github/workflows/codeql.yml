@@ -44,6 +44,7 @@ concurrency:
 jobs:
   analyze:
     name: analyze (${{ matrix.language }}, observe-only)
+    environment: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'sixlabors-main-build' || 'sixlabors-pr-build' }}
     runs-on: ubuntu-latest
     # Observe-only Fas 1: jobbet kan aldrig blockera merge (speglar ADR 0045-
     # jobben i build.yml). Build-fel/fynd → neutral check, ej röd spärr.
@@ -83,6 +84,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
 
       # --- C#-only: SDK + NuGet-cache (krävs av manual build nedan) ----------
       # global.json låser 10.0.200 (rollForward latestFeature) — identiskt med

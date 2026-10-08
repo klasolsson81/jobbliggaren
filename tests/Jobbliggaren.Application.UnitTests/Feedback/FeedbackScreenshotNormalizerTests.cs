@@ -137,6 +137,44 @@ public sealed class FeedbackScreenshotNormalizerTests : IDisposable
     }
 
     [Theory]
+    [InlineData("exif", false)]
+    [InlineData("exif", true)]
+    [InlineData("iptc", false)]
+    [InlineData("iptc", true)]
+    public async Task NormalizeAsync_ExternalPngClientWrapsLegacyProfilesInANonLetterChunk_IsRefusedAndReleasesCapacity(
+        string profile, bool compressed)
+    {
+        var source = await FeedbackScreenshotFixtures.PngAsync(Ct);
+        var text = Encoding.ASCII.GetBytes("\n" + profile + "\n    1024\n00\n");
+        text.Length.ShouldBeLessThan(128);
+        var inner = FeedbackScreenshotFixtures.MetadataChunk(
+            compressed ? "zTXt" : "tEXt", "Raw profile type " + profile, text);
+        BinaryPrimitives.ReadInt32BigEndian(inner.AsSpan(0, 4)).ShouldBe(inner.Length - 12);
+        var wrapper = new byte[inner.Length + 12];
+        BinaryPrimitives.WriteInt32BigEndian(wrapper.AsSpan(0, 4), inner.Length);
+        inner.CopyTo(wrapper, 8);
+        for (var candidate = 128; candidate <= byte.MaxValue; candidate++)
+        {
+            wrapper[4] = (byte)candidate;
+            FeedbackScreenshotFixtures.UpdateChunkChecksum(wrapper);
+            if (BinaryPrimitives.ReadInt32BigEndian(wrapper.AsSpan(wrapper.Length - 4, 4)) < 0)
+                break;
+        }
+        BinaryPrimitives.ReadInt32BigEndian(wrapper.AsSpan(0, 4)).ShouldBe(inner.Length);
+        wrapper.AsSpan(4, 4).ToArray().All(value => !char.IsAsciiLetter((char)value)).ShouldBeTrue();
+        wrapper.AsSpan(8, inner.Length).SequenceEqual(inner).ShouldBeTrue();
+        BinaryPrimitives.ReadInt32BigEndian(wrapper.AsSpan(wrapper.Length - 4, 4)).ShouldBeLessThan(0);
+        var png = FeedbackScreenshotFixtures.InsertMetadata(source, wrapper);
+        png.Length.ShouldBeLessThan(5 * 1024 * 1024);
+
+        var result = await _sut.NormalizeAsync(png, Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        AssertInvalid(result.IsFailure, result.Error);
+        (await _sut.NormalizeAsync(source, Ct)).IsSuccess.ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task NormalizeAsync_AValidLegacyExifProfile_OrientsPixelsBeforeStrippingMetadata(bool compressed)

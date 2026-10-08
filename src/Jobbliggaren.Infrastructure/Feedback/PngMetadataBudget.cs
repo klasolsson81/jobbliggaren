@@ -23,6 +23,8 @@ internal static class PngMetadataBudget
             var length = BinaryPrimitives.ReadUInt32BigEndian(content.Span.Slice(offset, 4));
             if (length > int.MaxValue || (long)offset + length + 12 > content.Length)
                 return false;
+            if (!ValidChunkType(content.Span.Slice(offset + 4, 4)))
+                return false;
             var kind = KindOf(content.Span.Slice(offset + 4, 4));
             var data = content.Slice(offset + 8, (int)length);
             var next = offset + (int)length + 12;
@@ -59,6 +61,14 @@ internal static class PngMetadataBudget
             offset = next;
         }
         return false;
+    }
+
+    private static bool ValidChunkType(ReadOnlySpan<byte> type)
+    {
+        foreach (var value in type)
+            if (!char.IsAsciiLetter((char)value))
+                return false;
+        return true;
     }
 
     private static ChunkKind KindOf(ReadOnlySpan<byte> type) =>

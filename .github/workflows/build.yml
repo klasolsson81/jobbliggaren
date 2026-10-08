@@ -51,14 +51,15 @@ jobs:
   # restated here: ADR 0044's amendments of 2026-08-02 (#1145) and 2026-09-25 (#1785) hold the
   # dated, paired measurements; measure again rather than trust a numeral copied to a second place.
   coverage:
-    env:
-      SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+    environment: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'sixlabors-main-build' || 'sixlabors-pr-build' }}
     name: coverage (.NET 10)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -74,6 +75,8 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Coverage (test + ReportGenerator, first-party-filtrerad)
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: bash scripts/coverage.sh
 
       - name: Upload coverage report
@@ -997,6 +1000,7 @@ jobs:
   # CVE-inventering.
   images:
     name: images (docker build + trivy)
+    environment: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'sixlabors-main-build' || 'sixlabors-pr-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -1021,6 +1025,8 @@ jobs:
           - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile", nocache: "runtime" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 

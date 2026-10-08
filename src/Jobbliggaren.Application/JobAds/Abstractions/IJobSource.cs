@@ -111,6 +111,12 @@ public sealed record JobAdRemoval(
 /// </para>
 ///
 /// <para>
+/// <see cref="PublishedAt"/>/<see cref="ExpiresAt"/> are the instants the source names, normalised to
+/// <c>Offset == 0</c> (Npgsql <c>timestamptz</c>). A source's time-zone convention is ACL-internal and
+/// never crosses this port.
+/// </para>
+///
+/// <para>
 /// <b>PII:</b> <c>Facets.OrganizationNumber</c> can be a sole proprietor's personnummer (ADR 0087 D8),
 /// and <c>DeclaredContacts</c> carries recruiter name/email/phone (#842). This record must never be
 /// structured-logged. <c>JobAdPublicSurfaceGuardTests</c> bans <c>{@…}</c>

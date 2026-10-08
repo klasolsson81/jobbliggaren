@@ -197,8 +197,6 @@ public class JobAdTests
         jobAd.DomainEvents.ShouldBeEmpty();
     }
 
-    // Rader importerade före JobTechSwedishDateTimeConverter bär svensk väggklocka stämplad som
-    // UTC. Synken läker dem bara om källans datum skriver över det lagrade.
     [Fact]
     public void UpdateFromSource_RefreshesPublishedAt_FromTheSource()
     {

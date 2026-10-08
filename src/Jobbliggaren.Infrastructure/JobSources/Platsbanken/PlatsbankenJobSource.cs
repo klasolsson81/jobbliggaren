@@ -202,8 +202,7 @@ internal sealed partial class PlatsbankenJobSource(
             if (string.IsNullOrWhiteSpace(hit.Id))
                 continue;
 
-            // Npgsql timestamptz kräver Offset=0 — normalisera till UTC vid ACL-boundary.
-            // clock.UtcNow är redan UTC (no-op). Se TryConvertToImportItem.
+            // Npgsql timestamptz requires Offset == 0.
             var occurredAt = (hit.LastPublicationDate
                 ?? hit.RemovedDate
                 ?? hit.PublicationDate
@@ -282,9 +281,7 @@ internal sealed partial class PlatsbankenJobSource(
         // är sista fallback (sällan satt — kan vara mailto).
         var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks, hit.ApplicationDetails?.Url);
         var company = hit.Employer?.Name?.Trim();
-        // Npgsql timestamptz kräver Offset=0. JobTechSwedishDateTimeConverter läser redan
-        // JobTechs offsetlösa svenska väggklocka som Europe/Stockholm och returnerar UTC;
-        // ToUniversalTime här är försvar för ett värde som kom med egen offset.
+        // Npgsql timestamptz requires Offset == 0.
         var publishedAt = hit.PublicationDate.Value.ToUniversalTime();
         var expiresAt = hit.LastPublicationDate?.ToUniversalTime();
 

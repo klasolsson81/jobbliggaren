@@ -349,10 +349,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // Inga domain events — sync-job-runs auditeras aggregerat via
     // JobAdsSyncedDomainEvent (ADR 0032 §8).
     //
-    // PublishedAt refreshas också: källans datum är sanningen, och rader importerade innan
-    // JobTechSwedishDateTimeConverter bar svensk väggklocka stämplad som UTC (1–2 h sent).
-    // Nattens snapshot skriver därmed om varje aktiv annons till rätt instant — ingen
-    // datamigrering som måste gissa vilka rader som var förskjutna.
+    // PublishedAt is source-owned, like Title and ExpiresAt: every re-ingest mirrors the
+    // source's value, and the pair is validated as one unit (ValidateCore). Why this
+    // changed, and the heal it performs: ADR 0032 Amendment 2026-10-08.
     public Result UpdateFromSource(
         string? title,
         string? description,

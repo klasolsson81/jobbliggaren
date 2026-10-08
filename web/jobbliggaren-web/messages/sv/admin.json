@@ -349,6 +349,15 @@
       "back": "Alla inskick",
       "notFound": "Inskicket finns inte.",
       "noComment": "Ingen text.",
+      "screenshot": {
+        "heading": "Skärmbild",
+        "alt": "Skärmbild som bifogats feedbacken",
+        "loading": "Hämtar skärmbilden…",
+        "absent": "Det finns ingen skärmbild.",
+        "failed": "Skärmbilden kunde inte hämtas. Ladda om sidan.",
+        "showFullSize": "Visa full storlek",
+        "showThumbnail": "Visa miniatyr"
+      },
       "facts": {
         "reporter": "Avsändare",
         "page": "Sida",

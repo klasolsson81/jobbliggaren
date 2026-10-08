@@ -4,6 +4,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Application.UnitTests.Feedback;
 using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Feedback;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -77,6 +78,57 @@ public sealed class GetFeedbackDetailQueryHandlerTests : IAsyncDisposable
         notice.Attempts.ShouldBe(0);
         notice.NextAttemptAt.ShouldBe(T0);
         notice.AcceptedAt.ShouldBeNull();
+        detail.Screenshot.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_AStoredImage_ReportsItsDimensionsWithoutSerializingItsContent()
+    {
+        var seeker = await RegisterAsync();
+        var saved = await FeedbackRows.SubmitAsync(_db, seeker.Id, FeedbackPage.Jobs, 4, null, T0, Ct);
+        using var normalizer = new FeedbackScreenshotNormalizer();
+        var normalized = await normalizer.NormalizeAsync(await FeedbackScreenshotFixtures.PngAsync(Ct), Ct);
+        normalized.IsSuccess.ShouldBeTrue();
+        var submission = await _db.FeedbackSubmissions.SingleAsync(s => s.Id == saved.SubmissionId, Ct);
+        var attached = FeedbackScreenshot.AttachTo(submission,
+            normalized.Value.Content, normalized.Value.Width, normalized.Value.Height);
+        attached.IsSuccess.ShouldBeTrue();
+        _db.FeedbackScreenshots.Add(attached.Value);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        var detail = (await DetailAsync(saved.SubmissionId.Value)).ShouldNotBeNull();
+
+        detail.Screenshot.ShouldBe(new FeedbackScreenshotMetadataDto(normalized.Value.Width, normalized.Value.Height));
+        System.Text.Json.JsonSerializer.Serialize(detail).ShouldNotContain(
+            Convert.ToBase64String(normalized.Value.Content.Span));
+        _db.ChangeTracker.Entries<FeedbackScreenshot>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_AnOperatorErasesOnlyTheImage_ReportsActualImageAbsenceAndKeepsTheFeedback()
+    {
+        var seeker = await RegisterAsync();
+        var saved = await FeedbackRows.SubmitAsync(_db, seeker.Id, FeedbackPage.Jobs, 4, null, T0, Ct);
+        using var normalizer = new FeedbackScreenshotNormalizer();
+        var normalized = await normalizer.NormalizeAsync(await FeedbackScreenshotFixtures.PngAsync(Ct), Ct);
+        normalized.IsSuccess.ShouldBeTrue();
+        var submission = await _db.FeedbackSubmissions.SingleAsync(s => s.Id == saved.SubmissionId, Ct);
+        var image = FeedbackScreenshot.AttachTo(submission,
+            normalized.Value.Content, normalized.Value.Width, normalized.Value.Height).Value;
+        _db.FeedbackScreenshots.Add(image);
+        await _db.SaveChangesAsync(Ct);
+        (await DetailAsync(saved.SubmissionId.Value)).ShouldNotBeNull().Screenshot.ShouldNotBeNull();
+
+        // The operator's documented screenshot-only erasure, retaining independent feedback.
+        _db.FeedbackScreenshots.Remove(image);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        var detail = (await DetailAsync(saved.SubmissionId.Value)).ShouldNotBeNull();
+        detail.Screenshot.ShouldBeNull();
+        detail.Rating.ShouldBe(4);
+        detail.Notification.ShouldNotBeNull();
     }
 
     [Fact]

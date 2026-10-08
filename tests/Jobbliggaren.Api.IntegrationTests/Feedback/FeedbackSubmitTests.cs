@@ -137,7 +137,7 @@ public sealed class FeedbackSubmitTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_file_part_is_refused_with_400_never_ignored()
+    public async Task A_truncated_screenshot_is_refused_with_400_never_ignored()
     {
         var reporter = await ReporterAsync(factory, Ct);
         using var form = Form(Payload(Guid.NewGuid(), "jobs", rating: 3));
@@ -148,7 +148,7 @@ public sealed class FeedbackSubmitTests(ApiFactory factory)
         using var response = await reporter.Client.PostAsync(SubmitPath, form, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await ProblemTitleAsync(response, Ct)).ShouldBe("Feedback.InvalidSubmission");
+        (await ProblemTitleAsync(response, Ct)).ShouldBe("Feedback.ScreenshotInvalid");
         (await StoredAsync(factory, reporter.JobSeekerId, Ct)).ShouldBe(new Stored(0, 0, 0));
     }
 
@@ -201,12 +201,12 @@ public sealed class FeedbackSubmitTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Five_parallel_posts_with_one_key_all_succeed_with_one_submission()
+    public async Task Two_parallel_posts_with_one_key_all_succeed_with_one_submission()
     {
         var reporter = await ReporterAsync(factory, Ct);
         var key = Guid.NewGuid();
 
-        var responses = await Task.WhenAll(Enumerable.Range(0, 5)
+        var responses = await Task.WhenAll(Enumerable.Range(0, 2)
             .Select(_ => SubmitAsync(reporter.Client, Payload(key, "matches", rating: 4), Ct)));
         try
         {

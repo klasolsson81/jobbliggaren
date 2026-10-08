@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
+import { AdminFeedbackScreenshot } from "@/components/admin/admin-feedback-screenshot";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { changeFeedbackStatusAction, requeueFeedbackNotificationAction } from "@/lib/actions/admin-feedback";
 import {
@@ -113,6 +114,13 @@ export default async function AdminFeedbackPage({
         availability={availabilityState}
         list={listState}
         detail={detailState}
+        screenshot={detailState?.kind === "loaded" ? (
+          <AdminFeedbackScreenshot
+            key={detailState.data.id}
+            id={detailState.data.id}
+            metadata={detailState.data.screenshot}
+          />
+        ) : null}
         summary={summaryState}
         failedLines={{ list: refusalLine(list), detail: refusalLine(detail), summary: refusalLine(summary) }}
         onStatus={changeFeedbackStatusAction}

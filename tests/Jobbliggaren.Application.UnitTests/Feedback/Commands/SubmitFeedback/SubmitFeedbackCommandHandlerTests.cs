@@ -5,6 +5,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Feedback;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Feedback;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -27,6 +28,7 @@ public sealed class SubmitFeedbackCommandHandlerTests : IAsyncDisposable
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly IDbExceptionInspector _inspector = Substitute.For<IDbExceptionInspector>();
+    private readonly IFeedbackScreenshotNormalizer _normalizer = Substitute.For<IFeedbackScreenshotNormalizer>();
     private readonly FakeDateTimeProvider _clock = new(Now);
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -49,11 +51,12 @@ public sealed class SubmitFeedbackCommandHandlerTests : IAsyncDisposable
     }
 
     private SubmitFeedbackCommandHandler Handler(FeedbackGate? gate = null, ICurrentUser? user = null) =>
-        new(_db, user ?? _currentUser, gate ?? Gate(), _clock, _inspector);
+        new(_db, user ?? _currentUser, gate ?? Gate(), _clock, _inspector, _normalizer);
 
     private static SubmitFeedbackCommand Command(
-        Guid key, string? page = "jobs", int? rating = null, string? comment = null, string? appVersion = null) =>
-        new(key, page, rating, comment, ReportedClient.None, appVersion);
+        Guid key, string? page = "jobs", int? rating = null, string? comment = null, string? appVersion = null,
+        ReadOnlyMemory<byte>? screenshot = null) =>
+        new(key, page, rating, comment, ReportedClient.None, appVersion, screenshot);
 
     private static FeedbackRating Stars(int value) => FeedbackRating.Create(value).Value;
 
@@ -101,6 +104,165 @@ public sealed class SubmitFeedbackCommandHandlerTests : IAsyncDisposable
         var suppression = await _db.FeedbackPromptSuppressions.AsNoTracking().SingleAsync(Ct);
         suppression.JobSeekerId.ShouldBe(owner);
         suppression.Page.ShouldBe(FeedbackPage.Jobs);
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithAScreenshot_SavesTheRealNormalizedImageWithItsSubmissionAndNotice()
+    {
+        var owner = await RegisterAsync(_userId);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+        using var realNormalizer = new FeedbackScreenshotNormalizer();
+        var normalized = await realNormalizer.NormalizeAsync(png, Ct);
+        normalized.IsSuccess.ShouldBeTrue();
+        _normalizer.NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(normalized));
+
+        var result = await Handler().Handle(Command(Guid.NewGuid(), rating: 4, screenshot: png), Ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        (await CountAsync()).ShouldBe((1, 1, 1));
+        var screenshot = await _db.FeedbackScreenshots.AsNoTracking().SingleAsync(Ct);
+        screenshot.SubmissionId.Value.ShouldBe(result.Value.FeedbackId);
+        screenshot.JobSeekerId.ShouldBe(owner);
+        screenshot.SubmittedAt.ShouldBe(Now);
+        screenshot.Width.ShouldBe(normalized.Value.Width);
+        screenshot.Height.ShouldBe(normalized.Value.Height);
+        screenshot.Content.ToArray().ShouldBe(normalized.Value.Content.ToArray());
+        await _normalizer.Received(1).NormalizeAsync(
+            Arg.Is<ReadOnlyMemory<byte>>(input => input.ToArray().SequenceEqual(png)), Ct);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_AKnownKeyWithChangedOrRemovedScreenshot_PreservesTheFirstImage(bool resendImage)
+    {
+        await RegisterAsync(_userId);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+        using var realNormalizer = new FeedbackScreenshotNormalizer();
+        var normalized = await realNormalizer.NormalizeAsync(png, Ct);
+        normalized.IsSuccess.ShouldBeTrue();
+        _normalizer.NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(normalized));
+        var key = Guid.NewGuid();
+        var first = await Handler().Handle(Command(key, rating: 4, screenshot: png), Ct);
+        first.IsSuccess.ShouldBeTrue();
+        var storedImage = await _db.FeedbackScreenshots.AsNoTracking().SingleAsync(Ct);
+        var imageId = storedImage.Id;
+        _normalizer.ClearReceivedCalls();
+
+        var replay = await Handler(Gate(enabled: false)).Handle(
+            Command(key, rating: 1, screenshot: resendImage ? new byte[] { 1, 2, 3 } : null), Ct);
+
+        replay.IsSuccess.ShouldBeTrue();
+        replay.Value.ShouldBe(new FeedbackSubmitted(first.Value.FeedbackId, Replayed: true));
+        (await CountAsync()).ShouldBe((1, 1, 1));
+        var kept = await _db.FeedbackScreenshots.AsNoTracking().SingleAsync(Ct);
+        kept.Id.ShouldBe(imageId);
+        kept.Content.ToArray().ShouldBe(normalized.Value.Content.ToArray());
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AKnownKeyWithoutAnImage_NeverAttachesALaterImage()
+    {
+        await RegisterAsync(_userId);
+        var key = Guid.NewGuid();
+        var first = await Handler().Handle(Command(key, rating: 4), Ct);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+
+        var replay = await Handler().Handle(Command(key, rating: 4, screenshot: png), Ct);
+
+        replay.IsSuccess.ShouldBeTrue();
+        replay.Value.ShouldBe(new FeedbackSubmitted(first.Value.FeedbackId, Replayed: true));
+        (await CountAsync()).ShouldBe((1, 1, 1));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AnInvalidImage_RefusesWithoutPersistingFeedbackOrItsNotice()
+    {
+        await RegisterAsync(_userId);
+        var invalid = new byte[] { 1, 2, 3 };
+        using var realNormalizer = new FeedbackScreenshotNormalizer();
+        var refused = await realNormalizer.NormalizeAsync(invalid, Ct);
+        refused.IsFailure.ShouldBeTrue();
+        _normalizer.NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(refused));
+
+        var result = await Handler().Handle(Command(Guid.NewGuid(), rating: 4, screenshot: invalid), Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBe(refused.Error);
+        (await CountAsync()).ShouldBe((0, 0, 0));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_AnImageWithoutARatingOrComment_IsRefusedBeforeNormalization()
+    {
+        await RegisterAsync(_userId);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+
+        var result = await Handler().Handle(Command(Guid.NewGuid(), screenshot: png), Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Feedback.Empty");
+        (await CountAsync()).ShouldBe((0, 0, 0));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AnImageWhileTheGateIsClosed_IsRefusedBeforeNormalization()
+    {
+        await RegisterAsync(_userId);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+
+        var result = await Handler(Gate(enabled: false)).Handle(
+            Command(Guid.NewGuid(), rating: 4, screenshot: png), Ct);
+
+        result.Error.Code.ShouldBe("Feedback.Closed");
+        (await CountAsync()).ShouldBe((0, 0, 0));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AnImageWithoutAnOwner_IsRefusedBeforeNormalization()
+    {
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+
+        var result = await Handler().Handle(Command(Guid.NewGuid(), rating: 4, screenshot: png), Ct);
+
+        result.Error.Code.ShouldBe("JobSeeker.NotFound");
+        (await CountAsync()).ShouldBe((0, 0, 0));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
+        await _normalizer.DidNotReceive().NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_CancellationDuringNormalization_DoesNotPersistAnyFeedbackRows()
+    {
+        await RegisterAsync(_userId);
+        var png = await FeedbackScreenshotFixtures.PngAsync(Ct);
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        using var realNormalizer = new FeedbackScreenshotNormalizer();
+        _normalizer.NormalizeAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                cancelled.Cancel();
+                return realNormalizer.NormalizeAsync(call.Arg<ReadOnlyMemory<byte>>(), cancelled.Token);
+            });
+
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await Handler().Handle(Command(Guid.NewGuid(), rating: 4, screenshot: png), cancelled.Token));
+
+        (await CountAsync()).ShouldBe((0, 0, 0));
+        (await _db.FeedbackScreenshots.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]

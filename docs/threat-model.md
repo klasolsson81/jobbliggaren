@@ -179,6 +179,8 @@ the provider call and never resent automatically when its outcome is unknown.
 Review recipients, the gate that keeps feedback closed without a recipient or a
 delivering transport, and the admin reads of reporters' addresses.
 
+Feedback screenshots are untrusted personal data, potentially a plaintext copy of a CV or a recruiter's details (ADR 0156 PR2 amendment, 2026-10-08). Review the PNG/JPEG/WebP-only magic-byte and codec restrictions, strict single-frame identification, pixel/input/output bounds, allocator and concurrency budgets, and memory-only multipart buffering. PNG metadata preflight validates chunk boundaries/CRCs and caps cumulative zlib expansion and legacy EXIF/IPTC profiles at 5 MiB before library allocation. Normalization removes metadata and writes fixed 8-bit RGBA-PNG without resizing. Replay cannot replace an image; image, submission and notice share the save. Admin-only binary reads and their dedicated same-origin/session BFF bound bytes and return no-store/nosniff, with image/png only on success. Metadata reads do not fetch bytes. Logs/errors must not carry pixels, filenames, client MIME or build licence secrets. Retention/account erasure delete the image before its submission; recruiter erasure discloses unsearchable pixels and requires human review without OCR. Logical backup excludes only screenshot data, preserving schema and feedback; the deployed backup script must be verified separately before PR3 opens the feature. Deleting a CV does not erase its separate feedback screenshot: PR3 privacy text must disclose that copy.
+
 Account erasure crosses DeleteAccountCommandHandler, HardDeleteAccountsJob and
 `src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs`. New storage must
 include originals, derived artifacts, identities, audit handling and DEKs in its
@@ -235,6 +237,13 @@ failed or stale evidence is not approval. An authorized session's attestation is
 not independent machine validation of a native report. Preserve CI and the
 local panel; apply the external same-PR Medium+ loop to Codex work as specified
 in [the review runbook](runbooks/codex-pr-review.md).
+
+Build licences are credentials too. Keep SIXLABORS_LICENSE_KEY only in
+sixlabors-pr-build (manual controller review of the exact head/run; no admin
+bypass) and sixlabors-main-build (the exact main branch only). Use no repository
+or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch main
+code may select the main environment. Review PR code before approving its
+environment; new heads require new review.
 
 ## Release chain and the deploy box
 

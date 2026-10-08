@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Feedback.Commands.SubmitFeedback;
@@ -9,15 +10,11 @@ using Microsoft.AspNetCore.Http.Features;
 
 namespace Jobbliggaren.Api.Endpoints;
 
-/// <summary>
-/// #1979 — a signed-in user's feedback. The submission is multipart from the start: one JSON
-/// <c>payload</c> field now, and the optional screenshot part in the next PR, so the contract keeps
-/// its shape (senior-cto-advisor 2d). Parsing stays here; the command takes typed values (M4).
-/// </summary>
+/// <summary>A signed-in user sends one feedback payload and an optional screenshot.</summary>
 public static class MeFeedbackEndpoints
 {
-    /// <summary>The whole multipart body today: the payload holds at most 2 000 characters of text.</summary>
-    internal const long MaxSubmissionBytes = 64 * 1024;
+    internal const int MaxPayloadBytes = 64 * 1024;
+    internal const long MaxSubmissionBytes = FeedbackScreenshot.MaxContentBytes + MaxPayloadBytes;
 
     public sealed record FeedbackClientPayload(
         int? ViewportWidth = null,
@@ -54,14 +51,19 @@ public static class MeFeedbackEndpoints
             if (bodySize is { IsReadOnly: false })
                 bodySize.MaxRequestBodySize = MaxSubmissionBytes;
 
+            if (request.ContentLength > MaxSubmissionBytes)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
             if (!request.HasFormContentType)
                 return InvalidSubmission();
 
             request.HttpContext.Features.Set<IFormFeature>(new FormFeature(request, new FormOptions
             {
                 MultipartBodyLengthLimit = MaxSubmissionBytes,
-                ValueCountLimit = 4,
-                ValueLengthLimit = (int)MaxSubmissionBytes,
+                MemoryBufferThreshold = (int)MaxSubmissionBytes,
+                BufferBodyLengthLimit = MaxSubmissionBytes,
+                ValueCountLimit = 2,
+                ValueLengthLimit = MaxPayloadBytes,
             }));
 
             IFormCollection form;
@@ -69,20 +71,28 @@ public static class MeFeedbackEndpoints
             {
                 form = await request.ReadFormAsync(ct);
             }
+            catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+            {
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
             catch (Exception ex) when (ex is InvalidDataException or IOException)
             {
                 return InvalidSubmission();
             }
 
-            // A file part arrives with the screenshot support; until then it is refused, never ignored.
-            if (form.Files.Count > 0)
+            if (form.Count != 1 || !form.TryGetValue("payload", out var values) || values.Count != 1
+                || form.Files.Count > 1 || (form.Files.Count == 1 && form.Files[0].Name != "screenshot"))
+                return InvalidSubmission();
+
+            var payloadJson = values[0] ?? string.Empty;
+            if (Encoding.UTF8.GetByteCount(payloadJson) > MaxPayloadBytes)
                 return InvalidSubmission();
 
             FeedbackSubmissionPayload? payload;
             try
             {
                 payload = JsonSerializer.Deserialize<FeedbackSubmissionPayload>(
-                    form["payload"].ToString(), JsonSerializerOptions.Web);
+                    payloadJson, JsonSerializerOptions.Web);
             }
             catch (JsonException)
             {
@@ -92,7 +102,19 @@ public static class MeFeedbackEndpoints
             if (payload is null)
                 return InvalidSubmission();
 
-            var result = await mediator.Send(ToCommand(payload), ct);
+            ReadOnlyMemory<byte>? screenshot = null;
+            if (form.Files.Count == 1)
+            {
+                var file = form.Files[0];
+                if (file.Length <= 0 || file.Length > FeedbackScreenshot.MaxContentBytes)
+                    return InvalidSubmission();
+                var bytes = new byte[(int)file.Length];
+                await using var stream = file.OpenReadStream();
+                await stream.ReadExactlyAsync(bytes, ct);
+                screenshot = bytes;
+            }
+
+            var result = await mediator.Send(ToCommand(payload, screenshot), ct);
             if (result.IsFailure)
                 return result.Error.ToProblemResult();
 
@@ -111,7 +133,7 @@ public static class MeFeedbackEndpoints
           .RequireRateLimiting(RateLimitingExtensions.FeedbackPromptStatePolicy);
     }
 
-    private static SubmitFeedbackCommand ToCommand(FeedbackSubmissionPayload payload)
+    private static SubmitFeedbackCommand ToCommand(FeedbackSubmissionPayload payload, ReadOnlyMemory<byte>? screenshot)
     {
         var client = payload.Client ?? new FeedbackClientPayload();
         return new SubmitFeedbackCommand(
@@ -129,7 +151,8 @@ public static class MeFeedbackEndpoints
                 ReportedName<ReportedDeviceClass>(client.DeviceClass),
                 ReportedName<ReportedOsFamily>(client.OsFamily),
                 ReportedName<ReportedBrowserFamily>(client.BrowserFamily)),
-            payload.AppVersion);
+            payload.AppVersion,
+            screenshot);
     }
 
     // A reported family is matched by NAME only; a number or an unknown name is dropped, never refused.

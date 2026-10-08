@@ -21,17 +21,15 @@ COPY src/Jobbliggaren.Application/ src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/ src/Jobbliggaren.Infrastructure/
 COPY src/Jobbliggaren.Worker/ src/Jobbliggaren.Worker/
 
-RUN dotnet publish src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj \
+RUN --mount=type=secret,id=sixlabors_license,required=true dotnet publish src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj \
     -c Release \
     -o /app/publish \
     --no-restore \
-    /p:UseAppHost=false
+    /p:UseAppHost=false \
+    /p:SixLaborsLicenseFile=/run/secrets/sixlabors_license
 
 # ---------------------------------------------------------------------------
 # Stage 2: runtime
-# Worker använder aspnet-runtime tills TD-19 stänger Hangfire.AspNetCore-
-# dependency. När TD-19 löst → byt till `mcr.microsoft.com/dotnet/runtime:10.0`
-# (mindre image, ~80 MB sparat per image, mindre attack-yta).
 # Worker startar ingen HTTP-server (ADR 0023) trots aspnet-runtime.
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
@@ -42,17 +40,8 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY licenses/SixLabors.ImageSharp/ /app/licenses/SixLabors.ImageSharp/
 
 USER app
-
-# Inga portar. Inga HEALTHCHECK — Hangfire-processen är sin egen liveness-signal, och
-# liveness uttrycks i compose som healthcheck + restart-policy, som #196 äger.
-#
-# SIGTERM-handling: Hangfire ShutdownTimeoutSeconds=25 (per appsettings.Production.json),
-# host disposal 28 s, och därefter orkestratorns grace-period innan SIGKILL. Den sista
-# halvan finns INTE i repot än — ingen compose-fil här deklarerar en worker-tjänst eller
-# en grace-period, och #196 äger den. Marginalen går alltså inte att ange här; den följer
-# av det värde #196 sätter. (Blocket namngav Fargate stopTimeout=30 s och en 5 s marginal
-# till 2026-08-05; ADR 0066 rev den plattformen.)
 
 ENTRYPOINT ["dotnet", "Jobbliggaren.Worker.dll"]

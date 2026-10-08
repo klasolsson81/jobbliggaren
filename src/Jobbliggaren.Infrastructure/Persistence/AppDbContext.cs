@@ -40,6 +40,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CompanyWatchCriterion> CompanyWatchCriteria => Set<CompanyWatchCriterion>();
     // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
     public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
+    public DbSet<FeedbackScreenshot> FeedbackScreenshots => Set<FeedbackScreenshot>();
     public DbSet<FeedbackNotification> FeedbackNotifications => Set<FeedbackNotification>();
     public DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions => Set<FeedbackPromptSuppression>();
 

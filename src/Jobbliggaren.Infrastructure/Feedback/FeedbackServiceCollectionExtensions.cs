@@ -18,6 +18,7 @@ internal static class FeedbackServiceCollectionExtensions
     {
         services.AddOptions<FeedbackOptions>().Bind(configuration.GetSection(FeedbackOptions.SectionName));
         services.AddScoped<FeedbackGate>();
+        services.AddSingleton<IFeedbackScreenshotNormalizer, FeedbackScreenshotNormalizer>();
         services.AddScoped<IFeedbackRatingSummaryReader, SqlFeedbackRatingSummaryReader>();
         return services;
     }

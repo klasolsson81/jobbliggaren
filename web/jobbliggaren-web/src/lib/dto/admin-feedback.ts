@@ -87,6 +87,9 @@ export const feedbackDetailSchema = z.object({
     browserFamily: lenient(["Chrome", "Edge", "Firefox", "Safari", "SamsungInternet", "Opera", "Other"]),
   }),
   appVersion: z.string().nullable(),
+  screenshot: z.object({ width: pixels, height: pixels })
+    .refine(({ width, height }) => width * height <= 16_000_000)
+    .nullable().default(null),
   notification: z
     .object({
       state: noticeStateSchema,
@@ -242,6 +245,7 @@ export function toFeedbackItem(dto: FeedbackDetailDto): AdminFeedbackItem {
       browser: client.browserFamily === null ? null : BROWSER[client.browserFamily],
     },
     appVersion: dto.appVersion,
+    screenshot: dto.screenshot,
     notice:
       dto.notification === null
         ? null

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
@@ -43,6 +44,7 @@ export interface AdminFeedbackViewProps {
   readonly list: AdminValueRegion<AdminFeedbackListPage>;
   /** Null while the URL opens no submission; `empty` when the one it names does not exist. */
   readonly detail: AdminRegion<AdminFeedbackItem> | null;
+  readonly screenshot?: ReactNode;
   readonly summary: AdminRegion<ReadonlyArray<AdminFeedbackPageSummary>>;
   /** A refused read's own line, by region; a region without one shows the shared failed line. */
   readonly failedLines?: { readonly list?: string; readonly detail?: string; readonly summary?: string };
@@ -71,6 +73,7 @@ export function AdminFeedbackView({
   availability,
   list,
   detail,
+  screenshot,
   summary,
   failedLines,
   onStatus,
@@ -101,6 +104,7 @@ export function AdminFeedbackView({
             <AdminFeedbackDetail
               key={query.id ?? ""}
               region={detail}
+              screenshot={screenshot}
               openId={query.id ?? ""}
               backHref={feedbackHref(basePath, withoutId(query))}
               failed={failedLines?.detail}

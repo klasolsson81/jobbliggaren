@@ -192,6 +192,9 @@ internal static class MappedPlaintextExposureRegistry
                 + "text she wrote, stored in plaintext by Klas's decision; page_key, rating, status, "
                 + "app_version and the reported viewport, screen, theme and device families are on her "
                 + "row. Deleted after 90 days and at account deletion.",
+            ["feedback_screenshots"] = "Plaintext PNG pixels submitted with her feedback (JobSeekerId). "
+                + "May show her CV or third-party personal data. Deleted after 90 days and on account deletion; "
+                + "table data is excluded from logical backups (ADR 0156 PR2).",
             ["feedback_notifications"] = "The operator notice about her submission (JobSeekerId). "
                 + "state and the timestamps are delivery bookkeeping, but the row is attributable to her.",
             ["feedback_prompt_suppressions"] = "That she gave feedback on a page (JobSeekerId), kept "

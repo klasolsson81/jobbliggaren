@@ -282,5 +282,6 @@
          plus rotens byggfiler, och noll Amazon-importer i någon .cs under samma rötter. Lägg inte tillbaka
          ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
          SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
   </ItemGroup>
 </Project>

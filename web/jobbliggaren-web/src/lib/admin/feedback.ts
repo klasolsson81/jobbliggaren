@@ -13,6 +13,8 @@ export const FEEDBACK_ROUTE = "/admin/feedback";
 /** The list's page size. */
 export const FEEDBACK_PAGE_SIZE = 25;
 
+export const MAX_FEEDBACK_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
 /**
  * The pages feedback is collected for, as the backend keys them, in the app's own order. The backend's
  * `FeedbackPage` is the closed set; a key outside this list is shown as it came and never filtered on.

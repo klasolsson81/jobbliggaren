@@ -13,7 +13,10 @@ public sealed record FeedbackDetailDto(
     string? ReporterEmail,
     ReportedClientDto Client,
     string? AppVersion,
-    FeedbackNotificationDto? Notification)
+    FeedbackNotificationDto? Notification,
+    FeedbackScreenshotMetadataDto? Screenshot = null)
 {
     public override string ToString() => $"FeedbackDetailDto({Id}, {Status})";
 }
+
+public sealed record FeedbackScreenshotMetadataDto(int Width, int Height);

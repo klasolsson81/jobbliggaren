@@ -39,11 +39,12 @@ COPY src/Jobbliggaren.Infrastructure/ src/Jobbliggaren.Infrastructure/
 COPY src/Jobbliggaren.Migrate.Provisioning/ src/Jobbliggaren.Migrate.Provisioning/
 COPY src/Jobbliggaren.Migrate/ src/Jobbliggaren.Migrate/
 
-RUN dotnet publish src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj \
+RUN --mount=type=secret,id=sixlabors_license,required=true dotnet publish src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj \
     -c Release \
     -o /app/publish \
     --no-restore \
-    /p:UseAppHost=false
+    /p:UseAppHost=false \
+    /p:SixLaborsLicenseFile=/run/secrets/sixlabors_license
 
 # ---------------------------------------------------------------------------
 # Stage 2: runtime — aspnet:10.0-noble (krävs av Infrastructure-projektets
@@ -57,6 +58,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY licenses/SixLabors.ImageSharp/ /app/licenses/SixLabors.ImageSharp/
 
 # Non-root run (default `app`-user uid 1654 sedan .NET 8).
 USER app

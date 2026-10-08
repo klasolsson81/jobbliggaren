@@ -3,10 +3,12 @@ using Jobbliggaren.Application.Admin.Feedback.Commands.ChangeFeedbackStatus;
 using Jobbliggaren.Application.Admin.Feedback.Commands.RequeueFeedbackNotification;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackAvailability;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackDetail;
+using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackScreenshot;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackSummary;
 using Jobbliggaren.Application.Admin.Feedback.Queries.ListFeedback;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Feedback;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Feedback;
 using Mediator;
 
@@ -58,6 +60,14 @@ public static class AdminFeedbackEndpoints
             http.Response.Headers.CacheControl = "private, no-store";
             var detail = await mediator.Send(new GetFeedbackDetailQuery(id), ct);
             return detail is null ? Results.NotFound() : Results.Ok(detail);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+
+        group.MapGet("/{id:guid}/screenshot", async (Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var screenshot = await mediator.Send(new GetFeedbackScreenshotQuery(id), ct);
+            return screenshot is null
+                ? DomainError.NotFound("Feedback.ScreenshotNotFound", "Det finns ingen skärmbild.").ToProblemResult()
+                : Results.Bytes(screenshot.Content, FeedbackScreenshot.ContentType);
         }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
 
         group.MapPost("/{id:guid}/status", async (

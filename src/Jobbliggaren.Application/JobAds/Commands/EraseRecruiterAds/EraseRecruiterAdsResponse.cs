@@ -254,17 +254,16 @@ public sealed record UnsearchableSurfaces
     public static UnsearchableSurfaces FromRegistry() => new(
         columns: ErasureCascadeRegistry.UnsearchableColumns,
 
-        // SEVEN columns across all three encryption forms — not "three notes columns" (that text
-        // survived two rounds after the list outgrew it, on a member handed to a data subject).
         reason:
-            "Encrypted at rest under a per-user key envelope (ADR 0049 C3/C4 / 0066 — Form A "
+            "The text and CV-file columns are encrypted at rest under a per-user key envelope (ADR 0049 C3/C4 / 0066 — Form A "
             + "in-place text: the application notes, follow-up notes, cover letters and the raw CV "
             + "text; Form B encrypted shadows: the structured CV content; Form C sealed binary: "
             + "the uploaded CV FILE itself). Scanning them would mean decrypting every user's "
             + "private texts and documents to serve one third party's request — building a "
             + "read-everyone's-content capability permanently (Art. 25(2)/32), with no lawful "
             + "basis toward those other data subjects (Art. 6). We refuse the MECHANISM, not the "
-            + "person.",
+            + "person. Feedback screenshot pixels are a separate plaintext copy and are not "
+            + "searched: no OCR or automatic image scan runs.",
 
         escalation:
             "applications.job_ad_id already names every application written TO a matched ad, "
@@ -272,7 +271,9 @@ public sealed record UnsearchableSurfaces
             + "as ApplicationsReferencingMatchedAds. For the residual: if she knows she appears in a "
             + "specific application or a specific CV, a TARGETED decryption of that one identified "
             + "user's record is proportionate and buildable, and a human does it. The reply must "
-            + "offer her that route.");
+            + "offer her that route. The operator must also offer manual review of identified "
+            + "feedback screenshots, including when the searchable comments had no match, and "
+            + "erase an identified image or its complete submission within the request deadline.");
 }
 
 /// <summary>

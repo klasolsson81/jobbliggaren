@@ -20,7 +20,8 @@ public sealed class SubmitFeedbackCommandHandler(
     ICurrentUser currentUser,
     FeedbackGate gate,
     IDateTimeProvider clock,
-    IDbExceptionInspector dbExceptionInspector)
+    IDbExceptionInspector dbExceptionInspector,
+    IFeedbackScreenshotNormalizer normalizer)
     : ICommandHandler<SubmitFeedbackCommand, Result<FeedbackSubmitted>>
 {
     public async ValueTask<Result<FeedbackSubmitted>> Handle(
@@ -49,6 +50,19 @@ public sealed class SubmitFeedbackCommandHandler(
         if (submission.IsFailure)
             return Result.Failure<FeedbackSubmitted>(submission.Error);
 
+        FeedbackScreenshot? screenshot = null;
+        if (command.Screenshot is { } content)
+        {
+            var normalized = await normalizer.NormalizeAsync(content, cancellationToken);
+            if (normalized.IsFailure)
+                return Result.Failure<FeedbackSubmitted>(normalized.Error);
+            var attached = FeedbackScreenshot.AttachTo(
+                submission.Value, normalized.Value.Content, normalized.Value.Width, normalized.Value.Height);
+            if (attached.IsFailure)
+                return Result.Failure<FeedbackSubmitted>(attached.Error);
+            screenshot = attached.Value;
+        }
+
         var notification = FeedbackNotification.QueueFor(submission.Value);
 
         // Two attempts. A unique violation is either the same key saved concurrently (replay it) or
@@ -59,6 +73,8 @@ public sealed class SubmitFeedbackCommandHandler(
             var suppression = await SuppressionForAsync(jobSeekerId, submission.Value.Page, cancellationToken);
             db.FeedbackSubmissions.Add(submission.Value);
             db.FeedbackNotifications.Add(notification);
+            if (screenshot is not null)
+                db.FeedbackScreenshots.Add(screenshot);
             if (suppression is not null)
                 db.FeedbackPromptSuppressions.Add(suppression);
 

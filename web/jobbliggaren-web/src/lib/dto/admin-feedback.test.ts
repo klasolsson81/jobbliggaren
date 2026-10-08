@@ -98,6 +98,7 @@ describe("the admin feedback wire shapes (#1979)", () => {
       submittedAt: "2026-10-04T05:12:00+00:00",
       statusChangedAt: null,
       reporterEmail: "konto.b@example.test",
+      screenshot: null,
       client: {
         viewportWidth: 390,
         viewportHeight: 844,
@@ -161,5 +162,20 @@ describe("the admin feedback wire shapes (#1979)", () => {
     );
     expect(wireFeedbackStatus("inProgress")).toBe("InProgress");
     expect(wireFeedbackStatus("declined")).toBe("Declined");
+  });
+});
+
+describe("feedback screenshot metadata", () => {
+  it("reads only dimensions and strips bytes from detail metadata", () => {
+    const parsed = feedbackDetailSchema.parse({ ...DETAIL, screenshot: { width: 4000, height: 4000, content: "unreachable-binary-in-detail" } });
+    expect(toFeedbackItem(parsed).screenshot).toEqual({ width: 4000, height: 4000 });
+  });
+  it("reads actual absence as null, including older detail responses", () => {
+    expect(toFeedbackItem(feedbackDetailSchema.parse({ ...DETAIL, screenshot: null })).screenshot).toBeNull();
+    expect(toFeedbackItem(feedbackDetailSchema.parse(DETAIL)).screenshot).toBeNull();
+  });
+  it.each([{ width: 0, height: 100 }, { width: 4001, height: 4000 }, { width: 1.5, height: 10 }])("rejects invalid dimensions", (screenshot) => {
+    // Declared unreachable: the screenshot aggregate rejects these values; only safe wire refusal is asserted.
+    expect(feedbackDetailSchema.safeParse({ ...DETAIL, screenshot }).success).toBe(false);
   });
 });

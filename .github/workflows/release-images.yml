@@ -120,6 +120,8 @@ jobs:
 
   release:
     name: ${{ matrix.name }}
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    environment: sixlabors-main-build
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -245,6 +247,8 @@ jobs:
       # Built and LOADED, not pushed. The scan below is the gate, and a gate that runs
       # after the push is not a gate — a public image is a public CVE inventory.
       - name: Build ${{ matrix.name }}
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ (matrix.name == 'api' || matrix.name == 'worker' || matrix.name == 'migrate') && secrets.SIXLABORS_LICENSE_KEY || '' }}
         if: steps.published.outputs.already == 'false'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
@@ -252,6 +256,8 @@ jobs:
           file: ${{ matrix.file }}
           push: false
           load: true
+          secret-envs: |
+            sixlabors_license=SIXLABORS_LICENSE_KEY
           tags: ${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}
           # NO cache-to. `mode=min` exports only layers in the FINAL image, and every
           # expensive step here (dotnet restore/publish, pnpm install, next build, the

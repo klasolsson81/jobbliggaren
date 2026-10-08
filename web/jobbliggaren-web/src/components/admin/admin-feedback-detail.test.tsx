@@ -26,6 +26,7 @@ const ITEM: AdminFeedbackItem = {
   submittedAt: "2026-10-04T05:12:00Z",
   statusChangedAt: null,
   reporterEmail: "konto.b@example.test",
+  screenshot: null,
   client: {
     viewportWidth: 1440,
     viewportHeight: 789,

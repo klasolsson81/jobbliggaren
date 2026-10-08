@@ -43,9 +43,7 @@ public recipient, so there is nothing here to steal that would read a backup; th
 someone has to remember. The cost of that, stated plainly: **this box cannot verify that its own
 backups decrypt.** Only the drill can.
 
-**Two artefacts per night, and the split is the design.** The *main* artefact carries every table
-except the **contents** of `user_data_keys`; the *DEK* artefact carries exactly those contents,
-and exactly one verified generation of it is kept. A restore pairs **any main artefact inside the
+**Two artefacts per night, and the split is the design.** A restore pairs **any main artefact inside the
 retention window with the current DEK artefact**. A user hard-deleted since that main artefact was
 taken therefore has no key anywhere in what we hold, and their field-encrypted columns are
 unreadable by any combination of artefacts in our possession.
@@ -870,3 +868,11 @@ a date is a claim that cannot be told from one that has decayed.
    (`release-checklist.md` §2.6 point 3.5). The workstation is inside the trust boundary
    (ADR 0123). That was acceptable for a drill on an empty box; this box is no longer empty, so
    the question is **open** and security-auditor's to settle.
+
+## Feedback screenshots — PR2 amendment, 2026-10-08 (#1979)
+
+The main `pg_dump` excludes **only data** from `public.feedback_screenshots` via `--exclude-table-data=public.feedback_screenshots`, alongside the existing DEK-data and Hangfire-schema exclusions. Never use `--exclude-table` or exclude the feedback schema: the screenshot table definition and submission/notice rows must restore. A restore retains feedback and displays actual image absence. `BackupDumpScopeParityTests` binds all exclusion flags to the real dump/restore drill; that drill seeds an actual submitted/normalized image and checks that feedback survives while the restored image table is empty.
+
+**Before PR3 enables feedback**, verify the installed VPS script separately from the image release: read the main pg_dump invocation in `/opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh` and check the exact data-only screenshot flag. If absent, install/update the script through this runbook's existing operator checkout/install procedure, then read it back and exercise the normal backup checks. Image reconciliation installs no systemd script. Record the installed source revision and readback in the PR3 session; an image's source revision is not that evidence. Do not turn the feature on while this check is pending.
+
+The image is a separate plaintext copy. CV deletion does not find or erase screenshots of that CV. Submission-age retention, account hard deletion and identified-image manual erasure govern that copy, and PR3 must disclose this in privacy text.

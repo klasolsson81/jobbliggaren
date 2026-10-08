@@ -299,6 +299,9 @@ public sealed partial class AccountHardDeleter(
             // ones included, so no pending send outlives the account) and the per-page prompt
             // suppressions. FK-less by-JobSeekerId aggregates (ADR 0011) stored in plaintext (Klas
             // 2026-10-07), so the rows themselves must go. Same transaction, idempotent.
+            await db.FeedbackScreenshots
+                .Where(s => s.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
             await db.FeedbackNotifications
                 .Where(n => n.JobSeekerId == jsId)
                 .ExecuteDeleteAsync(cancellationToken);

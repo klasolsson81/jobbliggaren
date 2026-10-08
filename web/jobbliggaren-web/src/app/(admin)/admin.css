@@ -1078,6 +1078,25 @@
 }
 .jp-adminfeedback__block > .jp-admindl { align-self: stretch; }
 .jp-adminfeedback__block .jp-statusDot { font-size: var(--text-body-sm); }
+.jp-adminfeedback__image {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--radius-sm);
+}
+.jp-adminfeedback__image img {
+  display: block;
+  max-width: 100%;
+  max-height: 16rem;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.jp-adminfeedback__image[data-full-size="true"] { max-height: 32rem; }
+.jp-adminfeedback__image[data-full-size="true"] img {
+  max-width: none;
+  max-height: none;
+}
 /* The current page filter's row in the summary. */
 .jp-adminfeedback__pagelink[aria-current="true"] { font-weight: var(--jp-fw-semibold); }
 /* The summary's page names, the filter's lift, "Till första sidan" and "Alla inskick": text links at

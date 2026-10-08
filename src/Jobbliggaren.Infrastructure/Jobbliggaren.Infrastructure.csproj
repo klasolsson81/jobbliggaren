@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
@@ -44,6 +44,7 @@
          to Infrastructure — the QuestPDF SDK types never cross the Application port surface
          (ICvRenderer is BCL-only; NetArchTest layer guard). -->
     <PackageReference Include="QuestPDF" />
+    <PackageReference Include="SixLabors.ImageSharp" />
     <!-- Transaktionell e-post (#183) deklarerar INGET paket. Scaleway Transactional Email nås över
          en handrullad HttpClient + System.Text.Json — det finns inget officiellt .NET-SDK (mätt
          2026-08-15), och behövs inget: en POST med JSON-kropp. AddHttpClient kommer redan in via

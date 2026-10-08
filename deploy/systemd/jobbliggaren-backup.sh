@@ -278,6 +278,7 @@ docker exec "$PG_CONTAINER" \
   pg_dump -U "$PG_USER" -d "$PG_DATABASE" -Fc --no-owner --no-privileges \
     --exclude-schema=hangfire \
     --exclude-table-data="$DEK_TABLE" \
+    --exclude-table-data=public.feedback_screenshots \
   | age -r "$recipient" \
   | rclone rcat "${RCLONE_FLAGS[@]}" "$main_object"
 main_status=("${PIPESTATUS[@]}")

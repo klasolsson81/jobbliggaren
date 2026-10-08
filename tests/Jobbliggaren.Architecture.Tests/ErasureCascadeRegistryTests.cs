@@ -256,7 +256,7 @@ public class ErasureCascadeRegistryTests
             + "  Erased               — the erasure destroys it\n"
             + "  MatchedHumanErases   — it can hold her identifier; her right applies; a human erases it\n"
             + "  MatchedRetained      — searched and reported, retained on a WRITTEN legal ground\n"
-            + "  HeldButNotSearchable — DEK-encrypted; we hold it and cannot scan it; the reply says so\n"
+            + "  HeldButNotSearchable — encrypted content or screenshot pixels; the reply says it was not searched\n"
             + "  Pseudonymised        — held only as an HMAC\n"
             + "  NotRecruiterData     — the WRITE PATH cannot put her free text here (never 'unlikely')\n\n"
             + "If it cannot hold recruiter text at all, add its TABLE to NonRecruiterTables above.\n"
@@ -675,7 +675,7 @@ public class ErasureCascadeRegistryTests
 
     /// <summary>
     /// The "could not search" list the response is REQUIRED to carry must be non-empty and must name
-    /// exactly the encrypted columns — otherwise the disclosure that makes
+    /// every unsearchable column — otherwise the disclosure that makes
     /// <c>NoMatchInSearchableSurfaces</c> an honest word is a disclosure of nothing.
     /// </summary>
     [Fact]

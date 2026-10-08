@@ -496,3 +496,13 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
   AWS-yta alls** — den sista var ett utgående HTTPS-anrop till Amazon SES, och e-posten ligger nu
   hos Scaleway i `fr-par`. Även den är avstängd lokalt: Scaleway-armen registreras bara när du
   själv sätter `Email:Provider=Scaleway`, och den skickar då riktig post som kostar pengar.
+
+## ImageSharp build licence (#1979 PR2)
+
+ImageSharp 4.1.2 is a direct Infrastructure dependency. Obtain your own community licence through [Six Labors](https://licensing.sixlabors.com/) and keep the supplied file outside the checkout. Supply its **full contents**, not just its Key field, as `SIXLABORS_LICENSE_KEY` in the build process environment; `Directory.Build.props` maps it to the package's validated property. Never echo it, pass it as a command-line key, commit it, or publish a diagnostic binary log containing evaluated properties. The repo ignores `sixlabors.lic` defensively and the Docker context excludes it.
+
+Store the full licence as `SIXLABORS_LICENSE_KEY` only in two GitHub environments. Configure `sixlabors-pr-build` with Klas as required reviewer, administrator bypass disabled and manual review of the run's exact head before approval. Allow Klas to review his own initiated runs because he is the sole reviewer. Configure `sixlabors-main-build` with exactly one branch rule, `main`, and no tag or PR rules; only fixed-SHA main code may use it. Remove repository and Dependabot copies of the secret and keep no fallback. Licence-consuming jobs select the main environment only for `push`, `schedule` or `workflow_dispatch` on `refs/heads/main`; other heads use the reviewed environment. Preserve the complete, unfiltered CI suite.
+
+Dependabot-triggered runs cannot read environment secrets. Update the candidate branch to include these workflows, then start an owner-initiated `workflow_dispatch` against that branch. Verify the resulting run's full SHA before Klas approves `sixlabors-pr-build`; never assume rerunning the original Dependabot job changes its secret access. Repo/environment settings and secret migration require Klas GO under CLAUDE.md §9.2. Read back reviewer/bypass/branch policies before provisioning and approve no head automatically.
+
+Api, Worker and Migrate use the required BuildKit secret `sixlabors_license`, mounted only during publish and referenced by file path; there is no Docker ARG/ENV or COPY of the credential. A local build uses `docker build --secret id=sixlabors_license,src=<outside-checkout-licence-file> -f src/Jobbliggaren.Api/Dockerfile .` (substitute Worker/Migrate for the other hosts). Missing/invalid credentials fail the normal licence check; do not disable it. No licence secret is needed on the VPS at runtime.

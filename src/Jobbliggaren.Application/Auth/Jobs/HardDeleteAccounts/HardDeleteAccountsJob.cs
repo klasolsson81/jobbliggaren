@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 
 /// <summary>
-/// Schemalagt orchestrator-jobb som hard-deletar konton vars 30-dagars
-/// restore-fönster gått ut (ADR 0024 D6 + GDPR Art. 17).
+/// Scheduled permanent account cleanup after the product grace period (ADR 0024 D6).
+/// Restore is unavailable.
 ///
 /// Fyra-stegs-algoritm:
 /// 1. Steg 0 — Orphan-cleanup (Identity-rader utan matchande JobSeeker)

@@ -1,0 +1,45 @@
+{
+  "question": "How is this page working for you?",
+  "rating": {
+    "option": "{rating} of 5",
+    "readout": "{rating} of 5",
+    "clear": "Remove the rating"
+  },
+  "comment": {
+    "label": "Comment (optional)"
+  },
+  "screenshot": {
+    "add": "Add a screenshot",
+    "pasteHint": "You can also paste a screenshot into the comment field.",
+    "preparing": "Preparing the image…",
+    "previewAlt": "The screenshot you have chosen",
+    "remove": "Remove the image",
+    "wrongType": "The image must be a PNG, JPEG or WebP file.",
+    "unreadable": "The image could not be read. Choose another image.",
+    "tooLarge": "The image is too large to open. Choose a smaller image.",
+    "tooDetailed": "The image is too large to send. Crop it or choose a smaller screenshot."
+  },
+  "consent": "Include screen and window size, pixel density, device type, operating system and browser",
+  "consentHint": "Optional. If you want to withdraw your consent afterwards, you can email us and we will delete the information. Read more in the <privacy>privacy policy</privacy>, which opens in a new tab.",
+  "send": "Send feedback",
+  "sending": "Sending…",
+  "sendAgain": "Send again",
+  "receipt": "Thank you. Your feedback has been saved.",
+  "refused": {
+    "empty": "Choose a rating or write a comment.",
+    "comment": "The comment can be at most 2,000 characters.",
+    "screenshot": "The image could not be saved. An image can become too large after processing even if it could be chosen. Remove the image to send without it.",
+    "invalid": "The feedback could not be sent. Reload the page and try again.",
+    "closed": "Feedback cannot be sent right now.",
+    "busy": "It is not possible to send right now. Try again in a moment.",
+    "rateLimited": "You have sent many responses in a short time. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+    "tooLarge": "The image is too large. It can be at most 5 MB.",
+    "signedOut": "You are logged out. Log in again to send feedback.",
+    "signIn": "Log in",
+    "unknown": "We do not know whether your feedback was saved. Send it again, and it will only be saved once."
+  },
+  "footer": {
+    "open": "Give feedback on this page",
+    "title": "Feedback on this page"
+  }
+}

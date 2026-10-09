@@ -7,6 +7,7 @@ import { resolveSkillLabels } from "@/lib/api/skills";
 import { MatchPreferencesCard } from "@/components/settings/match-preferences-card";
 import { MinaSidorShell, ProfileUnavailable } from "@/components/settings/mina-sidor-shell";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -48,31 +49,34 @@ export default async function MinaSidorMatchningPage() {
   const initialSkillGroups = skillGroupsResult?.kind === "ok" ? skillGroupsResult.data : [];
 
   return (
-    <MinaSidorShell active="matchning">
-      {profileResult.kind === "ok" ? (
-        <MatchPreferencesCard
-          occupationFields={taxonomy?.occupationFields ?? []}
-          regions={taxonomy?.regions ?? []}
-          employmentTypes={taxonomy?.employmentTypes ?? []}
-          initialOccupationGroups={profileResult.data.preferredOccupationGroups}
-          initialRegions={profileResult.data.preferredRegions}
-          initialMunicipalities={profileResult.data.preferredMunicipalities}
-          initialRemote={profileResult.data.preferredRemote}
-          initialEmploymentTypes={profileResult.data.preferredEmploymentTypes}
-          initialSkills={profileResult.data.preferredSkills}
-          initialSkillGroups={initialSkillGroups}
-          initialExperienceYears={profileResult.data.experienceYears}
-          initialOccupationExperience={profileResult.data.preferredOccupationExperience}
-          degraded={taxonomy === null}
-        />
-      ) : (
-        <ProfileUnavailable
-          title={t("matchPrefs.title")}
-          retryAfterSeconds={
-            profileResult.kind === "rateLimited" ? profileResult.retryAfterSeconds : undefined
-          }
-        />
-      )}
-    </MinaSidorShell>
+    <>
+      <MinaSidorShell active="matchning">
+        {profileResult.kind === "ok" ? (
+          <MatchPreferencesCard
+            occupationFields={taxonomy?.occupationFields ?? []}
+            regions={taxonomy?.regions ?? []}
+            employmentTypes={taxonomy?.employmentTypes ?? []}
+            initialOccupationGroups={profileResult.data.preferredOccupationGroups}
+            initialRegions={profileResult.data.preferredRegions}
+            initialMunicipalities={profileResult.data.preferredMunicipalities}
+            initialRemote={profileResult.data.preferredRemote}
+            initialEmploymentTypes={profileResult.data.preferredEmploymentTypes}
+            initialSkills={profileResult.data.preferredSkills}
+            initialSkillGroups={initialSkillGroups}
+            initialExperienceYears={profileResult.data.experienceYears}
+            initialOccupationExperience={profileResult.data.preferredOccupationExperience}
+            degraded={taxonomy === null}
+          />
+        ) : (
+          <ProfileUnavailable
+            title={t("matchPrefs.title")}
+            retryAfterSeconds={
+              profileResult.kind === "rateLimited" ? profileResult.retryAfterSeconds : undefined
+            }
+          />
+        )}
+      </MinaSidorShell>
+      <PageFeedback pageKey="my-pages" />
+    </>
   );
 }

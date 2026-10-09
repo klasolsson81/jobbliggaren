@@ -11,6 +11,7 @@ import { ResumeCard } from "@/components/resumes/resume-card";
 import { DiscardDraftButton } from "@/components/resumes/discard-draft-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -227,6 +228,7 @@ export default async function CvListPage() {
           </section>
         )}
       </div>
+      <PageFeedback pageKey="cv" />
     </>
   );
 }

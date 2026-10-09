@@ -10,6 +10,7 @@ import { ApplicationLoadError } from "@/components/applications/application-load
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE: a missing record must not serve this
@@ -60,34 +61,37 @@ export default async function AnsokanDetailPage({ params }: Props) {
       const { title, subtitle } = applicationDetailHeader(application, t, format);
 
       return (
-        <div className="jp-container jp-page">
-          <BackLink label={t("ansokningar.detail.backLink")} />
-          <div className="jp-modal jp-modal--page">
-            <header className="jp-modal__head">
-              <div style={{ flex: 1 }}>
-                <h1 tabIndex={-1} className="jp-modal__title">{title}</h1>
-                <p className="jp-modal__company">{subtitle}</p>
+        <>
+          <div className="jp-container jp-page">
+            <BackLink label={t("ansokningar.detail.backLink")} />
+            <div className="jp-modal jp-modal--page">
+              <header className="jp-modal__head">
+                <div style={{ flex: 1 }}>
+                  <h1 tabIndex={-1} className="jp-modal__title">{title}</h1>
+                  <p className="jp-modal__company">{subtitle}</p>
+                </div>
+              </header>
+              <div className="jp-modal__body">
+                <ApplicationDetailBody
+                  application={application}
+                  now={new Date()}
+                  titleLevel={1}
+                />
               </div>
-            </header>
-            <div className="jp-modal__body">
-              <ApplicationDetailBody
-                application={application}
-                now={new Date()}
-                titleLevel={1}
-              />
-            </div>
-            <div className="jp-modal__foot">
-              <span className="jp-modal__foot__spacer" />
-              <DeleteApplicationButton applicationId={application.id} />
-              <Link
-                href="/ansokningar"
-                className="jp-btn jp-btn--secondary"
-              >
-                {t("common.back")}
-              </Link>
+              <div className="jp-modal__foot">
+                <span className="jp-modal__foot__spacer" />
+                <DeleteApplicationButton applicationId={application.id} />
+                <Link
+                  href="/ansokningar"
+                  className="jp-btn jp-btn--secondary"
+                >
+                  {t("common.back")}
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
+          <PageFeedback pageKey="application" />
+        </>
       );
     }
     case "unauthorized":

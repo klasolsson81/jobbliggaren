@@ -18,6 +18,7 @@ import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE: a missing record must not serve this
@@ -229,6 +230,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
           {t("browse.source")}
         </p>
       </div>
+      <PageFeedback pageKey="industry-watches" />
     </>
   );
 }

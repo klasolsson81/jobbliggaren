@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { InformationLink } from "@/components/information/InformationLink";
 import { useTranslations } from "next-intl";
@@ -119,7 +120,15 @@ const COLUMNS: readonly FooterColumn[] = [
   },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({
+  feedbackSlot,
+}: {
+  /**
+   * The signed-in layout's feedback control (#1979 PR3), rendered last in the support column. The
+   * slot owns its own <li>, so a slot that renders nothing leaves no empty item in the list.
+   */
+  feedbackSlot?: ReactNode;
+}) {
   const t = useTranslations("landing");
   return (
     <footer className="jp-foot">
@@ -159,6 +168,7 @@ export function SiteFooter() {
                       )}
                     </li>
                   ))}
+                  {col.key === "support" && feedbackSlot}
                 </ul>
               </nav>
             );

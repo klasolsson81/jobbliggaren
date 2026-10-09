@@ -1,13 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { SiteFooter } from "./site-footer";
+import { FeedbackFooterButton } from "@/components/feedback/feedback-footer-button";
+import { FeedbackSessionProvider } from "@/components/feedback/feedback-session";
+import type { FeedbackPromptState } from "@/lib/dto/feedback";
 
 // SiteHeader's LanguageSwitcher reads useRouter; next/link
 // resolves navigation hooks too. Mock the navigation surface so the RSC footer
 // renders in jsdom (mirrors landing-page.test.tsx).
+const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
-  usePathname: () => "/",
+  usePathname: () => nav.pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -140,5 +144,66 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     // deleted from src/, so asserting their absence would pass on an empty page.
     render(<SiteFooter />);
     expect(screen.queryByRole("button", { name: /Språk/i })).toBeNull();
+  });
+});
+
+describe("SiteFooter — the feedback slot (#1979 PR3)", () => {
+  beforeEach(() => {
+    nav.pathname = "/";
+  });
+
+  const STATIC_SUPPORT_LINKS = [
+    "Hjälpcenter",
+    "Så fungerar matchningen",
+    "Så granskar vi ditt CV",
+    "Vanliga frågor",
+    "Tips för jobbsökande",
+  ];
+
+  function supportItems() {
+    const list = within(screen.getByRole("navigation", { name: "Stöd och guider" })).getByRole("list");
+    return within(list).queryAllByRole("listitem");
+  }
+
+  function signedInFooter(state: FeedbackPromptState) {
+    return (
+      <FeedbackSessionProvider state={state} renderedVersion={null}>
+        <SiteFooter feedbackSlot={<FeedbackFooterButton />} />
+      </FeedbackSessionProvider>
+    );
+  }
+
+  it("has no slot by default: the support column holds exactly its static links", () => {
+    render(<SiteFooter />);
+    const items = supportItems();
+    expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length);
+    expect(items.map((item) => item.textContent)).toEqual(STATIC_SUPPORT_LINKS);
+    expect(screen.queryByRole("button", { name: "Lämna feedback om sidan" })).toBeNull();
+  });
+
+  it("leaves no empty list item while feedback is closed", () => {
+    nav.pathname = "/jobb";
+    render(signedInFooter({ kind: "closed" }));
+    const items = supportItems();
+    expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length);
+    expect(items.every((item) => item.textContent !== "")).toBe(true);
+  });
+
+  it("leaves no empty list item on a route without a page key", () => {
+    nav.pathname = "/cv/ny";
+    render(signedInFooter({ kind: "open", answered: [] }));
+    expect(supportItems()).toHaveLength(STATIC_SUPPORT_LINKS.length);
+  });
+
+  it("renders the feedback button as the last item of the support column while feedback is open", () => {
+    nav.pathname = "/jobb";
+    render(signedInFooter({ kind: "open", answered: [] }));
+    const items = supportItems();
+    expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length + 1);
+    expect(within(items.at(-1)!).getByRole("button", { name: "Lämna feedback om sidan" })).toBeVisible();
+    // Only the support column carries it.
+    for (const name of ["Kom igång", "Om Jobbliggaren", "Juridik"]) {
+      expect(within(screen.getByRole("navigation", { name })).queryByRole("button")).toBeNull();
+    }
   });
 });

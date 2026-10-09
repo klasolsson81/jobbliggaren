@@ -5,6 +5,7 @@ import { getRecentSearches } from "@/lib/api/recent-searches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { RecentSearchList } from "@/components/recent-searches/recent-search-list";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -33,16 +34,19 @@ export default async function SokningarPage() {
   const result = await getRecentSearches();
 
   return (
-    <div className="jp-container jp-page flex flex-col">
-      <div>
-        <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
-          {t("sokningar.title")}
-        </h1>
-        <p className="jp-lede">{t("sokningar.lede")}</p>
-      </div>
+    <>
+      <div className="jp-container jp-page flex flex-col">
+        <div>
+          <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
+            {t("sokningar.title")}
+          </h1>
+          <p className="jp-lede">{t("sokningar.lede")}</p>
+        </div>
 
-      <div className="mt-7">{renderResult(result, t)}</div>
-    </div>
+        <div className="mt-7">{renderResult(result, t)}</div>
+      </div>
+      <PageFeedback pageKey="saved-searches" />
+    </>
   );
 }
 

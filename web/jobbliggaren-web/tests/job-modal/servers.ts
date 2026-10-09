@@ -44,6 +44,24 @@ export const ADDRESS_CHANGE_CODES = {
   unknown: "555555",
 } as const;
 
+/** How the fixture backend answers the next feedback submission (#1979), one per answer the BFF maps. */
+export type FeedbackAnswer =
+  | "saved"
+  | "empty"
+  | "comment"
+  | "screenshot"
+  | "closed"
+  | "busy"
+  | "tooLarge"
+  | "rateLimited"
+  | "unknown";
+
+/** What a feedback submission carried to the backend: the payload as sent, and the image's shape. */
+export type FeedbackReceipt = {
+  readonly payload: Record<string, unknown>;
+  readonly screenshot: { readonly bytes: number; readonly png: boolean; readonly width: number; readonly height: number } | null;
+};
+
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
@@ -57,6 +75,9 @@ export type Harness = {
   readonly requests: string[];
   readonly syntheticUploadReceipts: readonly boolean[];
   rejectNextImport: boolean;
+  /** #1979 — closed by default, so every other spec renders its pages without the feedback row. */
+  readonly feedback: { open: boolean; answeredPages: string[]; answer: FeedbackAnswer };
+  readonly feedbackReceipts: FeedbackReceipt[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -82,6 +103,31 @@ function localhostCertificate(): { key: Buffer; cert: Buffer } {
     { stdio: "ignore" }
   );
   return { key: readFileSync(key), cert: readFileSync(cert) };
+}
+
+// PNG's signature, then IHDR's width and height as big-endian 32-bit integers at bytes 16 and 20.
+function screenshotShape(bytes: Uint8Array): NonNullable<FeedbackReceipt["screenshot"]> {
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((b, i) => bytes[i] === b);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return {
+    bytes: bytes.byteLength,
+    png,
+    width: png && bytes.byteLength >= 24 ? view.getUint32(16) : 0,
+    height: png && bytes.byteLength >= 24 ? view.getUint32(20) : 0,
+  };
+}
+
+async function feedbackOf(request: IncomingMessage): Promise<FeedbackReceipt> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  const form = await new Response(Buffer.concat(chunks), {
+    headers: { "Content-Type": request.headers["content-type"] ?? "" },
+  }).formData();
+  const shot = form.get("screenshot");
+  return {
+    payload: JSON.parse(String(form.get("payload"))) as Record<string, unknown>,
+    screenshot: shot instanceof Blob ? screenshotShape(new Uint8Array(await shot.arrayBuffer())) : null,
+  };
 }
 
 async function bodyOf(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -128,6 +174,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
   const misses: string[] = [];
   const requests: string[] = [];
   const syntheticUploadReceipts: boolean[] = [];
+  const feedbackReceipts: FeedbackReceipt[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -148,10 +195,16 @@ export async function startHarness(informationFlows = false, applicationCopies =
     requests,
     syntheticUploadReceipts,
     rejectNextImport: false,
+    feedback: { open: false, answeredPages: [], answer: "saved" },
+    feedbackReceipts,
     reset() {
       misses.length = 0;
       requests.length = 0;
       syntheticUploadReceipts.length = 0;
+      feedbackReceipts.length = 0;
+      harness.feedback.open = false;
+      harness.feedback.answeredPages = [];
+      harness.feedback.answer = "saved";
       harness.rejectNextImport = false;
       harness.occupationStated = true;
       harness.jobAdReadGate = null;
@@ -208,7 +261,36 @@ export async function startHarness(informationFlows = false, applicationCopies =
       }
       return json(200, { parsedResumeId: "19860000-0000-4000-8000-000000000001", personnummer: { found: true, count: 1, kinds: ["Personnummer"] }, outcome: "LeftPending", resumeId: null, blockReason: "PersonnummerPresent" });
     }
+    if (route === "POST /api/v1/me/feedback") {
+      const receipt = await feedbackOf(request);
+      feedbackReceipts.push(receipt);
+      const problem = (status: number, title: string) => json(status, { title, status });
+      switch (harness.feedback.answer) {
+        case "saved":
+          harness.feedback.answeredPages.push(String(receipt.payload.page));
+          return json(201, { id: randomUUID(), replayed: false });
+        case "empty":
+          return problem(400, "Feedback.Empty");
+        case "comment":
+          return problem(400, "Feedback.CommentTooLong");
+        case "screenshot":
+          return problem(400, "Feedback.ScreenshotInvalid");
+        case "closed":
+          return problem(404, "Feedback.Closed");
+        case "busy":
+          return problem(409, "Feedback.ScreenshotBusy");
+        case "tooLarge":
+          return problem(413, "Payload Too Large");
+        case "rateLimited":
+          response.writeHead(429, { "Content-Type": "application/json", "Retry-After": "540" });
+          return response.end(JSON.stringify({ title: "Too Many Requests", status: 429 }));
+        case "unknown":
+          return problem(500, "Internal Server Error");
+      }
+    }
     switch (route) {
+      case "GET /api/v1/me/feedback/prompt-state":
+        return json(200, { open: harness.feedback.open, answeredPages: harness.feedback.answeredPages });
       case "GET /api/v1/auth/oauth/providers":
         return json(200, []);
       case "GET /api/v1/me":

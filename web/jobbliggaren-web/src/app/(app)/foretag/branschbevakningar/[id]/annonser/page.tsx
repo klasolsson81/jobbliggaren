@@ -24,6 +24,7 @@ import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE, exactly as the parent route's does — a missing
@@ -400,6 +401,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.source")}
         </p>
       </div>
+      <PageFeedback pageKey="industry-watches" />
     </>
   );
 }

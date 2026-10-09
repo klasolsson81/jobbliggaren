@@ -29,6 +29,7 @@ import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-sear
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -409,6 +410,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
           </Announcer>
         </section>
       </div>
+      <PageFeedback pageKey="jobs" />
     </>
   );
 }

@@ -12,6 +12,10 @@ import { AppShell } from "@/components/shell/app-shell";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
 import { fetchLandingStats } from "@/lib/api/landing";
+import { getFeedbackPromptState } from "@/lib/api/feedback";
+import { env } from "@/lib/env";
+import { FeedbackFooterButton } from "@/components/feedback/feedback-footer-button";
+import { FeedbackSessionProvider } from "@/components/feedback/feedback-session";
 import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
 import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
@@ -36,6 +40,9 @@ export default async function AppLayout({
   // authad sid-laddning). `cache()`-wrappad och returnerar värde/null (kastar
   // aldrig), så på guest-redirect-vägen löser det svävande löftet sig ofarligt.
   const statsPromise = fetchLandingStats();
+  // #1979 PR3: per-user, but it reads the session itself, never throws and answers within a second, so it
+  // starts beside the session read too. On the redirect path it settles harmlessly.
+  const feedbackPromise = getFeedbackPromptState();
 
   const user = await getServerSession();
   // Middleware blocks unauthenticated requests via cookie presence, but the
@@ -44,6 +51,7 @@ export default async function AppLayout({
 
   const isAdmin = user.roles.includes(ROLES.Admin);
   const initialStats = (await statsPromise) ?? LANDING_STATS_UNKNOWN_DTO;
+  const feedbackState = await feedbackPromise;
   const t = await getTranslations("pages");
 
   // #737 — the signed-in surface is the widest boundary: its client subtree
@@ -59,6 +67,7 @@ export default async function AppLayout({
     "common",
     "components",
     "fallback",
+    "feedback",
     "jobads",
     "landing",
     "matchsetup",
@@ -71,20 +80,22 @@ export default async function AppLayout({
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      <SkipLink label={t("layout.skipToContent")} />
-      <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
-        <ReloadedAfterUpdateNotice placement="rail" />
-        {children}
-        {modal}
-      </AppShell>
-      {/* LP-3 (#256): the shared deep-green footer mounts at the shell level.
-          Moving footer chrome inside AppShell's flex column is LP-5b/#259. */}
-      <SiteFooter />
-      {/* #630 PR 7 (CTO-bind 2): EN toast-host för hela (app)-ytan — både
-          pipeline-ön och den intercept-monterade detaljmodalen publicerar till
-          samma modul-store (toast-store.ts). Fixed-positionerad, renderar null
-          utan aktiv toast. */}
-      <ApplicationToastHost />
+      <FeedbackSessionProvider state={feedbackState} renderedVersion={env.APP_VERSION}>
+        <SkipLink label={t("layout.skipToContent")} />
+        <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
+          <ReloadedAfterUpdateNotice placement="rail" />
+          {children}
+          {modal}
+        </AppShell>
+        {/* LP-3 (#256): the shared deep-green footer mounts at the shell level.
+            Moving footer chrome inside AppShell's flex column is LP-5b/#259. */}
+        <SiteFooter feedbackSlot={<FeedbackFooterButton />} />
+        {/* #630 PR 7 (CTO-bind 2): EN toast-host för hela (app)-ytan — både
+            pipeline-ön och den intercept-monterade detaljmodalen publicerar till
+            samma modul-store (toast-store.ts). Fixed-positionerad, renderar null
+            utan aktiv toast. */}
+        <ApplicationToastHost />
+      </FeedbackSessionProvider>
     </NextIntlClientProvider>
   );
 }

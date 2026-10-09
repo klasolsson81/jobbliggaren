@@ -6,6 +6,7 @@ import { getMyMatches, markMatchesSeen } from "@/lib/api/me-matches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { MatchList } from "@/components/matches/match-list";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -58,13 +59,16 @@ export default async function MatchningarPage() {
   }
 
   return (
-    <div className="jp-container jp-page flex flex-col">
-      <div>
-        <h1 className="jp-h1">{t("matchningar.title")}</h1>
-      </div>
+    <>
+      <div className="jp-container jp-page flex flex-col">
+        <div>
+          <h1 className="jp-h1">{t("matchningar.title")}</h1>
+        </div>
 
-      <div className="mt-7">{renderResult(result, t)}</div>
-    </div>
+        <div className="mt-7">{renderResult(result, t)}</div>
+      </div>
+      <PageFeedback pageKey="matches" />
+    </>
   );
 }
 

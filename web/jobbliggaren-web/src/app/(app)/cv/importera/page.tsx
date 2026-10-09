@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -50,6 +51,7 @@ export default async function CvImportPage() {
 
         <CvUploadForm />
       </div>
+      <PageFeedback pageKey="cv-import" />
     </>
   );
 }

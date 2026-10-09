@@ -8,6 +8,7 @@ import { ForetagPagehero } from "@/components/foretag/foretag-pagehero";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { renderSection } from "@/components/foretag/foretag-section";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -55,6 +56,7 @@ export default async function BevakadeForetagPage() {
           <CompanyWatchList items={data} regions={regions} />
         ))}
       </div>
+      <PageFeedback pageKey="followed-companies" />
     </>
   );
 }

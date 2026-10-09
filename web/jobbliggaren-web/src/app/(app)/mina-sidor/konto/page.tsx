@@ -5,6 +5,7 @@ import { getMyProfile } from "@/lib/api/me";
 import { AccountSection } from "@/components/settings/account-section";
 import { MinaSidorShell } from "@/components/settings/mina-sidor-shell";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -20,14 +21,17 @@ export default async function MinaSidorKontoPage() {
   if (profileResult.kind === "unauthorized") redirect("/logga-in");
 
   return (
-    <MinaSidorShell active="konto">
-      <AccountSection
-        email={user.email}
-        language={profileResult.kind === "ok" ? profileResult.data.language : null}
-        retryAfterSeconds={
-          profileResult.kind === "rateLimited" ? profileResult.retryAfterSeconds : undefined
-        }
-      />
-    </MinaSidorShell>
+    <>
+      <MinaSidorShell active="konto">
+        <AccountSection
+          email={user.email}
+          language={profileResult.kind === "ok" ? profileResult.data.language : null}
+          retryAfterSeconds={
+            profileResult.kind === "rateLimited" ? profileResult.retryAfterSeconds : undefined
+          }
+        />
+      </MinaSidorShell>
+      <PageFeedback pageKey="my-pages" />
+    </>
   );
 }

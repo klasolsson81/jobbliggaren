@@ -3,7 +3,9 @@ import {
   lastTwelveSwedishMonths,
   previousSwedishDateSlug,
   previousSwedishMonth,
+  swedishDateParts,
   swedishDateSlug,
+  swedishDaysBetween,
   swedishMonthOf,
   withSelectedMonth,
 } from "./swedish-calendar";
@@ -148,6 +150,46 @@ describe("previousSwedishDateSlug", () => {
   it("rolls the month and the year back on the 1st", () => {
     expect(previousSwedishDateSlug(new Date("2026-03-01T09:00:00Z"))).toBe("2026-02-28");
     expect(previousSwedishDateSlug(new Date("2025-12-31T23:30:00Z"))).toBe("2025-12-31");
+  });
+});
+
+describe("swedishDateParts", () => {
+  it("reads the Swedish date and weekday, not UTC's, just after Swedish midnight", () => {
+    // 00:30 on Friday 1 Jan 2027 in Sweden (CET); UTC still says Thursday 31 Dec 2026.
+    expect(swedishDateParts(new Date("2026-12-31T23:30:00Z"))).toEqual({
+      year: 2027,
+      month: 1,
+      day: 1,
+      weekday: 5,
+    });
+  });
+
+  it("agrees with UTC mid-day", () => {
+    expect(swedishDateParts(new Date("2026-06-15T09:00:00Z"))).toEqual({
+      year: 2026,
+      month: 6,
+      day: 15,
+      weekday: 1,
+    });
+  });
+});
+
+describe("swedishDaysBetween", () => {
+  it("counts Swedish dates, not UTC dates", () => {
+    // 21:00 on 7 Oct and 01:30 on 8 Oct in Sweden — the same UTC date.
+    expect(swedishDaysBetween(new Date("2026-10-07T19:00:00Z"), new Date("2026-10-07T23:30:00Z"))).toBe(1);
+    // 00:15 and 23:45 on 8 Oct in Sweden — two UTC dates.
+    expect(swedishDaysBetween(new Date("2026-10-07T22:15:00Z"), new Date("2026-10-08T21:45:00Z"))).toBe(0);
+  });
+
+  it("counts the 23- and 25-hour DST days as one day each", () => {
+    expect(swedishDaysBetween(new Date("2026-03-28T22:30:00Z"), new Date("2026-03-29T21:30:00Z"))).toBe(1);
+    expect(swedishDaysBetween(new Date("2026-10-24T21:30:00Z"), new Date("2026-10-25T22:30:00Z"))).toBe(1);
+  });
+
+  it("is negative when from is later, and an integer across a year", () => {
+    expect(swedishDaysBetween(new Date("2026-10-08T10:00:00Z"), new Date("2026-10-06T10:00:00Z"))).toBe(-2);
+    expect(swedishDaysBetween(new Date("2026-01-01T10:00:00Z"), new Date("2027-01-01T10:00:00Z"))).toBe(365);
   });
 });
 

@@ -12,7 +12,7 @@ const t: RelativeTimeTranslator = (key, values) =>
   values?.count != null ? `${key}:${values.count}` : key;
 
 describe("daysSince", () => {
-  it("counts whole UTC calendar days, 0 for today, negative for the future", () => {
+  it("counts whole Swedish calendar days, 0 for today, negative for the future", () => {
     const now = new Date("2026-05-24T12:00:00Z");
     expect(daysSince("2026-05-24T00:00:00Z", now)).toBe(0);
     expect(daysSince("2026-05-22T00:00:00Z", now)).toBe(2);

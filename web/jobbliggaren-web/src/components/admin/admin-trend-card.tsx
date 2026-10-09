@@ -1,7 +1,7 @@
 "use client";
 
 // "use client": the card holds the chosen period.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import type { AdminTrendDay, AdminValueRegion } from "@/lib/admin/view-models";
 import {
@@ -36,8 +36,10 @@ function Guides() {
  */
 export function AdminTrendCard({
   region,
+  note,
 }: {
   readonly region: AdminValueRegion<ReadonlyArray<AdminTrendDay>>;
+  readonly note?: ReactNode;
 }) {
   const t = useTranslations("admin.overview.trend");
   const [period, setPeriod] = useState<AdminTrendPeriod>("d30");
@@ -67,6 +69,7 @@ export function AdminTrendCard({
           <AdminRegionLine kind={region.kind} soonId={SOON_ID} quiet />
         </div>
       )}
+      {note}
     </AdminCard>
   );
 }
@@ -77,11 +80,12 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
   const summary = summarizeTrend(days);
 
   const maxNew = Math.max(1, ...days.map((day) => day.newAccounts));
-  const maxLogins = Math.max(1, ...days.map((day) => day.logins));
+  const loginsKnown = summary.logins !== null;
+  const maxLogins = Math.max(1, ...days.map((day) => day.logins ?? 0));
   const height = (value: number, max: number) => (value / max) * (PLOT_HEIGHT - HEADROOM);
   const gap = days.length > 30 ? 1 : 2;
   const line = days
-    .map((day, index) => `${index * SLOT + SLOT / 2},${PLOT_HEIGHT - height(day.logins, maxLogins)}`)
+    .map((day, index) => `${index * SLOT + SLOT / 2},${PLOT_HEIGHT - height(day.logins ?? 0, maxLogins)}`)
     .join(" ");
   const label = (date: string) =>
     format.dateTime(new Date(`${date}T12:00:00Z`), { day: "numeric", month: "short" });
@@ -100,7 +104,7 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
         </li>
         <li>
           <span className="jp-admintrend__swatch jp-admintrend__swatch--line" aria-hidden="true" />
-          {t("legend.logins")}
+          {t("legend.logins")}{loginsKnown ? null : ` · ${t("loginsUnavailable")}`}
         </li>
       </ul>
       <div className="jp-admintrend__plot">
@@ -125,7 +129,7 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
               />
             );
           })}
-          <polyline className="jp-admintrend__line" points={line} vectorEffect="non-scaling-stroke" />
+          {loginsKnown ? <polyline className="jp-admintrend__line" points={line} vectorEffect="non-scaling-stroke" /> : null}
         </svg>
       </div>
       {first === undefined || middle === undefined ? null : (
@@ -136,7 +140,9 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
         </div>
       )}
       <p className="jp-admintrend__summary">
-        {t("summary", { days: summary.days, newAccounts: summary.newAccounts, logins: summary.logins })}
+        {summary.logins === null
+          ? t("registrationsSummary", { days: summary.days, newAccounts: summary.newAccounts })
+          : t("summary", { days: summary.days, newAccounts: summary.newAccounts, logins: summary.logins })}
         {summary.newAccountsPeak.count === 0
           ? null
           : summary.newAccountsPeak.date === null
@@ -145,7 +151,7 @@ function TrendPlot({ days }: { readonly days: ReadonlyArray<AdminTrendDay> }) {
                 count: summary.newAccountsPeak.count,
                 date: longLabel(summary.newAccountsPeak.date),
               })}`}
-        {summary.loginsPeak.count === 0
+        {summary.loginsPeak === null || summary.loginsPeak.count === 0
           ? null
           : summary.loginsPeak.date === null
             ? ` ${t("peakLoginsShared", { count: summary.loginsPeak.count })}`

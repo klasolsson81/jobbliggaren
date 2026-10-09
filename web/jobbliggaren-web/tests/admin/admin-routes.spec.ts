@@ -47,7 +47,6 @@ const PAGES = [
 
 // Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts.
 const UNBUILT = [
-  "/admin",
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",
@@ -472,6 +471,11 @@ test("an address change goes through the administrator's own step-up, above the 
   const stepUp = page.getByRole("dialog", { name: "Ändra e-postadress" });
   await expect(stepUp).toContainText("En kod skickas till ny.adress@example.test och ett meddelande till konto.e@example.test.");
   await expect(stepUp).toContainText("skickar vi en sexsiffrig kod till admin@example.test");
+
+  await stepUp.evaluate(async element => {
+    await Promise.all(element.getAnimations({ subtree: true })
+      .map(animation => animation.finished.catch(() => undefined)));
+  });
 
   // The step-up sits above the panel, by the stylesheet's layers and not by portal order: what is drawn at the
   // panel's head is the step-up's overlay, and at the step-up's middle the step-up itself. The open step-up turns

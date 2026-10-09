@@ -607,6 +607,38 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 > BYOK, inga credits.
 
 **Admin (Admin policy; `IAdminRequest` also enforced by the Mediator pipeline)**
+- `GET /api/v1/admin/overview/accounts` — retained Identity account totals, lifecycle partition and up to 90 Swedish-calendar registration days, sampled with the injected clock; private/no-store including refusals and errors (#1978, ADR 0150/0151).
+
+The overview counts every retained Identity account, including accounts without a profile. Lifecycle priority is
+`ProfileMissing > PendingDeletion > Suspended > Active`; Active describes account state, not user activity.
+New accounts count retained accounts with a profile by the profile's registration timestamp, including suspended
+accounts and pending deletions. Profileless and permanently erased accounts do not enter registration counts.
+Today, yesterday, last 7 and last 30 use Swedish calendar days; the 7-day period includes today and the preceding 6 days.
+The 7/30/90-day chart includes the ongoing day. Each day's UTC boundaries are calculated separately by
+`ISwedishCalendar`, with half-open `[start,end)` windows and today's end clamped to the observation instant.
+
+Clickable totals, statuses and registration periods open the directory. Optional paired `registeredFrom` /
+`registeredBefore` instants use the same population and predicate for overview, search, pagination and status counts.
+Equal boundaries represent an empty window; reversed or incomplete pairs fail validation. The date filter stays
+through search, sorting, status changes and paging and is explicitly clearable. Browser URLs carry dates/status only.
+
+The initial Server Component loads accounts, the latest five stored audit rows (time then ID descending), and
+current failed-job count in parallel through independent HTTP requests, each with a 10-second deadline.
+Successful existing audit/job responses retain their bodies and add `X-Admin-Sampled-At`.
+Before data crosses RSC/BFF boundaries, audit is projected to event ID/time/type and aggregate type/ID;
+jobs are projected to count and observation time. No subject lookup, IP, user-agent, address or job payload reaches
+the overview. This stored audit read adds no dependency on the Seq subject-correlation work in #1958.
+
+`GET /api/admin/oversikt` checks its own session and uses the backend's current Admin decision. Every response is
+private/no-store. The client refreshes every 60 seconds while visible, aborts when hidden/unmounted, allows one
+request at a time and refreshes immediately when visible again. Missing/invalid observation time is a source failure.
+Ordinary source failure preserves that source's last successful value only in component memory, marked immediately
+as a failed update. Each source displays its observation time; values older than 5 minutes are marked old.
+Any 401/403 clears all privileged overview data and stops polling. Initial data always comes from the server.
+Activity, logins, host/services, backup and general email delivery remain `Kommer snart`; no login zero-series is
+manufactured. Attention names failed jobs and pending deletions with links and never turns a failed read into
+a zero or a general all-clear.
+
 - `POST /api/v1/admin/accounts/search` — kontolistan: en sida och statusräkningarna; söktermen går i kroppen, aldrig i URL:en (#1974, ADR 0151)
 - `GET /api/v1/admin/accounts/{id}` — ett kontos uppgifter (#1974, ADR 0151)
 - `POST /api/v1/admin/accounts/{id}/email-change` — påbörja ett adressbyte som kontoägaren slutför efter fördröjningen; kräver administratörens egen kod (#1975, ADR 0153)

@@ -79,6 +79,8 @@ export type AccountSearchStatus = (typeof ACCOUNT_SEARCH_STATUSES)[number];
 /** A search request: the term travels only in a POST body, never in a URL. */
 export interface AccountSearchCriteria {
   readonly address?: string;
+  readonly registeredFrom?: string;
+  readonly registeredBefore?: string;
   readonly status?: AccountSearchStatus;
   readonly sort: AccountSort;
   readonly page: number;

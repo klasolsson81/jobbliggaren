@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
 
 namespace Jobbliggaren.Application.Admin.Accounts;
@@ -6,7 +7,7 @@ namespace Jobbliggaren.Application.Admin.Accounts;
 /// <summary>
 /// Every account Identity holds, with the profile facts that set its status (ADR 0151). Answering it takes
 /// one bounded statement across the identity and app schemas, so it lives in Infrastructure behind this
-/// port. Only the three admin account queries and the request of an address change (#1975) consume it; an
+/// port. Only the admin account queries consume it; an
 /// architecture test pins that.
 /// </summary>
 public interface IAccountDirectory
@@ -15,7 +16,10 @@ public interface IAccountDirectory
     Task<AccountDirectoryPage> SearchAsync(AccountDirectorySearch search, CancellationToken cancellationToken);
 
     /// <summary>How many accounts match the address term, in all and per status.</summary>
-    Task<AccountStatusCounts> CountByStatusAsync(string? address, CancellationToken cancellationToken);
+    Task<AccountStatusCounts> CountByStatusAsync(string? address, CancellationToken cancellationToken,
+        DateTimeOffset? registeredFrom = null, DateTimeOffset? registeredBefore = null);
+
+    Task<AccountDirectoryOverview> GetOverviewAsync(IReadOnlyList<CivilDayWindow> days, CancellationToken cancellationToken);
 
     /// <summary>The account with this id, or null when Identity holds none.</summary>
     Task<AccountDirectoryEntry?> FindAsync(Guid userId, CancellationToken cancellationToken);
@@ -27,7 +31,9 @@ public sealed record AccountDirectorySearch(
     AccountStatus? Status,
     AccountSort Sort,
     int Page,
-    int PageSize)
+    int PageSize,
+    DateTimeOffset? RegisteredFrom = null,
+    DateTimeOffset? RegisteredBefore = null)
 {
     public override string ToString() =>
         $"AccountDirectorySearch(address {(string.IsNullOrWhiteSpace(Address) ? "none" : "redacted")}, "
@@ -65,3 +71,8 @@ public sealed record AccountDirectoryEntry(
 public sealed record AccountDirectoryPage(IReadOnlyList<AccountDirectoryEntry> Entries, int TotalCount);
 
 public sealed record AccountStatusCounts(int Total, int Active, int PendingDeletion, int ProfileMissing, int Suspended = 0);
+
+
+public sealed record AccountDirectoryOverview(AccountStatusCounts Counts, IReadOnlyList<AccountRegistrationDay> Days);
+
+public sealed record AccountRegistrationDay(DateOnly Date, int NewAccounts);

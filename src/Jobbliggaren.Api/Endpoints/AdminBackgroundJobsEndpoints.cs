@@ -1,9 +1,11 @@
+using System.Globalization;
 using Hangfire;
 using Hangfire.Storage;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.BackgroundJobs.Commands.RequeueFailedJob;
 using Jobbliggaren.Application.Admin.BackgroundJobs.Commands.TriggerRecurringJob;
 using Jobbliggaren.Application.Common.Authorization;
+using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -70,7 +72,7 @@ public static class AdminBackgroundJobsEndpoints
         // GET /api/v1/admin/jobs/failed — de senaste misslyckade jobben (sanerade)
         // plus det totala antalet i Failed-state. SECURITY: projektionen ytsätter
         // bara id/typnamn/tidpunkt/felkategori — aldrig rå stack trace eller args.
-        group.MapGet("/failed", (JobStorage storage, HttpResponse response) =>
+        group.MapGet("/failed", (JobStorage storage, HttpResponse response, IDateTimeProvider clock) =>
         {
             NoStore(response);
 
@@ -84,6 +86,7 @@ public static class AdminBackgroundJobsEndpoints
                 .Select(kvp => AdminBackgroundJobsProjection.ToFailedDto(kvp.Key, kvp.Value))
                 .ToList();
 
+            response.Headers[AdminEndpoints.SampledAtHeader] = clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
             return Results.Ok(new FailedJobsResponse(totalCount, MaxFailedJobs, items));
         });
 

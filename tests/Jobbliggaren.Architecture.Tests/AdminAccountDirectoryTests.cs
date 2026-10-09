@@ -2,6 +2,7 @@ using System.Reflection;
 using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Admin.Accounts.Queries.CountAccountsByStatus;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
+using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountOverview;
 using Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
@@ -12,7 +13,7 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// #1974 (ADR 0151) — the admin surface's messages carry the admin gate, and the account directory reaches
-/// only the three admin queries. Address-change requests read the primary access state inside their own scopes.
+/// only the admin account queries. Address-change requests read the primary access state inside their own scopes.
 /// The directory can list every account's address, so it
 /// is the tool that
 /// would reopen the account-existence oracle the login page closes; the gate sits on the message, not on
@@ -76,6 +77,7 @@ public class AdminAccountDirectoryTests
             {
                 typeof(CountAccountsByStatusQueryHandler).FullName!,
                 typeof(GetAccountDetailsQueryHandler).FullName!,
+                typeof(GetAccountOverviewQueryHandler).FullName!,
                 typeof(SearchAccountsQueryHandler).FullName!,
             }.OrderBy(name => name, StringComparer.Ordinal).ToList(),
             "A new consumer of the account directory reads every account's address; it needs the admin gate "

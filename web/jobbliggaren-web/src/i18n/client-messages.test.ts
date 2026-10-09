@@ -19,6 +19,29 @@ describe("pickClientMessages", () => {
     expect(Object.keys(client).sort()).toEqual(["common", "landing"]);
   });
 
+  it("selects the account reauthentication branch in both locales without other settings", () => {
+    for (const messages of [svMessages, enMessages]) {
+      const client = pickClientMessages(messages, ["settings.account.reauth", "common"]);
+      expect(Object.keys(client.settings)).toEqual(["account"]);
+      expect(Object.keys(client.settings.account)).toEqual(["reauth"]);
+      expect(client.settings.account.reauth).toBe(messages.settings.account.reauth);
+      expect(client.common).toBe(messages.common);
+      expect(messages.settings).toHaveProperty("display");
+      expect(messages.settings.account).toHaveProperty("reauth");
+    }
+  });
+
+  it("a declared parent retains its whole subtree in either declaration order", () => {
+    for (const paths of [["admin.users", "admin"], ["admin", "admin.users"]]) {
+      expect(pickClientMessages(svMessages, paths).admin).toBe(svMessages.admin);
+    }
+  });
+
+  it("rejects server-only descendants and ignores missing branches", () => {
+    expect(pickClientMessages(svMessages, ["metadata.title", "errors.auth", "admin.missing"]))
+      .toEqual({});
+  });
+
   it("returns an empty payload for an empty declaration (the root boundary)", () => {
     // Root wraps every route, so its payload is added to every document on top
     // of the nested boundary's own set — an empty declaration must really mean

@@ -18,6 +18,7 @@ type Session = { userId: string; email: string; roles: string[] } | null;
 const getServerSession = vi.hoisted(() => vi.fn<() => Promise<Session>>());
 vi.mock("@/lib/auth/session", () => ({ getServerSession }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
   redirect: (path: string) => {
     throw new Error(`REDIRECT:${path}`);
   },
@@ -168,4 +169,18 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
     getServerSession.mockResolvedValue(null);
     await expect(AdminUsersPage()).rejects.toThrow(/^REDIRECT:\/logga-in$/);
   });
+});
+it("forwards the overview's validated registration interval and status to the initial server read", async () => {
+  searchAccounts.mockResolvedValue({ kind: "ok", data: RESPONSE });
+  const filters = { registeredFrom: "2026-09-30T22:00:00Z", registeredBefore: "2026-10-08T10:00:00Z", status: "Active" };
+  render(await AdminUsersPage({ searchParams: Promise.resolve(filters) }));
+  expect(searchAccounts).toHaveBeenCalledWith({ ...filters, sort: "RegisteredNewest", page: 1, pageSize: 25 });
+  expect(screen.getByRole("button", { name: "Rensa period" })).toBeVisible();
+});
+
+it("offers recovery from invalid registration bounds without reading an unfiltered account list", async () => {
+  render(await AdminUsersPage({ searchParams: Promise.resolve({ registeredFrom: "invalid" }) }));
+  expect(searchAccounts).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert")).toHaveTextContent("Filtret kunde inte läsas");
+  expect(screen.getByRole("link", { name: "Rensa period" })).toHaveAttribute("href", "/admin/anvandare");
 });

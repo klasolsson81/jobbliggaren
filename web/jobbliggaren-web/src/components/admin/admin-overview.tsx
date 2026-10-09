@@ -27,6 +27,9 @@ import {
   type AdminServiceStatus,
   type AdminValueRegion,
 } from "@/lib/admin/view-models";
+import { accountsHref, type AdminOverviewSnapshot } from "@/lib/admin/overview";
+import type { RegistrationPeriod } from "@/lib/dto/admin-overview";
+import { AdminObservationNote } from "./admin-observation-note";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
@@ -58,15 +61,21 @@ const ATTENTION_PATH: Readonly<Record<AdminAttentionKind, string>> = {
  */
 export function AdminOverview({
   basePath = "/admin",
-  regions = ADMIN_OVERVIEW_UNAVAILABLE,
+  regions: suppliedRegions = ADMIN_OVERVIEW_UNAVAILABLE,
+  observations,
+  now = 0,
 }: {
   readonly basePath?: string;
   readonly regions?: AdminOverviewRegions;
+  readonly observations?: AdminOverviewSnapshot;
+  readonly now?: number;
 }) {
   const t = useTranslations("admin.overview");
   const shared = useTranslations("admin.regions");
   const format = useFormatter();
-  const kinds = new Set(Object.values(regions).map((region) => region.kind));
+  const regions = observations ? overviewRegions(observations) : suppliedRegions;
+  const accountData = observations?.accounts.kind === "loaded" ? observations.accounts.data : null;
+  const kinds = new Set(Object.values(observations ?? regions).map((region) => region.kind));
 
   return (
     <div className="flex flex-col gap-6">
@@ -88,11 +97,13 @@ export function AdminOverview({
           title={t("kpi.newUsers")}
           icon={UserPlus}
           span={3}
+          note={observations ? <><p className="jp-adminkpi__sub">{t("population")}</p><AdminObservationNote observation={observations.accounts} now={now} /></> : undefined}
           region={regions.newAccounts}
           render={(data) => ({
             value: data.today,
+            href: accountData ? accountsHref(basePath, accountData.newAccounts.today) : undefined,
             unit: t("kpi.unit.today"),
-            sub: t("kpi.newUsersSub", {
+            sub: accountData ? <RegistrationLinks basePath={basePath} periods={accountData.newAccounts} /> : t("kpi.newUsersSub", {
               yesterday: data.yesterday,
               last7Days: data.last7Days,
               last30Days: data.last30Days,
@@ -104,11 +115,14 @@ export function AdminOverview({
           title={t("kpi.total")}
           icon={Users}
           span={3}
+          note={observations ? <AdminObservationNote observation={observations.accounts} now={now} /> : undefined}
           region={regions.totals}
           render={(data) => ({
             value: data.total,
+            href: observations ? accountsHref(basePath) : undefined,
             unit: t("kpi.unit.accounts"),
-            sub: t("kpi.totalSub", { suspended: data.suspended, pendingDeletion: data.pendingDeletion }),
+            sub: accountData ? <AccountStatusLinks basePath={basePath} counts={accountData.counts} />
+              : t("kpi.totalSub", { suspended: data.suspended, pendingDeletion: data.pendingDeletion }),
           })}
         />
         <ValueCard
@@ -136,7 +150,7 @@ export function AdminOverview({
           })}
         />
 
-        <AdminTrendCard region={regions.trend} />
+        <AdminTrendCard region={regions.trend} note={observations ? <AdminObservationNote observation={observations.accounts} now={now} /> : undefined} />
 
         <AdminCard
           id="admin-overview-services"
@@ -198,9 +212,10 @@ export function AdminOverview({
           title={t("attention.title")}
           span={5}
           list
-          attention={attentionState(regions.attention)}
+          attention={observations ? overviewAttentionState(observations) : attentionState(regions.attention)}
         >
-          <AttentionBody region={regions.attention} basePath={basePath} />
+          {observations ? <ObservedAttention observations={observations} now={now} basePath={basePath} />
+            : <AttentionBody region={regions.attention} basePath={basePath} />}
         </AdminCard>
 
         <AdminCard
@@ -210,7 +225,7 @@ export function AdminOverview({
           list
           aside={<AdminCardLink href={`${basePath}/granskning`} label={t("events.link")} />}
         >
-          <EventsBody region={regions.events} />
+          {observations ? <ObservedEvents observations={observations} now={now} /> : <EventsBody region={regions.events} />}
         </AdminCard>
       </div>
     </div>
@@ -225,6 +240,7 @@ function attentionState(region: AdminRegion<ReadonlyArray<unknown>>): "unknown" 
 
 interface ShownValue {
   readonly value: number;
+  readonly href?: string;
   readonly unit: string;
   readonly sub: ReactNode;
   readonly extra?: ReactNode;
@@ -239,6 +255,7 @@ function ValueCard<T>({
   aside,
   region,
   render,
+  note,
 }: {
   readonly id: string;
   readonly title: string;
@@ -247,6 +264,7 @@ function ValueCard<T>({
   readonly aside?: ReactNode;
   readonly region: AdminValueRegion<T>;
   readonly render: (data: T) => ShownValue;
+  readonly note?: ReactNode;
 }) {
   const format = useFormatter();
 
@@ -257,6 +275,7 @@ function ValueCard<T>({
           <span className="jp-adminkpi__value"><AdminUnknown /></span>
         </p>
         <AdminRegionLine quiet kind={region.kind} className="jp-adminkpi__sub" />
+        {note}
       </AdminCard>
     );
   }
@@ -265,11 +284,12 @@ function ValueCard<T>({
   return (
     <AdminCard id={id} title={title} icon={icon} span={span} aside={aside}>
       <p className="jp-adminkpi">
-        <span className="jp-adminkpi__value">{format.number(shown.value)}</span>
+        <span className="jp-adminkpi__value">{shown.href ? <Link href={shown.href} className="jp-adminoverview__link">{format.number(shown.value)}</Link> : format.number(shown.value)}</span>
         <span className="jp-adminkpi__unit">{shown.unit}</span>
       </p>
       <p className="jp-adminkpi__sub">{shown.sub}</p>
       {shown.extra}
+      {note}
     </AdminCard>
   );
 }
@@ -387,4 +407,83 @@ function EventsBody({ region }: { readonly region: AdminRegion<ReadonlyArray<Adm
       ))}
     </ol>
   );
+}
+
+function overviewRegions(snapshot: AdminOverviewSnapshot): AdminOverviewRegions {
+  const account = snapshot.accounts;
+  const loaded = account.kind === "loaded" || account.kind === "empty";
+  const failedOrLoading = loaded ? "failed" : account.kind;
+  return {
+    ...ADMIN_OVERVIEW_UNAVAILABLE,
+    newAccounts: loaded ? { kind: "loaded", data: {
+      today: account.data.newAccounts.today.count, yesterday: account.data.newAccounts.yesterday.count,
+      last7Days: account.data.newAccounts.last7Days.count, last30Days: account.data.newAccounts.last30Days.count,
+    } } : { kind: failedOrLoading },
+    totals: loaded ? { kind: "loaded", data: account.data.counts } : { kind: failedOrLoading },
+    trend: loaded ? { kind: "loaded", data: account.data.days.map((day) => ({ ...day, logins: null })) } : { kind: failedOrLoading },
+    events: { kind: snapshot.audit.kind === "loaded" ? "empty" : snapshot.audit.kind },
+    attention: { kind: snapshot.jobs.kind === "failed" || account.kind === "failed" ? "failed" : "loading" },
+  };
+}
+
+function RegistrationLinks({ basePath, periods }: {
+  readonly basePath: string;
+  readonly periods: Readonly<Record<"today" | "yesterday" | "last7Days" | "last30Days", RegistrationPeriod>>;
+}) {
+  const t = useTranslations("admin.overview.registrationPeriods");
+  return <>{(["yesterday", "last7Days", "last30Days"] as const).map((key, index) =>
+    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, periods[key])} className="jp-adminoverview__link">{t(key, { count: periods[key].count })}</Link></span>)}</>;
+}
+
+function AccountStatusLinks({ basePath, counts }: {
+  readonly basePath: string;
+  readonly counts: Readonly<Record<"active" | "pendingDeletion" | "profileMissing" | "suspended", number>>;
+}) {
+  const t = useTranslations("admin.overview.accountStatus");
+  const statuses = { active: "Active", pendingDeletion: "PendingDeletion", profileMissing: "ProfileMissing", suspended: "Suspended" } as const;
+  return <>{(Object.keys(statuses) as Array<keyof typeof statuses>).map((key, index) =>
+    <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, undefined, statuses[key])} className="jp-adminoverview__link">{t(key, { count: counts[key] })}</Link></span>)}</>;
+}
+
+function overviewAttentionState(snapshot: AdminOverviewSnapshot): "unknown" | "raised" {
+  const pending = snapshot.accounts.kind === "loaded" && snapshot.accounts.data.counts.pendingDeletion > 0;
+  const failed = snapshot.jobs.kind === "loaded" && snapshot.jobs.data.totalCount > 0;
+  return pending || failed ? "raised" : "unknown";
+}
+
+function ObservedAttention({ observations, now, basePath }: {
+  readonly observations: AdminOverviewSnapshot;
+  readonly now: number;
+  readonly basePath: string;
+}) {
+  const t = useTranslations("admin.overview.attention");
+  const { accounts, jobs } = observations;
+  return <div className="jp-admincard__body">
+    {jobs.kind === "loaded" || jobs.kind === "empty" ? <p>{jobs.data.totalCount > 0
+      ? <Link href={`${basePath}/jobb#failed-jobs`} className="jp-adminoverview__link">{t("failedJobs", { count: jobs.data.totalCount })}</Link>
+      : t("noFailedJobs")}</p> : <div><p>{t("jobsSource")}</p><AdminRegionLine kind={jobs.kind} quiet /></div>}
+    <AdminObservationNote observation={jobs} now={now} />
+    {accounts.kind === "loaded" || accounts.kind === "empty" ? <p>{accounts.data.counts.pendingDeletion > 0
+      ? <Link href={accountsHref(basePath, undefined, "PendingDeletion")} className="jp-adminoverview__link">{t("pendingDeletions", { count: accounts.data.counts.pendingDeletion })}</Link>
+      : t("noPendingDeletions")}</p> : <div><p>{t("deletionsSource")}</p><AdminRegionLine kind={accounts.kind} quiet /></div>}
+    <AdminObservationNote observation={accounts} now={now} />
+    <p>{t("emailUnknown")}</p>
+  </div>;
+}
+
+function ObservedEvents({ observations, now }: { readonly observations: AdminOverviewSnapshot; readonly now: number }) {
+  const t = useTranslations("admin.overview.events");
+  const format = useFormatter();
+  const audit = observations.audit;
+  if (audit.kind === "failed" || audit.kind === "loading") return <AdminRegionLine quiet kind={audit.kind} region />;
+  return <>
+    {audit.data.length === 0 ? <AdminRegionLine quiet kind="empty" empty={t("empty")} region /> : <ol className="jp-adminevents jp-adminevents--observed">
+      {audit.data.map((event) => <li key={event.id}>
+        <time dateTime={event.occurredAt}>{formatDateTime(format, event.occurredAt) ?? <AdminUnknown />}</time>
+        <code className="jp-adminevents__subject">{event.eventType}</code>
+        <span className="jp-adminevents__subject">{event.aggregateType} · {event.aggregateId}</span>
+      </li>)}
+    </ol>}
+    <AdminObservationNote observation={audit} now={now} />
+  </>;
 }

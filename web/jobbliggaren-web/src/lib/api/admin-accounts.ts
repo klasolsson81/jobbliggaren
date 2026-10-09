@@ -43,6 +43,8 @@ export function searchBody(criteria: AccountSearchCriteria): Record<string, unkn
   const address = criteria.address?.trim();
   if (address) body.address = address;
   if (criteria.status) body.status = criteria.status;
+  if (criteria.registeredFrom !== undefined) body.registeredFrom = criteria.registeredFrom;
+  if (criteria.registeredBefore !== undefined) body.registeredBefore = criteria.registeredBefore;
   return body;
 }
 

@@ -5,7 +5,7 @@ import { pickClientMessages } from "@/i18n/client-messages";
 
 export default async function AdminAccountsLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "pages", "settings"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "pages", "settings.account.reauth"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

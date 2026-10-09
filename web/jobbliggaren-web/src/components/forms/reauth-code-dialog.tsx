@@ -141,7 +141,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   focusAfterHandOff,
   onOpenChange,
 }: ReAuthCodeDialogProps<T, C>) {
-  const t = useTranslations("settings");
+  const t = useTranslations("settings.account.reauth");
   const tp = useTranslations("pages");
   const tc = useTranslations("common");
 
@@ -346,7 +346,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
         setDead(null);
         setMessage(null);
         setCode("");
-        setResendNotice(t("account.reauth.resendReceipt"));
+        setResendNotice(t("resendReceipt"));
         pendingFocus.current = "code";
         return;
       }
@@ -401,10 +401,10 @@ export function ReAuthCodeDialog<T, C = undefined>({
             <div className="flex flex-col gap-2 [overflow-wrap:anywhere]">
               <p>{description}</p>
               {codeRecipientLabels === undefined && panel === null && step === "request" && (
-                <p>{t("account.reauth.request", { email: currentEmail })}</p>
+                <p>{t("request", { email: currentEmail })}</p>
               )}
               {codeRecipientLabels === undefined && panel === null && step === "code" && (
-                <p id={sentLineId}>{t("account.reauth.sent", { email: currentEmail })}</p>
+                <p id={sentLineId}>{t("sent", { email: currentEmail })}</p>
               )}
             </div>
           </DialogDescription>
@@ -425,10 +425,10 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 </p>
               ) : (
                 <>
-                  <p>{t("account.reauth.notLoggedIn")}</p>
+                  <p>{t("notLoggedIn")}</p>
                   <p>
                     <Link href={`/logga-in?next=${returnPath}`} className={STANDALONE_LINK}>
-                      {t("account.reauth.toLogin")}
+                      {t("toLogin")}
                     </Link>
                   </p>
                 </>
@@ -474,8 +474,8 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 className={cn("max-md:h-11", codeRecipientLabels !== undefined && "h-auto min-h-10 whitespace-normal [overflow-wrap:anywhere]")}>
                 <PendingLabel
                   pending={isPending}
-                  idle={codeRecipientLabels?.request ?? t("account.reauth.send")}
-                  busy={codeRecipientLabels?.pending ?? t("account.reauth.sending")}
+                  idle={codeRecipientLabels?.request ?? t("send")}
+                  busy={codeRecipientLabels?.pending ?? t("sending")}
                 />
               </Button>
             </DialogFooter>
@@ -501,7 +501,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
               <div ref={panelRef} tabIndex={-1} role="status" aria-live="polite">
                 <p className="text-body text-text-primary">
                   {dead === "burned"
-                    ? t("account.reauth.burned")
+                    ? t("burned")
                     : tp("auth.passwordless.code.expired")}
                 </p>
               </div>

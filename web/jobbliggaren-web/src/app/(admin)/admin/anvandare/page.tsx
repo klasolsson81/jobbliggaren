@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { TEXT_LINK } from "@/components/auth/mail-link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -12,6 +14,7 @@ import {
 import { searchAccounts } from "@/lib/api/admin-accounts";
 import { getServerSession } from "@/lib/auth/session";
 import { toAccountsPage } from "@/lib/dto/admin-accounts";
+import { parseAccountFilters } from "@/lib/admin/account-filters";
 import { AccountsDirectory } from "./accounts-directory";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,10 +31,17 @@ export async function generateMetadata(): Promise<Metadata> {
  * their own step-up code goes to their own address. The layout has already read the session, and the read is
  * cached for the request.
  */
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({ searchParams = Promise.resolve({}) }: {
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
   const t = await getTranslations("admin.users");
+  const filters = parseAccountFilters(await searchParams);
+  if (filters === null) return <div className="flex flex-col gap-6">
+    <AdminPageHeader title={t("heading")} />
+    <p role="alert">{t("errors.invalidPeriod")} <Link href="/admin/anvandare" className={TEXT_LINK}>{t("clearRegistrationPeriod")}</Link></p>
+  </div>;
   const [result, user] = await Promise.all([
-    searchAccounts({ sort: wireSort(FIRST_SORT), page: 1, pageSize: ACCOUNTS_PAGE_SIZE }),
+    searchAccounts({ ...filters, sort: wireSort(FIRST_SORT), page: 1, pageSize: ACCOUNTS_PAGE_SIZE }),
     getServerSession(),
   ]);
   if (!user) redirect("/logga-in");
@@ -43,7 +53,7 @@ export default async function AdminUsersPage() {
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader title={t("heading")} />
-      <AccountsDirectory initial={initial} self={{ userId: user.userId, email: user.email }} />
+      <AccountsDirectory initial={initial} initialFilters={filters} self={{ userId: user.userId, email: user.email }} />
     </div>
   );
 }

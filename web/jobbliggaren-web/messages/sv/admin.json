@@ -46,9 +46,9 @@
       "title": "Nya användare och inloggningar",
       "periodLabel": "Period",
       "periods": {
-        "d7": "7 dygn",
-        "d30": "30 dygn",
-        "d90": "90 dygn"
+        "d7": "7 dagar",
+        "d30": "30 dagar",
+        "d90": "90 dagar"
       },
       "legend": {
         "newAccounts": "Nya användare",
@@ -59,7 +59,9 @@
       "peakNewAccounts": "Flest nya användare på en dag: {count}, den {date}.",
       "peakLogins": "Flest inloggningar på en dag: {count}, den {date}.",
       "peakNewAccountsShared": "Flest nya användare på en dag: {count}.",
-      "peakLoginsShared": "Flest inloggningar på en dag: {count}."
+      "peakLoginsShared": "Flest inloggningar på en dag: {count}.",
+      "loginsUnavailable": "Kommer snart",
+      "registrationsSummary": "{newAccounts, plural, =0 {Inga nya konton} one {# nytt konto} other {# nya konton}} de senaste {days} kalenderdagarna. Dagens uppgifter gäller fram till observationstiden."
     },
     "services": {
       "title": "Tjänster",
@@ -97,7 +99,12 @@
       "empty": "Inget kräver uppmärksamhet just nu.",
       "failedJobs": "{count} bakgrundsjobb har misslyckats",
       "pendingDeletions": "{count, plural, one {# konto väntar på radering} other {# konton väntar på radering}}",
-      "failedEmails": "{count} utskick har misslyckats"
+      "failedEmails": "{count} utskick har misslyckats",
+      "noFailedJobs": "Inga misslyckade bakgrundsjobb.",
+      "noPendingDeletions": "Inga konton väntar på radering.",
+      "emailUnknown": "E-postfel kan ännu inte bedömas.",
+      "jobsSource": "Misslyckade bakgrundsjobb",
+      "deletionsSource": "Väntande raderingar"
     },
     "events": {
       "title": "Senaste händelser",
@@ -111,6 +118,30 @@
         "emailChangeRequested": "Adressbyte begärt",
         "jobFailed": "Jobbfel"
       }
+    },
+    "population": "Nya konton räknas bland kvarvarande konton med slutförd registrering.",
+    "observation": {
+      "sampledAt": "Uppgift från",
+      "refreshFailed": "Uppdateringen misslyckades. Senaste uppgiften visas.",
+      "stale": "Uppgiften är äldre än fem minuter.",
+      "current": "Uppgifterna är aktuella.",
+      "announcement": "{source}: {state}",
+      "sources": {
+        "accounts": "Kontostatistik",
+        "audit": "Granskningshändelser",
+        "jobs": "Misslyckade bakgrundsjobb"
+      }
+    },
+    "registrationPeriods": {
+      "yesterday": "{count} igår",
+      "last7Days": "{count} senaste 7 kalenderdagarna",
+      "last30Days": "{count} senaste 30 kalenderdagarna"
+    },
+    "accountStatus": {
+      "active": "{count} aktiva konton",
+      "pendingDeletion": "{count} väntar på radering",
+      "profileMissing": "{count} saknar profil",
+      "suspended": "{count} avstängda"
     }
   },
   "users": {
@@ -169,7 +200,8 @@
       "detailFailed": "Kontots uppgifter kunde inte hämtas. Försök igen om en stund.",
       "gone": "Kontot finns inte längre.",
       "retry": "Försök igen",
-      "signIn": "Logga in"
+      "signIn": "Logga in",
+      "invalidPeriod": "Filtret kunde inte läsas. Öppna användarlistan igen."
     },
     "pager": {
       "label": "Sidnavigering",
@@ -298,7 +330,9 @@
       "scheduleDeletion": "Schemalägger…",
       "cancelEmailChange": "Avbryter…",
       "retry": "Hämtar…"
-    }
+    },
+    "registrationPeriod": "Registrerade från {from} till före {before}.",
+    "clearRegistrationPeriod": "Rensa period"
   },
   "feedback": {
     "meta": {

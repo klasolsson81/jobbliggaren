@@ -52,6 +52,8 @@ export interface ProviderBoundary {
 export interface Reachability {
   /** Top-level namespaces the boundary's client subtree references. */
   readonly namespaces: Set<string>;
+  /** Literal translation paths, before reducing to their top-level namespace. */
+  readonly translationScopes: Set<string>;
   /** Client files reached — the per-boundary counterfactual (R5). */
   readonly clientFileCount: number;
   /** Files reached in total, client or server. */
@@ -213,8 +215,7 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
       if (ts.isIdentifier(node.expression) && node.expression.text === "useTranslations") {
         const arg = node.arguments[0];
         if (arg && ts.isStringLiteralLike(arg)) {
-          const dot = arg.text.indexOf(".");
-          namespaces.push(dot === -1 ? arg.text : arg.text.slice(0, dot));
+          namespaces.push(arg.text);
         } else {
           unresolvedTranslations += 1;
         }
@@ -278,6 +279,7 @@ export function reachableNamespaces(
     .filter((other) => other !== routeRoot && other.startsWith(routeRoot + sep));
 
   const namespaces = new Set<string>();
+  const translationScopes = new Set<string>();
   const clientFiles = new Set<string>();
   const allFiles = new Set<string>();
   const dynamicUnresolved: string[] = [];
@@ -310,7 +312,10 @@ export function reachableNamespaces(
     const nowClient = inClient || scan.isClient;
     if (nowClient) {
       clientFiles.add(file);
-      for (const ns of scan.namespaces) namespaces.add(ns);
+      for (const scope of scan.namespaces) {
+        namespaces.add(scope.split(".")[0] ?? scope);
+        translationScopes.add(scope);
+      }
       if (scan.unresolvedTranslations > 0) {
         unresolvedCalls.push(
           `  ${toPosix(relative(srcRoot, file))}: ${scan.unresolvedTranslations} ` +
@@ -333,6 +338,7 @@ export function reachableNamespaces(
 
   return {
     namespaces,
+    translationScopes,
     clientFileCount: clientFiles.size,
     fileCount: allFiles.size,
     dynamicUnresolved,

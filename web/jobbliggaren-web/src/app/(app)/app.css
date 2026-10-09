@@ -2652,10 +2652,10 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   .jp-ov-card__head .jp-ov-card__pill { height: 44px; padding: 0 14px; }
 }
 
-/* ── Page feedback (#1979 PR3): the rating row at the end of a page, and the footer's dialog ──
-   A compact band under a hairline: no card and no shadow, only the question and five outline
-   stars until a star is chosen. The page above it gives up half its bottom padding to the band,
-   which carries the gap to the footer itself. */
+/* ── Page feedback (#1979 PR3): the rating row at the end of a page, and the feedback dialog ──
+   A compact band under a hairline: no card and no shadow, only the question and five stars, and
+   one line once the rating is saved. The page above it gives up half its bottom padding to the
+   band, which carries the gap to the footer itself. */
 .jp-page:has(~ .jp-feedback) { padding-block-end: 48px; }
 .jp-feedback { padding-block-end: 64px; }
 .jp-feedback__inner {
@@ -2672,6 +2672,45 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   flex-direction: column;
   gap: 20px;
   max-width: 640px;
+}
+.jp-feedback__ask {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* The saved rating, its way to the whole form and its close: one line at desktop; at phone width
+   the button wraps under the receipt while the close stays on the first line, at the end. */
+.jp-feedback__done {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  justify-content: start;
+  align-items: start;
+  column-gap: 8px;
+}
+.jp-feedback__donemain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 44px;
+}
+.jp-feedback__close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  background: transparent;
+  color: var(--jp-ink-2);
+  cursor: pointer;
+}
+.jp-feedback__close:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
 }
 .jp-feedback__rating {
   min-width: 0;
@@ -2690,11 +2729,11 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 4px 8px;
 }
-/* Each star is a 44px target at every width (DESIGN.md §5). The chosen rating is told by the
-   heavier stroke, the bordered plate and the written readout, never by colour alone (WCAG 1.4.1):
-   the accent-50 plate is under 3:1 against the canvas, its 2px accent-700 border is not. */
+.jp-feedback__starset { display: inline-flex; }
+/* Each star is a 44px target at every width (DESIGN.md §5). A filled star against an outlined one
+   tells the rating by shape, not by colour alone (WCAG 1.4.1). */
 .jp-feedback__star {
   position: relative;
   display: inline-flex;
@@ -2702,16 +2741,16 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 2px solid transparent;
   border-radius: var(--jp-r-md);
   color: var(--jp-ink-2);
   cursor: pointer;
 }
-.jp-feedback__star:hover { background: var(--jp-surface-3); }
-.jp-feedback__star[data-lit] { color: var(--jp-accent-700); }
-.jp-feedback__star[data-selected] {
-  border-color: var(--jp-accent-700);
-  background: var(--jp-accent-50);
+.jp-feedback__star[data-filled] { color: var(--jp-accent-700); }
+.jp-feedback__star svg { transition: transform 120ms ease-out; }
+.jp-feedback__star:hover svg { transform: scale(1.1); }
+@media (prefers-reduced-motion: reduce) {
+  .jp-feedback__star svg { transition: none; }
+  .jp-feedback__star:hover svg { transform: none; }
 }
 /* The radio is visually hidden, so its focus ring is drawn on the box around it. */
 .jp-feedback__star:has(:focus-visible) {
@@ -2799,7 +2838,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   flex-shrink: 0;
   color: var(--jp-success);
 }
-/* The footer's dialog: wider than a confirmation dialog for the form, inside the viewport at
+/* The feedback dialog: wider than a confirmation dialog for the form, inside the viewport at
    phone width, and scrolling inside itself when the form is taller than the screen. */
 .jp-feedback-dialog {
   width: calc(100% - 32px);

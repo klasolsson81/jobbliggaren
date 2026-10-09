@@ -53,6 +53,6 @@ export function FeedbackNoticeState({
 
 /** A page's name as the app titles it; a key this web does not know yet is shown as it came. */
 export function useFeedbackPageLabel(): (page: string) => string {
-  const t = useTranslations("admin.feedback.pages");
+  const t = useTranslations("feedback.pages");
   return (page) => (isFeedbackPageKey(page) ? t(page) : page);
 }

@@ -90,7 +90,7 @@ describe("(app)/layout — feedback (#1979 PR3)", () => {
 
     const slot = screen.getByRole("list", { name: "Stöd och guider" });
     // The label resolving at all shows the layout's own client provider carries `feedback`.
-    expect(slot).toContainElement(screen.getByRole("button", { name: "Lämna feedback om sidan" }));
+    expect(slot).toContainElement(screen.getByRole("button", { name: "Lämna feedback" }));
   });
 
   it.each<FeedbackPromptState>([{ kind: "closed" }, { kind: "unavailable" }])(
@@ -100,7 +100,7 @@ describe("(app)/layout — feedback (#1979 PR3)", () => {
 
       render(await AppLayout({ children: <SessionProbe />, modal: null }));
 
-      expect(screen.queryByRole("button", { name: "Lämna feedback om sidan" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Lämna feedback" })).toBeNull();
       expect(screen.getByText(/^open=false /)).toBeInTheDocument();
     },
   );

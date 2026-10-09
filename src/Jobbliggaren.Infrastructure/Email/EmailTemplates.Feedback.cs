@@ -71,5 +71,6 @@ internal static partial class EmailTemplates
             [FeedbackPage.CvImport] = "Importera CV",
             [FeedbackPage.CvReview] = "CV-granskning",
             [FeedbackPage.MyPages] = "Mina sidor",
+            [FeedbackPage.General] = "Allmän feedback",
         }.ToFrozenDictionary();
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackSubmitOutcome } from "@/lib/dto/feedback";
@@ -61,7 +61,7 @@ function Harness({
   onSaved?: () => void;
 }) {
   const controller = useFeedbackForm({ page: "jobs", renderedVersion, codec, onSaved });
-  return <FeedbackForm controller={controller} />;
+  return <FeedbackForm controller={controller} question="Hur fungerar sidan Jobb för dig?" />;
 }
 
 const answer = (outcome: FeedbackSubmitOutcome, status = 200) =>
@@ -77,6 +77,7 @@ function sent(index: number): { payload: SentPayload; screenshot: FormDataEntryV
 
 /** The text on the page, not its copy in the live region. */
 const SHOWN = { ignore: '[role="status"], script, style' };
+const CONSENT = { name: "Skicka med teknisk information om skärm, enhet och webbläsare" };
 const sendButton = (name = "Skicka feedback") => screen.getByRole("button", { name });
 const comment = () => screen.getByRole("textbox", { name: "Kommentar (valfri)" });
 const status = () => screen.getByRole("status");
@@ -147,9 +148,7 @@ describe("FeedbackForm — what Send carries", () => {
     render(<Harness />);
     const user = userEvent.setup();
 
-    const consent = screen.getByRole("checkbox", {
-      name: "Skicka med skärm- och fönsterstorlek, pixeltäthet, enhetstyp, operativsystem och webbläsare",
-    });
+    const consent = screen.getByRole("checkbox", CONSENT);
     expect(consent).not.toBeChecked();
     await user.click(consent);
     await user.click(screen.getByRole("radio", { name: "2 av 5" }));
@@ -163,16 +162,23 @@ describe("FeedbackForm — what Send carries", () => {
 
   it("says how to withdraw the consent before the box is ticked (Art. 7(3))", () => {
     render(<Harness />);
-    const consent = screen.getByRole("checkbox", {
-      name: "Skicka med skärm- och fönsterstorlek, pixeltäthet, enhetstyp, operativsystem och webbläsare",
-    });
-    const hint =
-      "Frivilligt. Vill du återkalla samtycket efteråt kan du mejla oss, så raderar vi uppgifterna. Läs mer i integritetspolicyn, som öppnas i en ny flik.";
+    const consent = screen.getByRole("checkbox", CONSENT);
 
     expect(consent).not.toBeChecked();
-    expect(consent).toHaveAccessibleDescription(hint);
-    expect(screen.getByText(/^Frivilligt\. Vill du återkalla samtycket efteråt/, SHOWN)).toBeVisible();
-    expect(screen.getByRole("link", { name: "integritetspolicyn" })).toHaveAttribute("href", "/integritet");
+    expect(consent).toHaveAccessibleDescription(
+      "Frivilligt. Du kan ta tillbaka det genom att mejla oss. Läs mer (öppnas i ny flik)",
+    );
+    expect(screen.getByText(/^Frivilligt\. Du kan ta tillbaka det genom att mejla oss\./, SHOWN)).toBeVisible();
+  });
+
+  it("opens the privacy policy in a new tab and says so to a screen reader only", () => {
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Läs mer (öppnas i ny flik)" });
+
+    expect(link).toHaveAttribute("href", "/integritet");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(link).getByText("(öppnas i ny flik)")).toHaveClass("sr-only");
   });
 
   it("sends no rendered version when the page was rendered without one", async () => {

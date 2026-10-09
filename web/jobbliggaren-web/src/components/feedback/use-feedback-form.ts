@@ -58,6 +58,8 @@ export type FeedbackFormController = {
   readonly addScreenshot: (file: Blob) => void;
   readonly removeScreenshot: () => void;
   readonly send: () => void;
+  /** Sends the rating alone, under the same key rules as `send`: the row's one-press answer. */
+  readonly sendRating: (rating: number) => void;
   readonly reset: () => void;
 };
 
@@ -109,13 +111,16 @@ export function useFeedbackForm<T extends DecodedImage>({
   renderedVersion,
   codec,
   onSaved,
+  initialRating = null,
 }: {
   page: FeedbackPageKey;
   renderedVersion: string | null;
   codec: ScreenshotCodec<T>;
   onSaved: () => void;
+  /** The rating the form starts with; a reset starts empty. */
+  initialRating?: number | null;
 }): FeedbackFormController {
-  const [state, setState] = useState<FeedbackFormState>(INITIAL);
+  const [state, setState] = useState<FeedbackFormState>(() => ({ ...INITIAL, rating: initialRating }));
   // A second press can arrive before the render that shows the first one as sending.
   const sendingRef = useRef(false);
   const jobRef = useRef(0);
@@ -143,24 +148,16 @@ export function useFeedbackForm<T extends DecodedImage>({
     }
   }
 
-  function send() {
-    if (sendingRef.current || state.phase.kind === "sending" || state.screenshot.kind === "preparing") return;
-    if (state.rating === null && state.comment.trim() === "") {
-      // An image alone is not feedback: the rating or the text is what is answered.
-      const refusal: SendRefusal = { outcome: "refused", reason: "empty" };
-      setState((previous) => ({ ...previous, phase: { kind: "refused", refusal }, announcement: { kind: "refused", refusal } }));
-      return;
-    }
-    const content: FeedbackContent = {
-      page,
-      rating: state.rating,
-      comment: state.comment,
-      screenshot: state.screenshot.kind === "ready" ? state.screenshot.blob : null,
-      shareDeviceContext: state.shareDeviceContext,
-    };
+  function submit(content: FeedbackContent) {
     const keyed = keyFor(state.keyed, content);
     sendingRef.current = true;
-    setState((previous) => ({ ...previous, keyed, phase: { kind: "sending" }, announcement: { kind: "sending" } }));
+    setState((previous) => ({
+      ...previous,
+      rating: content.rating,
+      keyed,
+      phase: { kind: "sending" },
+      announcement: { kind: "sending" },
+    }));
     void post(keyed.key, content).then((outcome) => {
       sendingRef.current = false;
       if (outcome.outcome === "saved") {
@@ -174,6 +171,28 @@ export function useFeedbackForm<T extends DecodedImage>({
         announcement: { kind: "refused", refusal: outcome },
       }));
     });
+  }
+
+  function send() {
+    if (sendingRef.current || state.phase.kind === "sending" || state.screenshot.kind === "preparing") return;
+    if (state.rating === null && state.comment.trim() === "") {
+      // An image alone is not feedback: the rating or the text is what is answered.
+      const refusal: SendRefusal = { outcome: "refused", reason: "empty" };
+      setState((previous) => ({ ...previous, phase: { kind: "refused", refusal }, announcement: { kind: "refused", refusal } }));
+      return;
+    }
+    submit({
+      page,
+      rating: state.rating,
+      comment: state.comment,
+      screenshot: state.screenshot.kind === "ready" ? state.screenshot.blob : null,
+      shareDeviceContext: state.shareDeviceContext,
+    });
+  }
+
+  function sendRating(rating: number) {
+    if (sendingRef.current || state.phase.kind === "sending") return;
+    submit({ page, rating, comment: "", screenshot: null, shareDeviceContext: false });
   }
 
   function addScreenshot(file: Blob) {
@@ -221,6 +240,7 @@ export function useFeedbackForm<T extends DecodedImage>({
       });
     },
     send,
+    sendRating,
     reset: () => {
       jobRef.current++;
       setState(INITIAL);

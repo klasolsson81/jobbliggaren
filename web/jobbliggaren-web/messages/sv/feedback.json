@@ -1,5 +1,5 @@
 {
-  "question": "Hur fungerar den här sidan för dig?",
+  "question": "Hur fungerar sidan {page} för dig?",
   "rating": {
     "option": "{rating} av 5",
     "readout": "{rating} av 5",
@@ -19,12 +19,16 @@
     "tooLarge": "Bilden är för stor för att öppnas. Välj en mindre bild.",
     "tooDetailed": "Bilden är för stor för att skickas. Beskär den eller välj en mindre skärmbild."
   },
-  "consent": "Skicka med skärm- och fönsterstorlek, pixeltäthet, enhetstyp, operativsystem och webbläsare",
-  "consentHint": "Frivilligt. Vill du återkalla samtycket efteråt kan du mejla oss, så raderar vi uppgifterna. Läs mer i <privacy>integritetspolicyn</privacy>, som öppnas i en ny flik.",
+  "consent": "Skicka med teknisk information om skärm, enhet och webbläsare",
+  "consentHint": "Frivilligt. Du kan ta tillbaka det genom att mejla oss. <privacy>Läs mer</privacy>",
+  "newTab": "(öppnas i ny flik)",
   "send": "Skicka feedback",
   "sending": "Skickar…",
   "sendAgain": "Skicka igen",
   "receipt": "Tack. Din feedback är sparad.",
+  "rated": "Tack för ditt betyg.",
+  "more": "Lämna mer feedback",
+  "close": "Stäng",
   "refused": {
     "empty": "Välj ett betyg eller skriv en kommentar.",
     "screenshot": "Bilden kunde inte sparas. En bild kan bli för stor efter bearbetningen även om den gick att välja. Ta bort bilden för att skicka utan den.",
@@ -37,7 +41,35 @@
     "unknown": "Vi vet inte om din feedback sparades. Skicka igen, så sparas den bara en gång."
   },
   "footer": {
-    "open": "Lämna feedback om sidan",
-    "title": "Feedback om sidan"
+    "open": "Lämna feedback"
+  },
+  "dialog": {
+    "title": "Feedback om sidan {page}"
+  },
+  "general": {
+    "title": "Feedback om Jobbliggaren",
+    "question": "Hur fungerar Jobbliggaren för dig?"
+  },
+  "pages": {
+    "overview": "Översikt",
+    "jobs": "Jobb",
+    "job-ad": "Jobbannons",
+    "matches": "Matchningar",
+    "saved-ads": "Sparade annonser",
+    "saved-searches": "Sökningar",
+    "applications": "Ansökningar",
+    "application": "Ansökan",
+    "new-application": "Ny ansökan",
+    "statistics": "Statistik",
+    "activity-report": "Aktivitetsrapport-hjälp",
+    "followed-companies": "Bevakade företag",
+    "company-search": "Sök företag",
+    "industry-watches": "Branschbevakningar",
+    "application-history": "Ansökningshistorik",
+    "cv": "CV",
+    "cv-import": "Importera CV",
+    "cv-review": "CV-granskning",
+    "my-pages": "Mina sidor",
+    "general": "Allmän feedback"
   }
 }

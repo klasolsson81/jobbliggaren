@@ -30,6 +30,9 @@ public sealed class FeedbackPage : SmartEnum<FeedbackPage>
     public static readonly FeedbackPage CvReview = new("cv-review", 18);
     public static readonly FeedbackPage MyPages = new("my-pages", 19);
 
+    /// <summary>The footer's feedback on the service as a whole, bound to no page.</summary>
+    public static readonly FeedbackPage General = new("general", 20);
+
     private FeedbackPage(string name, int value) : base(name, value) { }
 
     /// <summary>Exact, case-sensitive match on the wire key; anything else is refused.</summary>

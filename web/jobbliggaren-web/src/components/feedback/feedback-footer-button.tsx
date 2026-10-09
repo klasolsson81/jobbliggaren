@@ -1,65 +1,36 @@
 "use client";
 
-// "use client": reads the route, the visit's feedback session, and owns a dialog and its form state.
+// "use client": reads the visit's feedback session and owns a dialog's state.
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { browserCodec } from "@/lib/feedback/image/browser-codec";
-import { feedbackPageKeyFor, type FeedbackPageKey } from "@/lib/feedback/page-keys";
-import { FeedbackForm } from "./feedback-form";
+import { FeedbackDialog, useFeedbackDialog } from "./feedback-dialog";
 import { useFeedbackSession, type FeedbackSession } from "./feedback-session";
-import { useFeedbackForm } from "./use-feedback-form";
 
-function FooterFeedback({ page, session }: { page: FeedbackPageKey; session: FeedbackSession }) {
+function GeneralFeedback({ session }: { session: FeedbackSession }) {
   const t = useTranslations("feedback");
-  const [open, setOpen] = useState(false);
-  const controller = useFeedbackForm({
-    page,
-    renderedVersion: session.renderedVersion,
-    codec: browserCodec,
-    onSaved: () => session.markAnswered(page),
-  });
-  const { phase } = controller.state;
+  const dialog = useFeedbackDialog({ page: "general", session });
   // Like the row, it does not vanish with work in it if the session closes meanwhile.
-  const holding = open || controller.hasDraft || phase.kind === "sending" || phase.kind === "saved";
-  if (!session.open && !holding) return null;
+  if (!session.open && !dialog.holding) return null;
 
   return (
     <li>
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          // A saved answer has done its work; the next opening starts a new one. An unsent draft stays.
-          if (!next && phase.kind === "saved") controller.reset();
-        }}
-      >
-        <DialogTrigger asChild>
-          <button type="button" className="jp-foot__linkbtn">
-            {t("footer.open")}
-          </button>
-        </DialogTrigger>
-        <DialogContent aria-describedby={undefined} className="jp-feedback-dialog">
-          <DialogTitle>{t("footer.title")}</DialogTitle>
-          <FeedbackForm controller={controller} />
-        </DialogContent>
-      </Dialog>
+      <FeedbackDialog dialog={dialog}>
+        <button type="button" className="jp-foot__linkbtn">
+          {t("footer.open")}
+        </button>
+      </FeedbackDialog>
     </li>
   );
 }
 
 /**
- * The footer's way to give feedback on the current page at any time (#1979 PR3), also after the page's
- * own row has been answered. It renders nothing on a route without a page key or while feedback is
- * closed. The dialog's draft belongs to this component rather than to the dialog, so closing and
- * reopening keeps it; a new page key starts a new one.
+ * The footer's way to give general feedback on the service (#1979 PR3), on every signed-in route and
+ * whichever pages have been answered; a page's own rating is its row's. It renders nothing outside the
+ * signed-in layout or while feedback is closed. The footer stays mounted across navigation, so one draft
+ * lasts the visit.
  */
 export function FeedbackFooterButton() {
-  const pathname = usePathname();
   const session = useFeedbackSession();
-  const page = feedbackPageKeyFor(pathname);
-  if (session === null || page === null) return null;
-  return <FooterFeedback key={page} page={page} session={session} />;
+  if (session === null) return null;
+  return <GeneralFeedback session={session} />;
 }

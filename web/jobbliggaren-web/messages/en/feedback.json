@@ -1,5 +1,5 @@
 {
-  "question": "How is this page working for you?",
+  "question": "How does the {page} page work for you?",
   "rating": {
     "option": "{rating} of 5",
     "readout": "{rating} of 5",
@@ -19,12 +19,16 @@
     "tooLarge": "The image is too large to open. Choose a smaller image.",
     "tooDetailed": "The image is too large to send. Crop it or choose a smaller screenshot."
   },
-  "consent": "Include screen and window size, pixel density, device type, operating system and browser",
-  "consentHint": "Optional. If you want to withdraw your consent afterwards, you can email us and we will delete the information. Read more in the <privacy>privacy policy</privacy>, which opens in a new tab.",
+  "consent": "Include technical information about screen, device and browser",
+  "consentHint": "Optional. You can withdraw it by emailing us. <privacy>Read more</privacy>",
+  "newTab": "(opens in a new tab)",
   "send": "Send feedback",
   "sending": "Sending…",
   "sendAgain": "Send again",
   "receipt": "Thank you. Your feedback has been saved.",
+  "rated": "Thank you for your rating.",
+  "more": "Give more feedback",
+  "close": "Close",
   "refused": {
     "empty": "Choose a rating or write a comment.",
     "screenshot": "The image could not be saved. An image can become too large after processing even if it could be chosen. Remove the image to send without it.",
@@ -37,7 +41,35 @@
     "unknown": "We do not know whether your feedback was saved. Send it again, and it will only be saved once."
   },
   "footer": {
-    "open": "Give feedback on this page",
-    "title": "Feedback on this page"
+    "open": "Give feedback"
+  },
+  "dialog": {
+    "title": "Feedback on the {page} page"
+  },
+  "general": {
+    "title": "Feedback on Jobbliggaren",
+    "question": "How is Jobbliggaren working for you?"
+  },
+  "pages": {
+    "overview": "Overview",
+    "jobs": "Jobs",
+    "job-ad": "Job ad",
+    "matches": "Matches",
+    "saved-ads": "Saved ads",
+    "saved-searches": "Searches",
+    "applications": "Applications",
+    "application": "Application",
+    "new-application": "New application",
+    "statistics": "Statistics",
+    "activity-report": "Activity report helper",
+    "followed-companies": "Followed companies",
+    "company-search": "Search companies",
+    "industry-watches": "Industry watches",
+    "application-history": "Application history",
+    "cv": "CV",
+    "cv-import": "Import CV",
+    "cv-review": "CV review",
+    "my-pages": "My pages",
+    "general": "General feedback"
   }
 }

@@ -23,7 +23,8 @@ public class DeployComposeFeedbackGateTests
 {
     private const string SwitchKey = "Feedback__Enabled:";
     private const string RecipientKey = "Feedback__NotificationRecipient:";
-    private const string Merge = "<<: [*app-secrets, *app-connections, *app-email, *app-seq, *app-feedback]";
+    private const string MergePrefix = "<<: [";
+    private const string Anchor = "*app-feedback";
 
     private static string[] ComposeLines =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml")).Split('\n');
@@ -81,8 +82,10 @@ public class DeployComposeFeedbackGateTests
         // The api's gate opens submissions only with a recipient; the worker's dispatch sends only to one.
         var lines = ComposeLines;
         var (start, end) = ServiceBlock(lines, service);
-        lines[start..end].Count(l => l.Trim() == Merge).ShouldBe(1,
-            $"The `{service}` environment must merge the x-app-feedback anchor.");
+        var merge = lines[start..end].Select(l => l.Trim())
+            .Where(l => l.StartsWith(MergePrefix, StringComparison.Ordinal)).ShouldHaveSingleItem();
+        merge.TrimStart('<', ':', ' ', '[').TrimEnd(']').Split(',').Select(a => a.Trim())
+            .Count(a => a == Anchor).ShouldBe(1, $"The `{service}` environment must merge the x-app-feedback anchor.");
     }
 
     [Fact]

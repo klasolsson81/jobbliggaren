@@ -48,7 +48,6 @@ export const ADDRESS_CHANGE_CODES = {
 export type FeedbackAnswer =
   | "saved"
   | "empty"
-  | "comment"
   | "screenshot"
   | "closed"
   | "busy"
@@ -271,8 +270,6 @@ export async function startHarness(informationFlows = false, applicationCopies =
           return json(201, { id: randomUUID(), replayed: false });
         case "empty":
           return problem(400, "Feedback.Empty");
-        case "comment":
-          return problem(400, "Feedback.CommentTooLong");
         case "screenshot":
           return problem(400, "Feedback.ScreenshotInvalid");
         case "closed":

@@ -29,8 +29,8 @@ describe("readBounded", () => {
     expect(source.cancelled()).toBe(true);
   });
 
-  it("answers null for an absent body", async () => {
-    expect(await readBounded(null, 10)).toBeNull();
+  it("reads an absent body as zero bytes", async () => {
+    expect(await readBounded(null, 10)).toEqual(new Uint8Array([]));
   });
 
   it("reads an empty body as zero bytes", async () => {

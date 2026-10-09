@@ -34,7 +34,7 @@ function clipboard({ text = "", files = [] as File[] }): DataTransfer {
   } as unknown as DataTransfer; // A partial DataTransfer: the three members the reader uses.
 }
 
-describe("pastedScreenshot (C12)", () => {
+describe("pastedScreenshot", () => {
   it("takes an image when the paste carries no text", () => {
     const file = png();
     expect(pastedScreenshot(clipboard({ files: [file] }))).toBe(file);

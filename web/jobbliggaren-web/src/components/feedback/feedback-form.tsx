@@ -8,18 +8,16 @@ import { usePathname } from "next/navigation";
 import { CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Textarea } from "@/components/ui/textarea";
-import { STANDALONE_LINK, TEXT_LINK } from "@/components/auth/mail-link";
+import { TEXT_LINK } from "@/components/auth/mail-link";
 import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
+import { FEEDBACK_COMMENT_MAX } from "@/lib/feedback/limits";
 import { ScreenshotField, SCREENSHOT_REFUSAL_MESSAGE, pastedScreenshot } from "./screenshot-field";
 import { StarRating } from "./star-rating";
-import {
-  FEEDBACK_COMMENT_MAX,
-  type FeedbackAnnouncement,
-  type FeedbackFormController,
-  type SendRefusal,
-} from "./use-feedback-form";
+import type { FeedbackAnnouncement, FeedbackFormController, SendRefusal } from "./use-feedback-form";
 
 type Translate = ReturnType<typeof useTranslations<"feedback">>;
+
+const SEND_LABELS = ["send", "sending", "sendAgain"] as const;
 
 function refusalText(t: Translate, refusal: SendRefusal): string {
   switch (refusal.outcome) {
@@ -27,13 +25,18 @@ function refusalText(t: Translate, refusal: SendRefusal): string {
       return t(`refused.${refusal.reason}`);
     case "rateLimited":
       return t("refused.rateLimited", { minutes: Math.ceil(refusal.retryAfterSeconds / 60) });
+    case "signedOut":
+      return t.markup("refused.signedOut", { signIn: (chunks) => chunks });
     case "closed":
     case "busy":
     case "tooLarge":
-    case "signedOut":
     case "unknown":
       return t(`refused.${refusal.outcome}`);
   }
+}
+
+function isError(refusal: SendRefusal): boolean {
+  return refusal.outcome === "refused" || refusal.outcome === "tooLarge";
 }
 
 function announcementText(t: Translate, announcement: FeedbackAnnouncement | null): string {
@@ -97,8 +100,8 @@ export function FeedbackForm({
   const expanded = unfolded || controller.hasDraft;
   const waiting = state.phase.kind === "sending" || state.screenshot.kind === "preparing";
   const refusal = state.phase.kind === "refused" ? state.phase.refusal : null;
-  const sendLabel =
-    state.phase.kind === "sending" ? t("sending") : refusal?.outcome === "unknown" ? t("sendAgain") : t("send");
+  const sendLabel: (typeof SEND_LABELS)[number] =
+    state.phase.kind === "sending" ? "sending" : refusal?.outcome === "unknown" ? "sendAgain" : "send";
 
   return (
     <form
@@ -177,22 +180,39 @@ export function FeedbackForm({
               aria-disabled={waiting || undefined}
               aria-describedby={refusal !== null ? messageId : undefined}
             >
-              {sendLabel}
+              <span className="jp-feedback__sendlabels">
+                {SEND_LABELS.map((label) => (
+                  <span
+                    key={label}
+                    className={
+                      label === sendLabel ? "jp-feedback__sendlabel" : "jp-feedback__sendlabel jp-feedback__sendlabel--off"
+                    }
+                    aria-hidden={label !== sendLabel || undefined}
+                  >
+                    {t(label)}
+                  </span>
+                ))}
+              </span>
             </button>
             {refusal !== null && (
-              <p id={messageId} className="jp-feedback__message">
-                {refusalText(t, refusal)}
-                {refusal.outcome === "signedOut" && (
-                  <>
-                    {" "}
-                    <Link
-                      href={`${LOGIN_ENTRY_PATH}?next=${encodeURIComponent(pathname)}`}
-                      className={STANDALONE_LINK}
-                    >
-                      {t("refused.signIn")}
-                    </Link>
-                  </>
-                )}
+              <p
+                id={messageId}
+                className={isError(refusal) ? "jp-feedback__message jp-feedback__message--error" : "jp-feedback__message"}
+              >
+                {refusal.outcome === "signedOut"
+                  ? t.rich("refused.signedOut", {
+                      signIn: (chunks) => (
+                        <Link
+                          href={`${LOGIN_ENTRY_PATH}?next=${encodeURIComponent(pathname)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={TEXT_LINK}
+                        >
+                          {chunks}
+                        </Link>
+                      ),
+                    })
+                  : refusalText(t, refusal)}
               </p>
             )}
           </div>

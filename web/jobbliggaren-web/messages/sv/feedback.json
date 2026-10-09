@@ -27,15 +27,13 @@
   "receipt": "Tack. Din feedback är sparad.",
   "refused": {
     "empty": "Välj ett betyg eller skriv en kommentar.",
-    "comment": "Kommentaren får vara högst 2 000 tecken.",
     "screenshot": "Bilden kunde inte sparas. En bild kan bli för stor efter bearbetningen även om den gick att välja. Ta bort bilden för att skicka utan den.",
     "invalid": "Feedbacken kunde inte skickas. Ladda om sidan och försök igen.",
     "closed": "Det går inte att skicka feedback just nu.",
     "busy": "Det går inte att skicka just nu. Försök igen om en stund.",
     "rateLimited": "Du har skickat många svar på kort tid. Försök igen om {minutes, plural, one {# minut} other {# minuter}}.",
     "tooLarge": "Bilden är för stor. Den får vara högst 5 MB.",
-    "signedOut": "Du är utloggad. Logga in igen för att skicka feedback.",
-    "signIn": "Logga in",
+    "signedOut": "Du är utloggad. <signIn>Logga in igen</signIn>, som öppnas i en ny flik, och skicka sedan feedbacken här.",
     "unknown": "Vi vet inte om din feedback sparades. Skicka igen, så sparas den bara en gång."
   },
   "footer": {

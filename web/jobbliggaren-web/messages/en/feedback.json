@@ -27,15 +27,13 @@
   "receipt": "Thank you. Your feedback has been saved.",
   "refused": {
     "empty": "Choose a rating or write a comment.",
-    "comment": "The comment can be at most 2,000 characters.",
     "screenshot": "The image could not be saved. An image can become too large after processing even if it could be chosen. Remove the image to send without it.",
     "invalid": "The feedback could not be sent. Reload the page and try again.",
     "closed": "Feedback cannot be sent right now.",
     "busy": "It is not possible to send right now. Try again in a moment.",
     "rateLimited": "You have sent many responses in a short time. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
     "tooLarge": "The image is too large. It can be at most 5 MB.",
-    "signedOut": "You are logged out. Log in again to send feedback.",
-    "signIn": "Log in",
+    "signedOut": "You are logged out. <signIn>Log in again</signIn>, which opens in a new tab, and then send your feedback here.",
     "unknown": "We do not know whether your feedback was saved. Send it again, and it will only be saved once."
   },
   "footer": {

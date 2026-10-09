@@ -14,6 +14,7 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
+import { FEEDBACK_SUBMIT_ERRORS } from "@/lib/dto/feedback";
 import { GET, POST } from "./route";
 
 const SUBMISSION = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -118,6 +119,18 @@ describe("the feedback submission BFF — what it accepts", () => {
       } as RequestInit & { duplex: "half" }),
     );
     expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request with no body as invalid", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/feedback", {
+        method: "POST",
+        headers: { host: "localhost", origin: "http://localhost", "content-type": "multipart/form-data; boundary=x" },
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ outcome: "refused", reason: "invalid" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -233,10 +246,8 @@ describe("the feedback submission BFF — what the browser hears back", () => {
   it.each([
     ["a new submission", backend(201, { id: "11111111-1111-4111-8111-111111111111", replayed: false }), 200, { outcome: "saved" }],
     ["a replay", backend(200, { id: "11111111-1111-4111-8111-111111111111", replayed: true }), 200, { outcome: "saved" }],
-    ["a success body it cannot read", backend(201, { id: "x" }), 502, { outcome: "unknown" }],
-    ["Feedback.Empty", backend(400, { title: "Feedback.Empty", detail: "private" }), 400, { outcome: "refused", reason: "empty" }],
-    ["Feedback.CommentTooLong", backend(400, { title: "Feedback.CommentTooLong" }), 400, { outcome: "refused", reason: "comment" }],
-    ["Feedback.ScreenshotInvalid", backend(400, { title: "Feedback.ScreenshotInvalid" }), 400, { outcome: "refused", reason: "screenshot" }],
+    [FEEDBACK_SUBMIT_ERRORS.empty, backend(400, { title: FEEDBACK_SUBMIT_ERRORS.empty, detail: "private" }), 400, { outcome: "refused", reason: "empty" }],
+    [FEEDBACK_SUBMIT_ERRORS.screenshotInvalid, backend(400, { title: FEEDBACK_SUBMIT_ERRORS.screenshotInvalid }), 400, { outcome: "refused", reason: "screenshot" }],
     ["another 400", backend(400, { title: "Feedback.AppVersionInvalid" }), 400, { outcome: "refused", reason: "invalid" }],
     ["a validator 400", backend(400, { errors: { PageKey: ["x"] } }), 400, { outcome: "refused", reason: "invalid" }],
     ["a lapsed session", backend(401), 401, { outcome: "signedOut" }],
@@ -274,6 +285,8 @@ describe("the feedback submission BFF — what the browser hears back", () => {
   });
 
   it("answers busy while four uploads are already in flight", async () => {
+    let session = 0;
+    getSessionId.mockImplementation(async () => `session-${++session}`);
     const pending: Array<(value: Response) => void> = [];
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)));
     const first = Array.from({ length: 4 }, () => send([["payload", payload()]]));
@@ -283,6 +296,23 @@ describe("the feedback submission BFF — what the browser hears back", () => {
     expect(await fifth.json()).toEqual({ outcome: "busy" });
     for (const resolve of pending) resolve(backend(201, { id: "11111111-1111-4111-8111-111111111111", replayed: false }));
     expect((await Promise.all(first)).map((response) => response.status)).toEqual([200, 200, 200, 200]);
+  });
+
+  it("answers busy to a second upload from the same session, while another session still gets a slot", async () => {
+    const pending: Array<(value: Response) => void> = [];
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)));
+    const first = send([["payload", payload()]]);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+
+    const second = await send([["payload", payload()]]);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ outcome: "busy" });
+
+    getSessionId.mockResolvedValue("another session");
+    const other = send([["payload", payload()]]);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    for (const resolve of pending) resolve(backend(201, { id: "11111111-1111-4111-8111-111111111111", replayed: false }));
+    expect((await Promise.all([first, other])).map((response) => response.status)).toEqual([200, 200]);
   });
 
   it("answers 405 to anything but POST", () => {

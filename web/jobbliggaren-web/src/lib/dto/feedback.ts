@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FEEDBACK_COMMENT_MAX } from "@/lib/feedback/limits";
 import { FEEDBACK_PAGE_KEYS, isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
 
 /**
@@ -54,7 +55,7 @@ export const feedbackSubmissionPayloadSchema = z
     submissionKey: z.uuid(),
     page: z.enum(FEEDBACK_PAGE_KEYS),
     rating: z.number().int().min(1).max(5).optional(),
-    comment: z.string().max(2_000).optional(),
+    comment: z.string().max(FEEDBACK_COMMENT_MAX).optional(),
     client: feedbackClientContextSchema.optional(),
     renderedVersion: z.string().max(40).optional(),
   })
@@ -68,7 +69,7 @@ export type FeedbackSubmissionPayload = z.infer<typeof feedbackSubmissionPayload
  */
 export type FeedbackSubmitOutcome =
   | { readonly outcome: "saved" }
-  | { readonly outcome: "refused"; readonly reason: "empty" | "comment" | "screenshot" | "invalid" }
+  | { readonly outcome: "refused"; readonly reason: "empty" | "screenshot" | "invalid" }
   | { readonly outcome: "closed" }
   | { readonly outcome: "busy" }
   | { readonly outcome: "tooLarge" }
@@ -78,7 +79,7 @@ export type FeedbackSubmitOutcome =
 
 export const feedbackSubmitOutcomeSchema: z.ZodType<FeedbackSubmitOutcome> = z.discriminatedUnion("outcome", [
   z.object({ outcome: z.literal("saved") }),
-  z.object({ outcome: z.literal("refused"), reason: z.enum(["empty", "comment", "screenshot", "invalid"]) }),
+  z.object({ outcome: z.literal("refused"), reason: z.enum(["empty", "screenshot", "invalid"]) }),
   z.object({ outcome: z.literal("closed") }),
   z.object({ outcome: z.literal("busy") }),
   z.object({ outcome: z.literal("tooLarge") }),
@@ -86,3 +87,8 @@ export const feedbackSubmitOutcomeSchema: z.ZodType<FeedbackSubmitOutcome> = z.d
   z.object({ outcome: z.literal("signedOut") }),
   z.object({ outcome: z.literal("unknown") }),
 ]);
+
+export const FEEDBACK_SUBMIT_ERRORS = {
+  empty: "Feedback.Empty",
+  screenshotInvalid: "Feedback.ScreenshotInvalid",
+} as const;

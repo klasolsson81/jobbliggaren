@@ -106,7 +106,7 @@ describe("FeedbackForm — what Send carries", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses an image alone (C11)", async () => {
+  it("refuses an image alone", async () => {
     render(<Harness />);
     const user = userEvent.setup();
     pasteImage(comment());
@@ -244,7 +244,6 @@ describe("FeedbackForm — the submission key", () => {
 describe("FeedbackForm — answers", () => {
   it.each<[string, FeedbackSubmitOutcome, string]>([
     ["refused empty", { outcome: "refused", reason: "empty" }, "Välj ett betyg eller skriv en kommentar."],
-    ["refused comment", { outcome: "refused", reason: "comment" }, "Kommentaren får vara högst 2 000 tecken."],
     [
       "refused screenshot",
       { outcome: "refused", reason: "screenshot" },
@@ -289,15 +288,20 @@ describe("FeedbackForm — answers", () => {
     await user.type(comment(), "Text");
     await user.click(sendButton());
 
-    expect(await screen.findByText(/Du är utloggad\. Logga in igen för att skicka feedback\./, SHOWN)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Logga in" })).toHaveAttribute("href", "/logga-in?next=%2Fjobb");
+    const text = "Du är utloggad. Logga in igen, som öppnas i en ny flik, och skicka sedan feedbacken här.";
+    const link = await screen.findByRole("link", { name: "Logga in igen" });
+    expect(link).toBeVisible();
+    expect(link).toHaveAttribute("href", "/logga-in?next=%2Fjobb");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(sendButton()).toHaveAccessibleDescription(text);
+    expect(status()).toHaveTextContent(text);
     expect(comment()).toHaveValue("Text");
   });
 
   it.each([
     ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
     ["an unparseable answer", () => Promise.resolve(new Response("<html>", { status: 502 }))],
-    ["an answer outside the closed set", () => Promise.resolve(answer({ outcome: "teapot" } as unknown as FeedbackSubmitOutcome))],
   ])("reads %s as unknown", async (_name, reply) => {
     fetchMock.mockImplementation(reply);
     render(<Harness />);

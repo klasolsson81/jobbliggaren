@@ -62,7 +62,7 @@ describe("PageFeedback and the rating row", () => {
     expect(star).toHaveFocus();
   });
 
-  it("stays while it holds a draft, whatever the session says meanwhile (C3)", async () => {
+  it("stays while it holds a draft, whatever the session says meanwhile", async () => {
     const { rerender } = render(<Page state={OPEN} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("radio", { name: "2 av 5" }));

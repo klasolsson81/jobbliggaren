@@ -77,17 +77,19 @@ function deviceClassOf(view: DeviceView): NonNullable<ClientContext["deviceClass
 }
 
 export function readClientContext(view: DeviceView): ClientContext {
-  const context: Record<string, string | number> = {};
-  const put = (key: keyof ClientContext, value: string | number | undefined) => {
-    if (value !== undefined) context[key] = value;
+  const viewportWidth = dimension(view.innerWidth);
+  const viewportHeight = dimension(view.innerHeight);
+  const screenWidth = dimension(view.screen.width);
+  const screenHeight = dimension(view.screen.height);
+  const ratio = pixelRatio(view.devicePixelRatio);
+  return {
+    ...(viewportWidth !== undefined ? { viewportWidth } : {}),
+    ...(viewportHeight !== undefined ? { viewportHeight } : {}),
+    ...(screenWidth !== undefined ? { screenWidth } : {}),
+    ...(screenHeight !== undefined ? { screenHeight } : {}),
+    ...(ratio !== undefined ? { pixelRatio: ratio } : {}),
+    deviceClass: deviceClassOf(view),
+    osFamily: osFamilyOf(view),
+    browserFamily: browserFamilyOf(view.navigator.userAgent),
   };
-  put("viewportWidth", dimension(view.innerWidth));
-  put("viewportHeight", dimension(view.innerHeight));
-  put("screenWidth", dimension(view.screen.width));
-  put("screenHeight", dimension(view.screen.height));
-  put("pixelRatio", pixelRatio(view.devicePixelRatio));
-  put("deviceClass", deviceClassOf(view));
-  put("osFamily", osFamilyOf(view));
-  put("browserFamily", browserFamilyOf(view.navigator.userAgent));
-  return context as ClientContext;
 }

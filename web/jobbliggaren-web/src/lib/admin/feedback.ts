@@ -1,3 +1,4 @@
+import { isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
 import type { AdminFeedbackStatus, AdminFeedbackWindow } from "./view-models";
 
 /**
@@ -13,9 +14,7 @@ export const FEEDBACK_ROUTE = "/admin/feedback";
 /** The list's page size. */
 export const FEEDBACK_PAGE_SIZE = 25;
 
-export const MAX_FEEDBACK_SCREENSHOT_BYTES = 5 * 1024 * 1024;
-
-import { isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
+export { MAX_FEEDBACK_SCREENSHOT_BYTES } from "@/lib/feedback/limits";
 
 // The closed page set lives with the user surface; a key outside it is shown as it came and never filtered on.
 export { FEEDBACK_PAGE_KEYS, isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";

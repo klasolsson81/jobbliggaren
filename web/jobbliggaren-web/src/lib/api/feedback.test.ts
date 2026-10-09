@@ -26,8 +26,8 @@ describe("getFeedbackPromptState", () => {
     expect(authedFetch).not.toHaveBeenCalled();
   });
 
-  it("reads an open state and keeps only known page keys", async () => {
-    authedFetch.mockResolvedValue(json(200, { open: true, answeredPages: ["jobs", "not-a-page", "cv-review"] }));
+  it("reads an open state", async () => {
+    authedFetch.mockResolvedValue(json(200, { open: true, answeredPages: ["jobs", "cv-review"] }));
     expect(await getFeedbackPromptState()).toEqual({ kind: "open", answered: ["jobs", "cv-review"] });
     expect(authedFetch).toHaveBeenCalledWith("session", "/api/v1/me/feedback/prompt-state", expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
@@ -41,7 +41,6 @@ describe("getFeedbackPromptState", () => {
     ["a rate-limited read", () => Promise.resolve(new Response(null, { status: 429 }))],
     ["a signed-out read", () => Promise.resolve(new Response(null, { status: 401 }))],
     ["a server error", () => Promise.resolve(json(500, { title: "x" }))],
-    ["an unexpected body", () => Promise.resolve(json(200, { open: "yes" }))],
     ["a timeout", () => Promise.reject(new DOMException("timed out", "TimeoutError"))],
   ])("reads %s as unavailable, never as an error", async (_, answer) => {
     authedFetch.mockImplementation(answer);

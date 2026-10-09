@@ -7,27 +7,18 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { browserCodec } from "@/lib/feedback/image/browser-codec";
-import type { ScreenshotCodec } from "@/lib/feedback/image/prepare";
 import { feedbackPageKeyFor, type FeedbackPageKey } from "@/lib/feedback/page-keys";
 import { FeedbackForm } from "./feedback-form";
 import { useFeedbackSession, type FeedbackSession } from "./feedback-session";
 import { useFeedbackForm } from "./use-feedback-form";
 
-function FooterFeedback({
-  page,
-  session,
-  codec,
-}: {
-  page: FeedbackPageKey;
-  session: FeedbackSession;
-  codec: ScreenshotCodec;
-}) {
+function FooterFeedback({ page, session }: { page: FeedbackPageKey; session: FeedbackSession }) {
   const t = useTranslations("feedback");
   const [open, setOpen] = useState(false);
   const controller = useFeedbackForm({
     page,
     renderedVersion: session.renderedVersion,
-    codec,
+    codec: browserCodec,
     onSaved: () => session.markAnswered(page),
   });
   const { phase } = controller.state;
@@ -65,10 +56,10 @@ function FooterFeedback({
  * closed. The dialog's draft belongs to this component rather than to the dialog, so closing and
  * reopening keeps it; a new page key starts a new one.
  */
-export function FeedbackFooterButton({ codec = browserCodec }: { codec?: ScreenshotCodec }) {
+export function FeedbackFooterButton() {
   const pathname = usePathname();
   const session = useFeedbackSession();
   const page = feedbackPageKeyFor(pathname);
   if (session === null || page === null) return null;
-  return <FooterFeedback key={page} page={page} session={session} codec={codec} />;
+  return <FooterFeedback key={page} page={page} session={session} />;
 }

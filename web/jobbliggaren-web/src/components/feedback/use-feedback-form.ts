@@ -5,11 +5,14 @@ import {
   type FeedbackSubmitOutcome,
 } from "@/lib/dto/feedback";
 import { readClientContext } from "@/lib/feedback/client-context";
-import { prepareScreenshot, type PreparedScreenshot, type ScreenshotCodec } from "@/lib/feedback/image/prepare";
+import {
+  prepareScreenshot,
+  type DecodedImage,
+  type PreparedScreenshot,
+  type ScreenshotCodec,
+} from "@/lib/feedback/image/prepare";
 import type { FeedbackPageKey } from "@/lib/feedback/page-keys";
 import { keyFor, type FeedbackContent, type KeyedContent } from "@/lib/feedback/submission-key";
-
-export const FEEDBACK_COMMENT_MAX = 2_000;
 
 export type ScreenshotRefusal = Extract<PreparedScreenshot, { readonly kind: "refused" }>["reason"];
 
@@ -85,7 +88,7 @@ function edited(
   return { ...previous, announcement, ...change, phase: IDLE };
 }
 
-async function prepare(file: Blob, codec: ScreenshotCodec): Promise<PreparedScreenshot> {
+async function prepare<T extends DecodedImage>(file: Blob, codec: ScreenshotCodec<T>): Promise<PreparedScreenshot> {
   try {
     return await prepareScreenshot(file, codec);
   } catch {
@@ -101,7 +104,7 @@ async function prepare(file: Blob, codec: ScreenshotCodec): Promise<PreparedScre
  * The device context is read at Send and only when the box is ticked. Nothing is written to browser
  * storage: a draft lives as long as the component that owns it.
  */
-export function useFeedbackForm({
+export function useFeedbackForm<T extends DecodedImage>({
   page,
   renderedVersion,
   codec,
@@ -109,7 +112,7 @@ export function useFeedbackForm({
 }: {
   page: FeedbackPageKey;
   renderedVersion: string | null;
-  codec: ScreenshotCodec;
+  codec: ScreenshotCodec<T>;
   onSaved: () => void;
 }): FeedbackFormController {
   const [state, setState] = useState<FeedbackFormState>(INITIAL);
@@ -143,7 +146,7 @@ export function useFeedbackForm({
   function send() {
     if (sendingRef.current || state.phase.kind === "sending" || state.screenshot.kind === "preparing") return;
     if (state.rating === null && state.comment.trim() === "") {
-      // An image alone is not feedback (C11): the rating or the text is what is answered.
+      // An image alone is not feedback: the rating or the text is what is answered.
       const refusal: SendRefusal = { outcome: "refused", reason: "empty" };
       setState((previous) => ({ ...previous, phase: { kind: "refused", refusal }, announcement: { kind: "refused", refusal } }));
       return;

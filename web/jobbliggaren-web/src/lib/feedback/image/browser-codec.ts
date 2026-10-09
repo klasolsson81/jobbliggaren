@@ -54,17 +54,16 @@ function canvasOf(size: Size): { context: CanvasRenderingContext2D | OffscreenCa
   };
 }
 
-export const browserCodec: ScreenshotCodec = {
+export const browserCodec: ScreenshotCodec<Decoded> = {
   async decode(file) {
     const { source, size, release } = await decodeToSource(file);
-    const decoded: Decoded = { ...size, release, source };
-    return decoded;
+    return { ...size, release, source };
   },
   async encodePng(image, size) {
     const { context, toPng } = canvasOf(size);
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    context.drawImage((image as Decoded).source, 0, 0, size.width, size.height);
+    context.drawImage(image.source, 0, 0, size.width, size.height);
     return toPng();
   },
 };

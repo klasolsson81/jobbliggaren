@@ -1,0 +1,3 @@
+export const MAX_FEEDBACK_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
+export const FEEDBACK_COMMENT_MAX = 2_000;

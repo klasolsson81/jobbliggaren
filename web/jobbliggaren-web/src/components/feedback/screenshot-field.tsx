@@ -19,7 +19,7 @@ export const SCREENSHOT_REFUSAL_MESSAGE = {
 } as const satisfies Record<ScreenshotRefusal, string>;
 
 /**
- * The image a paste into the feedback form carries, or null when the paste is text (C12). A paste with
+ * The image a paste into the feedback form carries, or null when the paste is text. A paste with
  * any text in it is the user's text, even when the clipboard also holds a picture of it, as a copy from
  * an office program does; only an image-only paste becomes the screenshot.
  */
@@ -143,7 +143,10 @@ export function ScreenshotField({
             {t("screenshot.add")}
           </button>
           {note !== null && (
-            <p id={noteId} className="jp-feedback__note">
+            <p
+              id={noteId}
+              className={screenshot.kind === "refused" ? "jp-feedback__note jp-feedback__note--error" : "jp-feedback__note"}
+            >
               {note}
             </p>
           )}

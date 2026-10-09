@@ -2757,6 +2757,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+.jp-feedback__note--error,
+.jp-feedback__message--error { color: var(--jp-danger); }
 .jp-feedback__consent {
   display: flex;
   align-items: flex-start;
@@ -2781,6 +2783,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   align-items: flex-start;
   gap: 12px;
 }
+.jp-feedback__sendlabels { display: inline-grid; }
+.jp-feedback__sendlabel { grid-area: 1 / 1; }
+.jp-feedback__sendlabel--off { visibility: hidden; }
 .jp-feedback__receipt {
   display: flex;
   align-items: center;
@@ -2802,6 +2807,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
 }
+.jp-feedback-dialog .jp-feedback__question { font-weight: var(--jp-fw-regular); }
 
 /* ── The footer's feedback button (#1979 PR3) ──
    A <button> in a link column that reads as one of the links: colour, size and hover come from

@@ -19,9 +19,9 @@ export type DecodedImage = Size & { readonly release: () => void };
  * image's own orientation; `encodePng` draws it at the given size and encodes a PNG, which carries none of
  * the original's metadata.
  */
-export type ScreenshotCodec = {
-  readonly decode: (file: Blob) => Promise<DecodedImage>;
-  readonly encodePng: (image: DecodedImage, size: Size) => Promise<Blob>;
+export type ScreenshotCodec<T extends DecodedImage = DecodedImage> = {
+  readonly decode: (file: Blob) => Promise<T>;
+  readonly encodePng: (image: T, size: Size) => Promise<Blob>;
 };
 
 export type PreparedScreenshot =
@@ -33,7 +33,10 @@ export type PreparedScreenshot =
  * original file: the redraw is what keeps metadata such as a location on the device, so a file the
  * browser cannot redraw is refused rather than sent as it came.
  */
-export async function prepareScreenshot(file: Blob, codec: ScreenshotCodec): Promise<PreparedScreenshot> {
+export async function prepareScreenshot<T extends DecodedImage>(
+  file: Blob,
+  codec: ScreenshotCodec<T>,
+): Promise<PreparedScreenshot> {
   if (file.size === 0) return { kind: "refused", reason: "unreadable" };
   if (file.size > MAX_INPUT_BYTES) return { kind: "refused", reason: "tooLarge" };
 
@@ -43,7 +46,7 @@ export async function prepareScreenshot(file: Blob, codec: ScreenshotCodec): Pro
   const stated = headerSize(format, head);
   if (stated !== null && stated.width * stated.height > MAX_INPUT_PIXELS) return { kind: "refused", reason: "tooLarge" };
 
-  let image: DecodedImage;
+  let image: T;
   try {
     image = await codec.decode(file);
   } catch {

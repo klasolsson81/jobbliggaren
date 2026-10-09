@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { getSessionId } from "@/lib/auth/session";
 import { parseRetryAfter } from "@/lib/dto/_helpers";
 import {
+  FEEDBACK_SUBMIT_ERRORS,
   feedbackSubmissionPayloadSchema,
   feedbackSubmittedSchema,
   type FeedbackSubmitOutcome,
 } from "@/lib/dto/feedback";
 import { env } from "@/lib/env";
+import { sniffFormat } from "@/lib/feedback/image/plan";
+import { MAX_FEEDBACK_SCREENSHOT_BYTES } from "@/lib/feedback/limits";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemTitle } from "@/lib/http/problem";
 import { readBounded } from "@/lib/http/read-bounded";
@@ -30,32 +33,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_PAYLOAD_BYTES = 64 * 1024;
-const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 // The two parts plus multipart framing: boundaries and part headers.
-const MAX_BODY_BYTES = MAX_SCREENSHOT_BYTES + MAX_PAYLOAD_BYTES + 16 * 1024;
+const MAX_BODY_BYTES = MAX_FEEDBACK_SCREENSHOT_BYTES + MAX_PAYLOAD_BYTES + 16 * 1024;
 const BACKEND_TIMEOUT_MS = 15_000;
 // Each request buffers up to MAX_BODY_BYTES; the cap keeps a burst from filling the container's memory.
 const MAX_IN_FLIGHT = 4;
 const HEADERS = { "Cache-Control": "no-store" };
 
 let inFlight = 0;
+const sessionsInFlight = new Set<string>();
 
 function answer(outcome: FeedbackSubmitOutcome, status: number, headers: Record<string, string> = {}) {
   return NextResponse.json(outcome, { status, headers: { ...HEADERS, ...headers } });
 }
 
 const invalid = (status = 400) => answer({ outcome: "refused", reason: "invalid" }, status);
-
-/** PNG, JPEG or WebP by their first bytes: the only formats the backend decodes. */
-function isAcceptedImage(bytes: Uint8Array): boolean {
-  const startsWith = (signature: readonly number[], offset = 0) =>
-    signature.every((byte, index) => bytes[offset + index] === byte);
-  return (
-    startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
-    startsWith([0xff, 0xd8, 0xff]) ||
-    (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8))
-  );
-}
 
 type Parts = { readonly payload: string; readonly screenshot: File | null };
 
@@ -99,9 +91,8 @@ async function forward(request: Request, sessionId: string, body: FormData): Pro
   switch (response.status) {
     case 400: {
       const title = await readProblemTitle(response);
-      if (title === "Feedback.Empty") return answer({ outcome: "refused", reason: "empty" }, 400);
-      if (title === "Feedback.CommentTooLong") return answer({ outcome: "refused", reason: "comment" }, 400);
-      if (title === "Feedback.ScreenshotInvalid") return answer({ outcome: "refused", reason: "screenshot" }, 400);
+      if (title === FEEDBACK_SUBMIT_ERRORS.empty) return answer({ outcome: "refused", reason: "empty" }, 400);
+      if (title === FEEDBACK_SUBMIT_ERRORS.screenshotInvalid) return answer({ outcome: "refused", reason: "screenshot" }, 400);
       return invalid();
     }
     case 401:
@@ -131,10 +122,7 @@ async function forward(request: Request, sessionId: string, body: FormData): Pro
   }
 }
 
-async function submit(request: Request): Promise<NextResponse> {
-  const sessionId = await getSessionId();
-  if (sessionId === null) return answer({ outcome: "signedOut" }, 401);
-
+async function submit(request: Request, sessionId: string): Promise<NextResponse> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().startsWith("multipart/form-data")) return invalid(415);
 
@@ -146,7 +134,7 @@ async function submit(request: Request): Promise<NextResponse> {
 
   let form: FormData;
   try {
-    form = await new Response(new Uint8Array(bytes), { headers: { "content-type": contentType } }).formData();
+    form = await new Response(bytes, { headers: { "content-type": contentType } }).formData();
   } catch {
     return invalid();
   }
@@ -168,11 +156,11 @@ async function submit(request: Request): Promise<NextResponse> {
 
   let screenshot: Uint8Array<ArrayBuffer> | null = null;
   if (parts.screenshot !== null) {
-    if (parts.screenshot.size === 0 || parts.screenshot.size > MAX_SCREENSHOT_BYTES) {
+    if (parts.screenshot.size === 0 || parts.screenshot.size > MAX_FEEDBACK_SCREENSHOT_BYTES) {
       return answer({ outcome: "refused", reason: "screenshot" }, 400);
     }
     screenshot = new Uint8Array(await parts.screenshot.arrayBuffer());
-    if (!isAcceptedImage(screenshot)) return answer({ outcome: "refused", reason: "screenshot" }, 400);
+    if (sniffFormat(screenshot) === null) return answer({ outcome: "refused", reason: "screenshot" }, 400);
   }
 
   // The device context is consent-based (LEK 9 kap. 28 §), and the stamped version is what records which
@@ -199,7 +187,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (inFlight >= MAX_IN_FLIGHT) return answer({ outcome: "busy" }, 409);
   inFlight++;
   try {
-    return await submit(request);
+    const sessionId = await getSessionId();
+    if (sessionId === null) return answer({ outcome: "signedOut" }, 401);
+    if (sessionsInFlight.has(sessionId)) return answer({ outcome: "busy" }, 409);
+    sessionsInFlight.add(sessionId);
+    try {
+      return await submit(request, sessionId);
+    } finally {
+      sessionsInFlight.delete(sessionId);
+    }
   } finally {
     inFlight--;
   }

@@ -7,6 +7,7 @@ import { getApplicationStats } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationStats } from "@/components/applications/application-stats";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("statistik");
@@ -68,6 +69,7 @@ export default async function StatistikPage() {
 
         <ApplicationStats data={result.data} />
       </div>
+      <PageFeedback pageKey="statistics" />
     </>
   );
 }

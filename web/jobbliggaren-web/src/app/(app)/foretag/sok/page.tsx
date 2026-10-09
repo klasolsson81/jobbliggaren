@@ -21,6 +21,7 @@ import {
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -179,6 +180,7 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
           </Suspense>
         </Announcer>
       </div>
+      <PageFeedback pageKey="company-search" />
     </>
   );
 }

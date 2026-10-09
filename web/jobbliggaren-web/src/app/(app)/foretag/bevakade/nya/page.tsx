@@ -16,6 +16,7 @@ import { renderSection } from "@/components/foretag/foretag-section";
 import { NewAdsViewSwitch } from "@/components/company-follows/new-ads-view-switch";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -209,6 +210,7 @@ export default async function NyaFollowedAdsPage() {
           );
         })}
       </div>
+      <PageFeedback pageKey="followed-companies" />
     </>
   );
 }

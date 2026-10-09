@@ -20,6 +20,7 @@ import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreview } from "@/components/resumes/cv-preview";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE: a missing record must not serve this
@@ -229,6 +230,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
           </div>
         </section>
       </div>
+      <PageFeedback pageKey="cv-review" />
     </>
   );
 }

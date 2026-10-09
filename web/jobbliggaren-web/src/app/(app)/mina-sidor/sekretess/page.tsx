@@ -4,6 +4,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { PrivacyCard } from "@/components/settings/privacy-card";
 import { MinaSidorShell } from "@/components/settings/mina-sidor-shell";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -19,8 +20,11 @@ export default async function MinaSidorSekretessPage() {
   if (!user) redirect("/logga-in");
 
   return (
-    <MinaSidorShell active="sekretess">
-      <PrivacyCard userEmail={user.email} />
-    </MinaSidorShell>
+    <>
+      <MinaSidorShell active="sekretess">
+        <PrivacyCard userEmail={user.email} />
+      </MinaSidorShell>
+      <PageFeedback pageKey="my-pages" />
+    </>
   );
 }

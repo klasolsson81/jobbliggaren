@@ -16,6 +16,7 @@ import {
   type MonthOption,
 } from "@/components/aktivitetsrapport/activity-report-view";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("aktivitetsrapport");
@@ -141,6 +142,7 @@ export default async function AktivitetsrapportPage({
           afUrl={AF_ACTIVITY_REPORT_URL}
         />
       </div>
+      <PageFeedback pageKey="activity-report" />
     </>
   );
 }

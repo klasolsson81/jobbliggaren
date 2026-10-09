@@ -147,7 +147,7 @@ public static class MeFeedbackEndpoints
                 client.ScreenWidth,
                 client.ScreenHeight,
                 client.PixelRatio,
-                ReportedName<ReportedTheme>(client.Theme),
+                null,
                 ReportedName<ReportedDeviceClass>(client.DeviceClass),
                 ReportedName<ReportedOsFamily>(client.OsFamily),
                 ReportedName<ReportedBrowserFamily>(client.BrowserFamily)),

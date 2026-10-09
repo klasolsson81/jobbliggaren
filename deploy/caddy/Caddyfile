@@ -123,6 +123,10 @@
 					# at one person's feedback, a pseudonym (recital 26), and no reading of this log needs it: the
 					# ground `uid` is deleted on.
 					delete id
+					# The login return path (#1979 PR3) on /logga-in and the external-login start. It is a path the
+					# client writes, and the admin deep link carries the feedback id inside it, which the exact-key
+					# `id` filter above does not see. Same ground as `id`.
+					delete next
 				}
 				request>headers delete
 			}

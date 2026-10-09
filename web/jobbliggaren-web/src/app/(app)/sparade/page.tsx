@@ -5,6 +5,7 @@ import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
 import { SavedJobAdList } from "@/components/saved-job-ads/saved-job-ad-list";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -37,15 +38,18 @@ export default async function SparadePage() {
   const result = await getSavedJobAds();
 
   return (
-    <div className="jp-container jp-page flex flex-col">
-      <div>
-        <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
-          {t("sparade.title")}
-        </h1>
-      </div>
+    <>
+      <div className="jp-container jp-page flex flex-col">
+        <div>
+          <h1 id={HEADING_ID} tabIndex={-1} className="jp-h1">
+            {t("sparade.title")}
+          </h1>
+        </div>
 
-      <div className="mt-7">{renderResult(result, t)}</div>
-    </div>
+        <div className="mt-7">{renderResult(result, t)}</div>
+      </div>
+      <PageFeedback pageKey="saved-ads" />
+    </>
   );
 }
 

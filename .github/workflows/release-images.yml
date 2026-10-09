@@ -267,8 +267,10 @@ jobs:
           # evicting LRU, and the eviction victims are the NuGet and pnpm caches three
           # jobs in build.yml depend on. This job runs once per merged SHA; a cold build
           # is the cheaper side of that trade.
+          # APP_VERSION is the released commit, the one this job checked out; only the web image reads it.
           build-args: |
             NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
+            APP_VERSION=${{ needs.prepare.outputs.sha }}
 
       # BLOCKING, and it is #196's own acceptance criterion: an image scanner in the
       # blocking gate before GHCR publishing goes live. `format: table` deliberately —

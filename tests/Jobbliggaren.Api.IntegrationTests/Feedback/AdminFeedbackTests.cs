@@ -162,7 +162,7 @@ public sealed class AdminFeedbackTests(ApiFactory factory)
         client.GetProperty("viewportWidth").GetInt32().ShouldBe(1280);
         client.GetProperty("screenHeight").GetInt32().ShouldBe(1080);
         client.GetProperty("pixelRatio").GetDecimal().ShouldBe(1.5m);
-        client.GetProperty("theme").GetString().ShouldBe("Dark");
+        client.GetProperty("theme").ValueKind.ShouldBe(JsonValueKind.Null);
         client.GetProperty("deviceClass").GetString().ShouldBe("Desktop");
         client.GetProperty("osFamily").GetString().ShouldBe("Windows");
         client.GetProperty("browserFamily").GetString().ShouldBe("Firefox");

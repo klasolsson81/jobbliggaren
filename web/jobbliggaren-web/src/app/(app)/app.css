@@ -2651,3 +2651,177 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
      annan kontroll här (DESIGN.md §5; design-reviewer Blocker 1). */
   .jp-ov-card__head .jp-ov-card__pill { height: 44px; padding: 0 14px; }
 }
+
+/* ── Page feedback (#1979 PR3): the rating row at the end of a page, and the footer's dialog ──
+   A compact band under a hairline: no card and no shadow, only the question and five outline
+   stars until a star is chosen. The page above it gives up half its bottom padding to the band,
+   which carries the gap to the footer itself. */
+.jp-page:has(~ .jp-feedback) { padding-block-end: 48px; }
+.jp-feedback { padding-block-end: 64px; }
+.jp-feedback__inner {
+  border-top: 1px solid var(--jp-border);
+  padding-top: 24px;
+}
+/* A detail page is one centred 760px column (.jp-modal--page's width); the row lines up with it. */
+.jp-page:has(> .jp-modal) ~ .jp-feedback .jp-feedback__inner {
+  max-width: 760px;
+  margin-inline: auto;
+}
+.jp-feedback__form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 640px;
+}
+.jp-feedback__rating {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.jp-feedback__question {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+.jp-feedback__stars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+/* Each star is a 44px target at every width (DESIGN.md §5). The chosen rating is told by the
+   heavier stroke, the bordered plate and the written readout, never by colour alone (WCAG 1.4.1):
+   the accent-50 plate is under 3:1 against the canvas, its 2px accent-700 border is not. */
+.jp-feedback__star {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid transparent;
+  border-radius: var(--jp-r-md);
+  color: var(--jp-ink-2);
+  cursor: pointer;
+}
+.jp-feedback__star:hover { background: var(--jp-surface-3); }
+.jp-feedback__star[data-lit] { color: var(--jp-accent-700); }
+.jp-feedback__star[data-selected] {
+  border-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+}
+/* The radio is visually hidden, so its focus ring is drawn on the box around it. */
+.jp-feedback__star:has(:focus-visible) {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+.jp-feedback__readout {
+  margin-inline: 8px 4px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-feedback__fields,
+.jp-feedback__shot {
+  display: flex;
+  flex-direction: column;
+}
+.jp-feedback__fields { gap: 20px; }
+.jp-feedback__shot { gap: 8px; }
+.jp-feedback__shotpick,
+.jp-feedback__shotready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.jp-feedback__shotready { align-items: flex-end; }
+.jp-feedback__thumb {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 240px);
+  max-height: 160px;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface);
+  object-fit: contain;
+}
+.jp-feedback__note,
+.jp-feedback__message {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-feedback__note--error,
+.jp-feedback__message--error { color: var(--jp-danger); }
+.jp-feedback__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-block: 10px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  cursor: pointer;
+}
+.jp-feedback__checkbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--jp-accent-800);
+  cursor: pointer;
+}
+.jp-feedback__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.jp-feedback__sendlabels { display: inline-grid; }
+.jp-feedback__sendlabel { grid-area: 1 / 1; }
+.jp-feedback__sendlabel--off { visibility: hidden; }
+.jp-feedback__receipt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+.jp-feedback__receipt svg {
+  flex-shrink: 0;
+  color: var(--jp-success);
+}
+/* The footer's dialog: wider than a confirmation dialog for the form, inside the viewport at
+   phone width, and scrolling inside itself when the form is taller than the screen. */
+.jp-feedback-dialog {
+  width: calc(100% - 32px);
+  max-width: 32rem;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.jp-feedback-dialog .jp-feedback__question { font-weight: var(--jp-fw-regular); }
+
+/* ── The footer's feedback button (#1979 PR3) ──
+   A <button> in a link column that reads as one of the links: colour, size and hover come from
+   `.jp-foot__links a` in globals.css, and this only takes away the button's own chrome. The ring is
+   the theme-stable white, since an accent ring does not show on the deep-green footer. */
+.jp-foot__linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.jp-foot__linkbtn:focus-visible {
+  outline: 2px solid var(--jp-on-fill);
+  outline-offset: 2px;
+}

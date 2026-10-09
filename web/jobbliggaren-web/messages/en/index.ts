@@ -14,6 +14,7 @@ import contentMatchning from "./content-matchning.json";
 import contentTips from "./content-tips.json";
 import errors from "./errors.json";
 import fallback from "./fallback.json";
+import feedback from "./feedback.json";
 import information from "./information.json";
 import guest from "./guest.json";
 import jobads from "./jobads.json";
@@ -41,6 +42,7 @@ const messages = {
   "content-tips": contentTips,
   errors,
   fallback,
+  feedback,
   information,
   guest,
   jobads,

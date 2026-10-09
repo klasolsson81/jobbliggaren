@@ -15,6 +15,7 @@ import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { findMasterVersion } from "@/lib/resumes/content-utils";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE: a missing record must not serve this
@@ -176,6 +177,7 @@ export default async function CanonicalCvReviewPage({
           profile={profile}
         />
       </div>
+      <PageFeedback pageKey="cv-review" />
     </>
   );
 }

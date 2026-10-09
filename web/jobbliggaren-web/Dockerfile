@@ -102,6 +102,12 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # required disposal rather than a trivy ignore entry.
 RUN apk --no-cache upgrade
 
+# The commit this image was built from, stamped into each feedback submission by the BFF route (#1979).
+# The release workflow passes it; a build without it runs fine and the submissions store the version as
+# unknown. A runtime ENV rather than NEXT_PUBLIC_: the server reads it, the client bundle never does.
+ARG APP_VERSION=
+ENV APP_VERSION=$APP_VERSION
+
 USER node
 EXPOSE 3000
 

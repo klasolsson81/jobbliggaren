@@ -10,6 +10,7 @@ import { ApplicationLoadError } from "@/components/applications/application-load
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
@@ -151,6 +152,7 @@ export default async function AnsokningarPage() {
       </section>
 
       <div className="jp-container jp-page">{content}</div>
+      <PageFeedback pageKey="applications" />
     </>
   );
 }

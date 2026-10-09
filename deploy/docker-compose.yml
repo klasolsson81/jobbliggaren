@@ -179,6 +179,14 @@ x-app-email: &app-email
   Email__FromAddress: no-reply@jobbliggaren.se
   Email__BaseUrl: https://${SITE_HOST:?}
 
+# Feedback's notice recipient (#1979, ADR 0156 D4). An anchor because both hosts read it: the api's gate
+# opens submissions only with a usable recipient, and the worker's dispatch sends only to one. Empty by
+# default, which keeps feedback closed and leaves nothing to send to; never `:?`, which would stop the
+# hourly apply. The switch itself is `Feedback__Enabled`, on the api alone. Operator view, order and the
+# GO it needs: deploy/.env.example and docs/runbooks/vps-deploy-stack.md §3g.
+x-app-feedback: &app-feedback
+  Feedback__NotificationRecipient: ${FEEDBACK_NOTIFICATION_RECIPIENT:-}
+
 # The structured log sink (#1175 (B)). Carried by api and worker — the two hosts that call
 # AddJobbliggarenLogging — and by nothing else.
 #
@@ -351,7 +359,7 @@ services:
     pull_policy: never
     container_name: jobbliggaren-api
     environment:
-      <<: [*app-secrets, *app-connections, *app-email, *app-seq]
+      <<: [*app-secrets, *app-connections, *app-email, *app-seq, *app-feedback]
       ASPNETCORE_ENVIRONMENT: Production
       # Capacity condition 2 (ADR 0050 Amendment 2026-08-04 §2). Real behaviour change
       # here: Microsoft.NET.Sdk.Web sets ServerGarbageCollection=true, and Workstation GC
@@ -373,6 +381,10 @@ services:
       # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
+      # Feedback's switch (#1979, ADR 0156 D4). Absent renders `false`, so feedback stays closed whatever
+      # the recipient. Api only: the worker's dispatch does not read it, so turning it off stops new
+      # submissions while queued notices still go out. Pinned by DeployComposeFeedbackGateTests.
+      Feedback__Enabled: ${FEEDBACK_ENABLED:-false}
       # External login (ADR 0142 D8): Google (#1744), GitHub (#1745) and LinkedIn (#1746). Every line
       # defaults EMPTY and never `:?`: a blank client id registers no provider (each provider's
       # registration reads it raw), and a pointer is blank for the reason x-app-email gives its
@@ -470,7 +482,7 @@ services:
     pull_policy: never
     container_name: jobbliggaren-worker
     environment:
-      <<: [*app-secrets, *app-connections, *app-email, *app-seq]
+      <<: [*app-secrets, *app-connections, *app-email, *app-seq, *app-feedback]
       # DOTNET_ENVIRONMENT, not ASPNETCORE_ENVIRONMENT, and the difference is load-bearing.
       # The Worker is a generic host (Host.CreateApplicationBuilder), which reads
       # DOTNET_ENVIRONMENT; ASPNETCORE_ENVIRONMENT is what a WebApplication reads, so on this

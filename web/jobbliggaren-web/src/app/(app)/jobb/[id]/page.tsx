@@ -8,6 +8,7 @@ import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 import { getJobAd } from "@/lib/api/job-ads";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 /**
  * The title resolves against the record's ABSENCE: a missing record must not serve this
@@ -74,30 +75,33 @@ export default async function JobbDetailPage({
         after(() => markFollowedCompanyAdSeen(id, sessionId));
       }
       return (
-        <div className="jp-container jp-page">
-          <div
-            className="jp-modal"
-            style={{
-              width: "100%",
-              maxWidth: 760,
-              maxHeight: "none",
-              marginInline: "auto",
-              boxShadow: "none",
-              animation: "none",
-            }}
-          >
-            <JobAdDetail
-              jobAd={result.jobAd}
-              initialSaved={result.initialSaved}
-              initialApplied={result.initialApplied}
-              followState={result.followState}
-              match={result.match}
-              ortGranularityByConceptId={result.ortGranularityByConceptId}
-              previousApplicationCount={result.previousApplicationCount}
-              contacts={result.jobAd.contacts}
-            />
+        <>
+          <div className="jp-container jp-page">
+            <div
+              className="jp-modal"
+              style={{
+                width: "100%",
+                maxWidth: 760,
+                maxHeight: "none",
+                marginInline: "auto",
+                boxShadow: "none",
+                animation: "none",
+              }}
+            >
+              <JobAdDetail
+                jobAd={result.jobAd}
+                initialSaved={result.initialSaved}
+                initialApplied={result.initialApplied}
+                followState={result.followState}
+                match={result.match}
+                ortGranularityByConceptId={result.ortGranularityByConceptId}
+                previousApplicationCount={result.previousApplicationCount}
+                contacts={result.jobAd.contacts}
+              />
+            </div>
           </div>
-        </div>
+          <PageFeedback pageKey="job-ad" />
+        </>
       );
     }
     case "unauthorized":

@@ -1,0 +1,43 @@
+{
+  "question": "Hur fungerar den här sidan för dig?",
+  "rating": {
+    "option": "{rating} av 5",
+    "readout": "{rating} av 5",
+    "clear": "Ta bort betyget"
+  },
+  "comment": {
+    "label": "Kommentar (valfri)"
+  },
+  "screenshot": {
+    "add": "Lägg till skärmbild",
+    "pasteHint": "Du kan också klistra in en skärmbild i kommentarsfältet.",
+    "preparing": "Förbereder bilden…",
+    "previewAlt": "Skärmbilden du har valt",
+    "remove": "Ta bort bilden",
+    "wrongType": "Bilden måste vara en PNG-, JPEG- eller WebP-fil.",
+    "unreadable": "Bilden kunde inte läsas. Välj en annan bild.",
+    "tooLarge": "Bilden är för stor för att öppnas. Välj en mindre bild.",
+    "tooDetailed": "Bilden är för stor för att skickas. Beskär den eller välj en mindre skärmbild."
+  },
+  "consent": "Skicka med skärm- och fönsterstorlek, pixeltäthet, enhetstyp, operativsystem och webbläsare",
+  "consentHint": "Frivilligt. Vill du återkalla samtycket efteråt kan du mejla oss, så raderar vi uppgifterna. Läs mer i <privacy>integritetspolicyn</privacy>, som öppnas i en ny flik.",
+  "send": "Skicka feedback",
+  "sending": "Skickar…",
+  "sendAgain": "Skicka igen",
+  "receipt": "Tack. Din feedback är sparad.",
+  "refused": {
+    "empty": "Välj ett betyg eller skriv en kommentar.",
+    "screenshot": "Bilden kunde inte sparas. En bild kan bli för stor efter bearbetningen även om den gick att välja. Ta bort bilden för att skicka utan den.",
+    "invalid": "Feedbacken kunde inte skickas. Ladda om sidan och försök igen.",
+    "closed": "Det går inte att skicka feedback just nu.",
+    "busy": "Det går inte att skicka just nu. Försök igen om en stund.",
+    "rateLimited": "Du har skickat många svar på kort tid. Försök igen om {minutes, plural, one {# minut} other {# minuter}}.",
+    "tooLarge": "Bilden är för stor. Den får vara högst 5 MB.",
+    "signedOut": "Du är utloggad. <signIn>Logga in igen</signIn>, som öppnas i en ny flik, och skicka sedan feedbacken här.",
+    "unknown": "Vi vet inte om din feedback sparades. Skicka igen, så sparas den bara en gång."
+  },
+  "footer": {
+    "open": "Lämna feedback om sidan",
+    "title": "Feedback om sidan"
+  }
+}

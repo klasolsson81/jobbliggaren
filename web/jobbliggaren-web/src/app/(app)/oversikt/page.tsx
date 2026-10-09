@@ -23,6 +23,7 @@ import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher
 import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { PageFeedback } from "@/components/feedback/page-feedback";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("oversikt");
@@ -219,6 +220,7 @@ export default async function OversiktRoute({
       {(process.env.NODE_ENV !== "production" || env.DEV_TOOLS_RESET_ENABLED) && (
         <ResetMyDataNote />
       )}
+      <PageFeedback pageKey="overview" />
     </>
   );
 }

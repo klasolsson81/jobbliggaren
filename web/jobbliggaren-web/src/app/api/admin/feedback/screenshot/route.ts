@@ -3,40 +3,13 @@ import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { isSameOriginRequest } from "@/lib/security/same-origin";
 import { isFeedbackId, MAX_FEEDBACK_SCREENSHOT_BYTES } from "@/lib/admin/feedback";
+import { readBounded } from "@/lib/http/read-bounded";
 
 const HEADERS = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 function refuse(status: number) {
   return NextResponse.json({ error: "screenshot_unavailable" }, { status, headers: HEADERS });
-}
-
-async function readBounded(body: ReadableStream<Uint8Array> | null, limit: number): Promise<Uint8Array | null> {
-  if (body === null) return null;
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > limit) {
-        await reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const result = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return result;
 }
 
 export async function POST(request: Request) {

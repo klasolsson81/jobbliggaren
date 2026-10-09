@@ -1,9 +1,11 @@
 import "./admin.css";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
 import { getServerSession, ROLES } from "@/lib/auth/session";
+import { ADMIN_RETURN_HEADER, adminLoginHref } from "@/lib/auth/admin-return";
 import { AppShell } from "@/components/shell/app-shell";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
@@ -19,7 +21,8 @@ export default async function AdminLayout({
 }) {
   const statsPromise = fetchLandingStats();
   const user = await getServerSession();
-  if (!user) redirect("/logga-in");
+  // The proxy wrote the admin path to return to (#1979), so the notice mail's link survives a login.
+  if (!user) redirect(adminLoginHref((await headers()).get(ADMIN_RETURN_HEADER)));
 
   const t = await getTranslations("admin");
 

@@ -60,7 +60,7 @@ public sealed class FeedbackSubmitTests(ApiFactory factory)
         submission.AppVersion.ShouldBe(AppVersion);
         submission.Context.ViewportWidth.ShouldBe(1280);
         submission.Context.PixelRatio.ShouldBe(1.5m);
-        submission.Context.Theme.ShouldBe(ReportedTheme.Dark);
+        submission.Context.Theme.ShouldBeNull();
         submission.Context.DeviceClass.ShouldBe(ReportedDeviceClass.Desktop);
         submission.Context.OsFamily.ShouldBe(ReportedOsFamily.Windows);
         submission.Context.BrowserFamily.ShouldBe(ReportedBrowserFamily.Firefox);

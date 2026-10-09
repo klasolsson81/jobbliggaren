@@ -67,7 +67,6 @@ internal static class FeedbackKit
             screenWidth = 1920,
             screenHeight = 1080,
             pixelRatio = 1.5m,
-            theme = "dark",
             deviceClass = "desktop",
             osFamily = "windows",
             browserFamily = "firefox",

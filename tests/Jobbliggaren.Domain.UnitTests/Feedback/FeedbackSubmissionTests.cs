@@ -39,6 +39,20 @@ public class FeedbackSubmissionTests
     }
 
     [Fact]
+    public void Submit_AContextWithoutTheAppVersion_IsNotStored()
+    {
+        var context = ReportedClientContext.FromReported(1280, 800, 1920, 1080, 2m, null, null, null, null);
+
+        var withoutVersion = FeedbackSubmission.Submit(Owner, Guid.NewGuid(), FeedbackPage.Jobs, Stars(4), null,
+            context, appVersion: null, Now).Value;
+        var withVersion = FeedbackSubmission.Submit(Owner, Guid.NewGuid(), FeedbackPage.Jobs, Stars(4), null,
+            context, "9e5c37129", Now).Value;
+
+        withoutVersion.Context.ShouldBe(ReportedClientContext.Empty);
+        withVersion.Context.ShouldBe(context);
+    }
+
+    [Fact]
     public void Submit_TextOnly_IsANewSubmission()
     {
         var submission = Submit(rating: null, Comment("Filtret glömmer min ort."));

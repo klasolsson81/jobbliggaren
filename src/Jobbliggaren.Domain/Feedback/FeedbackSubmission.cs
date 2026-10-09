@@ -79,8 +79,9 @@ public sealed partial class FeedbackSubmission : AggregateRoot<FeedbackSubmissio
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(context);
 
+        var stored = appVersion is null ? ReportedClientContext.Empty : context;
         var submission = new FeedbackSubmission(
-            FeedbackSubmissionId.New(), jobSeekerId, submissionKey, page, rating, comment, context, appVersion, now);
+            FeedbackSubmissionId.New(), jobSeekerId, submissionKey, page, rating, comment, stored, appVersion, now);
         submission.RaiseDomainEvent(new FeedbackSubmittedDomainEvent(submission.Id, page, now));
         return Result.Success(submission);
     }

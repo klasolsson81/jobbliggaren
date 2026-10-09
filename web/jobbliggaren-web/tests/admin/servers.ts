@@ -279,6 +279,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     if (route === "POST /api/v1/auth/refresh") return json(200, { rotated: false, sessionId: null });
     // AuthEndpoints returns an empty provider list when this host has no OAuth keys.
     if (route === "GET /api/v1/auth/oauth/providers") return json(200, []);
+    // Every (app) page's layout reads it (#1979); closed, so the pages render without the feedback row.
+    if (route === "GET /api/v1/me/feedback/prompt-state") return json(200, { open: false, answeredPages: [] });
     // The start page an ordinary account is sent to reads the landing figures.
     if (route === "GET /api/v1/landing/stats")
       return json(200, { activeCount: 42000, newToday: 62, isStale: false, refreshedAt: "2026-10-03T19:00:00Z" });

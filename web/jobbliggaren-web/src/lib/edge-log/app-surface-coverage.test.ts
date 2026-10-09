@@ -7,6 +7,7 @@ import {
 } from "@/test/edge-log-pin";
 import { EDGE_LOG_VERDICT as FEEDBACK } from "@/lib/admin/feedback-edge-log-verdicts";
 import { EDGE_LOG_VERDICT as AUDIT_LOG } from "@/lib/audit-log/edge-log-verdicts";
+import { EDGE_LOG_VERDICT as LOGIN_NEXT } from "@/lib/auth/login-next-edge-log-verdicts";
 import { EDGE_LOG_VERDICT as OAUTH_CALLBACK } from "@/lib/auth/oauth-callback-edge-log-verdicts";
 import { EDGE_LOG_VERDICT as FORETAG_SOK } from "@/lib/company-search/edge-log-verdicts";
 import { EDGE_LOG_VERDICT as JOBB } from "@/lib/job-ads/edge-log-verdicts";
@@ -33,6 +34,7 @@ const JUDGED_MUST_NOT_REACH: ReadonlyArray<string> = [
   ...keysJudged(FORETAG_SOK, "must-not-reach-a-stored-log-post"),
   ...keysJudged(OAUTH_CALLBACK, "must-not-reach-a-stored-log-post"),
   ...keysJudged(FEEDBACK, "must-not-reach-a-stored-log-post"),
+  ...keysJudged(LOGIN_NEXT, "must-not-reach-a-stored-log-post"),
 ];
 
 /**

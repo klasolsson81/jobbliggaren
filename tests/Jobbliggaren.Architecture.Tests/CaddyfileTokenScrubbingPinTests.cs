@@ -146,6 +146,12 @@ public class CaddyfileTokenScrubbingPinTests
     /// <c>web/jobbliggaren-web/src/lib/auth/oauth-callback-edge-log-verdicts.ts</c>.
     /// </para>
     /// <para>
+    /// <c>next</c>: the login return path on <c>/logga-in</c> and <c>/api/auth/oauth/{provider}/start</c>
+    /// (#1979 PR3). A path the client writes, and the admin deep link carries a feedback id inside it, where
+    /// the exact-key <c>id</c> filter cannot see it. Its inventory is
+    /// <c>web/jobbliggaren-web/src/lib/auth/login-next-edge-log-verdicts.ts</c>.
+    /// </para>
+    /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
     /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
     /// from a closed, published or enumerated value space and has a stated purpose — it selects
@@ -170,7 +176,7 @@ public class CaddyfileTokenScrubbingPinTests
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters =
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix",
-         "code", "state", "hd", "error_description", "id"];
+         "code", "state", "hd", "error_description", "id", "next"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/logga-in/lank\?\S+",

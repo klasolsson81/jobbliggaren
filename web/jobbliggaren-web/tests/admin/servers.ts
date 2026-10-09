@@ -59,7 +59,8 @@ const FEEDBACK_READS: ReadonlyArray<FeedbackRead> = ["list", "detail", "summary"
 export type AccessMode = "ok" | "forbidden" | "rateLimited" | "unauthorized" | "unknown" | "unknownAfterCommit";
 
 export type Harness = {
-  who: "admin" | "member";
+  /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
+  who: "admin" | "member" | "stale";
   mode: AdminMode;
   readonly overviewReads: Record<"accounts" | "audit" | "jobs", AdminMode>;
   overviewSampledAt: string | null;
@@ -271,7 +272,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const route = `${request.method} ${url.pathname}`;
     requests.push(route);
 
-    if (route === "GET /api/v1/me") return json(200, harness.who === "admin" ? ADMIN : MEMBER);
+    if (route === "GET /api/v1/me") {
+      if (harness.who === "stale") return json(401, { title: "Unauthorized", status: 401 });
+      return json(200, harness.who === "admin" ? ADMIN : MEMBER);
+    }
     if (route === "POST /api/v1/auth/refresh") return json(200, { rotated: false, sessionId: null });
     // AuthEndpoints returns an empty provider list when this host has no OAuth keys.
     if (route === "GET /api/v1/auth/oauth/providers") return json(200, []);

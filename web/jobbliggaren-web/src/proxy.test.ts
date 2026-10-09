@@ -5,6 +5,7 @@ import {
   REFRESH_AFTER_COOKIE_NAME,
   PERSISTENT_MAX_AGE_SECONDS,
 } from "@/lib/auth/cookie-names";
+import { ADMIN_RETURN_HEADER } from "@/lib/auth/admin-return";
 
 // The refresh driver (PR2b-3b, epic #481) is security-critical: it rotates the
 // session id, re-sets the cookie, and forwards the new id to the downstream render.
@@ -436,5 +437,58 @@ describe("proxy — the wash ordering, no-store and axis marshalling", () => {
     // but it splits on a different separator for a different id space — naming it here would
     // still point at the wrong rule.)
     expect(location).not.toMatch(/sni=(&|$)/);
+  });
+});
+
+describe("proxy — the admin return path (#1979)", () => {
+  const ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  const forwarded = (res: Response) => res.headers.get(`x-middleware-request-${ADMIN_RETURN_HEADER}`);
+
+  it("writes the admin pathname into the request header, with no redirect and no backend call", async () => {
+    const res = await proxy(makeRequest("/admin/anvandare"));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-override-headers")).toContain(ADMIN_RETURN_HEADER);
+    expect(forwarded(res)).toBe("/admin/anvandare");
+  });
+
+  it("keeps the one GUID id on /admin/feedback, lower-cased, and drops every other key", async () => {
+    const res = await proxy(makeRequest(`/admin/feedback?status=ny&id=${ID.toUpperCase()}&sidnr=2`));
+
+    expect(forwarded(res)).toBe(`/admin/feedback?id=${ID}`);
+  });
+
+  it.each([
+    ["an id that is not a GUID", "/admin/feedback?id=namn.efternamn%40example.test"],
+    ["two ids", `/admin/feedback?id=${ID}&id=${ID}`],
+  ])("keeps only the pathname for %s", async (_label, path) => {
+    expect(forwarded(await proxy(makeRequest(path)))).toBe("/admin/feedback");
+  });
+
+  it("keeps no id on another admin page", async () => {
+    expect(forwarded(await proxy(makeRequest(`/admin/anvandare?id=${ID}`)))).toBe("/admin/anvandare");
+  });
+
+  it("overwrites a value the client sent", async () => {
+    const res = await proxy(
+      makeRequest("/admin", { headers: { [ADMIN_RETURN_HEADER]: `/admin/feedback?id=${ID}` } })
+    );
+
+    expect(forwarded(res)).toBe("/admin");
+  });
+
+  it("writes nothing on a sibling path that only begins with the same letters", async () => {
+    const res = await proxy(makeRequest("/administration"));
+
+    expect(res.headers.get("x-middleware-override-headers")).toBeNull();
+  });
+
+  it("puts only next on the login redirect, so no other key reaches the request line", async () => {
+    const res = await proxy(makeRequest(`/ansokningar/${ID}?flik=anteckningar`));
+    const location = new URL(res.headers.get("location") ?? "", "https://app.test");
+
+    expect([...location.searchParams.keys()]).toEqual(["next"]);
+    expect(location.searchParams.get("next")).toBe(`/ansokningar/${ID}`);
   });
 });

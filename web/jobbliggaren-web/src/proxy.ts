@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isProtectedPath } from "@/lib/auth/protected-routes";
+import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
 import {
   PERSISTENT_MAX_AGE_SECONDS,
   REFRESH_AFTER_COOKIE_NAME,
@@ -67,6 +68,16 @@ interface RefreshResult {
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+
+  // #1979: the (admin) layout has no URL of its own, so the path its login redirect returns to travels in a
+  // request header. Written on every /admin request, above the protected-path gate that /admin sits outside,
+  // so a value a client sent never reaches the layout.
+  const adminReturn = adminReturnPath(request.nextUrl);
+  if (adminReturn !== null) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(ADMIN_RETURN_HEADER, adminReturn);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // Gated: the refresh driver only runs on protected paths. Public/non-protected
   // paths pass straight through, never touching the backend.

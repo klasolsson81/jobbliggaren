@@ -15,39 +15,10 @@ export const FEEDBACK_PAGE_SIZE = 25;
 
 export const MAX_FEEDBACK_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 
-/**
- * The pages feedback is collected for, as the backend keys them, in the app's own order. The backend's
- * `FeedbackPage` is the closed set; a key outside this list is shown as it came and never filtered on.
- */
-export const FEEDBACK_PAGE_KEYS = [
-  "overview",
-  "jobs",
-  "job-ad",
-  "matches",
-  "saved-ads",
-  "saved-searches",
-  "applications",
-  "application",
-  "new-application",
-  "statistics",
-  "activity-report",
-  "followed-companies",
-  "company-search",
-  "industry-watches",
-  "application-history",
-  "cv",
-  "cv-import",
-  "cv-review",
-  "my-pages",
-] as const;
+import { isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
 
-export type FeedbackPageKey = (typeof FEEDBACK_PAGE_KEYS)[number];
-
-const PAGE_KEYS: ReadonlySet<string> = new Set(FEEDBACK_PAGE_KEYS);
-
-export function isFeedbackPageKey(value: unknown): value is FeedbackPageKey {
-  return typeof value === "string" && PAGE_KEYS.has(value);
-}
+// The closed page set lives with the user surface; a key outside it is shown as it came and never filtered on.
+export { FEEDBACK_PAGE_KEYS, isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
 
 /** The statuses in the order the filter and the status choice show them. */
 export const FEEDBACK_STATUSES: ReadonlyArray<AdminFeedbackStatus> = ["new", "inProgress", "resolved", "declined"];

@@ -38,17 +38,21 @@ test.afterEach(() => {
   expect(harness.misses, "the pages read a backend route the harness does not answer").toEqual([]);
 });
 
-const PAGE = "/oversikt";
+// A page the job-modal harness answers every read of.
+const PAGE = "/sparade";
 const QUESTION = "Hur fungerar den här sidan för dig?";
 const RECEIPT = "Tack. Din feedback är sparad.";
 const CONSENT = "Skicka med skärm- och fönsterstorlek, pixeltäthet, enhetstyp, operativsystem och webbläsare";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const row = (page: Page) => page.locator("section.jp-feedback");
+// The visible line under Send; the form's live region repeats it for a screen reader.
+const message = (page: Page) => row(page).locator(".jp-feedback__message");
 const footerButton = (page: Page) => page.getByRole("button", { name: "Lämna feedback om sidan" });
 
+/** Clicks the star, as a user does: the radio itself is visually hidden inside its label. */
 async function rate(page: Page, rating: number) {
-  await row(page).getByRole("radio", { name: `${rating} av 5` }).check();
+  await row(page).getByRole("radio", { name: `${rating} av 5` }).locator("xpath=..").click();
 }
 
 async function send(page: Page) {
@@ -134,7 +138,7 @@ test("a rating, a comment and the ticked box arrive as one stamped submission", 
   expect(harness.feedbackReceipts).toHaveLength(1);
   const { payload, screenshot } = harness.feedbackReceipts[0]!;
   expect(payload).toMatchObject({
-    page: "overview",
+    page: "saved-ads",
     rating: 4,
     comment: "Översikten är tydlig.",
     appVersion: HARNESS_APP_VERSION,
@@ -177,7 +181,7 @@ test("an unknown answer offers to send again under the same key, which is saved 
   await rate(page, 3);
   await send(page);
 
-  await expect(row(page).getByText("Vi vet inte om din feedback sparades. Skicka igen, så sparas den bara en gång.")).toBeVisible();
+  await expect(message(page)).toHaveText("Vi vet inte om din feedback sparades. Skicka igen, så sparas den bara en gång.");
   harness.feedback.answer = "saved";
   await row(page).getByRole("button", { name: "Skicka igen" }).click();
 
@@ -203,7 +207,7 @@ for (const [answer, text] of REFUSALS) {
     await row(page).getByLabel("Kommentar (valfri)").fill("Utkastet ska stå kvar.");
     await send(page);
 
-    await expect(row(page).getByText(text, { exact: true })).toBeVisible();
+    await expect(message(page)).toHaveText(text);
     await expect(row(page).getByLabel("Kommentar (valfri)")).toHaveValue("Utkastet ska stå kvar.");
   });
 }
@@ -257,7 +261,7 @@ test("a file that is not an image is refused, and the rating still goes without 
   await rate(page, 2);
   await attach(page, "inte-en-bild.png", "image/png", Buffer.from("inte en bild"));
 
-  await expect(row(page).getByText("Bilden måste vara en PNG-, JPEG- eller WebP-fil.")).toBeVisible();
+  await expect(row(page).locator(".jp-feedback__note")).toHaveText("Bilden måste vara en PNG-, JPEG- eller WebP-fil.");
   await send(page);
   await expect(row(page).getByText(RECEIPT)).toBeVisible();
 
@@ -277,6 +281,6 @@ test("the footer's dialog keeps its draft over close and reopen, and sends a com
   await dialog.getByRole("button", { name: "Skicka feedback" }).click();
 
   await expect(dialog.getByText(RECEIPT)).toBeVisible();
-  expect(harness.feedbackReceipts[0]!.payload).toMatchObject({ page: "overview", comment: "Sidfoten fungerar." });
+  expect(harness.feedbackReceipts[0]!.payload).toMatchObject({ page: "saved-ads", comment: "Sidfoten fungerar." });
   expect(harness.feedbackReceipts[0]!.payload).not.toHaveProperty("rating");
 });

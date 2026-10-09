@@ -511,3 +511,12 @@ against the actual #1977 implementation before the final merge gate.
   says before the tick that the consent is optional and how it is withdrawn (Art. 7(2)–(3), 13(2)(c); LEK 9 kap.
   28 §, Klas 2026-10-09 "Frivillig kryssruta"). `legally-bound-copy.test.ts` pins the catalogue, and
   `feedback-form.test.tsx` pins that the hint is the checkbox's description.
+
+## Amendment 2026-10-09 (b) — #1979: row 20 shortened after Klas's live test
+
+Klas found the consent copy too much beside a feedback form. Row 20 now reads: `feedback.consent` sv "Skicka med
+teknisk information om skärm, enhet och webbläsare", en "Include technical information about screen, device and
+browser"; `feedback.consentHint` sv "Frivilligt. Du kan ta tillbaka det genom att mejla oss. <privacy>Läs mer</privacy>",
+en "Optional. You can withdraw it by emailing us. <privacy>Read more</privacy>". The box shows only in the feedback
+dialog. The hint stays the box's accessible description and still says, before the tick, that the consent is optional
+and how it is withdrawn. `legally-bound-copy.test.ts` pins both rows.

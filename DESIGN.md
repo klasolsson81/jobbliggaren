@@ -176,6 +176,7 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Default: `size-4` (16px) inline med text, `size-5` (20px) fristående
 - Färg ärvs via `currentColor` — aldrig hårdkodad ikonfärg
 - Undantag: leverantörsmärket på en aktiv provider-rad (§3).
+- Undantag: betygsstjärnorna i sidornas feedbackrad och feedbackdialogen (#1979): stjärnorna upp till valt eller utpekat betyg fylls med `currentColor` (`--jp-accent-700`), övriga står i kontur. Gäller bara stjärnorna.
 - Inga emojis i UI-text, oavsett kontext
 
 ---

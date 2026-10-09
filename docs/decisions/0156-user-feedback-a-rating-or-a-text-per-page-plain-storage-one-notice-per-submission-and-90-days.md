@@ -104,6 +104,7 @@ The gate is deliberately soft, with no `ValidateOnStart`: a missing recipient ke
 the admin page instead of stopping the only production host (ADR 0154). The recipient is server configuration, the
 controller's own address, and never part of a request or of the repository (`appsettings.Local.json.example` carries
 a `.test` placeholder). `Feedback:Enabled` is off by default until PR3.
+*(2026-10-09, PR3 amendment: the switch.)*
 
 ### D5 — One notice per submission, and the rule for an outcome nobody knows
 

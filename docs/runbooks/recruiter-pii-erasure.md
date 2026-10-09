@@ -566,7 +566,15 @@ JOIN identity."AspNetUsers" u ON u.id = j.user_id
 WHERE u.normalized_email = upper(@email);
 ```
 
-The device context, when one was sent, goes with its submission.
+A reporter who withdraws consent to the device context keeps their submissions; for the same ids, clear the
+context columns only:
+
+```sql
+UPDATE public.feedback_submissions
+SET viewport_width = NULL, viewport_height = NULL, screen_width = NULL, screen_height = NULL, pixel_ratio = NULL,
+    reported_theme = NULL, reported_device_class = NULL, reported_os_family = NULL, reported_browser_family = NULL
+WHERE id = @submission_id;
+```
 
 Add to the mandatory closing in every requester reply:
 

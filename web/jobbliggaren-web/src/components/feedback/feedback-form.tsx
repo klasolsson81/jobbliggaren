@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Textarea } from "@/components/ui/textarea";
-import { STANDALONE_LINK } from "@/components/auth/mail-link";
+import { STANDALONE_LINK, TEXT_LINK } from "@/components/auth/mail-link";
 import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { ScreenshotField, SCREENSHOT_REFUSAL_MESSAGE, pastedScreenshot } from "./screenshot-field";
 import { StarRating } from "./star-rating";
@@ -162,7 +162,7 @@ export function FeedbackForm({
             <p id={consentHintId} className="text-body-sm text-text-primary">
               {t.rich("consentHint", {
                 privacy: (chunks) => (
-                  <Link href="/integritet" target="_blank" rel="noopener noreferrer" className={STANDALONE_LINK}>
+                  <Link href="/integritet" target="_blank" rel="noopener noreferrer" className={TEXT_LINK}>
                     {chunks}
                   </Link>
                 ),

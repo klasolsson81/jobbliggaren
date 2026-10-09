@@ -2662,6 +2662,11 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   border-top: 1px solid var(--jp-border);
   padding-top: 24px;
 }
+/* A detail page is one centred 760px column (.jp-modal--page's width); the row lines up with it. */
+.jp-page:has(> .jp-modal) ~ .jp-feedback .jp-feedback__inner {
+  max-width: 760px;
+  margin-inline: auto;
+}
 .jp-feedback__form {
   display: flex;
   flex-direction: column;

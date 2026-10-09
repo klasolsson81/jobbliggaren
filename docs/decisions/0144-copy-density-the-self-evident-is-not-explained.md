@@ -502,3 +502,12 @@ and HTML and their order. The owner confirmation, scheduling receipt/login
 outcome and sv/en privacy notice carry the same lifecycle meaning; the earliest
 date never claims completed erasure. Security-auditor binds the changed strings
 against the actual #1977 implementation before the final merge gate.
+
+## Amendment 2026-10-09 — #1979 PR3: row 20, the feedback consent
+
+- Row 20 (new): `feedback.consent` and `feedback.consentHint`, sv and en, whole. The label names everything the
+  device context carries (screen and window size, pixel density, device type, operating system, browser) on a box
+  that starts unticked; the hint stands under the box without a click, is the box's accessible description, and
+  says before the tick that the consent is optional and how it is withdrawn (Art. 7(2)–(3), 13(2)(c); LEK 9 kap.
+  28 §, Klas 2026-10-09 "Frivillig kryssruta"). `legally-bound-copy.test.ts` pins the catalogue, and
+  `feedback-form.test.tsx` pins that the hint is the checkbox's description.

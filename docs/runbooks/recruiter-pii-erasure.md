@@ -555,6 +555,19 @@ COMMIT;
 
 The `@submission_id` parameter is bound by the client; it is not SQL text interpolation or a psql literal. Check affected row counts, re-read the admin detail (missing image or missing submission), and record the case/confirmation/outcome without image bytes or personal text. A no-image result after restore is expected: logical dumps retain schema/feedback but exclude this table's data. Source-CV deletion does not erase this independent copy.
 
+A reporter who asks for their own feedback to be deleted (the privacy policy offers it, #1979 PR3) is handled with
+the same whole-submission statements for each of their submissions, inside the Art. 12(3) month. The admin list
+carries no address, so find the submissions from the requester's verified account and read only ids:
+
+```sql
+SELECT s.id FROM public.feedback_submissions s
+JOIN public.job_seekers j ON j.id = s.job_seeker_id
+JOIN identity."AspNetUsers" u ON u.id = j.user_id
+WHERE u.normalized_email = upper(@email);
+```
+
+The device context, when one was sent, goes with its submission.
+
 Add to the mandatory closing in every requester reply:
 
 > Skärmbilder som användare har bifogat sina synpunkter är separata kopior som vi inte söker igenom automatiskt. Om du vet att dina uppgifter finns i en sådan bild, hör av dig med sammanhanget, så granskar och hanterar vi den manuellt.

@@ -1275,6 +1275,31 @@ gate's hash. Never read `/config/apps`, and never pipe `caddy adapt` to a filter
 - Unchanged by the move, before the first user who is not Klas: #734, #197, `release-checklist.md` §2.7,
   #734 row 10, and ADR 0132/0133 triggers (a) and (b).
 
+## 3g. Feedback: switching on and off (#1979, ADR 0156)
+
+Feedback opens only with `FEEDBACK_ENABLED=true`, a usable recipient and a delivering mail provider. **It is a
+`deploy/.env` change, never a merge:** the release carrying #1979 PR3 passes both keys closed. The `.env` edit is
+outside A2 (ADR 0154 §4), so it needs Klas's concrete GO. Agents never sign in on the box (CLAUDE.md §9.2): that
+feedback is open is Klas's to see, on `/admin/feedback` and with his own submission; an agent reads keys by name,
+health and counts. Uses §3f's `E`, `setkey` and `apply`.
+
+| # | Who | Action | Expected | On failure |
+|---|---|---|---|---|
+| 1 | Session | `--status`; `sudo grep -c 'Feedback__Enabled' /opt/jobbliggaren/deploy/docker-compose.yml` | `verdict: consistent`; `1` | Stop: the release with the keys is not applied |
+| 2 | Session | `sudo git -C /opt/jobbliggaren diff --quiet HEAD -- deploy/systemd/jobbliggaren-backup.sh && sudo grep -c -- '--exclude-table-data=public.feedback_screenshots' /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh` | exit 0 and `1`: the installed script (the unit runs it from the checkout) excludes screenshot data | Stop: install per `backup-restore.md` |
+| 3 | Session | `sudo docker exec jobbliggaren-web printenv APP_VERSION` | the `source` that `--status` prints | Stop: a submission would name the wrong consent label |
+| 4 | Session | The processing register (local) carries the feedback entry | Present | Stop |
+| 5 | Klas | GO naming both keys and the recipient | — | — |
+| 6 | Session | `setkey FEEDBACK_NOTIFICATION_RECIPIENT kontakt@jobbliggaren.se; setkey FEEDBACK_ENABLED true; apply` | the reconcile completes; `verdict: consistent` | Switch off (below) |
+| 7 | Session | `sudo docker exec jobbliggaren-api printenv Feedback__Enabled`; `sudo docker exec jobbliggaren-api sh -c 'printenv Feedback__NotificationRecipient \| wc -c'`, and the same length on `jobbliggaren-worker` | `true`; a length above 1, the address itself never printed | Switch off |
+| 8 | Session | Counts before Klas's test: `docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc "select (select count(*) from feedback_submissions), (select count(*) from feedback_screenshots);"` and `… -tAc "select state, count(*) from feedback_notifications group by state;"` | Recorded with the UTC time | — |
+| 9 | Klas | `/admin/feedback` reads open; one submission signed in, with a rating, a comment, a screenshot and the device box ticked | The item with its image in the list; the notice in the recipient's mailbox | Switch off |
+| 10 | Session | Row 8's counts again | One more submission and screenshot; one more notice, `Accepted` | Switch off; read the notice state before anything else |
+
+**Switching off is one key:** `setkey FEEDBACK_ENABLED false; apply`. The recipient stays, so notices already
+queued still go out; new submissions answer closed, and the prompt and the footer link disappear on the next full
+page load. Removing the recipient as well would strand queued notices.
+
 ## 4. Host-side prerequisites
 
 **Docker daemon.** Write `/etc/docker/daemon.json` **before the first `up`**: `json-file`

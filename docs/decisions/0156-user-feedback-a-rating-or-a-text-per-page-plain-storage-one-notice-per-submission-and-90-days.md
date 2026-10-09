@@ -132,6 +132,7 @@ the notice is not sent a second time.
   acknowledging that it may arrive twice. `FeedbackNotification.Requeue` checks the acknowledgement, not the
   endpoint. A requeue starts a new round of five attempts and is audited.
 - The user's receipt will say that the feedback was saved, never that it was delivered (PR3).
+- *(2026-10-09, PR3 amendment: the 24-hour budget, `FeedbackNotificationDispatchJob.DailyBudget`.)*
 
 ### D6 — Amends ADR 0124: `EmailDeliveryException` gains `Disposition`
 
@@ -217,6 +218,62 @@ Klas approved this implementation plan on 2026-10-08, after the local senior-cto
 - `feedback_screenshots.content` is `HeldButNotSearchable` in recruiter erasure. Pixels are plaintext, yet no OCR or corpus-wide image scan runs. Every response discloses the gap and offers manual review within the request deadline, even when comment search found no match. An identified image can be deleted alone; whole-submission erasure deletes image, notice and submission together. The runbook owns the operator procedure.
 
 **PR3 prerequisites:** separately verify that the updated backup script is installed on the VPS under its existing operator procedure. An image release does not install systemd scripts. The privacy copy and processing register must explain that a screenshot is a **separate plaintext copy**, which is not automatically erased when its source CV is deleted. The feature stays closed until those steps and Klas's controlled launch test.
+## PR3 amendment — 2026-10-09: the user surface, the disclosure and the switch
+
+Klas approved the PR3 plan on 2026-10-09; the CTO reviewed it the same day (M1–M7). This amendment replaces D9's
+PR3 delivery mechanics. PR3 follows D9's pure CC flow: the CLAUDE.md §9.2 panel and the CTO's merge permission for
+the same revision, no `codex-review` label.
+
+**Klas's decisions, 2026-10-09:** the device context is read and sent only when the user ticks an unticked box
+(LEK 9 kap. 28 §, "Frivillig kryssruta"); the notice recipient is kontakt@jobbliggaren.se, the STRATO mailbox the
+privacy policy already names.
+
+- **Where the prompt appears.** `lib/feedback/page-keys.ts` holds the 19 keys and every `(app)` page route, each
+  either mapped to a key or exempt with its reason; `page-feedback-coverage.test.ts` holds that list equal to the
+  page files and requires exactly one `<PageFeedback pageKey>` in each mapped page's content. Intercepted modals have
+  none. The footer's "Lämna feedback om sidan" resolves the key from the route's pattern and opens the same form.
+- **The prompt state is read once per full load.** `(app)/layout.tsx` reads `prompt-state` beside the session and a
+  client provider holds it with the pages answered during the visit, in memory only. A failed read shows no surface.
+  The row never disappears while it holds a draft, a request in flight or a receipt.
+- **One route handler carries the submission** (`app/api/feedback/route.ts`). A Server Action cannot: its body is
+  capped at 1 MB, and a page's stale action never runs after a deploy (ADR 0148), which would discard a comment and
+  an image the user just prepared. The route reads the body within a bound, accepts exactly one `payload` and at
+  most one `screenshot`, validates the payload strictly, stamps the app version, and sends the image as a named file
+  part. The browser gets a closed set of outcomes; the backend's body never travels.
+- **The device context** carries no theme: the product is light-only, and the stored theme choice is browser storage
+  the cookie policy says never leaves the device. D2's "reports … the theme" no longer describes the client. The
+  consent record is the submission itself: the context exists only when the box was ticked, and the stamped app
+  version names the label shown. So the route sends the context on only when the page was rendered by the version
+  now answering (`renderedVersion` equal to `APP_VERSION`); otherwise it is left out and the rest still goes.
+- **The screenshot is redrawn in the browser** as a PNG within a long edge of 2 560 px, 4 megapixels and 1.5 MiB,
+  shrinking by 0.75 down to a 720 px floor, so the upload fits Caddy's 10 seconds and the server's PNG stays under
+  5 MiB. The redraw leaves metadata such as a location on the device; an image the browser cannot redraw is refused,
+  never sent as it came. A valid image can therefore be refused, by the browser or by the server's 5 MiB limit on the
+  normalised PNG.
+- **The app version** is the released commit: the release workflow passes it to the web image's runtime stage
+  (`APP_VERSION`), and `env.APP_VERSION` passes only a lowercase hex hash of 7–40 characters.
+- **The switch replaces D9's "defaults to true".** `FeedbackOptions.Enabled` stays `false` in code. Compose passes
+  `Feedback__Enabled: ${FEEDBACK_ENABLED:-false}` to the api alone and the recipient through the `x-app-feedback`
+  anchor to the api and the worker, defaulting empty. Klas's GO sets both in the box `.env`
+  (`vps-deploy-stack.md` §3g). An explicit compose default would override a code default anyway, and a separate
+  switch closes submissions without stranding queued notices: switching off sets `FEEDBACK_ENABLED=false` and keeps
+  the recipient.
+- **The 24-hour budget.** The dispatch hands at most 20 notices (`FeedbackNotificationDispatchJob.DailyBudget`) to
+  the provider in any 24 hours, across every account. A notice over it stays `Queued` and goes when the window
+  allows, so a burst of more than 20 submissions in a day delays the later notices by up to a day. The feedback
+  itself is saved and listed at once.
+- **A signed-out administrator keeps the notice's link.** The proxy forwards a return path for `/admin` paths, and
+  for `/admin/feedback` only a GUID-shaped `id`; the admin layout sends a signed-out visit to
+  `/logga-in?next=…` through `safeRedirectPath`. Because `next` now carries the id, the edge deletes `next` from its
+  log as it deletes `id` (`login-next-edge-log-verdicts.ts`, `CaddyfileTokenScrubbingPinTests`).
+- **The disclosure.** The privacy policy states what a submission holds, the consent for the device context and how
+  to withdraw it, that text and image are kept outside the CV encryption and that a screenshot is a separate copy a
+  CV's deletion does not remove, the notice to the STRATO mailbox, and the retention: 90 days from submission,
+  account deletion, deletion on request, and the per-page marker for the life of the account. The processing
+  register carries the same entry. The box's label and the withdrawal hint under it are ADR 0144 row 20.
+- **Before the switch:** the installed backup script was read back with the screenshot data exclusion on
+  2026-10-09 (session record); an image release installs no script.
+
 ## Klas beviljanden (2026-10-07)
 
 Klas's grants, in the form of ADR 0139's section of the same name. The exposure registry's comment points here by
@@ -281,6 +338,7 @@ this name.
 - The page set is closed in code: a new page needs a code change (D1).
 - ADR 0124 stays as written while a dated pointer amends its exception contract, so a reader of ADR 0124 must follow
   the pointer.
+- *(2026-10-09, PR3 amendment: how long a notice can wait under the 24-hour budget.)*
 
 ## Implementation
 

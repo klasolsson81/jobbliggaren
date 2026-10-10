@@ -25,10 +25,10 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// Secrets arrive as files on a RAM-backed mount, never as container environment values,
-// which Docker persists to disk (ADR 0050 gate B-1). This is deliberately the last source,
-// so on the server the file wins. Development also reads role-specific Redis files; other
-// local options stay in appsettings.Local.json.
+// Secrets named by *_FILE variables arrive as files on a RAM-backed mount instead of as
+// container environment values, which Docker persists to disk (ADR 0050 gate B-1). This is
+// deliberately the last source, so on the server the file wins. Development also reads
+// role-specific Redis files; other local options stay in appsettings.Local.json.
 builder.Configuration.AddEnvFileSecrets();
 
 // Structured logging to the console and, when Seq:ServerUrl is set, to Seq. Shared with
@@ -43,8 +43,6 @@ builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 // in a host where every job runs in its own scope.
 //
 // Consequence: a missing dependency of a Worker job surfaces only when Hangfire invokes the job.
-// That is why each job and its wrapper below are registered explicitly and together, and why
-// WorkerLayerTests and the integration tests resolve them.
 builder.ConfigureContainer(new DefaultServiceProviderFactory(
     new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false }));
 
@@ -57,7 +55,7 @@ builder.Services.AddPersistence(builder.Configuration);
 // schemes, cookies and SignInManager.
 builder.Services.AddCoreIdentityForWorker(builder.Configuration);
 
-// The JobTech integration: Refit clients and PlatsbankenJobSource as IJobSource, with rate
+// The JobTech integration: the HTTP clients and PlatsbankenJobSource as IJobSource, with rate
 // limiting, retries and a circuit breaker from Microsoft.Extensions.Http.Resilience. ADR 0023
 // bans ASP.NET Core server components from the Worker, not outgoing HTTP.
 builder.Services.AddJobSources(builder.Configuration);
@@ -68,11 +66,11 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenStreamWork
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RetainPlatsbankenJobAdsWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
-// The daily matching scan (ADR 0080). The Worker does not call AddInfrastructure, so the
-// matching engine's ports are added here; the job resolves them in a child scope per user.
+// The daily matching scan (ADR 0080). The job resolves the matching engine's ports in a
+// child scope per user.
 builder.Services.AddMatchingEngine();
-// The email sender for match notices and digests, through the same provider switch as the
-// API: console in development, a null sender elsewhere unless Scaleway is configured.
+// The email sender, through the same provider switch as the API: console in development, a
+// null sender elsewhere unless Scaleway is configured.
 builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
@@ -91,8 +89,8 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWor
 // contract of this host.
 builder.Services.AddScoped<CompanyWatchCriterionMaterialisationWorker>();
 builder.Services.AddScoped<OccupationDivisionProfileWorker>();
-// The match digest (ADR 0080): daily and weekly cron entries; each run sends to the users who
-// chose that cadence. Its cap comes from the validated Digest options.
+// The match digest (ADR 0080): daily and weekly cron entries; each run sends to the consenting
+// users who chose that cadence. Its cap comes from the validated Digest options.
 builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions>()
     .Bind(builder.Configuration.GetSection(
         Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions.SectionName))
@@ -112,10 +110,6 @@ builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.DispatchFeedba
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackNotificationDispatchWorker>();
 builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
-// Long-running, one-off backfills (field encryption, occupation codes, employment terms,
-// extracted terms, requirements). The API enqueues the Application jobs directly, since it
-// cannot reference the Worker; these wrappers carry DisableConcurrentExecution for runs
-// scheduled from the Worker.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdSsykWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdKlass2Worker>();
@@ -157,13 +151,10 @@ builder.Services.AddMediatorPipelineBehaviors();
 // Development and Test; elsewhere the DDL is applied beforehand
 // (docs/runbooks/hangfire-schema.md), so the Worker's database user needs no CREATE grant.
 //
-// SECURITY: the Worker hosts no Hangfire dashboard. If one is ever exposed, it MUST be
-// protected with an IDashboardAuthorizationFilter, the admin policy and an IP restriction:
-// Hangfire's default is public, and the dashboard shows job arguments (user and aggregate
-// ids) and stack traces that may contain personal data.
+// SECURITY: no host mounts the Hangfire dashboard (docs/runbooks/hangfire-schema.md §5). It
+// shows job arguments (user and aggregate ids) and stack traces that may contain personal data.
 //
-// The connection string prefers HangfireStorage (the Worker's own database role) and falls
-// back to Postgres in development.
+// The connection string prefers HangfireStorage and falls back to Postgres.
 var hangfireConnectionString = HangfireConnectionStringResolver.Resolve(builder.Configuration);
 
 var hangfireOpts = builder.Configuration.GetSection(HangfireWorkerOptions.SectionName)

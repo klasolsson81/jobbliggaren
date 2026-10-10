@@ -31,9 +31,7 @@ using ValidationException = Jobbliggaren.Application.Common.Exceptions.Validatio
 
 var builder = WebApplication.CreateBuilder(args);
 
-// An app-wide request-body ceiling, below the framework's implicit default. The CV import
-// endpoint sets its own, tighter limit (ResumesEndpoints.MaxUploadBytes), which stays the
-// authoritative gate for uploads; every other endpoint takes small JSON bodies.
+// An app-wide request-body ceiling, below the framework's implicit default.
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 16L * 1024 * 1024);
 
 // BEFORE ADDING AddRequestTimeouts/UseRequestTimeouts, read RecruiterErasureMatchQuery's
@@ -45,10 +43,10 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// Secrets arrive as files on a RAM-backed mount, never as container environment values,
-// which Docker persists to disk (ADR 0050 gate B-1). This is deliberately the last source,
-// so on the server the file wins. With no *_FILE variables set it adds no keys, so local
-// appsettings.Local.json works unchanged.
+// Secrets named by *_FILE variables arrive as files on a RAM-backed mount instead of as
+// container environment values, which Docker persists to disk (ADR 0050 gate B-1). This is
+// deliberately the last source, so on the server the file wins. With no *_FILE variables set
+// it adds no keys, so local appsettings.Local.json works unchanged.
 builder.Configuration.AddEnvFileSecrets();
 
 // Structured logging to the console and, when Seq:ServerUrl is set, to Seq. Shared with
@@ -130,9 +128,8 @@ builder.Services.AddHangfire(cfg => cfg
             // The API never creates the schema; the Worker owns it.
             PrepareSchemaIfNecessary = false,
             // No-ops for an enqueue-only client, but mirrored from the Worker's
-            // HangfireStorageOptionsFactory so the two registrations cannot drift. A shared
-            // factory is not possible: the API cannot reference the Worker, and Infrastructure is
-            // deliberately free of Hangfire (ADR 0023).
+            // HangfireStorageOptionsFactory. A shared factory is not possible: the API cannot
+            // reference the Worker, and Infrastructure is deliberately free of Hangfire (ADR 0023).
             UseSlidingInvisibilityTimeout = true,
             DistributedLockTimeout = TimeSpan.FromHours(12),
         }));
@@ -156,8 +153,7 @@ builder.Services.AddHealthChecks()
 // the environment and HttpsEnabled, like UseHttpsRedirection.
 var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
 
-// The HSTS settings are validated only when HttpsEnabled is true; if it is ever turned on,
-// MaxAgeDays >= 365 and the preload requirements must hold, or startup fails.
+// The HSTS settings are validated only when HttpsEnabled is true.
 //
 // SINGLE bind, two consumers: this HSTS validation gate, and UseHsts/UseHttpsRedirection
 // in the pipeline below. Binding the same section twice would be two normalisers for one
@@ -282,7 +278,7 @@ if (app.Environment.IsDevelopment())
 //
 // SECURITY: KnownNetworks must hold the proxy network's CIDR before the first traffic (ADR
 // 0050 Amendment 2026-08-04, gate M-5b point 3). The section is bound directly and fails
-// loudly on an invalid CIDR or address; an empty list keeps ASP.NET's loopback-only default.
+// loudly on an invalid CIDR or address.
 // Caddy writes X-Forwarded-For towards Next, which relays it unchanged (#1202), so this list
 // is what decides whether an arriving header is trusted. The IP-partitioned rate-limit
 // policies depend on it.
@@ -313,13 +309,11 @@ app.UseForwardedHeaders(forwardedOptions);
 // same topology. Development keeps the redirect, using the development certificate.
 // `reverseProxy` is the single bind made above at service-registration time.
 
-// HSTS before HTTPS redirection, so the header is also set on the redirect response. Skipped
-// in Development: the browser would remember the policy for localhost long after the
-// development certificate changes.
+// HSTS before HTTPS redirection. Skipped in Development: the browser would remember the
+// policy for localhost long after the development certificate changes.
 //
 // Requires the UseForwardedHeaders registration above — otherwise Request.IsHttps is
-// false behind the proxy and the HSTS header is never set on the response
-// (dotnet-architect Viktigt-fynd, ASP.NET Core 10 docs).
+// false behind the proxy and the HSTS header is never set on the response.
 if (!builder.Environment.IsDevelopment() && reverseProxy.HttpsEnabled)
 {
     app.UseHsts();

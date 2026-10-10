@@ -17,6 +17,7 @@ import {
   linkTokenInputSchema,
   replaceSessionInputSchema,
 } from "@/lib/auth/challenge-schemas";
+import { linkChallengeId } from "@/lib/auth/link-token";
 import { cookieSafeNext, resendCooldownRemaining } from "@/lib/auth/login-flow";
 import {
   clearLoginFlow,
@@ -347,11 +348,12 @@ export async function completeRegistration(
 
 /**
  * The link landing's one button. The token is read from the form body only, never from the URL the
- * POST arrives on, and the landing never reads the flow cookie: the click comes from a mail client,
- * cross-site, and a Strict cookie is not sent with it (ADR 0142 D2).
+ * POST arrives on, and the landing's GET never reads the flow cookie: the click comes from a mail
+ * client, cross-site, and a Strict cookie is not sent with it (ADR 0142 D2).
  *
  * Its outcomes are action state, which is safe here and only here: the page has no phase check to
- * lose them to. A link never leads to the consent step, and it carries no `next`.
+ * lose them to. A link never leads to the consent step and carries no `next` of its own; it lands
+ * on the `next` of the login it belongs to when this browser started that login (#2094).
  */
 export async function consumeLink(
   _prev: LinkStepState,
@@ -401,9 +403,17 @@ export async function consumeLink(
     // A session that already existed in this browser is replaced here and left alive on the
     // server: revoking it would let anyone's link sign another account out everywhere. A code
     // login for another address may be half-way in the same browser, so its cookie goes too.
+    //
+    // This POST is same-site, so it carries the flow cookie, and a login started on the way to a page holds
+    // that page as `next` (#2094). Only the flow of this link's own challenge counts.
+    const flow = await readLoginFlow();
+    const target =
+      flow?.phase === "code" && flow.challengeId === linkChallengeId(parsed.data)
+        ? safeRedirectPath(flow.next)
+        : DEFAULT_REDIRECT_PATH;
     await setSessionCookie(outcome.sessionId, true);
     await clearLoginFlow();
-    redirect(DEFAULT_REDIRECT_PATH);
+    redirect(target);
   }
   if (outcome.outcome === "consentRequired") {
     return { kind: "unusable", confirmed };

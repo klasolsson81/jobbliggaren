@@ -675,6 +675,55 @@ describe("consumeLink", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
     expect(result.redirectedTo).toBe("/oversikt");
   });
+
+  // #2094: a login started on the way to a page lands there when the link is used instead of the code. The token
+  // is built the way RedisLoginChallengeStore builds it: the challenge id's 16 bytes, then a 16-byte secret.
+  describe("the return path of the login the link belongs to", () => {
+    const idBytes = Buffer.from(Array.from({ length: 16 }, (_, i) => i + 1));
+    const token = Buffer.concat([idBytes, Buffer.alloc(16, 7)]).toString("base64url");
+    const ownFlow: LoginFlow = { ...liveCode, challengeId: idBytes.toString("base64url"), next: "/jobb/4b1d" };
+
+    beforeEach(() => {
+      mocks.fetch.mockResolvedValue(json(200, { outcome: "signedIn", sessionId: "session-3" }));
+    });
+
+    it("lands on that login's next, and clears the flow", async () => {
+      mocks.readLoginFlow.mockResolvedValue(ownFlow);
+
+      const result = await run(() => consumeLink(null, form({ token })));
+
+      expect(result.redirectedTo).toBe("/jobb/4b1d");
+      expect(mocks.clearLoginFlow).toHaveBeenCalledTimes(1);
+    });
+
+    it("still lands there when the code was burned, since the link stays good", async () => {
+      mocks.readLoginFlow.mockResolvedValue({ ...ownFlow, dead: "burned" });
+
+      const result = await run(() => consumeLink(null, form({ token })));
+
+      expect(result.redirectedTo).toBe("/jobb/4b1d");
+    });
+
+    it.each<[string, LoginFlow | null]>([
+      ["another challenge's flow", { ...ownFlow, challengeId: Buffer.alloc(16, 9).toString("base64url") }],
+      ["a consent flow", { phase: "consent", grantToken: "grant-1", next: "/jobb/4b1d" }],
+      ["no flow at all", null],
+    ])("lands on the default for %s", async (_label, flow) => {
+      mocks.readLoginFlow.mockResolvedValue(flow);
+
+      const result = await run(() => consumeLink(null, form({ token })));
+
+      expect(result.redirectedTo).toBe("/oversikt");
+    });
+
+    it("passes the flow's next through the redirect guard", async () => {
+      mocks.readLoginFlow.mockResolvedValue({ ...ownFlow, next: "//evil.example" });
+
+      const result = await run(() => consumeLink(null, form({ token })));
+
+      expect(result.redirectedTo).toBe("/oversikt");
+    });
+  });
 });
 
 // The rule that makes Next's re-render harmless, stated once over every path above: whenever the

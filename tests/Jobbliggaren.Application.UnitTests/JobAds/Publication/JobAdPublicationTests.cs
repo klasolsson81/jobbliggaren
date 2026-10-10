@@ -62,6 +62,8 @@ public class JobAdPublicationTests
             .ShouldBe(JobAdPublicationState.NotPublic,
                 "a row created through POST /api/v1/job-ads has no External, whatever its Source says.");
 
+    // Unreachable today: the only registered IJobSource is Platsbanken, so no path in src imports from
+    // another source. The row pins only that the allowlist answers NotPublic once a second source is wired.
     [Fact]
     public void Classify_ImportedFromAnotherSource_IsNotPublic() =>
         JobAdPublication.Classify(JobAdStatus.Active, null, JobSource.LinkedIn, Now)

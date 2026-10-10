@@ -474,7 +474,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", "60");
         // ADR 0160 — the anonymous job-ad detail is IP-partitioned too, so every anonymous test of it
-        // shares the 127.0.0.1 bucket. Its production numbers are pinned in the StrictRateLimit collection.
+        // shares the 127.0.0.1 bucket.
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__WindowSeconds", "60");
         // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting

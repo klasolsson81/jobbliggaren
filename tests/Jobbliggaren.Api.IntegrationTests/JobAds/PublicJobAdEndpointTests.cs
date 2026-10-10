@@ -75,6 +75,16 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
 
     private Task<HttpResponseMessage> GetAsync(Guid id) => _anonymous.GetAsync($"{Route}/{id}", Ct);
 
+    /// <summary>All a reader receives except <c>Date</c>: the status, every other header and the raw body.</summary>
+    private static async Task<(HttpStatusCode Status, string Headers, string Body)> WireOf(HttpResponseMessage response)
+    {
+        var headers = response.Headers.Concat(response.Content.Headers)
+            .Where(h => !string.Equals(h.Key, "Date", StringComparison.OrdinalIgnoreCase))
+            .Select(h => $"{h.Key}: {string.Join(",", h.Value)}")
+            .Order(StringComparer.Ordinal);
+        return (response.StatusCode, string.Join('\n', headers), await response.Content.ReadAsStringAsync(Ct));
+    }
+
     private static async Task<(HttpStatusCode Status, string? Title, string? Detail, string Cache)> ProblemOf(
         HttpResponseMessage response)
     {
@@ -113,15 +123,16 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
 
         var answers = new[]
         {
-            await ProblemOf(await GetAsync(archived)),
-            await ProblemOf(await GetAsync(pastDeadline)),
-            await ProblemOf(await GetAsync(erased)),
+            await WireOf(await GetAsync(archived)),
+            await WireOf(await GetAsync(pastDeadline)),
+            await WireOf(await GetAsync(erased)),
         };
 
         answers[0].Status.ShouldBe(HttpStatusCode.Gone);
-        answers[0].Title.ShouldBe("JobAd.Gone");
-        answers[0].Detail.ShouldBe("Annonsen är inte längre tillgänglig.");
-        answers[0].Cache.ShouldBe("no-store");
+        var problem = JsonDocument.Parse(answers[0].Body).RootElement;
+        problem.GetProperty("title").GetString().ShouldBe("JobAd.Gone");
+        problem.GetProperty("detail").GetString().ShouldBe("Annonsen är inte längre tillgänglig.");
+        answers[0].Headers.ShouldContain("Cache-Control: no-store");
         answers.Distinct().ShouldHaveSingleItem(
             "an ended ad must not be told apart from an erased one: erasure follows an Art. 17 request, "
             + "so a different answer would publish which ads someone asked to have erased.");
@@ -148,11 +159,11 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
         created.StatusCode.ShouldBe(HttpStatusCode.Created);
         var manualId = (await created.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
 
-        var manual = await ProblemOf(await GetAsync(manualId));
-        var unknown = await ProblemOf(await GetAsync(Guid.NewGuid()));
+        var manual = await WireOf(await GetAsync(manualId));
+        var unknown = await WireOf(await GetAsync(Guid.NewGuid()));
 
         unknown.Status.ShouldBe(HttpStatusCode.NotFound);
-        unknown.Cache.ShouldBe("no-store");
+        unknown.Headers.ShouldContain("Cache-Control: no-store");
         manual.ShouldBe(unknown);
     }
 

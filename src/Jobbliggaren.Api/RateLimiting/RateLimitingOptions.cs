@@ -723,7 +723,7 @@ public sealed class RateLimitingOptions
     /// per client IP, TokenBucket. Its own budget (least common mechanism): crawler traffic on one
     /// surface must not drain the landing page's or the health probes'. Conservative on purpose,
     /// raised from measured crawl rates rather than guessed; security-auditor approved the numbers
-    /// (2026-10-10). IOptions (§5.1).
+    /// (2026-10-10).
     /// </summary>
     public PolicyOptions PublicJobAdRead { get; init; } = new()
     {
@@ -738,9 +738,7 @@ public sealed class RateLimitingOptions
 
         /// <summary>
         /// Antal replenishment-slices per fönster för TokenBucket-policies (rate-limit-
-        /// retune 2026-06-24, senior-cto-advisor). Endast meningsfullt för TokenBucket-policies
-        /// (de per-user läsytorna MeListRead/ListRead/FacetCounts/Suggest/TaxonomyRead/
-        /// FollowSeenMark/CompanyLookup samt den IP-partitionerade PublicJobAdRead); ignoreras av
+        /// retune 2026-06-24, senior-cto-advisor). Endast meningsfullt för TokenBucket-policies; ignoreras av
         /// FixedWindow-policies (IP-säkerhet + write). Styr <c>ReplenishmentPeriod = Window/Segments</c> +
         /// <c>TokensPerPeriod = PermitLimit/Segments</c> → tokens återfylls var ~Window/
         /// Segments-sekund (mjuk väntan i stället för hel-fönster-bann; Klas UX-rapport).

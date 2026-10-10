@@ -23,10 +23,34 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, IDateTimeProvid
     public async ValueTask<Result<PublicJobAdDto>> Handle(
         GetPublicJobAdQuery query, CancellationToken cancellationToken)
     {
-        // A narrow row, never the entity: RawPayload carries the org.nr and the pre-scrub text.
+        var id = new JobAdId(query.Id);
+        var now = clock.UtcNow;
+
+        // The publication facts alone first: the text of an ad that will not be shown is never read.
+        var facts = await db.JobAds
+            .AsNoTracking()
+            .Where(j => j.Id == id)
+            .Select(j => new
+            {
+                j.Status,
+                j.ExpiresAt,
+                ImportedFrom = j.External != null ? j.External.Source : null,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (facts is null)
+            return Result.Failure<PublicJobAdDto>(JobAdErrors.NotFound);
+
+        var state = JobAdPublication.Classify(facts.Status, facts.ExpiresAt, facts.ImportedFrom, now);
+        if (state != JobAdPublicationState.Listed)
+            return Answer(state, listed: null);
+
+        // The content, classified again from the same row: the two reads share no transaction, and an
+        // erasure committed between them must not be served. A narrow row, never the entity — RawPayload
+        // carries the org.nr and the pre-scrub text.
         var row = await db.JobAds
             .AsNoTracking()
-            .Where(j => j.Id == new JobAdId(query.Id))
+            .Where(j => j.Id == id)
             .Select(j => new
             {
                 j.Status,
@@ -48,9 +72,9 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, IDateTimeProvid
         if (row is null)
             return Result.Failure<PublicJobAdDto>(JobAdErrors.NotFound);
 
-        return JobAdPublication.Classify(row.Status, row.ExpiresAt, row.ImportedFrom, clock.UtcNow) switch
-        {
-            JobAdPublicationState.Listed => Result.Success(new PublicJobAdDto(
+        state = JobAdPublication.Classify(row.Status, row.ExpiresAt, row.ImportedFrom, now);
+        return Answer(state, state == JobAdPublicationState.Listed
+            ? new PublicJobAdDto(
                 query.Id,
                 row.Title,
                 row.CompanyName,
@@ -62,11 +86,15 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, IDateTimeProvid
                 row.RegionConceptId,
                 row.OccupationGroupConceptId,
                 row.EmploymentTypeConceptId,
-                row.WorktimeExtentConceptId)),
-            JobAdPublicationState.Ended or JobAdPublicationState.Gone =>
-                Result.Failure<PublicJobAdDto>(JobAdErrors.Gone),
-            JobAdPublicationState.NotPublic => Result.Failure<PublicJobAdDto>(JobAdErrors.NotFound),
-            var other => throw new UnreachableException($"Unmapped publication state {other}."),
-        };
+                row.WorktimeExtentConceptId)
+            : null);
     }
+
+    private static Result<PublicJobAdDto> Answer(JobAdPublicationState state, PublicJobAdDto? listed) => state switch
+    {
+        JobAdPublicationState.Listed when listed is not null => Result.Success(listed),
+        JobAdPublicationState.Ended or JobAdPublicationState.Gone => Result.Failure<PublicJobAdDto>(JobAdErrors.Gone),
+        JobAdPublicationState.NotPublic => Result.Failure<PublicJobAdDto>(JobAdErrors.NotFound),
+        var other => throw new UnreachableException($"Unmapped publication state {other}."),
+    };
 }

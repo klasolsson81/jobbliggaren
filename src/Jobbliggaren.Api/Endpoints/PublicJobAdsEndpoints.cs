@@ -7,9 +7,7 @@ namespace Jobbliggaren.Api.Endpoints;
 /// <summary>
 /// The anonymous per-record read of one job ad (ADR 0160). Its own group, outside the
 /// authenticated <c>/api/v1/job-ads</c>: anonymous by omitting <c>RequireAuthorization</c>, with
-/// its own IP-partitioned policy. Every answer under <c>/api/v1/public</c> is <c>no-store</c>
-/// (set in <c>Program.cs</c>, so framework refusals carry it too): an erased ad must never be
-/// served from a cache.
+/// its own IP-partitioned policy.
 /// </summary>
 public static class PublicJobAdsEndpoints
 {

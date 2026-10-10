@@ -93,6 +93,17 @@ public class GetPublicJobAdQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenTheReadThrows_LetsTheExceptionThrough()
+    {
+        // The read throws because the context is disposed. What is pinned is only that the handler turns
+        // no failing read into a 404 or a 410: an outage must reach the caller as a 5xx (ADR 0160 D3).
+        var db = TestAppDbContextFactory.Create();
+        await db.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await HandleAsync(db, Guid.NewGuid()));
+    }
+
+    [Fact]
     public async Task Handle_AdNeverImported_ReturnsTheUnknownIdAnswer()
     {
         // JobAd.Create accepts any source: POST /api/v1/job-ads can store Source=Platsbanken with no

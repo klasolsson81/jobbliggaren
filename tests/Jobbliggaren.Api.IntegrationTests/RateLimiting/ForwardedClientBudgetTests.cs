@@ -57,6 +57,23 @@ public sealed class ForwardedClientBudgetTests
             .ShouldBe(StatusCodes.Status204NoContent);
     }
 
+    // ADR 0160 — the anonymous job-ad read's bucket is per forwarded client, and its burst is exactly the budget.
+    [Fact]
+    public async Task PublicJobAdRead_TrustedProxy_DistinctClients_ReceiveIndependentBudgets()
+    {
+        using var host = await CreateHostAsync(RateLimitingExtensions.PublicJobAdReadPolicy);
+        var server = host.GetTestServer();
+        var budget = new RateLimitingOptions().PublicJobAdRead.PermitLimit;
+        for (var i = 0; i < budget; i++)
+            (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+                .ShouldBe(StatusCodes.Status204NoContent);
+
+        (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status429TooManyRequests);
+        (await SendAsync(server, "192.0.2.10", "198.51.100.2")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status204NoContent);
+    }
+
     [Fact]
     public async Task TrustedProxy_MissingHeader_PreservesConnectionAddress()
     {
@@ -67,7 +84,7 @@ public sealed class ForwardedClientBudgetTests
         result.Connection.RemoteIpAddress.ShouldBe(IPAddress.Parse("192.0.2.10"));
     }
 
-    private static Task<IHost> CreateHostAsync()
+    private static Task<IHost> CreateHostAsync(string policy = RateLimitingExtensions.AuthWritePolicy)
     {
         var config = new ForwardedHeadersConfig
         {
@@ -96,7 +113,7 @@ public sealed class ForwardedClientBudgetTests
                 {
                     context.Response.StatusCode = StatusCodes.Status204NoContent;
                     return Task.CompletedTask;
-                }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy));
+                }).RequireRateLimiting(policy));
             })).StartAsync(TestContext.Current.CancellationToken);
     }
 

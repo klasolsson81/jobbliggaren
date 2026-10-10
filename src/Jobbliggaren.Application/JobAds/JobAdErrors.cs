@@ -2,11 +2,6 @@ using Jobbliggaren.Domain.Common;
 
 namespace Jobbliggaren.Application.JobAds;
 
-/// <summary>
-/// The answers every job-ad read gives for a missing or a removed ad. One source, because the
-/// same ad must get the same answer on every route — a different body on one of them would tell
-/// a reader something the others withhold.
-/// </summary>
 public static class JobAdErrors
 {
     /// <summary>An id we never held, or one the public surface never held (404).</summary>

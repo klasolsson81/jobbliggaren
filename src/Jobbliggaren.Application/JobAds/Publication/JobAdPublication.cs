@@ -27,7 +27,7 @@ public static class JobAdPublication
 {
     /// <summary>
     /// The one source whose ads may be published: its licence was read from a primary source
-    /// (CC0, ADR 0160). Widening it is an ADR amendment, not a code change.
+    /// (CC0, ADR 0160). Widening it is an ADR amendment.
     /// </summary>
     public static readonly JobSource PublishedSource = JobSource.Platsbanken;
 

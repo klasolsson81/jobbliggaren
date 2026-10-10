@@ -59,52 +59,48 @@ interface OversiktPageProps {
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
   readonly recentSearches: ApiResult<ListRecentSearchesResult>;
   /**
-   * ADR 0079 STEG 6 — live match-count (Bra + Stark) för Matchning-kortet och matchnings-notisen.
-   * `number` = backend-svar (`count`, kan vara 0 = honest nollstate). `null` = fetch:en
-   * degraderade (nätverk/auth/rate-limit) ⇒ kortet visar en en-dash utan CTA och notisen
-   * utelämnas (aldrig en mock-fallback). Renderas bara när profilen har angett ett yrke
-   * (`hasStatedDesiredOccupation`); annars äger setup-läget kortet.
+   * The live count for the matching card and notice. Zero is a real answer. `null` means
+   * the read failed: the card shows an en dash without a link and the notice is left out.
+   * Used only once the user has stated an occupation; until then the card shows the setup
+   * prompt.
    */
   readonly matchCount: number | null;
   /**
-   * Bevakning F2 (#801, RF-6=6B) — antalet nya annonser från bevakade företag
-   * NYA sedan senaste /foretag-besök (live `GET /me/followed-company-ads/new-count`,
-   * per-watch grad-filtrerat read-time). Driver Företagsbevaknings-notisen (#726) och kortets
-   * "N nya"-pill; `0` ⇒ båda utelämnas (honest tomt-läge). Degraderar till `0` vid fetch-fel.
+   * New ads from followed companies since the user's last visit to /foretag. Drives the
+   * company notice and the card's "N nya" pill; at 0 both are left out. A failed read
+   * counts as 0.
    */
   readonly newFollowedCompanyAdCount: number;
   /**
-   * #1558 — de bevakade företagen, som Result. Driver Bevakade företag-kortet. Ett Result och
-   * inte en array: kortet måste kunna skilja noll bevakningar från en hämtning som föll, och
-   * bara ett Result bär den skillnaden.
+   * The followed companies, as a Result rather than an array: the card must tell "none"
+   * apart from "could not be read".
    */
   readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
   /**
-   * #1681 del 3 — branschbevakningarna, som Result och av samma skäl som `companyWatches`:
-   * bara ett Result skiljer "du har inga" från "listan kunde inte läsas". Varje rad bär de TVÅ
-   * annonstal detaljsidan visar, i samma former (ADR 0139) — talen är alltså redan komponerade
-   * när de kommer hit, och den här sidan räknar ingenting själv.
+   * The industry watches, as a Result for the same reason as `companyWatches`. Each row
+   * already carries the two ad counts its detail page shows (ADR 0139); this page counts
+   * nothing itself.
    */
   readonly criteria: ApiResult<ListCompanyWatchCriteriaResult>;
   /**
-   * SCB-referensträdet, för radernas människoetikett. `null` = läsningen degraderade; rubriken
-   * faller då till användarens egen etikett och därefter till den neutrala. En degraderad tabell
-   * får ALDRIG blanka annonstalen — de är kortets poäng och beror inte på trädet.
+   * The SCB reference tree, for each row's readable name. `null` means the read failed: the
+   * heading then falls back to the user's own label and then to a neutral one. The ad counts
+   * do not depend on the tree and are always shown.
    */
   readonly criterionReference: CriterionReference | null;
   readonly setupUnavailable?: boolean;
 }
 
 /**
- * Översikt-sidan som bento-dashboard (ADR 0140, #1723). Server Component (orkestratorn,
- * non-async — synkron next-intl-translator).
+ * The overview page as a dashboard of cards (ADR 0140). A synchronous Server Component that
+ * receives every read from the route.
  *
- * Bygger notiserna som förut (#726) och delar dem på KIND: allt utom `info` är åtgärder och
- * går till Kräver åtgärd, `info` går till Senaste händelser. De fyra stående tillstånden (ansökningar,
- * matchning, bevakade företag, branschbevakningar) är egna kort med ett tal och en CTA var.
+ * Notices are split by kind: everything except `info` asks something of the user and goes
+ * to "Kräver åtgärd"; `info` goes to "Senaste händelser". Applications, matching, followed
+ * companies and industry watches each have their own card with a number and a link.
  *
- * Degraderad fallback: ApiResult-fel på en enskild källa ger ett kort med en en-dash och
- * `unavailable`-text — aldrig en blank cell, aldrig en blank sida.
+ * A failed read for one source gives that card an en dash and an "unavailable" line, never a
+ * blank cell or a blank page.
  */
 export function OversiktPage({
   profile,
@@ -121,22 +117,20 @@ export function OversiktPage({
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
   const tRelativeTime = useTranslations("oversikt.relativeTime");
-  // Recent-sökningens label bor i jobads-katalogen, inte i oversikt (#1430).
+  // The recent-search label lives in the jobads catalogue, not in oversikt.
   const tRecentLabel = useTranslations("jobads.recent");
   const format = useFormatter();
   const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
-  // #1576 - the number itself is the way to the ads it counts. The destination runs the SAME
-  // predicate as this count, so the two cannot disagree.
+  // The number itself links to the ads it counts. The destination runs the same predicate
+  // as the count, so the two cannot disagree.
   const newAdsLink = (chunks: ReactNode) => (
     <Link href="/foretag/bevakade/nya" className="jp-countlink">
       {chunks}
     </Link>
   );
   const today = new Date();
-  // Datum-suffix på notice-IDs så en dismissad notis återkommer. När unified
-  // notification-port finns: byt slug+datum mot riktigt notificationId per
-  // backend-instans.
+  // Notice ids are a slug plus the date, so a dismissed notice comes back the next day.
   const dateSlug = swedishDateSlug(today);
 
   const pipelineData = pipeline.kind === "ok" ? pipeline.data : [];
@@ -146,16 +140,16 @@ export function OversiktPage({
   const recentInterviews = findRecentInterviews(allApps, today);
   const latestOffer = findLatestOffer(allApps);
 
-  // F4-12 PR-B (ADR 0076): setup-läge ↔ matchtal är ÖMSESIDIGT uteslutande, styrt av
-  // `hasStatedDesiredOccupation`. Yrke angett → Matchning-kortet bär talet och match-notisen
-  // renderas. Ej angett → kortet bär setup-callouten. Aldrig båda.
+  // The setup prompt and the match count are mutually exclusive (ADR 0076): with a stated
+  // occupation the matching card shows the count and the match notice renders; without one
+  // the card shows the setup prompt.
   const setupState = getSetupState(profile);
   const hasStatedOccupation = setupState === "configured";
 
-  // Trust-invariant (harmoniserad 2026-07-03, CTO H2): länken bär EXAKT samma facetter som
-  // backend-counten hård-filtrerar på och INGA matchGrades — /jobb-landningens TotalCount ==
-  // kortets tal == notis-talet == setup-räknaren per konstruktion. Byggd EN gång och delad av
-  // kortet och notisen, så de två inte kan peka på olika listor.
+  // The link carries exactly the facets the backend count filters on, and no match grades,
+  // so the hit count on /jobb equals the card's number and the notice's number by
+  // construction. It is built once and shared, so the card and the notice cannot point at
+  // different lists.
   const matchHref =
     profile.kind === "ok"
       ? buildJobbHref({
@@ -163,10 +157,8 @@ export function OversiktPage({
           occupationGroup: [...profile.data.preferredOccupationGroups],
           region: [...profile.data.preferredRegions],
           municipality: [...profile.data.preferredMunicipalities],
-          // #551 punkt 4 — H2-invarianten ovan: GetMyMatchCountQueryHandler
-          // hård-filtrerar på den persisterade PreferredRemote, så länken måste bära
-          // samma axel. Utan den säger kortet N medan listan visar ett annat tal så
-          // snart användaren sparat Distans.
+          // GetMyMatchCountQueryHandler filters on the saved remote preference, so the
+          // link must carry it too, or the card and the list would disagree.
           remote: profile.data.preferredRemote,
           employmentType: [...profile.data.preferredEmploymentTypes],
           worktimeExtent: [],
@@ -175,7 +167,7 @@ export function OversiktPage({
         })
       : null;
 
-  // ── Mina ansökningar ──────────────────────────────────────────────────────
+  // ── Applications ─────────────────────────────────────────────────────────
   const applicationNotices: SectionNoticeData[] = [];
 
   if (followUps.length > 0) {
@@ -187,13 +179,12 @@ export function OversiktPage({
       label: t("notices.followUpLabel"),
       text: t.rich("notices.followUpText", {
         count: followUps.length,
-        // #384 — talet läser samma SSOT som filter-tröskeln (ingen hårdkodad "14").
         days: OVERSIKT_FOLLOW_UP_DAYS,
         b: bold,
       }),
       cta: t("notices.followUpCta"),
       href: "/ansokningar",
-      // MOCK: BE-port saknas för "när-noteringen-räknades-ut"-tidsstämpel.
+      // The backend gives no time for when this was computed, so it reads "today".
       time: t("notices.timeToday"),
     });
   }
@@ -240,12 +231,11 @@ export function OversiktPage({
     });
   }
 
-  // ── Jobbannonser ──────────────────────────────────────────────────────────
+  // ── Job ads ──────────────────────────────────────────────────────────────
   const jobAdNotices: SectionNoticeData[] = [];
 
-  // Deadline-notis: nu RIKTIG `expiresAt` ur de sparade annonserna (#726),
-  // ersätter den gamla mock-drivna "denna vecka"-notisen. Etiketterna är
-  // FÖRETAGSNAMN (per skisserna), tidskolumnen den NÄRMASTE deadlinens datum.
+  // Upcoming deadlines among saved ads: labelled by company name, timed by the nearest
+  // deadline.
   const savedJobAdsData = savedJobAds.kind === "ok" ? savedJobAds.data : [];
   const deadlines = findUpcomingSavedJobDeadlines(savedJobAdsData, today);
   if (deadlines.length > 0) {
@@ -258,7 +248,6 @@ export function OversiktPage({
       label: t("notices.deadlineLabel"),
       text: t.rich("notices.deadlineText", {
         count: deadlines.length,
-        // SSOT: samma konstant som filtrets fönster (ingen hårdkodad "7").
         days: OVERSIKT_DEADLINE_WINDOW_DAYS,
         labels,
         b: bold,
@@ -282,13 +271,13 @@ export function OversiktPage({
           : t("notices.matchTextZero"),
       cta: t("notices.matchCta"),
       href: matchHref,
-      // MOCK: BE-port saknas för matchning-uppdaterings-stämpel; counten är live.
+      // The count is live, but the backend gives no time for it, so it reads "today".
       time: t("notices.timeToday"),
     });
   }
 
-  // Senaste-sökning-notis (#294, A′-relabel #726): featurar DIN SENASTE sökning
-  // med replay-CTA. "Har N nya träffar"-counten hämtas lazy i SavedSearchNoticeText.
+  // The user's most recent search, with a link to run it again. Its "N new hits" count is
+  // fetched lazily by SavedSearchNoticeText.
   const recentSearchesData =
     recentSearches.kind === "ok" ? recentSearches.data : [];
   const lastSearch =
@@ -316,7 +305,7 @@ export function OversiktPage({
     });
   }
 
-  // ── Företagsbevakning ─────────────────────────────────────────────────────
+  // ── Followed companies ───────────────────────────────────────────────────
   const companyNotices: SectionNoticeData[] = [];
   if (newFollowedCompanyAdCount > 0) {
     companyNotices.push({
@@ -331,8 +320,7 @@ export function OversiktPage({
         lnk: newAdsLink,
       }),
       cta: t("notices.companiesCta"),
-      // ADR 0140: the CTA now names the new ads and goes where the number in the text already
-      // went — one destination for one notice.
+      // One destination for the notice: the link and the number go to the same list (ADR 0140).
       href: "/foretag/bevakade/nya",
       time: t("notices.timeToday"),
     });
@@ -344,17 +332,13 @@ export function OversiktPage({
     ...companyNotices,
   ];
 
-  // Kind-splitten (ADR 0140 Beslut 5): allt utom `info` kräver något av läsaren — uppföljning,
-  // deadline, erbjudande, intervju — och går till Kräver åtgärd; `info` är händelser. Varje lista
-  // behåller konstruktionsordningen.
+  // Split by kind (ADR 0140 Beslut 5). Each list keeps the order the notices were built in.
   const actionNotices = allNotices.filter((n) => n.kind !== "info");
   const infoNotices = allNotices.filter((n) => n.kind === "info");
 
-  // Kugghjuls-typer per källa, byggda ur NOTICE_TYPES-SSOT:en så popover-raderna aldrig kan
-  // drifta från notisernas `type`-slugs (code-reviewer Minor 1). `Record<NoticeType, string>`
-  // tvingar en label för VARJE typ — en ny typ utan label blir ett kompileringsfel. Inkluderar
-  // förberedda typer utan notiser ännu ("Statusändringar", "Företagshändelser"). A′: sök-typen
-  // heter "Senaste sökningen", inte "Sparade sökningar".
+  // The settings popover lists its types from NOTICE_TYPES, so its rows cannot drift from the
+  // notices' `type` slugs. `Record<NoticeType, string>` requires a label for every type, so a
+  // new type without one fails to compile. Some types have no notices yet.
   const prefLabels: Record<NoticeType, string> = {
     followup: t("notices.prefFollowup"),
     interviews: t("notices.prefInterviews"),
@@ -383,8 +367,7 @@ export function OversiktPage({
 
   return (
     <>
-      {/* Page-hero utan aside (I dag-kortet borttaget, #726) — edge-to-edge
-          navy/grön band per ADR 0068. */}
+      {/* Full-width page hero (ADR 0068). */}
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
@@ -395,8 +378,7 @@ export function OversiktPage({
       </section>
 
       <div className="jp-container jp-page">
-        {/* #384 — notiserna beräknas LIVE per request (force-dynamic), så
-            "senast uppdaterad" är render-tiden, inte en stale mock-stämpel. */}
+        {/* Notices are computed on every request, so "last updated" is the render time. */}
         <NoticeToolbar
           lastUpdated={formatNoticesStamp(format, today)}
           lastUpdatedIso={today.toISOString()}
@@ -421,7 +403,7 @@ export function OversiktPage({
           <RecentEventsCard notices={infoNotices} />
         </div>
 
-        {/* Sist på sidan, efter det den verkar på (#1557). */}
+        {/* Last on the page, after the notices it acts on. */}
         <MarkAllReadRow notices={allNotices} />
       </div>
     </>

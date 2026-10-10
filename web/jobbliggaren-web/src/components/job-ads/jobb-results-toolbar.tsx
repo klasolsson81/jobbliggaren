@@ -336,7 +336,7 @@ export function JobbResultsToolbar({
     selectValue === "MatchDesc" && !hasStatedDesiredOccupation;
 
   // E2j (Klas-val 2026-06-12 = ja): toolbar-handlingar (ta bort chip / Rensa /
-  // byt sort) är avsiktliga, diskreta sökningar → bär commit-intent (?commit=1)
+  // byt sort) är avsiktliga, diskreta sökningar → bär commit-intent (?commit=true)
   // så de auto-capturas till Senaste sökningar. commit-flaggan ligger UTANFÖR
   // JobbUrlState (transient suffix på push-strängen) och strippas efter mount.
   function commit(next: JobbUrlState) {

@@ -39,6 +39,8 @@ deploy/caddy/*.sh text eol=lf
 # tmpfiles.d `d` line is the same failure, and the argument for pinning scripts never had a
 # reason to stop at the file extension.
 deploy/systemd/* text eol=lf
+# The golden observation fixtures are compared byte for byte, by `cmp` in the sampler's suite and by the API's parser tests.
+deploy/systemd/fixtures/** text eol=lf
 
 # deploy/backup/ for a related but distinct reason, found while adding the recipient guard
 # (#1324). age.recipient is read on the box by `grep -qx`, which would see a trailing `\r` as

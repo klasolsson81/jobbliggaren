@@ -76,15 +76,36 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Memory",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Average over {seconds} s",
+      "memoryUsed": "{used} of {total} {unit}",
+      "diskFree": "{free} {unit} free of {total} {unit}",
+      "sampledAt": "Measured",
+      "stale": "The reading is older than {minutes} min.",
+      "state": {
+        "collecting": "Measuring…",
+        "notObservable": "Not measured in this environment",
+        "failed": "The measurement failed"
+      }
     },
     "backup": {
       "title": "Backup",
-      "latest": "Latest",
+      "latest": "Last successful run",
       "offsite": "Off-site copy",
-      "next": "Next",
+      "next": "Next scheduled run",
       "retention": "Kept",
-      "retentionDays": "{days} days"
+      "noVerifiedSource": "No verified data source",
+      "lastSuccess": {
+        "missing": "No successful run recorded",
+        "unreadable": "The record could not be read",
+        "invalid": "The record is invalid",
+        "overdue": "Older than 26 hours"
+      },
+      "nextRun": {
+        "inactive": "No run scheduled",
+        "notInstalled": "The schedule is not installed on the host"
+      },
+      "notProof": "Shows when the run last finished, not that a restore works."
     },
     "email": {
       "title": "Email",
@@ -129,7 +150,9 @@
       "sources": {
         "accounts": "Account statistics",
         "audit": "Audit events",
-        "jobs": "Failed background jobs"
+        "jobs": "Failed background jobs",
+        "backup": "Backup",
+        "host": "Server readings"
       }
     },
     "registrationPeriods": {
@@ -726,6 +749,7 @@
   },
   "regions": {
     "failed": "The data could not be fetched. Try again in a moment.",
-    "loading": "Fetching data…"
+    "loading": "Fetching data…",
+    "awaiting": "The host has not reported an observation yet."
   }
 }

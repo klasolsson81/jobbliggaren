@@ -4,6 +4,7 @@ using Jobbliggaren.Api.Authorization;
 using Jobbliggaren.Api.Configuration;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.HealthChecks;
+using Jobbliggaren.Api.Hosting;
 using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
@@ -107,6 +108,7 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<IAuthorizationHandler, AdminRoleAuthorizationHandler>();
 builder.Services.AddJobbliggarenRateLimiting(builder.Configuration);
+builder.Services.AddHostObservation(builder.Configuration);
 
 // A Hangfire client only, with no server: the API enqueues jobs that the Worker's Hangfire
 // server runs from the same storage, so Hangfire never sits in the request path (ADR 0023).
@@ -381,6 +383,7 @@ app.MapApplicationsEndpoints();
 app.MapApplicationHistoryEndpoints();
 app.MapResumesEndpoints();
 app.MapAdminEndpoints();
+app.MapAdminHostObservationEndpoints();
 app.MapAdminAccountsEndpoints();
 app.MapAdminJobAdsEndpoints();
 app.MapAdminCompanyWatchesEndpoints();

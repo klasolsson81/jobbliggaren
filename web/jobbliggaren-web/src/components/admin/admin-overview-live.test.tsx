@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, cleanup } from "@testing-library/react";
 import { overviewSnapshotFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
+import type { HostObservationDto } from "@/lib/dto/admin-host";
 import { AdminOverviewLive } from "./admin-overview-live";
 
 const NOW = Date.parse(OVERVIEW_TIME);
@@ -19,6 +20,22 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.resto
 async function visibility(value: boolean) {
   hidden = value;
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+}
+/**
+ * The fixture with the host sampled just now. The sampler takes a new sample every 30 s, so in a test that advances
+ * the clock a reply carrying the fixture's fixed sample time would be a sampler that has stopped.
+ */
+function sampledNow(snapshot: ReturnType<typeof overviewSnapshotFixture>) {
+  const sampledAt = new Date(Date.now()).toISOString();
+  const host = snapshot.host.kind === "loaded" ? snapshot.host : null;
+  if (!host) return snapshot;
+  const data: HostObservationDto = {
+    ...host.data,
+    cpu: { ...host.data.cpu, sampledAt },
+    memory: { ...host.data.memory, sampledAt },
+    disk: { ...host.data.disk, sampledAt },
+  };
+  return { ...snapshot, host: { ...host, data, sampledAt } };
 }
 function show() { return render(<AdminOverviewLive initial={overviewSnapshotFixture()} initialNow={NOW} />); }
 
@@ -68,8 +85,8 @@ describe("admin overview visible refresh", () => {
     expect(signals[1]?.aborted).toBe(true);
   });
   it("announces a partial refresh failure once and its recovery through one polite status region", async () => {
-    const partial = { ...overviewSnapshotFixture(), audit: { kind: "failed" } };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial)));
+    const partial = () => ({ ...sampledNow(overviewSnapshotFixture()), audit: { kind: "failed" } });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial())));
     show();
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     const status = screen.getByRole("status");
@@ -83,15 +100,47 @@ describe("admin overview visible refresh", () => {
     const mutations: MutationRecord[] = [];
     const observer = new MutationObserver((records) => mutations.push(...records));
     observer.observe(status, { childList: true, characterData: true, subtree: true });
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial)));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial())));
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(mutations).toEqual([]);
 
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(overviewSnapshotFixture())));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(sampledNow(overviewSnapshotFixture()))));
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(status).toHaveTextContent("Granskningshändelser: Uppgifterna är aktuella.");
     expect(mutations.length).toBeGreaterThan(0);
     observer.disconnect();
+  });
+  it("shows a host that has not reported, then announces the Backup source once it does (#1982)", async () => {
+    const waiting = { ...overviewSnapshotFixture(), backup: { kind: "awaiting" } };
+    render(<AdminOverviewLive initial={waiting as ReturnType<typeof overviewSnapshotFixture>} initialNow={NOW} />);
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("Värden har inte rapporterat någon observation ännu.");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(overviewSnapshotFixture())));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Uppgifterna är aktuella.");
+    expect(screen.getByRole("region", { name: "Backup" })).toHaveTextContent("2026-10-08 02:19");
+  });
+  it("keeps the last Backup value when a refresh fails, marks it at once, and announces it", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("2026-10-08 02:19");
+    expect(card).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Uppdateringen misslyckades.");
+  });
+  it("replaces a Backup value with the host's own news that it has gone quiet, rather than keeping it as if refreshed", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...overviewSnapshotFixture(), backup: { kind: "awaiting" } })));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("Värden har inte rapporterat någon observation ännu.");
+    expect(card).not.toHaveTextContent("2026-10-08 02:19");
   });
   it("announces the five-minute age transition without duplicating the account-card notices", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 502 }));

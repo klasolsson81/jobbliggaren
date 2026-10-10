@@ -7,10 +7,14 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { auditLogPagedResultSchema, failedJobsResponseSchema } from "@/lib/dto/admin";
 import {
   accountOverviewSchema,
+  backupStatusResponseSchema,
   overviewAuditEventSchema,
   type AdminOverviewSnapshot,
+  type BackupObservationData,
+  type BackupStatusResponse,
 } from "@/lib/dto/admin-overview";
-import type { OverviewObservation } from "@/lib/admin/overview";
+import { hostObservationSchema, type HostObservationDto } from "@/lib/dto/admin-host";
+import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
 
 const SOURCE_DEADLINE_MS = 10_000;
 const SAMPLED_AT_HEADER = "X-Admin-Sampled-At";
@@ -49,15 +53,83 @@ function observed<T>(result: ApiResult<Observed<T>>, empty = false): OverviewObs
     : { kind: "failed" };
 }
 
+/**
+ * The Backup card's source. The observation's time is the host's own (`observedAt`), never the time of this
+ * read: the generic header stamps the response, and an old sample must stay old however late it is read.
+ * A host that has not reported is `awaiting`, which is not a failure.
+ */
+function backupObservation(result: ApiResult<Observed<BackupStatusResponse>>): AwaitingObservation<BackupObservationData> {
+  if (result.kind !== "ok") return { kind: "failed" };
+  const status = result.data.data;
+  if (status.status === "NotObserved") return { kind: "awaiting" };
+  if (status.status === "Failed") return { kind: "failed" };
+
+  const { lastSuccess, timer } = status;
+  return {
+    kind: "loaded",
+    sampledAt: status.observedAt,
+    refreshFailed: false,
+    data: {
+      stale: status.stale,
+      lastSuccess: lastSuccess.state === "Recorded"
+        ? { state: "recorded", completedAt: lastSuccess.completedAt, overdue: lastSuccess.overdue }
+        : { state: lastSuccess.state === "Missing" ? "missing" : lastSuccess.state === "Unreadable" ? "unreadable" : "invalid" },
+      timer: timer.state === "Scheduled"
+        ? { state: "scheduled", nextRunAt: timer.nextRunAt }
+        : { state: timer.state === "Inactive" ? "inactive" : timer.state === "NotInstalled" ? "notInstalled" : "unknown" },
+    },
+  };
+}
+
+/**
+ * The Server card's source. Like Backup's, its time is the host's own: the newest reading's `sampledAt`, never the
+ * time of this read (the generic header stamps the response, and an old sample must stay old however late it is
+ * read). When no reading has a value there is no sample to date and nothing to mistake for fresh, so the API
+ * read instant stands in. What crosses to the browser is the schema's output: states, instants and numbers.
+ */
+function hostObservation(result: ApiResult<Observed<HostObservationDto>>): OverviewObservation<HostObservationDto> {
+  if (result.kind !== "ok") return { kind: "failed" };
+  const host = result.data.data;
+  const times = [host.cpu, host.memory, host.disk].flatMap((reading) => (reading.sampledAt === null ? [] : [reading.sampledAt]));
+  const newest = times.length === 0 ? null : times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+  return { kind: "loaded", data: host, sampledAt: newest ?? result.data.sampledAt, refreshFailed: false };
+}
+
+/**
+ * Resolves true as soon as one of the reads has succeeded, and false once every one has settled without a success.
+ * `read` never rejects: a failure is a result.
+ */
+function anySucceeds(reads: ReadonlyArray<Promise<ApiResult<unknown>>>): Promise<boolean> {
+  return new Promise((resolve) => {
+    let pending = reads.length;
+    for (const pendingRead of reads) {
+      void pendingRead.then((result) => {
+        if (result.kind === "ok") resolve(true);
+        else if (--pending === 0) resolve(false);
+      });
+    }
+  });
+}
+
 export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewRead> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
-  const [accounts, audit, jobs] = await Promise.all([
-    read(sessionId, "/api/v1/admin/overview/accounts", accountOverviewSchema, signal),
-    read(sessionId, "/api/v1/admin/audit-log?page=1&pageSize=5", auditLogPagedResultSchema, signal),
-    read(sessionId, "/api/v1/admin/jobs/failed", failedJobsResponseSchema, signal),
-  ]);
-  for (const result of [accounts, audit, jobs]) {
+  const accountsRead = read(sessionId, "/api/v1/admin/overview/accounts", accountOverviewSchema, signal);
+  const auditRead = read(sessionId, "/api/v1/admin/audit-log?page=1&pageSize=5", auditLogPagedResultSchema, signal);
+  const jobsRead = read(sessionId, "/api/v1/admin/jobs/failed", failedJobsResponseSchema, signal);
+  // The host is asked only once an admin read has SUCCEEDED, so the authentication work a caller with a forged
+  // or an ordinary session can start stays at the three reads above (#2064); it then runs beside the slower of
+  // them instead of after them. If none succeeded there is nothing to prove the caller and nothing to wait for,
+  // and the card reads as failed without a request. Backup and Server share that one gate.
+  const authorized = anySucceeds([accountsRead, auditRead, jobsRead]);
+  const backupRead = authorized.then((ok) => ok
+    ? read(sessionId, "/api/v1/admin/overview/backup", backupStatusResponseSchema, signal)
+    : { kind: "error" as const });
+  const hostRead = authorized.then((ok) => ok
+    ? read(sessionId, "/api/v1/admin/overview/host", hostObservationSchema, signal)
+    : { kind: "error" as const });
+  const [accounts, audit, jobs, backup, host] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead]);
+  for (const result of [accounts, audit, jobs, backup, host]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };
   }
 
@@ -77,5 +149,10 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
   const jobObservation = jobs.kind === "ok"
     ? observed({ kind: "ok", data: { data: { totalCount: jobs.data.data.totalCount }, sampledAt: jobs.data.sampledAt } })
     : { kind: "failed" as const };
-  return { kind: "ok", data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation }, loadedAt: Date.now() };
+
+  return {
+    kind: "ok",
+    data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup), host: hostObservation(host) },
+    loadedAt: Date.now(),
+  };
 }

@@ -76,15 +76,36 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Minne",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Snitt över {seconds} s",
+      "memoryUsed": "{used} av {total} {unit}",
+      "diskFree": "{free} {unit} ledigt av {total} {unit}",
+      "sampledAt": "Mätt",
+      "stale": "Mätningen är äldre än {minutes} min.",
+      "state": {
+        "collecting": "Mäter…",
+        "notObservable": "Mäts inte i den här miljön",
+        "failed": "Mätningen misslyckades"
+      }
     },
     "backup": {
       "title": "Backup",
-      "latest": "Senaste",
+      "latest": "Senaste lyckade körning",
       "offsite": "Extern kopia",
-      "next": "Nästa",
+      "next": "Nästa planerade körning",
       "retention": "Behålls",
-      "retentionDays": "{days} dygn"
+      "noVerifiedSource": "Saknar verifierad datakälla",
+      "lastSuccess": {
+        "missing": "Ingen lyckad körning registrerad",
+        "unreadable": "Uppgiften kunde inte läsas",
+        "invalid": "Uppgiften är ogiltig",
+        "overdue": "Äldre än 26 timmar"
+      },
+      "nextRun": {
+        "inactive": "Ingen körning planerad",
+        "notInstalled": "Schemat finns inte på värden"
+      },
+      "notProof": "Visar när körningen senast avslutades, inte att en återställning fungerar."
     },
     "email": {
       "title": "E-post",
@@ -129,7 +150,9 @@
       "sources": {
         "accounts": "Kontostatistik",
         "audit": "Granskningshändelser",
-        "jobs": "Misslyckade bakgrundsjobb"
+        "jobs": "Misslyckade bakgrundsjobb",
+        "backup": "Backup",
+        "host": "Serverns mätvärden"
       }
     },
     "registrationPeriods": {
@@ -726,6 +749,7 @@
   },
   "regions": {
     "failed": "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
-    "loading": "Hämtar uppgifter…"
+    "loading": "Hämtar uppgifter…",
+    "awaiting": "Värden har inte rapporterat någon observation ännu."
   }
 }

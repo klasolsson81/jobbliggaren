@@ -5,7 +5,7 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 
 [Timer]
 # Hourly at :17. Deliberately clear of the three jobs already on this box's clock: the reconcile
-# at :47, the heartbeat at every :00/:15/:30/:45, and the backup at 02:15 UTC.
+# at :47, the heartbeat at every :00/:15/:30/:45, and the backup at 02:15 local time.
 #
 # HOURLY RATHER THAN DAILY, AND THE CADENCE IS THE SECURITY PROPERTY — against an attacker who
 # does NOT hold this box's upload credential, which is the only attacker it can be a property

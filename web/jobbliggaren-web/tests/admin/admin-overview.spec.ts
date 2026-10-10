@@ -17,6 +17,8 @@ test.beforeEach(async ({ context, page }) => {
 test.afterEach(() => expect(harness.misses).toEqual([]));
 
 const card = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
+/** Alerts with content: Next's route announcer is an empty role=alert that is always there. */
+const alerts = (page: Page) => page.getByRole("alert").filter({ hasText: /\S/ });
 const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const axePath = createRequire(cliRequire.resolve("lighthouse")).resolve("axe-core/axe.min.js");
 async function verify(page: Page, state: string, nativeZoom?: number) {
@@ -186,6 +188,233 @@ test("old observations are marked", async ({ page }) => {
   await verify(page, "old-observation");
 });
 
+for (const width of [1280, 1920, 3440]) {
+  test(`the Backup card shows the host's observation at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    await page.goto("/admin");
+    const backup = card(page, "Backup");
+    await expect(backup).toContainText("Senaste lyckade körning");
+    await expect(backup).toContainText("för 10 timmar sedan");
+    await expect(backup).toContainText("Nästa planerade körning");
+    await expect(backup).toContainText("Uppgift från");
+    await expect(backup.getByText("Saknar verifierad datakälla")).toHaveCount(2);
+    await expect(backup).toContainText("inte att en återställning fungerar");
+    await verify(page, "backup-observed");
+  });
+}
+
+test("the Backup card tells the state the box is in until the backup is switched on, without an alarm", async ({ page }) => {
+  harness.overviewBackup = "switchedOff";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Ingen lyckad körning registrerad");
+  await expect(backup).toContainText("Ingen körning planerad");
+  await expect(alerts(page)).toHaveCount(0);
+  await verify(page, "backup-switched-off");
+});
+
+test("the Backup card says that the host has not reported, which is neither a failure nor 'Kommer snart'", async ({ page }) => {
+  harness.overviewBackup = "notObserved";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Värden har inte rapporterat någon observation ännu.");
+  await expect(backup).not.toContainText("Kommer snart");
+  await expect(backup).not.toContainText("kunde inte hämtas");
+  await expect(alerts(page)).toHaveCount(0);
+  await verify(page, "backup-awaiting");
+});
+
+test("a refused or unreadable host file is a failure of the Backup source only", async ({ page }) => {
+  harness.overviewBackup = "failed";
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Uppgifterna kunde inte hämtas");
+  await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+  await verify(page, "backup-failed");
+});
+
+test("an old host sample keeps its own time and loses its age", async ({ page }) => {
+  harness.overviewBackup = "old";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Uppgiften är äldre än fem minuter.");
+  await expect(backup).not.toContainText("sedan");
+  await verify(page, "backup-old");
+});
+
+test("a run older than twenty-six hours is marked, with its time", async ({ page }) => {
+  harness.overviewBackup = "overdue";
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Äldre än 26 timmar");
+  await verify(page, "backup-overdue");
+});
+
+test("an unknown timer is an unknown value, never a date", async ({ page }) => {
+  harness.overviewBackup = "timerUnknown";
+  await page.goto("/admin");
+  await expect(page.getByText("Nästa planerade körning").locator("xpath=following-sibling::dd[1]")).toContainText("Uppgift saknas");
+  await verify(page, "backup-timer-unknown");
+});
+
+for (const width of [1280, 1920, 3440]) {
+  test(`the Server card shows the host's readings at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    await page.goto("/admin");
+    const server = card(page, "Server");
+    await expect(server).toContainText("CPU");
+    await expect(server).toContainText("23,4 %");
+    await expect(server).toContainText("Snitt över 30 s");
+    await expect(server).toContainText("5,0 av 8,0 GiB");
+    await expect(server).toContainText("124,0 GiB ledigt av 200,0 GiB");
+    await expect(server).toContainText("Mätt");
+    await expect(server).not.toContainText("Kommer snart");
+    await expect(server).not.toContainText("äldre än");
+    await verify(page, "server-measured");
+  });
+}
+
+for (const width of [1280, 3440]) {
+  test(`the Server card says which readings are not values, with the others standing, at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    harness.overviewHost = "unmeasured";
+    await page.goto("/admin");
+    const server = card(page, "Server");
+    await expect(server).toContainText("Mäter…");
+    await expect(server).toContainText("Mäts inte i den här miljön");
+    await expect(server).toContainText("Mätningen misslyckades");
+    await expect(server).not.toContainText("Kommer snart");
+    await expect(server).not.toContainText("Mätt ");
+    await expect(alerts(page)).toHaveCount(0);
+    await verify(page, "server-unmeasured");
+  });
+}
+
+test("a first CPU window leaves memory and disk standing", async ({ page }) => {
+  harness.overviewHost = "collecting";
+  await page.goto("/admin");
+  const server = card(page, "Server");
+  await expect(server).toContainText("Mäter…");
+  await expect(server).toContainText("61,1 %");
+  await expect(server).toContainText("38,0 %");
+  await verify(page, "server-collecting");
+});
+
+test("one failed reading is a failure of that reading only", async ({ page }) => {
+  harness.overviewHost = "failedDisk";
+  await page.goto("/admin");
+  const server = card(page, "Server");
+  await expect(server).toContainText("Mätningen misslyckades");
+  await expect(server).toContainText("23,4 %");
+  await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+  await verify(page, "server-failed-disk");
+});
+
+test("a real zero and a full meter are values, not unknowns", async ({ page }) => {
+  harness.overviewHost = "idle";
+  await page.goto("/admin");
+  await expect(card(page, "Server")).toContainText("0,0 %");
+  await verify(page, "server-idle");
+  harness.overviewHost = "saturated";
+  await page.goto("/admin");
+  await expect(card(page, "Server")).toContainText("100,0 %");
+  await expect(card(page, "Server")).toContainText("99,9 %");
+  await verify(page, "server-saturated");
+});
+
+test("a reading the sampler has not renewed keeps its value and its time and is marked old", async ({ page }) => {
+  harness.overviewHost = "stale";
+  await page.goto("/admin");
+  const server = card(page, "Server");
+  await expect(server).toContainText("23,4 %");
+  await expect(server).toContainText("Mätningen är äldre än 2 min.");
+  await verify(page, "server-stale");
+});
+
+test("a failing host read is a failure of the Server card only", async ({ page }) => {
+  harness.overviewReads.host = "error";
+  await page.goto("/admin");
+  await expect(card(page, "Server")).toContainText("Uppgifterna kunde inte hämtas");
+  await expect(card(page, "Server").getByText("%")).toHaveCount(0);
+  await expect(card(page, "Backup")).toContainText("Senaste lyckade körning");
+  await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+  await verify(page, "server-failed");
+});
+
+test("a refresh keeps the last Server readings, marks the failure at once and announces it", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await expect(card(page, "Server")).toContainText("23,4 %");
+  // Hydrated: the refresh timer exists only once the script of the page has run.
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.host = "error";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  await response;
+  await expect(card(page, "Server")).toContainText("Uppdateringen misslyckades");
+  await expect(card(page, "Server")).toContainText("23,4 %");
+  await expect(page.getByRole("status").filter({ hasText: "Serverns mätvärden:" })).toContainText("Uppdateringen misslyckades");
+  await verify(page, "server-retained-after-failure");
+});
+
+test("a refresh that finds the host source refused clears every privileged value", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.host = "forbidden";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  expect((await response).status()).toBe(403);
+  await expect(page.getByRole("region", { name: "Server", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Användare totalt", exact: true })).toHaveCount(0);
+  await verify(page, "server-refused");
+});
+
+test("the hosts are asked only once an admin read has succeeded, and not at all when every first read refuses", async ({ page }) => {
+  await page.goto("/admin");
+  const overview = harness.requests.filter(route => route.includes("/overview/") || route.includes("/audit-log") || route.includes("/jobs/failed"));
+  // Backup and Server share one gate: both start once an admin read has succeeded, beside the slower first reads.
+  expect(overview.slice(-2).sort()).toEqual(["GET /api/v1/admin/overview/backup", "GET /api/v1/admin/overview/host"]);
+  expect(overview).toHaveLength(5);
+
+  harness.requests.length = 0;
+  harness.mode = "unauthorized";
+  await page.goto("/admin");
+  expect(harness.requests).not.toContain("GET /api/v1/admin/overview/backup");
+  expect(harness.requests).not.toContain("GET /api/v1/admin/overview/host");
+});
+
+test("a refresh keeps the last Backup value, marks the failure at once and announces it", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Senaste lyckade körning");
+  // Hydrated: the refresh timer exists only once the page's script has run.
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.backup = "error";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  await response;
+  await expect(card(page, "Backup")).toContainText("Uppdateringen misslyckades");
+  await expect(card(page, "Backup")).toContainText("Nästa planerade körning");
+  await expect(page.getByRole("status").filter({ hasText: "Backup:" })).toContainText("Uppdateringen misslyckades");
+  await verify(page, "backup-retained-after-failure");
+});
+
+test("a refresh that finds the Backup source refused clears every privileged value", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.backup = "forbidden";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  expect((await response).status()).toBe(403);
+  await expect(page.getByRole("region", { name: "Backup", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Användare totalt", exact: true })).toHaveCount(0);
+  await verify(page, "backup-refused");
+});
+
 test("refresh retains good values on ordinary failure and projects data before the browser", async ({ page }) => {
   await page.clock.install();
   await page.goto("/admin");
@@ -273,6 +502,8 @@ test("actual two-hundred-percent browser zoom keeps overview and drill-down usab
     await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toBeFocused();
     await page.getByRole("heading", { level: 1, name: "Översikt", exact: true }).scrollIntoViewIfNeeded();
     await verify(page, "actual-zoom-200-overview", zoom);
+    await card(page, "Server").scrollIntoViewIfNeeded();
+    await verify(page, "actual-zoom-200-server", zoom);
     await page.getByRole("radiogroup").scrollIntoViewIfNeeded();
     await verify(page, "actual-zoom-200-chart", zoom);
     await card(page, "Nya användare").getByRole("link", { name: /senaste 30 kalenderdagarna/i }).click();

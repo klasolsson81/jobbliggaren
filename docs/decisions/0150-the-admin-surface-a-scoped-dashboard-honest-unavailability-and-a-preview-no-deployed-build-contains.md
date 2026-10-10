@@ -21,7 +21,8 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 **Measured against:** `origin/main` at `7c21f8117`, 2026-10-04.
 **Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions;
 2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary;
-2026-10-07 by ADR 0156 (#1979): five D8 rows for feedback's rating, statuses, list, page and filters, and a dated note on the screenshot and reply rows.
+2026-10-07 by ADR 0156 (#1979): five D8 rows for feedback's rating, statuses, list, page and filters, and a dated note on the screenshot and reply rows;
+2026-10-10 by ADR 0158 (#1982): the Server card's host readings, whose surface contract the Amendment 2026-10-10 at the end of this file records, superseding the 2026-10-08 sentence on host for that card only.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -310,3 +311,31 @@ cannot produce zero or a general all-clear.
 
 The dashboard's existing tokens/layout and the stored audit's existing retention remain unchanged. No migration,
 dependency, Hangfire port, mutation or feedback expansion is introduced.
+
+## Amendment 2026-10-10 — The Backup card reads an observation (#1982)
+
+The overview's Backup card now reads one observation: what a host sampler publishes about the backup stamp and the backup
+timer, through a read-only directory (ADR 0157). *Senaste lyckade körning* shows the end of the last successful run and
+*Nästa planerade körning* the instant the timer is armed for. *Extern kopia* and *Behålls* still say "Saknar verifierad
+datakälla" in every state: no source for them is verified. A recorded run is never shown as proof of a working restore.
+D2's closed union gains one state for this source only, `awaiting`: the host has not reported, which is a built source and
+not an error, so it is neither "Kommer snart" nor an alarm.
+
+D4's #1982 row is partly flipped: Backup is real. Services and host resources stay with #1982's other part and are not made
+real by this amendment. The decision, its alternatives and the contract are ADR 0157; the operational contract is
+`docs/runbooks/host-observations.md`. No other decision of this ADR changes.
+
+## Amendment 2026-10-10 — The Server card's host readings (#1982)
+
+This Amendment owns only the surface contract of the Server card. The mechanism and what a reading means are ADR 0158's.
+
+- A server region is `loaded` as soon as the API answers. Each of its three readings (CPU, memory, disk) is one state of
+  the closed union Available, Stale, Collecting, NotObservable or Failed inside that region, so one failing reading never
+  blanks the other two.
+- A loaded region may carry `sampledAt`, the newest reading's own sample time, and `stale` (D2). The card prints them
+  once, not per reading.
+- NotObservable is a built reading that this deployment cannot supply. It is never rendered as "Kommer snart": under D2,
+  `unavailable` means not built, and only that is worded so.
+- For the host source, `X-Admin-Sampled-At` is the API's read instant. Each reading's own `sampledAt` is in the body.
+- This supersedes, for the Server card only, the sentence of the 2026-10-08 Amendment that "host/services ... remain
+  unavailable". Services and backup are untouched: they belong to other issues.

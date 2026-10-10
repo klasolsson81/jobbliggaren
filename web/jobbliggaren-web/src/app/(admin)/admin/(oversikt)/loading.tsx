@@ -2,7 +2,8 @@ import { AdminOverview } from "@/components/admin/admin-overview";
 import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
 const LOADING: AdminOverviewSnapshot = {
-  accounts: { kind: "loading" }, audit: { kind: "loading" }, jobs: { kind: "loading" },
+  accounts: { kind: "loading" }, audit: { kind: "loading" }, jobs: { kind: "loading" }, backup: { kind: "loading" },
+  host: { kind: "loading" },
 };
 
 export default function AdminOverviewLoading() {

@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Globalization;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Feedback;
 
@@ -42,6 +43,41 @@ internal static partial class EmailTemplates
                     + EmailHtml.List([$"Sida: {page}", $"Betyg: {rating}", $"Tid: {at}"])
                     + EmailHtml.Button(link, "Läs den i admin")
                     + EmailHtml.P("Inloggning krävs.")
+                    + EmailHtml.SignOff()));
+    }
+
+    /// <summary>
+    /// #2069 — an administrator's reply to the person who sent the feedback. The text is his; the
+    /// date and the page say which feedback it answers, and what the reporter wrote is never repeated
+    /// (ADR 0156 D5). The provider arm sets Reply-To to the contact address, so an answer reaches us.
+    /// </summary>
+    public static EmailContent FeedbackReply(FeedbackReplyEmail content)
+    {
+        var sent = TimeZoneInfo.ConvertTime(content.SubmittedAt, SwedishZone)
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var about = content.Page == FeedbackPage.General ? "" : $" om sidan {FeedbackPageLabels[content.Page]}";
+        var context = $"Det här är ett svar på feedbacken du skickade {sent}{about}. "
+            + $"Vill du skriva till oss kan du svara på det här mejlet eller mejla {ContactAddress}.";
+        const string subject = "Svar på din feedback";
+
+        return new EmailContent(
+            Subject: subject,
+            PlainTextBody: $"""
+                Hej,
+
+                {content.Text.Value}
+
+                {context}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: subject,
+                preheader: "Ett svar på feedbacken du skickade till Jobbliggaren.",
+                body: EmailHtml.P("Hej,")
+                    + EmailHtml.Paragraphs(content.Text.Value)
+                    + EmailHtml.P(context)
                     + EmailHtml.SignOff()));
     }
 

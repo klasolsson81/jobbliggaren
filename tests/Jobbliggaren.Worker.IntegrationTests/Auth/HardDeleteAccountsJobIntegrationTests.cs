@@ -595,12 +595,16 @@ $fn$ LANGUAGE plpgsql;";
         // other was accepted through the job's own claim-then-outcome transforms.
         var sentAt = oldDeletedAt.AddHours(-12);
         await SeedFeedbackAsync(jobSeekerId, FeedbackPage.Jobs, sentAt, accepted: false, ct);
-        await SeedFeedbackAsync(jobSeekerId, FeedbackPage.Cv, sentAt.AddMinutes(5), accepted: true, ct);
-        await SeedFeedbackAsync(otherJobSeekerId, FeedbackPage.Jobs, now.AddDays(-1), accepted: false, ct);
+        var answered = await SeedFeedbackAsync(jobSeekerId, FeedbackPage.Cv, sentAt.AddMinutes(5), accepted: true, ct);
+        var otherAnswered = await SeedFeedbackAsync(otherJobSeekerId, FeedbackPage.Jobs, now.AddDays(-1), accepted: false, ct);
+        // #2069: an administrator answered while the account was live, as SendFeedbackReplyCommandHandler saves it.
+        await SeedReplyAsync(answered, sentAt.AddHours(1), ct);
+        await SeedReplyAsync(otherAnswered, now.AddHours(-1), ct);
 
         (await CountFeedbackAsync(jobSeekerId, ct)).ShouldBe((2, 2, 2), "seed: two submissions, two notices, two pages");
         (await CountQueuedNoticesAsync(jobSeekerId, ct)).ShouldBe(1, "seed: one notice is still waiting to be sent");
         (await CountFeedbackAsync(otherJobSeekerId, ct)).ShouldBe((1, 1, 1), "seed: another account's feedback");
+        (await CountRepliesAsync(jobSeekerId, ct)).ShouldBe(1, "seed: one reply to the account");
 
         await RunJobAsync(now, ct);
 
@@ -608,11 +612,32 @@ $fn$ LANGUAGE plpgsql;";
             "the account's feedback, its notices (queued included) and its prompt suppressions are hard-deleted (GDPR Art. 17)");
         (await CountFeedbackAsync(otherJobSeekerId, ct)).ShouldBe((1, 1, 1),
             "the cascade is scoped to the deleted account");
+        (await CountRepliesAsync(jobSeekerId, ct)).ShouldBe(0, "the replies sent to the account are hard-deleted too");
+        (await CountRepliesAsync(otherJobSeekerId, ct)).ShouldBe(1, "and only the deleted account's");
+    }
+
+    private async Task SeedReplyAsync(FeedbackSubmission submission, DateTimeOffset at, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reply = FeedbackReply.Start(
+            submission, 0, Guid.NewGuid(), FeedbackReplyText.Create("Tack för din feedback.").Value, at).Value;
+        db.FeedbackReplies.Add(reply);
+        await db.SaveChangesAsync(ct);
+        reply.RecordAccepted(at).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<int> CountRepliesAsync(JobSeekerId owner, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().FeedbackReplies.AsNoTracking()
+            .CountAsync(r => r.JobSeekerId == owner, ct);
     }
 
     // The submit handler's one save at sentAt (the submission, its notice, the page's first suppression), and when
     // accepted, FeedbackNotificationDispatchJob's claim and outcome saved in its order.
-    private async Task SeedFeedbackAsync(
+    private async Task<FeedbackSubmission> SeedFeedbackAsync(
         JobSeekerId owner, FeedbackPage page, DateTimeOffset sentAt, bool accepted, CancellationToken ct,
         bool withScreenshot = false)
     {
@@ -645,12 +670,13 @@ $fn$ LANGUAGE plpgsql;";
         await db.SaveChangesAsync(ct);
 
         if (!accepted)
-            return;
+            return submission;
         var sendAt = sentAt.AddMinutes(1);
         notice.Claim(sendAt).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
         notice.RecordAccepted(sendAt).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
+        return submission;
     }
 
     private async Task<(int Submissions, int Notices, int Suppressions)> CountFeedbackAsync(

@@ -161,7 +161,8 @@ exact org.nr, per array element — shape-validated, never taxonomy-resolved, #1
 `Language` the model reports as a second key over the same bytes), the CV's
 plaintext metadata (`parsed_resumes.source_file_name`, `resume_files.file_name`,
 `resumes.name` / `latest_role` / `top_skills` — reported as `resumeMetadata`),
-`feedback_submissions.comment` (reported as `feedbackComments`, #1979),
+`feedback_submissions.comment` and the administrators' replies `feedback_replies.body` (both reported as
+`feedbackComments`, #1979, #2069),
 and — structurally, by foreign key — `applications.job_ad_id`. The full
 column-by-column map is `ErasureCascadeRegistry.Channels`; this list is written
 FROM it, and the build breaks if a searched column has no channel.
@@ -374,6 +375,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
 | CV metadata: `parsed_resumes.source_file_name`, `resume_files.file_name`, `resumes.name` / `latest_role` / `top_skills` (`resumeMetadata`) | ⚠️ **Not automatically — a HUMAN erases it, with the CV's owner in the loop** | The PLAINTEXT text around a user's CV: the uploaded file's name (twice — two tables, same file), the CV's own name (typed via rename), and the denormalised role/skill projections. "Ansokan_Magnus_Fagerberg.pdf" is not exotic — the repo already masks personnummer out of file names (#465) precisely because users type arbitrary text there. Searched and reported; a job does not silently rename a user's own files. The CV BODY is `couldNotSearch`, not this row. |
 | `feedback_submissions.comment` (feedback a user sent about a page, #1979) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | Free text a user wrote to the operator, plaintext by Klas's decision (2026-10-07). A user describing an ad can name its recruiter. Searched and reported as `feedbackComments`; a human deletes the submission (and its image and notice), which is the operator's own correspondence and nothing else depends on. The 90-day retention removes it regardless. |
+| `feedback_replies.body` (a reply an administrator mailed to the reporter, #2069) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | Free text the operator wrote, plaintext by Klas's decision (2026-10-10), so a reply about an ad can name its recruiter. Searched in the same channel as the comment and reported in `feedbackComments`; a human deletes the submission with its replies. The 90-day retention removes it with its submission. The copy already in the reporter's inbox is outside our reach. |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
@@ -547,6 +549,7 @@ Whole-submission erasure is:
 
 ```sql
 BEGIN;
+DELETE FROM public.feedback_replies WHERE submission_id = @submission_id;
 DELETE FROM public.feedback_screenshots WHERE submission_id = @submission_id;
 DELETE FROM public.feedback_notifications WHERE submission_id = @submission_id;
 DELETE FROM public.feedback_submissions WHERE id = @submission_id;

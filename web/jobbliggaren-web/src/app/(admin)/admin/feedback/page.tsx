@@ -3,7 +3,11 @@ import { getTranslations } from "next-intl/server";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminFeedbackScreenshot } from "@/components/admin/admin-feedback-screenshot";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { changeFeedbackStatusAction, requeueFeedbackNotificationAction } from "@/lib/actions/admin-feedback";
+import {
+  changeFeedbackStatusAction,
+  requeueFeedbackNotificationAction,
+  sendFeedbackReplyAction,
+} from "@/lib/actions/admin-feedback";
 import {
   FEEDBACK_PAGE_SIZE,
   FEEDBACK_ROUTE,
@@ -125,6 +129,7 @@ export default async function AdminFeedbackPage({
         failedLines={{ list: refusalLine(list), detail: refusalLine(detail), summary: refusalLine(summary) }}
         onStatus={changeFeedbackStatusAction}
         onRequeue={requeueFeedbackNotificationAction}
+        onReply={sendFeedbackReplyAction}
       />
     </div>
   );

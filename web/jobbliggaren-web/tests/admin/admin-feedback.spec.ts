@@ -119,7 +119,7 @@ test("lists every submission newest first with its counts, and filters by a stat
   ]);
   const items = list(page).getByRole("link");
   await expect(items).toHaveCount(6);
-  await expect(items.first()).toContainText("Ansökningar2 av 5");
+  await expect(items.first()).toContainText("Mina ansökningar2 av 5");
   await expect(items.first()).toContainText("Avisering: Köad");
   await expect(items.nth(1)).toContainText("CV-granskningInget betyg");
   // A submission with a rating and no text has no excerpt.
@@ -383,6 +383,100 @@ test("a status change goes through its Server Action, confirms with a receipt an
   await expect(save).toBeFocused();
   expect(commands()).toEqual([{ id: ids.queued, command: "status", body: { status: "InProgress" } }]);
   await atBothWidths(page, "status-receipt");
+});
+
+const replyArea = (page: Page) => detailRegion(page).getByRole("region", { name: "Svar", exact: true });
+const replyField = (page: Page) => replyArea(page).getByRole("textbox", { name: "Ditt svar" });
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const REPLY = "Tack för din feedback.\n\nVi tittar på det.";
+
+test("a reply goes through its Server Action with its own key, confirms with a receipt and is listed (#2069)", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const area = replyArea(page);
+  await expect(replyField(page)).toHaveAccessibleDescription(/^Svaret mejlas till .+ och börjar med ”Hej,”\./);
+  await replyField(page).fill(REPLY);
+  const send = area.getByRole("button", { name: "Skicka svar" });
+  await send.click();
+
+  await expect(toast(page)).toContainText("Svaret är mottaget av e-posttjänsten.");
+  const sent = area.getByRole("list", { name: "Skickade svar" });
+  await expect(sent.getByRole("listitem")).toHaveCount(1);
+  await expect(sent).toContainText("Mottaget av e-posttjänsten");
+  await expect(sent.locator(".jp-adminfeedback__text")).toHaveText(REPLY);
+  await expect(replyField(page)).toHaveValue("");
+  const [reply] = commands();
+  expect(reply).toMatchObject({ id: ids.queued, command: "reply", body: { text: REPLY } });
+  expect((reply?.body as { replyKey?: string } | undefined)?.replyKey).toMatch(UUID);
+  await atBothWidths(page, "reply-accepted");
+});
+
+for (const [outcome, line, listed] of [
+  ["Failed", "E-posttjänsten tog inte emot svaret, så inget skickades. Du kan skicka igen.", "Misslyckades"],
+  ["Unknown", "Det gick inte att bekräfta om svaret kom fram. Skickar du igen kan personen få det två gånger.", "Utfall okänt"],
+] as const) {
+  test(`a reply the provider recorded as ${outcome} says so beside the button and keeps the text (#2069)`, async ({ page }) => {
+    harness.feedbackReplyOutcome = outcome;
+    await page.goto(`${PAGE}?id=${ids.queued}`);
+
+    const area = replyArea(page);
+    await replyField(page).fill("Tack.");
+    await area.getByRole("button", { name: "Skicka svar" }).click();
+
+    await expect(area.getByRole("alert")).toHaveText(line);
+    await expect(area.getByRole("alert")).toBeFocused();
+    await expect(area.getByRole("list", { name: "Skickade svar" })).toContainText(listed);
+    await expect(replyField(page)).toHaveValue("Tack.");
+    await atBothWidths(page, `reply-${outcome.toLowerCase()}`);
+  });
+}
+
+test("a long reporter address wraps in the reply's hint instead of scrolling the page sideways (#2069)", async ({ page }) => {
+  const record = harness.feedback.get(ids.queued);
+  if (record === undefined) throw new Error("fixture missing");
+  harness.feedback.set(ids.queued, { ...record, reporterEmail: "annakarinlindqvistjohansson@kommunforbundetexempel.example" });
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  await expect(replyField(page)).toBeVisible();
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `the page scrolls sideways at ${width}px`).toBeLessThanOrEqual(0);
+  }
+});
+
+test("after a send that got no answer the text can still be edited, and the edit goes with a new key (#2069)", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const area = replyArea(page);
+  await replyField(page).fill("Tack.");
+  harness.mode = "error";
+  await area.getByRole("button", { name: "Skicka svar" }).click();
+  await expect(area.getByRole("alert")).toHaveAttribute("data-tone", "warning");
+  harness.mode = "ok";
+  await replyField(page).pressSequentially(" Rättat.");
+
+  await expect(replyField(page)).toHaveValue("Tack. Rättat.");
+  await area.getByRole("button", { name: "Skicka svar" }).click();
+  await expect(toast(page)).toContainText("Svaret är mottaget av e-posttjänsten.");
+  const sent = commands().filter((command) => command.command === "reply");
+  expect(sent).toHaveLength(2);
+  const [first, second] = sent.map((command) => command.body as { replyKey?: string; text?: string });
+  expect(second?.text).toBe("Tack. Rättat.");
+  expect(second?.replyKey).not.toBe(first?.replyKey);
+});
+
+test("an empty reply is refused on the field and sends nothing (#2069)", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const area = replyArea(page);
+  await area.getByRole("button", { name: "Skicka svar" }).click();
+
+  await expect(area.getByRole("alert")).toHaveText("Skriv ett svar.");
+  await expect(replyField(page)).toHaveAttribute("aria-invalid", "true");
+  await expect(replyField(page)).toBeFocused();
+  expect(commands()).toEqual([]);
+  await atBothWidths(page, "reply-empty");
 });
 
 test("the status a submission already has is refused on the field; a refused command is said under it and leaves the field unmarked", async ({ page }) => {

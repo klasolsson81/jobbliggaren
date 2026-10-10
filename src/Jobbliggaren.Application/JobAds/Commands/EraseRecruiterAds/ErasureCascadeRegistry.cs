@@ -290,6 +290,7 @@ public static class ErasureCascadeRegistry
         new("FeedbackComments",
             [
                 "feedback_submissions.comment",
+                "feedback_replies.body",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.CountFeedbackCommentsAsync)),
 
@@ -658,6 +659,10 @@ public static class ErasureCascadeRegistry
             ["feedback_submissions.reported_device_class"] = ErasureColumnDisposition.NotRecruiterData,
             ["feedback_submissions.reported_os_family"] = ErasureColumnDisposition.NotRecruiterData,
             ["feedback_submissions.reported_browser_family"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── feedback_replies (#2069): an administrator's plaintext reply, SEARCHED; state closed ──
+            ["feedback_replies.body"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["feedback_replies.state"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
@@ -810,6 +815,18 @@ public static class ErasureCascadeRegistry
                 + "it and REPORT it; a HUMAN erases it by deleting the submission, which is the "
                 + "operator's own correspondence and nothing else depends on. The 90-day retention "
                 + "removes it regardless.",
+
+            ["feedback_replies:MatchedHumanErases"] =
+                "OPERATOR-AUTHORED FREE TEXT: body holds up to 4000 characters an administrator wrote "
+                + "back to the person behind a submission, with no content validation beyond trimming, "
+                + "line endings and the length cap. PLAINTEXT by Klas's decision of 2026-10-10, so it "
+                + "can be searched, and a reply about an ad can name its recruiter. We SEARCH it in the "
+                + "same channel as the comment and REPORT it; a HUMAN erases it by deleting the "
+                + "submission with its replies. The 90-day retention removes it with its submission.",
+            ["feedback_replies:NotRecruiterData"] =
+                "CLOSED DOMAIN: state is a FeedbackReplyState enum persisted BY NAME through "
+                + "HasConversion<string> into varchar(16), set only by FeedbackReply's own "
+                + "transitions. No request body reaches it.",
 
             ["feedback_submissions:NotRecruiterData"] =
                 "CLOSED DOMAINS, each set by the write path, never free text. page_key is the name of "

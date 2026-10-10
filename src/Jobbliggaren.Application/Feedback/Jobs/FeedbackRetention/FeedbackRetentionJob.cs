@@ -6,7 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention;
 
 /// <summary>
-/// Deletes feedback 90 days after it was sent, with its screenshot and operator notice (Klas, 2026-10-07). A
+/// Deletes feedback 90 days after it was sent, with its screenshot, operator notice and the replies sent
+/// to the reporter (Klas, 2026-10-07; replies #2069, by the submission's own time). A
 /// constant rather than an option, because the privacy policy states the period. The per-page
 /// prompt suppressions are kept: they live as long as the account, so the prompt never returns
 /// on its own. Logs counts only, like <c>ParsedResumeRetentionJob</c>.
@@ -22,6 +23,9 @@ public sealed partial class FeedbackRetentionJob(
     {
         var cutoff = clock.UtcNow - Retention;
 
+        var replies = await db.FeedbackReplies
+            .Where(r => r.SubmittedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
         var screenshots = await db.FeedbackScreenshots
             .Where(s => s.SubmittedAt < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
@@ -32,10 +36,10 @@ public sealed partial class FeedbackRetentionJob(
             .Where(s => s.SubmittedAt < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        LogPurged(submissions, notices, screenshots);
+        LogPurged(submissions, notices, screenshots, replies);
     }
 
     [LoggerMessage(3105, LogLevel.Information,
-        "[FeedbackRetention] Deleted {Submissions} feedback submissions, {Notices} notices and {Screenshots} screenshots older than 90 days")]
-    private partial void LogPurged(int submissions, int notices, int screenshots);
+        "[FeedbackRetention] Deleted {Submissions} feedback submissions, {Notices} notices, {Screenshots} screenshots and {Replies} replies older than 90 days")]
+    private partial void LogPurged(int submissions, int notices, int screenshots, int replies);
 }

@@ -831,11 +831,46 @@
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-lg);
 }
-.jp-adminfeedback__reply {
+/* The replies to the reporter (#2069): the sent ones as a quiet list, then the form at full width. */
+.jp-adminfeedback__reply > .jp-adminfeedback__replies,
+.jp-adminfeedback__reply > .jp-adminfeedback__replyform { align-self: stretch; }
+.jp-adminfeedback__replies {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.jp-adminfeedback__replyitem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 12px;
+  border-left: 2px solid var(--jp-border-soft);
+}
+.jp-adminfeedback__replymeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-adminfeedback__replyform {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+.jp-adminfeedback__hint {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
+}
+.jp-adminfeedback__refusal[data-tone="warning"] { color: var(--jp-warning-700); }
 /* The line that says feedback is closed, on the warning edge; while its state cannot be read the
    edge is neutral, as the overview's attention card is (ADR 0150 D1), so an unknown raises no alarm. */
 .jp-adminfeedback__availability {

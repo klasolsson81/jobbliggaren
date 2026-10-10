@@ -199,6 +199,11 @@ internal static class MappedPlaintextExposureRegistry
                 + "state and the timestamps are delivery bookkeeping, but the row is attributable to her.",
             ["feedback_prompt_suppressions"] = "That she gave feedback on a page (JobSeekerId), kept "
                 + "so the prompt stays hidden for her. page_key is a closed set; the row is hers.",
+            // #2069. Joins the same list by Klas's grant 3 of 2026-10-10 (ADR 0156, the reply amendment).
+            ["feedback_replies"] = "A reply an administrator mailed to her about her submission "
+                + "(JobSeekerId). body is the text sent to her, stored in plaintext by Klas's decision; "
+                + "state and the timestamps are delivery bookkeeping. Deleted with the submission after "
+                + "90 days and at account deletion.",
 
             // ── The CV lane: her file and everything derived from it. ─────────────────────────
             ["resumes"] = "Her CVs (JobSeekerId). name, latest_role and top_skills are the DEK-FREE "

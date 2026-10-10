@@ -112,7 +112,22 @@ describe("the admin feedback wire shapes (#1979)", () => {
       },
       appVersion: "4f2a91c",
       notice: { state: "unknown", attempts: 1, nextAttemptAt: "2026-10-04T05:12:00+00:00" },
+      replies: [],
     });
+  });
+
+  it("reads the replies sent to the reporter in their order, with each recorded outcome (#2069)", () => {
+    const replies = [
+      { id: "00000000-0000-4000-8000-000000000601", text: "Tack.", state: "Accepted", createdAt: "2026-10-05T08:00:00+00:00", completedAt: "2026-10-05T08:00:01+00:00" },
+      { id: "00000000-0000-4000-8000-000000000602", text: "Nu är det fixat.", state: "Unknown", createdAt: "2026-10-06T08:00:00+00:00", completedAt: null },
+    ];
+
+    expect(toFeedbackItem(feedbackDetailSchema.parse({ ...DETAIL, replies })).replies).toEqual([
+      { id: replies[0]?.id, text: "Tack.", state: "accepted", createdAt: "2026-10-05T08:00:00+00:00", completedAt: "2026-10-05T08:00:01+00:00" },
+      { id: replies[1]?.id, text: "Nu är det fixat.", state: "unknown", createdAt: "2026-10-06T08:00:00+00:00", completedAt: null },
+    ]);
+    // The state decides whether the page warns of a duplicate, so one it does not know is refused.
+    expect(feedbackDetailSchema.safeParse({ ...DETAIL, replies: [{ ...replies[0], state: "Delivered" }] }).success).toBe(false);
   });
 
   // Declared unreachable today: the backend's families, themes, statuses, states and page keys are closed

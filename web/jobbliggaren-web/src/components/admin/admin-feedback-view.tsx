@@ -15,6 +15,7 @@ import {
   withWindow,
   type AdminFeedbackQuery,
   type AdminFeedbackRefusal,
+  type AdminFeedbackReplyOutcome,
 } from "@/lib/admin/feedback";
 import type {
   AdminFeedbackAvailability,
@@ -50,6 +51,7 @@ export interface AdminFeedbackViewProps {
   readonly failedLines?: { readonly list?: string; readonly detail?: string; readonly summary?: string };
   readonly onStatus: (id: string, status: AdminFeedbackStatus) => Promise<AdminFeedbackRefusal>;
   readonly onRequeue: (id: string, acknowledgeDuplicateRisk: boolean) => Promise<AdminFeedbackRefusal>;
+  readonly onReply: (id: string, replyKey: string, text: string) => Promise<AdminFeedbackReplyOutcome>;
 }
 
 const sameId = (left: string, right: string | null) => right !== null && left.toLowerCase() === right.toLowerCase();
@@ -78,6 +80,7 @@ export function AdminFeedbackView({
   failedLines,
   onStatus,
   onRequeue,
+  onReply,
 }: AdminFeedbackViewProps) {
   const t = useTranslations("admin.feedback");
   const open = detail !== null;
@@ -110,6 +113,7 @@ export function AdminFeedbackView({
               failed={failedLines?.detail}
               onStatus={onStatus}
               onRequeue={onRequeue}
+              onReply={onReply}
             />
           )}
         </div>

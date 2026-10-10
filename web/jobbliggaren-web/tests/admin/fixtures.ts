@@ -261,6 +261,18 @@ export interface FeedbackRecord {
   readonly appVersion: string | null;
   readonly notification: FeedbackNotice | null;
   readonly screenshot: { readonly width: number; readonly height: number } | null;
+  /** The replies sent to the reporter (#2069), oldest first; none unless a test sends one. */
+  readonly replies?: ReadonlyArray<FeedbackReplyRecord>;
+}
+
+/** One reply as `GET /api/v1/admin/feedback/{id}` lists it. */
+export interface FeedbackReplyRecord {
+  readonly id: string;
+  readonly key: string;
+  readonly text: string;
+  readonly state: "Sending" | "Accepted" | "Failed" | "Unknown";
+  readonly createdAt: string;
+  readonly completedAt: string | null;
 }
 
 /** Each submission named by its notice's state, which is what the tests open it for. */
@@ -469,6 +481,13 @@ export function feedbackDetail(record: FeedbackRecord) {
     appVersion: record.appVersion,
     notification: record.notification,
     screenshot: record.screenshot,
+    replies: (record.replies ?? []).map(({ id, text, state, createdAt, completedAt }) => ({
+      id,
+      text,
+      state,
+      createdAt,
+      completedAt,
+    })),
   };
 }
 

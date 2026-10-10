@@ -208,13 +208,14 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
-    /// How many feedback submissions carry <paramref name="identifier"/> in their user-written
-    /// <c>comment</c> (#1979). <b>Counted and REPORTED; a human erases it</b> by deleting the
-    /// submission — the operator's own correspondence, which nothing else depends on.
+    /// How many feedback texts carry <paramref name="identifier"/>: a submission's user-written
+    /// <c>comment</c> (#1979) or a reply an administrator sent to its reporter (#2069). <b>Counted and
+    /// REPORTED; a human erases it</b> by deleting the submission with its replies — the operator's own
+    /// correspondence, which nothing else depends on.
     /// </summary>
     /// <remarks>
-    /// The comment is plaintext by Klas's decision (2026-10-07), so unlike an encrypted note it can
-    /// be searched, and a user writing about an ad can name its recruiter.
+    /// Both texts are plaintext by Klas's decisions (2026-10-07, 2026-10-10), so unlike an encrypted
+    /// note they can be searched, and a text about an ad can name its recruiter.
     /// </remarks>
     Task<int> CountFeedbackCommentsAsync(
         string identifier, CancellationToken cancellationToken);

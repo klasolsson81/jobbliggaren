@@ -95,6 +95,16 @@ public class ConsoleEmailSenderReservedRecipientTests
                 CancellationToken.None),
             CarriesProbe: false),
 
+        new(nameof(IEmailSender.SendFeedbackReplyAsync), "feedback-reply",
+            (s, to) => s.SendFeedbackReplyAsync(
+                to,
+                new FeedbackReplyEmail(
+                    FeedbackPage.Jobs,
+                    new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+                    FeedbackReplyText.Create(BodyProbe).Value),
+                CancellationToken.None),
+            CarriesProbe: true),
+
         new(nameof(IEmailSender.SendLoginChallengeAsync), "login-challenge",
             (s, to) => s.SendLoginChallengeAsync(
                 to,

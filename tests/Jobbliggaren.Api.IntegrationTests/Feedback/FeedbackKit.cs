@@ -32,6 +32,8 @@ internal static class FeedbackKit
 
     public static string RequeuePath(Guid id) => $"{AdminPath}/{id}/notification/requeue";
 
+    public static string RepliesPath(Guid id) => $"{AdminPath}/{id}/replies";
+
     public static string SummaryPath(int days) => $"{AdminPath}/summary?days={days}";
 
     /// <summary>A signed-in account with its job seeker, as the production registrar opens it.</summary>

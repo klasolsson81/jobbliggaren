@@ -1,11 +1,13 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Feedback;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackDetail;
 
-public sealed class GetFeedbackDetailQueryHandler(IAppDbContext db, IUserAccountService userAccounts)
+public sealed class GetFeedbackDetailQueryHandler(
+    IAppDbContext db, IUserAccountService userAccounts, IDateTimeProvider clock)
     : IQueryHandler<GetFeedbackDetailQuery, FeedbackDetailDto?>
 {
     public async ValueTask<FeedbackDetailDto?> Handle(GetFeedbackDetailQuery query, CancellationToken cancellationToken)
@@ -34,6 +36,14 @@ public sealed class GetFeedbackDetailQueryHandler(IAppDbContext db, IUserAccount
             .Select(s => new FeedbackScreenshotMetadataDto(s.Width, s.Height))
             .FirstOrDefaultAsync(cancellationToken);
 
+        var replies = await db.FeedbackReplies.AsNoTracking()
+            .Where(r => r.SubmissionId == id)
+            .OrderBy(r => r.CreatedAt)
+            .Take(FeedbackReply.MaxPerSubmission)
+            .Select(r => new { r.Id, r.Text, r.State, r.CreatedAt, r.CompletedAt })
+            .ToListAsync(cancellationToken);
+        var now = clock.UtcNow;
+
         var context = submission.Context;
         return new FeedbackDetailDto(
             submission.Id.Value,
@@ -52,6 +62,9 @@ public sealed class GetFeedbackDetailQueryHandler(IAppDbContext db, IUserAccount
                 ? null
                 : new FeedbackNotificationDto(
                     notice.State, notice.Attempts, notice.NextAttemptAt, notice.AcceptedAt, notice.StateChangedAt),
+            [.. replies.Select(r => new FeedbackReplyDto(
+                r.Id.Value, r.Text.Value, FeedbackReply.Effective(r.State, r.CreatedAt, now), r.CreatedAt,
+                r.CompletedAt))],
             screenshot);
     }
 }

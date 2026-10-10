@@ -56,6 +56,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// same detection control as the confirm step's, but a pending change lives for days and can outlive
 /// a provider change, so the trigger-unreachability ruling below does not carry over. It consults
 /// <see cref="CanDeliver"/> first and refuses (503).</item>
+/// <item><c>SendFeedbackReplyCommandHandler</c> (#2069) — the reply is the action, and its row would
+/// record a mail nobody received. It consults <see cref="CanDeliver"/> first and refuses (400).</item>
 /// <item><c>ConfirmEmailChangeCommandHandler</c>'s old-address notice — an OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control. Deliberately NOT refused (that would fail a completed,
 /// legitimate change), so with this sender the control is silently off. <b>security-auditor ruled
@@ -137,6 +139,17 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedNotification("feedback-received-notification");
+        return Task.CompletedTask;
+    }
+
+    // Unreachable while this sender is registered: SendFeedbackReplyCommandHandler refuses before it
+    // saves anything when CanDeliver is false.
+    public Task SendFeedbackReplyAsync(
+        string toEmail,
+        FeedbackReplyEmail content,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("feedback-reply");
         return Task.CompletedTask;
     }
 

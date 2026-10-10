@@ -113,6 +113,7 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(FeedbackScreenshot)] = "FeedbackScreenshots",
         [typeof(FeedbackNotification)] = "FeedbackNotifications",
         [typeof(FeedbackPromptSuppression)] = "FeedbackPromptSuppressions",
+        [typeof(FeedbackReply)] = "FeedbackReplies",
     };
 
     /// <summary>
@@ -369,6 +370,7 @@ public class AccountHardDeleteCascadeFitnessTests
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.ResumeFiles.Where(f => f.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
+                await db.FeedbackReplies.Where(r => r.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.FeedbackScreenshots.Where(s => s.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.FeedbackNotifications.Where(n => n.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.FeedbackSubmissions.Where(s => s.JobSeekerId == jsId).ExecuteDeleteAsync(ct);

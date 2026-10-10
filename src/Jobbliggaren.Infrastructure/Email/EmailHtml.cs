@@ -255,6 +255,25 @@ internal static class EmailHtml
         new($"""<p style="{BodyStyle}">{Encode(text)}</p>""");
 
     /// <summary>
+    /// Text a person typed (#2069): one paragraph per block between blank lines, a line break per line
+    /// inside a block. Each line is encoded before the breaks join them, so a typed tag stays text. No
+    /// <c>white-space:pre-wrap</c>: the Word engine in Outlook does not honour it.
+    /// </summary>
+    public static Markup Paragraphs(string text)
+    {
+        var html = new StringBuilder();
+        var blocks = text.ReplaceLineEndings("\n")
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var block in blocks)
+        {
+            var lines = string.Join("<br>", block.Split('\n').Select(line => Encode(line.Trim())));
+            html.Append(CultureInfo.InvariantCulture, $"""<p style="{BodyStyle}">{lines}</p>""");
+        }
+
+        return new(html.ToString());
+    }
+
+    /// <summary>
     /// The sign-off, both lines in one paragraph exactly as the plain-text part sets them
     /// ("Vänliga hälsningar," / "Jobbliggaren"). They were split across the footer divider before,
     /// which left a comma-terminated line ending nothing (design-reviewer Major 2, 2026-08-12). The
@@ -304,7 +323,7 @@ internal static class EmailHtml
         var rows = new StringBuilder();
         foreach (var item in items)
         {
-            // The one interpolation of an already-built fragment in this file. It is a local
+            // An interpolation of an already-built fragment, as in Paragraphs. It is a local
             // StringBuilder whose every contribution was encoded one line above, never a parameter,
             // so it is not a seam a caller can reach.
             rows.Append(

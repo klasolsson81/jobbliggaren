@@ -47,7 +47,7 @@ public sealed class GetFeedbackDetailQueryHandlerTests : IAsyncDisposable
     }
 
     private Task<FeedbackDetailDto?> DetailAsync(Guid id) =>
-        new GetFeedbackDetailQueryHandler(_db, _accounts).Handle(new GetFeedbackDetailQuery(id), Ct).AsTask();
+        new GetFeedbackDetailQueryHandler(_db, _accounts, _clock).Handle(new GetFeedbackDetailQuery(id), Ct).AsTask();
 
     [Fact]
     public async Task Handle_ReturnsTheFullSubmissionItsClientItsNoticeAndTheReportersAddress()
@@ -176,6 +176,35 @@ public sealed class GetFeedbackDetailQueryHandlerTests : IAsyncDisposable
 
         (await DetailAsync(Guid.NewGuid())).ShouldBeNull();
         await _accounts.DidNotReceiveWithAnyArgs().GetEmailAsync(default, Ct);
+    }
+
+    // #2069. FeedbackReply.Start is what the reply handler saves before the send; a row left there and read ten
+    // minutes later belongs to a request that died after that commit, and reads as an unknown outcome.
+    [Fact]
+    public async Task Handle_ListsTheRepliesOldestFirst_AndAStaleSendAsUnknown()
+    {
+        var seeker = await RegisterAsync();
+        var saved = await FeedbackRows.SubmitAsync(_db, seeker.Id, FeedbackPage.Jobs, null, Text, T0, Ct);
+        var submission = await _db.FeedbackSubmissions.AsNoTracking().SingleAsync(s => s.Id == saved.SubmissionId, Ct);
+        var accepted = FeedbackReply.Start(
+            submission, 0, Guid.NewGuid(), FeedbackReplyText.Create("Tack.").Value, T0.AddDays(1)).Value;
+        accepted.RecordAccepted(T0.AddDays(1).AddSeconds(1)).IsSuccess.ShouldBeTrue();
+        var stale = FeedbackReply.Start(
+            submission, 1, Guid.NewGuid(), FeedbackReplyText.Create("Nu är det fixat.").Value, T0.AddDays(2)).Value;
+        _db.FeedbackReplies.AddRange(stale, accepted);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+        var tenMinutesLater = new FakeDateTimeProvider(T0.AddDays(2) + FeedbackReply.StaleSendingAfter);
+
+        var replies = (await new GetFeedbackDetailQueryHandler(_db, _accounts, tenMinutesLater)
+            .Handle(new GetFeedbackDetailQuery(saved.SubmissionId.Value), Ct)).ShouldNotBeNull().Replies;
+
+        replies.Select(r => r.Text).ShouldBe(["Tack.", "Nu är det fixat."]);
+        replies[0].State.ShouldBe(FeedbackReplyState.Accepted);
+        replies[0].CompletedAt.ShouldBe(T0.AddDays(1).AddSeconds(1));
+        replies[1].State.ShouldBe(FeedbackReplyState.Unknown);
+        replies[1].CompletedAt.ShouldBeNull();
+        replies[1].ToString().ShouldNotContain("fixat");
     }
 
     [Fact]

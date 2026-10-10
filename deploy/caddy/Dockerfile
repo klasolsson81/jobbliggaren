@@ -38,16 +38,15 @@ FROM caddy:2-builder-alpine AS build
 # image built from the stock one, with the advisories back. Writing to /out makes
 # that a hard COPY error.
 #
-# --with, not --replace: --with adds a require, which under MVS is a floor and can only
-# raise. --replace is a ceiling and would hold these versions down if caddy later required
-# newer ones.
+# --with, not --replace: --with adds a require. --replace is a ceiling and would hold these
+# versions down if caddy later required newer ones.
 #
 # The x/crypto and x/net entries name a PACKAGE, not the module root, and the asymmetry is
 # deliberate. Measured 2026-09-02: `--with golang.org/x/crypto@v0.55.0` fails the build with
 # `cannot find module providing package golang.org/x/crypto` — that root carries no .go
 # files, so the blank import xcaddy writes has nothing to bind. The x/net root carries none
 # either. `go get` resolves a package to its containing module and go.mod can only require
-# modules, so the require written is still the module's and the floor is preserved.
+# modules, so the require written is still the module's.
 #
 # x/net is raised for CVE-2026-78669 (HIGH, an HTTP/2 SETTINGS denial of service), fixed in
 # v0.60.0. Measured 2026-10-10: this build otherwise resolves v0.58.0, and caddy v2.11.5 to

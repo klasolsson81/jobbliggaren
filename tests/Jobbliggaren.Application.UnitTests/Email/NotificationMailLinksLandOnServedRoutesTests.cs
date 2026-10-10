@@ -22,6 +22,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <para>
 /// "Served" means a <c>page.tsx</c> under <c>src/app/(app)/</c> whose URL is the link's path. Route groups
 /// add no URL segment, and parallel-route slots (<c>@modal</c>) and private folders serve no URL of their own.
+/// A dynamic segment (<c>[id]</c>) serves any one non-empty segment, so the direct match mail's
+/// <c>/jobb/{id}</c> lands on <c>(app)/jobb/[id]/page.tsx</c> (#2094).
 /// A retired path that only answers with a 308 has no page, so a link to one fails here as well.
 /// </para>
 /// </summary>
@@ -35,7 +37,8 @@ public class NotificationMailLinksLandOnServedRoutesTests
     private static readonly Regex TextLink = new(
         Regex.Escape(BaseUrl) + @"[^\s""<]*", RegexOptions.CultureInvariant);
 
-    public static TheoryData<string> Mails => new() { "MatchNotification", "FollowedCompanyNotification" };
+    public static TheoryData<string> Mails =>
+        new() { "MatchNotification", "MatchNotificationDigest", "FollowedCompanyNotification" };
 
     [Theory]
     [MemberData(nameof(Mails))]
@@ -48,8 +51,7 @@ public class NotificationMailLinksLandOnServedRoutesTests
             $"{mail} rendered no link to {BaseUrl}, so the sweep below would pass on nothing.");
         foreach (var path in paths)
         {
-            served.ShouldContain(
-                path,
+            IsServed(path, served).ShouldBeTrue(
                 $"{mail} links to {BaseUrl}{path}, and no page.tsx under web/jobbliggaren-web/src/app/(app)/ "
                 + "serves that path. A mail already sent keeps its link, so a renamed page needs a permanent "
                 + "redirect as well as the new link.");
@@ -60,21 +62,22 @@ public class NotificationMailLinksLandOnServedRoutesTests
     /// The test above follows only the link the templates build today, so once the link moves, nothing
     /// else holds the old path (security-auditor, #1891 row 14).
     /// </summary>
-    public static TheoryData<string> PathsSentMailsCarry => new() { "/mina-sidor", "/mina-sidor/notiser" };
+    public static TheoryData<string> PathsSentMailsCarry =>
+        new() { "/mina-sidor", "/mina-sidor/notiser", "/matchningar", "/jobb" };
 
     [Theory]
     [MemberData(nameof(PathsSentMailsCarry))]
     public void EveryPathASentMailCarries_StaysAPageTheWebAppServes(string path)
     {
-        ServedAppRoutes().ShouldContain(
-            path,
+        IsServed(path, ServedAppRoutes()).ShouldBeTrue(
             $"Mails already sent link to {BaseUrl}{path}, and no page.tsx under "
             + "web/jobbliggaren-web/src/app/(app)/ serves that path.");
     }
 
     /// <summary>
-    /// Both mails in the form that renders every link they can carry: the followed-company mail links to
-    /// <c>/foretag</c> only from its filter disclosure, so the summary is set.
+    /// Every mail in the form that renders every link it can carry: a direct match mail links its one ad and a
+    /// digest the list, and the followed-company mail links to <c>/foretag</c> only from its filter
+    /// disclosure, so the summary is set.
     /// </summary>
     private static EmailTemplates.EmailContent Render(string mail) => mail switch
     {
@@ -83,7 +86,16 @@ public class NotificationMailLinksLandOnServedRoutesTests
             new MatchNotificationEmail(
                 MatchNotificationKind.Direct,
                 Cadence: null,
-                Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
+                Items: [new MatchNotificationItem(
+                    Guid.Parse("0b7f3c1e-5a2d-4e8f-9c61-2d4a8e7b3f10"), "Backend-utvecklare", "Acme AB", "Toppmatch")],
+                TotalCount: 1)),
+        "MatchNotificationDigest" => EmailTemplates.MatchNotification(
+            BaseUrl,
+            new MatchNotificationEmail(
+                MatchNotificationKind.Digest,
+                DigestCadence.Weekly,
+                Items: [new MatchNotificationItem(
+                    Guid.Parse("0b7f3c1e-5a2d-4e8f-9c61-2d4a8e7b3f10"), "Backend-utvecklare", "Acme AB", "Stark match")],
                 TotalCount: 1)),
         "FollowedCompanyNotification" => EmailTemplates.FollowedCompanyNotification(
             BaseUrl,
@@ -107,6 +119,23 @@ public class NotificationMailLinksLandOnServedRoutesTests
         return urls
             .Select(url => url[BaseUrl.Length..].Split('?', '#')[0])
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// True when a served route matches <paramref name="path"/> segment by segment, a <c>[param]</c> segment
+    /// matching any one non-empty segment. A catch-all (<c>[...param]</c>) is not served under <c>(app)</c> and
+    /// is not modelled.
+    /// </summary>
+    private static bool IsServed(string path, HashSet<string> served)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return served.Any(route =>
+        {
+            var routeSegments = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return routeSegments.Length == segments.Length
+                && routeSegments.Zip(segments).All(pair =>
+                    pair.First == pair.Second || (pair.First.StartsWith('[') && pair.First.EndsWith(']')));
+        });
     }
 
     /// <summary>The URL of every <c>page.tsx</c> under <c>src/app/(app)/</c>.</summary>

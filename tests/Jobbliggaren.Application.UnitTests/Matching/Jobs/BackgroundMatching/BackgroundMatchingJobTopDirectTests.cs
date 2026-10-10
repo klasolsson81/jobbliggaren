@@ -196,6 +196,7 @@ public class BackgroundMatchingJobTopDirectTests
         captured.Items[0].JobTitle.ShouldBe("Backend-utvecklare");
         captured.Items[0].CompanyName.ShouldBe("Acme AB");
         captured.Items[0].GradeLabel.ShouldBe("Toppmatch");
+        captured.Items[0].JobAdId.ShouldBe(jobAdId.Value, "the direct mail links /jobb/{id} of this ad (#2094)");
 
         // The claim-then-send spine ends with the row Sent.
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);

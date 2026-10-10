@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
@@ -76,8 +77,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (status == JobAdStatus.Erased.Value)
-            return Result.Failure<JobAdMatchDetailDto?>(
-                DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
+            return Result.Failure<JobAdMatchDetailDto?>(JobAdErrors.Gone);
 
         // Full profile from the user's CONFIRMED skill set (plaintext PreferredSkills,
         // DEK-free — ADR 0079 STEG 3 PR-D; the complete, curated set, so no truncation).

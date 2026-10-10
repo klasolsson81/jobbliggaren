@@ -6,9 +6,10 @@ import { ProviderButtons } from "@/components/auth/provider-buttons";
 import { getExternalLoginProviders } from "@/lib/api/oauth-providers";
 import { readLoginFlow } from "@/lib/auth/login-flow-cookie";
 
+// noindex rather than a robots Disallow: a crawler must be allowed to fetch the page to read it (#2092).
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
-  return { title: t("auth.passwordless.entry.meta.title") };
+  return { title: t("auth.passwordless.entry.meta.title"), robots: { index: false } };
 }
 
 interface PageProps {

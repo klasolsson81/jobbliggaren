@@ -22,14 +22,14 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// </summary>
 public class B2PageCountRuleTests
 {
-    private static CvReviewEngine Engine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(),
             RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> B2Async(CvLayoutMetrics? layout)
+    private static async Task<CvCriterionVerdict> B2Async(CvLayoutMetrics? layout, IRubricProvider? rubric = null)
     {
-        var result = await Engine().ReviewAsync(
+        var result = await Engine(rubric).ReviewAsync(
             CvReviewContext.FromParsed(Resume(layoutMetrics: layout)),
             RenderProfile.Ats, TestContext.Current.CancellationToken);
         return Verdict(result, "B2");
@@ -99,6 +99,7 @@ public class B2PageCountRuleTests
         b2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         b2.Evidence.ShouldBeEmpty();
         b2.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(b2);
     }
 
     [Fact]
@@ -110,5 +111,27 @@ public class B2PageCountRuleTests
 
         b2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         b2.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(b2);
+    }
+
+    [Fact]
+    public async Task B2_ShouldUseItsOwnFallbackPair_WhenTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 (reason, no kind): the rubric reason is never
+        // shown beside a guessed kind, so B2's own code pair is used whole (CTO F2).
+        var b2 = await B2Async(layout: null, RubricPredatingNotAssessedKind());
+
+        b2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        b2.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        b2.NotAssessedReason.ShouldBe("CV-längden kunde inte läsas ur källfilen.");
+    }
+
+    // #2083: the page count lives in the file, not the text (CTO F4 → TextOnly), read as the
+    // rubric's pair whole.
+    private static void AssertTheRubricTextOnlyPair(CvCriterionVerdict b2)
+    {
+        var criterion = RealRubric().Criteria.Single(c => c.Id == "B2");
+        b2.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        b2.NotAssessedReason.ShouldBe(criterion.NotAssessedReason);
     }
 }

@@ -164,7 +164,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "A5").NotAssessedReason
-            .ShouldBe("Vi bedömer inte karriärutveckling i den här versionen.");
+            .ShouldBe("Vi bedömer inte karriärutveckling.");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "C1").NotAssessedReason
-            .ShouldBe("Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+            .ShouldBe("Vi gör ingen djupare stavnings- och grammatikkontroll.");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "C5").NotAssessedReason
-            .ShouldBe("Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
+            .ShouldBe("Vi kontrollerar inte språkblandning mening för mening.");
     }
 
     // Test G (part 1) — the §10 DE-JARGON GUARD: no criterion's NotAssessedReason may
@@ -205,7 +205,7 @@ public class RubricProviderTests
         string[] forbidden =
         [
             "ADR", "POS", "NER", "OQ", "F4-", "F4-5", "F4-6",
-            " v1", "v1 ", "matchnings-motor", "parse", "POS/NER",
+            " v1", "v1 ", "matchnings-motor", "parse", "POS/NER", "\u2014",
         ];
 
         var withReason = rubric.Criteria
@@ -217,6 +217,8 @@ public class RubricProviderTests
 
         foreach (var criterion in withReason)
         {
+            RubricCopyGuard.VersionToken.IsMatch(criterion.NotAssessedReason!).ShouldBeFalse(
+                $"Kriterium {criterion.Id} nämner en motorversion: \"{criterion.NotAssessedReason}\".");
             foreach (var token in forbidden)
             {
                 criterion.NotAssessedReason!.Contains(token, StringComparison.OrdinalIgnoreCase)
@@ -235,26 +237,18 @@ public class RubricProviderTests
     {
         var rubric = LoadRubric();
 
-        // The criterion ids the engine ALWAYS assesses (produces Pass/Warn/Fail, never
-        // NotAssessed) via a registered ICriterionRule. Anything NOT in this set, plus the
-        // pinned NotAssessedV1 criteria, resolves to NotAssessed at review time and therefore
-        // needs an authored civic reason in the asset. C5 left this set in #488 (its rule was
-        // removed) → it now needs an authored notAssessedReason, which this test guards.
-        // Fas 4b PR-6a (#655): C7 (spelling) gained a rule that NEVER returns NotAssessed
-        // (Pass/Warn only) → added here so it is not required to carry a reason. B5 also gained
-        // a rule (B5ConsistentFormattingRule) but its rule CONDITIONALLY returns NotAssessed
-        // (single/no marker) reading criterion.NotAssessedReason — so B5 is deliberately KEPT
-        // OUT of this set, staying required to carry its authored reason (which it does).
-        // #844: A8 LEFT this set. Its rule now CONDITIONALLY returns NotAssessed (when the CV carries
-        // unclassified text above its first heading, the absence of a profile is not observed and the
-        // claim cannot be grounded) — which makes A8 exactly B5. Keeping it in the exemption would ship
-        // a guard whose sentinel is narrower than the set it guards, and that is not a guard, it is a
-        // claim: the check would stay green while A8 fell back on a code default instead of the
-        // asset's authored civic copy.
+        // The ruled criteria that never read the asset's reason: each either always assesses or
+        // reports NotAssessed with a reason of its own written in C# (no bullets, no prose, an
+        // unparsed period). Every other criterion, plus the pinned NotAssessedV1 ones, reports
+        // NotAssessed with the asset's (kind, reason) pair and therefore needs one authored.
+        // C5 left this set in #488 (its rule was removed). B5 and A8 (#844) are kept OUT: their
+        // rules conditionally read the asset pair. B8 left it in #2083, when its missing-file-name
+        // branch moved from a bespoke C# sentence to the asset pair (CTO F4). Keeping a criterion
+        // here that reads the asset would ship a guard narrower than the set it guards.
         string[] ruleCriteria =
         [
             "A1", "A2", "A4", "A6", "A7", "A9", "A10",
-            "B1", "B3", "B4", "B6", "B7", "B8",
+            "B1", "B3", "B4", "B6", "B7",
             "C2", "C3", "C4", "C6", "C7",
             "D1", "D6",
         ];

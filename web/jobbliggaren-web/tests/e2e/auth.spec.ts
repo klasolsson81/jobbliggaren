@@ -231,3 +231,94 @@ test.describe("/logga-in/lank", () => {
     }
   });
 });
+
+/**
+ * #2094 — a notification mail's links, clicked in webmail. The Strict session cookie is not sent with a
+ * cross-site navigation, so these tests click from a page on 127.0.0.1 (`serveMailWithLink`); a `page.goto`
+ * has no initiator, counts as same-site, and would prove nothing.
+ */
+test.describe("a notification mail's link, clicked on another site (#2094)", () => {
+  const landedOn = (path: string) => (url: URL) => url.pathname === path && !url.searchParams.has("vidare");
+
+  test("lands a signed-in user on the page itself, and Back returns to the mail", async ({ page, baseURL }) => {
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+    await submitAddress(page, testEmail(runId));
+    await submitCode(page, await takeLoginCode(testEmail(runId)));
+    await page.waitForURL("**/oversikt");
+
+    for (const path of ["/mina-sidor/notiser", "/matchningar"]) {
+      const mail = await serveMailWithLink(`${baseURL}${path}`);
+      try {
+        await page.goto(mail.url);
+        // The precondition: the click arrived without the Strict cookie, so the proxy served the bounce.
+        const bounce = page.waitForResponse(
+          (response) =>
+            response.url() === `${baseURL}${path}` &&
+            response.headers()["cross-origin-opener-policy"] === "same-origin"
+        );
+        await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+        expect((await bounce).status()).toBe(200);
+        // The effect: the hop carried the cookie, or the proxy would have sent it to /logga-in.
+        await page.waitForURL(landedOn(path));
+        await expect(page).not.toHaveURL(/\/logga-in/);
+
+        await page.goBack();
+        await expect(page).toHaveURL(mail.url);
+      } finally {
+        await mail.close();
+      }
+    }
+  });
+
+  test("lands a user with no session on the page after the code", async ({ page, baseURL }) => {
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+
+    const mail = await serveMailWithLink(`${baseURL}/mina-sidor/notiser`);
+    try {
+      await page.goto(mail.url);
+      await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+      await page.waitForURL((url) => url.pathname === "/logga-in");
+      expect(new URL(page.url()).searchParams.get("next")).toBe("/mina-sidor/notiser");
+
+      await page.getByLabel("E-postadress").fill(testEmail(runId));
+      await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
+      await page.waitForURL("**/logga-in/kod");
+      await submitCode(page, await takeLoginCode(testEmail(runId)));
+      await page.waitForURL(landedOn("/mina-sidor/notiser"));
+    } finally {
+      await mail.close();
+    }
+  });
+
+  test("sends a session the server has forgotten to the login with its page, and clears the cookie (#1893)", async ({
+    page,
+    context,
+  }) => {
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+    await submitAddress(page, testEmail(runId));
+    await submitCode(page, await takeLoginCode(testEmail(runId)));
+    await page.waitForURL("**/oversikt");
+    const session = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(session).toBeDefined();
+
+    // In production the clock (30 days without use) or an administrator's revocation ends the session on the
+    // server while the browser keeps its cookie. Here the session is revoked at the API, which leaves the same state.
+    const logout = await fetch(`${BACKEND_URL}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session!.value}` },
+    });
+    expect(logout.status).toBe(204);
+    // A session that lapsed by the clock meets a refresh that is due; the throttle cookie from the login is not.
+    await context.clearCookies({ name: "__Host-jobbliggaren_refresh_after" });
+
+    await page.goto("/mina-sidor/notiser");
+
+    await page.waitForURL((url) => url.pathname === "/logga-in");
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/mina-sidor/notiser");
+    const after = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(after).toBeUndefined();
+  });
+});

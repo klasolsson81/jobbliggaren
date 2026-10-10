@@ -38,7 +38,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     private const string KeyPrefix = "jobbliggaren:";
     private const string PayloadField = "p";
     private const string AttemptsField = "a";
-    private const int LinkSecretLength = 16;
+    internal const int LinkSecretLength = 16;
 
     // The link arm's stand-in, compared against when there is nothing real to compare, so every path pays one
     // Unprotect and one fixed-time compare of the same length. The code arm's is ChallengeCodeArm.DummyCode.

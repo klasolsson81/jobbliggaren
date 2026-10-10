@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Search jobs and follow up on your applications",
+    "description": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application. Jobbliggaren is free to use."
+  },
   "common": {
     "loginLink": "Log in",
     "headerNavAriaLabel": "Site navigation",

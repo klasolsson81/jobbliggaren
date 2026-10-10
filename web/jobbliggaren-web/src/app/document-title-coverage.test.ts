@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -20,9 +20,8 @@ import { metadataBlock } from "@/test/metadata-source";
  * filesystem, never listed: a list is the silent hole `modal-slot-coverage.test.ts`
  * names, and both it and `protected-routes.test.ts` prove the derivation idiom here.
  *
- * Two kinds of file are not documents: parallel-route slots (a `@`-prefixed segment
- * contributes no URL and renders inside another page's document) and the single entry
- * in the allowlist below.
+ * One kind of file is not a document: a parallel-route slot (a `@`-prefixed segment
+ * contributes no URL and renders inside another page's document).
  *
  * NOT covered, and the reason is measured rather than assumed: `not-found.tsx` files.
  * The root and guest boundaries do carry a title (via `notFoundMetadata()`), but
@@ -33,18 +32,6 @@ import { metadataBlock } from "@/test/metadata-source";
  */
 const APP = resolve(dirname(fileURLToPath(import.meta.url)));
 const MESSAGES = resolve(APP, "..", "..", "messages", "sv");
-
-/**
- * Pages that are never served as a titled document of their own. Every entry carries
- * its reason; an entry whose reason stops holding is a page that needs a title.
- */
-const NOT_A_DOCUMENT: ReadonlyArray<{ file: string; reason: string }> = [
-  {
-    file: "(marketing)/page.tsx",
-    reason:
-      "The site root is the one document `title.default` describes. It serves `Jobbliggaren` by decision (CTO bind 2026-08-24), not by omission.",
-  },
-];
 
 /**
  * The one title several documents may legitimately share. The root 404, the guest 404
@@ -136,8 +123,7 @@ function resolveTitle(source: string): string {
 describe("document title coverage", () => {
   const documents = pageFiles(APP)
     .map((file) => relative(APP, file).split(sep).join("/"))
-    .filter((file) => !file.split("/").some(isSlotSegment))
-    .filter((file) => !NOT_A_DOCUMENT.some((entry) => entry.file === file));
+    .filter((file) => !file.split("/").some(isSlotSegment));
 
   const read = (file: string): string => readFileSync(join(APP, file), "utf8");
 
@@ -204,15 +190,6 @@ describe("document title coverage", () => {
       const title = resolveTitle(read(file));
       byTitle.set(title, [...(byTitle.get(title) ?? []), file]);
     }
-    // The site root is allowlisted out of the coverage check but not out of this one:
-    // it serves `title.default`, and a page that repeats that string is exactly the
-    // collision the original Blocker was about.
-    const siteDefault = message("metadata.titleDefault");
-    byTitle.set(siteDefault, [
-      ...(byTitle.get(siteDefault) ?? []),
-      "(marketing)/page.tsx",
-    ]);
-
     expect(
       byTitle.get(SHARED_NOT_FOUND_TITLE)?.length ?? 0,
       "no page delegates to notFoundMetadata(), so the shared-title exemption below refers to nothing"
@@ -228,11 +205,4 @@ describe("document title coverage", () => {
         "which is the defect this PR closed"
     ).toEqual([]);
   });
-
-  it.each(NOT_A_DOCUMENT.map((entry) => entry.file))(
-    "%s still exists, so its exclusion still refers to something",
-    (file) => {
-      expect(existsSync(join(APP, file))).toBe(true);
-    }
-  );
 });

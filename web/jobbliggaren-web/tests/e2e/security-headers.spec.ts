@@ -84,6 +84,26 @@ for (const path of ["/", "/logga-in"]) {
   });
 }
 
+// #2094 — the proxy's Strict-cookie bounce sets its own headers on a Response it builds. A served response
+// proves they win over the global `/(.*)` block and that the global set still applies (security-auditor,
+// #2094 form round, M-1). Requested through the `request` fixture with the Fetch Metadata of a click in webmail.
+test("the Strict-cookie bounce carries its own headers, and the global set still applies", async ({ request }) => {
+  const res = await request.get("/matchningar", {
+    maxRedirects: 0,
+    headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+  });
+  const h = res.headers();
+
+  expect(res.status()).toBe(200);
+  // Exact: two rules would arrive comma-joined, and a presence check would pass on them.
+  expect(h["referrer-policy"]).toBe("no-referrer");
+  expect(h["cross-origin-opener-policy"]).toBe("same-origin");
+  expect(h["cache-control"]).toContain("no-store");
+  expect(h["set-cookie"]).toBeUndefined();
+  expect(h["x-frame-options"]).toBe("DENY");
+  expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
+});
+
 // #1738 — `/logga-in/lank` carries a single-use login token in its URL, and is the one route with
 // headers of its own (`LOGIN_LINK_ROUTE_HEADERS`). The unit contract proves the entry is built and
 // ordered; only a served response proves it WINS over the global `/(.*)` block, and "a route rule

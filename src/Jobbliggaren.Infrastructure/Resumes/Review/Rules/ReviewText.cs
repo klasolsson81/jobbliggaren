@@ -1,4 +1,5 @@
 using System.Text;
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
@@ -64,7 +65,29 @@ internal static class ReviewText
     public static string NoBulletsReason(CriterionEvaluationContext context, string subject) =>
         HasExperienceEntries(context)
             ? $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på."
-            : $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
+            : NoExperienceReason(subject);
+
+    /// <summary>The reason a criterion that reads experience carries when the CV states none.</summary>
+    public static string NoExperienceReason(string subject) =>
+        $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
+
+    /// <summary>A1/A2/A6's NotAssessed verdict when there are no scorable bullets: the kind
+    /// travels with <see cref="NoBulletsReason"/> (InsufficientData, #2083).</summary>
+    public static CvCriterionVerdict NoBullets(CriterionEvaluationContext context, string subject) =>
+        CvCriterionVerdict.NotAssessed(context.Criterion.Id, context.Criterion.Category,
+            NotAssessedKind.InsufficientData, NoBulletsReason(context, subject));
+
+    /// <summary>The reason A4, B6 and B7 share when experience entries exist but none of their
+    /// periods could be read as a date.</summary>
+    public const string UnparsedPeriodsReason = "Perioderna kunde inte tolkas till datum.";
+
+    /// <summary>A4/B6/B7's NotAssessed verdict when no period parses (#2083): the periods are
+    /// unreadable, or the CV states no experience at all, told apart as <see cref="NoBulletsReason"/>
+    /// does (#487). <paramref name="subject"/> is the criterion's aspect.</summary>
+    public static CvCriterionVerdict UnparsedPeriods(CriterionEvaluationContext context, string subject) =>
+        CvCriterionVerdict.NotAssessed(context.Criterion.Id, context.Criterion.Category,
+            NotAssessedKind.InsufficientData,
+            HasExperienceEntries(context) ? UnparsedPeriodsReason : NoExperienceReason(subject));
 
     /// <summary>
     /// The description lines of one experience entry in the unified view (Fas 4b PR-4,
@@ -257,12 +280,18 @@ internal static class ReviewText
     /// <para>Deliberately hardcoded C# prose, NOT the rubric asset's <c>NotAssessedReason</c>:
     /// that field is the criterion's single GENERIC reason slot, which would be false for this
     /// specific branch — a BRANCH-specific reason is bespoke C# by house precedent
-    /// (<see cref="NoBulletsReason"/>, A4's unparseable-period reasons, E2's PR-6b reason).
+    /// (<see cref="NoBulletsReason"/>, <see cref="UnparsedPeriodsReason"/>, E2's PR-6b reason).
     /// Civic Swedish (§10). <paramref name="aspect"/> is the criterion's assessed aspect in
     /// definite form ("tonen"/"stavningen"/…).</para>
     /// </summary>
     public static string NoProseReason(string aspect) =>
         $"CV:t saknar profil- och erfarenhetstext, så {aspect} kan inte bedömas.";
+
+    /// <summary>The prose rules' NotAssessed verdict over an empty corpus: the kind travels with
+    /// <see cref="NoProseReason"/> (InsufficientData, #2083).</summary>
+    public static CvCriterionVerdict NoProse(CriterionEvaluationContext context, string aspect) =>
+        CvCriterionVerdict.NotAssessed(context.Criterion.Id, context.Criterion.Category,
+            NotAssessedKind.InsufficientData, NoProseReason(aspect));
 
     public static bool ContainsDigit(string text) => text.Any(char.IsDigit);
 

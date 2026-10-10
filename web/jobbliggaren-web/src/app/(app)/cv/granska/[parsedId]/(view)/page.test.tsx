@@ -220,6 +220,8 @@ function review(verdicts: CriterionVerdict[]): CvReviewDto {
       verdict,
       evidence: [],
       notAssessedReason: null,
+      notAssessedKind: null,
+      passCriterion: null,
       userStatus: null,
       userStatusStaleAt: null,
       isIgnorable: false,

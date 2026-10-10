@@ -1,4 +1,6 @@
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -36,9 +38,10 @@ public class EmDashInReviewCopyGuardTests
     /// (the section headings QuestPDF stamps into the CV document). Add a tree here whenever new
     /// rendered copy is authored elsewhere. NB: <c>Resumes/Rendering</c> legitimately uses the EN-dash
     /// (U+2013) as a year-range separator ("2021–pågående"); the scan is U+2014-specific and never
-    /// flags it.
+    /// flags it. Shared with <see cref="ReviewCopyVersionJargonGuardTests"/>, so one list names the
+    /// copy trees for every literal guard.
     /// </summary>
-    private static readonly IReadOnlyList<string> ScannedCopyDirectories =
+    internal static readonly IReadOnlyList<string> ScannedCopyDirectories =
     [
         "src/Jobbliggaren.Infrastructure/Resumes/Review",
         "src/Jobbliggaren.Infrastructure/Resumes/Improvement",
@@ -195,7 +198,7 @@ public class EmDashInReviewCopyGuardTests
             .ShouldBeEmpty("en em-dash i en efterföljande kommentar (efter en ren sträng) ska inte flaggas.");
     }
 
-    private static string SourceAbsolutePath(string relativePath)
+    internal static string SourceAbsolutePath(string relativePath)
     {
         var repoRoot = FindRepoRoot();
         return Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
@@ -216,7 +219,8 @@ public class EmDashInReviewCopyGuardTests
 
 /// <summary>
 /// A minimal C# lexical scanner that reports every U+2014 that sits INSIDE a string literal, ignoring
-/// em-dashes in comments (// , ///, /* */) and char literals. Side-effect-free and independently
+/// em-dashes in comments (// , ///, /* */) and char literals; <see cref="StringLiteralsMatching"/>
+/// applies the same lexing to any pattern over a line's string-literal text. Side-effect-free and independently
 /// testable — see the self-proving negatives in <see cref="EmDashInReviewCopyGuardTests"/>. It tracks
 /// exactly the constructs used by the scanned copy: regular (<c>"..."</c>), verbatim (<c>@"..."</c>),
 /// and interpolated (<c>$"..."</c>) strings, so a <c>//</c> inside a string is never mistaken for a
@@ -228,7 +232,17 @@ internal static class ReviewCopyScan
     private const char EmDash = '—';
 
     /// <summary>The 1-based lines of <paramref name="source"/> with a U+2014 inside a string literal.</summary>
-    internal static IReadOnlyList<(int Line, string Text)> EmDashesInStringLiterals(string source)
+    internal static IReadOnlyList<(int Line, string Text)> EmDashesInStringLiterals(string source) =>
+        LinesWhoseStringLiterals(source, literal => literal.Contains(EmDash));
+
+    /// <summary>The 1-based lines of <paramref name="source"/> whose string-literal text matches
+    /// <paramref name="pattern"/>. Several literals on one line are separated by a newline, so a match
+    /// never spans two of them; comments and code are never part of the text.</summary>
+    internal static IReadOnlyList<(int Line, string Text)> StringLiteralsMatching(string source, Regex pattern) =>
+        LinesWhoseStringLiterals(source, pattern.IsMatch);
+
+    private static List<(int Line, string Text)> LinesWhoseStringLiterals(
+        string source, Func<string, bool> literalTextMatches)
     {
         var hits = new List<(int, string)>();
         var lines = source.Replace("\r\n", "\n").Split('\n');
@@ -238,7 +252,7 @@ internal static class ReviewCopyScan
         for (var li = 0; li < lines.Length; li++)
         {
             var line = lines[li];
-            var flagged = false;
+            var literal = new StringBuilder();
 
             for (var i = 0; i < line.Length; i++)
             {
@@ -260,15 +274,15 @@ internal static class ReviewCopyScan
                         if (c == '"')
                         {
                             if (Next(line, i) == '"') { i++; } // "" is an escaped quote — stay in the string
-                            else { state = State.Code; }
+                            else { state = State.Code; literal.Append('\n'); }
                         }
-                        else if (c == EmDash) { flagged = true; }
+                        else { literal.Append(c); }
                         break;
 
                     case State.Str: // regular or interpolated (non-verbatim)
                         if (c == '\\') { i++; } // escape the next char (e.g. \")
-                        else if (c == '"') { state = State.Code; }
-                        else if (c == EmDash) { flagged = true; }
+                        else if (c == '"') { state = State.Code; literal.Append('\n'); }
+                        else { literal.Append(c); }
                         break;
 
                     case State.Char:
@@ -284,7 +298,7 @@ internal static class ReviewCopyScan
             if (state is State.Char) state = State.Code;
             if (state == State.Str && !verbatim) state = State.Code;
 
-            if (flagged) hits.Add((li + 1, line));
+            if (literalTextMatches(literal.ToString())) hits.Add((li + 1, line));
         }
 
         return hits;

@@ -60,6 +60,16 @@ internal static class KnowledgeBankTokens
         ["not_assessed_v1"] = CriterionAssessability.NotAssessedV1,
     };
 
+    // Snake_case like its neighbour assessability. Unlike assessability, a missing token maps to
+    // null (see NotAssessedReasonKind below), never to a default.
+    private static readonly Dictionary<string, NotAssessedKind> NotAssessedKindTokens = new(StringComparer.Ordinal)
+    {
+        ["text_only"] = NotAssessedKind.TextOnly,
+        ["insufficient_data"] = NotAssessedKind.InsufficientData,
+        ["not_in_version"] = NotAssessedKind.NotInVersion,
+        ["requires_job_ad"] = NotAssessedKind.RequiresJobAd,
+    };
+
     private static readonly Dictionary<string, ScoreBandLabel> BandTokens = new(StringComparer.Ordinal)
     {
         ["EjRedo"] = ScoreBandLabel.NotReady,
@@ -99,6 +109,14 @@ internal static class KnowledgeBankTokens
         token is null
             ? CriterionAssessability.NotAssessedV1
             : Resolve(AssessabilityTokens, token, "assessability");
+
+    /// <summary>Maps the not-assessed-kind token (#2083). A missing/null token maps to
+    /// <see langword="null"/>: the kind is authored as a pair with the reason, and any default
+    /// could contradict the reason it sits beside. A present-but-unknown token fails loud.</summary>
+    public static NotAssessedKind? NotAssessedReasonKind(string? token) =>
+        token is null
+            ? null
+            : Resolve(NotAssessedKindTokens, token, "notAssessedKind");
 
     /// <summary>Maps the cliché-entry kind token. A missing/null token defaults to
     /// <see cref="ClicheKind.Cliche"/> (an older asset without the field keeps the original

@@ -190,6 +190,7 @@ public class DigestDispatchJobTests
         captured.ShouldNotBeNull();
         captured.TotalCount.ShouldBe(1, "endast Strong digesteras");
         captured.Items.Count.ShouldBe(1);
+        captured.Items[0].JobAdId.ShouldBe(strongAd.Value, "each item carries the id of the ad it names (#2094)");
 
         // Only the Strong row is drained; Good + Top stay Pending (Good=in-app, Top=direct-dispatched).
         (await ReloadMatchAsync(db, userId, strongAd, ct))!.NotificationStatus

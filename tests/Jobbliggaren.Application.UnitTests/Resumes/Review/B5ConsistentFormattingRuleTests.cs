@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.Resumes.Review;
@@ -25,14 +26,14 @@ public class B5ConsistentFormattingRuleTests
     // Every bullet glyph B5 recognises as a lead marker — the evidence must never echo any of them.
     private const string BulletGlyphs = "•◦‣·●○▪▫■–—-*";
 
-    private static CvReviewEngine Engine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(),
             RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> B5Async(CvReviewContext context) =>
+    private static async Task<CvCriterionVerdict> B5Async(CvReviewContext context, IRubricProvider? rubric = null) =>
         Verdict(
-            await Engine().ReviewAsync(context, RenderProfile.Ats, TestContext.Current.CancellationToken),
+            await Engine(rubric).ReviewAsync(context, RenderProfile.Ats, TestContext.Current.CancellationToken),
             "B5");
 
     private static Task<CvCriterionVerdict> B5FromParsedAsync(params string[] bullets) =>
@@ -71,6 +72,7 @@ public class B5ConsistentFormattingRuleTests
             "en enhetlig punktstil bevisar inte att typsnitt/rubriknivåer är konsekventa (ärlig tak).");
         b5.Verdict.ShouldNotBe(CriterionVerdict.Pass, "B5 rapporterar ALDRIG Pass geometri-fritt.");
         b5.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(b5);
     }
 
     // ===============================================================
@@ -84,6 +86,31 @@ public class B5ConsistentFormattingRuleTests
 
         b5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         b5.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheRubricTextOnlyPair(b5);
+    }
+
+    [Fact]
+    public async Task B5_ShouldUseItsOwnNotInVersionFallbackPair_WhenTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 (reason, no kind): B5's own code pair is used
+        // whole. Its sentence says "i den här versionen", so its kind is NotInVersion (CTO F4), not
+        // the rubric pair's TextOnly.
+        var b5 = await B5Async(
+            CvReviewContext.FromParsed(Resume(experience: [Experience(bullets: ["• Ledde teamet", "• Ansvarade för budget"])])),
+            RubricPredatingNotAssessedKind());
+
+        b5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        b5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
+        b5.NotAssessedReason.ShouldBe("Formateringens konsekvens bedöms inte i den här versionen.");
+    }
+
+    // #2083: the live path reads the rubric's pair whole. Fonts and heading levels live in the
+    // layout, not the text (CTO F4 → TextOnly).
+    private static void AssertTheRubricTextOnlyPair(CvCriterionVerdict b5)
+    {
+        var criterion = RealRubric().Criteria.Single(c => c.Id == "B5");
+        b5.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        b5.NotAssessedReason.ShouldBe(criterion.NotAssessedReason);
     }
 
     // ===============================================================

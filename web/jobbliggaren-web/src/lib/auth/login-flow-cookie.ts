@@ -9,7 +9,8 @@ import {
 } from "@/lib/auth/login-flow";
 
 // `__Host-` forces Secure, Path=/ and no Domain. Strict because every step is reached same-site;
-// the link landing arrives cross-site and deliberately never reads this cookie (ADR 0142 D2).
+// the link landing's GET arrives cross-site and never reads this cookie (ADR 0142 D2); its press, a same-site
+// POST, reads it for the return path only (#2094).
 export const LOGIN_FLOW_COOKIE_ATTRIBUTES = {
   httpOnly: true,
   secure: true,

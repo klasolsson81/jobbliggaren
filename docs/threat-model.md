@@ -36,6 +36,23 @@ rotation preserves the original revision. A database failure denies access.
 Redis, a positive cache and a read replica cannot authorize a session. A request
 already authenticated may finish; the next authentication checks the new state.
 
+Because the cookie is Strict, a link another site opens arrives without it.
+`web/jobbliggaren-web/src/lib/auth/strict-cookie-bounce.ts` answers a cross-site
+top-level GET to a protected or admin page that arrived without the cookie with a
+same-origin continuation document, so such a navigation reaches the page signed
+in as under Lax; nothing else gains the cookie (ADR 0018 Amendment 2026-10-10).
+For those GETs the "no state changes on GET" rule now carries the CSRF protection,
+so a new write at render under `(app)` or `(admin)` alters this boundary, as does a
+change that widens the bounce's conditions or its target. A failed-access log line
+for such a page is no longer evidence of what the logged user meant to do.
+
+When `/auth/refresh` answers 401 to a GET, `proxy.ts` deletes the session cookie
+(#1893). That rests on a premise: only a rejected session answers 401, and a Redis
+or database outage answers 5xx. Were an outage ever mapped to 401, every active
+browser's cookie would be deleted. The proxy's delete can also land after a fresh
+login in another tab and remove the new cookie; the window is the refresh timeout
+(2.5 s) plus render time.
+
 Review issuance, rotation, expiry, revocation and store failure; cookie exposure,
 CSRF, redirects, forwarded-header trust, cache isolation and backend-path
 construction. API network isolation needs deployment evidence, not an assumption
@@ -283,11 +300,11 @@ local panel; apply the external same-PR Medium+ loop to Codex work as specified
 in [the review runbook](runbooks/codex-pr-review.md).
 
 Build licences are credentials too. Keep SIXLABORS_LICENSE_KEY only in
-sixlabors-pr-build (manual controller review of the exact head/run; no admin
-bypass) and sixlabors-main-build (the exact main branch only). Use no repository
-or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch main
-code may select the main environment. Review PR code before approving its
-environment; new heads require new review.
+sixlabors-pr-build and sixlabors-main-build (the exact main branch only). Use no
+repository or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch
+main code may select the main environment. sixlabors-pr-build has no required
+reviewer, so code on any head except main can read the licence: Klas's
+decision of 2026-10-10, since it is a free community licence.
 
 ## Host facts the host bridge carries (#1982, ADR 0157)
 

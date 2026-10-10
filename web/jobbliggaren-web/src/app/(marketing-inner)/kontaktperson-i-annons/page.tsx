@@ -2,12 +2,14 @@ import { InformationPageFrame } from "@/components/information/InformationPageFr
 import type { Metadata } from "next";
 import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
+import { absoluteUrl } from "@/lib/site-url";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-legal");
   return {
     title: t("recruiterNotice.meta.title"),
     description: t("recruiterNotice.meta.description"),
+    alternates: { canonical: absoluteUrl("/kontaktperson-i-annons") },
   };
 }
 

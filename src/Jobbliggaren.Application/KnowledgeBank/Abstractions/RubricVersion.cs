@@ -5,7 +5,9 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// <summary>
 /// Semantic version of the CV-quality rubric (F4-7, BUILD §8.1/§8.6, research §2.8):
 /// <c>rubric@major.minor.patch</c> — major = a criterion is added/removed, minor =
-/// a threshold changes, patch = wording. Stored with every assessment downstream
+/// a threshold changes, patch = wording of the signal prose. The user-facing copy in the asset
+/// (<c>notAssessedReason</c>, <c>notAssessedKind</c>, <c>passCriterion</c>) is outside the
+/// version, because the version keys the finding ledger. Stored with every assessment downstream
 /// (F4-9) and used to reason about N-1 compatibility (older versions runnable in
 /// parallel — research §2.8).
 /// <para>

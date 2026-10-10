@@ -90,6 +90,8 @@ internal static class RubricLoader
         ValidateProfileSignalNullability(c.Id, profile,
             c.AtsPassSignal, c.AtsFailSignal, c.VisualPassSignal, c.VisualFailSignal);
         ValidateThresholdValues(c.Id, c.Thresholds);
+        var notAssessedKind = KnowledgeBankTokens.NotAssessedReasonKind(c.NotAssessedKind);
+        ValidateNotAssessedKindHasReason(c.Id, notAssessedKind, c.NotAssessedReason);
 
         return new RubricCriterion(
             c.Id,
@@ -104,7 +106,22 @@ internal static class RubricLoader
             c.VisualFailSignal,
             c.NotAssessedReason,
             c.Thresholds,
-            c.StyleOnly);
+            c.StyleOnly,
+            notAssessedKind,
+            c.PassCriterion);
+    }
+
+    // A kind classifies a reason, so a kind without one is an authoring mistake. The reverse — a
+    // reason without a kind — loads (an N-1 asset predates the field); the engine then uses its
+    // fallback pair, and the shipped asset's completeness is pinned by a test.
+    private static void ValidateNotAssessedKindHasReason(
+        string id, NotAssessedKind? kind, string? reason)
+    {
+        if (kind is not null && string.IsNullOrWhiteSpace(reason))
+        {
+            throw new InvalidOperationException(
+                $"Kriterium '{id}': notAssessedKind {kind} saknar notAssessedReason (fail-loud).");
+        }
     }
 
     private static void ValidateThresholdValues(
@@ -268,5 +285,9 @@ internal sealed record RubricFile
         // fails loud if the SHIPPED asset omits a key a rule reads (completeness-tested).
         [property: JsonPropertyName("thresholds")] Dictionary<string, double>? Thresholds = null,
         // Rubric v1.2 (PR-5 CTO-bind D2): missing → false = fail-closed (never silenceable).
-        [property: JsonPropertyName("styleOnly")] bool StyleOnly = false);
+        [property: JsonPropertyName("styleOnly")] bool StyleOnly = false,
+        // #2083: the reason's class (a token, mapped in KnowledgeBankTokens) and the "Godkänns när"
+        // clause. Nullable + defaulted = N-1 tolerance.
+        [property: JsonPropertyName("notAssessedKind")] string? NotAssessedKind = null,
+        [property: JsonPropertyName("passCriterion")] string? PassCriterion = null);
 }

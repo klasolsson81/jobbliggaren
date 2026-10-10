@@ -27,6 +27,8 @@ function verdict(
     verdict: v,
     evidence: [],
     notAssessedReason: null,
+    notAssessedKind: null,
+    passCriterion: null,
     userStatus: null,
     userStatusStaleAt: null,
     isIgnorable: false,

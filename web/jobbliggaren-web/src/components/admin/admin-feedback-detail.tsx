@@ -1,17 +1,21 @@
 "use client";
 
-// "use client": the open submission holds the status being chosen, the command that runs, its refusal
-// and the requeue's confirmation, and moves focus to itself when it is opened from the list.
+// "use client": the open submission holds the status being chosen, the command that runs, its refusal,
+// the requeue's confirmation and the reply being written, and moves focus to itself when it is opened
+// from the list.
 import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ArrowLeft, Send } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  FEEDBACK_REPLIES_MAX,
+  FEEDBACK_REPLY_MAX,
   FEEDBACK_STATUSES,
   isFeedbackStatus,
   type AdminFeedbackRefusal,
   type AdminFeedbackRefused,
+  type AdminFeedbackReplyOutcome,
 } from "@/lib/admin/feedback";
 import { showAdminToast } from "@/lib/admin/toast-store";
 import type {
@@ -24,10 +28,15 @@ import { formatDateTime } from "@/lib/i18n/format";
 import { AdminBusyLabel } from "./admin-busy-label";
 import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { FeedbackFocusLink } from "./admin-feedback-focus";
-import { FeedbackNoticeState, FeedbackRating, FeedbackStatusPill, useFeedbackPageLabel } from "./admin-feedback-parts";
+import {
+  FeedbackNoticeState,
+  FeedbackRating,
+  FeedbackReplyState,
+  FeedbackStatusPill,
+  useFeedbackPageLabel,
+} from "./admin-feedback-parts";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
-import { ComingSoon } from "./coming-soon";
 
 /** The list the submissions are opened from (`admin-feedback-view.tsx`). */
 const LIST_SELECTOR = ".jp-adminfeedback__list";
@@ -43,6 +52,7 @@ export interface AdminFeedbackDetailProps {
   readonly failed?: string;
   readonly onStatus: (id: string, status: AdminFeedbackStatus) => Promise<AdminFeedbackRefusal>;
   readonly onRequeue: (id: string, acknowledgeDuplicateRisk: boolean) => Promise<AdminFeedbackRefusal>;
+  readonly onReply: (id: string, replyKey: string, text: string) => Promise<AdminFeedbackReplyOutcome>;
 }
 
 /**
@@ -50,7 +60,16 @@ export interface AdminFeedbackDetailProps {
  * submission's id, so each submission starts with no choice, no refusal and no confirmation of its own.
  * Below 1100 px it is a step of its own, and "Alla inskick" leads back to the list it was opened from.
  */
-export function AdminFeedbackDetail({ region, screenshot, openId, backHref, failed, onStatus, onRequeue }: AdminFeedbackDetailProps) {
+export function AdminFeedbackDetail({
+  region,
+  screenshot,
+  openId,
+  backHref,
+  failed,
+  onStatus,
+  onRequeue,
+  onReply,
+}: AdminFeedbackDetailProps) {
   const t = useTranslations("admin.feedback.detail");
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -83,7 +102,13 @@ export function AdminFeedbackDetail({ region, screenshot, openId, backHref, fail
         {t("label")}
       </h2>
       {region.kind === "loaded" ? (
-        <FeedbackItemBody item={region.data} screenshot={screenshot} onStatus={onStatus} onRequeue={onRequeue} />
+        <FeedbackItemBody
+          item={region.data}
+          screenshot={screenshot}
+          onStatus={onStatus}
+          onRequeue={onRequeue}
+          onReply={onReply}
+        />
       ) : (
         <AdminRegionLine kind={region.kind} empty={t("notFound")} failed={failed} />
       )}
@@ -104,19 +129,19 @@ function FeedbackItemBody({
   screenshot,
   onStatus,
   onRequeue,
+  onReply,
 }: {
   readonly item: AdminFeedbackItem;
   readonly screenshot?: ReactNode;
   readonly onStatus: AdminFeedbackDetailProps["onStatus"];
   readonly onRequeue: AdminFeedbackDetailProps["onRequeue"];
+  readonly onReply: AdminFeedbackDetailProps["onReply"];
 }) {
   const t = useTranslations("admin.feedback");
   const format = useFormatter();
   const pageLabel = useFeedbackPageLabel();
   const statusId = useId();
   const statusRefusalId = useId();
-  const replyId = useId();
-  const soonId = useId();
 
   // The status being chosen; a new status from the server (a save, another administrator) starts over.
   const [choice, setChoice] = useState<AdminFeedbackStatus | null>(null);
@@ -335,18 +360,7 @@ function FeedbackItemBody({
         <FeedbackClientFacts client={item.client} appVersion={item.appVersion} />
       </div>
 
-      {/* Replies to the reporter are a later issue: the form keeps its place, disabled (ADR 0150 D2). */}
-      <div className="jp-adminfeedback__reply">
-        <Label htmlFor={replyId}>{t("detail.reply")}</Label>
-        <Textarea id={replyId} disabled aria-describedby={soonId} />
-        <div>
-          <button type="button" className="jp-btn jp-btn--secondary" disabled aria-describedby={soonId}>
-            <Send size={16} aria-hidden="true" />
-            {t("detail.send")}
-          </button>
-        </div>
-        <ComingSoon id={soonId} />
-      </div>
+      <FeedbackReplyArea item={item} onReply={onReply} />
 
       {/* A notice sent again destroys nothing, and the body says what it risks: the neutral tone. */}
       <AdminConfirmDialog
@@ -417,5 +431,151 @@ function FeedbackClientFacts({
       <dt>{t("version")}</dt>
       <dd>{appVersion === null ? <AdminUnknown /> : <code>{appVersion}</code>}</dd>
     </dl>
+  );
+}
+
+/** Where the reply's own command leaves focus: the text for a refusal of it, the line otherwise. */
+type ReplyFocusTarget = "field" | "line";
+
+/** What the last send said beside the button. A refusal of the text marks the field invalid. */
+interface ReplyLine {
+  readonly text: string;
+  readonly about: "value" | "command";
+}
+
+/**
+ * #2069 — the replies mailed to the reporter, oldest first, and the form for the next one. Each send is one
+ * mail and one recorded outcome; nothing here resends on its own. The key travels with the request: a new one
+ * after every recorded outcome, the same one after a request that got no answer, so sending again replays the
+ * reply the backend may already have saved instead of mailing it twice.
+ */
+function FeedbackReplyArea({
+  item,
+  onReply,
+}: {
+  readonly item: AdminFeedbackItem;
+  readonly onReply: AdminFeedbackDetailProps["onReply"];
+}) {
+  const t = useTranslations("admin.feedback.detail.reply");
+  const format = useFormatter();
+  const headingId = useId();
+  const fieldId = useId();
+  const hintId = useId();
+  const lineId = useId();
+
+  const [text, setText] = useState("");
+  const [replyKey, setReplyKey] = useState(() => crypto.randomUUID());
+  const [line, setLine] = useState<ReplyLine | null>(null);
+  const [sending, startSending] = useTransition();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const lineRef = useRef<HTMLParagraphElement>(null);
+  const pendingFocus = useRef<ReplyFocusTarget | null>(null);
+
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (target === null) return;
+    const element = target === "field" ? fieldRef.current : lineRef.current;
+    if (element === null) return;
+    pendingFocus.current = null;
+    element.focus();
+  });
+
+  function show(next: ReplyLine) {
+    setLine(next);
+    pendingFocus.current = next.about === "value" ? "field" : "line";
+  }
+
+  function settle(outcome: AdminFeedbackReplyOutcome) {
+    if (outcome.kind === "refused") {
+      show(outcome.refusal);
+      return;
+    }
+    if (outcome.kind === "unanswered") {
+      show({ text: outcome.text, about: "command" });
+      return;
+    }
+    setReplyKey(crypto.randomUUID());
+    if (outcome.state === "accepted") {
+      setText("");
+      showAdminToast(t("sent"));
+    } else {
+      show({ text: outcome.state === "failed" ? t("failed") : t("unknown"), about: "command" });
+    }
+  }
+
+  function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (sending) return;
+    if (text.trim() === "") {
+      show({ text: t("empty"), about: "value" });
+      return;
+    }
+    const written = text;
+    const key = replyKey;
+    setLine(null);
+    startSending(async () => {
+      const outcome = await onReply(item.id, key, written);
+      startSending(() => settle(outcome));
+    });
+  }
+
+  const full = item.replies.length >= FEEDBACK_REPLIES_MAX;
+  const describedBy = line === null ? hintId : `${hintId} ${lineId}`;
+
+  return (
+    <section className="jp-adminfeedback__block jp-adminfeedback__reply" aria-labelledby={headingId}>
+      <h3 id={headingId} className="jp-adminfeedback__subhead">
+        {t("heading")}
+      </h3>
+      {item.replies.length === 0 ? null : (
+        <ol className="jp-adminfeedback__replies" aria-label={t("listLabel")}>
+          {item.replies.map((reply) => (
+            <li key={reply.id} className="jp-adminfeedback__replyitem">
+              <p className="jp-adminfeedback__replymeta">
+                <span>{formatDateTime(format, reply.createdAt) ?? <AdminUnknown />}</span>
+                <FeedbackReplyState state={reply.state} />
+              </p>
+              <p className="jp-adminfeedback__text">{reply.text}</p>
+              {reply.state === "unknown" ? <p className="jp-adminfeedback__none">{t("unknownEntry")}</p> : null}
+            </li>
+          ))}
+        </ol>
+      )}
+      {item.reporterEmail === null ? (
+        <p className="jp-adminfeedback__none">{t("noAddress")}</p>
+      ) : full ? (
+        <p className="jp-adminfeedback__none">{t("limit", { max: FEEDBACK_REPLIES_MAX })}</p>
+      ) : (
+        <form className="jp-adminfeedback__replyform" onSubmit={send} noValidate>
+          <Label htmlFor={fieldId}>{t("label")}</Label>
+          <p id={hintId} className="jp-adminfeedback__hint">
+            {t("hint", { email: item.reporterEmail })}
+          </p>
+          <Textarea
+            ref={fieldRef}
+            id={fieldId}
+            className="min-h-32"
+            rows={5}
+            value={text}
+            maxLength={FEEDBACK_REPLY_MAX}
+            readOnly={sending}
+            aria-invalid={line?.about === "value" ? true : undefined}
+            aria-describedby={describedBy}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <div>
+            <button type="submit" className="jp-btn jp-btn--primary" aria-disabled={sending || undefined}>
+              <Send size={16} aria-hidden="true" />
+              <AdminBusyLabel busy={sending} label={t("send")} busyLabel={t("sending")} />
+            </button>
+          </div>
+          {line === null ? null : (
+            <p ref={lineRef} id={lineId} tabIndex={-1} role="alert" className="jp-adminfeedback__refusal">
+              {line.text}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
   );
 }

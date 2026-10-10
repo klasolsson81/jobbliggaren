@@ -1,5 +1,5 @@
 import { isFeedbackPageKey, type FeedbackPageKey } from "@/lib/feedback/page-keys";
-import type { AdminFeedbackStatus, AdminFeedbackWindow } from "./view-models";
+import type { AdminFeedbackReplyState, AdminFeedbackStatus, AdminFeedbackWindow } from "./view-models";
 
 /**
  * `/admin/feedback`'s fixed sets and its URL (#1979). The page is driven by its URL, so the notice
@@ -63,7 +63,28 @@ export const FEEDBACK_ERRORS = {
   duplicateRiskNotAcknowledged: "Feedback.DuplicateRiskNotAcknowledged",
   notificationNotRequeueable: "Feedback.NotificationNotRequeueable",
   reporterUnavailable: "Feedback.ReporterUnavailable",
+  replyEmpty: "Feedback.ReplyEmpty",
+  replyTooLong: "Feedback.ReplyTooLong",
+  replyUnavailable: "Feedback.ReplyUnavailable",
+  replyLimitReached: "Feedback.ReplyLimitReached",
+  replyRemoved: "Feedback.ReplyRemoved",
 } as const;
+
+/** The longest reply the backend takes (`FeedbackReplyText.MaxLength`). */
+export const FEEDBACK_REPLY_MAX = 4000;
+
+/** How many replies one submission can get (`FeedbackReply.MaxPerSubmission`). */
+export const FEEDBACK_REPLIES_MAX = 10;
+
+/**
+ * What sending a reply came to (#2069). `recorded`: the reply was saved and its outcome is the state, so the
+ * next reply is a new one. `refused`: nothing was saved. `unanswered`: the request got no answer, so it may or
+ * may not have been saved, and a retry must carry the same key to replay it rather than send again.
+ */
+export type AdminFeedbackReplyOutcome =
+  | { readonly kind: "recorded"; readonly state: AdminFeedbackReplyState }
+  | { readonly kind: "refused"; readonly refusal: AdminFeedbackRefused }
+  | { readonly kind: "unanswered"; readonly text: string };
 
 // ── The URL ─────────────────────────────────────────────────────────────────────────────────
 

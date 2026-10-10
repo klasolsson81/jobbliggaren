@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
 import { isFeedbackPageKey } from "@/lib/admin/feedback";
-import type { AdminFeedbackNoticeState, AdminFeedbackStatus } from "@/lib/admin/view-models";
+import type { AdminFeedbackNoticeState, AdminFeedbackReplyState, AdminFeedbackStatus } from "@/lib/admin/view-models";
 
 /**
  * The pieces the feedback list (a Server Component on the live page) and the open submission (a Client
@@ -49,6 +49,12 @@ export function FeedbackNoticeState({
   const t = useTranslations("admin.feedback");
   const words = t(`detail.notice.states.${state}`);
   return <StatusDot tone={NOTICE_TONE[state]}>{named ? t("list.notice", { state: words }) : words}</StatusDot>;
+}
+
+/** A reply's recorded outcome (#2069), in the notice's tones: the same four outcomes of one send. */
+export function FeedbackReplyState({ state }: { readonly state: AdminFeedbackReplyState }) {
+  const t = useTranslations("admin.feedback.detail.reply.states");
+  return <StatusDot tone={NOTICE_TONE[state]}>{t(state)}</StatusDot>;
 }
 
 /** A page's name as the app titles it; a key this web does not know yet is shown as it came. */

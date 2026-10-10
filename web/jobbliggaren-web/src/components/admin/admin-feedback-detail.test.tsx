@@ -2,8 +2,18 @@ import { Component, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { commandRefusal, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
-import type { AdminFeedbackItem, AdminFeedbackNoticeState, AdminFeedbackStatus } from "@/lib/admin/view-models";
+import {
+  commandRefusal,
+  FEEDBACK_REPLIES_MAX,
+  type AdminFeedbackRefusal,
+  type AdminFeedbackReplyOutcome,
+} from "@/lib/admin/feedback";
+import type {
+  AdminFeedbackItem,
+  AdminFeedbackNoticeState,
+  AdminFeedbackReply,
+  AdminFeedbackStatus,
+} from "@/lib/admin/view-models";
 import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-store";
 import { AdminFeedbackDetail } from "./admin-feedback-detail";
 
@@ -40,14 +50,17 @@ const ITEM: AdminFeedbackItem = {
   },
   appVersion: "4f2a91c",
   notice: { state: "accepted", attempts: 1, nextAttemptAt: "2026-10-04T05:12:00Z" },
+  replies: [],
 };
 
 type Commands = {
   readonly onStatus: (id: string, status: AdminFeedbackStatus) => Promise<AdminFeedbackRefusal>;
   readonly onRequeue: (id: string, acknowledge: boolean) => Promise<AdminFeedbackRefusal>;
+  readonly onReply: (id: string, replyKey: string, text: string) => Promise<AdminFeedbackReplyOutcome>;
 };
 
 const accepted = async () => null;
+const replyAccepted = async (): Promise<AdminFeedbackReplyOutcome> => ({ kind: "recorded", state: "accepted" });
 
 /** The list the submission was opened from, as the view passes it. */
 const BACK = "/admin/feedback?status=ny&sidnr=2";
@@ -56,7 +69,12 @@ const BACK = "/admin/feedback?status=ny&sidnr=2";
  * The caller the live page is: a command that went through is followed by the page's revalidation, which
  * hands the detail the submission as the backend now holds it.
  */
-function Revalidating({ item, onStatus = accepted, onRequeue = accepted }: { readonly item: AdminFeedbackItem } & Partial<Commands>) {
+function Revalidating({
+  item,
+  onStatus = accepted,
+  onRequeue = accepted,
+  onReply = replyAccepted,
+}: { readonly item: AdminFeedbackItem } & Partial<Commands>) {
   const [current, setCurrent] = useState(item);
   return (
     <AdminFeedbackDetail
@@ -73,6 +91,18 @@ function Revalidating({ item, onStatus = accepted, onRequeue = accepted }: { rea
         if (outcome === null) setCurrent((previous) => ({
             ...previous,
             notice: { state: "queued", attempts: 0, nextAttemptAt: "2026-10-05T08:00:00Z" },
+          }));
+        return outcome;
+      }}
+      onReply={async (id, replyKey, text) => {
+        const outcome = await onReply(id, replyKey, text);
+        if (outcome.kind === "recorded")
+          setCurrent((previous) => ({
+            ...previous,
+            replies: [
+              ...previous.replies,
+              { id: replyKey, text, state: outcome.state, createdAt: "2026-10-05T08:00:00Z", completedAt: "2026-10-05T08:00:01Z" },
+            ],
           }));
         return outcome;
       }}
@@ -304,13 +334,161 @@ describe("AdminFeedbackDetail — the notice (#1979)", () => {
   });
 });
 
+describe("AdminFeedbackDetail — the reply (#2069)", () => {
+  const field = () => within(detail()).getByRole("textbox", { name: "Ditt svar" });
+  const sendButton = () => within(detail()).getByRole("button", { name: "Skicka svar" });
+  const reply = (state: AdminFeedbackReply["state"], n: number): AdminFeedbackReply => ({
+    id: `00000000-0000-4000-8000-0000000006${String(n).padStart(2, "0")}`,
+    text: `Svar ${n}`,
+    state,
+    createdAt: "2026-10-04T06:00:00Z",
+    completedAt: state === "sending" ? null : "2026-10-04T06:00:01Z",
+  });
+
+  it("names where the reply goes, sends the text with a key, and lists it once the provider took it", async () => {
+    const onReply = vi.fn(replyAccepted);
+    render(<Revalidating item={ITEM} onReply={onReply} />);
+
+    expect(field()).toHaveAccessibleDescription(
+      "Svaret mejlas till konto.b@example.test och börjar med ”Hej,”. Svarar personen hamnar det i kontakt@jobbliggaren.se.",
+    );
+    await userEvent.type(field(), "Tack för din feedback.");
+    await userEvent.click(sendButton());
+
+    await waitFor(() => expect(getAdminToastSnapshot()?.message).toBe("Svaret är mottaget av e-posttjänsten."));
+    expect(onReply).toHaveBeenCalledWith(ITEM.id, expect.stringMatching(/^[0-9a-f-]{36}$/), "Tack för din feedback.");
+    expect(field()).toHaveValue("");
+    const sent = within(detail()).getByRole("list", { name: "Skickade svar" });
+    expect(within(sent).getByText("Tack för din feedback.")).toBeInTheDocument();
+    expect(within(sent).getByText("Mottaget av e-posttjänsten")).toBeInTheDocument();
+  });
+
+  it("refuses an empty reply at the field and sends nothing", async () => {
+    const onReply = vi.fn(replyAccepted);
+    render(<Revalidating item={ITEM} onReply={onReply} />);
+
+    await userEvent.type(field(), "   ");
+    await userEvent.click(sendButton());
+
+    expect(within(detail()).getByRole("alert")).toHaveTextContent("Skriv ett svar.");
+    expect(field()).toHaveAttribute("aria-invalid", "true");
+    expect(field()).toHaveFocus();
+    expect(onReply).not.toHaveBeenCalled();
+  });
+
+  it("keeps the key after a request that got no answer, so sending again replays it", async () => {
+    const onReply = vi
+      .fn<Commands["onReply"]>()
+      .mockResolvedValueOnce({ kind: "unanswered", text: "Det gick inte att bekräfta om svaret sparades." })
+      .mockResolvedValueOnce({ kind: "recorded", state: "accepted" });
+    render(<Revalidating item={ITEM} onReply={onReply} />);
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+    const line = await within(detail()).findByRole("alert");
+    expect(line).toHaveTextContent("Det gick inte att bekräfta om svaret sparades.");
+    expect(line).toHaveFocus();
+    expect(field()).toHaveValue("Tack.");
+    await userEvent.click(sendButton());
+
+    await waitFor(() => expect(onReply).toHaveBeenCalledTimes(2));
+    expect(onReply.mock.calls[1]?.[1]).toBe(onReply.mock.calls[0]?.[1]);
+  });
+
+  it("keeps the text after a refused send and takes a new key for the next one", async () => {
+    const onReply = vi
+      .fn<Commands["onReply"]>()
+      .mockResolvedValueOnce({ kind: "recorded", state: "failed" })
+      .mockResolvedValueOnce({ kind: "recorded", state: "accepted" });
+    render(<Revalidating item={ITEM} onReply={onReply} />);
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+    expect(await within(detail()).findByRole("alert")).toHaveTextContent(
+      "E-posttjänsten tog inte emot svaret, så inget skickades. Du kan skicka igen.",
+    );
+    expect(field()).toHaveValue("Tack.");
+    await userEvent.click(sendButton());
+
+    await waitFor(() => expect(onReply).toHaveBeenCalledTimes(2));
+    expect(onReply.mock.calls[1]?.[1]).not.toBe(onReply.mock.calls[0]?.[1]);
+  });
+
+  it("says an unknown outcome may have arrived, on the send and on the listed reply", async () => {
+    render(<Revalidating item={ITEM} onReply={async () => ({ kind: "recorded", state: "unknown" })} />);
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+
+    expect(await within(detail()).findByRole("alert")).toHaveTextContent(
+      "Det gick inte att bekräfta om svaret skickades. Det kan ha kommit fram.",
+    );
+    expect(within(detail()).getByText("Kan ha kommit fram. Ett nytt svar kan ge en dubblett.")).toBeInTheDocument();
+    expect(getAdminToastSnapshot()).toBeNull();
+  });
+
+  it("shows the backend's refusal with the button and keeps the text", async () => {
+    render(
+      <Revalidating
+        item={ITEM}
+        onReply={async () => ({
+          kind: "refused",
+          refusal: commandRefusal("Inskicket har redan fått det högsta antalet svar."),
+        })}
+      />,
+    );
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+
+    expect(await within(detail()).findByRole("alert")).toHaveTextContent("Inskicket har redan fått det högsta antalet svar.");
+    expect(field()).toHaveValue("Tack.");
+    expect(field()).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("keeps the button focusable while it sends", async () => {
+    let finish: (outcome: AdminFeedbackReplyOutcome) => void = () => {};
+    render(<Revalidating item={ITEM} onReply={() => new Promise((resolve) => (finish = resolve))} />);
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+
+    const busy = within(detail()).getByRole("button", { name: "Skickar…" });
+    expect(busy).toHaveAttribute("aria-disabled", "true");
+    expect(busy).not.toBeDisabled();
+    expect(field()).toHaveAttribute("readonly");
+    finish({ kind: "recorded", state: "accepted" });
+    await waitFor(() => expect(sendButton()).not.toHaveAttribute("aria-disabled"));
+  });
+
+  it("offers no form when there is no address to reply to", () => {
+    render(<Revalidating item={{ ...ITEM, reporterEmail: null }} />);
+
+    expect(within(detail()).getByText("Det finns ingen adress att svara till.")).toBeInTheDocument();
+    expect(within(detail()).queryByRole("textbox", { name: "Ditt svar" })).toBeNull();
+  });
+
+  it("offers no form once the submission has the most replies it can have", () => {
+    const full = Array.from({ length: FEEDBACK_REPLIES_MAX }, (_, n) => reply("accepted", n));
+    render(<Revalidating item={{ ...ITEM, replies: full }} />);
+
+    expect(within(detail()).getAllByRole("listitem")).toHaveLength(FEEDBACK_REPLIES_MAX);
+    expect(within(detail()).queryByRole("textbox", { name: "Ditt svar" })).toBeNull();
+    expect(
+      within(detail()).getByText(
+        "Inskicket har fått 10 svar, det högsta antalet. Fortsätt i mejlet från kontakt@jobbliggaren.se.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("AdminFeedbackDetail — the way back (#1979)", () => {
   it.each([
     ["loaded", { kind: "loaded", data: ITEM }],
     ["empty", { kind: "empty" }],
     ["failed", { kind: "failed" }],
   ] as const)("leads back to the list it was opened from first, in the %s state too", (_kind, region) => {
-    render(<AdminFeedbackDetail region={region} openId={ITEM.id} backHref={BACK} onStatus={accepted} onRequeue={accepted} />);
+    render(<AdminFeedbackDetail region={region} openId={ITEM.id} backHref={BACK} onStatus={accepted} onRequeue={accepted} onReply={replyAccepted} />);
 
     const back = within(detail()).getByRole("link", { name: "Alla inskick" });
     expect(back).toHaveAttribute("href", BACK);
@@ -327,6 +505,7 @@ describe("AdminFeedbackDetail — focus when it opens (#1979)", () => {
         backHref={BACK}
         onStatus={accepted}
         onRequeue={accepted}
+        onReply={replyAccepted}
       />,
     );
     expect(detail()).not.toHaveFocus();
@@ -360,6 +539,7 @@ function Opening() {
       backHref={BACK}
       onStatus={accepted}
       onRequeue={accepted}
+      onReply={replyAccepted}
     />
   ) : (
     <button type="button" onClick={() => setOpen(true)}>

@@ -201,6 +201,38 @@ public class ObserveUnitFilePinTests
         ReadText("fixtures/observations/backup-error.json").ShouldContain($"\"error\":\"{call.Groups[1].Value}\"");
     }
 
+    /// <summary>
+    /// The browser-facing schema spells the API's tokens by hand, and a misspelt member makes that state fail
+    /// its parse (the card reads "failed" for good) with every other suite green. The C# enums are the source.
+    /// </summary>
+    [Fact]
+    public void TheWebSchemaSpellsTheSameTokensAsTheEnums_OfTheBackupResponse()
+    {
+        var schema = File.ReadAllText(Path.Combine(RepositoryRoot(), "web/jobbliggaren-web/src/lib/dto/admin-overview.ts"));
+        var response = schema[schema.IndexOf("export const backupStatusResponseSchema", StringComparison.Ordinal)..];
+        response = response[..response.IndexOf("export type BackupStatusResponse", StringComparison.Ordinal)];
+
+        TokensIn(Regex.Match(schema, @"const backupReason = z\.enum\(\[(.*?)\]\)", RegexOptions.Singleline).Groups[1].Value)
+            .ShouldBe(Enum.GetNames<BackupStatusReason>().Order(StringComparer.Ordinal));
+
+        var statuses = Regex.Matches(response, @"status: z\.literal\(""(\w+)""\)").Select(m => m.Groups[1].Value);
+        statuses.Order(StringComparer.Ordinal).ShouldBe(Enum.GetNames<BackupStatus>().Order(StringComparer.Ordinal));
+
+        var lastSuccess = response[response.IndexOf("lastSuccess: z.discriminatedUnion", StringComparison.Ordinal)..response.IndexOf("timer: z.discriminatedUnion", StringComparison.Ordinal)];
+        StatesIn(lastSuccess).ShouldBe(Enum.GetNames<BackupLastSuccessState>().Order(StringComparer.Ordinal));
+
+        var timer = response[response.IndexOf("timer: z.discriminatedUnion", StringComparison.Ordinal)..response.IndexOf("status: z.literal(\"NotObserved\")", StringComparison.Ordinal)];
+        StatesIn(timer).ShouldBe(Enum.GetNames<BackupTimerState>().Order(StringComparer.Ordinal));
+
+        static IEnumerable<string> TokensIn(string quoted) =>
+            Regex.Matches(quoted, @"""(\w+)""").Select(m => m.Groups[1].Value).Order(StringComparer.Ordinal);
+
+        static IEnumerable<string> StatesIn(string text) =>
+            Regex.Matches(text, @"state: z\.literal\(""(\w+)""\)").Select(m => m.Groups[1].Value)
+                .Concat(Regex.Matches(text, @"state: z\.enum\(\[(.*?)\]\)").SelectMany(m => TokensIn(m.Groups[1].Value)))
+                .Order(StringComparer.Ordinal);
+    }
+
     [Fact]
     public void Overdue_IsTheBackupScriptsOwnThreshold()
     {

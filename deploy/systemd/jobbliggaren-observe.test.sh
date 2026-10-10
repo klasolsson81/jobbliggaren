@@ -47,6 +47,9 @@ readonly FAKE_NOW="2026-10-10T13:41:02Z"
 pass=0
 fail=0
 skipped=0
+# Every golden file this run compared, or skipped with its reason on the line above; a file in the fixture
+# directory that is in neither list was put there by hand, and the C# success paths would trust it unmeasured.
+ACCOUNTED=()
 
 # ---------------------------------------------------------------------------------------------
 # The sandboxed PATH: wrappers (not symlinks — Git Bash coreutils resolve their DLLs relative to
@@ -178,6 +181,7 @@ check() {
 expect_fixture() {
   local desc="$1" fixture="$2" got=0
   shift 2
+  ACCOUNTED+=("$fixture")
   run_collector "$@" || got=$?
   guard_not_127 "$got" "$desc"
   check "$desc: exit 0" test "$got" -eq 0
@@ -241,6 +245,7 @@ reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; chmod 000 "$STAM
 if ! cat "$STAMP" >/dev/null 2>&1; then
   expect_fixture "an unreadable stamp is reported as unreadable" backup-unreadable-stamp.json
 else
+  ACCOUNTED+=("backup-unreadable-stamp.json")
   skipped=$((skipped + 1)); echo "  skip unreadable-stamp case: this user can read a mode-000 file (root or a mode-less filesystem)"
 fi
 
@@ -343,6 +348,7 @@ reset_world
 lib_call observe_publish_error backup collector-failed || true
 if [ -n "${JBL_OBSERVE_WRITE_FIXTURES:-}" ]; then cp "$OBS_DIR/backup.json" "$FIXTURES/backup-error.json"; echo "       wrote backup-error.json"; fi
 check "an error envelope is the golden backup-error.json: a token and no data" cmp -s "$OBS_DIR/backup.json" "$FIXTURES/backup-error.json"
+ACCOUNTED+=("backup-error.json")
 
 reset_world
 got=0; lib_call observe_publish_error backup "Bad Token" || got=$?
@@ -360,6 +366,11 @@ check "…and none of the three published anything" test -z "$(ls -A "$OBS_DIR")
 
 got=0; lib_call observe_publish "../backup" '"data":{}' || got=$?
 check "a source name that is not [a-z]+ is refused" test "$got" -ne 0
+
+echo "== the golden files =="
+listed() { printf '%s\n' "$@" | sort -u | tr '\n' ' '; }
+check "every file in fixtures/observations is one this suite produces" \
+  test "$(listed $(ls -A "$FIXTURES"))" = "$(listed "${ACCOUNTED[@]}")"
 
 echo ""
 echo "passed: $pass   failed: $fail   skipped: $skipped"

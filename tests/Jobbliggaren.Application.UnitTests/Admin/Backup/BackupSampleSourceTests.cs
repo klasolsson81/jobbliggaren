@@ -149,7 +149,7 @@ public sealed class BackupSampleSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadAsync_ShouldNeverListTheDirectory_AndIgnoreEverythingButItsOneFile()
+    public async Task ReadAsync_ShouldIgnoreEveryFileButItsOne()
     {
         File.WriteAllText(Path.Combine(_directory, ".backup.Ab12Cd"), "{not json");
         File.WriteAllText(Path.Combine(_directory, "host.json"), "{not json");
@@ -253,6 +253,12 @@ public sealed class BackupSampleSourceTests : IDisposable
         { "a time on a state that has none", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng','completedAt':'2026-10-10T02:19:07Z'},'timer':{'state':'inactive'}}}") },
         { "recorded with an extra key", J(Head + "'data':{'lastSuccess':{'state':'recorded','completedAt':'2026-10-10T02:19:07Z','startedAt':'2026-10-10T02:15:41Z','x':1},'timer':{'state':'inactive'}}}") },
         { "scheduled with an extra key", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'scheduled','nextRunAt':'2026-10-10T13:49:41Z','x':1}}}") },
+        { "unreadable with an extra key", J(Head + "'data':{'lastSuccess':{'state':'unreadable','x':1},'timer':{'state':'inactive'}}}") },
+        { "invalid with an extra key", J(Head + "'data':{'lastSuccess':{'state':'invalid','x':1},'timer':{'state':'inactive'}}}") },
+        { "inactive with an extra key", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive','x':1}}}") },
+        { "not installed with an extra key", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'notInstalled','x':1}}}") },
+        { "unknown with an extra key", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'unknown','x':1}}}") },
+        { "data with an extra key", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'},'x':1}}") },
         { "data missing the timer", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'}}}") },
         { "data as text", J(Head + "'data':'miss\u0069ng'}") },
         { "error as an object", J(Head + "'error':{'code':'collector-failed'}}") },

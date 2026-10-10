@@ -182,7 +182,8 @@ public class SetFindingStatusCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
-        var notAssessed = CvCriterionVerdict.NotAssessed("A5", RubricCategory.Content, "ej bedömt v1");
+        var notAssessed = CvCriterionVerdict.NotAssessed(
+            "A5", RubricCategory.Content, NotAssessedKind.NotInVersion, "Vi bedömer inte karriärutveckling.");
         StubEngine(ResultWith(notAssessed));
 
         var result = await CreateSut(db).Handle(

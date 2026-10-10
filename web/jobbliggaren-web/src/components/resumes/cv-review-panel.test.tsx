@@ -88,6 +88,8 @@ function verdict(
             },
           ],
     notAssessedReason: v === "NotAssessed" ? `Bedöms inte: ${name}.` : null,
+    notAssessedKind: null,
+    passCriterion: null,
     userStatus: null,
     userStatusStaleAt: null,
     isIgnorable: false,

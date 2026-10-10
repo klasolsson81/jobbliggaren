@@ -109,6 +109,13 @@
     "evidence": {
       "excerpt": "Excerpt, the quote continues in your CV."
     },
+    "passCriterionLabel": "Passes when",
+    "notAssessedKind": {
+      "TextOnly": "Can't be read from the CV's text",
+      "InsufficientData": "Too little to go on in the CV",
+      "NotInVersion": "Not part of this version",
+      "RequiresJobAd": "Assessed against a job ad"
+    },
     "status": {
       "markResolved": "Mark as fixed",
       "ignoreRule": "Ignore the rule (style choice)",

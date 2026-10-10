@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
+using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 using NSubstitute;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
@@ -376,14 +377,16 @@ public class CvReviewEngineTests
 
         var result = await ReviewAsync(resume);
 
-        foreach (var id in new[] { "A1", "A2", "A6" })
+        foreach (var (id, subject) in NoBulletsSubjects)
         {
             var verdict = Verdict(result, id);
             verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
                 $"{id} ska vara NotAssessed när posterna saknar beskrivande punkter (#487).");
             // Erfarenhet finns men utan punkter → skälet ska skilja sig från 'ingen erfarenhet'.
-            verdict.NotAssessedReason.ShouldNotBeNull();
-            verdict.NotAssessedReason!.ShouldContain("saknar beskrivande punkter");
+            // #2083: the reason travels with its kind, InsufficientData (CTO F4).
+            verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData, id);
+            verdict.NotAssessedReason.ShouldBe(
+                $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på.", id);
         }
     }
 
@@ -396,12 +399,25 @@ public class CvReviewEngineTests
 
         var result = await ReviewAsync(resume);
 
-        var a1 = Verdict(result, "A1");
-        a1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
-        // Utan erfarenhetsposter ska skälet skilja sig från 'saknar beskrivande punkter' (#487).
-        a1.NotAssessedReason.ShouldNotBeNull();
-        a1.NotAssessedReason!.ShouldContain("Ingen arbetslivserfarenhet");
+        foreach (var (id, subject) in NoBulletsSubjects)
+        {
+            var verdict = Verdict(result, id);
+            verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed, id);
+            // Utan erfarenhetsposter ska skälet skilja sig från 'saknar beskrivande punkter' (#487),
+            // and it travels with the same kind as its header-only sibling (#2083).
+            verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData, id);
+            verdict.NotAssessedReason.ShouldBe($"Ingen arbetslivserfarenhet att bedöma {subject} på.", id);
+        }
     }
+
+    // A1/A2/A6's aspect in the shared no-bullets reason (ReviewText.NoBulletsReason), pinned per
+    // criterion so an aspect swap between two rules cannot pass.
+    private static readonly (string Id, string Subject)[] NoBulletsSubjects =
+    [
+        ("A1", "mätbarhet"),
+        ("A2", "handlingsverb"),
+        ("A6", "konkretion"),
+    ];
 
     [Fact]
     public async Task ReviewAsync_ShouldWarnA1_WhenSomeButNotAllBulletsAreQuantified()
@@ -1178,6 +1194,55 @@ public class CvReviewEngineTests
         Verdict(result, "B8").Verdict.ShouldBeOneOf(CriterionVerdict.Warn, CriterionVerdict.Fail);
     }
 
+    // The canonical arm carries no source file name (CvReviewContext.FromCanonical passes
+    // SourceFileName: null), so B8 takes its empty-name branch there.
+    private static async Task<CvCriterionVerdict> CanonicalB8Async(IRubricProvider rubric)
+    {
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", "anna.andersson@example.com", "070-123 45 67", "Stockholm"),
+            experiences:
+            [
+                new Experience("Acme AB", "Backend-utvecklare",
+                    new DateOnly(2021, 3, 1), new DateOnly(2024, 5, 1),
+                    "Ledde teamet om 8 personer och ökade konverteringen med 23 procent."),
+            ]);
+        var engine = new CvReviewEngine(
+            rubric, RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist(), RealCvConventionsProvider(), RealParsingLexicon());
+
+        var result = await engine.ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+        return Verdict(result, "B8");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldCarryTheRubricTextOnlyPairForB8_WhenTheCanonicalArmHasNoFileName()
+    {
+        // #2083 CTO F4: a file name is a property of the file, not of the text → TextOnly, read as the
+        // rubric pair like B2/D3/D9. The pre-#2083 sentence ("Källfilens namn saknas. … bedöms ej.")
+        // is gone; equality with the rubric sentence pins that.
+        var b8 = await CanonicalB8Async(RealRubricProvider());
+
+        b8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        b8.Evidence.ShouldBeEmpty();
+        b8.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        b8.NotAssessedReason.ShouldBe("Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldUseB8sOwnFallbackPair_WhenTheAssetPredatesB8sPair()
+    {
+        // Before #2083 the asset carried no B8 reason or kind; on such an asset the rule's own code
+        // pair is used whole.
+        var b8 = await CanonicalB8Async(RubricWithoutNotAssessedPairOn("B8"));
+
+        b8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        b8.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        b8.NotAssessedReason.ShouldBe("Filnamnet kunde inte läsas ur källfilen.");
+    }
+
     // ===============================================================
     // 9. D1 Filformat (Critical) — via ParseConfidence.Fallback
     // ===============================================================
@@ -1266,6 +1331,38 @@ public class CvReviewEngineTests
         verdict.Evidence.ShouldBeEmpty();
         verdict.NotAssessedReason.ShouldNotBeNullOrWhiteSpace(
             $"{criterionId} ska bära ett ärligt NotAssessed-skäl, aldrig tom.");
+
+        // #2083: every one of these reads the rubric's (kind, reason) pair whole: the pinned path,
+        // the no-rule path and D3's no-layout branch alike. The asset's pairs themselves are pinned
+        // in RubricPassCriterionAndNotAssessedKindTests.Asset_ShouldClassifyEveryReasonExactly.
+        verdict.NotAssessedKind.ShouldNotBeNull();
+        verdict.NotAssessedKind.ShouldBe(criterion.NotAssessedKind);
+        verdict.NotAssessedReason.ShouldBe(criterion.NotAssessedReason);
+    }
+
+    [Theory]
+    [InlineData("D2", RenderProfile.Ats)]
+    [InlineData("D4", RenderProfile.Ats)]
+    [InlineData("D5", RenderProfile.Ats)]
+    [InlineData("D7", RenderProfile.Ats)]
+    [InlineData("D10", RenderProfile.Ats)]
+    [InlineData("E3", RenderProfile.Visual)]
+    [InlineData("E4", RenderProfile.Visual)]
+    [InlineData("E5", RenderProfile.Visual)]
+    [InlineData("E6", RenderProfile.Visual)]
+    [InlineData("E7", RenderProfile.Visual)]
+    [InlineData("E8", RenderProfile.Visual)]
+    public async Task ReviewAsync_ShouldCarryTheTextOnlyPair_ForEveryNoRuleLayoutCriterion(
+        string criterionId, RenderProfile profile)
+    {
+        // #2083: a criterion with no registered rule reports the rubric's pair. Each of these is a
+        // property of the layout or the file, never of the text (CTO F4 → TextOnly), and they share
+        // the one sentence the tag-only row form relies on (CTO F5). E1 is pinned below, in 11b.
+        var verdict = Verdict(await ReviewAsync(Resume(), profile), criterionId);
+
+        verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        verdict.NotAssessedReason.ShouldBe("Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
     }
 
     [Fact]
@@ -1296,8 +1393,9 @@ public class CvReviewEngineTests
     // 11b. NotAssessed REASON comes from rubric DATA, not an inline switch
     //      (reason-relocation STEG, ADR 0071; CLAUDE.md §10/§5). The engine's
     //      old PinnedReason/NoInputReason/AdDependentCriteria members are gone —
-    //      Evaluate uses criterion.NotAssessedReason ?? <civic fallback>.
-    //      Exact-string asserts prove the dev-jargon switch is no longer the source.
+    //      Evaluate reads the rubric's (kind, reason) pair whole, else the code
+    //      fallback pair (#2083). Exact-string asserts prove the dev-jargon switch is
+    //      no longer the source.
     // ===============================================================
 
     // Test C — pinned NotAssessedV1 criteria (A5, C1) carry the ASSET-AUTHORED civic
@@ -1309,8 +1407,9 @@ public class CvReviewEngineTests
 
         var a5 = Verdict(result, "A5");
         a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         a5.NotAssessedReason.ShouldBe(
-            "Vi bedömer inte karriärutveckling i den här versionen.");
+            "Vi bedömer inte karriärutveckling.");
     }
 
     [Fact]
@@ -1320,8 +1419,9 @@ public class CvReviewEngineTests
 
         var c1 = Verdict(result, "C1");
         c1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        c1.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         c1.NotAssessedReason.ShouldBe(
-            "Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+            "Vi gör ingen djupare stavnings- och grammatikkontroll.");
     }
 
     [Fact]
@@ -1334,8 +1434,9 @@ public class CvReviewEngineTests
 
         var c5 = Verdict(result, "C5");
         c5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        c5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         c5.NotAssessedReason.ShouldBe(
-            "Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
+            "Vi kontrollerar inte språkblandning mening för mening.");
     }
 
     [Fact]
@@ -1365,6 +1466,7 @@ public class CvReviewEngineTests
 
         var a3 = Verdict(result, "A3");
         a3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a3.NotAssessedKind.ShouldBe(NotAssessedKind.RequiresJobAd);
         a3.NotAssessedReason.ShouldBe(
             "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen.");
     }
@@ -1376,6 +1478,7 @@ public class CvReviewEngineTests
 
         var d8 = Verdict(result, "D8");
         d8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d8.NotAssessedKind.ShouldBe(NotAssessedKind.RequiresJobAd);
         d8.NotAssessedReason.ShouldBe(
             "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen.");
     }
@@ -1390,69 +1493,102 @@ public class CvReviewEngineTests
 
         var e1 = Verdict(result, "E1");
         e1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        e1.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
         e1.NotAssessedReason.ShouldBe(
             "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
     }
 
     [Fact]
-    public async Task ReviewAsync_ShouldCarryLayoutCivicReasonForD9_WhenNoRule()
+    public async Task ReviewAsync_ShouldCarryLayoutCivicReasonForD9_WhenTheCvHasNoLayoutMetrics()
     {
-        // D9 (Filstorlek) is AtsOnly, no registered rule → layout civic reason.
+        // D9 (Filstorlek) is AtsOnly. Its rule (Fas 4b PR-6b) reads the file size from the layout
+        // metrics, which the default Resume() does not carry → the rubric's layout pair.
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
         var d9 = Verdict(result, "D9");
         d9.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d9.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
         d9.NotAssessedReason.ShouldBe(
             "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
     }
 
-    // Test F — code-side civic FALLBACK when the asset omits notAssessedReason (N-1 asset).
-    // Driven via a substitute IRubricProvider whose A5 criterion has NotAssessedReason ==
-    // null, proving Evaluate resolves `criterion.NotAssessedReason ?? <civic fallback>` and
-    // never throws. The real v2.0.0 asset always authors the field (Test G part 2 guards
-    // that), so this fallback is only reachable through an older (N-1) provider — exactly
-    // the seam this test drives.
-    [Fact]
-    public async Task ReviewAsync_ShouldUseCivicFallback_WhenNotAssessedReasonIsNull()
+    // Test F — the engine's code-side FALLBACK pair on an older (N-1) asset (#2083 CTO F2). The
+    // pair is taken whole from the rubric or not at all: (NotInVersion, the civic code reason).
+    // Each N-1 rubric is produced by the REAL loader from the shipped asset with fields removed
+    // (CvReviewFixtures.RubricPredatingNotAssessedKind / RubricWithoutNotAssessedPairOn), so the
+    // premise is a rubric RubricLoader returns. The shipped asset always authors both halves
+    // (RubricPassCriterionAndNotAssessedKindTests.Asset_ShouldAuthorAKindBesideEveryReason_AndNoKindWithoutOne).
+    private const string EngineFallbackReason = "Det här bedöms inte i den här versionen av granskningen.";
+
+    private static async Task<CvCriterionVerdict> VerdictUnderAsync(IRubricProvider rubric, string criterionId)
     {
         var engine = new CvReviewEngine(
-            FakeRubricProviderWithNullReasonOnA5(),
-            RealClicheLexicon(),
-            RealVerbMapper(),
-            Analyzer(),
-            AllCorrectSpellChecker(),
-            RealAllowlist(),
-            RealCvConventionsProvider(),
-            RealParsingLexicon());
+            rubric, RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist(), RealCvConventionsProvider(), RealParsingLexicon());
 
         var result = await engine.ReviewAsync(
             CvReviewContext.FromParsed(Resume()), RenderProfile.Ats, TestContext.Current.CancellationToken);
+        return Verdict(result, criterionId);
+    }
 
-        var a5 = Verdict(result, "A5");
+    [Fact]
+    public async Task ReviewAsync_ShouldUseTheCivicFallbackPair_WhenTheAssetPredatesTheReason()
+    {
+        // An asset older than notAssessedReason carries neither half on A5 (the shape of the
+        // v1.0.0 synthetic fixture, RubricNotAssessedReasonBackcompatTests).
+        var a5 = await VerdictUnderAsync(RubricWithoutNotAssessedPairOn("A5"), "A5");
+
         a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         a5.NotAssessedReason.ShouldBe(
-            "Det här bedöms inte i den här versionen av granskningen.",
+            EngineFallbackReason,
             "När assetet (N-1) saknar notAssessedReason ska motorn falla tillbaka på " +
             "den civila kod-defaulten, aldrig kasta eller läcka dev-jargon.");
     }
 
-    /// <summary>
-    /// A substitute <see cref="IRubricProvider"/> serving the REAL rubric but with A5's
-    /// <see cref="RubricCriterion.NotAssessedReason"/> forced to null — simulating an N-1
-    /// asset that pre-dates the field, so the engine's code-side civic fallback is exercised.
-    /// </summary>
-    private static IRubricProvider FakeRubricProviderWithNullReasonOnA5()
+    [Theory]
+    [InlineData("A3")] // no rule; the rubric pair would be RequiresJobAd
+    [InlineData("D2")] // no rule; the rubric pair would be TextOnly
+    [InlineData("C1")] // pinned NotAssessedV1; the rubric pair would be NotInVersion
+    public async Task ReviewAsync_ShouldNeverPairTheRubricReasonWithAGuessedKind_WhenTheAssetPredatesTheKind(
+        string criterionId)
     {
+        // The shipped asset as it stood before #2083: a reason on every one of these, no kind. A
+        // rubric reason beside the fallback kind would be a pair nobody authored (CTO F2: "never
+        // combines a rubric reason with a guessed kind"), so the whole code pair is used instead.
+        var rubricReason = RealRubric().Criteria.Single(c => c.Id == criterionId).NotAssessedReason;
+
+        var verdict = await VerdictUnderAsync(RubricPredatingNotAssessedKind(), criterionId);
+
+        verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
+        verdict.NotAssessedReason.ShouldBe(EngineFallbackReason);
+        verdict.NotAssessedReason.ShouldNotBe(rubricReason);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldDegradeToTheWholeFallbackPair_WhenARubricKindHasNoReason()
+    {
+        // DECLARED UNREACHABLE (AGENTS.md §5 Tests): a kind without a reason is a state no asset
+        // reaches the engine in — RubricLoader fails loud on it
+        // (RubricPassCriterionAndNotAssessedKindTests.Load_ShouldFailLoud_WhenAKindHasNoReason), so
+        // it is built here with `with` on purpose. This asserts only that the read side degrades
+        // safely if that invariant ever breaks: the whole code pair, never A3's RequiresJobAd kind
+        // beside a code reason it does not classify.
         var real = RealRubric();
-        var patched = real.Criteria
-            .Select(c => c.Id == "A5" ? c with { NotAssessedReason = null } : c)
-            .ToList();
-
-        var rubric = real with { Criteria = patched };
-
+        var broken = real with
+        {
+            Criteria = real.Criteria
+                .Select(c => c.Id == "A3" ? c with { NotAssessedReason = null } : c)
+                .ToList(),
+        };
         var provider = Substitute.For<IRubricProvider>();
-        provider.GetRubric().Returns(rubric);
-        return provider;
+        provider.GetRubric().Returns(broken);
+
+        var a3 = await VerdictUnderAsync(provider, "A3");
+
+        a3.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
+        a3.NotAssessedReason.ShouldBe(EngineFallbackReason);
     }
 
     // ===============================================================
@@ -1478,8 +1614,26 @@ public class CvReviewEngineTests
             var verdict = Verdict(result, id);
             verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
                 $"{id} ska vara NotAssessed när Period inte kan parsas.");
-            verdict.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+            // #2083: the periods are in the text but do not settle the criterion → InsufficientData.
+            verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData, id);
+            verdict.NotAssessedReason.ShouldBe(ReviewText.UnparsedPeriodsReason, id);
         }
+    }
+
+    [Theory]
+    [InlineData("A4", "tidsluckor")]
+    [InlineData("B6", "datumformat")]
+    [InlineData("B7", "kronologi")]
+    public async Task ReviewAsync_ShouldSayThereIsNoExperience_WhenTheCvStatesNoExperienceEntry(
+        string criterionId, string subject)
+    {
+        // #2083 (code-reviewer M3): with no experience entry there are no periods to misread, so the
+        // reason is A1/A2/A6's no-experience sentence, not "Perioderna kunde inte tolkas".
+        var verdict = Verdict(await ReviewAsync(Resume(experience: [])), criterionId);
+
+        verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        verdict.NotAssessedReason.ShouldBe(ReviewText.NoExperienceReason(subject));
     }
 
     [Fact]
@@ -1564,7 +1718,9 @@ public class CvReviewEngineTests
         var a4 = Verdict(result, "A4");
         a4.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
             "En skenbar lucka mellan daterade roller kan fyllas av en odaterad roll → NotAssessed (#493).");
-        a4.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        a4.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        a4.NotAssessedReason.ShouldBe(
+            "Någon period kunde inte tolkas till datum, så tidsluckor kan inte bedömas säkert.");
     }
 
     [Fact]
@@ -1881,6 +2037,7 @@ public class CvReviewEngineTests
             "C5 får aldrig fabricera ett Pass för språkkonsistens motorn inte kontrollerar (#488).");
         c5.Evidence.ShouldBeEmpty();
         c5.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        c5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
     }
 
     [Fact]

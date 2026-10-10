@@ -111,6 +111,10 @@ public class EmptyProseHonestyTests
         verdict.NotAssessedReason.ShouldBe(
             ReviewText.NoProseReason(AspectByCriterion[criterionId]));
         verdict.Evidence.ShouldBeEmpty();
+
+        // #2083: the reason travels with its kind. The prose IS the CV's own text, there is just
+        // none of it to settle the criterion (CTO F4 → InsufficientData).
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
     }
 
     [Fact]

@@ -20,14 +20,14 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// </summary>
 public class D9FileSizeRuleTests
 {
-    private static CvReviewEngine Engine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(),
             RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> D9Async(CvLayoutMetrics? layout)
+    private static async Task<CvCriterionVerdict> D9Async(CvLayoutMetrics? layout, IRubricProvider? rubric = null)
     {
-        var result = await Engine().ReviewAsync(
+        var result = await Engine(rubric).ReviewAsync(
             CvReviewContext.FromParsed(Resume(layoutMetrics: layout)),
             RenderProfile.Ats, TestContext.Current.CancellationToken);
         return Verdict(result, "D9");
@@ -132,5 +132,22 @@ public class D9FileSizeRuleTests
         d9.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d9.Evidence.ShouldBeEmpty();
         d9.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+
+        // #2083: the file size lives in the file, not the text (CTO F4 → TextOnly), read as the
+        // rubric's pair whole.
+        d9.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        d9.NotAssessedReason.ShouldBe(RealRubric().Criteria.Single(c => c.Id == "D9").NotAssessedReason);
+    }
+
+    [Fact]
+    public async Task D9_ShouldUseItsOwnFallbackPair_WhenTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 (reason, no kind): the rubric reason is never
+        // shown beside a guessed kind, so D9's own code pair is used whole (CTO F2).
+        var d9 = await D9Async(layout: null, RubricPredatingNotAssessedKind());
+
+        d9.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d9.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        d9.NotAssessedReason.ShouldBe("Filstorleken kunde inte läsas ur källfilen.");
     }
 }

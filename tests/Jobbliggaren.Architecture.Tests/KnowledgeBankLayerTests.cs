@@ -138,25 +138,27 @@ public class KnowledgeBankLayerTests
     // ===============================================================
 
     [Fact]
-    public void RubricCriterion_carries_exactly_the_thirteen_named_properties()
+    public void RubricCriterion_carries_exactly_the_fifteen_named_properties()
     {
-        // Exactly the 13 architect-bound props — no more (a sneak field), no less.
+        // Exactly the 15 architect-bound props — no more (a sneak field), no less.
         // NotAssessedReason added in rubric 1.0.1 (CV-UX wave STEG 1, CTO Decision D1):
         // the versioned, civic-Swedish user-facing reason a NotAssessed verdict reports
         // (ADR 0071 reasons-as-data) — a string, never a numeric (Goodhart pin below holds).
         // Thresholds + StyleOnly added in rubric 1.2.0 (Fas 4b PR-5, CTO-bind D1/D2):
         // per-criterion named numeric thresholds as a keyed DICT (not a scalar — the
         // Goodhart pin below still holds) + the fail-closed style-ignorable flag.
+        // NotAssessedKind + PassCriterion added in #2083 (the reason's class, an enum, and the
+        // "Godkänns när" clause, a string) — user-facing copy, outside the version (CTO F1).
         var criterion = typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.RubricCriterion);
 
         PublicInstancePropNames(criterion).ShouldBe(
             [
                 "Id", "Category", "Name", "Weight", "Profile", "Assessability",
                 "AtsPassSignal", "AtsFailSignal", "VisualPassSignal", "VisualFailSignal",
-                "NotAssessedReason", "Thresholds", "StyleOnly",
+                "NotAssessedReason", "Thresholds", "StyleOnly", "NotAssessedKind", "PassCriterion",
             ],
             ignoreOrder: true,
-            "RubricCriterion ska bära exakt de 13 namngivna properties — " +
+            "RubricCriterion ska bära exakt de 15 namngivna properties — " +
             $"faktiska: [{string.Join(", ", PublicInstancePropNames(criterion))}].");
     }
 
@@ -221,6 +223,16 @@ public class KnowledgeBankLayerTests
     // ===============================================================
 
     [Fact]
+    public void NotAssessedKind_is_the_locked_four_member_set()
+    {
+        // The review UI tags and filters on these names (#2083); a fifth member would reach a
+        // client that has no label for it.
+        Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.NotAssessedKind>()
+            .ShouldBe(["TextOnly", "InsufficientData", "NotInVersion", "RequiresJobAd"],
+                ignoreOrder: true);
+    }
+
+    [Fact]
     public void CriterionAssessability_is_the_locked_three_member_set()
     {
         Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.CriterionAssessability>()
@@ -281,6 +293,25 @@ public class KnowledgeBankLayerTests
     // ===============================================================
     // 5. Domain does NOT depend on the KnowledgeBank contract
     // ===============================================================
+
+    [Fact]
+    public void KnowledgeBank_should_not_depend_on_the_review()
+    {
+        // NotAssessedKind is shared by RubricCriterion and CvCriterionVerdict (#2083); it lives in
+        // the KnowledgeBank contract so the dependency stays Review -> KnowledgeBank (ADP). Two
+        // namespaces in one assembly compile in a cycle, so only this test keeps it one-way.
+        var result = Types.InAssembly(
+                typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.Rubric).Assembly)
+            .That()
+            .ResideInNamespace("Jobbliggaren.Application.KnowledgeBank")
+            .ShouldNot()
+            .HaveDependencyOn("Jobbliggaren.Application.Resumes.Review")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            "KnowledgeBank beror på Review: " +
+            $"{string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
 
     [Fact]
     public void Domain_should_not_depend_on_KnowledgeBank_abstractions()

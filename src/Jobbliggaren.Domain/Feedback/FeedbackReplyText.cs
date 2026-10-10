@@ -16,11 +16,12 @@ public sealed record FeedbackReplyText
 
     public static Result<FeedbackReplyText> Create(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        var normalized = (text ?? string.Empty).ReplaceLineEndings("\n")
+            .Replace("\0", string.Empty, StringComparison.Ordinal).Trim();
+        if (normalized.Length == 0)
             return Result.Failure<FeedbackReplyText>(DomainError.Validation(
                 "Feedback.ReplyEmpty", "Skriv ett svar."));
 
-        var normalized = text.ReplaceLineEndings("\n").Trim();
         return normalized.Length > MaxLength
             ? Result.Failure<FeedbackReplyText>(DomainError.Validation(
                 "Feedback.ReplyTooLong", $"Svaret får vara högst {MaxLength} tecken."))

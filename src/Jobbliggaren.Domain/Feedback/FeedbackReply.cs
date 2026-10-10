@@ -74,8 +74,6 @@ public sealed class FeedbackReply : AggregateRoot<FeedbackReplyId>
 
     public Result RecordUnknown(DateTimeOffset now) => Complete(FeedbackReplyState.Unknown, now);
 
-    public FeedbackReplyState StateAt(DateTimeOffset now) => Effective(State, CreatedAt, now);
-
     /// <summary>
     /// A reply still <see cref="FeedbackReplyState.Sending"/> after <see cref="StaleSendingAfter"/> was
     /// saved by a request that died near the provider call, so whether the mail left cannot be known.

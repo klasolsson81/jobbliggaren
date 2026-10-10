@@ -332,8 +332,7 @@ ADR, and one PR.
 - **`POST /api/v1/admin/feedback/{id}/replies`** (`AdminFeedbackEndpoints`) takes `{replyKey, text}` and answers 200
   `{replyId, state, replayed}` for any recorded outcome: an outcome is data. A refusal before the save is a problem,
   `Feedback.ReplyEmpty`, `ReplyTooLong`, `ReplyUnavailable` (no sender can deliver), `NotFound`, `ReplyLimitReached`,
-  `ReporterUnavailable` (no live profile, unconfirmed inbox or unusable address) or `ReplyRemoved` (the row was
-  deleted while the mail was in flight, as by a hard delete).
+  `ReporterUnavailable` (no live profile, unconfirmed inbox or unusable address).
 - **The mail** (`IEmailSender.SendFeedbackReplyAsync`, kind `feedback-reply`, `EmailTemplates.FeedbackReply`) is the
   administrator's text, then the page and the date of the submission, and never the reporter's comment. It leaves from
   `Email:FromAddress` (no-reply@jobbliggaren.se) with Reply-To kontakt@jobbliggaren.se, which `ScalewayEmailSender`
@@ -346,10 +345,10 @@ ADR, and one PR.
   `MatchedHumanErases` in the `FeedbackComments` channel (grant 2; `CountFeedbackCommentsAsync` counts comments and
   reply bodies) and `feedback_replies.state` is `NotRecruiterData`.
 - **The admin page** lists the sent replies, oldest first, each with its outcome, "Mottaget av e-posttjänsten",
-  "Misslyckades" or "Utfall okänt" with a duplicate-risk line, and never "levererat" (D5). Its form holds a
-  `crypto.randomUUID()` as the key: a new one after every recorded outcome, the same one after a request that got no
+  "Misslyckades" or "Utfall okänt" with a duplicate-risk line, and never "levererat" (D5). Its form holds the
+  key: a new one after every recorded outcome, the same one after a request that got no
   answer, so a retry replays instead of mailing twice.
-- **The disclosure is one minimal sentence in the privacy policy**, not a notice of its own (the CTO's ruling).
+- **The disclosure is in the privacy policy**, not a notice of its own (the CTO's ruling).
 
 ## Klas beviljanden (2026-10-07)
 

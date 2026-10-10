@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Jobbliggaren.Application.Common.Validation;
 
 /// <summary>
@@ -9,7 +11,7 @@ public static class EmailAddressRules
 {
     public const int MaximumLength = 256;
 
-    public static bool IsUsableInboxAddress(string? address)
+    public static bool IsUsableInboxAddress([NotNullWhen(true)] string? address)
     {
         if (string.IsNullOrEmpty(address) || address.Length > MaximumLength
             || address.Contains('\r', StringComparison.Ordinal) || address.Contains('\n', StringComparison.Ordinal))

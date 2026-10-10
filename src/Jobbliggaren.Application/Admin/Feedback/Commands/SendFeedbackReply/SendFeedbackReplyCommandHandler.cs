@@ -101,7 +101,7 @@ public sealed partial class SendFeedbackReplyCommandHandler(
             await scope.CommitAsync(cancellationToken);
 
             replyId = started.Value.Id;
-            recipient = reporter.Email!;
+            recipient = reporter.Email;
             content = new FeedbackReplyEmail(submission.Page, submission.SubmittedAt, text.Value);
         }
         db.ClearTracking();

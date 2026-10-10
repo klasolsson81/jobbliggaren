@@ -191,7 +191,11 @@ public sealed class GetFeedbackDetailQueryHandlerTests : IAsyncDisposable
         accepted.RecordAccepted(T0.AddDays(1).AddSeconds(1)).IsSuccess.ShouldBeTrue();
         var stale = FeedbackReply.Start(
             submission, 1, Guid.NewGuid(), FeedbackReplyText.Create("Nu är det fixat.").Value, T0.AddDays(2)).Value;
-        _db.FeedbackReplies.AddRange(stale, accepted);
+        var other = await FeedbackRows.SubmitAsync(_db, seeker.Id, FeedbackPage.Cv, null, Text, T0, Ct);
+        var otherSubmission = await _db.FeedbackSubmissions.AsNoTracking().SingleAsync(s => s.Id == other.SubmissionId, Ct);
+        var elsewhere = FeedbackReply.Start(
+            otherSubmission, 0, Guid.NewGuid(), FeedbackReplyText.Create("Ett annat inskick.").Value, T0.AddDays(1)).Value;
+        _db.FeedbackReplies.AddRange(stale, accepted, elsewhere);
         await _db.SaveChangesAsync(Ct);
         _db.ClearTracking();
         var tenMinutesLater = new FakeDateTimeProvider(T0.AddDays(2) + FeedbackReply.StaleSendingAfter);

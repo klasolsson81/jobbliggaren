@@ -55,6 +55,14 @@ public class FeedbackReplyTextTests
         FeedbackReplyText.Create(new string('a', FeedbackReplyText.MaxLength - 2) + "\r\nb").IsSuccess.ShouldBeTrue();
     }
 
+    // PostgreSQL text cannot hold U+0000, so a NUL typed or posted into the reply is dropped before it is stored.
+    [Fact]
+    public void Create_DropsNulCharacters()
+    {
+        FeedbackReplyText.Create("Tack\0 för\0").Value.Value.ShouldBe("Tack för");
+        FeedbackReplyText.Create("\0\0").IsFailure.ShouldBeTrue();
+    }
+
     [Fact]
     public void ToString_NeverCarriesTheText()
     {

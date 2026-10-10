@@ -95,7 +95,7 @@ public static class AdminFeedbackEndpoints
         }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
 
         // A recorded outcome, Failed and Unknown included, is a 200: the reply was saved and audited,
-        // and a repeat with the same key answers the same. Only a refusal before the save is a problem.
+        // and a repeat with the same key answers the same.
         group.MapPost("/{id:guid}/replies", async (
             Guid id, FeedbackReplyRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
         {

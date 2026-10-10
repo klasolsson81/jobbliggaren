@@ -84,4 +84,14 @@ public class EmailTemplatesFeedbackTests
         mail.HtmlBody.ShouldContain(">Hej Anna,</p>");
         mail.HtmlBody.ShouldContain(">rad ett<br>rad två</p>");
     }
+
+    [Fact]
+    public void FeedbackReply_ALineOfSpacesSeparatesParagraphsLikeABlankLine()
+    {
+        var mail = Reply("Första stycket.\n   \nAndra stycket.");
+
+        mail.HtmlBody.ShouldContain(">Första stycket.</p>");
+        mail.HtmlBody.ShouldContain(">Andra stycket.</p>");
+        mail.HtmlBody.ShouldNotContain("<br><br>");
+    }
 }

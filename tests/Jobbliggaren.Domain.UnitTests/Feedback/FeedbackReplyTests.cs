@@ -117,23 +117,23 @@ public class FeedbackReplyTests
         reply.RecordAccepted(Now).IsFailure.ShouldBeTrue();
     }
 
-    // The actor that leaves a row in Sending is a process that died after scope 1 committed; the clock
-    // moving past the provider's 30-second timeout is what turns it into an unknown outcome.
+    // The actor that leaves a row in Sending is a process that died after scope 1 committed.
     [Fact]
-    public void StateAt_ASendingRowJustBeforeTheThreshold_IsStillSending()
+    public void Effective_ASendingRowJustBeforeTheThreshold_IsStillSending()
     {
         var reply = Sending();
 
-        reply.StateAt(Now + FeedbackReply.StaleSendingAfter - TimeSpan.FromTicks(1))
+        FeedbackReply.Effective(reply.State, reply.CreatedAt, Now + FeedbackReply.StaleSendingAfter - TimeSpan.FromTicks(1))
             .ShouldBe(FeedbackReplyState.Sending);
     }
 
     [Fact]
-    public void StateAt_ASendingRowAtTheThreshold_IsUnknown()
+    public void Effective_ASendingRowAtTheThreshold_IsUnknown()
     {
         var reply = Sending();
 
-        reply.StateAt(Now + FeedbackReply.StaleSendingAfter).ShouldBe(FeedbackReplyState.Unknown);
+        FeedbackReply.Effective(reply.State, reply.CreatedAt, Now + FeedbackReply.StaleSendingAfter)
+            .ShouldBe(FeedbackReplyState.Unknown);
         reply.State.ShouldBe(FeedbackReplyState.Sending);
     }
 

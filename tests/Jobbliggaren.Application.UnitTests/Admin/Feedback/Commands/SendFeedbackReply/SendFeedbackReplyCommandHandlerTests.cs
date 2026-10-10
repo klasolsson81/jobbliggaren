@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention;
 using Jobbliggaren.Application.UnitTests.Auth;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Application.UnitTests.Feedback;
@@ -42,7 +43,6 @@ public sealed class SendFeedbackReplyCommandHandlerTests : IAsyncLifetime
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
 
     private Func<Guid, string?> _emailOf;
-    private Func<Guid, bool> _inboxConfirmed = _ => true;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -75,7 +75,7 @@ public sealed class SendFeedbackReplyCommandHandlerTests : IAsyncLifetime
     private async Task<Result<FeedbackReplyOutcome>> ReplyAsync(
         Guid submissionId, Guid? key = null, string? text = Text, CancellationToken? cancellationToken = null)
     {
-        var profiles = AccountAccessTestKit.ReaderFromProfiles(_db, _emailOf, inboxConfirmed: _inboxConfirmed);
+        var profiles = AccountAccessTestKit.ReaderFromProfiles(_db, _emailOf);
         var access = AccountAccessTestKit.Reader(userId =>
         {
             var account = profiles.ReadAsync(userId, Ct).GetAwaiter().GetResult();
@@ -253,17 +253,12 @@ public sealed class SendFeedbackReplyCommandHandlerTests : IAsyncLifetime
             Arg.Any<string>(), Arg.Any<FeedbackReplyEmail>(), Arg.Any<CancellationToken>());
     }
 
-    // The access reader answers null for an Identity user that no longer exists, and InboxConfirmed false for an
-    // address nobody has proven yet; SqlAccountAccess produces both.
-    [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public async Task Handle_AReporterWithNoAddressToAnswer_IsGone(bool accountGone, bool inboxConfirmed)
+    // The access reader answers null for an Identity user that no longer exists.
+    [Fact]
+    public async Task Handle_AReporterWhoseAccountIsGone_IsGone()
     {
         var saved = await SubmitAsync();
-        if (accountGone)
-            _emailOf = userId => userId == _administrator.UserId ? "administrator@example.se" : null;
-        _inboxConfirmed = userId => userId == _administrator.UserId || inboxConfirmed;
+        _emailOf = userId => userId == _administrator.UserId ? "administrator@example.se" : null;
 
         var result = await ReplyAsync(saved.SubmissionId.Value);
 
@@ -318,15 +313,16 @@ public sealed class SendFeedbackReplyCommandHandlerTests : IAsyncLifetime
         (await RepliesAsync()).ShouldHaveSingleItem().State.ShouldBe(FeedbackReplyState.Accepted);
     }
 
-    // The actor is the account hard delete, which removes the reporter's replies while the mail is in flight.
     [Fact]
     public async Task Handle_TheReplyRemovedDuringTheSend_IsGone()
     {
-        var saved = await SubmitAsync();
+        var cutoff = Now - FeedbackRetentionJob.Retention;
+        var saved = await FeedbackRows.SubmitAsync(
+            _db, _reporter.Id, FeedbackPage.Jobs, 3, "Filtret är svårt att hitta.", cutoff.AddMinutes(-1), Ct);
         _sender.SendFeedbackReplyAsync(Arg.Any<string>(), Arg.Any<FeedbackReplyEmail>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                _db.FeedbackReplies.RemoveRange(_db.FeedbackReplies.Where(r => r.JobSeekerId == _reporter.Id));
+                _db.FeedbackReplies.RemoveRange(_db.FeedbackReplies.Where(r => r.SubmittedAt < cutoff));
                 _db.SaveChanges();
                 _db.ClearTracking();
                 return Task.CompletedTask;
@@ -337,6 +333,63 @@ public sealed class SendFeedbackReplyCommandHandlerTests : IAsyncLifetime
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
         result.Error.Code.ShouldBe("Feedback.ReplyRemoved");
         (await RepliesAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_AnAdministratorWhoseProfileWasSoftDeleted_IsRefusedAndNothingIsSent()
+    {
+        var saved = await SubmitAsync();
+        var actor = await _db.JobSeekers.SingleAsync(profile => profile.Id == _administrator.Id, Ct);
+        actor.SoftDelete(new FakeDateTimeProvider(Now));
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        await Should.ThrowAsync<ReauthenticationFailedException>(async () => await ReplyAsync(saved.SubmissionId.Value));
+
+        _coordinator.HasActiveScope.ShouldBeFalse();
+        _coordinator.Commits.ShouldBe(0);
+        (await RepliesAsync()).ShouldBeEmpty();
+        (await _db.AuditLogEntries.CountAsync(Ct)).ShouldBe(0);
+        await _sender.DidNotReceive().SendFeedbackReplyAsync(
+            Arg.Any<string>(), Arg.Any<FeedbackReplyEmail>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_TheSameKeyAfterTheReporterLeft_StillReplaysTheRecordedOutcome()
+    {
+        var saved = await SubmitAsync();
+        var key = Guid.NewGuid();
+        var first = (await ReplyAsync(saved.SubmissionId.Value, key)).Value;
+        var reporter = await _db.JobSeekers.SingleAsync(profile => profile.Id == _reporter.Id, Ct);
+        reporter.SoftDelete(new FakeDateTimeProvider(Now));
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        var again = await ReplyAsync(saved.SubmissionId.Value, key);
+
+        again.Value.ShouldBe(first with { Replayed = true });
+        await _sender.Received(1).SendFeedbackReplyAsync(
+            Arg.Any<string>(), Arg.Any<FeedbackReplyEmail>(), Arg.Any<CancellationToken>());
+    }
+
+    // A row FeedbackReply.Start saved in scope 1 of a request that died before scope 2.
+    [Fact]
+    public async Task Handle_TheSameKeyAsAStaleSend_ReplaysItAsUnknownWithoutSending()
+    {
+        var saved = await SubmitAsync();
+        var submission = await _db.FeedbackSubmissions.AsNoTracking().SingleAsync(s => s.Id == saved.SubmissionId, Ct);
+        var key = Guid.NewGuid();
+        var stale = FeedbackReply.Start(
+            submission, 0, key, FeedbackReplyText.Create(Text).Value, Now - FeedbackReply.StaleSendingAfter).Value;
+        _db.FeedbackReplies.Add(stale);
+        await _db.SaveChangesAsync(Ct);
+        _db.ClearTracking();
+
+        var replayed = (await ReplyAsync(saved.SubmissionId.Value, key)).Value;
+
+        replayed.ShouldBe(new FeedbackReplyOutcome(stale.Id.Value, FeedbackReplyState.Unknown, true));
+        await _sender.DidNotReceive().SendFeedbackReplyAsync(
+            Arg.Any<string>(), Arg.Any<FeedbackReplyEmail>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

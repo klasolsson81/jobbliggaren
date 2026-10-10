@@ -262,12 +262,19 @@ internal static class EmailHtml
     public static Markup Paragraphs(string text)
     {
         var html = new StringBuilder();
-        var blocks = text.ReplaceLineEndings("\n")
-            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var block in blocks)
+        var block = new List<string>();
+        foreach (var line in text.ReplaceLineEndings("\n").Split('\n').Append(string.Empty))
         {
-            var lines = string.Join("<br>", block.Split('\n').Select(line => Encode(line.Trim())));
-            html.Append(CultureInfo.InvariantCulture, $"""<p style="{BodyStyle}">{lines}</p>""");
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                block.Add(Encode(line.Trim()));
+                continue;
+            }
+
+            if (block.Count == 0)
+                continue;
+            html.Append(CultureInfo.InvariantCulture, $"""<p style="{BodyStyle}">{string.Join("<br>", block)}</p>""");
+            block.Clear();
         }
 
         return new(html.ToString());

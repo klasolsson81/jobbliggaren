@@ -31,11 +31,9 @@ using ValidationException = Jobbliggaren.Application.Common.Exceptions.Validatio
 
 var builder = WebApplication.CreateBuilder(args);
 
-// #272 SEC-3 — explicit app-wide request-body backstop. Below the framework's implicit
-// ~28.6 MiB default and above the /resumes/import per-request override (11 MiB,
-// ResumesEndpoints.MaxUploadBytes = the 10 MiB validator floor + 1 MiB), which stays the
-// authoritative, tighter gate for CV uploads. Non-resume endpoints carry small JSON
-// bodies well under this; it only tightens the unconditional default, never loosens.
+// An app-wide request-body ceiling, below the framework's implicit default. The CV import
+// endpoint sets its own, tighter limit (ResumesEndpoints.MaxUploadBytes), which stays the
+// authoritative gate for uploads; every other endpoint takes small JSON bodies.
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 16L * 1024 * 1024);
 
 // BEFORE ADDING AddRequestTimeouts/UseRequestTimeouts, read RecruiterErasureMatchQuery's
@@ -47,28 +45,26 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container
-// environment values (Docker persists those to disk in its own container state). LAST source,
-// deliberately: on the box the file is the authority. Inert in dev — with no *_FILE variables
-// set it contributes zero keys, so appsettings.Local.json keeps working unchanged.
+// Secrets arrive as files on a RAM-backed mount, never as container environment values,
+// which Docker persists to disk (ADR 0050 gate B-1). This is deliberately the last source,
+// so on the server the file wins. With no *_FILE variables set it adds no keys, so local
+// appsettings.Local.json works unchanged.
 builder.Configuration.AddEnvFileSecrets();
 
-// TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på
-// Seq:ServerUrl). Delad extension med Worker så sink-konfig inte driftar mellan hosts.
+// Structured logging to the console and, when Seq:ServerUrl is set, to Seq. Shared with
+// the Worker so the two hosts' sinks cannot drift apart.
 builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 
-// #1656 (b) — SCOPED so the criterion's ad magnitude and its matching set are measured at most once
-// per request however many handlers ask. Two resolutions are two measurements at two instants, and a
-// response whose count and list came from different instants is the divergence the type exists to
-// close.
+// Scoped, so a criterion's ad count and its matching set are measured at most once per request
+// however many handlers ask: a count and a list from two different instants could disagree.
 //
-// Registered HERE and not in AddApplication(), which both hosts call: the memo is keyed on criterion
-// id while its value is per-user (the profile comes from ICurrentUser), so it is safe exactly where a
-// scope IS a request. A Worker scope is not one -- DigestDispatchJob iterates users inside a single
-// scope -- so the Worker container must not be able to resolve it at all.
+// Registered here, not in AddApplication(), which both hosts call. The memo is keyed on the
+// criterion id but its value is per user, so it is safe only where a scope is a request. A
+// Worker scope is not (DigestDispatchJob iterates users inside one scope), so the Worker must
+// not be able to resolve it at all.
 builder.Services.AddScoped<CriterionMatchingAdSetResolver>();
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
@@ -78,22 +74,19 @@ builder.Services.AddMediator(options =>
     options.Assemblies = [typeof(Jobbliggaren.Application.AssemblyMarker)];
 });
 
-// Pipeline-behaviors registreras explicit som open-generics per ADR 0008 + ADR 0022.
-// Mediator.SourceGenerator 3.0.2 läser inte options.PipelineBehaviors vid compile-time
-// från fält-references — explicit DI-registrering krävs för att Mediator runtime ska
-// hitta behaviors via GetServices<IPipelineBehavior<...>>(). Delad konstant så Api/Worker
-// inte driftar isär (verifieras av WorkerLayerTests).
+// Pipeline behaviors are registered explicitly as open generics (ADR 0008, ADR 0022): the
+// Mediator source generator does not read options.PipelineBehaviors from a field reference,
+// so the runtime finds them only through DI. Both hosts register the same ordered list,
+// which WorkerLayerTests verifies.
 builder.Services.AddMediatorPipelineBehaviors();
 
-// Scheme-namnet "Bearer" speglar wire-format (Authorization: Bearer <token>), inte token-typ.
-// Backend lagrar opaque session-id i Redis sedan Turn 4 (ADR 0017).
-// Schemanamnet "Bearer" speglar wire-formatet (RFC 6750), inte token-typen. #827 raderade
-// JWT-klasserna; bytet till "Session" återstår och är behavioural (ogiltigförklarar levande
-// sessioner), så det är inte en följd av raderingen.
+// The scheme is named "Bearer" after the wire format (RFC 6750), not the token: the value is
+// an opaque session id looked up in Redis (ADR 0017). Renaming it to "Session" would
+// invalidate live sessions, so it is a behavioural change of its own.
 //
-// ARKITEKTUR-VARNING: Lägg INTE till AddCookie() på backend. CSRF-modellen (ADR 0018)
-// förutsätter att backend är icke-browser-reachable och alltid tar emot Bearer-header.
-// Cookie-baserad auth på backend bryter trust-modellen.
+// Do NOT add AddCookie() here. The CSRF model (ADR 0018) assumes the API is unreachable from
+// a browser and always receives a Bearer header; cookie authentication on the API would
+// break that trust model.
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = "Bearer";
@@ -101,13 +94,11 @@ builder.Services.AddAuthentication(options =>
     })
     .AddScheme<SessionAuthenticationSchemeOptions, SessionAuthenticationHandler>("Bearer", _ => { });
 
-// Admin-policy: HTTP-layer gate for admin endpoints (defense-in-depth with the Mediator
-// AdminAuthorizationBehavior). AdminRoleRequirement is satisfied by AdminRoleAuthorizationHandler,
-// which resolves roles ON DEMAND and attaches ClaimTypes.Role to the principal — so ONLY admin-policy
-// requests pay the identity query, not every authenticated request (#746 PR-B; epic #737 d2/d4 —
-// non-admin fan-out + 429'd floods now resolve zero roles). RequireAuthenticatedUser makes the
-// 401-vs-403 split explicit (anonymous → 401 challenge, no DB call). Immediate-revoke preserved:
-// roles resolved fresh per request, no cache (senior-cto-advisor A1 2026-05-11).
+// The Admin policy gates admin endpoints at the HTTP layer, in addition to the Mediator
+// AdminAuthorizationBehavior. AdminRoleAuthorizationHandler resolves roles on demand, so only
+// requests under this policy pay the identity query. RequireAuthenticatedUser keeps 401 and
+// 403 apart: an anonymous caller is challenged without a database call. Roles are read fresh
+// on every request, with no cache, so revoking the role takes effect at once.
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthorizationPolicies.Admin, policy =>
@@ -119,17 +110,10 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<IAuthorizationHandler, AdminRoleAuthorizationHandler>();
 builder.Services.AddJobbliggarenRateLimiting(builder.Configuration);
 
-// STEG 6 (2026-05-24) — Hangfire-client (storage-only, INGEN HangfireServer).
-// Api enqueue:ar BackfillJobAdSsykWorker via IBackgroundJobClient; körningen
-// utförs av Worker-processens HangfireServer som läser från samma storage.
-// HTTP-fri-invariant per ADR 0023 bevaras — Hangfire ligger inte i request-vägen,
-// bara som klient mot delad postgres-tabell.
-//
-// Connection-string-resolver speglar Worker.Hosting.HangfireConnectionStringResolver
-// fallback-kedjan: HangfireStorage → Postgres. I dev räcker Postgres (samma DB).
-// I prod: jobbliggaren_app-roll behöver GRANT på hangfire.* för att kunna enqueue:a;
-// alternativt sätt ConnectionStrings:HangfireStorage till jobbliggaren_worker-secret
-// via Terraform (TD-X dokumenterar om prod-deploy aktualiseras).
+// A Hangfire client only, with no server: the API enqueues jobs that the Worker's Hangfire
+// server runs from the same storage, so Hangfire never sits in the request path (ADR 0023).
+// The connection string falls back from HangfireStorage to Postgres, mirroring the Worker's
+// HangfireConnectionStringResolver.
 var hangfireConn = builder.Configuration.GetConnectionString("HangfireStorage")
     ?? builder.Configuration.GetConnectionString("Postgres")
     ?? throw new InvalidOperationException(
@@ -143,70 +127,43 @@ builder.Services.AddHangfire(cfg => cfg
         new PostgreSqlStorageOptions
         {
             SchemaName = "hangfire",
-            // Api ska ALDRIG migrera schemat — Worker äger schema-bootstrap.
+            // The API never creates the schema; the Worker owns it.
             PrepareSchemaIfNecessary = false,
-            // #688 / #693 — no-ops för en enqueue-only-klient (Api kör ingen HangfireServer, hämtar
-            // inga jobb och förvärvar inget DisableConcurrentExecution-lås), men speglas från Workerns
-            // HangfireStorageOptionsFactory så de två storage-registreringarna inte driftar isär. En
-            // delad factory är arkitektoniskt otillgänglig: Api kan inte referera Worker och
-            // Infrastructure är avsiktligt Hangfire-fritt (ADR 0023) → drift-skyddet är denna
-            // spegling + kommentar, inte en enda konstruktionspunkt. #693: 12 h lås-expiry så en
-            // framtida Api-HangfireServer inte tyst regredierar takeover-skyddet.
+            // No-ops for an enqueue-only client, but mirrored from the Worker's
+            // HangfireStorageOptionsFactory so the two registrations cannot drift. A shared
+            // factory is not possible: the API cannot reference the Worker, and Infrastructure is
+            // deliberately free of Hangfire (ADR 0023).
             UseSlidingInvisibilityTimeout = true,
             DistributedLockTimeout = TimeSpan.FromHours(12),
         }));
 
-// #204 / TD-83 PR2 — Api-impl av IBackgroundJobController-porten (admin
-// operatörsytans trigger/retry-mutationer). Wrappar Hangfire-klienten +
-// storage (registrerade av AddHangfire ovan) så Application förblir Hangfire-fri
-// (dotnet-architect-bind). Scoped paritet med Mediator-pipeline-livstiden.
+// The admin job-trigger and retry port, implemented over the Hangfire client registered
+// above, so Application stays free of Hangfire.
 builder.Services.AddScoped<
     Jobbliggaren.Application.Admin.BackgroundJobs.IBackgroundJobController,
     Jobbliggaren.Api.BackgroundJobs.HangfireBackgroundJobController>();
 
-// Health checks — TD-29 / F2-P6 strict readiness-probe.
-//
-// `/api/live`: predicate _ => false → ingen check körs → 200 om processen är upp.
-//              Bara liveness, för container-level orchestration (även om Fargate
-//              ignorerar Docker HEALTHCHECK så ALB är auktoritativ).
-//
-// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING på BÅDA Redis-instanserna.
-//               Returnerar 503 under cold-start tills Postgres och båda Redis-instanserna svarar.
-//               ALB target-group pekar på denna (BUILD.md §15.4, modules/alb/variables.tf
-//               health_check_path default "/api/ready") → tasks får INGEN trafik förrän
-//               DB-pool + Redis-multiplexer är initierade.
-//
-// Per ADR 0005-amendment-trohet: ECS Fargate ~$30/mån fast kostnad är inte
-// kostnadsskydd-relevant, men strict readiness förhindrar 503-spikes vid
-// rolling-deploys under Fas 2 trafikvolym (TD-29 ursprungs-motivering från
-// dotnet-architect STEG 13b 2026-05-09).
-//
-// AddDbContextCheck<AppDbContext> är Microsoft-paket (inte Xabaril) — pingar
-// via `Database.CanConnectAsync()`. RedisHealthCheck är custom (Api/HealthChecks/)
-// — undviker third-party-dep, semantiken är två linjer (IsConnected + PingAsync).
-//
-// #1735 — a third readiness check: the non-persisted Redis the login challenge's stores run on. It is
-// registered through Infrastructure because the connection type is internal there (VolatileRedisHealthCheck).
+// Readiness checks, tagged "ready": Postgres (Database.CanConnectAsync), the persistent Redis,
+// and the Redis without persistence that holds sign-in challenges. The last one is registered
+// through Infrastructure because its connection type is internal there. The endpoints are
+// mapped further down.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])
     .AddCheck<RedisHealthCheck>("redis", tags: ["ready"])
     .AddVolatileRedisCheck();
 
-// HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
-// rätt värden. UseHsts() i pipelinen nedan gate:as på Environment + HttpsEnabled
-// (samma rationale som UseHttpsRedirection). Header sätts bara på HTTPS-svar.
+// HSTS settings are bound at registration so AddHsts reads them; UseHsts() below is gated on
+// the environment and HttpsEnabled, like UseHttpsRedirection.
 var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
 
-// Production-defense per allow-list (paritet med ForwardedHeadersConfig STEG 12).
-// Gate:at på reverseProxy.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
-// HSTS-config inte vara obligatorisk; men om HttpsEnabled flippas måste
-// MaxAgeDays>=365 + Preload-krav uppfyllas (annars tyst regression).
+// The HSTS settings are validated only when HttpsEnabled is true; if it is ever turned on,
+// MaxAgeDays >= 365 and the preload requirements must hold, or startup fails.
 //
 // SINGLE bind, two consumers: this HSTS validation gate, and UseHsts/UseHttpsRedirection
 // in the pipeline below. Binding the same section twice would be two normalisers for one
 // rule, and the divergence has a security direction — the validation could be skipped
 // while UseHsts() still registers, booting Production with MaxAgeDays < 365 and no
-// fail-loud (dotnet-architect, PR #1203).
+// fail-loud.
 var reverseProxy = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
 if (reverseProxy.HttpsEnabled)
     hstsConfig.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
@@ -218,7 +175,7 @@ builder.Services.AddHsts(o =>
     o.Preload = hstsConfig.Preload;
 });
 
-// #512: throttled Error log for the store-unavailable 503 path (below). Singleton so the
+// A throttled Error log for the store-unavailable 503 path below. Singleton so the
 // throttle windows are shared across all requests of the host — a Redis outage fans out to
 // every request on that store, so one log per window and store is enough for the #1172 alarm.
 builder.Services.AddSingleton<StoreUnavailableLog>();
@@ -286,23 +243,18 @@ app.Use(async (ctx, next) =>
     }
     catch (DomainException ex)
     {
-        // Invariant-brott i Domain-lagret — t.ex. EF-rehydrering ger aggregate i
-        // inkonsistent state (Resume.MasterVersion saknar/duplicerar Master). 400
-        // signalerar att request inte kan fullföljas mot nuvarande domänstate.
-        // Per CLAUDE.md §3.4.
+        // A domain invariant was broken, for example an aggregate rehydrated in an
+        // inconsistent state. 400: the request cannot complete against the current state.
         ctx.Response.StatusCode = 400;
         await ctx.Response.WriteAsJsonAsync(new { code = ex.Code, error = ex.Message });
     }
     catch (System.Security.Cryptography.CryptographicException ex)
     {
-        // Fas 4b PR-9b (DPIA #659 R-F6, security-auditor Major 1): the Form C read-path opener
-        // (BinaryFieldOpener) fails closed on a cold/missing owner DEK or a tampered/wrong-key
-        // ciphertext. Map to a BARE 500 with ZERO exception detail — the message can name the DEK
-        // context (never plaintext or DEK bytes, but internal) and must never reach the client body.
-        // Log the exception TYPE ONLY (never the message, never `ex` itself, never to the response)
-        // so a ciphertext-tampering / crypto anomaly keeps an integrity signal even for a failure
-        // that never entered the Mediator pipeline — LoggingBehavior already logs the ones that did,
-        // but this arm wraps the whole pipeline (security-auditor PR-9b Minor 1).
+        // The encrypted-file reader (BinaryFieldOpener) fails closed on a missing owner key or a
+        // tampered or wrong-key ciphertext. Answer a bare 500 with no exception detail: the
+        // message can name internal key context and must never reach the client. Log the
+        // exception type only, never the message or `ex`, so a tampering anomaly still leaves an
+        // integrity signal for a failure that never entered the Mediator pipeline.
         Jobbliggaren.Api.Common.CryptographicFailureLog.CryptographicFailure(
             ctx.RequestServices.GetRequiredService<ILogger<Program>>(), ex.GetType().Name);
         ctx.Response.StatusCode = 500;
@@ -310,11 +262,11 @@ app.Use(async (ctx, next) =>
     }
     catch (StoreUnavailableException ex)
     {
-        // #512: log the outage BEFORE writing 503. The session store fails inside authentication, which
-        // runs outside the Mediator pipeline, so this line is the only signal LoggingBehavior leaves it.
-        // Throttled, dedicated event-id. §5/data-minimisation: only the failure's TYPE is logged, never a
-        // message, which can embed the operated Redis key (a userId, or an address fingerprint) — see
-        // StoreUnavailableLog. Every subtype answers the same body.
+        // Log the outage before answering 503. The session store fails inside authentication,
+        // outside the Mediator pipeline, so this is the only log line it gets. Throttled, with a
+        // dedicated event id. Only the failure's type is logged, never its message, which can
+        // contain the Redis key (a user id or an address fingerprint); see StoreUnavailableLog.
+        // Every subtype answers the same body.
         ctx.RequestServices.GetRequiredService<StoreUnavailableLog>().Emit(ex.Store, ex.InnerType);
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = StoreUnavailableException.ClientMessage });
@@ -324,29 +276,20 @@ app.Use(async (ctx, next) =>
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
-// ForwardedHeaders FÖRE auth + rate-limiting. Required in production behind the reverse
-// proxy so Connection.RemoteIpAddress reflects the client IP, not the proxy's
-// (TD-21 / Sec-Major-1). I dev körs API:t direkt → headers saknas, ingen verkan.
+// Forwarded headers come before authentication and rate limiting, so behind the reverse
+// proxy Connection.RemoteIpAddress is the client's address, not the proxy's. In local
+// development the API is reached directly and no header arrives.
 //
-// SECURITY: KnownNetworks MUST carry the reverse proxy's network CIDR before first
-// traffic. Konfig är direct-bound från ForwardedHeaders-sektionen (STEG 12) — fail-loud
-// vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras ASP.NET-default-beteendet
-// (loopback only). Value and stack are owed by #196; the requirement is ADR 0050
-// Amendment 2026-08-04, gate M-5b point 3.
-//
-// That requirement WAS necessary but not sufficient, and #1202 changed which half is missing.
-// UseForwardedHeaders only rewrites RemoteIpAddress when an X-Forwarded-For is actually
-// present; measured 2026-08-04, no component in the Option B stack sent one, so six policies
-// that partition on the client IP (two only for unauthenticated callers) shared a single
-// bucket regardless of what this CIDR said. Closed by #1202: Caddy writes the header toward
-// web and Next relays it verbatim, so populating the CIDR is now the step that decides
-// whether this middleware trusts an arriving header, not one that silences a check and
-// changes nothing.
+// SECURITY: KnownNetworks must hold the proxy network's CIDR before the first traffic (ADR
+// 0050 Amendment 2026-08-04, gate M-5b point 3). The section is bound directly and fails
+// loudly on an invalid CIDR or address; an empty list keeps ASP.NET's loopback-only default.
+// Caddy writes X-Forwarded-For towards Next, which relays it unchanged (#1202), so this list
+// is what decides whether an arriving header is trusted. The IP-partitioned rate-limit
+// policies depend on it.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)
     .Get<ForwardedHeadersConfig>() ?? new ForwardedHeadersConfig();
 
-// Production-defense per allow-list (security-auditor STEG 12 Sec-Major-1).
 forwardedCfg.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
 
 var forwardedOptions = new ForwardedHeadersOptions
@@ -361,22 +304,18 @@ foreach (var proxy in forwardedCfg.ParseKnownProxies())
 
 app.UseForwardedHeaders(forwardedOptions);
 
-// HttpsRedirection bara om reverse-proxyn faktiskt har en HTTPS-port att redirecta
-// TILL. Behind an HTTP-only proxy the redirect targets a closed 443, the health check
-// fails and the deploy rolls back (security-auditor STEG 13b Sec-Major-2).
+// HTTPS redirection only when the reverse proxy actually has an HTTPS port to redirect to;
+// otherwise the redirect targets a closed port and health checks fail.
 //
-// Under Option B this stays FALSE by design, not by omission: Next reaches the API over
-// plain internal HTTP, so a true here would answer 307 to every internal call and break
-// the app. See ReverseProxyOptions for the full reasoning and for why UseHsts() below is
-// inert under the same topology.
-//
-// Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
+// Under Option B HttpsEnabled stays FALSE by design, not by omission: Next reaches the API over
+// plain internal HTTP, so true would answer 307 to every internal call and break the app. See
+// ReverseProxyOptions for the full reasoning and for why UseHsts() below is inert under the
+// same topology. Development keeps the redirect, using the development certificate.
 // `reverseProxy` is the single bind made above at service-registration time.
 
-// HSTS FÖRE HttpsRedirection så att HSTS-headern sätts på alla HTTPS-svar
-// (inklusive 307-redirect-svaret). Skip i Development för att undvika
-// browser-HTTPS-lock på localhost (HSTS-policy persistar i `MaxAgeDays`
-// dagar även efter dev-cert roterats — bryter `dotnet run` framtida sessioner).
+// HSTS before HTTPS redirection, so the header is also set on the redirect response. Skipped
+// in Development: the browser would remember the policy for localhost long after the
+// development certificate changes.
 //
 // Requires the UseForwardedHeaders registration above — otherwise Request.IsHttps is
 // false behind the proxy and the HSTS header is never set on the response
@@ -422,29 +361,17 @@ app.Use(async (ctx, next) =>
 
 app.UseAuthentication();
 app.UseAuthorization();
-// Rate-limiter efter auth så User-claims är populated för UserId-baserad
-// partitionering (account-deletion-policy använder claim "sub").
+// Rate limiting comes after authentication, so the user's claims are available to the
+// policies that partition per user ("sub").
 app.UseRateLimiter();
 
-// Health endpoints — TD-29 stängd 2026-05-12 (F2-P6).
+// /api/live is liveness: it runs no checks and answers 200 while the process serves requests.
+// /api/ready runs the "ready" checks and answers 503 until Postgres and both Redis instances
+// respond. Both answer plain "Healthy" or "Unhealthy".
 //
-// /api/live: liveness (process up). Predicate _ => false = inga registered checks
-//             evalueras → alltid 200 så länge ASP.NET-pipelinen kör. Container-
-//             orchestration kan peka hit (även om Fargate ignorerar Docker
-//             HEALTHCHECK).
-//
-// /api/ready: strict readiness. DbContext-check + PING mot båda Redis-instanserna via "ready"-tag.
-//             ALB target-group pekar hit (modules/alb/variables.tf
-//             health_check_path default "/api/ready"). Returnerar 503 tills
-//             Postgres och båda Redis-instanserna svarar.
-//
-// Response: default HealthCheckResponseWriter skriver "Healthy" / "Unhealthy"
-// som text. ALB kollar bara HTTP-status; manuella smoke-tests får text-body.
-//
-// #483 Low — both endpoints carry the anonymous, IP-partitioned HealthCheckPolicy: /api/ready
-// runs a Postgres CanConnect + a PING on each Redis instance per hit (an amplification vector for an unauth flood),
-// and /api/live, though cheap, is still an anonymous surface. The limit is generous so legitimate
-// ALB/orchestrator probes are never throttled (see RateLimitingOptions.HealthCheck).
+// Both carry the anonymous, IP-partitioned HealthCheckPolicy: /api/ready runs a Postgres
+// connect and a PING on each Redis per hit, an amplification vector for an anonymous flood.
+// The limit is generous so legitimate probes are never throttled (RateLimitingOptions.HealthCheck).
 app.MapHealthChecks("/api/live", new HealthCheckOptions
 {
     Predicate = _ => false,

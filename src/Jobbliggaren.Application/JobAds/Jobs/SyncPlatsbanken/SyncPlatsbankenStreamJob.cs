@@ -67,7 +67,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
 
     // Ett namn, ett ställe (§5 magic strings). Audit-raden och throughput-eventet MÅSTE bära
     // samma jobType — runbook §B korrelerar dem mot varandra i Seq.
-    private const string JobTypeName = "stream";
+    private const string JobTypeName = JobAdsSynced.StreamJobType;
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {

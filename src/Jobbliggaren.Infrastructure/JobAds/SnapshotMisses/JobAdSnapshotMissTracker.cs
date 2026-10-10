@@ -1,4 +1,5 @@
 using System.Data;
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -225,11 +226,13 @@ internal sealed partial class JobAdSnapshotMissTracker(
         cmd.CommandText = """
             SELECT MAX((payload->>'ParsedTotal')::int) AS max_parsed_total
             FROM audit_log
-            WHERE event_type = 'System.JobAdsSynced'
+            WHERE event_type = @eventType
               AND occurred_at >= now() - (@days || ' days')::interval
               AND (payload->>'Source') = @source
-              AND (payload->>'JobType') = 'snapshot';
+              AND (payload->>'JobType') = @jobType;
             """;
+        cmd.Parameters.AddWithValue("@eventType", NpgsqlDbType.Text, JobAdsSynced.EventTypeName);
+        cmd.Parameters.AddWithValue("@jobType", NpgsqlDbType.Text, JobAdsSynced.SnapshotJobType);
         cmd.Parameters.AddWithValue("@days", NpgsqlDbType.Text, days.ToString(System.Globalization.CultureInfo.InvariantCulture));
         cmd.Parameters.AddWithValue("@source", NpgsqlDbType.Text, source.Value);
 

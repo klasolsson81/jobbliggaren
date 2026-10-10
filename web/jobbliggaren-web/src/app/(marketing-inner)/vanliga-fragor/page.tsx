@@ -1,12 +1,15 @@
 import { InformationPageFrame } from "@/components/information/InformationPageFrame";
+import { JsonLdScript } from "@/components/seo/json-ld-script";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { absoluteUrl } from "@/lib/site-url";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-faq");
   return {
     title: t("meta.title"),
     description: t("meta.description"),
+    alternates: { canonical: absoluteUrl("/vanliga-fragor") },
   };
 }
 
@@ -62,14 +65,8 @@ export default async function VanligaFragorPage() {
         </dl>
       </>
 
-      {/* FAQPage strukturdata. Egen, betrodd copy (ingen användarinput); JSON
-          serialiseras och `<`-tecken escapas defensivt mot script-stängning. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
+      {/* FAQPage strukturdata. Egen, betrodd copy (ingen användarinput). */}
+      <JsonLdScript data={faqJsonLd} />
     </InformationPageFrame>
   );
 }

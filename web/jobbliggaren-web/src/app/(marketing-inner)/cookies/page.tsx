@@ -3,12 +3,14 @@ import { legalSectionId } from "@/components/information/section-ids";
 import type { Metadata } from "next";
 import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
+import { absoluteUrl } from "@/lib/site-url";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-legal");
   return {
     title: t("cookies.meta.title"),
     description: t("cookies.meta.description"),
+    alternates: { canonical: absoluteUrl("/cookies") },
   };
 }
 

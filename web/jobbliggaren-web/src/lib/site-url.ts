@@ -9,3 +9,11 @@
  */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://dev.jobbliggaren.se";
+
+/**
+ * `path` on the public origin, as an absolute URL. The root is the bare origin, the
+ * same string the sitemap lists and the home page's `WebSite` names (#2092).
+ */
+export function absoluteUrl(path: `/${string}`): string {
+  return path === "/" ? SITE_URL : `${SITE_URL}${path}`;
+}

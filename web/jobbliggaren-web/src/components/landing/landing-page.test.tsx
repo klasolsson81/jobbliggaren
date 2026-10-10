@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import LandingPage from "@/app/(marketing)/page";
+import LandingPage, { generateMetadata } from "@/app/(marketing)/page";
 import MarketingLayout from "@/app/(marketing)/layout";
+import { SITE_URL } from "@/lib/site-url";
 import svMessages from "../../../messages/sv";
 
 // next/navigation: SiteHeader's LanguageSwitcher reads useRouter and there is no
@@ -35,10 +36,18 @@ vi.mock("@/components/landing/landing-stats", async () => {
   };
 });
 
-// The layout owns the client i18n payload; return the REAL catalog.
+// The layout owns the client i18n payload; return the REAL catalog. The page's
+// generateMetadata reads it through getTranslations.
 vi.mock("next-intl/server", () => ({
   getLocale: async () => "sv",
   getMessages: async () => svMessages,
+  getTranslations: async (namespace: keyof typeof svMessages) => (key: string) =>
+    key
+      .split(".")
+      .reduce<unknown>(
+        (node, part) => (node as Record<string, unknown>)[part],
+        svMessages[namespace],
+      ),
 }));
 
 // jsdom renders the WHOLE tree as client React, so the layout's scoped client
@@ -97,6 +106,21 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     for (const num of ["01", "02", "03"]) {
       expect(screen.queryByText(num)).not.toBeInTheDocument();
     }
+  });
+
+  it("separates the three verbs with white space, so the heading's text reads as words (#2092)", async () => {
+    await renderAsyncPage();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Hitta jobbet. Sök jobbet. Följ upp ansökan.",
+    );
+  });
+
+  it("carries the site identity as structured data (#2092)", async () => {
+    const { container } = await renderAsyncPage();
+    const types = [
+      ...container.querySelectorAll('script[type="application/ld+json"]'),
+    ].map((script) => (JSON.parse(script.innerHTML) as { "@type": string })["@type"]);
+    expect(types).toEqual(["WebSite", "Organization"]);
   });
 
   it("renders the six feature cells including the three new features", async () => {
@@ -221,5 +245,20 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     const { container } = await renderAsyncPage();
     expect(container.querySelectorAll("input")).toHaveLength(0);
     expect(container.querySelectorAll("form")).toHaveLength(0);
+  });
+});
+
+describe("the home page's head (#2092)", () => {
+  it("has a descriptive title, a real description and its own absolute canonical", async () => {
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe(svMessages.landing.meta.title);
+    expect(metadata.description).toBe(svMessages.landing.meta.description);
+    expect(metadata.alternates?.canonical).toBe(SITE_URL);
+  });
+
+  it("names the brand exactly once when the root template completes the title", async () => {
+    const { title } = await generateMetadata();
+    const documentTitle = svMessages.metadata.titleTemplate.replace("%s", String(title));
+    expect(documentTitle.match(/Jobbliggaren/g)).toHaveLength(1);
   });
 });

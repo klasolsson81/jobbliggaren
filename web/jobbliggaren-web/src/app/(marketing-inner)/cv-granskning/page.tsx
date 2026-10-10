@@ -2,6 +2,7 @@ import { InformationPageFrame } from "@/components/information/InformationPageFr
 import type { Metadata } from "next";
 import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
+import { absoluteUrl } from "@/lib/site-url";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -9,6 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("meta.title"),
     description: t("meta.description"),
+    alternates: { canonical: absoluteUrl("/cv-granskning") },
   };
 }
 

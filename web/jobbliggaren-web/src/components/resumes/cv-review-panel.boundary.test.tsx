@@ -36,12 +36,14 @@ const REVIEW: CvReviewDto = {
     {
       criterionId: "A1", name: "Mätbara resultat", category: "Content", verdict: "Pass",
       evidence: [{ kind: "TextSpan", start: 0, length: QUOTE.length, quote: QUOTE, note: NOTE, observation: null, isExcerpt: false }],
-      notAssessedReason: null, userStatus: null, userStatusStaleAt: null, isIgnorable: false,
+      notAssessedReason: null, notAssessedKind: null, passCriterion: null,
+      userStatus: null, userStatusStaleAt: null, isIgnorable: false,
     },
     {
       criterionId: "B7", name: "Kronologi tydlig", category: "Structure", verdict: "Pass",
       evidence: [{ kind: "Structural", start: null, length: null, quote: null, note: null, observation: OBSERVATION, isExcerpt: false }],
-      notAssessedReason: null, userStatus: null, userStatusStaleAt: null, isIgnorable: false,
+      notAssessedReason: null, notAssessedKind: null, passCriterion: null,
+      userStatus: null, userStatusStaleAt: null, isIgnorable: false,
     },
   ],
   criticalFails: [],

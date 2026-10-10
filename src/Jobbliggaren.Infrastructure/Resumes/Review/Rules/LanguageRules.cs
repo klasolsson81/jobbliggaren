@@ -32,7 +32,7 @@ internal sealed partial class C2ToneRule : ICriterionRule
         // CV-pivot 2026-07-16: no prose, no tone to affirm (see ReviewText.NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("C2", category, ReviewText.NoProseReason("tonen"));
+            return ReviewText.NoProse(context, "tonen");
         }
 
         var exclamations = prose.Count(c => c == '!');
@@ -92,7 +92,7 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
         // CV-pivot 2026-07-16: zero passives in zero text is not active language (NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("C3", category, ReviewText.NoProseReason("språket"));
+            return ReviewText.NoProse(context, "språket");
         }
 
         // #489 ratio reconcile: score passives-per-sentence against the rubric's ">30 %", not an
@@ -163,7 +163,7 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
         // CV-pivot 2026-07-16: no prose, no perspective to be consistent about (NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("C4", category, ReviewText.NoProseReason("perspektivet"));
+            return ReviewText.NoProse(context, "perspektivet");
         }
 
         var match = ThirdPersonRegex().Match(prose);
@@ -207,7 +207,7 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
         // CV-pivot 2026-07-16: an empty corpus has no acronym usage to judge (NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("C6", category, ReviewText.NoProseReason("förkortningarna"));
+            return ReviewText.NoProse(context, "förkortningarna");
         }
 
         var acronyms = AcronymRegex().Matches(prose)
@@ -269,7 +269,7 @@ internal sealed partial class C7SpellingRule : ICriterionRule
         // CV-pivot 2026-07-16: "no misspellings" in no text is not a spelling check (NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("C7", category, ReviewText.NoProseReason("stavningen"));
+            return ReviewText.NoProse(context, "stavningen");
         }
 
         var misspelled = FindMisspelled(context, prose);
@@ -283,6 +283,15 @@ internal sealed partial class C7SpellingRule : ICriterionRule
             return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Span(prose, misspelled[0],
                     $"{misspelled.Count} möjliga stavfel. Kontrollera stavningen mot ordlistan.")));
+        }
+
+        // Under the threshold is not none: cite what was found, so the Pass never states that
+        // there was no suspected misspelling (A7's below-threshold Pass form).
+        if (misspelled.Count > 0)
+        {
+            var found = misspelled.Count == 1 ? "1 möjligt stavfel" : $"{misspelled.Count} möjliga stavfel";
+            return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Span(prose, misspelled[0], $"{found}, gränsen är {warnFrom:0}.")));
         }
 
         return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,

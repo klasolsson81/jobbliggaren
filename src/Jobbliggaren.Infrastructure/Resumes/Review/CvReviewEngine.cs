@@ -134,17 +134,19 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         // an inline C# literal — relocated so no dev-jargon reaches the job-seeker (CLAUDE.md §10).
         if (criterion.Assessability == CriterionAssessability.NotAssessedV1)
         {
-            return CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, NotAssessedReason(criterion));
+            return context.NotAssessedFromRubric(NotAssessedKind.NotInVersion, NotAssessedFallbackReason);
         }
 
         // A registered rule assesses it; anything without a rule reports honest NotAssessed
-        // (missing input signal — layout/file metadata or a target ad), reason carried by data.
+        // (missing input signal — layout/file metadata or a target ad), reason and kind carried
+        // by data as one pair (#2083).
         return _rules.TryGetValue(criterion.Id, out var rule)
             ? rule.Evaluate(context)
-            : CvCriterionVerdict.NotAssessed(criterion.Id, criterion.Category, NotAssessedReason(criterion));
+            : context.NotAssessedFromRubric(NotAssessedKind.NotInVersion, NotAssessedFallbackReason);
     }
 
-    private static IEnumerable<ICriterionRule> BuildRules() =>
+    // Internal so a test can read the ruled ids (the passCriterion set is pinned against them).
+    internal static IEnumerable<ICriterionRule> BuildRules() =>
     [
         new A1MeasurableResultsRule(),
         new A2ActionVerbsRule(),
@@ -286,11 +288,9 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         rubric.Bands.OrderBy(b => b.MinInclusive).First().Label;
 
     // The user-facing reason for a NotAssessed criterion is authored as versioned data in the
-    // rubric asset (ADR 0071: reasons-as-data, not inline C#). This code-side fallback is reached
-    // ONLY on an N-1 asset that omits the field — it stays civic and jargon-free (CLAUDE.md §10).
+    // rubric asset (ADR 0071: reasons-as-data, not inline C#), paired with its kind. This
+    // code-side fallback pair (NotInVersion) is reached ONLY on an N-1 asset that omits either
+    // half — it stays civic and jargon-free (CLAUDE.md §10).
     private const string NotAssessedFallbackReason =
         "Det här bedöms inte i den här versionen av granskningen.";
-
-    private static string NotAssessedReason(RubricCriterion criterion) =>
-        criterion.NotAssessedReason ?? NotAssessedFallbackReason;
 }

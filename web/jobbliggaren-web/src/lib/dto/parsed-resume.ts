@@ -317,6 +317,20 @@ export const citedEvidenceDtoSchema = z.object({
 });
 export type CitedEvidenceDto = z.infer<typeof citedEvidenceDtoSchema>;
 
+/** The codes a NotAssessed verdict's reason is classed by (#2083); the review tags each Ej bedömt
+ * row with its kind and never groups on the reason's free text. */
+export const NOT_ASSESSED_KINDS = [
+  "TextOnly",
+  "InsufficientData",
+  "NotInVersion",
+  "RequiresJobAd",
+] as const;
+export type NotAssessedKind = (typeof NOT_ASSESSED_KINDS)[number];
+
+function isNotAssessedKind(value: string): value is NotAssessedKind {
+  return (NOT_ASSESSED_KINDS as readonly string[]).includes(value);
+}
+
 export const cvCriterionVerdictDtoSchema = z.object({
   criterionId: z.string(),
   /** Mänsklig svensk rubrik-rubrik (t.ex. "Mätbara resultat"), single source of
@@ -327,6 +341,19 @@ export const cvCriterionVerdictDtoSchema = z.object({
   verdict: criterionVerdictSchema,
   evidence: z.array(citedEvidenceDtoSchema),
   notAssessedReason: z.string().nullable(),
+  /** The class of `notAssessedReason` (#2083); null on an assessed verdict. Fail-closed: an older
+   * backend omits the key and a code this client does not know maps to null, so the row shows its
+   * reason without a tag instead of the whole review failing. */
+  notAssessedKind: z
+    .string()
+    .nullish()
+    .transform((v): NotAssessedKind | null => (v != null && isNotAssessedKind(v) ? v : null)),
+  /** The rubric's "Godkänns när" clause (#2083). The server sends it only on a Fail or Warn verdict,
+   * so a row shows it whenever it is present. */
+  passCriterion: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
   /** Den bevarade användarbeslut-overlayen på den KANONISKA granskningen (Fas 4b
    * PR-4, D2(e)): status-namnet ("Open"/"Resolved"/"Ignored") som användaren
    * registrerade, plus stale-stämpeln (ISO) när CV:t ändrats under ett Resolved-

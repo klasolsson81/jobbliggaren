@@ -6,8 +6,8 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// One deterministic rule for one rubric criterion (Fas 4 STEG 9, F4-9). The rule LOGIC
 /// is code; every threshold/list/weight it consults lives as F4-7 knowledge-bank DATA
 /// (CLAUDE.md §5). <see cref="CvReviewEngine"/> dispatches to the rule keyed by
-/// <see cref="CriterionId"/>; a criterion with no rule (or pinned NotAssessedV1) falls
-/// through to <see cref="NotAssessedRule"/>.
+/// <see cref="CriterionId"/>; a criterion with no rule (or pinned NotAssessedV1) reports
+/// NotAssessed with its rubric (kind, reason) pair.
 /// </summary>
 internal interface ICriterionRule
 {

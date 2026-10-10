@@ -56,7 +56,9 @@ public class ResumeReviewReconcilerTests
             [new TextSpanEvidence(new TextSpan(0, 3, "bra"), null)]);
 
     private static CvCriterionVerdict NotAssessed(string criterionId) =>
-        CvCriterionVerdict.NotAssessed(criterionId, RubricCategory.Content, "ej bedömt v1");
+        CvCriterionVerdict.NotAssessed(
+            criterionId, RubricCategory.Content, NotAssessedKind.NotInVersion,
+            "Det här bedöms inte i den här versionen av granskningen.");
 
     private static CvReviewResult ResultFor(RenderProfile profile, params CvCriterionVerdict[] verdicts) =>
         new(Version, profile, [], verdicts, [], verdicts.Length, verdicts.Length);

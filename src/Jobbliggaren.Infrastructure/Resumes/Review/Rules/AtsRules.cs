@@ -114,8 +114,8 @@ internal sealed class D3StandardFontRule : ICriterionRule
 
         if (context.Layout?.FontRuns is not { Count: > 0 } fontRuns)
         {
-            return CvCriterionVerdict.NotAssessed("D3", category,
-                context.Criterion.NotAssessedReason ?? "Typsnittet kunde inte läsas ur källfilen.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "Typsnittet kunde inte läsas ur källfilen.");
         }
 
         // Body size = the point size carrying the MOST letters (headings are larger and fewer);
@@ -209,8 +209,8 @@ internal sealed class D9FileSizeRule : ICriterionRule
 
         if (context.Layout is not { } layout)
         {
-            return CvCriterionVerdict.NotAssessed("D9", category,
-                context.Criterion.NotAssessedReason ?? "Filstorleken kunde inte läsas ur källfilen.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "Filstorleken kunde inte läsas ur källfilen.");
         }
 
         var warnBytes = context.Criterion.RequiredThreshold(RubricThresholdKeys.FileSizeWarnBytes);

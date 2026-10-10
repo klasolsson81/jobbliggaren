@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 
 namespace Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
@@ -9,31 +10,30 @@ namespace Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
 /// </summary>
 internal static class CvReviewDtoMapper
 {
-    // The human criterion headings live on the rubric (RubricCriterion.Name), not on the
-    // verdict (which is the assessment OUTCOME). The handler supplies the criterionId→Name
-    // lookup from the rubric so the DTO carries the readable heading from its single source
-    // of truth — never a duplicated FE-side code→title map (CTO Decision, CLAUDE.md §10/§5).
+    // The static facts of a criterion live on the rubric, not on the verdict (which is the
+    // assessment OUTCOME): its heading (Name), whether the user may ignore it (StyleOnly,
+    // CTO-bind Q1) and its "Godkänns när" clause (PassCriterion, #2083). Both handlers pass
+    // the rubric's criteria once and every projection is derived here from that single source
+    // of truth — never a duplicated FE-side map (CLAUDE.md §10/§5).
     // statusOverlay (Fas 4b PR-4, D2(e)): criterionId → the surviving user decision, supplied
     // only by the canonical review handler (staging has no ledger — passes nothing).
-    // ignorableCriterionIds (Fas 4b PR-8.4, CTO-bind Q1 = Variant A): the versioned rubric's
-    // StyleOnly criterion ids — a parallel per-verdict projection alongside nameByCriterionId,
-    // derived from the SAME GetRubric() call in both handlers. Empty set (default) → every
-    // verdict is non-ignorable, keeping existing positional callers/tests valid.
     public static CvReviewDto ToDto(
         this CvReviewResult result,
-        IReadOnlyDictionary<string, string> nameByCriterionId,
-        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay = null,
-        IReadOnlySet<string>? ignorableCriterionIds = null) =>
-        new(
+        IReadOnlyList<RubricCriterion> criteria,
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay = null)
+    {
+        var criterionById = criteria.ToDictionary(c => c.Id, StringComparer.Ordinal);
+        return new(
             RubricVersion: result.RubricVersion.ToString(),
             Profile: result.Profile.ToString(),
             Categories: result.Categories.Select(ToDto).ToList(),
             Verdicts: result.Verdicts
-                .Select(v => ToDto(v, nameByCriterionId, statusOverlay, ignorableCriterionIds)).ToList(),
+                .Select(v => ToDto(v, criterionById, statusOverlay)).ToList(),
             CriticalFails: result.CriticalFails
-                .Select(v => ToDto(v, nameByCriterionId, statusOverlay, ignorableCriterionIds)).ToList(),
+                .Select(v => ToDto(v, criterionById, statusOverlay)).ToList(),
             AssessedCount: result.AssessedCount,
             TotalCount: result.TotalCount);
+    }
 
     private static CvReviewCategoryDto ToDto(CvCategoryResult category) =>
         new(
@@ -46,27 +46,33 @@ internal static class CvReviewDtoMapper
 
     private static CvCriterionVerdictDto ToDto(
         CvCriterionVerdict verdict,
-        IReadOnlyDictionary<string, string> nameByCriterionId,
-        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay,
-        IReadOnlySet<string>? ignorableCriterionIds)
+        IReadOnlyDictionary<string, RubricCriterion> criterionById,
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay)
     {
         var status = statusOverlay is not null
             && statusOverlay.TryGetValue(verdict.CriterionId, out var s)
             ? s
             : default((string Status, DateTimeOffset? StaleAt)?);
 
+        var criterion = criterionById.GetValueOrDefault(verdict.CriterionId);
+
         return new(
             CriterionId: verdict.CriterionId,
-            // Fall back to the id if the rubric somehow lacks the criterion (defensive — an
-            // N-1/synthetic asset); never throw on a missing heading.
-            Name: nameByCriterionId.GetValueOrDefault(verdict.CriterionId, verdict.CriterionId),
+            // Fall back to the id when the rubric lacks the criterion's heading.
+            Name: criterion?.Name ?? verdict.CriterionId,
             Category: verdict.Category.ToString(),
             Verdict: verdict.Verdict.ToString(),
             Evidence: verdict.Evidence.Select(ToDto).ToList(),
             NotAssessedReason: verdict.NotAssessedReason,
+            NotAssessedKind: verdict.NotAssessedKind?.ToString(),
+            // Only where a pass condition was failed: on a Pass or NotAssessed row the clause
+            // would read as a judgement the engine did not make (#2083, CTO F6).
+            PassCriterion: verdict.Verdict is CriterionVerdict.Fail or CriterionVerdict.Warn
+                ? criterion?.PassCriterion
+                : null,
             UserStatus: status?.Status,
             UserStatusStaleAt: status?.StaleAt,
-            IsIgnorable: ignorableCriterionIds?.Contains(verdict.CriterionId) ?? false);
+            IsIgnorable: criterion?.StyleOnly ?? false);
     }
 
     private static CitedEvidenceDto ToDto(CitedEvidence evidence) => evidence switch

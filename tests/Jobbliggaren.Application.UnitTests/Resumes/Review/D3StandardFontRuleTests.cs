@@ -24,15 +24,15 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// </summary>
 public class D3StandardFontRuleTests
 {
-    private static CvReviewEngine Engine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(),
             RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> D3Async(CvLayoutMetrics? layout)
+    private static async Task<CvCriterionVerdict> D3Async(CvLayoutMetrics? layout, IRubricProvider? rubric = null)
     {
         // D3 is AtsOnly — it is only emitted in the ATS profile.
-        var result = await Engine().ReviewAsync(
+        var result = await Engine(rubric).ReviewAsync(
             CvReviewContext.FromParsed(Resume(layoutMetrics: layout)),
             RenderProfile.Ats, TestContext.Current.CancellationToken);
         return Verdict(result, "D3");
@@ -158,6 +158,7 @@ public class D3StandardFontRuleTests
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
         d3.Evidence.ShouldBeEmpty();
         d3.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(d3);
     }
 
     [Fact]
@@ -170,6 +171,7 @@ public class D3StandardFontRuleTests
         d3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
         d3.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(d3);
     }
 
     [Fact]
@@ -179,6 +181,7 @@ public class D3StandardFontRuleTests
 
         d3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheRubricTextOnlyPair(d3);
     }
 
     [Fact]
@@ -190,6 +193,7 @@ public class D3StandardFontRuleTests
         d3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
         d3.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(d3);
     }
 
     [Fact]
@@ -200,6 +204,28 @@ public class D3StandardFontRuleTests
 
         d3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheRubricTextOnlyPair(d3);
+    }
+
+    [Fact]
+    public async Task D3_ShouldUseItsOwnFallbackPair_WhenTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 (reason, no kind): the rubric reason is never
+        // shown beside a guessed kind, so D3's own code pair is used whole (CTO F2).
+        var d3 = await D3Async(layout: null, RubricPredatingNotAssessedKind());
+
+        d3.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        d3.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        d3.NotAssessedReason.ShouldBe("Typsnittet kunde inte läsas ur källfilen.");
+    }
+
+    // #2083: the body font lives in the layout, not the text (CTO F4 → TextOnly), read as the
+    // rubric's pair whole.
+    private static void AssertTheRubricTextOnlyPair(CvCriterionVerdict d3)
+    {
+        var criterion = RealRubric().Criteria.Single(c => c.Id == "D3");
+        d3.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        d3.NotAssessedReason.ShouldBe(criterion.NotAssessedReason);
     }
 
     // ===============================================================
@@ -221,6 +247,7 @@ public class D3StandardFontRuleTests
             "app-hanterat innehåll har ingen källfil-geometri; D3 saknar Pass-by-construction (till skillnad mot D1) → NotAssessed.");
         d3.Verdict.ShouldNotBe(CriterionVerdict.Pass);
         d3.Verdict.ShouldNotBe(CriterionVerdict.Warn);
+        AssertTheRubricTextOnlyPair(d3);
     }
 
     // ===============================================================

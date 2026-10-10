@@ -7,9 +7,7 @@ using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
-// Fas 4 STEG 9 (F4-9) — Structure-category (B) criterion rules. B2 (length, needs page
-// count) has no rule — it falls through to the engine's honest NotAssessed (the page-count
-// signal the text parse cannot see; PR-6b's ICvLayoutAnalyzer feeds it). B5 (formatting) is
+// Fas 4 STEG 9 (F4-9) — Structure-category (B) criterion rules. B5 (formatting) is
 // assessed GEOMETRY-FREE from Fas 4b PR-6 (mixed bullet markers in the linearized text) —
 // Warn or NotAssessed, never Pass (the font/heading half still needs PDF geometry, deferred).
 
@@ -25,9 +23,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// calls out. The evidence sentence was true; the verdict it was attached to was not.</para>
 ///
 /// <para><b>Why not NotAssessed.</b> That was the first fix attempted, and it is its own
-/// mis-report: every authored <c>notAssessedReason</c> in the asset means "we could not read this
-/// from a text-based interpretation of your CV", which is FALSE for a CV whose sections we read
-/// perfectly well — and <c>CvReviewEngine</c> counts <c>Verdict != NotAssessed</c> as the assessed
+/// mis-report: <c>CvReviewEngine</c> counts <c>Verdict != NotAssessed</c> as the assessed
 /// set, so every well-formed CV would silently lose a High-weight criterion. A criterion that CAN
 /// assess, must assess (senior-cto-advisor bind Round 2, 2026-07-14). B5 is not a precedent for it:
 /// B5's assessable half can only ever produce a NEGATIVE, while B1's produces a genuine positive.</para>
@@ -352,9 +348,8 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         // Never Pass: a single/no marker does not prove the full B5 (typsnitt, rubriknivåer)
         // is consistent — that needs PDF geometry (deferred, honest ceiling). Reason is
         // versioned rubric DATA (ADR 0071 reasons-as-data); N-1 fallback stays civic.
-        return CvCriterionVerdict.NotAssessed("B5", category,
-            context.Criterion.NotAssessedReason
-            ?? "Formateringens konsekvens bedöms inte i den här versionen.");
+        return context.NotAssessedFromRubric(
+            NotAssessedKind.NotInVersion, "Formateringens konsekvens bedöms inte i den här versionen.");
     }
 
     // The leading bullet glyph of a trimmed line, or null when the line does not start with a
@@ -400,8 +395,7 @@ internal sealed class B6DateFormatRule : ICriterionRule
 
         if (formats.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B6", category, "Perioderna kunde inte tolkas. Datumformat-konsekvens bedöms ej v1.");
+            return ReviewText.UnparsedPeriods(context, "datumformat");
         }
 
         // The distinct-format ceiling is rubric v1.2 DATA (thresholds.maxDistinctDateFormats),
@@ -426,8 +420,7 @@ internal sealed class B7ChronologyRule : ICriterionRule
 
         if (dated.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B7", category, "Perioderna kunde inte tolkas. Kronologi bedöms ej v1.");
+            return ReviewText.UnparsedPeriods(context, "kronologi");
         }
 
         if (dated.Count == 1)
@@ -466,8 +459,8 @@ internal sealed partial class B8FileNameRule : ICriterionRule
 
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B8", category, "Källfilens namn saknas. Filnamnsrekommendationen bedöms ej.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "Filnamnet kunde inte läsas ur källfilen.");
         }
 
         if (RecommendedRegex().IsMatch(fileName))
@@ -508,8 +501,8 @@ internal sealed class B2PageCountRule : ICriterionRule
 
         if (context.Layout?.PageCount is not { } pages)
         {
-            return CvCriterionVerdict.NotAssessed("B2", category,
-                context.Criterion.NotAssessedReason ?? "CV-längden kunde inte läsas ur källfilen.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "CV-längden kunde inte läsas ur källfilen.");
         }
 
         // The recommended page ceiling is rubric v2.1 DATA (thresholds.maxPages), read fail-loud.

@@ -131,6 +131,45 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
             "en falsk PDF ger ingen sidgeometri → B2 NotAssessed (ärligt tak, aldrig fabricerad Pass/Fail).");
     }
 
+    [Fact]
+    public async Task Import_then_GET_review_carries_notAssessedKind_and_passCriterion_from_the_served_rubric()
+    {
+        // #2083 PR 2 over the real staging round-trip, so the two fields mean the same on both review
+        // paths. The import names its file "cv.pdf" (B8 Warn: generic name) and is an 8-byte fake PDF
+        // (D9 Pass on size, B2 NotAssessed without page geometry) — states the import produces.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await ImportAsync(_client, ct);
+        var rubric = CvReviewWireContract.ServedRubric(_factory);
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/review?profile=Ats", ct);
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var review = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        var b8 = CvReviewWireContract.VerdictById(review, "B8");
+        b8.GetProperty("verdict").GetString().ShouldBe("Warn");
+        CvReviewWireContract.NullableString(b8, "notAssessedKind").ShouldBeNull();
+        CvReviewWireContract.NullableString(b8, "passCriterion").ShouldNotBeNull();
+        CvReviewWireContract.NullableString(b8, "passCriterion")
+            .ShouldBe(rubric.Criteria.Single(c => c.Id == "B8").PassCriterion);
+
+        var d9 = CvReviewWireContract.VerdictById(review, "D9");
+        d9.GetProperty("verdict").GetString().ShouldBe("Pass");
+        CvReviewWireContract.NullableString(d9, "passCriterion").ShouldBeNull(
+            "Godkänns när visas bara på ett fynd, aldrig på en godkänd rad (CTO F6).");
+
+        var b2 = CvReviewWireContract.VerdictById(review, "B2");
+        b2.GetProperty("verdict").GetString().ShouldBe("NotAssessed");
+        CvReviewWireContract.NullableString(b2, "notAssessedKind").ShouldBe("TextOnly");
+        CvReviewWireContract.NullableString(b2, "passCriterion").ShouldBeNull(
+            "ett Ej bedömt-verdikt bär inget Godkänns när, även när rubriken har ett för kriteriet.");
+
+        CvReviewWireContract.NullableString(CvReviewWireContract.VerdictById(review, "A3"), "notAssessedKind")
+            .ShouldBe("RequiresJobAd");
+
+        CvReviewWireContract.ShouldCarryKindAndPassCriterionOnEveryVerdict(review, rubric);
+    }
+
     // Reads the `verdict` name for a given `criterionId` from the review's verdicts array.
     private static string VerdictOf(JsonElement review, string criterionId)
     {

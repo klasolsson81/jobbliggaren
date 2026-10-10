@@ -11,6 +11,8 @@ import {
   pendingParsedResumeSummarySchema,
   cvReviewCategoryDtoSchema,
   citedEvidenceDtoSchema,
+  cvCriterionVerdictDtoSchema,
+  NOT_ASSESSED_KINDS,
   type ParsedGapSummary,
   type ProposedChangeDto,
 } from "./parsed-resume";
@@ -568,5 +570,40 @@ describe("citedEvidenceDtoSchema.isExcerpt (#1062 B2 — fail-closed)", () => {
     expect(citedEvidenceDtoSchema.parse({ ...base, isExcerpt: true }).isExcerpt).toBe(
       true,
     );
+  });
+});
+
+describe("cvCriterionVerdictDtoSchema: notAssessedKind and passCriterion (#2083)", () => {
+  const base = {
+    criterionId: "B2",
+    name: "Längd",
+    category: "Structure",
+    verdict: "NotAssessed",
+    evidence: [],
+    notAssessedReason: "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+  };
+
+  it.each(NOT_ASSESSED_KINDS)("keeps the kind %s", (kind) => {
+    expect(cvCriterionVerdictDtoSchema.parse({ ...base, notAssessedKind: kind }).notAssessedKind).toBe(kind);
+  });
+
+  it("maps a missing key and null to null (an older backend)", () => {
+    expect(cvCriterionVerdictDtoSchema.parse(base).notAssessedKind).toBeNull();
+    expect(cvCriterionVerdictDtoSchema.parse({ ...base, notAssessedKind: null }).notAssessedKind).toBeNull();
+  });
+
+  it("maps a kind this client does not know to null instead of failing the review", () => {
+    // Fail-closed: a newer backend's code renders as the reason without a tag.
+    expect(
+      cvCriterionVerdictDtoSchema.parse({ ...base, notAssessedKind: "RequiresInterview" }).notAssessedKind,
+    ).toBeNull();
+  });
+
+  it("keeps a pass criterion and maps a missing one to null", () => {
+    const fail = { ...base, verdict: "Fail", notAssessedReason: null };
+    expect(
+      cvCriterionVerdictDtoSchema.parse({ ...fail, passCriterion: "CV:t är högst 2 sidor långt." }).passCriterion,
+    ).toBe("CV:t är högst 2 sidor långt.");
+    expect(cvCriterionVerdictDtoSchema.parse(fail).passCriterion).toBeNull();
   });
 });

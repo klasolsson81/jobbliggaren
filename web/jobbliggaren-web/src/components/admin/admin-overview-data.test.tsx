@@ -64,7 +64,7 @@ describe("admin overview observed data", () => {
       expect(server()).toHaveTextContent("CPU5,0 %Snitt över 30 s");
       expect(server()).toHaveTextContent("Minne29,4 %2,3 av 7,8 GiB");
       expect(server()).toHaveTextContent("Disk6,1 %225,6 GiB ledigt av 240,4 GiB");
-      expect(server()).toHaveTextContent("Mätt 2026-10-08 11:59");
+      expect(server()).toHaveTextContent("Uppgift från 2026-10-08 11:59");
       expect(server().querySelector("time")).toHaveAttribute("datetime", "2026-10-08T09:59:30Z");
       expect(server()).not.toHaveTextContent("Kommer snart");
       expect(server()).not.toHaveTextContent("äldre än");
@@ -82,7 +82,7 @@ describe("admin overview observed data", () => {
       render(<AdminOverview observations={withHost({}, { refreshFailed: true })} now={NOW + 150_000} />);
 
       expect(server()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
-      expect(server()).toHaveTextContent("Mätningen är äldre än 2 min.");
+      expect(server()).toHaveTextContent("Mätningen är äldre än 2 minuter.");
       expect(server()).toHaveTextContent("CPU5,0 %");
     });
 
@@ -108,10 +108,6 @@ describe("admin overview observed data", () => {
 
       expect(within(card("Användare totalt")).getByRole("link", { name: "12" })).toBeInTheDocument();
       expect(card("Backup")).toHaveTextContent("2026-10-08 02:19");
-    });
-
-    it("hands the card only what the fixture's host carries", () => {
-      expect(Object.keys(hostFixture()).sort()).toEqual(["cpu", "disk", "memory", "readAt", "staleAfterSeconds"]);
     });
   });
 });

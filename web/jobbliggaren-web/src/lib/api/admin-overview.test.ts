@@ -346,6 +346,6 @@ describe("admin overview Server source (#1982)", () => {
 
     expect(JSON.stringify(host)).not.toMatch(/mount|vda4|reason|ReadFailed|"\/"/);
     if (host.kind !== "loaded") throw new Error("Expected a loaded host");
-    expect(Object.keys(host.data).sort()).toEqual(["cpu", "disk", "memory", "readAt", "staleAfterSeconds"]);
+    expect(Object.keys(host.data).sort()).toEqual(["cpu", "disk", "memory", "staleAfterSeconds"]);
   });
 });

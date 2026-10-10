@@ -9,7 +9,6 @@ const T0 = Date.parse(SAMPLED);
 
 // The numbers the production box showed on 2026-10-10 (runbook admin-host-observations.md).
 const dto = (patch: Partial<HostObservationDto> = {}): HostObservationDto => ({
-  readAt: "2026-10-10T12:00:10Z",
   staleAfterSeconds: 120,
   cpu: { state: "Available", sampledAt: SAMPLED, value: { percent: 5, windowSeconds: 30 } },
   memory: { state: "Available", sampledAt: SAMPLED, value: { percent: 29.4, usedBytes: 2_449_854_464, totalBytes: 8_331_255_808 } },
@@ -41,7 +40,7 @@ describe("AdminServerBody with every reading available", () => {
   it("prints when the host was sampled, and says nothing about age while the readings are young", () => {
     const { container } = renderBody();
 
-    expect(container).toHaveTextContent("Mätt 2026-10-10 14:00");
+    expect(container).toHaveTextContent("Uppgift från 2026-10-10 14:00");
     expect(container).not.toHaveTextContent("äldre än");
     expect(container.querySelector("time")).toHaveAttribute("datetime", SAMPLED);
   });
@@ -99,7 +98,7 @@ describe("AdminServerBody with readings that are not values", () => {
     });
 
     expect(container.querySelector("time")).toBeNull();
-    expect(container).not.toHaveTextContent("Mätt");
+    expect(container).not.toHaveTextContent("Uppgift från");
   });
 });
 
@@ -108,8 +107,8 @@ describe("AdminServerBody and age", () => {
     const { container } = renderBody({ disk: { ...dto().disk, state: "Stale" } });
 
     expect(row("Disk")).toHaveTextContent("6,1 %");
-    expect(container).toHaveTextContent("Mätningen är äldre än 2 min.");
-    expect(container).toHaveTextContent("Mätt 2026-10-10 14:00");
+    expect(container).toHaveTextContent("Mätningen är äldre än 2 minuter.");
+    expect(container).toHaveTextContent("Uppgift från 2026-10-10 14:00");
   });
 
   it("marks a kept reading stale once the page's clock passes the limit the API applied", () => {
@@ -118,8 +117,41 @@ describe("AdminServerBody and age", () => {
     young.unmount();
 
     const { container } = renderBody(undefined, T0 + 120_001);
-    expect(container).toHaveTextContent("Mätningen är äldre än 2 min.");
+    expect(container).toHaveTextContent("Mätningen är äldre än 2 minuter.");
     expect(row("CPU")).toHaveTextContent("5,0 %");
+  });
+});
+
+describe("AdminServerBody and its one note", () => {
+  const stale = () => dto({ disk: { ...dto().disk, state: "Stale" } });
+
+  it("names the limit the API applied as the duration it is, whole minutes or not", () => {
+    const { container } = renderBody({ ...stale(), staleAfterSeconds: 90 });
+
+    expect(container).toHaveTextContent("Mätningen är äldre än 1,5 minuter.");
+  });
+
+  it("puts a failed refresh in the same note, between the sample time and the age", () => {
+    const { container } = render(<AdminServerBody region={serverRegion(toServerReading(stale()))} refreshFailed />);
+
+    const notes = container.querySelectorAll("p.jp-adminkpi__sub");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent(
+      /^Uppgift från 2026-10-10 14:00Uppdateringen misslyckades\. Senaste uppgiften visas\.Mätningen är äldre än 2 minuter\.$/,
+    );
+  });
+
+  it("says a refresh failed even when no reading has a sample time to print", () => {
+    const none = { sampledAt: null, value: null } as const;
+    const { container } = render(
+      <AdminServerBody
+        region={serverRegion(toServerReading(dto({ cpu: { state: "Collecting", ...none }, memory: { state: "Failed", ...none }, disk: { state: "Failed", ...none } })))}
+        refreshFailed
+      />,
+    );
+
+    expect(container.querySelectorAll("p.jp-adminkpi__sub")).toHaveLength(1);
+    expect(container).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
   });
 });
 

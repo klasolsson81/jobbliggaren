@@ -20,7 +20,7 @@ export function byteUnitFor(bytes: number): ByteUnit {
 /**
  * `bytes` as a locale-grouped number in the given unit (default: the unit that suits `bytes`). Taking the
  * unit lets a pair such as used and total share one, which is how "2,4 av 7,8 GiB" is read.
- * One decimal for KiB and above, none for bytes.
+ * One decimal for KiB and above, always shown, so that a pair reads in one precision; none for bytes.
  */
 export function formatBinaryBytes(
   format: JpFormatter,
@@ -30,7 +30,7 @@ export function formatBinaryBytes(
   const power = UNITS.indexOf(unit);
   return {
     value: format.number(bytes / 1024 ** power, {
-      minimumFractionDigits: 0,
+      minimumFractionDigits: power === 0 ? 0 : 1,
       maximumFractionDigits: power === 0 ? 0 : 1,
     }),
     unit,

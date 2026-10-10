@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { formatStaleLimit } from "@/lib/admin/host-observation";
 import { OVERVIEW_STALE_MS, type AwaitingObservation } from "@/lib/admin/overview";
 import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
@@ -30,6 +31,7 @@ export function AdminOverviewAnnouncements({ observations, now }: {
   readonly now: number;
 }) {
   const t = useTranslations("admin");
+  const format = useFormatter();
   const current = SOURCES.map((source) => health(observations[source], now, staleLimit(source, observations)));
   const [previous, setPrevious] = useState({ health: current, message: "" });
 
@@ -37,10 +39,16 @@ export function AdminOverviewAnnouncements({ observations, now }: {
     const message = SOURCES.flatMap((source, index) => {
       const state = health(observations[source], now, staleLimit(source, observations));
       if (state === previous.health[index]) return [];
+      // The Server card words its own limit (the API names it), so the live region says the same sentence.
+      const stale = source === "host" && observations.host.kind === "loaded"
+        ? t("overview.server.stale", { limit: formatStaleLimit(format, observations.host.data.staleAfterSeconds) })
+        : t("overview.observation.stale");
       const text = state === "failed" || state === "loading" || state === "awaiting" ? t(`regions.${state}`)
         : state === "retainedStale"
-          ? `${t("overview.observation.refreshFailed")} ${t("overview.observation.stale")}`
-          : t(`overview.observation.${state === "retained" ? "refreshFailed" : state}`);
+          ? `${t("overview.observation.refreshFailed")} ${stale}`
+          : state === "stale"
+            ? stale
+            : t(`overview.observation.${state === "retained" ? "refreshFailed" : state}`);
       return [t("overview.observation.announcement", {
         source: t(`overview.observation.sources.${source}`),
         state: text,

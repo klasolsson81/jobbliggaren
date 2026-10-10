@@ -2,12 +2,10 @@ import { describe, expect, it } from "vitest";
 import { hostObservationSchema } from "./admin-host";
 
 const SAMPLED = "2026-10-10T12:00:00+00:00";
-const READ = "2026-10-10T12:00:10Z";
 
 // The body of GET /api/v1/admin/overview/host as the backend serialises it (GetHostObservationQueryHandlerTests:
 // string states, explicit nulls, camelCase), built from the numbers of the production box on 2026-10-10.
 const healthy = () => ({
-  readAt: READ,
   staleAfterSeconds: 120,
   cpu: { state: "Available", sampledAt: SAMPLED, value: { percent: 5, windowSeconds: 30 } },
   memory: { state: "Available", sampledAt: SAMPLED, value: { percent: 29.4, usedBytes: 2_449_854_464, totalBytes: 8_331_255_808 } },
@@ -57,18 +55,12 @@ describe("hostObservationSchema", () => {
     expect(hostObservationSchema.safeParse({ ...healthy(), disk }).success).toBe(false);
   });
 
-  it("refuses a body without the read time", () => {
-    const body: Record<string, unknown> = { ...healthy() };
-    delete body.readAt;
-    expect(hostObservationSchema.safeParse(body).success).toBe(false);
-  });
-
   it("drops every field the contract does not name, so the browser's copy cannot grow", () => {
     const body = { ...healthy(), mount: "/", device: "vda4", cpu: { ...healthy().cpu, reason: "ReadFailed" } };
 
     const parsed = hostObservationSchema.parse(body);
 
-    expect(Object.keys(parsed).sort()).toEqual(["cpu", "disk", "memory", "readAt", "staleAfterSeconds"]);
+    expect(Object.keys(parsed).sort()).toEqual(["cpu", "disk", "memory", "staleAfterSeconds"]);
     expect(Object.keys(parsed.cpu).sort()).toEqual(["sampledAt", "state", "value"]);
   });
 });

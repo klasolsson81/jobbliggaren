@@ -37,7 +37,6 @@ const diskValue = z
   .refine((disk) => disk.totalBytes > 0 && disk.freeBytes <= disk.totalBytes, "Free disk exceeds the total.");
 
 export const hostObservationSchema = z.object({
-  readAt: instant,
   staleAfterSeconds: z.number().int().positive().max(86_400),
   cpu: reading(cpuValue),
   memory: reading(memoryValue),

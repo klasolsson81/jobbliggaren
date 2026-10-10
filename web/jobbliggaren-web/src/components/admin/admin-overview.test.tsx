@@ -29,7 +29,6 @@ const LOADED: AdminOverviewRegions = {
     ],
   },
   server: serverRegion(toServerReading({
-    readAt: "2026-10-04T05:00:10Z",
     staleAfterSeconds: 120,
     cpu: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 23.4, windowSeconds: 30 } },
     memory: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 61.1, usedBytes: 5_244_620_800, totalBytes: 8_589_934_592 } },

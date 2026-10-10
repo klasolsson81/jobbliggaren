@@ -1,4 +1,5 @@
 import type { HostMetricState, HostObservationDto } from "@/lib/dto/admin-host";
+import type { JpFormatter } from "@/lib/i18n/format";
 import type { AdminValueRegion } from "./view-models";
 
 /**
@@ -90,6 +91,14 @@ export function ageServerReading(server: AdminServerReading, now: number): Admin
       ? { ...metric, stale: true }
       : metric;
   return { ...server, cpu: age(server.cpu), memory: age(server.memory), disk: age(server.disk) };
+}
+
+/**
+ * The limit after which a reading is old, as the duration the user reads: "2 minuter", "1,5 minuter". The API
+ * names the limit, so it need not be a whole number of minutes. The card and the live region both print it.
+ */
+export function formatStaleLimit(format: JpFormatter, seconds: number): string {
+  return format.number(seconds / 60, { style: "unit", unit: "minute", unitDisplay: "long", maximumFractionDigits: 1 });
 }
 
 /** The newest sample time among the readings that have one; null when none has. */

@@ -214,7 +214,6 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
     marked({ id: "email", label: "E-postutskick", state: "ok" as const, detail: "212 ms" }),
   ],
   server: marked(toServerReading({
-    readAt: FIXTURE_NOW,
     staleAfterSeconds: 120,
     cpu: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 23.4, windowSeconds: 30 } },
     memory: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 61.1, usedBytes: 5_244_620_800, totalBytes: 8_589_934_592 } },
@@ -266,7 +265,6 @@ export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   // "Tom" shows the three readings that are not values: the CPU's first window, a host that cannot be measured
   // here, and a failed read. Zero is a value, but an unmeasured reading is not zero (ADR 0150 D2).
   server: marked(toServerReading({
-    readAt: FIXTURE_NOW,
     staleAfterSeconds: 120,
     cpu: { state: "Collecting", sampledAt: null, value: null },
     memory: { state: "NotObservable", sampledAt: null, value: null },

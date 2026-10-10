@@ -154,4 +154,37 @@ describe("admin overview visible refresh", () => {
     expect(status.textContent?.match(/Misslyckade bakgrundsjobb/g)).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Användare totalt" })).toHaveTextContent("12");
   });
+  it("announces the Server's age in its own words when the sampler goes quiet (#1982)", async () => {
+    // The actor: the sampler stopping, so the API answers Stale with the readings' own, old, sample time.
+    const old = new Date(NOW - 120_000).toISOString();
+    const quiet = overviewSnapshotFixture();
+    if (quiet.host.kind !== "loaded") throw new Error("Expected a loaded host");
+    const data: HostObservationDto = {
+      ...quiet.host.data,
+      cpu: { ...quiet.host.data.cpu, state: "Stale", sampledAt: old },
+      memory: { ...quiet.host.data.memory, state: "Stale", sampledAt: old },
+      disk: { ...quiet.host.data.disk, state: "Stale", sampledAt: old },
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ...quiet, host: { ...quiet.host, data, sampledAt: old } })));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Serverns mätvärden: Mätningen är äldre än 2 minuter.");
+    expect(status).not.toHaveTextContent("fem minuter");
+    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
+  });
+  it("announces a kept Server reading that passes the API's limit, in the card's own words (#1982)", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const status = screen.getByRole("status");
+    // Only the Server crossed a limit in the second refresh: the other sources keep their five minutes.
+    expect(status).toHaveTextContent("Serverns mätvärden: Uppdateringen misslyckades. Senaste uppgiften visas. Mätningen är äldre än 2 minuter.");
+    expect(status).not.toHaveTextContent("Kontostatistik");
+    expect(status).not.toHaveTextContent("fem minuter");
+    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
+  });
 });

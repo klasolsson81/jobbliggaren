@@ -35,6 +35,10 @@ describe("formatBinaryBytes", () => {
     expect(formatBinaryBytes(sv, used, byteUnitFor(MEM_TOTAL_BYTES))).toEqual({ value: "2,4", unit: "GiB" });
   });
 
+  it("keeps one decimal on a whole number, so a pair reads in one precision", () => {
+    expect(formatBinaryBytes(sv, 8 * 1024 ** 3)).toEqual({ value: "8,0", unit: "GiB" });
+  });
+
   it("keeps a real zero as 0, not an empty value", () => {
     expect(formatBinaryBytes(sv, 0)).toEqual({ value: "0", unit: "B" });
   });

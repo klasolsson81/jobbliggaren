@@ -271,9 +271,9 @@ for (const width of [1280, 1920, 3440]) {
     await expect(server).toContainText("CPU");
     await expect(server).toContainText("23,4 %");
     await expect(server).toContainText("Snitt över 30 s");
-    await expect(server).toContainText("4,9 av 8 GiB");
-    await expect(server).toContainText("124 GiB ledigt av 200 GiB");
-    await expect(server).toContainText("Mätt");
+    await expect(server).toContainText("4,9 av 8,0 GiB");
+    await expect(server).toContainText("124,0 GiB ledigt av 200,0 GiB");
+    await expect(server).toContainText("Uppgift från");
     await expect(server).not.toContainText("Kommer snart");
     await expect(server).not.toContainText("äldre än");
     await verify(page, "server-measured");
@@ -281,16 +281,15 @@ for (const width of [1280, 1920, 3440]) {
 }
 
 for (const width of [1280, 3440]) {
-  test(`the Server card says which readings are not values, with the others standing, at ${width}px`, async ({ page }) => {
+  test(`the Server card says which readings are not measured here, with the disk standing, at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1200 });
     harness.overviewHost = "unmeasured";
     await page.goto("/admin");
     const server = card(page, "Server");
-    await expect(server).toContainText("Mäter…");
-    await expect(server).toContainText("Mäts inte i den här miljön");
-    await expect(server).toContainText("Mätningen misslyckades");
+    await expect(server.getByText("Mäts inte i den här miljön")).toHaveCount(2);
+    await expect(server).toContainText("38,0 %");
+    await expect(server).toContainText("124,0 GiB ledigt av 200,0 GiB");
     await expect(server).not.toContainText("Kommer snart");
-    await expect(server).not.toContainText("Mätt ");
     await expect(alerts(page)).toHaveCount(0);
     await verify(page, "server-unmeasured");
   });
@@ -333,7 +332,7 @@ test("a reading the sampler has not renewed keeps its value and its time and is 
   await page.goto("/admin");
   const server = card(page, "Server");
   await expect(server).toContainText("23,4 %");
-  await expect(server).toContainText("Mätningen är äldre än 2 min.");
+  await expect(server).toContainText("Mätningen är äldre än 2 minuter.");
   await verify(page, "server-stale");
 });
 

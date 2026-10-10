@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { serverRegion, toServerReading, type AdminHostReading, type AdminServerReading } from "@/lib/admin/host-observation";
+import {
+  formatStaleLimit, serverRegion, toServerReading, type AdminHostReading, type AdminServerReading,
+} from "@/lib/admin/host-observation";
 import type { OverviewObservation } from "@/lib/admin/overview";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
 import { byteUnitFor, formatBinaryBytes } from "@/lib/admin/format-bytes";
@@ -88,20 +90,21 @@ export function AdminServerBody({ region, refreshFailed = false }: {
             : missing(disk)}
         </Row>
       </dl>
-      {region.kind !== "loaded" ? (
-        <AdminRegionLine quiet kind={region.kind} />
-      ) : region.sampledAt ? (
+      {region.kind !== "loaded" ? <AdminRegionLine quiet kind={region.kind} /> : null}
+      {region.kind === "loaded" && region.sampledAt ? (
         <p className="jp-adminkpi__sub">
-          {t("sampledAt")} <time dateTime={region.sampledAt}>{formatDateTime(format, region.sampledAt)}</time>
+          {observed("sampledAt")} <time dateTime={region.sampledAt}>{formatDateTime(format, region.sampledAt)}</time>
+          {refreshFailed ? <><br />{observed("refreshFailed")}</> : null}
           {region.stale && server ? (
             <>
               <br />
-              {t("stale", { minutes: Math.round(server.staleAfterMs / 60_000) })}
+              {t("stale", { limit: formatStaleLimit(format, server.staleAfterMs / 1000) })}
             </>
           ) : null}
         </p>
+      ) : refreshFailed ? (
+        <p className="jp-adminkpi__sub">{observed("refreshFailed")}</p>
       ) : null}
-      {refreshFailed ? <p className="jp-adminkpi__sub">{observed("refreshFailed")}</p> : null}
     </div>
   );
 }

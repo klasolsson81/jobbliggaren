@@ -81,8 +81,8 @@ function backupAnswer(scenario: BackupScenario): unknown {
 
 /**
  * What the Server card's host read answers (#1982), as the API states it. The numbers are fictional (a 200 GiB disk,
- * 8 GiB of memory). `unmeasured` is the three states that are not values at once: the CPU's first window, a
- * deployment that cannot be measured, and a failed read.
+ * 8 GiB of memory). `unmeasured` is a /proc that does not describe the host: CPU and memory are not observable
+ * here and the disk, which does not depend on /proc, stands.
  */
 export type HostScenario = "measured" | "collecting" | "unmeasured" | "failedDisk" | "stale" | "idle" | "saturated";
 
@@ -100,11 +100,11 @@ function hostAnswer(scenario: HostScenario): unknown {
     : { percent: 38, freeBytes: 133_143_986_176, totalBytes: 214_748_364_800 };
   const cpu = { percent: scenario === "idle" ? 0 : scenario === "saturated" ? 100 : 23.4, windowSeconds: 30 };
   return {
-    readAt: at(0),
     staleAfterSeconds: 120,
-    cpu: scenario === "collecting" || scenario === "unmeasured" ? { state: "Collecting", ...none } : reading(cpu),
+    cpu: scenario === "collecting" ? { state: "Collecting", ...none }
+      : scenario === "unmeasured" ? { state: "NotObservable", ...none } : reading(cpu),
     memory: scenario === "unmeasured" ? { state: "NotObservable", ...none } : reading(memory),
-    disk: scenario === "unmeasured" || scenario === "failedDisk" ? { state: "Failed", ...none } : reading(disk),
+    disk: scenario === "failedDisk" ? { state: "Failed", ...none } : reading(disk),
   };
 }
 

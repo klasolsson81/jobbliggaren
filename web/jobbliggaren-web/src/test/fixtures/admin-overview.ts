@@ -32,7 +32,6 @@ export function backupFixture(): BackupObservationData {
 export function hostFixture(): HostObservationDto {
   const sampledAt = "2026-10-08T09:59:30Z";
   return {
-    readAt: OVERVIEW_TIME,
     staleAfterSeconds: 120,
     cpu: { state: "Available", sampledAt, value: { percent: 5, windowSeconds: 30 } },
     memory: { state: "Available", sampledAt, value: { percent: 29.4, usedBytes: 2_449_854_464, totalBytes: 8_331_255_808 } },

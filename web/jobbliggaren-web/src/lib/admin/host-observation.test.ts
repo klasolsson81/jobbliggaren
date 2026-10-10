@@ -12,7 +12,6 @@ const SAMPLED = "2026-10-10T12:00:00+00:00";
 const T0 = Date.parse(SAMPLED);
 
 const dto = (patch: Partial<HostObservationDto> = {}): HostObservationDto => ({
-  readAt: "2026-10-10T12:00:10Z",
   staleAfterSeconds: 120,
   cpu: { state: "Available", sampledAt: SAMPLED, value: { percent: 5, windowSeconds: 30 } },
   memory: { state: "Available", sampledAt: SAMPLED, value: { percent: 29.4, usedBytes: 2_449_854_464, totalBytes: 8_331_255_808 } },

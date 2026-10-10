@@ -14,8 +14,8 @@
 
 readonly OBSERVATIONS_DIR=/run/jobbliggaren/observations
 readonly OBSERVATION_SCHEMA=1
-# The bracket expression holds `]` first and `[` last on purpose: a backslash, a space, a control
-# character and every shell metacharacter fall outside it.
+# The bracket expression holds `]` first and `-` last so both are literal members. A backslash, a
+# space, a control character, a `$` and a backtick fall outside it.
 readonly OBSERVATION_BODY_ALPHABET='^[]A-Za-z0-9:,{}"._[-]+$'
 
 observe_log() { printf '%s\n' "$*" >&2; }
@@ -28,7 +28,7 @@ observe_iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
 #
 # <body> is built by the collector from regex-validated tokens and timestamps. The allowlist
 # below is the second line of defence: a backslash, a space or a control character cannot appear
-# in the body, so free text from systemd or the filesystem can never become JSON structure.
+# in the body.
 observe_publish() {
   local source="$1" body="$2" tmp
   [[ "$source" =~ ^[a-z]+$ ]] || { observe_log "REFUSING: '$source' is not a source name"; return 1; }

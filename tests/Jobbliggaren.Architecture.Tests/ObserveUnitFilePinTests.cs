@@ -193,6 +193,15 @@ public class ObserveUnitFilePinTests
     }
 
     [Fact]
+    public void TheCollectorsFailureToken_IsTheOneTheGoldenErrorFileCarries()
+    {
+        var call = Regex.Match(ReadText("jobbliggaren-observe-backup.sh"), @"^\s*observe_publish_error backup (\S+)", RegexOptions.Multiline);
+        call.Success.ShouldBeTrue("the collector no longer calls `observe_publish_error backup <token>`; this parse reads exactly that.");
+
+        ReadText("fixtures/observations/backup-error.json").ShouldContain($"\"error\":\"{call.Groups[1].Value}\"");
+    }
+
+    [Fact]
     public void Overdue_IsTheBackupScriptsOwnThreshold()
     {
         var expression = Regex.Match(

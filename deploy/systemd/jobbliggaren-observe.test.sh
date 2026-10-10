@@ -58,7 +58,7 @@ REAL_BASH=$(command -v bash)
 REAL_DATE=$(command -v date)
 readonly REAL_BASH REAL_DATE
 
-for util in bash env stat head mktemp mv chmod rm timeout; do
+for util in bash env stat head mktemp mv chmod rm timeout sleep; do
   path=$(command -v "$util" 2>/dev/null) || { echo "FIXTURE BROKEN: '$util' not found on this host" >&2; exit 1; }
   printf '#!/bin/sh\nexec %s "$@"\n' "'$path'" > "$BIN/$util"
   chmod +x "$BIN/$util"
@@ -92,7 +92,15 @@ case "${SYSTEMCTL_MODE:-active}" in
   zone)     printf 'NextElapseUSecRealtime=Sat 2026-10-10 15:49:41 CEST\nLoadState=loaded\nActiveState=active\n' ;;
   badstate) printf 'NextElapseUSecRealtime=\nLoadState=error\nActiveState=inactive\n' ;;
   injected) printf 'NextElapseUSecRealtime=Sat 2026-10-10 13:49:41 UTC","x":"y\nLoadState=loaded\nActiveState=active\n' ;;
-  hang)     sleep 30 ;;
+  # A real systemctl is one process; a TERM from `timeout` must end this stub the same way, so the
+  # sleep is a child it kills. Without that kill the stub answers `active` after 30 s, which would
+  # read as a scheduled timer instead of an unknown one.
+  hang)     trap 'kill "$pid" 2>/dev/null; exit 143' TERM
+            sleep 30 & pid=$!; wait "$pid"
+            printf 'NextElapseUSecRealtime=Sat 2026-10-10 13:49:41 UTC
+LoadState=loaded
+ActiveState=active
+' ;;
   fail)     echo "Failed to connect to bus" >&2; exit 1 ;;
   *) echo "systemctl stub: unknown mode" >&2; exit 64 ;;
 esac
@@ -249,8 +257,12 @@ declare -A TIMER_CASES=(
 )
 for mode in masked nonext garbage zone badstate injected fail hang; do
   reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; SYSTEMCTL_MODE="$mode"
+  SECONDS=0
   expect_published "systemctl mode '$mode'" \
     "$(head_of)"'"data":{'"$RECORDED"',"timer":'"${TIMER_CASES[$mode]}"'}}'
+  if [ "$mode" = hang ]; then
+    check "a systemctl that hangs is ended by the collector's own timeout, far inside TimeoutStartSec" test "$SECONDS" -lt 20
+  fi
 done
 
 reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; SYSTEMCTL_MODE=notfound
@@ -316,7 +328,16 @@ echo "== the library alone =="
 lib_call() {
   env -i PATH="$TMPROOT/runbin" HOME="$TMPROOT" "$REAL_BASH" -c 'source "$1"; shift; "$@"' _ "$SUT_DIR/jobbliggaren-observe-lib.sh" "$@" >"$TMPROOT/out" 2>&1
 }
-run_collector --omit systemctl || true   # leaves $TMPROOT/runbin populated for lib_call
+run_collector --omit systemctl || true   # leaves $TMPROOT/runbin populated for lib_call and the case below
+
+reset_world
+mkdir -p "$TMPROOT/nolib"; cp "$SUT_DIR/jobbliggaren-observe-backup.sh" "$TMPROOT/nolib/"
+got=0
+env -i PATH="$TMPROOT/runbin" HOME="$TMPROOT" CALLS="$CALLS" "$REAL_BASH" "$TMPROOT/nolib/jobbliggaren-observe-backup.sh" >"$TMPROOT/out" 2>&1 || got=$?
+guard_not_127 "$got" "a collector without its library"
+check "a collector whose library is missing still exits 0: the unit stays off --failed" test "$got" -eq 0
+check "…says why in the journal" grep -q "library could not be loaded" "$TMPROOT/out"
+check "…and publishes nothing" test -z "$(ls -A "$OBS_DIR")"
 
 reset_world
 lib_call observe_publish_error backup collector-failed || true

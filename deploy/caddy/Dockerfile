@@ -35,25 +35,30 @@ FROM caddy:2-builder-alpine AS build
 # --output writes to a path nothing else creates. The builder's own stock caddy sits at
 # /usr/bin/caddy, so producing there — or relying on the WORKDIR default, which is that
 # same directory — means a build that fails to produce a binary still yields a working
-# image built from the stock one, with all five advisories back. Writing to /out makes
+# image built from the stock one, with the advisories back. Writing to /out makes
 # that a hard COPY error.
 #
-# --with, not --replace: --with adds a require, which under MVS is a floor and can only
-# raise. --replace is a ceiling and would hold these versions down if caddy later required
-# newer ones.
+# --with, not --replace: --with adds a require. --replace is a ceiling and would hold these
+# versions down if caddy later required newer ones.
 #
-# The third entry names a PACKAGE, not the module root, and the asymmetry is deliberate.
-# Measured 2026-09-02: `--with golang.org/x/crypto@v0.55.0` fails the build with `cannot
-# find module providing package golang.org/x/crypto` — that root carries no .go files, so
-# the blank import xcaddy writes has nothing to bind. `go get` resolves a package to its
-# containing module and go.mod can only require modules, so the require written is still
-# `golang.org/x/crypto v0.55.0` and the floor above is preserved.
+# The x/crypto and x/net entries name a PACKAGE, not the module root, and the asymmetry is
+# deliberate. Measured 2026-09-02: `--with golang.org/x/crypto@v0.55.0` fails the build with
+# `cannot find module providing package golang.org/x/crypto` — that root carries no .go
+# files, so the blank import xcaddy writes has nothing to bind. The x/net root carries none
+# either. `go get` resolves a package to its containing module and go.mod can only require
+# modules, so the require written is still the module's.
+#
+# x/net is raised for CVE-2026-78669 (HIGH, an HTTP/2 SETTINGS denial of service), fixed in
+# v0.60.0. Measured 2026-10-10: this build otherwise resolves v0.58.0, and caddy v2.11.5 to
+# v2.11.7 still require v0.59.0, so a newer tag would not close it. v0.60.0 needs Go 1.26;
+# the builder image carried Go 1.27.2 on that date.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.83.2 \
-      --with golang.org/x/crypto/bcrypt@v0.55.0
+      --with golang.org/x/crypto/bcrypt@v0.55.0 \
+      --with golang.org/x/net/http2@v0.60.0
 
 FROM caddy:2-alpine AS runtime
 

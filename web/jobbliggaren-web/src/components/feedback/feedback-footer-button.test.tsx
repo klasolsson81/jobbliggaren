@@ -18,8 +18,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 const OPEN: FeedbackPromptState = { kind: "open", answered: [] };
-const OPEN_BUTTON = { name: "Lämna feedback om sidan" };
+const OPEN_BUTTON = { name: "Lämna feedback" };
+const DIALOG = { name: "Feedback om Jobbliggaren" };
+const GENERAL_QUESTION = { name: "Hur fungerar Jobbliggaren för dig?" };
+const PAGE_QUESTION = { name: "Hur fungerar sidan Jobb för dig?" };
 const COMMENT = { name: "Kommentar (valfri)" };
+const RECEIPT = "Tack. Din feedback är sparad.";
+
+const saved = () => new Response(JSON.stringify({ outcome: "saved" }), { status: 200 });
 
 function Footer({ state = OPEN, withRow = false }: { state?: FeedbackPromptState; withRow?: boolean }) {
   return (
@@ -38,33 +44,30 @@ describe("FeedbackFooterButton", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it.each(["/cv/ny", "/foretag", "/okand-sida"])("renders nothing on %s, which has no page key", (pathname) => {
-    nav.pathname = pathname;
-    render(<Footer />);
-    expect(screen.getByRole("list")).toBeEmptyDOMElement();
-  });
-
   it("renders nothing while feedback is closed", () => {
     render(<Footer state={{ kind: "closed" }} />);
     expect(screen.getByRole("list")).toBeEmptyDOMElement();
   });
 
-  it("is a button in its own list item, also once the page has been answered", () => {
-    render(<Footer state={{ kind: "open", answered: ["jobs"] }} />);
+  it("is a button in its own list item, also on a route without a page and once pages have been answered", () => {
+    nav.pathname = "/cv/ny";
+    render(<Footer state={{ kind: "open", answered: ["jobs", "cv"] }} />);
     const button = screen.getByRole("button", OPEN_BUTTON);
     expect(button.closest("li")).not.toBeNull();
-    expect(button).toHaveClass("jp-foot__linkbtn");
+    expect(button).toHaveClass("jp-foot__cta");
+    // The icon is decoration: the button is still named by its words alone.
+    expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("opens a dialog with the form, and Escape returns focus to the button", async () => {
+  it("opens a dialog for general feedback, and Escape returns focus to the button", async () => {
     render(<Footer />);
     const user = userEvent.setup();
     const button = screen.getByRole("button", OPEN_BUTTON);
 
     await user.click(button);
 
-    const dialog = screen.getByRole("dialog", { name: "Feedback om sidan" });
-    expect(within(dialog).getByRole("group", { name: "Hur fungerar den här sidan för dig?" })).toBeVisible();
+    const dialog = screen.getByRole("dialog", DIALOG);
+    expect(within(dialog).getByRole("group", GENERAL_QUESTION)).toBeVisible();
     // Comment-only feedback is allowed here: the fields are there before a star is chosen.
     expect(within(dialog).getByRole("textbox", COMMENT)).toBeVisible();
 
@@ -87,65 +90,72 @@ describe("FeedbackFooterButton", () => {
     expect(screen.getByRole("radio", { name: "2 av 5" })).toBeChecked();
   });
 
-  it("starts over when the page key changes, and keeps the draft between two routes of one key", async () => {
+  it("keeps one draft for the visit when the route changes", async () => {
     nav.pathname = "/mina-sidor/konto";
     const { rerender } = render(<Footer />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", OPEN_BUTTON));
-    await user.type(screen.getByRole("textbox", COMMENT), "Om kontot");
-    await user.keyboard("{Escape}");
-
-    nav.pathname = "/mina-sidor/notiser";
-    rerender(<Footer />);
-    await user.click(screen.getByRole("button", OPEN_BUTTON));
-    expect(screen.getByRole("textbox", COMMENT)).toHaveValue("Om kontot");
+    await user.type(screen.getByRole("textbox", COMMENT), "Om tjänsten");
     await user.keyboard("{Escape}");
 
     nav.pathname = "/jobb";
     rerender(<Footer />);
     await user.click(screen.getByRole("button", OPEN_BUTTON));
-    expect(screen.getByRole("textbox", COMMENT)).toHaveValue("");
+
+    expect(screen.getByRole("textbox", COMMENT)).toHaveValue("Om tjänsten");
   });
 
-  it("shows the receipt in the dialog, hides the page's untouched row, and opens empty next time", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ outcome: "saved" }), { status: 200 }));
-    render(<Footer withRow />);
+  it("sends as general feedback, shows the receipt in the dialog, and opens empty next time", async () => {
+    fetchMock.mockResolvedValue(saved());
+    render(<Footer />);
     const user = userEvent.setup();
-    expect(screen.getAllByRole("group", { name: "Hur fungerar den här sidan för dig?" })).toHaveLength(1);
 
     await user.click(screen.getByRole("button", OPEN_BUTTON));
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("dialog", DIALOG);
     await user.type(within(dialog).getByRole("textbox", COMMENT), "Bara text");
     await user.click(within(dialog).getByRole("button", { name: "Skicka feedback" }));
 
-    const receipt = await within(dialog).findByText("Tack. Din feedback är sparad.");
+    const receipt = await within(dialog).findByText(RECEIPT);
     await waitFor(() => expect(receipt).toHaveFocus());
-    expect(JSON.parse((fetchMock.mock.calls[0]![1]!.body as FormData).get("payload") as string)).toMatchObject({
-      page: "jobs",
-      comment: "Bara text",
-    });
+    const body = fetchMock.mock.calls[0]![1]!.body as FormData; // The form always posts a FormData body.
+    expect(JSON.parse(body.get("payload") as string)).toMatchObject({ page: "general", comment: "Bara text" });
 
     await user.keyboard("{Escape}");
-    // The inline row had no draft, so the answered page no longer asks.
-    expect(screen.queryByRole("group", { name: "Hur fungerar den här sidan för dig?" })).toBeNull();
-
     await user.click(screen.getByRole("button", OPEN_BUTTON));
     expect(screen.getByRole("textbox", COMMENT)).toHaveValue("");
   });
 
-  it("does not hide the page's row while that row holds a draft", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ outcome: "saved" }), { status: 200 }));
+  it("does not answer the page: its row still asks after general feedback is saved", async () => {
+    fetchMock.mockResolvedValue(saved());
     render(<Footer withRow />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("radio", { name: "4 av 5" }));
 
     await user.click(screen.getByRole("button", OPEN_BUTTON));
-    const dialog = screen.getByRole("dialog");
-    await user.type(within(dialog).getByRole("textbox", COMMENT), "Från sidfoten");
+    const dialog = screen.getByRole("dialog", DIALOG);
+    await user.type(within(dialog).getByRole("textbox", COMMENT), "Om tjänsten");
     await user.click(within(dialog).getByRole("button", { name: "Skicka feedback" }));
-    await within(dialog).findByText("Tack. Din feedback är sparad.");
+    await within(dialog).findByText(RECEIPT);
     await user.keyboard("{Escape}");
 
-    expect(screen.getByRole("radio", { name: "4 av 5" })).toBeChecked();
+    expect(screen.getByRole("group", PAGE_QUESTION)).toBeVisible();
+  });
+
+  it("keeps the page's row while it shows its confirmation", async () => {
+    fetchMock.mockImplementation(async () => saved());
+    render(<Footer withRow />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "4 av 5" }));
+    await screen.findByText("Tack för ditt betyg.");
+
+    await user.click(screen.getByRole("button", OPEN_BUTTON));
+    const dialog = screen.getByRole("dialog", DIALOG);
+    // The footer's draft is its own: the row's rating is not carried over.
+    expect(within(dialog).getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
+    await user.type(within(dialog).getByRole("textbox", COMMENT), "Från sidfoten");
+    await user.click(within(dialog).getByRole("button", { name: "Skicka feedback" }));
+    await within(dialog).findByText(RECEIPT);
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByText("Tack för ditt betyg.")).toBeVisible();
   });
 });

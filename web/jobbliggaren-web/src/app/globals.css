@@ -4991,12 +4991,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-transform: uppercase; letter-spacing: 0.1em; color: var(--jp-gold);
 }
 .jp-foot__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
-.jp-foot__links a, .jp-foot__links .jp-foot__linkbtn { color: #FFFFFF; text-decoration: none; font-size: var(--text-ui); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: var(--text-ui); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 /* Re-pin hover to literal white (15.39:1 on #0B2A1E). Without it the global
    `a:not(.jp-btn)`'s hover brand-green (globals.css, "G3 rotfix") bleeds through → green
    text on the green footer (same class as the 2026-06-10 green-on-green button
    fix). Mirrors `.jp-foot__legal a:hover`. */
-.jp-foot__links a:hover, .jp-foot__links .jp-foot__linkbtn:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+.jp-foot__links a:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__bar { border-top: 1px solid rgba(255, 255, 255, 0.20); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__bar-inner {
   max-width: 1200px; margin-inline: auto; padding: 22px 32px;

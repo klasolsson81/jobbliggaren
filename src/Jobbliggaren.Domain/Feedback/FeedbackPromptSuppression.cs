@@ -28,6 +28,8 @@ public sealed class FeedbackPromptSuppression : AggregateRoot<FeedbackPromptSupp
         ArgumentNullException.ThrowIfNull(page);
         if (jobSeekerId == default)
             throw new ArgumentException("A suppression belongs to a job seeker.", nameof(jobSeekerId));
+        if (!page.AsksOnAPage)
+            throw new ArgumentException("Only a page that asks can be suppressed.", nameof(page));
 
         return new FeedbackPromptSuppression(FeedbackPromptSuppressionId.New(), jobSeekerId, page);
     }

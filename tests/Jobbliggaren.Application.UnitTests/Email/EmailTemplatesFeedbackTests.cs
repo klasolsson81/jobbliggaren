@@ -22,7 +22,7 @@ public class EmailTemplatesFeedbackTests
             new FeedbackReceivedNotificationEmail(FeedbackPage.Matches, 2, new DateTimeOffset(2026, 10, 8, 12, 30, 0,
                 TimeSpan.Zero), FeedbackId));
 
-        mail.Subject.ShouldBe("Ny feedback: Matchningar");
+        mail.Subject.ShouldBe("Ny feedback: Mina matchningar");
         mail.PlainTextBody.ShouldContain("Betyg: 2 av 5");
         mail.PlainTextBody.ShouldContain("Tid: 2026-10-08 kl 14:30");
         mail.PlainTextBody.ShouldContain($"https://jobbliggaren.se/admin/feedback?id={FeedbackId:D}");

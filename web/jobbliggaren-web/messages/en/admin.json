@@ -372,27 +372,6 @@
       "value": "{rating} of 5",
       "none": "No rating"
     },
-    "pages": {
-      "overview": "Overview",
-      "jobs": "Jobs",
-      "job-ad": "Job ad",
-      "matches": "Matches",
-      "saved-ads": "Saved ads",
-      "saved-searches": "Searches",
-      "applications": "Applications",
-      "application": "Application",
-      "new-application": "New application",
-      "statistics": "Statistics",
-      "activity-report": "Activity report helper",
-      "followed-companies": "Followed companies",
-      "company-search": "Search companies",
-      "industry-watches": "Industry watches",
-      "application-history": "Application history",
-      "cv": "CV",
-      "cv-import": "Import CV",
-      "cv-review": "CV review",
-      "my-pages": "My pages"
-    },
     "detail": {
       "label": "Selected submission",
       "back": "All submissions",

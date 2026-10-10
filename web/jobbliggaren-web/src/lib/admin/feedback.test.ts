@@ -95,9 +95,9 @@ describe("feedbackHref (#1979)", () => {
 });
 
 describe("the fixed sets (#1979)", () => {
-  it("knows the backend's 19 page keys, and only those", () => {
-    expect(FEEDBACK_PAGE_KEYS).toHaveLength(19);
-    expect(new Set(FEEDBACK_PAGE_KEYS).size).toBe(19);
+  it("knows the backend's 20 page keys, and only those", () => {
+    expect(FEEDBACK_PAGE_KEYS).toHaveLength(20);
+    expect(new Set(FEEDBACK_PAGE_KEYS).size).toBe(20);
     expect(isFeedbackPageKey("my-pages")).toBe(true);
     expect(isFeedbackPageKey("My-pages")).toBe(false);
   });

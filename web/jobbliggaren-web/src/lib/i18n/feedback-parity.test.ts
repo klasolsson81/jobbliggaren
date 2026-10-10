@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import svFeedback from "../../../messages/sv/feedback.json";
 import enFeedback from "../../../messages/en/feedback.json";
+import { FEEDBACK_PAGE_KEYS } from "@/lib/feedback/page-keys";
 
 /**
  * sv/en parity for the `feedback` namespace (#1979 PR3). EN is a plain JSON import that tsc does not
@@ -28,6 +29,12 @@ describe("feedback i18n parity (sv ↔ en)", () => {
         expect(typeof value, path).toBe("string");
         expect((value as string).trim().length, path).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it("names every page key in both catalogues, and nothing else", () => {
+    for (const catalogue of [svFeedback, enFeedback]) {
+      expect(Object.keys(catalogue.pages).sort()).toEqual([...FEEDBACK_PAGE_KEYS].sort());
     }
   });
 

@@ -30,7 +30,7 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   sida: {
     verdict: "kept",
     reason:
-      "One of the 19 fixed page keys the backend collects feedback for (FEEDBACK_PAGE_KEYS). A " +
+      "One of the fixed page keys the backend collects feedback for (FEEDBACK_PAGE_KEYS). A " +
       "value outside that set is read as no filter and never written back.",
   },
   sidnr: {

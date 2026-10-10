@@ -70,7 +70,9 @@ public sealed class SubmitFeedbackCommandHandler(
         // without it). The inspector cannot tell the two indexes apart, so the re-read decides.
         for (var attempt = 1; ; attempt++)
         {
-            var suppression = await SuppressionForAsync(jobSeekerId, submission.Value.Page, cancellationToken);
+            var suppression = submission.Value.Page.AsksOnAPage
+                ? await SuppressionForAsync(jobSeekerId, submission.Value.Page, cancellationToken)
+                : null;
             db.FeedbackSubmissions.Add(submission.Value);
             db.FeedbackNotifications.Add(notification);
             if (screenshot is not null)

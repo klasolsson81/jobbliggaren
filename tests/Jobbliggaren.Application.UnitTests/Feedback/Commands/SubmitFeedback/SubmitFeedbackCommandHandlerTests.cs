@@ -333,6 +333,17 @@ public sealed class SubmitFeedbackCommandHandlerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Handle_GeneralFeedback_SavesWithoutASuppression()
+    {
+        await RegisterAsync(_userId);
+
+        var result = await Handler().Handle(Command(Guid.NewGuid(), "general", rating: 3), Ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        (await CountAsync()).ShouldBe((1, 1, 0));
+    }
+
+    [Fact]
     public async Task Handle_AKnownKey_ReplaysTheSameSubmissionWithoutWritingAgain()
     {
         await RegisterAsync(_userId);

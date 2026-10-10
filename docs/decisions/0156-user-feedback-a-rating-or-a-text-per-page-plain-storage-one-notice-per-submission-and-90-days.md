@@ -49,6 +49,7 @@ Nine decisions. Each names the code that carries it.
   a status (D8) and its timestamps.
 - **`FeedbackPage`** is a SmartEnum of 19 fixed keys, stored by name (`page_key`) and parsed by
   `FeedbackPage.TryFromKey`, so a page can only come from this list, never from a URL, a filter or an ad or CV id.
+  *(2026-10-09, after Klas's live test: a 20th key, `general`.)*
 - **`FeedbackNotification`** (`feedback_notifications`) is its own aggregate (2b: a different writer, lifecycle and
   invariants), created in the same save as its submission, one per submission (D5).
 - **`FeedbackPromptSuppression`** (`feedback_prompt_suppressions`) is one row per user and page, written in the save
@@ -233,6 +234,7 @@ privacy policy already names.
   either mapped to a key or exempt with its reason; `page-feedback-coverage.test.ts` holds that list equal to the
   page files and requires exactly one `<PageFeedback pageKey>` in each mapped page's content. Intercepted modals have
   none. The footer's "Lämna feedback om sidan" resolves the key from the route's pattern and opens the same form.
+  *(2026-10-09, after Klas's live test: the footer is general feedback.)*
 - **The prompt state is read once per full load.** `(app)/layout.tsx` reads `prompt-state` beside the session and a
   client provider holds it with the pages answered during the visit, in memory only. A failed read shows no surface.
   The row never disappears while it holds a draft, a request in flight or a receipt.
@@ -274,6 +276,20 @@ privacy policy already names.
   register carries the same entry. The box's label and the withdrawal hint under it are ADR 0144 row 20.
 - **Before the switch:** the installed backup script was read back with the screenshot data exclusion on
   2026-10-09 (session record); an image release installs no script.
+
+### After Klas's live test — 2026-10-09
+
+Klas tried the switched-on row and asked for less: *"Att trycka på en stjärna ska räknas som ett betyg direkt"*, the
+optional field *"krävs inte för att spara en stjärna... och det är för mycket brus"*, and after the star *"en
+bekräftelse ... Skicka gärna mer feedback ... men allt detta ska kunna stängas med ett kryss"*. So a star in the row
+submits a rating at once and the row becomes a confirmation with a close button; its "Lämna mer feedback" opens the
+dialog with the rating filled in, and the comment, the screenshot and the device-context box live only in
+that dialog. The stars fill up to the rating, DESIGN.md §7's scoped exception. The bullet above about a draft in the
+row now holds for the dialog; the row holds only a request in flight or its confirmation.
+
+The footer's link is no longer about a page (*"länken i footern borde inte ha någon sida, bara rent allmän
+feedback"*): it reads "Lämna feedback" on every `(app)` route and submits under a 20th key, `general`, which no route
+maps to and which therefore never hides a page's row. It is stored by name like the others, so no migration.
 
 ## Klas beviljanden (2026-10-07)
 

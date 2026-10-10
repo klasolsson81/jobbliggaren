@@ -2,8 +2,9 @@
  * The pages feedback is collected for (#1979, ADR 0156 D1), and which signed-in route belongs to which.
  *
  * The keys are the backend's closed set (`FeedbackPage`), in the app's own order. A rating category can
- * only come from this list: a page passes its key as a literal, and the footer resolves a key from the
- * route's pattern, so a filter, a query string or an ad or CV id never makes a key of its own.
+ * only come from this list: a page passes its key as a literal and the footer always sends `general`, so
+ * a filter, a query string or an ad or CV id never makes a key of its own. `general` is feedback on the
+ * service as a whole and belongs to no route.
  */
 export const FEEDBACK_PAGE_KEYS = [
   "overview",
@@ -25,9 +26,13 @@ export const FEEDBACK_PAGE_KEYS = [
   "cv-import",
   "cv-review",
   "my-pages",
+  "general",
 ] as const;
 
 export type FeedbackPageKey = (typeof FEEDBACK_PAGE_KEYS)[number];
+
+/** The keys a page carries: every key but `general`. */
+export type FeedbackRoutePageKey = Exclude<FeedbackPageKey, "general">;
 
 const PAGE_KEYS: ReadonlySet<string> = new Set(FEEDBACK_PAGE_KEYS);
 
@@ -41,7 +46,7 @@ export function isFeedbackPageKey(value: unknown): value is FeedbackPageKey {
  * equal to the page files on disk, so a new page cannot go unclassified.
  */
 export type FeedbackRoute =
-  | { readonly pattern: string; readonly key: FeedbackPageKey }
+  | { readonly pattern: string; readonly key: FeedbackRoutePageKey }
   | { readonly pattern: string; readonly exempt: string };
 
 export const FEEDBACK_ROUTES: ReadonlyArray<FeedbackRoute> = [
@@ -79,33 +84,3 @@ export const FEEDBACK_ROUTES: ReadonlyArray<FeedbackRoute> = [
   { pattern: "/mina-sidor/notiser", key: "my-pages" },
   { pattern: "/mina-sidor/sekretess", key: "my-pages" },
 ];
-
-const isDynamic = (segment: string) => segment.startsWith("[") && segment.endsWith("]");
-
-const segmentsOf = (path: string) => path.split("/").filter((segment) => segment.length > 0);
-
-/**
- * The page key for a pathname, or null when the path is exempt or not a mapped page. A static segment
- * beats a dynamic one, so `/cv/importera` is the import page and not the paused `/cv/[id]`.
- */
-export function feedbackPageKeyFor(pathname: string): FeedbackPageKey | null {
-  const path = segmentsOf(pathname);
-  let best: { route: FeedbackRoute; staticSegments: number } | null = null;
-  for (const route of FEEDBACK_ROUTES) {
-    const pattern = segmentsOf(route.pattern);
-    if (pattern.length !== path.length) continue;
-    let staticSegments = 0;
-    let matches = true;
-    for (let index = 0; index < pattern.length; index++) {
-      const segment = pattern[index]!;
-      if (isDynamic(segment)) continue;
-      if (segment !== path[index]) {
-        matches = false;
-        break;
-      }
-      staticSegments++;
-    }
-    if (matches && (best === null || staticSegments > best.staticSegments)) best = { route, staticSegments };
-  }
-  return best !== null && "key" in best.route ? best.route.key : null;
-}

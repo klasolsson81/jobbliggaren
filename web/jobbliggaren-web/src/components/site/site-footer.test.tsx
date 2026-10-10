@@ -178,7 +178,7 @@ describe("SiteFooter — the feedback slot (#1979 PR3)", () => {
     const items = supportItems();
     expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length);
     expect(items.map((item) => item.textContent)).toEqual(STATIC_SUPPORT_LINKS);
-    expect(screen.queryByRole("button", { name: "Lämna feedback om sidan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lämna feedback" })).toBeNull();
   });
 
   it("leaves no empty list item while feedback is closed", () => {
@@ -189,10 +189,12 @@ describe("SiteFooter — the feedback slot (#1979 PR3)", () => {
     expect(items.every((item) => item.textContent !== "")).toBe(true);
   });
 
-  it("leaves no empty list item on a route without a page key", () => {
+  it("renders the feedback button on a route without a page key too, since its feedback is general", () => {
     nav.pathname = "/cv/ny";
     render(signedInFooter({ kind: "open", answered: [] }));
-    expect(supportItems()).toHaveLength(STATIC_SUPPORT_LINKS.length);
+    const items = supportItems();
+    expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length + 1);
+    expect(within(items.at(-1)!).getByRole("button", { name: "Lämna feedback" })).toBeVisible();
   });
 
   it("renders the feedback button as the last item of the support column while feedback is open", () => {
@@ -200,7 +202,7 @@ describe("SiteFooter — the feedback slot (#1979 PR3)", () => {
     render(signedInFooter({ kind: "open", answered: [] }));
     const items = supportItems();
     expect(items).toHaveLength(STATIC_SUPPORT_LINKS.length + 1);
-    expect(within(items.at(-1)!).getByRole("button", { name: "Lämna feedback om sidan" })).toBeVisible();
+    expect(within(items.at(-1)!).getByRole("button", { name: "Lämna feedback" })).toBeVisible();
     // Only the support column carries it.
     for (const name of ["Kom igång", "Om Jobbliggaren", "Juridik"]) {
       expect(within(screen.getByRole("navigation", { name })).queryByRole("button")).toBeNull();

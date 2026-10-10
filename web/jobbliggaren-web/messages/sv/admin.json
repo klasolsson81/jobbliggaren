@@ -372,27 +372,6 @@
       "value": "{rating} av 5",
       "none": "Inget betyg"
     },
-    "pages": {
-      "overview": "Översikt",
-      "jobs": "Jobb",
-      "job-ad": "Jobbannons",
-      "matches": "Matchningar",
-      "saved-ads": "Sparade annonser",
-      "saved-searches": "Sökningar",
-      "applications": "Ansökningar",
-      "application": "Ansökan",
-      "new-application": "Ny ansökan",
-      "statistics": "Statistik",
-      "activity-report": "Aktivitetsrapport-hjälp",
-      "followed-companies": "Bevakade företag",
-      "company-search": "Sök företag",
-      "industry-watches": "Branschbevakningar",
-      "application-history": "Ansökningshistorik",
-      "cv": "CV",
-      "cv-import": "Importera CV",
-      "cv-review": "CV-granskning",
-      "my-pages": "Mina sidor"
-    },
     "detail": {
       "label": "Valt inskick",
       "back": "Alla inskick",

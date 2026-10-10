@@ -12,13 +12,17 @@ public class FeedbackPageTests
         "overview", "jobs", "job-ad", "matches", "saved-ads", "saved-searches",
         "applications", "application", "new-application", "statistics", "activity-report",
         "followed-companies", "company-search", "industry-watches", "application-history",
-        "cv", "cv-import", "cv-review", "my-pages",
+        "cv", "cv-import", "cv-review", "my-pages", "general",
     ];
 
     [Fact]
     public void List_IsExactlyThePinnedKeys()
         => FeedbackPage.List.Select(p => p.Name).Order(StringComparer.Ordinal)
             .ShouldBe(ExpectedKeys.Order(StringComparer.Ordinal));
+
+    [Fact]
+    public void AsksOnAPage_EveryKeyButGeneral()
+        => FeedbackPage.List.Where(p => !p.AsksOnAPage).ShouldBe([FeedbackPage.General]);
 
     [Theory]
     [InlineData("job-ad")]
@@ -35,7 +39,7 @@ public class FeedbackPageTests
     [InlineData("Job-Ad")]
     [InlineData("/jobb/123")]
     [InlineData("jobs?q=backend")]
-    [InlineData("general")]
+    [InlineData("settings")]
     public void TryFromKey_AnythingElse_IsRejected(string? key)
         => FeedbackPage.TryFromKey(key, out _).ShouldBeFalse();
 }

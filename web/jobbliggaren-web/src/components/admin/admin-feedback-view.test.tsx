@@ -104,7 +104,7 @@ describe("AdminFeedbackView — the list (#1979)", () => {
     const links = within(listRegion()).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([`${BASE}?id=${FIRST}`, `${BASE}?id=${SECOND}`]);
     expect(links[0]).toHaveTextContent(
-      "NyAnsökningar2 av 52026-10-04 07:12När jag sparar en ansökan visas den gamla statusen.Avisering: Misslyckades",
+      "NyMina ansökningar2 av 52026-10-04 07:12När jag sparar en ansökan visas den gamla statusen.Avisering: Misslyckades",
     );
     expect(links[1]).toHaveTextContent("AvstårJobbannonsInget betyg2026-10-02 11:03");
     expect(links[1]).not.toHaveTextContent("Avisering");
@@ -364,7 +364,7 @@ describe("AdminFeedbackView — the open submission (#1979)", () => {
     expect(within(detail()).getByText("När jag sparar en ansökan visas den gamla statusen.")).toBeInTheDocument();
     const facts = (term: string) => within(detail()).getByText(term, { selector: "dt" }).nextElementSibling;
     expect(facts("Avsändare")).toHaveTextContent("konto.b@example.test");
-    expect(facts("Sida")).toHaveTextContent("Ansökningar");
+    expect(facts("Sida")).toHaveTextContent("Mina ansökningar");
     expect(facts("Betyg")).toHaveTextContent("2 av 5");
     expect(facts("Skickat")).toHaveTextContent("2026-10-04 07:12");
     expect(within(detail()).queryByText("Status ändrad")).toBeNull();

@@ -55,10 +55,10 @@ internal static partial class EmailTemplates
             [FeedbackPage.Overview] = "Översikt",
             [FeedbackPage.Jobs] = "Jobb",
             [FeedbackPage.JobAd] = "Jobbannons",
-            [FeedbackPage.Matches] = "Matchningar",
+            [FeedbackPage.Matches] = "Mina matchningar",
             [FeedbackPage.SavedAds] = "Sparade annonser",
-            [FeedbackPage.SavedSearches] = "Sökningar",
-            [FeedbackPage.Applications] = "Ansökningar",
+            [FeedbackPage.SavedSearches] = "Senaste sökningar",
+            [FeedbackPage.Applications] = "Mina ansökningar",
             [FeedbackPage.Application] = "Ansökan",
             [FeedbackPage.NewApplication] = "Ny ansökan",
             [FeedbackPage.Statistics] = "Statistik",
@@ -71,5 +71,6 @@ internal static partial class EmailTemplates
             [FeedbackPage.CvImport] = "Importera CV",
             [FeedbackPage.CvReview] = "CV-granskning",
             [FeedbackPage.MyPages] = "Mina sidor",
+            [FeedbackPage.General] = "Allmän feedback",
         }.ToFrozenDictionary();
 }

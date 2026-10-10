@@ -81,10 +81,10 @@ Every reading carries its own state, so one failing reading never blanks the oth
 | `NotObservable` | The reading is built but this deployment cannot supply it: no procfs (Windows development) or an unverifiable host view. Never worded "Kommer snart", which says a capability is not built (ADR 0150 D2) | neither |
 | `Failed` | This tick could not produce a trustworthy value: a read, parse or plausibility failure, a counter reset, an invalid window, or no tick within `StaleAfterSeconds` | neither |
 
-- The response is `{ readAt, staleAfterSeconds, cpu, memory, disk }` with each reading
+- The response is `{ staleAfterSeconds, cpu, memory, disk }` with each reading
   `{ state, sampledAt, value }`; `value` is `{ percent, windowSeconds }`, `{ percent, usedBytes, totalBytes }`
   and `{ percent, freeBytes, totalBytes }`. **There is no reason, path, device name or free text.** Why a
-  reading is missing stays on the server, in tests and in edge-triggered log lines (event ids 6220–6224).
+  reading is missing stays on the server, in tests and in log lines (event ids 6220–6224).
 - `sampledAt` is the injected wall clock read **once per tick, after the reads**. `readAt` is the wall clock
   at the request, and the header `X-Admin-Sampled-At` carries it, like the other overview sources. They are
   different instants: a reading can be old although it was just read.

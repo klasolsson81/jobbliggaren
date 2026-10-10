@@ -82,13 +82,13 @@ Server card does not use the host bridge.
 - **Memory** is `MemTotal − MemAvailable`, never `MemFree`.
 - **Disk** is `df`'s arithmetic: `used = Size − TotalFree`, `free = Available`, `total = used + free`, so the total is
   not `df`'s Size and the meter and its two numbers share one denominator. The heartbeat's disk alarm reads `df`'s
-  `Use%`, so the card and the alarm cannot disagree about the same disk.
+  `Use%`.
 - **States** are the closed union Available, Stale, Collecting, NotObservable and Failed. A value and `sampledAt` exist
   only in Available and Stale; otherwise they are `null`, never 0. A failed tick does not carry the previous value
   forward as new. NotObservable means built, but this deployment cannot supply it (no procfs on a developer's Windows
   machine, or a `/proc` that does not describe the host); it is never "Kommer snart".
 - **The wire** carries states, instants and numbers only: no reason, path, device or free text. Why a reading is missing
-  stays in the snapshot, in edge-triggered logs and in tests.
+  stays in the snapshot, in logs and in tests.
 - **Percentages** are computed once, on the server. **Clocks:** `sampledAt` is the injected wall clock read once per
   tick after the reads, and `readAt` is the wall clock at the request. The header `X-Admin-Sampled-At` carries `readAt`,
   the API read instant; each reading's own `sampledAt` is in the body.

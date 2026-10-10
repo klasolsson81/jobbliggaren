@@ -338,4 +338,4 @@ This Amendment owns only the surface contract of the Server card. The mechanism 
   `unavailable` means not built, and only that is worded so.
 - For the host source, `X-Admin-Sampled-At` is the API's read instant. Each reading's own `sampledAt` is in the body.
 - This supersedes, for the Server card only, the sentence of the 2026-10-08 Amendment that "host/services ... remain
-  unavailable". Services and backup are untouched: they belong to other issues.
+  unavailable". Services and backup are untouched.

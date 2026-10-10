@@ -1201,6 +1201,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   z-index: 100;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   box-shadow: var(--jp-shadow-modal);
   animation: jp-slide-r 200ms ease;
 }
@@ -1240,6 +1241,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-left: 4px solid transparent;
 }
 .jp-drawer__item:hover { background: var(--jp-surface-3); }
+/* The drawer's last row, pinned to the bottom (#2047): Logga ut is a <button> in a form POST, so it
+   takes the link rows' box and drops the button chrome. margin-top:auto does nothing once the list
+   outgrows the panel, which is why .jp-drawer scrolls instead of clipping it. */
+.jp-drawer__foot {
+  margin-top: auto;
+  padding: 8px 6px;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-drawer__foot .jp-drawer__item {
+  width: 100%;
+  background: transparent;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .jp-drawer__item[aria-current="page"] {
   /* E2f: ink-text — accent-border-left bär plats-indikationen
      (samma mönster som .jp-nav__link[aria-current]). */

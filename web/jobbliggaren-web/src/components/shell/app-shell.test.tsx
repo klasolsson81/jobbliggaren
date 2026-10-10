@@ -183,6 +183,44 @@ describe("AppShell (v3 header-shell)", () => {
     expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
   });
 
+  // #2047: the popup behind the account icon is covered by the open drawer, so the drawer carries its own
+  // way out — the same native POST as the popup's, never a Server Action (#1956).
+  it("#2047 — mobil-drawern har Logga ut som formulär-POST till logout-routen, bara när den är öppen", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+    expect(screen.queryByRole("button", { name: "Logga ut" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Öppna meny" }));
+    const drawer = screen.getByRole("dialog", { name: "Meny" });
+    const logout = within(drawer).getByRole("button", { name: "Logga ut" });
+    expect(logout).toHaveAttribute("type", "submit");
+    const form = logout.closest("form");
+    expect(form).toHaveAttribute("action", LOGOUT_PATH);
+    expect(form).toHaveAttribute("method", "post");
+  });
+
+  it("#2047 — administratörens drawer har också Logga ut, och Tab-fällan stänger sig kring den", async () => {
+    pathnameMock.mockReturnValue("/admin/granskning");
+    const user = userEvent.setup();
+    render(<AppShell email="admin@example.test" isAdmin initialStats={STATS_FIXTURE}><p /></AppShell>);
+    await user.click(screen.getByRole("button", { name: "Öppna meny" }));
+    const drawer = screen.getByRole("dialog", { name: "Meny" });
+    expect(within(drawer).getByRole("link", { name: "Användare" })).toBeInTheDocument();
+    const logout = within(drawer).getByRole("button", { name: "Logga ut" });
+    expect(logout.closest("form")).toHaveAttribute("action", LOGOUT_PATH);
+
+    // It is the drawer's last focusable, so Tab from it must wrap to the first (Stäng), not leave the panel.
+    logout.focus();
+    await user.tab();
+    expect(within(drawer).getByRole("button", { name: "Stäng meny" })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(logout).toHaveFocus();
+  });
+
   // #1440 follow-up: a modified click opens the destination elsewhere and
   // leaves the user here, so the surface must not be dismissed. The predicate
   // and its matrix live in lib/nav/modified-click.ts -- these pin the

@@ -27,18 +27,24 @@ public sealed record CvCriterionVerdict
     /// <summary>The honest reason a criterion is NotAssessed (null for an assessed verdict).</summary>
     public string? NotAssessedReason { get; }
 
+    /// <summary>The class of <see cref="NotAssessedReason"/> (#2083), always set on a NotAssessed
+    /// verdict and null on an assessed one. It agrees with the reason sentence it travels with.</summary>
+    public NotAssessedKind? NotAssessedKind { get; }
+
     private CvCriterionVerdict(
         string criterionId,
         RubricCategory category,
         CriterionVerdict verdict,
         IReadOnlyList<CitedEvidence> evidence,
-        string? notAssessedReason)
+        string? notAssessedReason,
+        NotAssessedKind? notAssessedKind)
     {
         CriterionId = criterionId;
         Category = category;
         Verdict = verdict;
         Evidence = evidence;
         NotAssessedReason = notAssessedReason;
+        NotAssessedKind = notAssessedKind;
     }
 
     /// <summary>
@@ -72,20 +78,29 @@ public sealed record CvCriterionVerdict
                 nameof(evidence));
         }
 
-        return new CvCriterionVerdict(criterionId, category, verdict, evidence, notAssessedReason: null);
+        return new CvCriterionVerdict(
+            criterionId, category, verdict, evidence, notAssessedReason: null, notAssessedKind: null);
     }
 
     /// <summary>
-    /// A NotAssessed verdict carrying an honest structural reason and no evidence —
-    /// the only verdict permitted zero evidence (it asserts nothing, so it grounds nothing).
+    /// A NotAssessed verdict carrying an honest structural reason, its kind, and no evidence —
+    /// the only verdict permitted zero evidence (it asserts nothing, so it grounds nothing). The
+    /// kind is required, so a NotAssessed verdict without one cannot be constructed.
     /// </summary>
     public static CvCriterionVerdict NotAssessed(
         string criterionId,
         RubricCategory category,
+        NotAssessedKind kind,
         string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(criterionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        return new CvCriterionVerdict(criterionId, category, CriterionVerdict.NotAssessed, [], reason);
+        if (!Enum.IsDefined(kind))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "A NotAssessed verdict needs a defined NotAssessedKind.");
+        }
+
+        return new CvCriterionVerdict(criterionId, category, CriterionVerdict.NotAssessed, [], reason, kind);
     }
 }

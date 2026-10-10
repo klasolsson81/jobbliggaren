@@ -57,6 +57,13 @@ public sealed record CvReviewCategoryDto(
 /// canonical and the staging review (the staging panel renders no controls, but the
 /// field's meaning must not vary by path). Defaults false (fail-closed).
 /// </para>
+/// <para>
+/// <see cref="NotAssessedKind"/> (#2083) is the <c>NotAssessedKind</c> name of a NotAssessed
+/// verdict's reason, the code the UI groups and tags on; null on an assessed verdict.
+/// <see cref="PassCriterion"/> is the rubric's "Godkänns när" clause, set only on a Fail or
+/// Warn verdict: on any other row it would read as though the criterion had been assessed
+/// against it. Neither carries a default, so a construction site cannot drop them silently.
+/// </para>
 /// </summary>
 public sealed record CvCriterionVerdictDto(
     string CriterionId,
@@ -65,6 +72,8 @@ public sealed record CvCriterionVerdictDto(
     string Verdict,
     IReadOnlyList<CitedEvidenceDto> Evidence,
     string? NotAssessedReason,
+    string? NotAssessedKind,
+    string? PassCriterion,
     string? UserStatus = null,
     DateTimeOffset? UserStatusStaleAt = null,
     bool IsIgnorable = false);

@@ -14,12 +14,14 @@ public enum MatchNotificationKind
 }
 
 /// <summary>
-/// EN matchning i ett notis-mejl. ENBART icke-PII, namngivna fält: jobbtitel +
-/// företagsnamn (publika annons-fält) + grad-LABEL (svensk namngiven kategori,
-/// t.ex. "Toppmatch"/"Stark match" — ALDRIG en siffra/procent; Goodhart, ADR
-/// 0071/0080). Inget CV-innehåll, inga concept-ids, ingen mottagar-adress.
+/// EN matchning i ett notis-mejl. ENBART icke-PII, namngivna fält: annonsens interna id (en direkt-
+/// notis länkar <c>/jobb/{id}</c>, #2094 — id:t pekar på samma publika annons som titel och företag
+/// redan namnger) + jobbtitel + företagsnamn (publika annons-fält) + grad-LABEL (svensk namngiven
+/// kategori, t.ex. "Toppmatch"/"Stark match" — ALDRIG en siffra/procent; Goodhart, ADR 0071/0080).
+/// Inget CV-innehåll, inga concept-ids, ingen mottagar-adress.
 /// </summary>
 public sealed record MatchNotificationItem(
+    Guid JobAdId,
     string JobTitle,
     string CompanyName,
     string GradeLabel);

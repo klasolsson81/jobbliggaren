@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.Resumes.Review;
@@ -21,8 +22,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// </summary>
 public class A8PreambleHonestyTests
 {
-    private static CvReviewEngine Engine() => new(
-        RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) => new(
+        rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
         AllCorrectSpellChecker(), RealAllowlist(), RealCvConventionsProvider(), RealParsingLexicon());
 
     private const string UnheadedSummaryCv =
@@ -60,9 +61,9 @@ public class A8PreambleHonestyTests
         2016 - 2021
         """;
 
-    private static async Task<CvCriterionVerdict> A8Async(string cvText)
+    private static async Task<CvCriterionVerdict> A8Async(string cvText, IRubricProvider? rubric = null)
     {
-        var result = await Engine().ReviewAsync(
+        var result = await Engine(rubric).ReviewAsync(
             CvReviewContext.FromParsed(ResumeFromCvText(cvText)),
             RenderProfile.Ats,
             TestContext.Current.CancellationToken);
@@ -100,6 +101,33 @@ public class A8PreambleHonestyTests
         a8.NotAssessedReason.ShouldNotContain("betalbranschen");
         a8.NotAssessedReason.ShouldNotContain("driftsäkra");
         a8.Evidence.ShouldBeEmpty();
+    }
+
+    // #2083: the withdrawn verdict carries the rubric's pair. The text above the first heading IS
+    // in the CV, it just does not settle whether a profile is missing (CTO F4 → InsufficientData,
+    // so the UI shows the sentence the user can act on, never a bare tag).
+    private static string RubricA8Reason() =>
+        RealRubric().Criteria.Single(c => c.Id == "A8").NotAssessedReason!;
+
+    [Fact]
+    public async Task A8_UnheadedSummary_CarriesTheRubricPair_InsufficientData()
+    {
+        var a8 = await A8Async(UnheadedSummaryCv);
+
+        a8.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        a8.NotAssessedReason.ShouldBe(RubricA8Reason());
+    }
+
+    [Fact]
+    public async Task A8_UnheadedSummary_UsesItsOwnFallbackPair_WhenTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 carries A8's reason but no kind; the rubric
+        // reason is then never shown beside a guessed kind, the rule's own code pair is used whole.
+        var a8 = await A8Async(UnheadedSummaryCv, RubricPredatingNotAssessedKind());
+
+        a8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        a8.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        a8.NotAssessedReason.ShouldBe("Det går inte att avgöra om profiltext saknas.");
     }
 
     [Fact]
@@ -305,6 +333,16 @@ public class A8PreambleHonestyTests
         a8.NotAssessedReason.ShouldNotContain("betalbranschen");
         a8.NotAssessedReason.ShouldNotContain("driftsäkra");
         a8.Evidence.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task CanonicalA8_ImportOriginCvWithPreamble_CarriesTheRubricPair_InsufficientData()
+    {
+        var a8 = await CanonicalA8Async(
+            "Erfaren backend-utvecklare med tio år i betalbranschen. Jag bygger driftsäkra tjänster.");
+
+        a8.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        a8.NotAssessedReason.ShouldBe(RubricA8Reason());
     }
 
     /// <summary>

@@ -67,7 +67,8 @@ explicit CSRF token machinery on the backend before that change ships.
 Three layers, in order:
 
 1. **`SameSite=Strict`** — primary defense. Browsers will not send the
-   session cookie on any cross-site request, including top-level navigation.
+   session cookie on any cross-site request, including top-level navigation
+   (for a GET to a protected or admin page, narrowed by Amendment 2026-10-10).
 2. **Origin/Host header validation** — Server Actions validate this
    automatically. Route Handlers performing state-changing operations
    (POST/PUT/PATCH/DELETE) must call `assertSameOrigin(request)` helper.
@@ -245,3 +246,77 @@ session best-effort, deletes the cookie through `deleteSessionCookie` as before,
 `/logga-in`, so the browser follows with a GET.
 
 Additive amendment.
+
+## Amendment 2026-10-10 (#2094) — a link another site opened reaches the page it names
+
+The "Negative" consequence above says a page opened from an external link cannot see the session, and names a
+skeleton-and-`/api/me` mitigation that was never built. What ran instead: `proxy.ts` saw no cookie and sent the
+user to `/logga-in`, so every link in a notification mail, clicked in webmail, put a signed-in user on the login
+page.
+
+**The bounce.** Its one home is `web/jobbliggaren-web/src/lib/auth/strict-cookie-bounce.ts`, called first in
+`proxy.ts`. It answers a request with **all** of the following with `200` and the continuation document the OAuth
+callback already serves (`continuation-document.ts`):
+
+1. the path has a return path (`return-path.ts`): a protected `(app)` prefix, or under `/admin`;
+2. no session cookie arrived;
+3. the method is `GET`;
+4. `Sec-Fetch-Site: cross-site`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, and no prefetch purpose.
+
+The document's refresh starts on this origin, so the next request carries the cookie if the browser holds one; one
+that holds none meets the ordinary login redirect, `next` intact. Its target is the return path the login `next`
+would carry (the pathname, and on `/admin/feedback` its one validated id), never the request's own query, plus the
+marker `vidare=1`. A request that carries the marker is never bounced again, which stops the loop a sandboxed popup
+with an opaque origin would otherwise run in a browser that does not apply COOP; with the cookie it is sent on to the
+clean URL with a same-origin `307`.
+The marker is never written into `next`. Its edge-log verdict is `kept`: a constant `1`, written only by the proxy
+and read only for presence, carrying no input and naming no person
+(`strict-cookie-bounce-edge-log-inventory.test.ts`). The document carries `no-store`, exactly one
+`Referrer-Policy: no-referrer`, `noindex`, `Cross-Origin-Opener-Policy: same-origin`, no `Set-Cookie` and no
+subresource, and the global CSP with `frame-ancestors 'none'` still applies. The bounce calls no backend.
+
+**What it changes.** The cookie stays `SameSite=Strict`, so a subresource, a frame, a fetch and a POST still never
+carry it. But a top-level GET navigation that another site starts to one of those pages now reaches it signed in,
+as `Lax` would allow:
+
+- Layer 1's "including top-level navigation" no longer holds for a GET navigation to a protected or admin page.
+- For such a GET, layer 3 ("no state changes on GET") now carries the CSRF protection that layer 1 carried. **Any
+  new write at render under `(app)` or `(admin)` reopens this amendment.**
+- Public pages, `/api` (outside the proxy's matcher) and a browser that sends no Fetch Metadata keep the old
+  behaviour. Rule 3 itself is unchanged: the bounce writes nothing.
+
+**Accepted residuals.** None of these can be closed without also closing the mail click, which is itself a
+cross-site navigation.
+
+- **Writes at render** (measured 2026-10-10, `grep -rn "after(" "src/app/(app)" "src/app/(admin)" src/components`
+  in `web/jobbliggaren-web`). Another site that opens these pages in a top-level window can make the signed-in
+  user's own page do what opening it does:
+  - `/matchningar` marks the matches seen;
+  - `/jobb` marks the listed ads seen;
+  - `/jobb/{id}` marks a followed company's hit for that ad seen, and the other site chooses the ad by its id
+    (the modal route does the same, but is reached only from inside the app);
+  - `/foretag/bevakade/nya` consumes the set of new ads.
+
+  Each is an integrity effect on the user's own notices, not a disclosure. `(admin)` writes nothing at render. The
+  target drops the query, so a planted `/jobb?q=…&commit=true` recent search does not reach the page.
+- **Failed-access log lines.** Another site can open `/cv/{id}` or `/ansokningar/{id}` with an id the signed-in user
+  does not own, and the cross-user attempt is logged against that user (`IFailedAccessLogger`). Such a line is no
+  longer evidence of what the logged user meant to do.
+- **Whether the user is signed in.** The page the hop leads to now depends on the session. COOP `same-origin` on the
+  bounce, the window's first document, severs the opener's handle before that hop, so `window.length` and
+  navigation through the handle cannot read it. A browser without COOP, and timing, remain.
+- **A sandboxed popup gets a browser error.** A COOP other than `unsafe-none` turns the response into a network
+  error in a navigable with sandbox flags (HTML, "create navigation params by fetching"; Chrome shows
+  `ERR_BLOCKED_BY_RESPONSE`). A webmail that opens links in a sandboxed popup without
+  `allow-popups-to-escape-sandbox` therefore shows an error page where it showed the login page before. Gmail does
+  not sandbox the message body; no webmail that does was measured.
+- **Not measured on WebKit.** Safari's handling of the refresh hop is the same open residual as the OAuth callback's.
+- **Mail apps with a cookie jar of their own** (an in-app browser) never hold the session, so their users meet the
+  login page; the target survives it.
+
+**#1893, in the same change.** When `/auth/refresh` answers exactly `401` to a GET on a protected path, the proxy
+answers with the login redirect and its `next`, and clears the session and refresh-throttle cookies with their
+`__Host-` attributes. A `429`, a `503`, any other failure and every non-GET pass through as before. The threat
+model records the premise this rests on.
+
+Additive amendment, apart from layer 1's sentence, which is marked in place.

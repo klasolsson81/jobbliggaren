@@ -19,8 +19,7 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
         var bullets = ReviewText.ExperienceBullets(context);
         if (bullets.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "A1", category, ReviewText.NoBulletsReason(context, "mätbarhet"));
+            return ReviewText.NoBullets(context, "mätbarhet");
         }
 
         // A measurable result is a digit that is NOT an employment date — the date row itself
@@ -70,8 +69,7 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         var bullets = ReviewText.ExperienceBullets(context);
         if (bullets.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "A2", category, ReviewText.NoBulletsReason(context, "handlingsverb"));
+            return ReviewText.NoBullets(context, "handlingsverb");
         }
 
         // Strong-verb openers via the F4-2 NLP tier: reduce each mapping verb to its first
@@ -154,8 +152,7 @@ internal sealed class A4GapsRule : ICriterionRule
 
         if (dated.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "A4", category, "Perioderna kunde inte tolkas till datum. Tidsluckor bedöms ej v1.");
+            return ReviewText.UnparsedPeriods(context, "tidsluckor");
         }
 
         if (dated.Count == 1)
@@ -197,7 +194,7 @@ internal sealed class A4GapsRule : ICriterionRule
         if (gaps.Count > 0 && context.DatedExperiences.Any(d => !d.Parsed))
         {
             return CvCriterionVerdict.NotAssessed(
-                "A4", category,
+                "A4", category, NotAssessedKind.InsufficientData,
                 "Någon period kunde inte tolkas till datum, så tidsluckor kan inte bedömas säkert.");
         }
 
@@ -222,8 +219,7 @@ internal sealed class A6ConcretionRule : ICriterionRule
         var bullets = ReviewText.ExperienceBullets(context);
         if (bullets.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "A6", category, ReviewText.NoBulletsReason(context, "konkretion"));
+            return ReviewText.NoBullets(context, "konkretion");
         }
 
         // Pass/Fail ratio bounds are rubric v1.2 DATA (thresholds.passRatio "≥70 %" /
@@ -278,7 +274,7 @@ internal sealed class A7ClicheRule : ICriterionRule
         // CV-pivot 2026-07-16: an empty corpus is not a cliché-free corpus (see NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed("A7", category, ReviewText.NoProseReason("klyschorna"));
+            return ReviewText.NoProse(context, "klyschorna");
         }
 
         // A7 owns only the kind==Cliche entries (empty buzzword phrases); the soft-skill
@@ -343,9 +339,8 @@ internal sealed class A8ProfileRule : ICriterionRule
             // dense region of a CV, and a verdict's reason string is not a PII channel.
             if (!string.IsNullOrWhiteSpace(context.Content.Preamble))
             {
-                return CvCriterionVerdict.NotAssessed("A8", category,
-                    context.Criterion.NotAssessedReason
-                    ?? "Det går inte att avgöra om profiltext saknas.");
+                return context.NotAssessedFromRubric(
+                    NotAssessedKind.InsufficientData, "Det går inte att avgöra om profiltext saknas.");
             }
 
             // The preamble was fully accounted for (name, e-mail, phone, ort) or empty — the absence
@@ -413,8 +408,7 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
         // CV-pivot 2026-07-16: an empty corpus backs no soft-skill claim either way (NoProseReason).
         if (string.IsNullOrWhiteSpace(prose))
         {
-            return CvCriterionVerdict.NotAssessed(
-                "A9", category, ReviewText.NoProseReason("personlighetsadjektiven"));
+            return ReviewText.NoProse(context, "personlighetsadjektiven");
         }
 
         // A9's curated sub-list is the kind==SoftSkill entries only (bare personality adjectives) —

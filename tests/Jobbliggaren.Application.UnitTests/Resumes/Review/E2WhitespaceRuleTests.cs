@@ -21,15 +21,15 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// </summary>
 public class E2WhitespaceRuleTests
 {
-    private static CvReviewEngine Engine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+    private static CvReviewEngine Engine(IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(),
             RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> E2Async(CvLayoutMetrics? layout)
+    private static async Task<CvCriterionVerdict> E2Async(CvLayoutMetrics? layout, IRubricProvider? rubric = null)
     {
         // E2 is VisualOnly — it is only emitted in the Visual profile.
-        var result = await Engine().ReviewAsync(
+        var result = await Engine(rubric).ReviewAsync(
             CvReviewContext.FromParsed(Resume(layoutMetrics: layout)),
             RenderProfile.Visual, TestContext.Current.CancellationToken);
         return Verdict(result, "E2");
@@ -69,6 +69,7 @@ public class E2WhitespaceRuleTests
             "en rimlig marginal bevisar inte radavstånd/luft — ärligt tak, aldrig Pass.");
         e2.Verdict.ShouldNotBe(CriterionVerdict.Pass, "E2 rapporterar ALDRIG Pass (paritet B5).");
         e2.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheMarginsReadPair(e2);
     }
 
     [Fact]
@@ -79,6 +80,7 @@ public class E2WhitespaceRuleTests
 
         e2.Verdict.ShouldBe(CriterionVerdict.NotAssessed, "vid golvet är marginalen inte < golvet → inte Warn.");
         e2.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheMarginsReadPair(e2);
     }
 
     // ===============================================================
@@ -93,6 +95,7 @@ public class E2WhitespaceRuleTests
 
         e2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         e2.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheRubricTextOnlyPair(e2);
     }
 
     [Fact]
@@ -103,6 +106,7 @@ public class E2WhitespaceRuleTests
         e2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         e2.Evidence.ShouldBeEmpty();
         e2.NotAssessedReason.ShouldNotBeNullOrWhiteSpace();
+        AssertTheRubricTextOnlyPair(e2);
     }
 
     [Fact]
@@ -113,6 +117,37 @@ public class E2WhitespaceRuleTests
 
         e2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         e2.Verdict.ShouldNotBe(CriterionVerdict.Pass);
+        AssertTheRubricTextOnlyPair(e2);
+    }
+
+    [Fact]
+    public async Task E2_ShouldUseItsOwnFallbackPair_WhenNoMarginWasReadAndTheAssetPredatesTheKind()
+    {
+        // The shipped asset as it stood before #2083 (reason, no kind): the rubric reason is never
+        // shown beside a guessed kind, so E2's own no-margin code pair is used whole (CTO F2).
+        var e2 = await E2Async(layout: null, RubricPredatingNotAssessedKind());
+
+        e2.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        e2.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        e2.NotAssessedReason.ShouldBe("Marginalerna kunde inte läsas ur källfilen.");
+    }
+
+    // #2083 E2(a): no margin was read. The margin lives in the layout, not the text (CTO F4 →
+    // TextOnly), read as the rubric's pair whole.
+    private static void AssertTheRubricTextOnlyPair(CvCriterionVerdict e2)
+    {
+        var criterion = RealRubric().Criteria.Single(c => c.Id == "E2");
+        e2.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
+        e2.NotAssessedReason.ShouldBe(criterion.NotAssessedReason);
+    }
+
+    // #2083 E2(b): the margin WAS read and is fine; line and section spacing have no measurement
+    // yet (CTO F4 → NotInVersion), with E2's own bespoke sentence rather than the rubric's.
+    private static void AssertTheMarginsReadPair(CvCriterionVerdict e2)
+    {
+        e2.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
+        e2.NotAssessedReason.ShouldBe(
+            "Marginalerna ser rimliga ut. Radavstånd och luft mellan sektioner bedöms inte i den här versionen.");
     }
 
     // ===============================================================

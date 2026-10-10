@@ -55,7 +55,7 @@ public class ConsoleEmailSenderReservedRecipientTests
                 new MatchNotificationEmail(
                     MatchNotificationKind.Direct,
                     Cadence: null,
-                    Items: [new MatchNotificationItem(BodyProbe, "Acme AB", "Toppmatch")],
+                    Items: [new MatchNotificationItem(Guid.NewGuid(), BodyProbe, "Acme AB", "Toppmatch")],
                     TotalCount: 1),
                 CancellationToken.None),
             CarriesProbe: true),

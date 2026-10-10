@@ -111,7 +111,7 @@ public class ReviewTextSpanTests
             RealRubric().Version, RenderProfile.Ats,
             Categories: [], Verdicts: [verdict], CriticalFails: [], AssessedCount: 1, TotalCount: 1);
 
-        var dto = result.ToDto(new Dictionary<string, string>());
+        var dto = result.ToDto([]);
 
         var evidence = dto.Verdicts.ShouldHaveSingleItem().Evidence.ShouldHaveSingleItem();
         evidence.Kind.ShouldBe("TextSpan");

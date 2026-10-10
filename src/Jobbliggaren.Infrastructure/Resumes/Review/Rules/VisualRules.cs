@@ -28,8 +28,8 @@ internal sealed class E2WhitespaceRule : ICriterionRule
 
         if (context.Layout?.MinMarginPoints is not { } margin)
         {
-            return CvCriterionVerdict.NotAssessed("E2", category,
-                context.Criterion.NotAssessedReason ?? "Marginalerna kunde inte läsas ur källfilen.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "Marginalerna kunde inte läsas ur källfilen.");
         }
 
         // The cramped-margin floor (PDF points) is rubric v2.1 DATA (thresholds), read fail-loud.
@@ -51,7 +51,7 @@ internal sealed class E2WhitespaceRule : ICriterionRule
         // would be UNTRUE here — the geometry WAS read; the margin just does not settle the whole
         // criterion. An honest partial-assessment reason; a second rubric data key for one
         // criterion would be over-engineering.
-        return CvCriterionVerdict.NotAssessed("E2", category,
+        return CvCriterionVerdict.NotAssessed("E2", category, NotAssessedKind.NotInVersion,
             "Marginalerna ser rimliga ut. Radavstånd och luft mellan sektioner bedöms inte i den här versionen.");
     }
 }

@@ -267,7 +267,7 @@ public sealed partial class BackgroundMatchingJob(
                         && adPublicById.TryGetValue(jobAdId, out var ad))
                     {
                         topDispatch.Add((created.Value, new MatchNotificationItem(
-                            ad.Title, ad.Company, notifiable.ToSwedishLabel())));
+                            jobAdId.Value, ad.Title, ad.Company, notifiable.ToSwedishLabel())));
                     }
                 }
             }

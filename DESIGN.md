@@ -354,7 +354,8 @@ inför guldet och bär ingen sådan regel). Brand-signalen är den gröna
 
 ## 11.6 Fortsättningsdokumentet
 
-Sidan som en extern inloggning landar på (`web/jobbliggaren-web/src/lib/auth/continuation-document.ts`, ADR 0142 D8)
+Sidan som en extern inloggning landar på (`web/jobbliggaren-web/src/lib/auth/continuation-document.ts`, ADR 0142 D8),
+och som en länk från en annan webbplats studsar via (`strict-cookie-bounce.ts`, ADR 0018 Amendment 2026-10-10),
 får inte hämta något medan URL:en bär `code` och `state`, så den läser inte `globals.css`.
 
 1. **Färgerna är hex-literaler** i sidans enda `<style>`, var och en det ljusa temats värde av en namngiven token:

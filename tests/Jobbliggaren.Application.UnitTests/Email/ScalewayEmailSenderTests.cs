@@ -163,12 +163,14 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
     // ---------- fixtures, each mirroring a production call site ----------
 
+    private static readonly Guid SampleJobAdId = Guid.Parse("0b7f3c1e-5a2d-4e8f-9c61-2d4a8e7b3f10");
+
     /// <summary>BackgroundMatchingJob's top-direct shape: one Top item, TotalCount 1, no cadence.</summary>
     private static MatchNotificationEmail SampleMatchContent() =>
         new(
             MatchNotificationKind.Direct,
             Cadence: null,
-            Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
+            Items: [new MatchNotificationItem(SampleJobAdId, "Backend-utvecklare", "Acme AB", "Toppmatch")],
             TotalCount: 1);
 
     /// <summary>DigestDispatchJob's follow shape: public ad fields only, no grade, weekly cadence.</summary>
@@ -442,7 +444,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             Recipient, SampleMatchContent(), CancellationToken.None);
 
         SubjectSent().ShouldBe("Ny toppmatchning på Jobbliggaren");
-        TextSent().ShouldContain($"{_options.BaseUrl}/matchningar");
+        TextSent().ShouldContain($"{_options.BaseUrl}/jobb/{SampleJobAdId:D}");
         // GDPR Art. 7(3): the settings/unsubscribe link is mandatory in every notification mail.
         TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor/notiser");
         LoggedSurface().ShouldContain("EmailKind=match-notification");
@@ -457,7 +459,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             Recipient, SampleFollowContent(), CancellationToken.None);
 
         SubjectSent().ShouldBe("Nya annonser från företag du följer");
-        TextSent().ShouldContain($"{_options.BaseUrl}/jobb");
+        TextSent().ShouldContain($"{_options.BaseUrl}/foretag/bevakade/nya");
         TextSent().ShouldContain($"{_options.BaseUrl}/mina-sidor/notiser");
         LoggedSurface().ShouldContain("EmailKind=followed-company-notification");
     }

@@ -20,7 +20,7 @@ public class ConsoleAndNullEmailSenderMatchNotificationTests
         new(
             MatchNotificationKind.Direct,
             Cadence: null,
-            Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
+            Items: [new MatchNotificationItem(Guid.NewGuid(), "Backend-utvecklare", "Acme AB", "Toppmatch")],
             TotalCount: 1);
 
 

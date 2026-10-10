@@ -120,14 +120,14 @@ public class CvReviewEngineLayerTests
     }
 
     [Fact]
-    public void CvCriterionVerdict_carries_its_five_explainability_properties()
+    public void CvCriterionVerdict_carries_its_six_explainability_properties()
     {
-        // CriterionId, Category, Verdict, Evidence, NotAssessedReason — the cited-evidence
-        // contract (Inv.2). No numeric score property.
+        // CriterionId, Category, Verdict, Evidence, NotAssessedReason, NotAssessedKind — the
+        // cited-evidence contract (Inv.2) plus the reason's class (#2083). No numeric score property.
         PublicInstancePropNames(
             typeof(Jobbliggaren.Application.Resumes.Review.Abstractions.CvCriterionVerdict))
             .ShouldBe(
-                ["CriterionId", "Category", "Verdict", "Evidence", "NotAssessedReason"],
+                ["CriterionId", "Category", "Verdict", "Evidence", "NotAssessedReason", "NotAssessedKind"],
                 ignoreOrder: true);
     }
 

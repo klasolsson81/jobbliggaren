@@ -58,6 +58,22 @@ public enum CriterionAssessability
 }
 
 /// <summary>
+/// Why a criterion is NotAssessed, as a closed code the review UI groups and tags on (#2083) —
+/// never inferred from the reason's free text. Classified by where the deciding property lives:
+/// <see cref="TextOnly"/> outside the text (layout, geometry, the file itself);
+/// <see cref="InsufficientData"/> in the text, but what is there does not settle it;
+/// <see cref="NotInVersion"/> no measurement exists yet; <see cref="RequiresJobAd"/> it is
+/// judged against a job ad. The kind always agrees with the reason sentence it travels with.
+/// </summary>
+public enum NotAssessedKind
+{
+    TextOnly,
+    InsufficientData,
+    NotInVersion,
+    RequiresJobAd,
+}
+
+/// <summary>
 /// The score-band label a percentage falls into (research §2.7). English members;
 /// Swedish data tokens (<c>EjRedo/BehöverOmarbetning/Konkurrenskraftigt/Toppskikt</c>)
 /// mapped in the loader. The Swedish UI copy belongs to <c>messages/sv/</c>
@@ -139,7 +155,15 @@ public sealed record RubricCriterion(
     // cosmetic style criterion the user may Ignore; default FALSE = fail-closed (a
     // criterion missing the flag can never be silenced). The loader fails loud if a
     // styleOnly criterion appears in criticalFailIds.
-    bool StyleOnly = false)
+    bool StyleOnly = false,
+    // The class of NotAssessedReason, authored as a pair with it (#2083): the engine uses the
+    // rubric's reason only together with its kind. Null on an N-1 asset — no default kind is
+    // honest, since any default could contradict the reason it sits beside.
+    NotAssessedKind? NotAssessedKind = null,
+    // The user-facing "Godkänns när" clause (#2083): what this criterion's rule checks for Pass,
+    // with its real thresholds. Set exactly on the criteria whose rule can return Pass; shown
+    // only on a Fail/Warn verdict.
+    string? PassCriterion = null)
 {
     /// <summary>
     /// The named threshold this criterion's rule requires (CTO-bind D1): fail-loud on a

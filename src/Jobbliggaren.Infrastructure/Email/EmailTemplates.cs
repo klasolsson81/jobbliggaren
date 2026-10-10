@@ -73,11 +73,16 @@ internal static partial class EmailTemplates
         string baseUrl, MatchNotificationEmail content)
     {
         var trimmed = baseUrl.TrimEnd('/');
-        var matchesLink = $"{trimmed}/matchningar";
         var settingsLink = $"{trimmed}/mina-sidor/notiser";
 
         // A direct mail's one match is its first line; a digest leads with the count and lists the matches.
         var direct = content.Kind == MatchNotificationKind.Direct;
+
+        // A direct mail opens its one ad (#2094); a digest opens the list, and so does a direct mail that
+        // somehow carries more than one item, rather than picking one of them.
+        var (actionLink, actionLabel) = direct && content.Items.Count == 1
+            ? ($"{trimmed}/jobb/{content.Items[0].JobAdId:D}", "Öppna annonsen")
+            : ($"{trimmed}/matchningar", "Öppna dina matchningar");
 
         var items = new StringBuilder();
         var htmlItems = new List<string>();
@@ -105,8 +110,8 @@ internal static partial class EmailTemplates
             PlainTextBody: $"""
                 {lead}{items.ToString().TrimEnd()}
                 {andMore}
-                Öppna dina matchningar:
-                {matchesLink}
+                {actionLabel}:
+                {actionLink}
 
                 Du får detta för att du har slagit på matchningsnotiser. Du kan
                 ändra hur ofta du får dem, eller stänga av dem helt, i dina
@@ -125,7 +130,7 @@ internal static partial class EmailTemplates
                         ? htmlItems.Aggregate(Markup.Empty, (markup, line) => markup + EmailHtml.P(line))
                         : EmailHtml.P(intro) + EmailHtml.List(htmlItems))
                     + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
-                    + EmailHtml.Button(matchesLink, "Öppna dina matchningar")
+                    + EmailHtml.Button(actionLink, actionLabel)
                     + EmailHtml.LinkParagraph(
                         "Du får detta för att du har slagit på matchningsnotiser. Du kan ändra hur "
                         + "ofta du får dem, eller stänga av dem helt:",
@@ -164,7 +169,9 @@ internal static partial class EmailTemplates
         string baseUrl, FollowedCompanyNotificationEmail content)
     {
         var trimmed = baseUrl.TrimEnd('/');
-        var jobsLink = $"{trimmed}/jobb";
+        // The page of new ads from followed companies (#2094). `/jobb` was the whole market,
+        // and as a login `next` it resolves to /oversikt.
+        var newAdsLink = $"{trimmed}/foretag/bevakade/nya";
         var settingsLink = $"{trimmed}/mina-sidor/notiser";
         var companiesLink = $"{trimmed}/foretag";
 
@@ -196,7 +203,7 @@ internal static partial class EmailTemplates
                 {items.ToString().TrimEnd()}
                 {andMore}{filterDisclosure}
                 Öppna annonserna:
-                {jobsLink}
+                {newAdsLink}
 
                 Du får detta för att du har slagit på notiser för företag du följer.
                 Du kan ändra hur ofta du får dem, eller stänga av dem helt, i dina
@@ -216,7 +223,7 @@ internal static partial class EmailTemplates
                     // answers "why might something be missing"; the paragraph below answers "why am
                     // I getting this at all". Two questions, two places, never merged (RF-13=13B).
                     + BuildFilterDisclosureHtml(content.FilterSummary, companiesLink)
-                    + EmailHtml.Button(jobsLink, "Öppna annonserna")
+                    + EmailHtml.Button(newAdsLink, "Öppna annonserna")
                     + EmailHtml.LinkParagraph(
                         "Du får detta för att du har slagit på notiser för företag du följer. Du "
                         + "kan ändra hur ofta du får dem, eller stänga av dem helt:",

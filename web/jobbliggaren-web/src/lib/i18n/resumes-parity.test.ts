@@ -52,6 +52,12 @@ describe("resumes i18n-paritet (sv ↔ en)", () => {
       "guide.save.cta",
       // Discard-actionens felmeddelande.
       "actions.discardFailed",
+      // #2083: the ledger's pass clause label and the Ej bedömt reason groups.
+      "review.passCriterionLabel",
+      "review.notAssessedKind.TextOnly",
+      "review.notAssessedKind.InsufficientData",
+      "review.notAssessedKind.NotInVersion",
+      "review.notAssessedKind.RequiresJobAd",
     ];
     const sv = new Set(leafPaths(svResumes));
     const en = new Set(leafPaths(enResumes));

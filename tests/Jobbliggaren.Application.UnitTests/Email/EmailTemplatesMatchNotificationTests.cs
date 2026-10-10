@@ -21,10 +21,13 @@ public class EmailTemplatesMatchNotificationTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
+    private static readonly Guid AdId = Guid.Parse("0b7f3c1e-5a2d-4e8f-9c61-2d4a8e7b3f10");
+
     private static MatchNotificationItem Item(
         string title = "Backend-utvecklare",
         string company = "Acme AB",
-        string grade = "Toppmatch") => new(title, company, grade);
+        string grade = "Toppmatch",
+        Guid? jobAdId = null) => new(jobAdId ?? AdId, title, company, grade);
 
     private static MatchNotificationEmail Direct(
         params MatchNotificationItem[] items) =>
@@ -80,14 +83,43 @@ public class EmailTemplatesMatchNotificationTests
         email.PlainTextBody.ShouldNotContain("se//mina-sidor");
     }
 
-    // --- The /matchningar deep link ---
+    // --- The action link: a direct mail opens its ad, a digest the list (#2094) ---
 
     [Fact]
-    public void MatchNotification_ShouldContainMatchesLink_WhenRendered()
+    public void MatchNotification_ForADirectMatch_LinksItsAdInBothParts()
     {
         var email = EmailTemplates.MatchNotification(BaseUrl, Direct(Item()));
 
+        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .ShouldContain($"Öppna annonsen:\n{BaseUrl}/jobb/{AdId:D}");
+        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/jobb/{AdId:D}\"");
+        email.HtmlBody.ShouldContain(">Öppna annonsen<");
+        email.PlainTextBody.ShouldNotContain($"{BaseUrl}/matchningar");
+        email.HtmlBody.ShouldNotContain($"{BaseUrl}/matchningar");
+    }
+
+    [Fact]
+    public void MatchNotification_ForADigest_LinksTheMatchesList()
+    {
+        var email = EmailTemplates.MatchNotification(
+            BaseUrl, Digest(2, DigestCadence.Weekly, Item(), Item("Frontend", "Beta AB", "Stark match")));
+
         email.PlainTextBody.ShouldContain($"{BaseUrl}/matchningar");
+        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/matchningar\"");
+        email.HtmlBody.ShouldContain(">Öppna dina matchningar<");
+        email.HtmlBody.ShouldNotContain($"{BaseUrl}/jobb/");
+    }
+
+    [Fact]
+    public void MatchNotification_ForADirectMailWithMoreThanOneItem_FallsBackToTheMatchesList()
+    {
+        // BackgroundMatchingJob sends one match per direct mail; a contract that ever carries two gets the
+        // list rather than one of them chosen silently.
+        var email = EmailTemplates.MatchNotification(
+            BaseUrl, Direct(Item(), Item("Frontend", "Beta AB", jobAdId: Guid.NewGuid())));
+
+        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/matchningar\"");
+        email.HtmlBody.ShouldNotContain($"{BaseUrl}/jobb/");
     }
 
     [Fact]

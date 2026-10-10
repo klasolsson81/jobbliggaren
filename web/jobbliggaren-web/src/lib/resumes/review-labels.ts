@@ -1,6 +1,5 @@
 import type { PillTone } from "@/components/ui/status-pill";
 import type {
-  CriterionVerdict,
   RubricCategory,
   ScoreBandLabel,
   OverallConfidenceLevel,
@@ -24,13 +23,6 @@ export interface LabelWithTone {
   readonly label: string;
   readonly tone: PillTone;
 }
-
-const VERDICT_TONE: Record<CriterionVerdict, PillTone> = {
-  Pass: "success",
-  Warn: "warning",
-  Fail: "danger",
-  NotAssessed: "neutral",
-};
 
 const BAND_TONE: Record<ScoreBandLabel, PillTone> = {
   NotReady: "danger",
@@ -60,13 +52,6 @@ const SECTION_KINDS = [
   "Languages",
 ] as const;
 type SectionKind = (typeof SECTION_KINDS)[number];
-
-export function verdictLabel(
-  t: (key: `verdict.${CriterionVerdict}`) => string,
-  verdict: CriterionVerdict,
-): LabelWithTone {
-  return { label: t(`verdict.${verdict}`), tone: VERDICT_TONE[verdict] };
-}
 
 export function bandLabel(
   t: (key: `band.${ScoreBandLabel}`) => string,

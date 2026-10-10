@@ -289,7 +289,7 @@ or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch main
 code may select the main environment. Review PR code before approving its
 environment; new heads require new review.
 
-## Host facts the application reads (#1982, ADR 0157)
+## Host facts the host bridge carries (#1982, ADR 0157)
 
 One boundary runs from the box towards the API, and none the other way. A sandboxed host sampler
 (`jobbliggaren-observe.service`, account `jbl-observe`: no shell, no home, no groups, no access to

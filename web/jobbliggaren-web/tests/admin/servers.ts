@@ -79,6 +79,35 @@ function backupAnswer(scenario: BackupScenario): unknown {
   }
 }
 
+/**
+ * What the Server card's host read answers (#1982), as the API states it. The numbers are fictional (a 200 GiB disk,
+ * 8 GiB of memory). `unmeasured` is a /proc that does not describe the host: CPU and memory are not observable
+ * here and the disk, which does not depend on /proc, stands.
+ */
+export type HostScenario = "measured" | "collecting" | "unmeasured" | "failedDisk" | "stale" | "idle" | "saturated";
+
+function hostAnswer(scenario: HostScenario): unknown {
+  const at = (offset: number) => new Date(Date.now() + offset).toISOString();
+  const sampledAt = scenario === "stale" ? at(-5 * 60_000) : at(-20_000);
+  const state = scenario === "stale" ? "Stale" : "Available";
+  const none = { sampledAt: null, value: null };
+  const reading = (value: unknown) => ({ state, sampledAt, value });
+  const memory = scenario === "saturated"
+    ? { percent: 100, usedBytes: 8_589_934_592, totalBytes: 8_589_934_592 }
+    : { percent: 61.1, usedBytes: 5_244_620_800, totalBytes: 8_589_934_592 };
+  const disk = scenario === "saturated"
+    ? { percent: 99.9, freeBytes: 214_748_364, totalBytes: 214_748_364_800 }
+    : { percent: 38, freeBytes: 133_143_986_176, totalBytes: 214_748_364_800 };
+  const cpu = { percent: scenario === "idle" ? 0 : scenario === "saturated" ? 100 : 23.4, windowSeconds: 30 };
+  return {
+    staleAfterSeconds: 120,
+    cpu: scenario === "collecting" ? { state: "Collecting", ...none }
+      : scenario === "unmeasured" ? { state: "NotObservable", ...none } : reading(cpu),
+    memory: scenario === "unmeasured" ? { state: "NotObservable", ...none } : reading(memory),
+    disk: scenario === "failedDisk" ? { state: "Failed", ...none } : reading(disk),
+  };
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -90,8 +119,9 @@ export type Harness = {
   /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
   who: "admin" | "member" | "stale";
   mode: AdminMode;
-  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup", AdminMode>;
+  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host", AdminMode>;
   overviewBackup: BackupScenario;
+  overviewHost: HostScenario;
   overviewSampledAt: string | null;
   overviewEmpty: boolean;
   overviewDelayMs: number;
@@ -194,8 +224,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
-    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok" },
+    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok" },
     overviewBackup: "observed",
+    overviewHost: "measured",
     overviewSampledAt: new Date().toISOString(),
     overviewEmpty: false,
     overviewDelayMs: 0,
@@ -263,7 +294,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.who = "admin";
       harness.mode = "ok";
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
+      harness.overviewReads.host = "ok";
       harness.overviewBackup = "observed";
+      harness.overviewHost = "measured";
       harness.overviewSampledAt = new Date().toISOString();
       harness.overviewEmpty = false;
       harness.overviewDelayMs = 0;
@@ -335,6 +368,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => harness.overviewEmpty ? { ...FAILED_JOBS, items: [], totalCount: 0 } : FAILED_JOBS,
       "GET /api/v1/admin/overview/backup": () => backupAnswer(harness.overviewBackup),
+      "GET /api/v1/admin/overview/host": () => hostAnswer(harness.overviewHost),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -640,7 +674,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     if (answer !== undefined) {
       const source = route.endsWith("/overview/accounts") ? "accounts"
         : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs"
-        : route.endsWith("/overview/backup") ? "backup" : null;
+        : route.endsWith("/overview/backup") ? "backup"
+        : route.endsWith("/overview/host") ? "host" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);

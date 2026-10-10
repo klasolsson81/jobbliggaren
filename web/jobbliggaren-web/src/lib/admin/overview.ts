@@ -34,6 +34,7 @@ export function retainOverview(
     audit: retainObservation(previous.audit, next.audit),
     jobs: retainObservation(previous.jobs, next.jobs),
     backup: retainObservation(previous.backup, next.backup),
+    host: retainObservation(previous.host, next.host),
   };
 }
 

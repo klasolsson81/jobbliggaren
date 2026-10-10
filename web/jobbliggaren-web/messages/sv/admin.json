@@ -76,7 +76,16 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Minne",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Snitt över {seconds}\u00a0s",
+      "memoryUsed": "{used} av {total}\u00a0{unit}",
+      "diskFree": "{free}\u00a0{unit} ledigt av {total}\u00a0{unit}",
+      "stale": "Mätningen är äldre än {limit}.",
+      "state": {
+        "collecting": "Mäter…",
+        "notObservable": "Mäts inte i den här miljön",
+        "failed": "Mätningen misslyckades"
+      }
     },
     "backup": {
       "title": "Backup",
@@ -140,7 +149,8 @@
         "accounts": "Kontostatistik",
         "audit": "Granskningshändelser",
         "jobs": "Misslyckade bakgrundsjobb",
-        "backup": "Backup"
+        "backup": "Backup",
+        "host": "Serverns mätvärden"
       }
     },
     "registrationPeriods": {

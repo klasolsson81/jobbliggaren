@@ -13,6 +13,7 @@ import {
   type BackupObservationData,
   type BackupStatusResponse,
 } from "@/lib/dto/admin-overview";
+import { hostObservationSchema, type HostObservationDto } from "@/lib/dto/admin-host";
 import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
 
 const SOURCE_DEADLINE_MS = 10_000;
@@ -83,6 +84,20 @@ function backupObservation(result: ApiResult<Observed<BackupStatusResponse>>): A
 }
 
 /**
+ * The Server card's source. Like Backup's, its time is the host's own: the newest reading's `sampledAt`, never the
+ * time of this read (the generic header stamps the response, and an old sample must stay old however late it is
+ * read). When no reading has a value there is no sample to date and nothing to mistake for fresh, so the API
+ * read instant stands in. What crosses to the browser is the schema's output: states, instants and numbers.
+ */
+function hostObservation(result: ApiResult<Observed<HostObservationDto>>): OverviewObservation<HostObservationDto> {
+  if (result.kind !== "ok") return { kind: "failed" };
+  const host = result.data.data;
+  const times = [host.cpu, host.memory, host.disk].flatMap((reading) => (reading.sampledAt === null ? [] : [reading.sampledAt]));
+  const newest = times.length === 0 ? null : times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+  return { kind: "loaded", data: host, sampledAt: newest ?? result.data.sampledAt, refreshFailed: false };
+}
+
+/**
  * Resolves true as soon as one of the reads has succeeded, and false once every one has settled without a success.
  * `read` never rejects: a failure is a result.
  */
@@ -112,8 +127,9 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
   const gated = <T>(path: string, schema: z.ZodType<T>): Promise<ApiResult<Observed<T>>> =>
     authorized.then((proven) => (proven ? read(sessionId, path, schema, signal) : { kind: "error" as const }));
   const backupRead = gated("/api/v1/admin/overview/backup", backupStatusResponseSchema);
-  const [accounts, audit, jobs, backup] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead]);
-  for (const result of [accounts, audit, jobs, backup]) {
+  const hostRead = gated("/api/v1/admin/overview/host", hostObservationSchema);
+  const [accounts, audit, jobs, backup, host] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead]);
+  for (const result of [accounts, audit, jobs, backup, host]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };
   }
 
@@ -136,7 +152,7 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
 
   return {
     kind: "ok",
-    data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup) },
+    data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup), host: hostObservation(host) },
     loadedAt: Date.now(),
   };
 }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, cleanup } from "@testing-library/react";
 import { overviewSnapshotFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
+import type { HostObservationDto } from "@/lib/dto/admin-host";
 import { AdminOverviewLive } from "./admin-overview-live";
 
 const NOW = Date.parse(OVERVIEW_TIME);
@@ -19,6 +20,22 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.resto
 async function visibility(value: boolean) {
   hidden = value;
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+}
+/**
+ * The fixture with the host sampled just now. The sampler takes a new sample every 30 s, so in a test that advances
+ * the clock a reply carrying the fixture's fixed sample time would be a sampler that has stopped.
+ */
+function sampledNow(snapshot: ReturnType<typeof overviewSnapshotFixture>) {
+  const sampledAt = new Date(Date.now()).toISOString();
+  const host = snapshot.host.kind === "loaded" ? snapshot.host : null;
+  if (!host) return snapshot;
+  const data: HostObservationDto = {
+    ...host.data,
+    cpu: { ...host.data.cpu, sampledAt },
+    memory: { ...host.data.memory, sampledAt },
+    disk: { ...host.data.disk, sampledAt },
+  };
+  return { ...snapshot, host: { ...host, data, sampledAt } };
 }
 function show() { return render(<AdminOverviewLive initial={overviewSnapshotFixture()} initialNow={NOW} />); }
 
@@ -68,8 +85,8 @@ describe("admin overview visible refresh", () => {
     expect(signals[1]?.aborted).toBe(true);
   });
   it("announces a partial refresh failure once and its recovery through one polite status region", async () => {
-    const partial = { ...overviewSnapshotFixture(), audit: { kind: "failed" } };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial)));
+    const partial = () => ({ ...sampledNow(overviewSnapshotFixture()), audit: { kind: "failed" } });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial())));
     show();
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     const status = screen.getByRole("status");
@@ -83,11 +100,11 @@ describe("admin overview visible refresh", () => {
     const mutations: MutationRecord[] = [];
     const observer = new MutationObserver((records) => mutations.push(...records));
     observer.observe(status, { childList: true, characterData: true, subtree: true });
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial)));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(partial())));
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(mutations).toEqual([]);
 
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(overviewSnapshotFixture())));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(sampledNow(overviewSnapshotFixture()))));
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(status).toHaveTextContent("Granskningshändelser: Uppgifterna är aktuella.");
     expect(mutations.length).toBeGreaterThan(0);
@@ -136,5 +153,38 @@ describe("admin overview visible refresh", () => {
     expect(status.textContent?.match(/Granskningshändelser/g)).toHaveLength(1);
     expect(status.textContent?.match(/Misslyckade bakgrundsjobb/g)).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Användare totalt" })).toHaveTextContent("12");
+  });
+  it("announces the Server's age in its own words when the sampler goes quiet (#1982)", async () => {
+    // The actor: the sampler stopping, so the API answers Stale with the readings' own, old, sample time.
+    const old = new Date(NOW - 120_000).toISOString();
+    const quiet = overviewSnapshotFixture();
+    if (quiet.host.kind !== "loaded") throw new Error("Expected a loaded host");
+    const data: HostObservationDto = {
+      ...quiet.host.data,
+      cpu: { ...quiet.host.data.cpu, state: "Stale", sampledAt: old },
+      memory: { ...quiet.host.data.memory, state: "Stale", sampledAt: old },
+      disk: { ...quiet.host.data.disk, state: "Stale", sampledAt: old },
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ...quiet, host: { ...quiet.host, data, sampledAt: old } })));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Serverns mätvärden: Mätningen är äldre än 2 minuter.");
+    expect(status).not.toHaveTextContent("fem minuter");
+    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
+  });
+  it("announces a kept Server reading that passes the API's limit, in the card's own words (#1982)", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const status = screen.getByRole("status");
+    // Only the Server crossed a limit in the second refresh: the other sources keep their five minutes.
+    expect(status).toHaveTextContent("Serverns mätvärden: Uppdateringen misslyckades. Senaste uppgiften visas. Mätningen är äldre än 2 minuter.");
+    expect(status).not.toHaveTextContent("Kontostatistik");
+    expect(status).not.toHaveTextContent("fem minuter");
+    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
   });
 });

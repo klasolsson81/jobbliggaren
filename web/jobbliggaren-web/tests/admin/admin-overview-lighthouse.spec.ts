@@ -55,7 +55,7 @@ test("overview and registration directory meet local Lighthouse budgets", async 
       await control.goto("about:blank");
       const requiredReads = path === "/admin"
         ? ["GET /api/v1/admin/overview/accounts", "GET /api/v1/admin/audit-log", "GET /api/v1/admin/jobs/failed",
-          "GET /api/v1/admin/overview/backup"]
+          "GET /api/v1/admin/overview/backup", "GET /api/v1/admin/overview/host"]
         : ["POST /api/v1/admin/accounts/search"];
       const reports: Report[] = [];
       for (let run = 0; run < 3; run++) {

@@ -22,6 +22,7 @@ import type {
 } from "@/lib/admin/view-models";
 import { listRegion } from "@/lib/admin/view-models";
 import { commandRefusal, type AdminFeedbackQuery, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
+import { serverRegion, type AdminServerReading } from "@/lib/admin/host-observation";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
@@ -41,6 +42,18 @@ function value<T>(kind: AdminRegionKind, loaded: T, zero: T): AdminValueRegion<T
       return { kind, data: loaded };
     case "empty":
       return { kind: "loaded", data: zero };
+    default:
+      return { kind };
+  }
+}
+
+/** The Server region in the band's state: "Tom" shows the zero reading, which here is three unmeasured ones. */
+function serverValue(kind: AdminRegionKind, loaded: AdminServerReading, zero: AdminServerReading): AdminValueRegion<AdminServerReading> {
+  switch (kind) {
+    case "loaded":
+      return serverRegion(loaded);
+    case "empty":
+      return serverRegion(zero);
     default:
       return { kind };
   }
@@ -71,7 +84,7 @@ export function PreviewOverview({
         logins: value(kind, data.logins, zero.logins),
         trend: value(kind, data.trend, zero.trend),
         services: list(kind, data.services),
-        server: value(kind, data.server, zero.server),
+        server: serverValue(kind, data.server, zero.server),
         backup: value(kind, data.backup, zero.backup),
         email: value(kind, data.email, zero.email),
         attention: list(kind, data.attention),

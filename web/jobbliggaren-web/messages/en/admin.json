@@ -76,7 +76,16 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Memory",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Average over {seconds}\u00a0s",
+      "memoryUsed": "{used} of {total}\u00a0{unit}",
+      "diskFree": "{free}\u00a0{unit} free of {total}\u00a0{unit}",
+      "stale": "The reading is older than {limit}.",
+      "state": {
+        "collecting": "Measuring…",
+        "notObservable": "Not measured in this environment",
+        "failed": "The measurement failed"
+      }
     },
     "backup": {
       "title": "Backup",
@@ -140,7 +149,8 @@
         "accounts": "Account statistics",
         "audit": "Audit events",
         "jobs": "Failed background jobs",
-        "backup": "Backup"
+        "backup": "Backup",
+        "host": "Server readings"
       }
     },
     "registrationPeriods": {

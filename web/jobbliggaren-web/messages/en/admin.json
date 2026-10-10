@@ -138,7 +138,8 @@
       "noPendingDeletions": "No accounts pending deletion.",
       "emailUnknown": "Email failures cannot be assessed yet.",
       "jobsSource": "Failed background jobs",
-      "deletionsSource": "Pending deletions"
+      "deletionsSource": "Pending deletions",
+      "sourceState": "{source}: {state}"
     },
     "events": {
       "title": "Recent events",

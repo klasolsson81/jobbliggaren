@@ -27,7 +27,9 @@ import {
 } from "@/lib/admin/view-models";
 import { accountsHref, OVERVIEW_STALE_MS, type AdminOverviewSnapshot, type AwaitingObservation } from "@/lib/admin/overview";
 import type { RegistrationPeriod } from "@/lib/dto/admin-overview";
+import { backupOrServicesRaised } from "@/lib/admin/attention";
 import { AdminObservationNote } from "./admin-observation-note";
+import { BackupAttentionLines, ServicesAttentionLines } from "./admin-attention-sources";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
@@ -460,7 +462,7 @@ function AccountStatusLinks({ basePath, counts }: {
 function overviewAttentionState(snapshot: AdminOverviewSnapshot): "unknown" | "raised" {
   const pending = snapshot.accounts.kind === "loaded" && snapshot.accounts.data.counts.pendingDeletion > 0;
   const failed = snapshot.jobs.kind === "loaded" && snapshot.jobs.data.totalCount > 0;
-  return pending || failed ? "raised" : "unknown";
+  return pending || failed || backupOrServicesRaised(snapshot.backup, snapshot.services) ? "raised" : "unknown";
 }
 
 function ObservedAttention({ observations, now, basePath }: {
@@ -469,7 +471,7 @@ function ObservedAttention({ observations, now, basePath }: {
   readonly basePath: string;
 }) {
   const t = useTranslations("admin.overview.attention");
-  const { accounts, jobs } = observations;
+  const { accounts, jobs, backup, services } = observations;
   return <div className="jp-admincard__body">
     {jobs.kind === "loaded" || jobs.kind === "empty" ? <p>{jobs.data.totalCount > 0
       ? <Link href={`${basePath}/jobb#failed-jobs`} className="jp-adminoverview__link">{t("failedJobs", { count: jobs.data.totalCount })}</Link>
@@ -479,6 +481,8 @@ function ObservedAttention({ observations, now, basePath }: {
       ? <Link href={accountsHref(basePath, undefined, "PendingDeletion")} className="jp-adminoverview__link">{t("pendingDeletions", { count: accounts.data.counts.pendingDeletion })}</Link>
       : t("noPendingDeletions")}</p> : <div><p>{t("deletionsSource")}</p><AdminRegionLine kind={accounts.kind} quiet /></div>}
     <AdminObservationNote observation={accounts} now={now} />
+    <BackupAttentionLines observation={backup} />
+    <ServicesAttentionLines observation={services} />
     <p>{t("emailUnknown")}</p>
   </div>;
 }

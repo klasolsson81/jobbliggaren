@@ -138,7 +138,8 @@
       "noPendingDeletions": "Inga konton väntar på radering.",
       "emailUnknown": "E-postfel kan ännu inte bedömas.",
       "jobsSource": "Misslyckade bakgrundsjobb",
-      "deletionsSource": "Väntande raderingar"
+      "deletionsSource": "Väntande raderingar",
+      "sourceState": "{source}: {state}"
     },
     "events": {
       "title": "Senaste händelser",

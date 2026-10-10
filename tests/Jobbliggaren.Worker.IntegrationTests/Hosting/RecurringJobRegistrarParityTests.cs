@@ -1,4 +1,5 @@
 using Hangfire;
+using Jobbliggaren.Application.Admin.ServiceObservations;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
@@ -105,6 +106,32 @@ public class RecurringJobRegistrarParityTests
         ((string)call.GetArguments()[2]!).ShouldBe("*/7 * * * *",
             "svepet måste få SweepCron, aldrig CadenceCron — annars är klausul (ii) tillbaka på "
             + "ett dygns latens");
+    }
+
+    [Fact]
+    public async Task StartAsync_TheStreamImportRunsEveryTenMinutes_SoTheCardsOverdueLimitMeansTwoMissedRunsAndFive()
+    {
+        // #1982 (ADR 0159). The admin services card calls the import row overdue after 25 minutes, which is two
+        // missed runs of this cron plus five minutes. The limit lives in Application and the cron here, and nothing
+        // else ties them: a cron moved to */20 would leave the card calling a healthy import overdue for ever.
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.SyncPlatsbankenStream);
+        var cron = (string)call.GetArguments()[2]!;
+
+        cron.ShouldBe("*/10 * * * *");
+        var cadence = TimeSpan.FromMinutes(int.Parse(cron.Split(' ')[0].Replace("*/", "", StringComparison.Ordinal), System.Globalization.CultureInfo.InvariantCulture));
+        ServiceObservationLimits.ImportOverdueAfter.ShouldBe((2 * cadence) + TimeSpan.FromMinutes(5));
     }
 
     [Fact]

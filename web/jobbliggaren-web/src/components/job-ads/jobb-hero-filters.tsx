@@ -84,7 +84,7 @@ interface JobbHeroFiltersProps {
   hasSeeker: boolean;
   /** The search text, carried so a filter click keeps it. */
   q: string;
-  /** The employer filter. It is edited only in the toolbar; here it is carried along. */
+  /** The employer filter; here it is carried along. */
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
@@ -372,7 +372,7 @@ export function JobbHeroFilters({
   // Per-option counts are fetched, debounced, only while their popover or panel is
   // open (ADR 0067 Beslut 4). The place popover needs two dimensions, municipality
   // rows and whole-region rows. The backend leaves out the dimension being counted
-  // (for place, the whole place dimension), so every other filter belongs here.
+  // (for place, the whole place dimension).
   // Remote work matters for the occupation and panel counts: without it, a search
   // with only remote work selected would count the whole corpus.
   const facetFilter = {

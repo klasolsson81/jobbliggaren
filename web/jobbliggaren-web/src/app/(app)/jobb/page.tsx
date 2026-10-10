@@ -34,10 +34,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("jobb.meta.title") };
 }
 
-// Next.js delivers a repeated query parameter as an array, so every key that can
-// repeat is typed `string | string[]`. The multi-value filters are written as one
-// joined parameter (ADR 0042 Beslut B); `toStringList` still reads the older
-// repeated form, so bookmarked links keep working.
+// Next.js delivers a repeated query parameter as an array. The multi-value filters
+// are written as one joined parameter (ADR 0042 Beslut B); `toStringList` still
+// reads the older repeated form, so bookmarked links keep working.
 // occupationGroup is the SSYK level-4 occupation group. The backend combines
 // region and municipality into one place filter.
 type JobbSearchParams = {
@@ -48,7 +47,7 @@ type JobbSearchParams = {
   region?: string | string[];
   municipality?: string | string[];
   // Each toggle below reacts only to its exact value; any other value is treated
-  // as absent. `?distans=on` keeps remote jobs only.
+  // as absent.
   distans?: string;
   employmentType?: string | string[];
   worktimeExtent?: string | string[];
@@ -106,7 +105,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const occupationGroup = toStringList(params.occupationGroup);
   const region = toStringList(params.region);
   const municipality = toStringList(params.municipality);
-  // Working hours is a single choice in the UI, so its list holds at most one value.
   const employmentType = toStringList(params.employmentType);
   const worktimeExtent = toStringList(params.worktimeExtent);
   // Only the grades the list can filter on are kept: unknown values and Top are

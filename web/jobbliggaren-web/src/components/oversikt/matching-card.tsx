@@ -6,7 +6,7 @@ import type { SetupState } from "@/lib/onboarding/setup-state";
 
 interface MatchingCardProps {
   /**
-   * ADR 0079 STEG 6 — the live match count (Bra + Stark). `number` = the backend's answer, 0
+   * ADR 0079 STEG 6 — the live match count. `number` = the backend's answer, 0
    * included (an honest zero); `null` = the read degraded (network, auth, rate limit) ⇒ an
    * en-dash and no CTA, never a fabricated number.
    */

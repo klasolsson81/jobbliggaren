@@ -88,8 +88,8 @@ interface JobbHeroSearchProps {
   sortBy: JobAdSortBy;
   pageSize?: string;
   // Whether the URL this page loaded with carried `?commit=true`. If it did, the
-  // search is already saved and the "Spara sökningen" link is hidden; a shared or
-  // bookmarked URL without it shows the link, so its recipient can save the search.
+  // search is already saved and the "Spara sökningen" button is hidden; a shared or
+  // bookmarked URL without it shows the button, so its recipient can save the search.
   initialCommitted: boolean;
 }
 
@@ -233,9 +233,9 @@ export function JobbHeroSearch({
       adoptSortPageSize();
     } else if (sameUrlState(base, lastCommitted)) {
       // The filters match what was last committed; only a parameter outside the
-      // state changed (the commit flag, sort or page size). The text already mirrors
-      // this state, so it is not re-synced. This keeps StripCommitParam's removal of
-      // `?commit=true` after mount from re-serialising the user's text. The comparison
+      // state changed. The text already mirrors this state, so it is not re-synced.
+      // This keeps StripCommitParam's removal of `?commit=true` after mount from
+      // re-serialising the user's text. The comparison
       // is against lastCommitted, not prevBase: prevBase can be stale, and a real
       // external "clear all" must not be mistaken for a no-op.
       adoptSortPageSize();
@@ -273,7 +273,6 @@ export function JobbHeroSearch({
   function commit(next: JobbUrlState, announce: string, markCommit = false) {
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
-    // The only place, apart from the save click, that sets whether the search is saved.
     setSavedByIntent(markCommit);
     startTransition(() => {
       const href = buildJobbHref(next);
@@ -380,9 +379,9 @@ export function JobbHeroSearch({
 
   // A suggestion picked by click, Tab or arrow keys and Enter. Its label is written
   // into the text only if parsing would find it again (isTextRepresentable for a
-  // filter; a title must contain no taxonomy words), or the text would claim a filter
-  // the state does not have. The state goes through the delta path, then the pick
-  // itself is composed in (so a label that cannot be inserted still reaches the
+  // filter; a title must contain no taxonomy words); otherwise the text would claim
+  // a filter the state does not have. The state goes through the delta path, then the
+  // pick itself is composed in (so a label that cannot be inserted still reaches the
   // state), and enforceClaims runs last so that composing cannot drop a filter the
   // text claims.
   function onSelectSuggestion(suggestion: SuggestionDto) {
@@ -503,9 +502,6 @@ export function JobbHeroSearch({
     .map(([name, values]) => [name, serializeJobbAxis(values)] as const)
     .filter(([, joined]) => joined.length > 0);
 
-  // Mirrors the backend's capture rule in RecentJobSearchCaptureBehavior: a search is
-  // savable when it has q, an occupation, a place, remote work, an employment type or
-  // working hours. Match grades, sort and view toggles do not count.
   const hasSavableSearch =
     committedQ.length > 0 ||
     lastCommitted.occupationGroup.length > 0 ||
@@ -515,9 +511,9 @@ export function JobbHeroSearch({
     lastCommitted.employmentType.length > 0 ||
     lastCommitted.worktimeExtent.length > 0;
 
-  // "Spara sökningen" shows when a savable search has not been committed with intent,
-  // for example one composed from suggestions without Enter. Clicking it commits the
-  // current state again with intent, so the backend saves it, and commit() hides the link.
+  // "Spara sökningen" shows when a savable search has not been committed with intent.
+  // Clicking it commits the current state again with intent, so the backend saves it, and
+  // commit() hides the button.
   function onSaveSearch() {
     // The confirmation is announced through the persistent live region below. A live
     // region mounted together with its content is not reliably announced by every

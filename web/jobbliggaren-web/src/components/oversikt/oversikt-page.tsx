@@ -59,10 +59,10 @@ interface OversiktPageProps {
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
   readonly recentSearches: ApiResult<ListRecentSearchesResult>;
   /**
-   * The live count of Good and Strong matches for the matching card and notice. Zero is a
-   * real answer. `null` means the read failed: the card shows an en dash without a link
-   * and the notice is left out. Used only once the user has stated an occupation; until
-   * then the card shows the setup prompt.
+   * The live count for the matching card and notice. Zero is a real answer. `null` means
+   * the read failed: the card shows an en dash without a link and the notice is left out.
+   * Used only once the user has stated an occupation; until then the card shows the setup
+   * prompt.
    */
   readonly matchCount: number | null;
   /**

@@ -80,8 +80,8 @@ interface JobbResultsProps {
    */
   commit: boolean;
   /**
-   * The raw search params, used only to build pagination links. Their shape lives
-   * with `buildPageHref` in `lib/job-ads/search-params.ts`.
+   * The raw search params. Their shape lives with `buildPageHref` in
+   * `lib/job-ads/search-params.ts`.
    */
   rawParams: JobbRawSearchParams;
 }
@@ -192,8 +192,6 @@ export async function JobbResults({
       worktimeExtent,
       matchGrades,
       includeRelated: effectiveIncludeRelated,
-      // The backend answers a request from a user without a job-seeker profile
-      // with an empty page.
       hideApplied,
       onlyMatched: effectiveOnlyMatched,
       employer,

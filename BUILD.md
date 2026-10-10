@@ -610,6 +610,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 **Admin (Admin policy; `IAdminRequest` also enforced by the Mediator pipeline)**
 - `GET /api/v1/admin/overview/accounts` — retained Identity account totals, lifecycle partition and up to 90 Swedish-calendar registration days, sampled with the injected clock; private/no-store including refusals and errors (#1978, ADR 0150/0151).
 - `GET /api/v1/admin/overview/backup` — the Backup card's one read: what the host sampler last published about the backup stamp and the backup timer, judged against the injected clock; a closed union (`Observed`/`NotObserved`/`Failed`) that carries the host's own observation time, never the call time; private/no-store including refusals and errors (#1982, ADR 0157).
+- `GET /api/v1/admin/overview/host` — the Server card's one read: the host's CPU, memory and disk from the newest in-process sample (a `PeriodicTimer` sampler reads procfs and `statfs` every 30 s; the request does no I/O), each reading one state of `Available`/`Stale`/`Collecting`/`NotObservable`/`Failed` with its own `sampledAt`, a value only in the first two and no reason, path or text on the wire; `X-Admin-Sampled-At` is the API read instant; private/no-store including refusals and errors (#1982, ADR 0158).
 
 The overview counts every retained Identity account, including accounts without a profile. Lifecycle priority is
 `ProfileMissing > PendingDeletion > Suspended > Active`; Active describes account state, not user activity.
@@ -648,8 +649,9 @@ backup stamp's mtime, *overdue* beyond 26 h (the backup script's own threshold) 
 old sample stays old. States: a run and a schedule, no run recorded and no run scheduled (the state of the box while
 the backup is off), the host has not reported yet (a quiet line, neither an alarm nor `Kommer snart`), failed, old
 and loading. *Extern kopia* and *Behålls* keep saying that nothing observes them, and a recorded run is never shown
-as evidence that a restore works. The host's CPU, memory and disk are a different mechanism (the Server card).
-Activity, logins, host/services and general email delivery remain `Kommer snart`; no login zero-series is
+as evidence that a restore works.
+**The Server card (#1982 part 2, ADR 0158; definitions and how to check them against the box in `docs/runbooks/admin-host-observations.md`).** A fifth source, read beside Backup behind the same gate. It needs no host sampler: under runc the API container reads the host kernel's `/proc/stat`, `/proc/meminfo` and `statfs('/')`, so an in-process sampler reads them, with a guard that withholds CPU and memory when `/proc` is container-scoped (a mount over the two files, or `memory.max` at or above `MemTotal`). CPU is the busy share of the window between two samples over all vCPUs (steal busy, iowait idle, a monotonic window of 15-90 s); memory is `MemTotal - MemAvailable`, never `MemFree`; disk is `df`'s arithmetic with total = used + free. Each reading is its own state, so a first CPU window, an environment that cannot be measured (the API on Windows) and a failed read show per row beside the readings that stand. The card prints the host's own sample time, marks a reading old after the limit the API applied (120 s), and a kept reading ages by that limit on the page's clock. Release is image-only.
+Services, activity, logins and general email delivery remain `Kommer snart`; no login zero-series is
 manufactured. Attention names failed jobs and pending deletions with links and never turns a failed read into
 a zero or a general all-clear.
 

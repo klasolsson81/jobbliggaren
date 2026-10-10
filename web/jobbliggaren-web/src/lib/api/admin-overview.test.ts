@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { accountOverviewFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
+import { accountOverviewFixture, hostFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
@@ -15,6 +15,7 @@ const audit = {
 const jobs = { totalCount: 3, returned: 50, items: [{ jobId: "1", jobType: "MatchDigestJob", failedAt: OVERVIEW_TIME, errorCategory: "IOException" }] };
 
 const BACKUP = "/api/v1/admin/overview/backup";
+const HOST = "/api/v1/admin/overview/host";
 const HOST_TIME = "2026-10-08T09:58:02Z";
 const backupObserved = {
   status: "Observed", reason: null, observedAt: HOST_TIME, stale: false,
@@ -29,6 +30,7 @@ function response(data: unknown, sampledAt: string | null = OVERVIEW_TIME) {
 function success(_session: string, path: string) {
   return Promise.resolve(response(
     path === BACKUP ? backupObserved
+      : path === HOST ? hostFixture()
       : path.includes("overview") ? accountOverviewFixture() : path.includes("audit") ? audit : jobs));
 }
 beforeEach(() => { vi.clearAllMocks(); session.mockResolvedValue("synthetic-session"); transport.mockImplementation(success); });
@@ -39,7 +41,7 @@ describe("admin overview source reads", () => {
     const result = await loadAdminOverview();
     expect(result.kind).toBe("ok");
     expect(transport.mock.calls.map((call) => call[1])).toEqual([
-      "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP,
+      "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP, HOST,
     ]);
     expect(JSON.stringify(result)).not.toMatch(/ipAddress|userAgent|synthetic-agent|192.0.2.1|correlationId|userId|jobType|errorCategory/);
     if (result.kind !== "ok") throw new Error("Expected observed sources");
@@ -87,7 +89,7 @@ describe("admin overview source reads", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(await pending).toMatchObject({
       kind: "ok",
-      data: { accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" } },
+      data: { accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" }, host: { kind: "failed" } },
     });
     expect(deadlines).toEqual([10_000, 10_000, 10_000]);
   });
@@ -128,13 +130,16 @@ describe("admin overview Backup source (#1982)", () => {
     transport.mockImplementation(() => Promise.resolve(new Response(null, { status })));
     expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(BACKUP);
+    expect(transport.mock.calls.map((call) => call[1])).not.toContain(HOST);
   });
   it("never asks the host for anything when no first-step source succeeded, and reads the card as failed", async () => {
     transport.mockImplementation(() => Promise.resolve(new Response(null, { status: 502 })));
     const result = await loadAdminOverview();
     if (result.kind !== "ok") throw new Error("Expected partial observation");
     expect(result.data.backup).toEqual({ kind: "failed" });
+    expect(result.data.host).toEqual({ kind: "failed" });
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(BACKUP);
+    expect(transport.mock.calls.map((call) => call[1])).not.toContain(HOST);
   });
   it.each([401, 403])("answers %i when one first-step source does, wherever the host read stands (a role revoked in flight)", async (status) => {
     transport.mockImplementation((_session: string, path: string) => path.includes("audit") ? new Response(null, { status }) : success(_session, path));
@@ -202,5 +207,111 @@ describe("admin overview Backup source (#1982)", () => {
   it("sends the browser the states and the times and nothing the host or the API said besides", async () => {
     const result = await loadAdminOverview();
     expect(JSON.stringify(result)).not.toMatch(/reason|NotSampledYet|startedAt|\/run\/|backup\.json|jobbliggaren/);
+  });
+});
+
+describe("admin overview Server source (#1982)", () => {
+  const hostAnswers = (body: unknown, stamp: string | null = OVERVIEW_TIME) =>
+    (_session: string, path: string) => path === HOST ? Promise.resolve(response(body, stamp)) : success(_session, path);
+  const observedHost = async () => {
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    return result.data.host;
+  };
+
+  it("asks the host only after an admin read has succeeded, beside the slower reads (#2064)", async () => {
+    let succeeded = 0;
+    let hostAsked = false;
+    let releaseAudit: () => void = () => undefined;
+    transport.mockImplementation(async (_session: string, path: string) => {
+      if (path === HOST) {
+        expect(succeeded).toBeGreaterThanOrEqual(1);
+        hostAsked = true;
+        return success(_session, path);
+      }
+      if (path.includes("audit")) return new Promise<Response>((resolve) => { releaseAudit = () => resolve(response(audit)); });
+      const result = await success(_session, path);
+      succeeded++;
+      return result;
+    });
+    const pending = loadAdminOverview();
+    await vi.waitFor(() => expect(hostAsked).toBe(true));
+    releaseAudit();
+    expect((await pending).kind).toBe("ok");
+  });
+  it("dates the observation by the host's own newest sample, not by the time of the read", async () => {
+    const old = "2026-10-08T09:40:00Z";
+    transport.mockImplementation(hostAnswers({
+      ...hostFixture(),
+      cpu: { ...hostFixture().cpu, sampledAt: old },
+      memory: { ...hostFixture().memory, sampledAt: "2026-10-08T09:41:00Z" },
+      disk: { ...hostFixture().disk, sampledAt: "2026-10-08T09:39:00Z" },
+    }, OVERVIEW_TIME));
+
+    const host = await observedHost();
+
+    expect(host).toMatchObject({ kind: "loaded", sampledAt: "2026-10-08T09:41:00Z", refreshFailed: false });
+  });
+  it("dates it by the API read instant when no reading has a value, since there is no sample to age", async () => {
+    const none = { sampledAt: null, value: null };
+    transport.mockImplementation(hostAnswers({
+      ...hostFixture(),
+      cpu: { state: "Collecting", ...none }, memory: { state: "NotObservable", ...none }, disk: { state: "Failed", ...none },
+    }));
+
+    expect(await observedHost()).toMatchObject({ kind: "loaded", sampledAt: OVERVIEW_TIME });
+  });
+  it("keeps a failing or unreadable reading as a state of the loaded source and not as a failed source", async () => {
+    transport.mockImplementation(hostAnswers({
+      ...hostFixture(), cpu: { state: "Collecting", sampledAt: null, value: null },
+    }));
+
+    const host = await observedHost();
+
+    if (host.kind !== "loaded") throw new Error("Expected a loaded host");
+    expect(host.data.cpu.state).toBe("Collecting");
+    expect(host.data.memory.state).toBe("Available");
+  });
+  it("fails only the host when it answers with a reading that carries a value in a state that has none", async () => {
+    transport.mockImplementation(hostAnswers({
+      ...hostFixture(), disk: { state: "Failed", sampledAt: OVERVIEW_TIME, value: { percent: 1, freeBytes: 1, totalBytes: 2 } },
+    }));
+
+    const result = await loadAdminOverview();
+
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.host).toEqual({ kind: "failed" });
+    expect(result.data.accounts.kind).toBe("loaded");
+    expect(result.data.backup.kind).toBe("loaded");
+  });
+  it.each([500, 502, 503])("reads the card as failed, and nothing else, when the host answers %i", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === HOST ? new Response(null, { status }) : success(_session, path));
+
+    const result = await loadAdminOverview();
+
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.host).toEqual({ kind: "failed" });
+    expect(result.data.jobs.kind).toBe("loaded");
+  });
+  it.each([null, "invalid"])("fails the host when its observation header is %s", async (stamp) => {
+    transport.mockImplementation(hostAnswers(hostFixture(), stamp));
+
+    expect((await observedHost()).kind).toBe("failed");
+  });
+  it.each([401, 403])("answers %i when the host does, wherever the other reads stand", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === HOST ? new Response(null, { status }) : success(_session, path));
+
+    expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
+  });
+  it("lets only the schema's fields cross to the browser", async () => {
+    transport.mockImplementation(hostAnswers({
+      ...hostFixture(), mount: "/", device: "vda4", cpu: { ...hostFixture().cpu, reason: "ReadFailed" },
+    }));
+
+    const host = await observedHost();
+
+    expect(JSON.stringify(host)).not.toMatch(/mount|vda4|reason|ReadFailed|"\/"/);
+    if (host.kind !== "loaded") throw new Error("Expected a loaded host");
+    expect(Object.keys(host.data).sort()).toEqual(["cpu", "disk", "memory", "readAt", "staleAfterSeconds"]);
   });
 });

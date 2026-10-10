@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import type { AdminHostReading, AdminServerReading } from "@/lib/admin/host-observation";
+import { serverRegion, toServerReading, type AdminHostReading, type AdminServerReading } from "@/lib/admin/host-observation";
+import type { OverviewObservation } from "@/lib/admin/overview";
+import type { HostObservationDto } from "@/lib/dto/admin-host";
 import { byteUnitFor, formatBinaryBytes } from "@/lib/admin/format-bytes";
 import type { AdminValueRegion } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -16,8 +18,13 @@ import { AdminUnknown } from "./admin-unknown";
  * The region carries the time the host was last sampled and whether any reading is stale (`serverRegion`
  * builds it, aged to the page's clock); this body only shows them.
  */
-export function AdminServerBody({ region }: { readonly region: AdminValueRegion<AdminServerReading> }) {
+export function AdminServerBody({ region, refreshFailed = false }: {
+  readonly region: AdminValueRegion<AdminServerReading>;
+  /** The last refresh failed, so the readings shown are the last good ones (ADR 0150 Amendment 2026-10-08). */
+  readonly refreshFailed?: boolean;
+}) {
   const t = useTranslations("admin.overview.server");
+  const observed = useTranslations("admin.overview.observation");
   const format = useFormatter();
   const server = region.kind === "loaded" ? region.data : null;
 
@@ -94,8 +101,28 @@ export function AdminServerBody({ region }: { readonly region: AdminValueRegion<
           ) : null}
         </p>
       ) : null}
+      {refreshFailed ? <p className="jp-adminkpi__sub">{observed("refreshFailed")}</p> : null}
     </div>
   );
+}
+
+/**
+ * The card from the overview's host observation. The readings keep the time the host sampled them and age by the
+ * limit the API applied, so a reading kept after a failed refresh goes stale on the page's clock.
+ */
+export function AdminObservedServer({ observation, now }: {
+  readonly observation: OverviewObservation<HostObservationDto>;
+  readonly now: number;
+}) {
+  if (observation.kind === "loaded" || observation.kind === "empty") {
+    return (
+      <AdminServerBody
+        region={serverRegion(toServerReading(observation.data), now)}
+        refreshFailed={observation.refreshFailed}
+      />
+    );
+  }
+  return <AdminServerBody region={{ kind: observation.kind }} />;
 }
 
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {

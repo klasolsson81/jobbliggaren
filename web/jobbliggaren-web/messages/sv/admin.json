@@ -151,7 +151,8 @@
         "accounts": "Kontostatistik",
         "audit": "Granskningshändelser",
         "jobs": "Misslyckade bakgrundsjobb",
-        "backup": "Backup"
+        "backup": "Backup",
+        "host": "Serverns mätvärden"
       }
     },
     "registrationPeriods": {

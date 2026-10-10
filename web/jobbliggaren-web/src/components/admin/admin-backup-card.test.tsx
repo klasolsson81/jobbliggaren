@@ -144,6 +144,6 @@ describe("the Backup card", () => {
     show(observed());
 
     expect(screen.getByRole("region", { name: "Användare totalt" })).toHaveTextContent("12");
-    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Kommer snart");
+    expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("5,0 %");
   });
 });

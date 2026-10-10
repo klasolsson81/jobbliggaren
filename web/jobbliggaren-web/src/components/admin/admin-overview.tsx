@@ -32,7 +32,7 @@ import { AdminObservationNote } from "./admin-observation-note";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
-import { AdminServerBody } from "./admin-server-body";
+import { AdminObservedServer, AdminServerBody } from "./admin-server-body";
 import { AdminTrendCard } from "./admin-trend-card";
 import { AdminUnknown } from "./admin-unknown";
 
@@ -163,7 +163,7 @@ export function AdminOverview({
         </AdminCard>
 
         <AdminCard id="admin-overview-server" title={t("server.title")} icon={Server} span={4}>
-          <AdminServerBody region={regions.server} />
+          {observations ? <AdminObservedServer observation={observations.host} now={now} /> : <AdminServerBody region={regions.server} />}
         </AdminCard>
 
         <AdminCard

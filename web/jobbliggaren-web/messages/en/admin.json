@@ -151,7 +151,8 @@
         "accounts": "Account statistics",
         "audit": "Audit events",
         "jobs": "Failed background jobs",
-        "backup": "Backup"
+        "backup": "Backup",
+        "host": "Server readings"
       }
     },
     "registrationPeriods": {

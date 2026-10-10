@@ -163,7 +163,7 @@ carries this ADR is a STOPP back to the CTO.
   watch, no host-written file to validate. The sampler reads files the container can already read and needs no extra
   capability.
 - Each reading carries its own state, so one failing reading never blanks the other two (ADR 0150 D2).
-- Cost per sample is four small, bounded file reads and one `statfs` every 30 s; the endpoint does no I/O. Measured
+- Cost per sample is five small, bounded file reads and one `statfs` every 30 s; the endpoint does no I/O. Measured
   numbers belong in the runbook §9, taken when measured.
 - The runtime facts the design stands on are named, with one trigger that says when to look again.
 

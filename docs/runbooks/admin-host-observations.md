@@ -116,7 +116,7 @@ and `readAt` only. Accepted window: from half to three times the interval (15–
 | `HostObservation:SampleIntervalSeconds` | 30 | 5–300. The browser polls the overview every 60 s while the tab is visible (ADR 0150 amendment 2026-10-08). |
 | `HostObservation:StaleAfterSeconds` | 120 | Must be more than three times the interval, validated at start. |
 
-Cost per sample: four small file reads (≈ 12 KB in all, each capped at 64 KiB) and one `statfs`. The read
+Cost per sample: five small file reads (`stat`, `meminfo` twice, `mountinfo`, `memory.max`; about 9 KB in all, each capped at 64 KiB) and one `statfs`. The read
 endpoint does no I/O: its cost is the Admin authorization lookup every admin endpoint pays. Measured numbers
 are recorded in §9 when taken; do not copy a figure forward without re-running the command there. The
 endpoint shares the per-user `admin-read` bucket (30 per 10 s); the overview adds one request per 60 s poll.

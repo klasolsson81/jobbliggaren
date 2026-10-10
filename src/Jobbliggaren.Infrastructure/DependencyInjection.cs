@@ -55,9 +55,9 @@ namespace Jobbliggaren.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
-    /// The API's entry point: registers every Infrastructure module. The Worker does not call
-    /// it; it registers <see cref="AddPersistence"/> and the modules it needs, with its own
-    /// implementations of the audit ports (ADR 0022, ADR 0023).
+    /// The API's entry point. The Worker does not call it; it registers
+    /// <see cref="AddPersistence"/> and the modules it needs, with its own implementations of the
+    /// audit ports (ADR 0022, ADR 0023).
     /// </summary>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
@@ -337,8 +337,7 @@ public static class DependencyInjection
                 o.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(5);
             });
 
-        // JobStream (NDJSON snapshot and stream). The rate limiter sits before the retry so
-        // retries count against the same one-request-per-minute window (ADR 0032 §1).
+        // JobStream (NDJSON snapshot and stream).
         services.AddHttpClient<IJobTechStreamClient, JobTechStreamClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<JobTechOptions>>().Value;
@@ -354,7 +353,6 @@ public static class DependencyInjection
         })
         .AddResilienceHandler("jobstream", builder =>
         {
-            // Before the retry, so retries count against the same one-per-minute window.
             builder.AddRateLimiter(_streamRateLimiter);
             builder.AddRetry(new HttpRetryStrategyOptions
             {
@@ -404,8 +402,8 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Abstractions.ISkillResolver,
             Jobbliggaren.Infrastructure.Taxonomy.SkillResolver>();
 
-        // The matching engine is its own module so the Worker and its test fixture can register
-        // it without the rest of AddInfrastructure.
+        // The matching engine is its own module so the Worker test fixture can register it
+        // without the rest of AddInfrastructure.
         services.AddMatchingEngine();
 
         // The CV knowledge bank and review engine, also its own module; see AddCvReview.
@@ -422,10 +420,6 @@ public static class DependencyInjection
         // The CV renderer; see AddCvRendering.
         services.AddCvRendering();
 
-        // Recruiter personal data has no erasure service here: ADR 0106 minimises it at
-        // ingest and removes the whole ad on request, and the admin route answers 501 until
-        // then (AdminJobAdsEndpoints).
-
         // The ingestion-throughput measurement (ADR 0045). Bound here because both hosts call
         // AddJobSources, so the registration cannot drift between them.
         services.AddOptions<IngestionThroughputOptions>()
@@ -436,7 +430,6 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Jobs.Common.IngestionThroughputReporter>();
 
-        // The ingestion jobs, run by Hangfire through the Worker's wrappers.
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenStreamJob>();
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob>();
@@ -454,7 +447,6 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
 
-        // The shared re-ingest runner behind the occupation-code and employment-terms backfills.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.Common.JobAdRefetchBackfillRunner>();
 
@@ -697,7 +689,7 @@ public static class DependencyInjection
     /// <summary>
     /// The deterministic matching engine (ADR 0076): the match scorer, internal to this assembly,
     /// and the builder that turns preferences into a match profile. Its own module so the Worker
-    /// and its test fixture can register it without the job-source wiring. Scoped, since both use
+    /// test fixture can register it without the job-source wiring. Scoped, since both use
     /// <c>AppDbContext</c>.
     /// </summary>
     public static IServiceCollection AddMatchingEngine(this IServiceCollection services)
@@ -710,7 +702,7 @@ public static class DependencyInjection
             Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
         // MatchProfileBuilder needs ITaxonomyReadModel. AddJobSources registers it in both hosts,
         // but the Worker test fixture calls only this method, so TryAdd keeps the module
-        // self-contained without registering it twice.
+        // self-contained.
         services.TryAddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel,
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
@@ -819,8 +811,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// Selects the <see cref="IEmailSender"/> by <c>Email:Provider</c> and binds
-    /// <see cref="EmailOptions"/> (ADR 0124). Both hosts call it, so their gating cannot drift;
-    /// the Worker sends match notices and digests.
+    /// <see cref="EmailOptions"/> (ADR 0124). Both hosts call it, so their gating cannot drift.
     /// <para>
     /// <c>Scaleway</c> sends through Scaleway Transactional Email in fr-par, over its HTTPS API,
     /// never SMTP. <c>Console</c>, the default, registers <see cref="ConsoleEmailSender"/> only
@@ -994,8 +985,7 @@ public static class DependencyInjection
         // /24 and /48 masking applies everywhere.
         services.AddSingleton<IIpAnonymizer, IpAnonymizer>();
 
-        // Structured logging of ownership mismatches, for failed-access anomaly detection
-        // (ADR 0031).
+        // Structured logging of ownership mismatches (ADR 0031).
         services.AddSingleton<IFailedAccessLogger, FailedAccessLogger>();
 
         // Saves a deliberate search as a recent search (ADR 0060), from the pipeline behavior.
@@ -1468,8 +1458,7 @@ public static class DependencyInjection
         services.AddScoped<ExternalLoginLinker>();
         services.AddExternalIdentityProviders(configuration);
 
-        // At startup, ensures the Admin role exists and grants it to the configured account if that
-        // account exists. Idempotent.
+        // At startup, ensures the Admin role exists. Idempotent.
         services.Configure<AdminBootstrapOptions>(configuration.GetSection(AdminBootstrapOptions.SectionName));
         services.AddHostedService<IdempotentAdminRoleSeeder>();
 

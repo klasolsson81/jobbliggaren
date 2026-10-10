@@ -7,7 +7,7 @@ samma 410 (Rek.)") · `senior-cto-advisor`, "the CTO" below (decision-maker unde
 report-only; `docs/reviews/2026-10-10-2091-s1-forks-cto.md`, local) · `security-auditor` (pre-implementation read,
 report-only, with one GDPR Blocker veto against the CTO's F4;
 `docs/reviews/2026-10-10-2091-s1-plan-security-auditor.md`, local)
-**Amends:** ADR 0064 (Beslut (d): a fifth complementary leg) and ADR 0106 (the read-path table of D9: one row), each by
+**Amends:** ADR 0064 and ADR 0106 (the read-path table of D9: one row), each by
 a dated amendment at the end of that file. Nothing is rewritten.
 **Related:** ADR 0064 (the only anonymous read before this one: the landing aggregate) · ADR 0106 (recruiter erasure,
 the neutral 410) · ADR 0087 D8(c) (the company name is shown, the organization number never) · ADR 0043 (taxonomy
@@ -102,9 +102,8 @@ handler can pass what a narrow projection read. The checks run in this order:
 - **NotPublic and an unknown id: the identical 404** (`JobAdErrors.NotFound`), Erased or not. The public surface never
   held such a row, a 410 would claim it once existed there, and one answer for both misses gives no existence oracle.
 - **A backend failure is a 5xx**, never a 404 or a 410.
-- **`Application/JobAds/JobAdErrors.cs` is the one source of both answers.** `GetJobAdQueryHandler`,
-  `GetJobAdMatchDetailQueryHandler`, `CreateApplicationFromJobAdCommandHandler` and the new handler read from it, so one
-  ad gets one answer on every route. An integration test compares the public 410 with the signed-in detail's 410 for the
+- **`Application/JobAds/JobAdErrors.cs`:** `GetJobAdQueryHandler`,
+  `GetJobAdMatchDetailQueryHandler`, `CreateApplicationFromJobAdCommandHandler` and the new handler read from it. An integration test compares the public 410 with the signed-in detail's 410 for the
   same erased ad.
 
 *Why the same 410 (the veto).* The CTO's first ruling (F4) was a 200 for an ended ad, with its title, company and dates.
@@ -174,13 +173,11 @@ approved the numbers; they are raised later from measured crawl rates, not guess
   `forwardedHeaders()`; `KnownNetworks` is the internal web-api subnet). A call without it shares the web container's one
   bucket. Accepted for S1, which has no external surface.
 - **If an AAAA record is ever added for the apex** (none was measured on 2026-10-10), IPv6 must be partitioned per /64.
-- **The test factory raises the policy to 10 000**, like the other IP policies. The production numbers are pinned by a
-  behavioural 429 test in the `StrictRateLimit` collection, and an endpoint-graph test pins that the policy sits on this
-  one route.
+- **The test factory raises the policy to 10 000**, like the other IP policies.
 
-### D6 — Cache: `no-store` on everything under `/api/v1/public`
+### D6 — Cache: `no-store`
 
-Every answer under the prefix (200, 400, 404, 410, 429, 5xx) carries `Cache-Control: no-store`. It is set in the existing
+Every answer under the prefix (200, 400, 404, 410, 429) carries `Cache-Control: no-store`. It is set in the existing
 path-prefix `OnStarting` block of `Program.cs`, so refusals the framework writes carry it too. The erasure rule is
 absolute: any `max-age` is a window in which a stale answer can still say Listed. The API is the authoritative answer to
 "now". Whether the HTML page is cached is S2's decision, under the same rule. The prefix does not reach
@@ -255,7 +252,6 @@ S2 is the public job page, and its merge is its go-live (ADR 0154). Each of thes
 - The public body cannot carry what it must not: the DTO is a pinned member set, and `Contacts`, the organization number
   and `RawPayload` never leave the handler's projection.
 - An erasure is not broadcast by a status code or a body. An ended ad and an erased ad are one answer.
-- One ad gets one answer on every route.
 - No migration, dependency or new recipient of personal data in S1.
 
 ### Negative and risks
@@ -283,7 +279,7 @@ route, robots or sitemap change.
   `Application/JobAds/Queries/GetPublicJobAd/{GetPublicJobAdQuery,GetPublicJobAdQueryHandler,GetPublicJobAdQueryValidator,PublicJobAdDto}.cs`
 - `Api/Endpoints/PublicJobAdsEndpoints.cs` · `Api/Program.cs` (the map and the `no-store` prefix) ·
   `Api/RateLimiting/{RateLimitingExtensions,RateLimitingOptions}.cs`
-- `JobAdLifecycleReadRegistry` (`AnyStatus`, with its reason). The three existing handlers read their 404 and 410 from
+- `JobAdLifecycleReadRegistry` (`AnyStatus`, with its reason). The three existing handlers read their 410 from
   `JobAdErrors`.
 
 *Validation, 2026-10-10, before merge.* Unit tests for the classifier (a frozen clock; the deadline at `now`, one tick

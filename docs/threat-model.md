@@ -64,9 +64,9 @@ from the published source (`External`, never the user-settable `Source`), Active
 and not past its deadline. Its DTO is a pinned member set without contacts,
 organization number or raw payload; an ended and an erased ad give one identical
 410 and a never-imported one the unknown-id 404, so the public surface does not
-reveal an erasure. Every answer under `/api/v1/public` is `no-store`, and its own
+reveal an erasure. Its own
 IP-partitioned policy relies on the trusted forwarded client address. A change to
-the predicate, the DTO, those answers or that header alters this boundary.
+the predicate, the DTO or those answers alters this boundary.
 
 A build made with `ADMIN_PREVIEW_ENABLED=true` serves fictional admin pages under
 `/admin/forhandsvisning` that need no session (ADR 0150 D5). No deployed build may

@@ -1304,7 +1304,7 @@ fields. The D9 table (Amendment 2026-07-14, with its rows corrected since) gains
 - **Not reopened.** This ADR's acceptance of the 200-versus-410 difference on the **signed-in** surface stands:
   `GET /api/v1/job-ads/{id}` still shows an ended ad and answers 410 for an erased one, because only signed-in users can
   see the difference. `GetJobAdQueryHandler`, `GetJobAdMatchDetailQueryHandler` and
-  `CreateApplicationFromJobAdCommandHandler` now take their 404 and 410 from `JobAdErrors`; their answers are unchanged
+  `CreateApplicationFromJobAdCommandHandler` now take their 410 from `JobAdErrors`; their answers are unchanged
   and their rows stand.
 - **A duty for the erasure runbook.** Once S2 renders an ad's public URL, a search engine may hold it. ADR 0160 D9 (3)
   adds an Art. 17(2) step to `docs/runbooks/recruiter-pii-erasure.md` before S2 goes live. This amendment does not change

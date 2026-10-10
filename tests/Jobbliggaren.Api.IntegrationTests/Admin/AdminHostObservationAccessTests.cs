@@ -236,7 +236,7 @@ public sealed class AdminHostObservationAccessTests(ApiFactory factory)
     }
 
     [Fact]
-    public void TheApiRegistersTheSamplerAsOneSingletonServingBothTheReaderAndTheTick()
+    public void Host_TheApiRegistersTheSampler_AsOneSingletonServingBothTheReaderAndTheTick()
     {
         var sampler = factory.Services.GetRequiredService<HostObservationSampler>();
 

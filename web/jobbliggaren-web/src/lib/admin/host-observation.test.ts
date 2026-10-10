@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
+import type { JpFormatter } from "@/lib/i18n/format";
 import {
   ageServerReading,
+  formatStaleLimit,
   hasStaleReading,
   newestSampledAt,
   toServerReading,
@@ -100,3 +102,23 @@ describe("newestSampledAt and hasStaleReading", () => {
     expect(newestSampledAt(server)).toBe(later);
   });
 });
+
+describe("formatStaleLimit", () => {
+  // The next-intl formatter, with the Swedish locale it resolves in production.
+  const sv = {
+    number: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat("sv-SE", options).format(value),
+    dateTime: () => "",
+  } as unknown as JpFormatter;
+
+  it.each([
+    [120, "2 minuter"],
+    [90, "1,5 minuter"],
+    [60, "1 minut"],
+    // Never above the real limit: the sentence is shown once a reading is older than it, so 101 s old must not
+    // read as "older than 1,7 minuter" (102 s).
+    [100, "1,6 minuter"],
+  ])("words a limit of %d s as %s", (seconds, text) => {
+    expect(formatStaleLimit(sv, seconds)).toBe(text);
+  });
+});
+

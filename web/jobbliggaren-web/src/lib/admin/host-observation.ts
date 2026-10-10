@@ -98,7 +98,9 @@ export function ageServerReading(server: AdminServerReading, now: number): Admin
  * names the limit, so it need not be a whole number of minutes. The card and the live region both print it.
  */
 export function formatStaleLimit(format: JpFormatter, seconds: number): string {
-  return format.number(seconds / 60, { style: "unit", unit: "minute", unitDisplay: "long", maximumFractionDigits: 1 });
+  return format.number(seconds / 60, {
+    style: "unit", unit: "minute", unitDisplay: "long", maximumFractionDigits: 1, roundingMode: "floor",
+  });
 }
 
 /** The newest sample time among the readings that have one; null when none has. */

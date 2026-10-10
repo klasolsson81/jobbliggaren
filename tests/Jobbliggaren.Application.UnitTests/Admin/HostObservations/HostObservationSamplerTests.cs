@@ -141,8 +141,9 @@ public class HostObservationSamplerTests
         sampler.Current.Cpu.Value.ShouldBe(new CpuValue(5.0, 30));
     }
 
-    // Actor: CPU hotplug on a NO_HZ kernel, where the aggregate idle and iowait counters fell (kernel commit
-    // 71fee48f). The test asserts the degradation only: no number, the new sample is the baseline.
+    // The idle row has an actor: CPU hotplug on a NO_HZ kernel, where the aggregate idle and iowait counters fell
+    // (kernel commit 71fee48f). The busy row is declared unreachable: no actor makes the busy sum fall. Both
+    // assert the degradation only: no number, the new sample is the baseline.
     [Theory]
     [InlineData(-1, 12_000)]
     [InlineData(12_000, -1)]

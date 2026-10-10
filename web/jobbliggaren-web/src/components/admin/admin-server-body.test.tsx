@@ -123,7 +123,11 @@ describe("AdminServerBody and age", () => {
 });
 
 describe("AdminServerBody and its one note", () => {
-  const stale = () => dto({ disk: { ...dto().disk, state: "Stale" } });
+  const stale = () => dto({
+    cpu: { ...dto().cpu, state: "Stale" },
+    memory: { ...dto().memory, state: "Stale" },
+    disk: { ...dto().disk, state: "Stale" },
+  });
 
   it("names the limit the API applied as the duration it is, whole minutes or not", () => {
     const { container } = renderBody({ ...stale(), staleAfterSeconds: 90 });

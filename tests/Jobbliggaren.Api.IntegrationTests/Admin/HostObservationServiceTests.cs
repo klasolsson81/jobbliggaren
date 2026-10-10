@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Jobbliggaren.Api.Hosting;
 using Jobbliggaren.Application.Admin.HostObservations;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,10 @@ public sealed class HostObservationServiceTests
         // An interval no test deadline can wait out, in the range the shipped validation accepts: only the
         // immediate first tick can satisfy this.
         var sampler = Substitute.For<IHostObservationSampler>();
-        using var service = Service(sampler, options: new HostObservationOptions { SampleIntervalSeconds = 1000, StaleAfterSeconds = 3600 });
+        var options = new HostObservationOptions { SampleIntervalSeconds = 300, StaleAfterSeconds = 3600 };
+        Validator.TryValidateObject(options, new ValidationContext(options), [], validateAllProperties: true)
+            .ShouldBeTrue("the pair is one the shipped validation accepts");
+        using var service = Service(sampler, options: options);
 
         await service.StartAsync(Ct);
         await Eventually(() => sampler.ReceivedCalls().Any(), "the first sample waited for the timer");

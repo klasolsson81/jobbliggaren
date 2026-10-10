@@ -1,128 +1,119 @@
 # Jobbliggaren
 
-> **Svensk jobbansökningshanterare byggd som civic utility — och ett portfolio-bevis på agent-orkestrerad ingenjörsdisciplin.**
-> Platsbanken-integration, deterministisk CV-granskning och matchningsmotor, end-to-end pipeline-tracker.
-> Clean Architecture med maskinellt verifierade lager-gränser, dataminimering och fält-kryptering, GDPR-säker by default.
+**A Swedish job-search and application tracker, built as a civic utility.**
+Search Platsbanken's job ads, track every application from draft to offer, follow
+companies, and get a CV review that cites the text it is judging. The CV review and the
+job matching are rule-based and explainable: the product makes no AI or LLM calls.
 
+[![CI](https://github.com/klasolsson81/jobbliggaren/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/klasolsson81/jobbliggaren/actions/workflows/build.yml)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![C#](https://img.shields.io/badge/C%23-14-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.3-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Dev](https://img.shields.io/badge/dev-lokal%20stack%20(Docker%20Compose)-2C3E50)](docs/decisions/0066-aws-dev-stack-teardown-semester-pause.md)
-[![Arkitektur](https://img.shields.io/badge/arkitektur-Clean%20%2B%20DDD-2C3E50)](docs/decisions/0001-clean-architecture.md)
-[![Tester](https://img.shields.io/badge/backend-1%20100%2B%20gröna-success)](docs/decisions/0044-test-coverage-policy.md)
-[![Vitest](https://img.shields.io/badge/vitest-grön-success)](docs/decisions/0044-test-coverage-policy.md)
-[![Coverage](https://img.shields.io/badge/first--party%20line-92,1%25-success)](docs/decisions/0044-test-coverage-policy.md)
-[![ADR](https://img.shields.io/badge/ADR-arkitekturbeslut-informational)](docs/decisions/README.md)
-[![Status](https://img.shields.io/badge/status-pre--MVP%20·%20work%20in%20progress-blue)](#status)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey)](LICENSE)
 
----
-
-## Snabblänkar
-
-- [Vad är Jobbliggaren](#vad-är-jobbliggaren)
-- [Om utvecklingsmodellen](#om-utvecklingsmodellen)
-- [Agent-orkestrering](#agent-orkestrering)
-- [Ingenjörsprinciper i praktiken](#ingenjörsprinciper-i-praktiken)
-- [Position och anti-position](#position-och-anti-position)
-- [Funktioner](#funktioner)
-- [Arkitektur](#arkitektur)
-- [Kvalitet, test och coverage](#kvalitet-test-och-coverage)
-- [Tech-stack](#tech-stack)
-- [Komma igång lokalt](#komma-igång-lokalt)
-- [Projekt-struktur](#projekt-struktur)
-- [Vanliga kommandon](#vanliga-kommandon)
-- [Miljöer](#miljöer)
-- [Säkerhet och GDPR](#säkerhet-och-gdpr)
-- [Status](#status)
-- [Dokumentation](#dokumentation)
-- [Författare](#författare)
-- [Licens](#licens)
-
----
-
-## Vad är Jobbliggaren
-
-Jobbliggaren är en jobbsök- och ansökningshanterare för den svenska arbetsmarknaden. Appen kombinerar JobTech/Platsbanken-integration med deterministiska, förklarbara motorer för CV-granskning och jobbmatchning — medvetet positionerad som en *civic utility*, ett verktyg som signalerar tillit och pålitlighet snarare än hajp.
-
-Målet är att stressade jobbsökare får ett verktyg som känns som en förlängning av svensk offentlig digital service (1177, Försäkringskassan, Digg) snarare än ett av hundra produkter som alla ser likadana ut. Den medvetna icke-differentieringen är ett designval, inte en brist på ambition.
-
 > [!NOTE]
-> Detta repo är publikt synligt för portfölj-syfte. Det är ett **pågående arbete** i pre-MVP-fas — kärn-domänen, Platsbanken-integrationen och ansökningshanteringen är på plats; CV-motorn och matchningsmotorn är under uppbyggnad. README beskriver det faktiska tillståndet, inte ett mål-tillstånd.
+> **Status: pre-MVP, in early testing with real users at
+> [jobbliggaren.se](https://jobbliggaren.se), where registration is open.** `main` is
+> released continuously: a release workflow builds and attests the images, and the single
+> production server applies each release itself
+> ([ADR 0149](docs/decisions/0149-a-release-is-one-verified-record-the-channel-moves-only-after-the-whole-set-and-the-box-applies-exactly-what-it-names.md),
+> [ADR 0154](docs/decisions/0154-one-box-one-domain-every-merged-release-goes-live-on-jobbliggaren-se.md)).
+> The user interface is in Swedish, with English as a secondary locale. Code and commits are
+> in English, and the documentation is partly in Swedish.
 
----
+## Contents
 
-## Om utvecklingsmodellen
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quality and CI](#quality-and-ci)
+- [How it is built](#how-it-is-built)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Common commands](#common-commands)
+- [Repository layout](#repository-layout)
+- [Security and privacy](#security-and-privacy)
+- [Documentation](#documentation)
+- [Author and license](#author-and-license)
 
-Jag har byggt Jobbliggaren med **Claude Code som primär utvecklingspartner** i en agent-orkestrerad modell — inte "AI som autocompletear", utan en governance-struktur där specialiserade review-agenter har veto-rätt, en CTO-agent är decision-maker vid arkitektur-tradeoffs, och varje arkitekturbeslut historieförs som en immutable ADR. Modellen är dokumenterad i sin helhet i [`CLAUDE.md §9`](CLAUDE.md) och verifierbar mot katalogen [`.claude/`](.claude/).
+## Features
 
-Positionen jag tränar i detta projekt: **AI-Augmented Fullstack Engineer med fokus på agent-orkestrering** över .NET, React och TypeScript. Differentiatorn är inte att AI används i utvecklingsflödet — det gör många. Differentiatorn är att flödet har *granskningsspärrar, beslutsdisciplin och spårbarhet* som håller för en kodgranskning på Mastercard-nivå. Resten av denna README är evidensen för det påståendet.
+| Area | What it does |
+|---|---|
+| **Job search** (`/jobb`) | Ads from Arbetsförmedlingen's JobTech JobStream API, kept current by a background job. PostgreSQL full-text search with filters for occupation group, region and municipality, remote work, employment type, working hours and employer. Recent searches and saved ads. |
+| **Explainable matching** | Each ad gets a named match grade for the user's stated occupations and preferences, with the matched and missing criteria listed per dimension. By design there is no percentage score. |
+| **Applications** (`/ansokningar`) | A pipeline with ten statuses, from *Draft* to *Accepted*, *Rejected*, *Withdrawn* or *Ghosted*. Moves between statuses are free, with suggested next steps, and are recorded on an append-only timeline. Follow-ups are logged with channel and outcome. `/statistik` shows a funnel, the rejection rate and monthly volume. A monthly summary helps the user fill in Arbetsförmedlingen's activity report. |
+| **Companies** (`/foretag`) | Company search, follows, and watches that combine industry codes (SNI) with municipalities. They run against a local copy of Statistics Sweden's (SCB) company register, which the Worker refreshes on a schedule. |
+| **CV review** (`/cv`) | PDF or DOCX upload. A rule engine assesses the CV against a versioned Swedish rubric (`rubric.v2.3.0.json`, 43 criteria). Every verdict cites the span of the CV it is based on, and a personal identity number in the text is flagged. |
+| **Accounts** | Passwordless sign-in with a one-time code or link ([ADR 0142](docs/decisions/0142-passwordless-auth-one-page-code-or-link-oauth-ready.md)), optionally via Google, GitHub or LinkedIn. Self-service account deletion: access is blocked at once and the account is permanently deleted after 30 days. A per-page feedback form, behind a switch that is off by default. |
+| **Administration** (`/admin`) | Account directory, suspension and reinstatement, scheduled deletion, address change, audit-log search, background-job monitoring and a feedback inbox. |
 
----
+Not live today: the CV builder (paused), automatic CV improvement suggestions (the engine
+exists, the endpoints were removed) and notifications for saved searches (the backend
+model exists, there is no UI for it).
 
-## Agent-orkestrering
+## Architecture
 
-Jobbliggaren kör **PR-flöde mot skyddad `main` med CI-gate** ([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)). Granskningsvärdet förstärks av en orkestrerad agent-struktur med skrivna mandat. Roster verifierad i [`.claude/agents/`](.claude/agents/): specialiserade agenter med distinkta, icke-överlappande mandat.
+The backend follows Clean Architecture with DDD aggregates and CQRS. The layer rules
+are enforced by architecture tests that fail the build, not by convention alone
+([ADR 0001](docs/decisions/0001-clean-architecture.md)).
+
+```mermaid
+flowchart LR
+    Api["Jobbliggaren.Api<br/>composition root"]
+    Worker["Jobbliggaren.Worker<br/>composition root"]
+    Infra["Jobbliggaren.Infrastructure<br/>EF Core, Redis, external clients"]
+    App["Jobbliggaren.Application<br/>commands, queries, pipeline behaviors"]
+    Domain["Jobbliggaren.Domain<br/>aggregates, value objects, events"]
+
+    Api --> App
+    Api --> Infra
+    Worker --> App
+    Worker --> Infra
+    Infra --> App
+    App --> Domain
+```
+
+**Runtime.** The production stack is one Docker Compose project on a single server.
+The browser reaches only Caddy and Next.js; the API is not exposed at the edge.
 
 ```mermaid
 flowchart TB
-    Klas["Klas Olsson<br/>Agent-orkeströr · sista ordet"]
+    Browser(["Browser"]) -->|HTTPS| Caddy
 
-    CTO["senior-cto-advisor<br/>decision-maker (ej advisor)<br/>multi-approach-val · fynd-triage"]
-
-    subgraph Veto["Review-agenter — veto-rätt före merge"]
-        CR["code-reviewer<br/>Clean Arch / DDD / CQRS / coverage"]
-        SA["security-auditor<br/>PII · auth · secrets · GDPR"]
-        DR["design-reviewer<br/>civic-utility · WCAG 2.1 AA"]
+    subgraph Server["Production server · Docker Compose"]
+        Caddy["Caddy<br/>TLS · HSTS"] --> Web["Next.js<br/>Server Components · Server Actions"]
+        Web -->|internal network| Api["ASP.NET Core API"]
+        Worker["Worker<br/>Hangfire jobs"]
+        Postgres[("PostgreSQL 18")]
+        Redis[("Redis<br/>sessions · cache")]
+        Volatile[("Redis, no persistence<br/>sign-in challenges")]
+        Seq["Seq<br/>logs from API and Worker"]
+        Api --> Volatile
+        Api --> Redis
+        Api --> Postgres
+        Worker --> Postgres
+        Worker --> Redis
     end
 
-    subgraph Advisor["Arkitektur-rådgivning före kod"]
-        DA["dotnet-architect<br/>aggregat · bounded contexts · EF Core"]
+    subgraph External["External services"]
+        Scaleway["Scaleway<br/>transactional email"]
+        JobTech["JobTech JobStream<br/>job ads"]
+        SCB["SCB<br/>company register"]
+        OAuth["Google · GitHub · LinkedIn<br/>optional sign-in"]
     end
 
-    subgraph Builders["Builder-agenter"]
-        TW["test-writer<br/>xUnit v3 · TDD-först"]
-        TR["test-runner<br/>dotnet test · svensk summering"]
-        DM["db-migration-writer<br/>EF Core-migrations · GDPR-schema"]
-        UI["nextjs-ui-engineer<br/>RSC · shadcn · Tailwind 4"]
-        PT["perf-test-writer<br/>NBomber · Lighthouse-CI"]
-    end
-
-    subgraph Keepers["Dokumentations-keepers"]
-        AK["adr-keeper<br/>ADR-livscykel · status-flips"]
-        DK["docs-keeper<br/>kod↔docs-synk · cross-refs"]
-    end
-
-    Klas --> CTO
-    CTO --> Veto
-    CTO --> Advisor
-    CTO --> Builders
-    Klas --> Keepers
-    Veto -.->|blockerar merge| Klas
+    Api --> Scaleway
+    Worker --> Scaleway
+    Worker --> JobTech
+    Worker --> SCB
+    Api --> OAuth
 ```
 
-### Modellen i sex steg
+### Mechanisms worth reading
 
-1. **Plan-design** — scope, sekvens, risker och alternativ designas i chat innan kod skrivs. Ingen kod utan plan.
-2. **STOPP-disciplin** — Claude Code stannar vid varje övergång. Inga `str_replace`, inga commits, ingen analys mellan STOPP och GO ([CLAUDE.md §6](CLAUDE.md)).
-3. **Agent-veto** — `code-reviewer`, `security-auditor` och `design-reviewer` har **blockerande** veto vid relevant scope. En review-agents auktoritet är skriven regel (CLAUDE.md), inte konsensus eller deadline.
-4. **In-block-fix-disciplin** — fynd fixas i samma commit-batch som default. Blocker/Major fixas in-block eller i en följd-PR; Minor och nice-to-have filas som GitHub issue ([CLAUDE.md §9.6](CLAUDE.md)). Det separata tech-debt-registret retirerades 2026-08-02 — backloggen är GitHub Issues och inget annat.
-5. **ADR-historik** — alla arkitekturbeslut är immutable ADRs. En ändring skapar en ny ADR som *superseder* den gamla, aldrig en tyst redigering ([docs/decisions/](docs/decisions/)).
-6. **Session-protokoll** — varje session börjar med state-verifiering + git-log-kontroll och avslutas med synkroniserad docs-state ([CLAUDE.md §1.5](CLAUDE.md)).
-
-Detta är governance-mognad — inte "jag använder AI". Agent-rapporterna sparas i [`docs/reviews/`](docs/reviews/) och bifogas varje PR så att granskning sker parallellt.
-
----
-
-## Ingenjörsprinciper i praktiken
-
-Den här sektionen är portfolions kärna. Varje princip nedan är kopplad till en **verifierbar mekanism** — ett arkitekturtest som failar bygget, en ADR som låser beslutet, eller en namngiven kod-path. Inga påståenden utan referent.
-
-### Clean Architecture — maskinellt enforced, inte beskrivet
-
-De flesta kodbaser *beskriver* sin lager-separation. Jobbliggaren **failar bygget** om den bryts. [`Jobbliggaren.Architecture.Tests`](tests/Jobbliggaren.Architecture.Tests/) innehåller **78 NetArchTest-fakta över 14 filer** som körs i CI. Den hårdaste regeln, `DomainLayerTests.Domain_should_not_depend_on_any_other_project`, asserterar att domänlagret har noll beroende på EF Core, ASP.NET Core, Mediator, FluentValidation eller något högre lager:
+**The domain depends on nothing.** `DomainLayerTests` fails the build if the domain
+assembly references EF Core, ASP.NET Core, Mediator, FluentValidation or any outer layer:
 
 ```csharp
 // tests/Jobbliggaren.Architecture.Tests/DomainLayerTests.cs
@@ -136,558 +127,316 @@ Types.InAssembly(typeof(Jobbliggaren.Domain.Common.Entity<>).Assembly)
     .GetResult();
 ```
 
-Samma testklass enforcar att Application inte beror på Infrastructure, inte på ASP.NET, inte på konkreta EF Core-providers, och att inget aggregat exponerar en publik setter. Lager-strukturen är ett **kört kontrakt** (Martin, *Clean Architecture* 2017, kap. 22 — en gräns som inte enforcas är ingen gräns). Beslutet är låst i [ADR 0001](docs/decisions/0001-clean-architecture.md).
+The same suite checks that Application references no Infrastructure, ASP.NET Core or
+database-provider package, and that aggregates expose no public setters.
 
-### SOLID — demonstrerat, inte deklarerat
-
-| Princip | Mekanism | Var |
-|---------|----------|-----|
-| **DIP** — Application definierar portar, Infrastructure implementerar | `ICurrentUser`, `IJobSource`, `IAppDbContext` deklareras i Application; konkreta implementationer ligger i Infrastructure. Arch-testet `Application_should_not_depend_on_Infrastructure` failar om riktningen vänds. | `src/Jobbliggaren.Application/Common/Abstractions/` → `src/Jobbliggaren.Infrastructure/` |
-| **OCP** — beteende läggs till utan att ändra handlers | Cross-cutting concerns är Mediator-pipeline-behaviors i låst ordning (`Logging → Validation → Authorization → AdminAuthorization → UnitOfWork → Audit`). Ny behavior = ny rad i `InOrder`, ingen handler rörs. Ordningen delas av Api + Worker så de inte kan drifta isär, verifierad av ett arch-test. | `MediatorPipelineBehaviors.InOrder` i `src/Jobbliggaren.Application/Common/`, låst av [ADR 0008](docs/decisions/0008-pipeline-behavior-order.md) |
-| **SRP** — en behavior, ett ändringsskäl | Varje pipeline-behavior bär exakt ett cross-cutting concern (en anledning att ändras, Martin 2017 kap. 7). En command-handler komponerar inte flöden — komplexa flöden komponeras av flera commands, aldrig en fet handler ([CLAUDE.md §2.3](CLAUDE.md)). | `src/Jobbliggaren.Application/Common/Behaviors/` |
-
-### DRY — delade SPOT-moduler, inga magiska primitiver
-
-Primitive obsession motverkas av strongly-typed IDs som `readonly record struct` ([ADR 0011](docs/decisions/0011-strongly-typed-ids.md)) — ett `ApplicationId` kan aldrig av misstag skickas där ett `JobSeekerId` förväntas, kompilatorn fångar det:
+**Aggregates guard their invariants.** `Application.TransitionTo` refuses to change a
+deleted application, stamps the application date once, and writes each status change to
+the timeline in the same unit of work as the status itself:
 
 ```csharp
-// src/Jobbliggaren.Domain/Applications/ApplicationId.cs
-public readonly record struct ApplicationId(Guid Value)
-{
-    public static ApplicationId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString();
-}
-```
-
-Sökkriterier är inte lösa strängar utan ett `SearchCriteria`-value-object som normaliserar och validerar invarianter (concept-id-format, term-längd, sort-precondition) på konstruktion — en enda sanningspunkt för sök-semantik, återanvänd av samtliga SavedSearch-commands och -queries ([ADR 0039](docs/decisions/0039-savedsearch-aggregate-and-query-run-semantics.md)).
-
-### SoC / DDD / CQRS — aggregat skyddar invarianter
-
-Affärsregler bor i domänen, inte i handlers. `Application`-aggregatet äger sina invarianter i `TransitionTo`. Statusövergångar är fria (ADR 0092 D3 — grinden var UX, ersatt av ångra-toast + audit + tidslinje), men de *genuina* invarianterna skyddas fortfarande i metoden: en borttagen ansökan kan inte byta status, apply-datumet stämplas en gång och skrivs aldrig om, och varje byte registreras atomiskt på den append-only tidslinjen i samma UnitOfWork som `Status`:
-
-```csharp
-// src/Jobbliggaren.Domain/Applications/Application.cs — TransitionTo
-if (DeletedAt is not null)                      // invariant: borttagen ansökan är utanför sin livscykel
+// src/Jobbliggaren.Domain/Applications/Application.cs (abridged)
+if (DeletedAt is not null)
     return Result.Failure(DomainError.Validation(
         "Application.DeletedCannotTransition",
         "Det går inte att ändra status på en borttagen ansökan."));
-if (target == Status) return Result.Success();  // självbyte = no-op
+if (target == Status) return Result.Success();
 ...
 if (target == ApplicationStatus.Submitted && AppliedAt is null)
-    AppliedAt = now;                            // invariant: apply-datum write-once (AF-rapport, #316)
-RecordStatusChange(previous, target, now);      // append-only tidslinje, samma UnitOfWork som Status
+    AppliedAt = now;
+RecordStatusChange(previous, target, now);
 RaiseDomainEvent(
     new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, now));
 ```
 
-- **CQRS** — commands returnerar `Result<T>`, queries returnerar DTOs direkt; inga domänobjekt passerar Application-gränsen ([CLAUDE.md §2.3](CLAUDE.md)). Pipeline-ordningen är låst av [ADR 0008](docs/decisions/0008-pipeline-behavior-order.md).
-- **Domain events som sanning** — state-ändringar raisar events; handlers reagerar, de driver inte sanningen ([ADR 0022](docs/decisions/0022-audit-log-pipeline-behavior.md), audit via pipeline-behavior + marker-interface).
-- **Anticorruption Layer** — JobTech-taxonomins instabila vokabulär läcker aldrig in i domänens ubiquitous language. Kommentaren i sök-query-vägen citerar källan explicit i koden:
+**Strongly typed IDs.** Identifiers are `readonly record struct` types such as
+`ApplicationId`, so the compiler rejects one aggregate's ID where another's is expected
+([ADR 0011](docs/decisions/0011-strongly-typed-ids.md)).
 
-```csharp
-// src/Jobbliggaren.Application/JobAds/Queries/JobAdSearch.cs
-// Shadow-properties refereras via EF.Property<string?>(...) eftersom de
-// inte är top-level Domain-fält (Evans 2003 §14 ACL — JobTech-taxonomi
-// är inte Jobbliggarens ubiquitous language).
-```
+**One pipeline, shared by both hosts.** Cross-cutting concerns are Mediator pipeline
+behaviors registered in a fixed order from `MediatorPipelineBehaviors.InOrder`
+([ADR 0008](docs/decisions/0008-pipeline-behavior-order.md)): logging scope, logging,
+validation, authorization, admin authorization, re-authentication, account-access
+mutation, encryption-key prefetch, unit of work, recent-search capture and audit. The
+API and the Worker register the same list, and an architecture test pins the order.
 
-ACL:n är formaliserad i [ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-surface.md) (lokal taxonomi-snapshot bakom port — externt taxonomi-API aldrig på sök-vägen).
+**No repository layer.** Handlers use `IAppDbContext` directly
+([ADR 0009](docs/decisions/0009-no-repository-pattern.md)); queries that need
+provider-specific SQL sit behind ports that Infrastructure implements.
 
-> [!IMPORTANT]
-> Varje rad ovan pekar på en namngiven artefakt (testklass, ADR, fil + medlem) — aldrig ett radnummer som ruttnar vid nästa redigering. En granskare kan öppna referenten och verifiera påståendet. Det är skillnaden mellan att kunna vokabulären och att ha fattat besluten.
+**An anti-corruption layer for the job taxonomy.** JobTech's taxonomy codes are resolved
+against a local snapshot behind a port, so the external vocabulary never becomes the
+domain's language and search never calls the taxonomy API
+([ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-surface.md)).
 
----
+Architecture decisions are recorded as ADRs in [`docs/decisions/`](docs/decisions/); the
+public subset is indexed in [`docs/decisions/README.md`](docs/decisions/README.md).
 
-## Position och anti-position
+## Quality and CI
 
-**Jobbliggaren är:**
-- Svensk-först (Platsbanken, SCB, svensk rekryteringskultur)
-- Kvalitet över volym — inga auto-apply-funktioner
-- Deterministisk och förklarbar — CV-granskning och matchning bygger på regler och taxonomi, inte en svart låda; varje utfall går att motivera
-- GDPR-säker med dataminimering och fält-kryptering; ingen tredjelandsöverföring av användardata
+`main` is protected: every change goes through a pull request, history is linear, and
+merging requires the `ci` aggregate in
+[`.github/workflows/build.yml`](.github/workflows/build.yml)
+([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)). It passes only
+when all of these pass:
 
-**Jobbliggaren är inte:**
-- Ännu en ChatGPT-wrapper
-- Ett mass-apply-verktyg som LoopCV eller Sonara
-- En ATS-keyword-stuffer
-- En jobbmarknad eller rekryteringstjänst
+| Job | What it checks |
+|---|---|
+| `frontend` | ESLint, a CSS token guard, `tsc --noEmit`, the production build and Vitest |
+| `coverage` | Every .NET test project, followed by a per-layer coverage floor |
+| `scripts` | Fixture tests for the CI, merge and deployment scripts, plus configuration guards |
+| `images` | Docker builds of every deployable image and a Trivy scan |
 
----
+CodeQL (C# and TypeScript), Playwright end-to-end tests, Lighthouse, a load test and a
+dependency audit also run, but only report. Dependabot keeps NuGet, npm, Actions, Docker
+and Compose dependencies current.
 
-## Funktioner
+**Tests.** Domain and Application logic is tested without a database: handlers run
+against an in-memory `IAppDbContext` fake, with NSubstitute for other ports. Transactions,
+constraints, concurrency and `jsonb` are tested against real PostgreSQL and Redis
+containers through Testcontainers. On 2026-10-09 the `coverage` job at
+[`1f81187`](https://github.com/klasolsson81/jobbliggaren/actions/runs/37938563626) ran
+**26,283 backend tests**, and the `frontend` job ran **6,609 Vitest tests**, all passing.
+First-party .NET coverage was:
 
-### Discovery
+| Assembly | Line | Branch | Gate |
+|---|---:|---:|---|
+| Jobbliggaren.Domain | 98.0 % | 95.8 % | line ≥ 93, branch ≥ 91 |
+| Jobbliggaren.Application | 97.2 % | 93.0 % | line ≥ 95, branch ≥ 89 |
+| Jobbliggaren.Infrastructure | 95.4 % | — | line ≥ 82 |
+| Jobbliggaren.Api | 94.6 % | — | line ≥ 91 |
+| Jobbliggaren.Worker | 72.9 % | — | observe-only |
+| **All first-party code** | **96.1 %** | **90.1 %** | |
 
-- Hämta platsannonser från **JobTech JobSearch API** (Platsbanken)
-- Full-text-sökning och facetterad filtrering (region, yrke, SSYK, anställningsform, distans, datum)
-- Sparade sökningar med notifieringsinställning per sökning
-- **Taxonomi-baserad matchningsmotor** — beräknad, förklarbar score per annons (SSYK-overlap, titel-likhet, keyword-täckning, region/anställningsform); visar vilka kriterier som matchade och vilka som saknades
-- Lönestatistik-overlay per annons från **SCB**
+Generated code, migrations and `Program.cs` are excluded from the measurement. Job logic
+lives in Application, so the thin Worker host is reported but not gated. The floors are
+regression guards, not targets
+([ADR 0044](docs/decisions/0044-test-coverage-policy.md)). Reproduce the report locally
+with `bash scripts/coverage.sh`.
 
-### Application management
+## How it is built
 
-- Full pipeline-tracker med state machine: Draft → Submitted → Acknowledged → InterviewScheduled → Interviewing → OfferReceived → Accepted / Rejected / Withdrawn / Ghosted
-- Follow-up-loggning per ansökan (kanal, datum, anteckning, utfall)
-- Kalenderintegration: Google Calendar + iCal-export
-- Automatisk Ghosted-transition efter X dagar utan svar
-- Avslags-analys med trender över tid
-
-### CV-motor (deterministisk)
-
-- **CV-granskning** — laddar upp PDF/DOCX; en regelmotor bedömer CV:t mot en versionerad svensk kvalitetsrubrik (mätbara resultat, handlingsverb, relevans mot målroll, struktur, ATS-parsbarhet, klyschor) och rapporterar per kriterium vad som är bra, vad som kan förbättras och vad som saknas — med citerad evidens ur texten
-- **CV-bygge** — färdiga mallar, egen färgpalett, ATS- eller visuell profil, svenska eller engelska; rendering av båda profiler från samma strukturerade källdata
-- **Deterministiska förbättringsförslag** — klyschdetektion, action-verb-förslag, struktur- och formatnormalisering, borttagning av personnummer/foto enligt svensk norm. Motorn **lägger aldrig till erfarenheter eller kunskaper användaren inte har** — den diagnostiserar och strukturerar, den hittar inte på
-
-### Integrationer
-
-- Google Calendar (OAuth) — intervjuer som events
-- iCal-export av intervjuer
-- SCB lönestatistik — periodisk import per SSYK
-
-### Admin
-
-- Användarhantering, suspendering, mjukradering
-- **Impersonation** med audit-trail (`impersonating_by` claim, dubbel-taggning av handlingar)
-- Audit-sökning och jobbkälla-statushälsa
-
----
-
-## Arkitektur
-
-Jobbliggaren följer **Clean Architecture** med strikt lager-separation och **DDD** med aggregates som invariant-skydd. Lager-gränserna är inte en konvention — de är [maskinellt verifierade](#clean-architecture--maskinellt-enforced-inte-beskrivet).
-
-```mermaid
-flowchart TB
-    subgraph Edge["Edge / Klient"]
-        Browser["Browser<br/>Next.js 16 / React"]
-        Mobile["Mobile<br/>(framtid)"]
-    end
-
-    subgraph Local["Lokal stack (Docker Compose) — permanent mål TBD (ADR 0050)"]
-        Api["Jobbliggaren.Api<br/>ASP.NET Core 10 Minimal API"]
-        Worker["Jobbliggaren.Worker<br/>Hangfire"]
-        DB[("PostgreSQL 18.3")]
-        Redis[("Redis 8")]
-        Seq["Seq<br/>log-sink"]
-        DEK["IDataKeyProvider<br/>Local AES-256-GCM (ADR 0066)"]
-    end
-
-    subgraph External["Externt"]
-        JobTech["JobTech / Platsbanken"]
-        SCB["SCB lönestatistik"]
-        Gmail["Gmail / Calendar"]
-    end
-
-    Browser -->|HTTPS| Api
-    Api -->|EF Core 10| DB
-    Api -->|Sessions| Redis
-    Api --> Seq
-    Api --> DEK
-    Worker --> DB
-    Worker --> JobTech
-    Worker --> SCB
-    Worker --> Gmail
-```
-
-### Lager (.NET-backend)
+Jobbliggaren is written by one developer working with AI coding agents (Claude Code and
+Codex) under written rules. [`AGENTS.md`](AGENTS.md) holds the shared conventions and
+anti-patterns, and [`CLAUDE.md`](CLAUDE.md) holds the session and review protocol.
 
 ```mermaid
 flowchart LR
-    Api["Jobbliggaren.Api<br/>(composition root)"]
-    Worker["Jobbliggaren.Worker<br/>(composition root)"]
-    Infra["Jobbliggaren.Infrastructure<br/>(EF Core, local crypto)"]
-    App["Jobbliggaren.Application<br/>(CQRS handlers, behaviors)"]
-    Domain["Jobbliggaren.Domain<br/>(aggregates, VOs, events)"]
-
-    Api --> App
-    Api --> Infra
-    Worker --> App
-    Worker --> Infra
-    Infra --> App
-    App --> Domain
+    Plan["Plan and scope"] --> Code["Change on a<br/>feature branch"]
+    Code --> PR["Pull request"]
+    PR --> Panel["Review agents<br/>code · security · design · architecture"]
+    Panel -->|Blocker or Major| Code
+    Panel -->|no open findings| Gate["agents-done label"]
+    Gate --> CI["Required ci check"]
+    CI --> Merge["Squash merge<br/>and release"]
 ```
 
-**Regler (arch-test-enforced):**
-- `Domain` beror på **ingenting** — inga ORM, inga frameworks
-- `Application` definierar interfaces; `Infrastructure` implementerar
-- `Api` och `Worker` är separata komposition-rots ([ADR 0010](docs/decisions/0010-worker-composition-root.md)) — de bygger DI-containern; pipeline-ordningen delas så de inte driftar isär
+- **Review agents with a veto.** Specialised reviewers, defined in
+  [`.claude/agents/`](.claude/agents/), check each pull request within their remit.
+  Auto-merge is armed only when the `agents-done` label is present, which the session
+  sets after every mandatory reviewer has reported with no open Blocker or Major finding.
+- **Decisions are recorded.** Architecture decisions become ADRs, and a changed decision
+  gets a new ADR or an amendment instead of a silent edit.
+- **Releases are continuous.** A release workflow builds and attests the images from
+  `main` and records them as one release, which the server applies itself
+  ([ADR 0149](docs/decisions/0149-a-release-is-one-verified-record-the-channel-moves-only-after-the-whole-set-and-the-box-applies-exactly-what-it-names.md)).
 
-Arkitekturbeslut är historieförda som ADRs under [`docs/decisions/`](docs/decisions/) — index i [`docs/decisions/README.md`](docs/decisions/README.md). Konventioner: [`CLAUDE.md §2`](CLAUDE.md).
+## Tech stack
 
----
+Major versions are listed here. Exact versions are pinned in
+[`Directory.Packages.props`](Directory.Packages.props) and
+[`web/jobbliggaren-web/pnpm-lock.yaml`](web/jobbliggaren-web/pnpm-lock.yaml);
+[`global.json`](global.json) sets the minimum .NET SDK.
 
-## Kvalitet, test och coverage
+| Layer | Technology |
+|---|---|
+| Backend | .NET 10, C# 14, ASP.NET Core Minimal APIs, `Mediator` 3 (source-generated), FluentValidation 12, Ardalis.SmartEnum |
+| Persistence | EF Core 10 with Npgsql, PostgreSQL 18, ASP.NET Core Identity, Redis 8 (StackExchange.Redis) |
+| Background jobs | Hangfire 1.8 with PostgreSQL storage |
+| Integrations | Refit with `Microsoft.Extensions.Http.Resilience`, JobTech JobStream, SCB company register, Scaleway Transactional Email over HTTPS |
+| Documents and text | PdfPig and Open XML SDK for parsing, QuestPDF for rendering, ImageSharp, Hunspell and Snowball stemming for Swedish |
+| Logging | Microsoft.Extensions.Logging to the console and Seq |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript 6 (strict), Tailwind CSS 4, shadcn/ui on Radix, next-intl, React Hook Form with Zod |
+| Testing | xUnit v3 on Microsoft.Testing.Platform, Shouldly, NSubstitute, Testcontainers, WireMock.Net, NetArchTest, Vitest, Playwright, NBomber |
+| Delivery | GitHub Actions, Docker Compose, Caddy, systemd timers on the server |
 
-Jobbliggaren byggs med en uttalad kvalitetsstandard: varje commit ska kunna försvaras i en kodgranskning på Mastercard-nivå. Det är inte en paroll utan en mätbar praxis.
+## Getting started
 
-### Test-disciplin
+The full guide, including troubleshooting, is
+[`docs/runbooks/local-dev-setup.md`](docs/runbooks/local-dev-setup.md). It is written in
+Swedish; the steps below summarise it.
 
-- **Clean Architecture-gränser verifieras maskinellt.** NetArchTest-regler i `Jobbliggaren.Architecture.Tests` failar bygget om Domain importerar EF Core, om Application känner till Infrastructure, eller om ett aggregat exponerar en publik setter.
-- **Domänlogik testas utan databas.** Aggregat och value objects bär sina invarianter; handlers testas mot fake `IAppDbContext` med NSubstitute. Om något kräver en startad ASP.NET-host för att testas betraktas designen som fel ([CLAUDE.md §2.4](CLAUDE.md)).
-- **TDD där det bär.** Nya domäntyper och handlers får tester först; produktionskod skrivs för att passera.
-- **Integrationstester mot riktig Postgres.** Testcontainers startar PostgreSQL 18.3 och Valkey per integrations-svit — ingen in-memory-attrapp som döljer provider-skillnader.
-- **Granskningsspärrar i PR-flödet.** PR mot skyddad `main` med CI-gate ([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)) kompletteras av plan-design, STOPP-disciplin, specialiserade review-agenter med veto-rätt (code-reviewer, security-auditor, design-reviewer), manuell diff-granskning och pre-push-hooks.
+**Prerequisites**
 
-Backend-sviten omfattar **1 100+ tester gröna** över Domain, Application, Architecture (78), Api-integration, Worker-integration och Migrate. Frontend-sviten kör Vitest-tester plus Playwright E2E för kritiska flöden.
+| Tool | Version |
+|---|---|
+| .NET SDK | 10.0.200 or later in the 10.0 band ([`global.json`](global.json)) |
+| `dotnet-ef` | global tool, for applying migrations |
+| Node.js | 22 |
+| pnpm | 9 (the lockfile format CI uses) |
+| Docker | Engine with Compose v2 |
+| PowerShell | 7 (`pwsh`), for `scripts/prepare-dev-redis.ps1` |
+| OpenSSL | for generating local secrets |
+| Python 3 | used by the guide's environment export block |
+| ImageSharp licence | a free Six Labors community licence: export the licence file's full contents as `SIXLABORS_LICENSE_KEY` before building, and never commit it ([guide](docs/runbooks/local-dev-setup.md#imagesharp-build-licence-1979-pr2)) |
 
-### Coverage — reproducerbar, ärlig, regressionsskyddad
-
-Coverage mäts av en **versionerad in-repo-mekanism** ([ADR 0044](docs/decisions/0044-test-coverage-policy.md)), inte en maskin-lokal ad-hoc-körning:
-
-- `Microsoft.Testing.Extensions.CodeCoverage` (Microsoft, MTP-native, central via Central Package Management) samlar rå Cobertura per testprojekt — ofiltrerad, audit-trail bevarad.
-- `dotnet-reportgenerator-globaltool` via in-repo tool-manifest producerar den first-party-filtrerade rapporten report-time. Rådatan förstörs aldrig — filtreringen är deklarativ och reversibel.
-- Genererad kod (Mediator source-gen, OpenAPI), entrypoints (`Program.cs`, `Jobbliggaren.Migrate`) och migrationer filtreras bort så siffran speglar verklig testbar kvalitet, inte nämnar-kosmetik.
-- En kommandorad reproducerar allt: `bash scripts/coverage.sh` (Windows: `scripts/coverage.ps1`).
-
-First-party-resultat per ADR 0044-baseline (samma mekanism):
-
-| Lager | Line | Branch | Method |
-|-------|------|--------|--------|
-| Jobbliggaren.Domain | 95,3 % | 93,3 % | 91,9 % |
-| Jobbliggaren.Application | 97,7 % | 91,1 % | 98,1 % |
-| Jobbliggaren.Infrastructure | 84,0 % | 71,1 % | 80,3 % |
-| Jobbliggaren.Api (efter filter) | 93,7 % | 82,9 % | 92,3 % |
-| Jobbliggaren.Worker | 30,7 % | observe-only | 36,8 % |
-| **Totalt first-party** | **92,1 %** | **84,5 %** | **90,2 %** |
-
-Siffrorna är medvetet asymmetriska: Domain och Application bär affärsinvarianter och har hög grentäckning; Worker är en tunn Hangfire-bootstrap vars jobblogik testas i Application-lagret. En global tröskel skulle dölja den asymmetrin — därför gejtar CI per lager.
-
-### Regressions-gate (icke-regression-ratchet)
-
-CI-jobbet `coverage` blockerar `main` om något lager faller under sitt golv. Golvet är `floor(uppmätt baseline − 2,0 pp)` — en absorptionsmarginal mot icke-deterministisk grenmätning som gör gaten trovärdig i stället för falsklarmande. Den är ett regressionsskydd, inte en måltavla (Fowler, Goodharts lag): golvet höjs manuellt när coverage stabilt ligger högre, aldrig automatiskt. Branch gejtas endast för Domain och Application — lagren som bär invarianter. Modell och pinnade golv: [ADR 0044](docs/decisions/0044-test-coverage-policy.md).
-
----
-
-## Tech-stack
-
-Versioner är låsta.
-
-### Backend
-
-| Komponent | Val | Version |
-|-----------|-----|---------|
-| Runtime | .NET | 10 (LTS) |
-| Språk | C# | 14 |
-| Framework | ASP.NET Core (Minimal API) | 10 |
-| ORM | EF Core (Npgsql) | 10 |
-| Mediator | `Mediator` (martinothamar) | 3.x |
-| Validering | FluentValidation | 12.x |
-| Mapping | Mapster | 10.x |
-| Background jobs | Hangfire (Postgres-storage) | 1.8.x |
-| Logging | Serilog | 4.x |
-| Observability | OpenTelemetry | 1.15+ |
-| PDF | PdfPig (parse) + QuestPDF (gen) | 0.1.14 / 2026.2 |
-
-### Frontend
-
-| Komponent | Val | Version |
-|-----------|-----|---------|
-| Framework | Next.js (App Router) | 16.2 |
-| Språk | TypeScript (strict) | 6.0 |
-| UI-komponenter | shadcn/ui | CLI v4 |
-| Styling | Tailwind CSS | 4.2 |
-| Server state | TanStack Query | 5.x |
-| Tabeller | TanStack Table (headless) | 8.x |
-| Forms | React Hook Form + Zod | RHF 7.72 / Zod 4.x |
-| Auth-klient | NextAuth.js (Auth.js) | 5 |
-| Datum | date-fns (svensk locale) | 4.x |
-| Typografi | Source Sans 3 (systemfont-fallback) | — |
-
-### Datalager och infra
-
-> AWS-dev-stacken avvecklad (ADR 0066); permanent mål — **netcup RS 1000 G12 (Nürnberg) med BE + FE som co-tenant-containrar, ingen CDN** — i ADR 0050 (**Accepted** 2026-06-08, `Amendment 2026-08-04`) + ADR 0122. Tabellen visar **nuläge (lokalt)** + **permanent mål**.
->
-> *Raden namngav till 2026-08-09 fyra döda uppgifter: **Hetzner** (ut 2026-08-04, Klas-beslut), **Vercel** (ut redan 2026-06-14, ADR 0050 Beslut 3 amenderad — FE är en co-tenant-container, ingen Vercel-build), **Cloudflare** (ut 2026-08-04, Klas-beslut K3) och statusen **Proposed** (ADR 0050 är `Accepted` sedan 2026-06-08). Rättat i #1199 per Klas-direktiv i den issuens kommentarstråd: en spårad yta som namnger en leverantör som inte är leverantören hör hemma där.*
-
-| Tjänst | Nuläge (lokal dev) | Permanent mål |
-|--------|--------------------|---------------|
-| Databas | PostgreSQL 18.3 (Docker Compose) | TBD (ADR 0050) |
-| Cache | Redis 8 (Docker Compose) | TBD (ADR 0050) |
-| Compute | `dotnet run` lokalt | netcup RS 1000 G12, Docker Compose (ADR 0050 `Amendment 2026-08-04`/0122) |
-| Object storage | lokal disk / ej aktiverat | TBD — S3-kompatibel (ADR 0050) |
-| Encryption | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed |
-| Frontend hosting | `pnpm dev` (localhost) | `next start` co-tenant-container på samma låda (ADR 0050 Beslut 3, amenderad 2026-06-14) |
-| DNS / CDN | — | DNS hos Strato; **ingen CDN** (Klas-beslut K3, ADR 0050 `Amendment 2026-08-04` §3) |
-| Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell väg |
-| Logs / metrics | Seq (lokalt) | TBD (ADR 0050) |
-| IaC | `infra/terraform/` bevarad (reversibilitet, ADR 0066) | compose-centrerad, ingen IaC-stack (ADR 0050) |
-| CI | GitHub Actions (build + test + coverage) | oförändrat |
-
-### Tester
-
-| Verktyg | Användning |
-|---------|------------|
-| xUnit v3 | Test-runner |
-| Shouldly | Assertions |
-| NSubstitute | Mocks |
-| Testcontainers | Postgres + Redis i integration-tests |
-| NetArchTest.Rules | Architecture-tests |
-| Playwright | E2E-frontend |
-| Vitest | Unit-tests frontend |
-
----
-
-## Komma igång lokalt
-
-> Full setup-guide: [`docs/runbooks/local-dev-setup.md`](docs/runbooks/local-dev-setup.md)
-
-### Förkrav
-
-| Verktyg | Version | Installation (Windows) |
-|---------|---------|------------------------|
-| .NET SDK | 10.x | `winget install Microsoft.DotNet.SDK.10` |
-| Node.js | 22 LTS | `winget install OpenJS.NodeJS.LTS` |
-| pnpm | 10.x | `npm install -g pnpm` |
-| Docker Desktop | Engine 28+ | `winget install Docker.DockerDesktop` |
-| Git | senaste | `winget install Git.Git` |
-| openssl | (lösenord-gen) | bundlat med Git for Windows |
-
-### Första start
+**1. Start the local services**
 
 ```bash
-# 1. Klona
 git clone https://github.com/klasolsson81/jobbliggaren.git
 cd jobbliggaren
 
-# 2. Generera lokala lösenord (PowerShell)
-@"
-POSTGRES_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
-POSTGRES_PASSWORD_TEST=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
-REDIS_PASSWORD_DEV=
-"@ | Out-File -Encoding utf8 .env
+# Local passwords for the containers (.env is gitignored)
+{
+  echo "POSTGRES_PASSWORD_DEV=$(openssl rand -hex 16)"
+  echo "POSTGRES_PASSWORD_TEST=$(openssl rand -hex 16)"
+  echo "REDIS_PASSWORD_DEV="
+  echo "SEQ_ADMIN_PASSWORD_DEV=$(openssl rand -hex 16)"
+} > .env
 
-# 3. Starta Docker-stacken (Postgres, Valkey, Seq)
-docker compose up -d
-
-# 4. Verifiera
-docker compose ps
-docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc "SELECT version();"
-docker exec jobbliggaren-redis-dev redis-cli ping
+pwsh scripts/prepare-dev-redis.ps1   # once: writes the gitignored .redis-dev credentials
+docker compose up -d                  # PostgreSQL, two Redis instances, Seq
 ```
 
-### Backend
+**2. Configure the API.** Copy
+`src/Jobbliggaren.Api/appsettings.Local.json.example` to `appsettings.Local.json` (gitignored)
+and fill in the generated keys it lists (`openssl rand -base64 32` for each), as described
+in section 2.4 of the guide.
+
+**3. Migrate and run.** Each .NET process needs its connection string, its Redis credential
+files and the shared secrets in its environment. Section 7 of the guide has the exact
+export block. With those set:
 
 ```bash
-# Restore + build
-dotnet restore
-dotnet build
+dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api --context AppDbContext
+dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api --context Jobbliggaren.Infrastructure.Identity.AppIdentityDbContext
+dotnet build Jobbliggaren.sln -c Debug
 
-# Migrations (när du har en DbContext-ändring)
-dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
+dotnet run --project src/Jobbliggaren.Api --launch-profile http --no-build   # http://localhost:5049
+dotnet run --project src/Jobbliggaren.Worker --no-build
 
-# Kör Api lokalt (port 5000/5001)
-dotnet run --project src/Jobbliggaren.Api
-
-# Kör Worker lokalt
-dotnet run --project src/Jobbliggaren.Worker
-```
-
-### Frontend
-
-```bash
 cd web/jobbliggaren-web
-
-# Installera deps
 pnpm install
-
-# Kopiera env-mall
-cp .env.example .env.local
-
-# Dev-server (port 3000)
-pnpm dev
+BACKEND_URL=http://localhost:5049 pnpm dev                                   # http://localhost:3000
 ```
 
-### Verifierings-URL:er
+In Development, registration is open. Sign-in codes are written to Seq only for addresses
+at reserved domains, such as `you@jobbliggaren.test`. Open Seq at http://localhost:5341
+and sign in as `admin` with `SEQ_ADMIN_PASSWORD_DEV`.
 
-| Tjänst | URL |
-|--------|-----|
-| Frontend | http://localhost:3000 |
-| Api (HTTP) | http://localhost:5000 |
-| Api (HTTPS, dev-cert) | https://localhost:5001 |
-| Health-check | http://localhost:5000/api/ready |
-| Seq (logs) | http://localhost:5341 |
+| Service | Local address |
+|---|---|
+| Web | http://localhost:3000 |
+| API | http://localhost:5049 (readiness: `/api/ready`) |
+| PostgreSQL | `localhost:5435` |
+| Redis / Redis without persistence | `localhost:6379` / `localhost:6381` |
+| Seq | http://localhost:5341 |
 
----
+## Common commands
 
-## Projekt-struktur
+```bash
+# Backend: build and test (Microsoft.Testing.Platform)
+dotnet build
+dotnet test --solution Jobbliggaren.sln
+dotnet test --project tests/Jobbliggaren.Architecture.Tests
+dotnet test --project tests/Jobbliggaren.Domain.UnitTests -- --filter-class "*ApplicationTests"
+dotnet format --verify-no-changes
+bash scripts/coverage.sh
 
+# Frontend (from web/jobbliggaren-web)
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm test             # Vitest
+pnpm build            # production build
+pnpm test:e2e         # Playwright
 ```
+
+The test projects run on Microsoft.Testing.Platform, so VSTest flags such as `--filter`
+and `--logger` are rejected. Select a project with `--project` and filter inside it after
+`--`. A suite has run when its output prints a non-zero `total:` line; an exit code alone
+does not prove it. See [`AGENTS.md` §7](AGENTS.md#7-testing).
+
+## Repository layout
+
+```text
 jobbliggaren/
 ├── src/
-│   ├── Jobbliggaren.Domain/             # Aggregates, value objects, domain events
-│   ├── Jobbliggaren.Application/        # CQRS handlers, pipeline behaviors, abstractions
-│   ├── Jobbliggaren.Infrastructure/     # EF Core, local crypto-providers
-│   ├── Jobbliggaren.Api/                # ASP.NET Core Minimal API, composition root
-│   └── Jobbliggaren.Worker/             # Hangfire-server, schedulerade jobb
-│
-├── web/
-│   └── jobbliggaren-web/                # Next.js 16 App Router, shadcn/ui, Tailwind 4
-│
+│   ├── Jobbliggaren.Domain/              # aggregates, value objects, domain events
+│   ├── Jobbliggaren.Application/         # commands, queries, pipeline behaviors, ports
+│   ├── Jobbliggaren.Infrastructure/      # EF Core, Redis, encryption, external clients
+│   ├── Jobbliggaren.Api/                 # Minimal API host
+│   ├── Jobbliggaren.Worker/              # Hangfire host for scheduled jobs
+│   ├── Jobbliggaren.Migrate/             # schema and bootstrap CLI used at deploy
+│   └── Jobbliggaren.Migrate.Provisioning/
 ├── tests/
 │   ├── Jobbliggaren.Domain.UnitTests/
 │   ├── Jobbliggaren.Application.UnitTests/
-│   ├── Jobbliggaren.Architecture.Tests/        # NetArchTest-regler för lager-gränser
-│   ├── Jobbliggaren.Api.IntegrationTests/      # Testcontainers + WebApplicationFactory
-│   ├── Jobbliggaren.Worker.IntegrationTests/   # Hangfire-job-orkestrering, recurring-jobs
-│   └── Jobbliggaren.Migrate.UnitTests/         # Migrate-CLI + connection-string-fabriker
-│
-├── infra/
-│   └── terraform/                    # AWS-stack bevarad men INAKTIV (ADR 0066)
-│
-├── docs/
-│   ├── decisions/                    # ADR (Architecture Decision Records)
-│   ├── reviews/                      # Agent-reviews
-│   └── runbooks/                     # Operativa procedurer
-│
-├── .claude/                          # Claude Code agent-configs + skills + hooks
-├── AGENTS.md                         # Delad spec-kärna (alla kodagenter; §-index i CLAUDE.md)
-├── CLAUDE.md                         # Claude-Code-specifika konventioner + @AGENTS.md-import
-├── DESIGN.md                         # Design-system-index (specs i .claude/skills/)
-└── docker-compose.yml                # Lokal Postgres + Valkey + Seq
+│   ├── Jobbliggaren.Architecture.Tests/  # layer rules and repository guards
+│   ├── Jobbliggaren.Api.IntegrationTests/
+│   ├── Jobbliggaren.Worker.IntegrationTests/
+│   ├── Jobbliggaren.Migrate.UnitTests/
+│   ├── Jobbliggaren.QA.Corpus/           # generated-corpus tests for the CV engines
+│   └── Deployment/                       # Python tests for the production Redis policy
+├── web/jobbliggaren-web/                 # Next.js frontend
+├── deploy/                               # production Compose file, Caddy, systemd units, backup
+├── perf/                                 # NBomber load tests
+├── tools/                                # taxonomy and data-preparation tools
+├── scripts/                              # coverage, local-setup and maintenance scripts
+├── infra/terraform/                      # retired AWS stack, kept as a record (ADR 0066)
+├── docs/                                 # ADRs, runbooks, threat model
+├── AGENTS.md · CLAUDE.md                 # rules for coding agents
+├── BUILD.md · DESIGN.md                  # product specification and design system
+└── docker-compose.yml                    # local PostgreSQL, Redis and Seq
 ```
 
----
+## Security and privacy
 
-## Vanliga kommandon
+- **Field-level encryption.** The most sensitive content (CVs, including uploaded files,
+  cover letters, application notes and follow-up notes) is encrypted field by field with
+  AES-256-GCM under a per-user data key, which is itself encrypted with a master key
+  (envelope encryption). Other personal data, such as the email address and saved
+  searches, is not field-encrypted. When an account is permanently deleted, its data key is
+  deleted and the remaining encrypted fields can no longer be read; older backups expire on
+  their own schedule
+  ([ADR 0049](docs/decisions/0049-td13-pii-field-encryption-kms-envelope.md)).
+- **Sessions.** The browser holds an opaque, random session ID in an `HttpOnly`,
+  `Secure`, `SameSite=Strict` cookie with the `__Host-` prefix. Sessions live in Redis.
+- **Audit trail.** State-changing commands marked as auditable are written to an audit
+  log, with IP addresses truncated (IPv4 to /24, IPv6 to /48).
+- **Deletion and retention.** When an account is deleted, access is blocked at once. After
+  a 30-day grace period the account and its data are permanently deleted, and the audit-log
+  entries that can be linked to it are de-identified. Deletion cannot be undone. The audit
+  log and application logs are pruned on fixed schedules
+  ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md)); the
+  [privacy policy](https://jobbliggaren.se/integritet) states the periods.
+- **Transport.** HTTPS only, with HSTS for 365 days.
+- **Hosting.** The server is in Nuremberg, Germany (Netcup), and transactional email is
+  sent through Scaleway in Paris. Optional sign-in with Google or GitHub involves a
+  transfer to the US, as the privacy policy describes.
 
-### Backend
+The threat model is in [`docs/threat-model.md`](docs/threat-model.md).
 
-```bash
-# Bygg hela solutionen
-dotnet build
+## Documentation
 
-# Kör alla tester (hela sviten tar en halvtimme — kör ett enskilt projekt vid behov)
-dotnet test
+| Where | What |
+|---|---|
+| [`docs/decisions/`](docs/decisions/) | Architecture Decision Records |
+| [`docs/runbooks/`](docs/runbooks/) | Local setup, deployment, backup, incident and GDPR procedures |
+| [`docs/threat-model.md`](docs/threat-model.md) | Threat model |
+| [`BUILD.md`](BUILD.md) | Product and technical specification |
+| [`DESIGN.md`](DESIGN.md) | Design system index |
+| [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md) | Coding conventions and the agent workflow |
+| [`web/jobbliggaren-web/README.md`](web/jobbliggaren-web/README.md) | Frontend notes |
 
-# Specifika test-suiter (sökvägen MÅSTE gå via --project, se noten under blocket)
-dotnet test --project tests/Jobbliggaren.Domain.UnitTests
-dotnet test --project tests/Jobbliggaren.Application.UnitTests
-dotnet test --project tests/Jobbliggaren.Api.IntegrationTests
-dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests
-dotnet test --project tests/Jobbliggaren.Architecture.Tests
-dotnet test --project tests/Jobbliggaren.Migrate.UnitTests
-dotnet test --project tests/Jobbliggaren.QA.Corpus
+## Author and license
 
-# Coverage (reproducerbar in-repo-mekanism, ADR 0044)
-bash scripts/coverage.sh          # Windows: scripts/coverage.ps1
+**Klas Olsson** · .NET and full-stack student at NBI/Handelsakademin, Gothenburg ·
+[GitHub @klasolsson81](https://github.com/klasolsson81) · klasolsson81@gmail.com
 
-# Format-check (pre-commit hook kör detta automatiskt)
-dotnet format --verify-no-changes
+External contributions are not accepted at this stage. Questions about the code,
+architecture or design are welcome by email.
 
-# Skapa migration
-dotnet ef migrations add <Name> --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
-
-# Applicera migrations
-dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
-```
-
-**Testsuiterna kör på Microsoft.Testing.Platform, inte VSTest.** De VSTest-formade flaggorna
-— `--filter`, `--logger`, `--collect`, `--nologo` — avvisas som ogiltiga kommandoradsargument:
-exit **5**, `Unknown option`, sedan en help-dump. En sökväg som skickas positionellt (projekt,
-katalog eller solution) faller på ett annat sätt: exit **1**, plattformens catch-all, en enda
-rad och inget summeringsblock alls. Åt båda hållen körs **noll tester**. Välj ett projekt med
-`--project`, alla projekt med `--solution`, och en delmängd **inuti** ett projekt med MTP:s
-egna filter efter `--`: `--filter-class`, `--filter-method`, `--filter-trait`, alla med
-`*`-wildcards; en selektor som matchar noll kör färdigt och exitar **8**. En `Category`-trait
-utesluter ingenting ur en default-körning — `Category=SmokeTest`-testerna körs i den.
-**Beviset för att en svit har kört är raden `total:`, aldrig exitkoden** — som efter en pipe
-mäter pipen, och som exit 1 aldrig skriver ut. Reglerna i sin normativa form: CLAUDE.md §7.
-
-### Frontend
-
-```bash
-cd web/jobbliggaren-web
-
-pnpm dev              # Dev-server med HMR
-pnpm build            # Produktion-build
-pnpm lint             # ESLint
-pnpm test             # Vitest unit-tests
-pnpm playwright test  # E2E-tests
-```
-
-### Infrastruktur (lokal dev)
-
-AWS-dev-stacken är avvecklad (ADR 0066). All utveckling kör lokalt:
-
-```bash
-docker compose up -d         # postgres + redis + seq
-dotnet run --project src/Jobbliggaren.Api
-dotnet run --project src/Jobbliggaren.Worker
-```
-
-Permanent deploy-infra (netcup-lådan, BE + FE co-tenant, ingen CDN) definieras i ADR 0050
-(**Accepted**, `Amendment 2026-08-04`) + ADR 0122. `infra/terraform/` är bevarad men inaktiv som reversibilitets-mekanik.
-
----
-
-## Miljöer
-
-| Miljö | Syfte | Deployment | Status |
-|-------|-------|------------|--------|
-| `local` | Utveckling | Docker Compose | **Aktiv** |
-| `dev` / `staging` / `prod` | Integration / pre-prod / live | TBD (ADR 0050) | Avvecklad (ADR 0066) |
-
-Branch-strategi: **PR-flöde mot `main`** med Conventional Commits per [ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md). `ci`-aggregatet måste vara grönt innan squash-merge; agent-reviews + manuell diff-review + pre-commit/pre-push-hooks kompletterar.
-
----
-
-## Säkerhet och GDPR
-
-Jobbliggaren är byggd för svensk arbetsmarknad och är därför **GDPR-säker by default**. Nyckel-höjdpunkter:
-
-- **Dataminimering:** PII och fält-data minimeras; ingen tredjelandsöverföring av användardata — all behandling sker inom den egna stacken
-- **Encryption at rest:** PII-fält + OAuth-tokens via per-användar-DEK envelope (`IDataKeyProvider`: Local AES-256-GCM, ADR 0066/0049); managed databas-/storage-kryptering på permanent host (TBD, ADR 0050)
-- **Encryption in transit:** TLS 1.3 ([ADR 0027](docs/decisions/0027-https-aktiverat-supersession.md)); HSTS 365 dagar per värd
-- **Audit-trail:** alla state-transitioner i `Application`-aggregatet raisar domain events som lagras i `audit_log`. Impersonation dubbel-taggas
-- **Art. 17 cascade:** soft-delete på primära aggregates triggar 30-dagars anonymisering ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md))
-- **IP-anonymisering:** IPv4 /24 + IPv6 /48 i alla loggar
-- **Loggretention:** 30 dagar standard
-- **Rate-limiting:** auth-write 20/min/IP, auth-loose 30/min/IP, account-deletion 1/60s/UserId
-
-Detaljer: [`docs/decisions/0024-*`](docs/decisions/), [`docs/decisions/0031-*`](docs/decisions/).
-
----
-
-## Status
-
-Jobbliggaren är ett **pågående arbete** i pre-MVP-fas, byggt av en solo-utvecklare. Kärn-domänen (auth, aggregat, audit), Platsbanken-integrationen (sök, sparade sökningar, taxonomi-ACL) och ansökningshanteringen (pipeline-tracker, follow-ups, ghosted-detection) är på plats. CV-motorn och matchningsmotorn är under uppbyggnad.
-
-Dev-miljön är avvecklad under en infra-paus (ADR 0066) — all utveckling kör lokalt. Permanent miljö återupprättas vid framtida cutover (ADR 0050). Projektet är pre-MVP; inga publika användare ännu.
-
----
-
-## Dokumentation
-
-| Fil | Syfte |
-|-----|-------|
-| [`AGENTS.md`](AGENTS.md) | Delad spec-kärna — coding conventions, anti-patterns (ett §-namespace med CLAUDE.md) |
-| [`CLAUDE.md`](CLAUDE.md) | Claude-Code-specifikt: sessionsprotokoll, parallella sessioner, agent-orkestrering + §-index |
-| [`DESIGN.md`](DESIGN.md) | Design-system-index — civic-utility-tone, design tokens, komponenter |
-| [`docs/decisions/`](docs/decisions/) | Architecture Decision Records (ADRs) — index i [`README`](docs/decisions/README.md) |
-| [`docs/reviews/`](docs/reviews/) | Agent-reviews |
-| [`docs/runbooks/`](docs/runbooks/) | Operativa procedurer (lokal-dev, GDPR-register, release m.m.) |
-| [`.claude/`](.claude/) | Agent-definitioner, skills, hooks, slash-kommandon |
-
----
-
-## Författare
-
-**Klas Olsson** — AI-Augmented Fullstack Engineer · agent-orkestrering · .NET / React / TypeScript
-.NET / fullstack-student, NBI/Handelsakademin Göteborg
-
-- GitHub: [@klasolsson81](https://github.com/klasolsson81)
-- Email: klasolsson81@gmail.com
-
-Jobbliggaren drivs av en solo-utvecklare i pre-MVP-fas. Externa bidrag accepteras inte i nuvarande fas. Vill du diskutera kod, arkitektur eller designval — hör av dig direkt.
-
----
-
-## Licens
-
-**PolyForm Noncommercial License 1.0.0** — se [`LICENSE`](LICENSE).
-
-Detta repo är publikt synligt för portfölj-syfte. Källkoden får läsas, studeras och användas för **icke-kommersiella** ändamål (personligt bruk, forskning, utbildning) enligt licensvillkoren. **Kommersiell användning** — inklusive att driva en konkurrerande eller intäktsgenererande tjänst på koden — kräver explicit skriftligt avtal med Klas Olsson. Licensen ger ingen rätt att vidarelicensiera eller överföra rättigheter.
-
----
-
-> _"Skriv som om varje commit ska kunna försvaras i en kodgranskning på Mastercard-nivå."_ — utdrag ur [`AGENTS.md`](AGENTS.md)
+The source is available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). You may use it for noncommercial
+purposes such as study, research and personal use. Commercial use requires a separate
+written agreement with the author.

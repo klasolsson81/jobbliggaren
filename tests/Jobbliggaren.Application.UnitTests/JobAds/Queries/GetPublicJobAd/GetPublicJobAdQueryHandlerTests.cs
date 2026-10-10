@@ -95,8 +95,7 @@ public class GetPublicJobAdQueryHandlerTests
     [Fact]
     public async Task Handle_WhenTheReadThrows_LetsTheExceptionThrough()
     {
-        // The read throws because the context is disposed. What is pinned is only that the handler turns
-        // no failing read into a 404 or a 410: an outage must reach the caller as a 5xx (ADR 0160 D3).
+        // The read throws because the context is disposed.
         var db = TestAppDbContextFactory.Create();
         await db.DisposeAsync();
 

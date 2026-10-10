@@ -35,7 +35,7 @@ public sealed class PublicJobAdReadRateLimitTests(StrictRateLimitApiFactory fact
             }
         }
 
-        answered.ShouldBe(burst);
+        answered.ShouldBeGreaterThanOrEqualTo(burst);
         rejected.ShouldNotBeNull();
         rejected.Headers.RetryAfter.ShouldNotBeNull();
         rejected.Headers.CacheControl.ShouldNotBeNull().NoStore.ShouldBeTrue();

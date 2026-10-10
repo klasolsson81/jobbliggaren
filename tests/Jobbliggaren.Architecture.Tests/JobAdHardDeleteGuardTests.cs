@@ -48,18 +48,32 @@ public class JobAdHardDeleteGuardTests
         HardDeletesAJobAd("await db.Database.ExecuteSqlAsync($\"DELETE FROM job_ads WHERE id = {id}\");")
             .ShouldBeTrue();
         HardDeletesAJobAd("migrationBuilder.Sql(\"TRUNCATE TABLE job_ads;\");").ShouldBeTrue();
+        HardDeletesAJobAd("db.Set<JobAd>().Remove(ad);").ShouldBeTrue();
+        HardDeletesAJobAd("db.Set<JobAd>().RemoveRange(ads);").ShouldBeTrue();
+        HardDeletesAJobAd("""
+            var batch = db.JobAds.Where(j => j.Status == JobAdStatus.Archived).Take(500);
+            await batch.ExecuteDeleteAsync(ct);
+            """).ShouldBeTrue("a bulk delete split through a variable");
+        HardDeletesAJobAd("""
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM \"public\".\"job_ads\" WHERE id = @p0", id);
+            """).ShouldBeTrue("a quoted schema and table");
 
         HardDeletesAJobAd("db.SavedJobAds.Remove(saved);").ShouldBeFalse("a bookmark is not the ad");
+        HardDeletesAJobAd("migrationBuilder.Sql(\"DELETE FROM saved_job_ads;\");").ShouldBeFalse();
         HardDeletesAJobAd("await db.JobAds.Where(j => j.Id == id).ExecuteUpdateAsync(s => s, ct);")
             .ShouldBeFalse("an update is not a delete");
         HardDeletesAJobAd(StripComments("// never call db.JobAds.Remove(jobAd) here")).ShouldBeFalse(
             "a comment describing the forbidden call is not the forbidden call");
     }
 
+    private const string JobAdSet = @"(?:\bJobAds\b|\bSet<JobAd>\(\))";
+
     private static bool HardDeletesAJobAd(string code) =>
-        Regex.IsMatch(code, @"\bJobAds\s*\.\s*Remove(?:Range)?\s*\(")
-        || Regex.IsMatch(code, @"(?:\bJobAds\b|\bSet<JobAd>\(\))[^;]*?\.ExecuteDelete(?:Async)?\s*\(")
-        || Regex.IsMatch(code, @"\b(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:\w+\.)?""?job_ads""?\b",
+        Regex.IsMatch(code, JobAdSet + @"\s*\.\s*Remove(?:Range)?\s*\(")
+        || Regex.IsMatch(code, JobAdSet + @"[^;]*?\.ExecuteDelete(?:Async)?\s*\(")
+        || Regex.IsMatch(code, @"\b(\w+)\s*=\s*[^;]*?" + JobAdSet
+            + @"[^;]*;[\s\S]*?\b\1\s*(?:\.[^;]*?)?\.ExecuteDelete(?:Async)?\s*\(")
+        || Regex.IsMatch(code, @"\b(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:[\\""]*\w+[\\""]*\.)?[\\""]*job_ads\b",
             RegexOptions.IgnoreCase);
 
     // Remove line, block and XML-doc comments while leaving string literals intact.

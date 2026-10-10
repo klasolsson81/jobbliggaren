@@ -37,6 +37,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
         new(new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(_connectionString)
             .UseSnakeCaseNamingConvention()
+            .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning))
             .AddInterceptors(interceptors)
             .Options);
 

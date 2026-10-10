@@ -263,8 +263,8 @@ for (const width of [1280, 1920, 3440]) {
     await expect(server).toContainText("CPU");
     await expect(server).toContainText("23,4 %");
     await expect(server).toContainText("Snitt över 30 s");
-    await expect(server).toContainText("5,0 av 8,0 GiB");
-    await expect(server).toContainText("124,0 GiB ledigt av 200,0 GiB");
+    await expect(server).toContainText("4,9 av 8 GiB");
+    await expect(server).toContainText("124 GiB ledigt av 200 GiB");
     await expect(server).toContainText("Mätt");
     await expect(server).not.toContainText("Kommer snart");
     await expect(server).not.toContainText("äldre än");

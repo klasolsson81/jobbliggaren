@@ -15,11 +15,12 @@ const audit = {
 const jobs = { totalCount: 3, returned: 50, items: [{ jobId: "1", jobType: "MatchDigestJob", failedAt: OVERVIEW_TIME, errorCategory: "IOException" }] };
 
 const BACKUP = "/api/v1/admin/overview/backup";
-const HOST_TIME = "2026-10-08T09:58:02Z";
+// The wire form of System.Text.Json for a DateTimeOffset in UTC: an offset, never a Z.
+const HOST_TIME = "2026-10-08T09:58:02+00:00";
 const backupObserved = {
   status: "Observed", reason: null, observedAt: HOST_TIME, stale: false,
-  lastSuccess: { state: "Recorded", completedAt: "2026-10-08T00:19:07Z", overdue: false },
-  timer: { state: "Scheduled", nextRunAt: "2026-10-09T00:17:55Z" },
+  lastSuccess: { state: "Recorded", completedAt: "2026-10-08T00:19:07+00:00", overdue: false },
+  timer: { state: "Scheduled", nextRunAt: "2026-10-09T00:17:55+00:00" },
 };
 const backupNotObserved = { status: "NotObserved", reason: "NotSampledYet", observedAt: null, stale: null, lastSuccess: null, timer: null };
 
@@ -97,11 +98,12 @@ describe("admin overview Backup source (#1982)", () => {
   const backupAnswers = (body: unknown, stamp: string | null = OVERVIEW_TIME) =>
     (_session: string, path: string) => path === BACKUP ? Promise.resolve(response(body, stamp)) : success(_session, path);
 
-  it("asks the host only after an admin read has succeeded, and beside the slower reads rather than after them (#2064)", async () => {
+  it("asks the host only after an admin read has succeeded (#2064)", async () => {
+    const asked = { succeededBefore: -1 };
     let succeeded = 0;
     transport.mockImplementation(async (_session: string, path: string) => {
       if (path === BACKUP) {
-        expect(succeeded).toBeGreaterThanOrEqual(1);
+        asked.succeededBefore = succeeded;
         return success(_session, path);
       }
       const result = await success(_session, path);
@@ -109,7 +111,28 @@ describe("admin overview Backup source (#1982)", () => {
       return result;
     });
     await loadAdminOverview();
-    expect(transport.mock.calls.map((call) => call[1])).toContain(BACKUP);
+    expect(asked.succeededBefore).toBeGreaterThanOrEqual(1);
+  });
+  it.each(["overview/accounts", "audit-log", "jobs/failed"])("asks the host when only %s of the three succeeds", async (only) => {
+    transport.mockImplementation((_session: string, path: string) =>
+      path === BACKUP || path.includes(only) ? success(_session, path) : Promise.resolve(new Response(null, { status: 502 })));
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.backup.kind).toBe("loaded");
+  });
+  it("is not decided by the first read to settle: two failures, then a late success, and the host is still asked", async () => {
+    let releaseAudit: () => void = () => undefined;
+    transport.mockImplementation((_session: string, path: string) => {
+      if (path === BACKUP) return success(_session, path);
+      if (path.includes("audit")) return new Promise<Response>((resolve) => { releaseAudit = () => resolve(response(audit)); });
+      return Promise.resolve(new Response(null, { status: 502 }));
+    });
+    const pending = loadAdminOverview();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    releaseAudit();
+    const result = await pending;
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.backup.kind).toBe("loaded");
   });
   it("starts the host read before a slow first-step read has finished", async () => {
     let releaseAudit: () => void = () => undefined;
@@ -150,18 +173,17 @@ describe("admin overview Backup source (#1982)", () => {
     expect(result.data.backup).toEqual({
       kind: "loaded", sampledAt: HOST_TIME, refreshFailed: false,
       data: {
-        stale: false,
-        lastSuccess: { state: "recorded", completedAt: "2026-10-08T00:19:07Z", overdue: false },
-        timer: { state: "scheduled", nextRunAt: "2026-10-09T00:17:55Z" },
+        lastSuccess: { state: "recorded", completedAt: "2026-10-08T00:19:07+00:00", overdue: false },
+        timer: { state: "scheduled", nextRunAt: "2026-10-09T00:17:55+00:00" },
       },
     });
   });
   it("keeps an old host sample old however fresh the response is", async () => {
-    transport.mockImplementation(backupAnswers({ ...backupObserved, observedAt: "2026-10-05T09:58:02Z", stale: true }, OVERVIEW_TIME));
+    transport.mockImplementation(backupAnswers({ ...backupObserved, observedAt: "2026-10-05T09:58:02+00:00", stale: true }, OVERVIEW_TIME));
     const result = await loadAdminOverview();
     if (result.kind !== "ok" || result.data.backup.kind !== "loaded") throw new Error("Expected an observed backup");
-    expect(result.data.backup.sampledAt).toBe("2026-10-05T09:58:02Z");
-    expect(result.data.backup.data.stale).toBe(true);
+    expect(result.data.backup.sampledAt).toBe("2026-10-05T09:58:02+00:00");
+    expect(result.data.backup.data).not.toHaveProperty("stale");
   });
   it("reports a host that has not reported as awaiting: not a failure, and not unavailable", async () => {
     transport.mockImplementation(backupAnswers(backupNotObserved));
@@ -169,22 +191,32 @@ describe("admin overview Backup source (#1982)", () => {
     if (result.kind !== "ok") throw new Error("Expected observed sources");
     expect(result.data.backup).toEqual({ kind: "awaiting" });
   });
-  it("maps the states the box is in until the backup is switched on", async () => {
-    transport.mockImplementation(backupAnswers({
-      ...backupObserved,
-      lastSuccess: { state: "Missing", completedAt: null, overdue: null },
-      timer: { state: "Inactive", nextRunAt: null },
-    }));
+  it.each([
+    ["Missing", "missing"],
+    ["Unreadable", "unreadable"],
+    ["Invalid", "invalid"],
+  ])("maps the stamp state %s", async (token, state) => {
+    transport.mockImplementation(backupAnswers({ ...backupObserved, lastSuccess: { state: token, completedAt: null, overdue: null } }));
     const result = await loadAdminOverview();
     if (result.kind !== "ok" || result.data.backup.kind !== "loaded") throw new Error("Expected an observed backup");
-    expect(result.data.backup.data).toEqual({ stale: false, lastSuccess: { state: "missing" }, timer: { state: "inactive" } });
+    expect(result.data.backup.data.lastSuccess).toEqual({ state });
+  });
+  it.each([
+    ["Inactive", "inactive"],
+    ["NotInstalled", "notInstalled"],
+    ["Unknown", "unknown"],
+  ])("maps the timer state %s", async (token, state) => {
+    transport.mockImplementation(backupAnswers({ ...backupObserved, timer: { state: token, nextRunAt: null } }));
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok" || result.data.backup.kind !== "loaded") throw new Error("Expected an observed backup");
+    expect(result.data.backup.data.timer).toEqual({ state });
   });
   it.each([
     ["a refused file", { status: "Failed", reason: "InvalidFormat", observedAt: null, stale: null, lastSuccess: null, timer: null }],
     ["a state outside the contract", { ...backupObserved, timer: { state: "Stopped", nextRunAt: null } }],
     ["an extra property", { ...backupObserved, path: "/run/observations/backup.json" }],
     ["a time that is not an instant", { ...backupObserved, observedAt: "yesterday" }],
-    ["a run without a time", { ...backupObserved, lastSuccess: { state: "Recorded", completedAt: null, overdue: null } }],
+    ["a contract violation: a recorded run without its time", { ...backupObserved, lastSuccess: { state: "Recorded", completedAt: null, overdue: null } }],
   ])("fails only the Backup source for %s", async (_name, body) => {
     transport.mockImplementation(backupAnswers(body));
     const result = await loadAdminOverview();
@@ -201,6 +233,6 @@ describe("admin overview Backup source (#1982)", () => {
   });
   it("sends the browser the states and the times and nothing the host or the API said besides", async () => {
     const result = await loadAdminOverview();
-    expect(JSON.stringify(result)).not.toMatch(/reason|NotSampledYet|startedAt|\/run\/|backup\.json|jobbliggaren/);
+    expect(JSON.stringify(result)).not.toMatch(/reason|stale|NotSampledYet|startedAt|\/run\/|backup\.json|jobbliggaren/);
   });
 });

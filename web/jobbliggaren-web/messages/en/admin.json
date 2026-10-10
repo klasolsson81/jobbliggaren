@@ -87,15 +87,14 @@
       "noVerifiedSource": "No verified data source",
       "lastSuccess": {
         "missing": "No successful run recorded",
-        "unreadable": "The record could not be read",
-        "invalid": "The record is invalid",
+        "unreadable": "The timestamp could not be read",
+        "invalid": "The timestamp is invalid",
         "overdue": "Older than 26 hours"
       },
       "nextRun": {
         "inactive": "No run scheduled",
-        "notInstalled": "The schedule is not installed on the host"
-      },
-      "notProof": "Shows when the run last finished, not that a restore works."
+        "notInstalled": "The schedule is not installed on the server"
+      }
     },
     "email": {
       "title": "Email",
@@ -739,6 +738,6 @@
   "regions": {
     "failed": "The data could not be fetched. Try again in a moment.",
     "loading": "Fetching data…",
-    "awaiting": "The host has not reported an observation yet."
+    "awaiting": "The server has not reported yet."
   }
 }

@@ -97,7 +97,7 @@ describe("admin overview visible refresh", () => {
     const waiting = { ...overviewSnapshotFixture(), backup: { kind: "awaiting" } };
     render(<AdminOverviewLive initial={waiting as ReturnType<typeof overviewSnapshotFixture>} initialNow={NOW} />);
     const card = screen.getByRole("region", { name: "Backup" });
-    expect(card).toHaveTextContent("Värden har inte rapporterat någon observation ännu.");
+    expect(card).toHaveTextContent("Servern har inte rapporterat ännu.");
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(overviewSnapshotFixture())));
@@ -122,8 +122,9 @@ describe("admin overview visible refresh", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
 
     const card = screen.getByRole("region", { name: "Backup" });
-    expect(card).toHaveTextContent("Värden har inte rapporterat någon observation ännu.");
+    expect(card).toHaveTextContent("Servern har inte rapporterat ännu.");
     expect(card).not.toHaveTextContent("2026-10-08 02:19");
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Servern har inte rapporterat ännu.");
   });
   it("announces the five-minute age transition without duplicating the account-card notices", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 502 }));

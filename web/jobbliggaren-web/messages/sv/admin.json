@@ -87,15 +87,14 @@
       "noVerifiedSource": "Saknar verifierad datakälla",
       "lastSuccess": {
         "missing": "Ingen lyckad körning registrerad",
-        "unreadable": "Uppgiften kunde inte läsas",
-        "invalid": "Uppgiften är ogiltig",
+        "unreadable": "Tidsstämpeln kunde inte läsas",
+        "invalid": "Tidsstämpeln är ogiltig",
         "overdue": "Äldre än 26 timmar"
       },
       "nextRun": {
         "inactive": "Ingen körning planerad",
-        "notInstalled": "Schemat finns inte på värden"
-      },
-      "notProof": "Visar när körningen senast avslutades, inte att en återställning fungerar."
+        "notInstalled": "Schemat finns inte på servern"
+      }
     },
     "email": {
       "title": "E-post",
@@ -739,6 +738,6 @@
   "regions": {
     "failed": "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
     "loading": "Hämtar uppgifter…",
-    "awaiting": "Värden har inte rapporterat någon observation ännu."
+    "awaiting": "Servern har inte rapporterat ännu."
   }
 }

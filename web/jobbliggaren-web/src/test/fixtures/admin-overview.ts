@@ -22,9 +22,8 @@ export function accountOverviewFixture(): AccountOverviewDto {
 /** A recorded run at 02:19 and a timer armed for the next night, as the host sampler publishes them. */
 export function backupFixture(): BackupObservationData {
   return {
-    lastSuccess: { state: "recorded", completedAt: "2026-10-08T00:19:07Z", overdue: false },
-    timer: { state: "scheduled", nextRunAt: "2026-10-09T00:17:55Z" },
-    stale: false,
+    lastSuccess: { state: "recorded", completedAt: "2026-10-08T00:19:07+00:00", overdue: false },
+    timer: { state: "scheduled", nextRunAt: "2026-10-09T00:17:55+00:00" },
   };
 }
 

@@ -216,7 +216,6 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
   backup: marked({
     lastSuccess: marked({ state: "recorded" as const, completedAt: daysAgo(0, 1, 30), overdue: false }),
     timer: marked({ state: "scheduled" as const, nextRunAt: daysAgo(-1, 1, 30) }),
-    stale: false,
   }),
   email: marked({
     sent: 57,

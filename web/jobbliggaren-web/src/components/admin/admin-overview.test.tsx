@@ -33,7 +33,6 @@ const LOADED: AdminOverviewRegions = {
     data: {
       lastSuccess: { state: "recorded", completedAt: "2026-10-04T01:30:00Z", overdue: false },
       timer: { state: "scheduled", nextRunAt: "2026-10-05T01:30:00Z" },
-      stale: false,
     },
   },
   email: {

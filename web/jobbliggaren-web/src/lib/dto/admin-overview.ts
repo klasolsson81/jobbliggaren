@@ -87,8 +87,6 @@ export const backupDataSchema = z.strictObject({
     z.strictObject({ state: z.literal("scheduled"), nextRunAt: instant }),
     z.strictObject({ state: z.enum(["inactive", "notInstalled", "unknown"]) }),
   ]),
-  /** The API's own judgement that the sample is more than five minutes old against its clock. */
-  stale: z.boolean(),
 });
 export type BackupObservationData = z.infer<typeof backupDataSchema>;
 
@@ -103,13 +101,7 @@ function observation<T extends z.ZodType>(data: T) {
 
 /** The same, for a source whose host may not have reported yet: built, so not "Kommer snart", and not an error. */
 function awaitingObservation<T extends z.ZodType>(data: T) {
-  return z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("loaded"), data, sampledAt: instant, refreshFailed: z.boolean() }),
-    z.object({ kind: z.literal("empty"), data, sampledAt: instant, refreshFailed: z.boolean() }),
-    z.object({ kind: z.literal("failed") }),
-    z.object({ kind: z.literal("loading") }),
-    z.object({ kind: z.literal("awaiting") }),
-  ]);
+  return z.discriminatedUnion("kind", [...observation(data).options, z.object({ kind: z.literal("awaiting") })]);
 }
 
 export const overviewSnapshotSchema = z.object({

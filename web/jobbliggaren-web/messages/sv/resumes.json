@@ -109,6 +109,13 @@
     "evidence": {
       "excerpt": "Utdrag, citatet fortsätter i ditt CV."
     },
+    "passCriterionLabel": "Godkänns när",
+    "notAssessedKind": {
+      "TextOnly": "Går inte att läsa ur CV:ts text",
+      "InsufficientData": "För lite underlag i CV:t",
+      "NotInVersion": "Ingår inte i den här versionen",
+      "RequiresJobAd": "Bedöms mot en jobbannons"
+    },
     "status": {
       "markResolved": "Markera som åtgärdad",
       "ignoreRule": "Ignorera regeln (stilfråga)",

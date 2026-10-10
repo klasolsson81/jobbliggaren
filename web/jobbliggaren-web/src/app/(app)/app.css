@@ -3233,6 +3233,41 @@ button.jp-cvstrip__cell:hover,
 .jp-cvledger__reason {
   color: var(--jp-ink-2);
 }
+/* The evidence cell stacks its parts (#2083): the kind tag over the reason, the cited evidence
+   over the pass clause. */
+.jp-cvledger__row > .jp-cvledger__evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-cvledger__kind {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  line-height: 1.5;
+}
+.jp-cvledger__pass {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
+}
+/* A static label, so mono caps like the table head (DESIGN.md §4). */
+.jp-cvledger__pass-label {
+  margin-right: 4px;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
 .jp-cvledger__action {
   display: flex;
   justify-content: flex-end;

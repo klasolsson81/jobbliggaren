@@ -21,6 +21,8 @@ function verdict(overrides: Partial<CvCriterionVerdictDto> = {}): CvCriterionVer
       },
     ],
     notAssessedReason: null,
+    notAssessedKind: null,
+    passCriterion: null,
     userStatus: null,
     userStatusStaleAt: null,
     isIgnorable: false,
@@ -70,13 +72,58 @@ describe("CvCriterionRow", () => {
     expect(document.querySelector("blockquote")).toBeNull();
   });
 
-  it("Ej bedömt shows its reason and no evidence list", () => {
+  it("Ej bedömt without a kind shows its reason and no evidence list", () => {
     renderRow({
       verdict: verdict({ verdict: "NotAssessed", evidence: [], notAssessedReason: "Bedöms mot en jobbannons." }),
     });
     expect(screen.getAllByRole("cell")[0]).toHaveTextContent("Ej bedömt");
     expect(screen.getByText("Bedöms mot en jobbannons.")).toHaveClass("jp-cvledger__reason");
     expect(document.querySelector(".jp-cvledger__evidence-list")).toBeNull();
+  });
+
+  // #2083: the reason group's tag. For TextOnly and RequiresJobAd every reason is one sentence that
+  // only repeats the tag, so the tag stands alone; the other two kinds keep the reason, which says
+  // what is missing.
+  it.each([
+    ["TextOnly", "Går inte att läsa ur CV:ts text", "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."],
+    ["RequiresJobAd", "Bedöms mot en jobbannons", "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen."],
+  ] as const)("Ej bedömt of kind %s shows the tag alone", (kind, tag, reason) => {
+    renderRow({
+      verdict: verdict({ verdict: "NotAssessed", evidence: [], notAssessedReason: reason, notAssessedKind: kind }),
+    });
+    expect(screen.getByText(tag)).toHaveClass("jp-cvledger__kind");
+    expect(screen.queryByText(reason)).toBeNull();
+  });
+
+  it.each([
+    ["InsufficientData", "För lite underlag i CV:t", "Perioderna kunde inte tolkas till datum."],
+    ["NotInVersion", "Ingår inte i den här versionen", "Vi bedömer inte karriärutveckling i den här versionen."],
+  ] as const)("Ej bedömt of kind %s shows the tag, then the reason", (kind, tag, reason) => {
+    renderRow({
+      verdict: verdict({ verdict: "NotAssessed", evidence: [], notAssessedReason: reason, notAssessedKind: kind }),
+    });
+    const cell = document.querySelector(".jp-cvledger__evidence");
+    expect(Array.from(cell?.children ?? []).map((el) => el.textContent)).toEqual([tag, reason]);
+  });
+
+  it("Underkänt shows what the rule passes on, after the evidence", () => {
+    renderRow({
+      verdict: verdict({ passCriterion: "Profiltexten finns och har högst 100 ord." }),
+    });
+    const cell = document.querySelector(".jp-cvledger__evidence");
+    expect(Array.from(cell?.children ?? []).map((el) => el.className)).toEqual([
+      "jp-cvledger__evidence-list",
+      "jp-cvledger__pass",
+    ]);
+    const pass = cell?.querySelector(".jp-cvledger__pass");
+    expect(pass?.querySelector(".jp-cvledger__pass-label")).toHaveTextContent("Godkänns när");
+    // The label and the clause are separate words in the text itself, not only by margin.
+    expect(pass?.textContent).toBe("Godkänns när Profiltexten finns och har högst 100 ord.");
+  });
+
+  it("shows no pass clause where the server sent none", () => {
+    renderRow();
+    expect(document.querySelector(".jp-cvledger__pass")).toBeNull();
   });
 
   it("renders the action cell only where the table has the column", () => {

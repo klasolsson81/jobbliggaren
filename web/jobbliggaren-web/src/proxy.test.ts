@@ -21,7 +21,7 @@ const fetchMock = vi.fn<typeof fetch>();
 
 function makeRequest(
   path: string,
-  opts?: { cookies?: Record<string, string>; headers?: Record<string, string> }
+  opts?: { cookies?: Record<string, string>; headers?: Record<string, string>; method?: string }
 ): NextRequest {
   const headers = new Headers(opts?.headers);
   if (opts?.cookies) {
@@ -30,7 +30,7 @@ function makeRequest(
       .join("; ");
     headers.set("cookie", cookieStr);
   }
-  return new NextRequest(`https://app.test${path}`, { headers });
+  return new NextRequest(`https://app.test${path}`, { headers, method: opts?.method ?? "GET" });
 }
 
 function refreshResponse(body: unknown): Response {
@@ -161,8 +161,46 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(res.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("refresh 401 — swallowed, navigation not broken, session cookie untouched, throttle backed off briefly", async () => {
+  it("refresh 401 on a GET (#1893) — the server has forgotten the session: login with next, both cookies cleared, no-store", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+
+    const res = await proxy(
+      makeRequest("/mina-sidor/notiser", {
+        cookies: { [SESSION_COOKIE_NAME]: "OLDID", [REFRESH_AFTER_COOKIE_NAME]: "0" },
+      })
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location") ?? "", "https://app.test");
+    expect(location.pathname).toBe("/logga-in");
+    expect([...location.searchParams.entries()]).toEqual([["next", "/mina-sidor/notiser"]]);
+    for (const name of [SESSION_COOKIE_NAME, REFRESH_AFTER_COOKIE_NAME]) {
+      const cleared = res.cookies.get(name);
+      expect(cleared?.value).toBe("");
+      expect(cleared?.maxAge).toBe(0);
+      // A __Host- cookie is only overwritten by a Set-Cookie that still satisfies the prefix.
+      expect(cleared?.secure).toBe(true);
+      expect(cleared?.path).toBe("/");
+      expect(cleared?.httpOnly).toBe(true);
+      expect(cleared?.sameSite).toBe("strict");
+    }
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("refresh 401 on a POST — passes through: a Server Action is never answered with a redirect", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+
+    const res = await proxy(
+      makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "OLDID" }, method: "POST" })
+    );
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+  });
+
+  it.each([429, 500, 503])("refresh %i — swallowed, navigation not broken, session cookie untouched, throttle backed off briefly", async (status) => {
+    fetchMock.mockResolvedValue(new Response(null, { status }));
 
     const res = await proxy(
       makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "OLDID" } })
@@ -491,4 +529,159 @@ describe("proxy — the admin return path (#1979)", () => {
     expect([...location.searchParams.keys()]).toEqual(["next"]);
     expect(location.searchParams.get("next")).toBe(`/ansokningar/${ID}`);
   });
+});
+
+/**
+ * #2094 — a link into a gated page that another site opened. The session cookie is Strict, so a click in webmail
+ * arrives without it; the proxy answers with the continuation document, whose refresh starts on this origin.
+ */
+describe("proxy — the Strict-cookie bounce (#2094)", () => {
+  const MAIL_CLICK = {
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-dest": "document",
+  } as const;
+  const ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  const decode = (value: string) =>
+    value
+      .replaceAll("&quot;", '"')
+      .replaceAll("&#39;", "'")
+      .replaceAll("&lt;", "<")
+      .replaceAll("&gt;", ">")
+      .replaceAll("&amp;", "&");
+
+  /** The refresh's URL as a browser reads the content attribute: after `url=`, the rest of the value. */
+  function refreshTarget(html: string): string {
+    const content = decode(/<meta http-equiv="refresh" content="([^"]*)">/.exec(html)?.[1] ?? "");
+    const afterDelay = content.slice(content.indexOf(";") + 1).trimStart();
+    return afterDelay.replace(/^url=/i, "");
+  }
+
+  async function bounced(path: string, opts?: Parameters<typeof makeRequest>[1]) {
+    const res = await proxy(makeRequest(path, { ...opts, headers: { ...MAIL_CLICK, ...opts?.headers } }));
+    return { res, html: res.status === 200 ? await res.text() : "" };
+  }
+
+  it.each(["/matchningar", "/mina-sidor/notiser", `/jobb/${ID}`, "/foretag/bevakade/nya"])(
+    "answers a mail click on %s with the continuation document, back to the same path",
+    async (path) => {
+      const { res, html } = await bounced(path);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(res.headers.get("x-robots-tag")).toBe("noindex");
+      // security-auditor M-1 (#2094 form round): another site's handle on the window must not survive the hop.
+      expect(res.headers.get("cross-origin-opener-policy")).toBe("same-origin");
+      expect(res.headers.get("set-cookie")).toBeNull();
+      expect(refreshTarget(html)).toBe(`${path}?vidare=1`);
+      expect(html).toContain(`<a href="${path}?vidare=1" rel="noreferrer">Fortsätt</a>`);
+      expect(html).toContain('<html lang="sv">');
+      expect(html).toContain("<h1>Jobbliggaren</h1>");
+    }
+  );
+
+  it("keeps the one GUID id on /admin/feedback, lower-cased, and no other key", async () => {
+    const { html } = await bounced(`/admin/feedback?status=ny&id=${ID.toUpperCase()}`);
+
+    expect(refreshTarget(html)).toBe(`/admin/feedback?id=${ID}&vidare=1`);
+  });
+
+  it("serves no value from the request's query", async () => {
+    const sok = await bounced("/foretag/sok?namn=5560000000&sni=62010");
+    expect(refreshTarget(sok.html)).toBe("/foretag/sok?vidare=1");
+    for (const value of ["5560000000", "namn", "62010"]) expect(sok.html).not.toContain(value);
+
+    const jobb = await bounced("/jobb?q=utvecklare&commit=true");
+    expect(refreshTarget(jobb.html)).toBe("/jobb?vidare=1");
+  });
+
+  it("answers in English when the locale cookie says so", async () => {
+    const { html } = await bounced("/matchningar", { cookies: { NEXT_LOCALE: "en" } });
+
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain(">Continue</a>");
+  });
+
+  it.each(["/jobb/a'b", "/jobb/x;url=https://evil.example", '/jobb/"><script>x</script>'])(
+    "keeps the refresh on this origin for the hostile path %j",
+    async (path) => {
+      const { res, html } = await bounced(path);
+
+      expect(res.status).toBe(200);
+      expect(new URL(refreshTarget(html), "https://app.test").origin).toBe("https://app.test");
+      expect(html).not.toContain("<script>");
+    }
+  );
+
+  it.each<[string, Record<string, string>]>([
+    ["a same-origin navigation", { "sec-fetch-site": "same-origin" }],
+    ["a same-site navigation, which the Strict cookie rides", { "sec-fetch-site": "same-site" }],
+    ["an address-bar navigation", { "sec-fetch-site": "none" }],
+    ["a fetch", { "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" }],
+    ["a frame", { "sec-fetch-dest": "iframe" }],
+    ["a Speculation Rules prefetch", { "sec-purpose": "prefetch" }],
+    ["a legacy prefetch", { purpose: "prefetch" }],
+  ])("does not bounce %s: the login redirect with next = the pathname", async (_label, headers) => {
+    const res = await proxy(makeRequest("/matchningar", { headers: { ...MAIL_CLICK, ...headers } }));
+
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location") ?? "", "https://app.test");
+    expect([...location.searchParams.entries()]).toEqual([["next", "/matchningar"]]);
+  });
+
+  it("does not bounce a client that sends no Fetch Metadata", async () => {
+    const res = await proxy(makeRequest("/matchningar"));
+
+    expect(res.status).toBe(307);
+  });
+
+  it.each(["HEAD", "POST"])("does not bounce a %s", async (method) => {
+    const res = await proxy(makeRequest("/matchningar", { headers: MAIL_CLICK, method }));
+
+    expect(res.status).not.toBe(200);
+  });
+
+  it("does not bounce a click that carries the session cookie", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null }));
+
+    const { res } = await bounced("/matchningar", { cookies: { [SESSION_COOKIE_NAME]: "sess-1" } });
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("does not bounce a public path", async () => {
+    const { res } = await bounced("/cv-granskning");
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("never bounces its own hop twice: without the cookie it is the login redirect, the marker left behind", async () => {
+    const res = await proxy(makeRequest("/matchningar?vidare=1", { headers: MAIL_CLICK }));
+
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location") ?? "", "https://app.test");
+    expect([...location.searchParams.entries()]).toEqual([["next", "/matchningar"]]);
+  });
+
+  it.each([`/jobb/${ID}`, `/admin/feedback?id=${ID}`])(
+    "sends a hop that came back with the cookie on to the clean URL of %s, without asking the backend",
+    async (path) => {
+      const marked = `${path}${path.includes("?") ? "&" : "?"}vidare=1`;
+      const res = await proxy(
+        makeRequest(marked, {
+          cookies: { [SESSION_COOKIE_NAME]: "sess-1" },
+          headers: { "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+        })
+      );
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe(`https://app.test${path}`);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    }
+  );
 });

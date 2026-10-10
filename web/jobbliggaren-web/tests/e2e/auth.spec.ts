@@ -231,3 +231,86 @@ test.describe("/logga-in/lank", () => {
     }
   });
 });
+
+/**
+ * #2094 — a notification mail's links, clicked in webmail. The Strict session cookie is not sent with a
+ * cross-site navigation, so these tests click from a page on 127.0.0.1 (`serveMailWithLink`); a `page.goto`
+ * has no initiator, counts as same-site, and would prove nothing.
+ */
+test.describe("a notification mail's link, clicked on another site (#2094)", () => {
+  const landedOn = (path: string) => (url: URL) => url.pathname === path && !url.searchParams.has("vidare");
+
+  test("lands a signed-in user on the page itself, and Back returns to the mail", async ({ page, baseURL }) => {
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+    await submitAddress(page, testEmail(runId));
+    await submitCode(page, await takeLoginCode(testEmail(runId)));
+    await page.waitForURL("**/oversikt");
+
+    for (const path of ["/mina-sidor/notiser", "/matchningar"]) {
+      const mail = await serveMailWithLink(`${baseURL}${path}`);
+      try {
+        await page.goto(mail.url);
+        const sentWithCookie = page.waitForRequest(
+          (request) =>
+            new URL(request.url()).pathname === path &&
+            (request.headers()["cookie"] ?? "").includes("__Host-jobbliggaren_session=")
+        );
+        await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+        await sentWithCookie;
+        await page.waitForURL(landedOn(path));
+        await expect(page).not.toHaveURL(/\/logga-in/);
+
+        await page.goBack();
+        await expect(page).toHaveURL(mail.url);
+      } finally {
+        await mail.close();
+      }
+    }
+  });
+
+  test("lands a user with no session on the page after the code", async ({ page, baseURL }) => {
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+
+    const mail = await serveMailWithLink(`${baseURL}/mina-sidor/notiser`);
+    try {
+      await page.goto(mail.url);
+      await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+      await page.waitForURL((url) => url.pathname === "/logga-in");
+      expect(new URL(page.url()).searchParams.get("next")).toBe("/mina-sidor/notiser");
+
+      await page.getByLabel("E-postadress").fill(testEmail(runId));
+      await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
+      await page.waitForURL("**/logga-in/kod");
+      await submitCode(page, await takeLoginCode(testEmail(runId)));
+      await page.waitForURL(landedOn("/mina-sidor/notiser"));
+    } finally {
+      await mail.close();
+    }
+  });
+
+  test("sends a cookie the server has forgotten to the login with its page, and clears it (#1893)", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await context.addCookies([
+      {
+        name: "__Host-jobbliggaren_session",
+        value: "c2Vzc2lvbi10aGF0LXRoZS1zZXJ2ZXItbmV2ZXItaXNzdWVk",
+        url: baseURL,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+      },
+    ]);
+
+    await page.goto("/mina-sidor/notiser");
+
+    await page.waitForURL((url) => url.pathname === "/logga-in");
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/mina-sidor/notiser");
+    const session = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(session).toBeUndefined();
+  });
+});

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isProtectedPath } from "@/lib/auth/protected-routes";
 import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
+import { strictCookieBounce } from "@/lib/auth/strict-cookie-bounce";
 import {
   PERSISTENT_MAX_AGE_SECONDS,
   REFRESH_AFTER_COOKIE_NAME,
@@ -68,6 +69,12 @@ interface RefreshResult {
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+  const sessionId = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+
+  // #2094: a link into a gated page that another site opened arrives without the Strict session cookie. Above the
+  // admin branch, which has no cookie gate of its own; `strict-cookie-bounce.ts` carries the rule.
+  const bounce = strictCookieBounce(request, Boolean(sessionId));
+  if (bounce !== null) return bounce;
 
   // #1979: the (admin) layout has no URL of its own, so the path its login redirect returns to travels in a
   // request header. Written on every /admin request, above the protected-path gate that /admin sits outside,
@@ -88,11 +95,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Cheap cookie-presence check — actual session validation happens in the Server
   // Component. Per ADR 0017 §defense-in-depth: the proxy blocks unauthenticated
   // noise; the layout re-verifies. Unauthenticated → redirect (unchanged behavior).
-  const sessionId = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!sessionId) {
-    const loginUrl = new URL("/logga-in", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(loginUrlFor(request, pathname));
   }
 
   // ADR 0087 D8(c) — the org.nr wash, at the EARLIEST layer that can still refuse to SERVE the
@@ -160,11 +164,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  // Best-effort refresh/rotation. A network error or non-OK status (e.g. a 401 for
-  // an already-expired session) is swallowed: navigation must never break here, and
-  // the Server Component re-verifies auth via getServerSession() and redirects if
-  // the session is truly gone. On failure we do NOT advance the throttle, so the
-  // next real navigation retries and the session recovers promptly.
+  // Best-effort refresh/rotation. A GET answered 401 goes to the login page with its
+  // path (#1893, `expiredSessionRedirect`). Any other failure — a network error, a
+  // timeout, another status — is swallowed: navigation must never break here, and the
+  // Server Component re-verifies auth via getServerSession(). On failure we do NOT
+  // advance the throttle, so the next real navigation retries and the session
+  // recovers promptly.
   let refresh: RefreshResult | null = null;
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/refresh`, {
@@ -181,6 +186,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     });
     if (res.ok) {
       refresh = parseRefresh(await res.json());
+    } else if (res.status === 401 && request.method === "GET") {
+      return expiredSessionRedirect(request, pathname);
     }
   } catch {
     // Swallow — see comment above.
@@ -234,6 +241,25 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // throttle and leave the session cookie untouched.
   const response = NextResponse.next();
   setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
+function loginUrlFor(request: NextRequest, pathname: string): URL {
+  const loginUrl = new URL("/logga-in", request.url);
+  loginUrl.searchParams.set("next", pathname);
+  return loginUrl;
+}
+
+/**
+ * #1893: the server no longer knows the session the cookie names. Only an exact 401 on a GET gets here; a 429, a
+ * 503 or a timeout says nothing about the session, and a Server Action POST must never be answered with a
+ * redirect. The cookie goes on the way, so the next request does not ask again, and the login returns to the page.
+ */
+function expiredSessionRedirect(request: NextRequest, pathname: string): NextResponse {
+  const response = NextResponse.redirect(loginUrlFor(request, pathname));
+  response.cookies.set(SESSION_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
+  response.cookies.set(REFRESH_AFTER_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-/** The two halves of a login link token, each 16 bytes (`RedisLoginChallengeStore.IssueAsync`). */
+/** The two halves of a login link token, each 16 bytes (`RedisLoginChallengeStore.PutAsync`). */
 const CHALLENGE_ID_BYTES = 16;
 const TOKEN_BYTES = 32;
 

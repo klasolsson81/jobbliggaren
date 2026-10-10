@@ -251,13 +251,15 @@ test.describe("a notification mail's link, clicked on another site (#2094)", () 
       const mail = await serveMailWithLink(`${baseURL}${path}`);
       try {
         await page.goto(mail.url);
-        const sentWithCookie = page.waitForRequest(
-          (request) =>
-            new URL(request.url()).pathname === path &&
-            (request.headers()["cookie"] ?? "").includes("__Host-jobbliggaren_session=")
+        // The precondition: the click arrived without the Strict cookie, so the proxy served the bounce.
+        const bounce = page.waitForResponse(
+          (response) =>
+            response.url() === `${baseURL}${path}` &&
+            response.headers()["cross-origin-opener-policy"] === "same-origin"
         );
         await page.getByRole("link", { name: "Logga in via mejlet" }).click();
-        await sentWithCookie;
+        expect((await bounce).status()).toBe(200);
+        // The effect: the hop carried the cookie, or the proxy would have sent it to /logga-in.
         await page.waitForURL(landedOn(path));
         await expect(page).not.toHaveURL(/\/logga-in/);
 
@@ -290,27 +292,33 @@ test.describe("a notification mail's link, clicked on another site (#2094)", () 
     }
   });
 
-  test("sends a cookie the server has forgotten to the login with its page, and clears it (#1893)", async ({
+  test("sends a session the server has forgotten to the login with its page, and clears the cookie (#1893)", async ({
     page,
     context,
-    baseURL,
   }) => {
-    await context.addCookies([
-      {
-        name: "__Host-jobbliggaren_session",
-        value: "c2Vzc2lvbi10aGF0LXRoZS1zZXJ2ZXItbmV2ZXItaXNzdWVk",
-        url: baseURL,
-        httpOnly: true,
-        secure: true,
-        sameSite: "Strict",
-      },
-    ]);
+    const runId = uniqueRunId();
+    await seedTestUser(BACKEND_URL, runId);
+    await submitAddress(page, testEmail(runId));
+    await submitCode(page, await takeLoginCode(testEmail(runId)));
+    await page.waitForURL("**/oversikt");
+    const session = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(session).toBeDefined();
+
+    // In production the clock (30 days without use) or an administrator's revocation ends the session on the
+    // server while the browser keeps its cookie. Here the session is revoked at the API, which leaves the same state.
+    const logout = await fetch(`${BACKEND_URL}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session!.value}` },
+    });
+    expect(logout.status).toBe(204);
+    // A session that lapsed by the clock meets a refresh that is due; the throttle cookie from the login is not.
+    await context.clearCookies({ name: "__Host-jobbliggaren_refresh_after" });
 
     await page.goto("/mina-sidor/notiser");
 
     await page.waitForURL((url) => url.pathname === "/logga-in");
     expect(new URL(page.url()).searchParams.get("next")).toBe("/mina-sidor/notiser");
-    const session = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
-    expect(session).toBeUndefined();
+    const after = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+    expect(after).toBeUndefined();
   });
 });

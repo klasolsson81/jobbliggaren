@@ -267,7 +267,8 @@ The document's refresh starts on this origin, so the next request carries the co
 that holds none meets the ordinary login redirect, `next` intact. Its target is the return path the login `next`
 would carry (the pathname, and on `/admin/feedback` its one validated id), never the request's own query, plus the
 marker `vidare=1`. A request that carries the marker is never bounced again, which stops the loop a sandboxed popup
-with an opaque origin would otherwise run; with the cookie it is sent on to the clean URL with a same-origin `307`.
+with an opaque origin would otherwise run in a browser that does not apply COOP; with the cookie it is sent on to the
+clean URL with a same-origin `307`.
 The marker is never written into `next`. Its edge-log verdict is `kept`: a constant `1`, written only by the proxy
 and read only for presence, carrying no input and naming no person
 (`strict-cookie-bounce-edge-log-inventory.test.ts`). The document carries `no-store`, exactly one
@@ -304,6 +305,11 @@ cross-site navigation.
 - **Whether the user is signed in.** The page the hop leads to now depends on the session. COOP `same-origin` on the
   bounce, the window's first document, severs the opener's handle before that hop, so `window.length` and
   navigation through the handle cannot read it. A browser without COOP, and timing, remain.
+- **A sandboxed popup gets a browser error.** A COOP other than `unsafe-none` turns the response into a network
+  error in a navigable with sandbox flags (HTML, "create navigation params by fetching"; Chrome shows
+  `ERR_BLOCKED_BY_RESPONSE`). A webmail that opens links in a sandboxed popup without
+  `allow-popups-to-escape-sandbox` therefore shows an error page where it showed the login page before. Gmail does
+  not sandbox the message body; no webmail that does was measured.
 - **Not measured on WebKit.** Safari's handling of the refresh hop is the same open residual as the OAuth callback's.
 - **Mail apps with a cookie jar of their own** (an in-app browser) never hold the session, so their users meet the
   login page; the target survives it.

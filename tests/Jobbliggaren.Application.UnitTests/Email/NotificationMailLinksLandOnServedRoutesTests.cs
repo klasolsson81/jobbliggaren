@@ -22,8 +22,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <para>
 /// "Served" means a <c>page.tsx</c> under <c>src/app/(app)/</c> whose URL is the link's path. Route groups
 /// add no URL segment, and parallel-route slots (<c>@modal</c>) and private folders serve no URL of their own.
-/// A dynamic segment (<c>[id]</c>) serves any one non-empty segment, so the direct match mail's
-/// <c>/jobb/{id}</c> lands on <c>(app)/jobb/[id]/page.tsx</c> (#2094).
+/// A dynamic segment (<c>[id]</c>) serves a segment that parses as a GUID, the one dynamic value the templates
+/// write, so the direct match mail's <c>/jobb/{id}</c> lands on <c>(app)/jobb/[id]/page.tsx</c> (#2094).
 /// A retired path that only answers with a 308 has no page, so a link to one fails here as well.
 /// </para>
 /// </summary>
@@ -123,8 +123,8 @@ public class NotificationMailLinksLandOnServedRoutesTests
 
     /// <summary>
     /// True when a served route matches <paramref name="path"/> segment by segment, a <c>[param]</c> segment
-    /// matching any one non-empty segment. A catch-all (<c>[...param]</c>) is not served under <c>(app)</c> and
-    /// is not modelled.
+    /// matching only a GUID, so a static path is never served by a dynamic sibling at the same depth. A catch-all
+    /// (<c>[...param]</c>) is not served under <c>(app)</c> and is not modelled.
     /// </summary>
     private static bool IsServed(string path, HashSet<string> served)
     {
@@ -134,7 +134,9 @@ public class NotificationMailLinksLandOnServedRoutesTests
             var routeSegments = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
             return routeSegments.Length == segments.Length
                 && routeSegments.Zip(segments).All(pair =>
-                    pair.First == pair.Second || (pair.First.StartsWith('[') && pair.First.EndsWith(']')));
+                    pair.First == pair.Second
+                    || (pair.First.StartsWith('[') && pair.First.EndsWith(']')
+                        && Guid.TryParseExact(pair.Second, "D", out _)));
         });
     }
 

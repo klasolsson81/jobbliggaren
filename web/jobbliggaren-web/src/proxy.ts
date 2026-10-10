@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isProtectedPath } from "@/lib/auth/protected-routes";
 import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
+import { returnPathFor } from "@/lib/auth/return-path";
 import { strictCookieBounce } from "@/lib/auth/strict-cookie-bounce";
 import {
   PERSISTENT_MAX_AGE_SECONDS,
@@ -17,6 +18,7 @@ import {
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
+import { isPrefetch } from "@/lib/http/fetch-metadata";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 // Defense-in-depth (ADR 0017): this proxy (Next 16's renamed middleware; runs on
@@ -32,7 +34,8 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 // once per REFRESH_THROTTLE_SECONDS. A Persistent session (id rotates every 24h)
 // returns `rotated:true` + a new id, which we re-set as a persistent cookie AND
 // forward to the downstream render; a Session-scoped one only slides. The refresh
-// is best-effort: any failure is swallowed so navigation never breaks.
+// is best-effort: a failure other than a GET's 401 is swallowed so navigation never
+// breaks.
 
 // Throttle: drive a refresh at most once per 15 min. Chosen well below the backend's
 // 24h rotation interval (so a rotation window is never missed) and well above
@@ -42,8 +45,7 @@ const REFRESH_THROTTLE_SECONDS = 15 * 60;
 
 // On a failed/slow refresh, back off only briefly (not the full window) before the next
 // attempt, so a degraded backend is not re-hit on every navigation while recovery stays
-// prompt. A truly-gone session self-heals: getServerSession() returns null downstream and
-// the render redirects to /logga-in regardless.
+// prompt.
 const REFRESH_ERROR_BACKOFF_SECONDS = 30;
 
 // Bound the refresh round-trip: a stalled (accepted-but-not-answering) backend must never
@@ -96,7 +98,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Component. Per ADR 0017 §defense-in-depth: the proxy blocks unauthenticated
   // noise; the layout re-verifies. Unauthenticated → redirect (unchanged behavior).
   if (!sessionId) {
-    return NextResponse.redirect(loginUrlFor(request, pathname));
+    return NextResponse.redirect(loginUrlFor(request));
   }
 
   // ADR 0087 D8(c) — the org.nr wash, at the EARLIEST layer that can still refuse to SERVE the
@@ -145,10 +147,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   // Never rotate on a speculative prefetch: it is not a real navigation, and
   // rotating the id for a page the user may never open would churn the session.
-  const isPrefetch =
-    request.headers.get("next-router-prefetch") !== null ||
-    request.headers.get("purpose") === "prefetch";
-  if (isPrefetch) {
+  if (isPrefetch(request.headers)) {
     return NextResponse.next();
   }
 
@@ -187,7 +186,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     if (res.ok) {
       refresh = parseRefresh(await res.json());
     } else if (res.status === 401 && request.method === "GET") {
-      return expiredSessionRedirect(request, pathname);
+      return expiredSessionRedirect(request);
     }
   } catch {
     // Swallow — see comment above.
@@ -196,8 +195,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (!refresh) {
     // Refresh failed (timeout / network error / non-OK / malformed body). Advance the
     // throttle by a short backoff so a degraded backend is not re-hit on every navigation,
-    // while recovery stays prompt (a truly-expired session self-heals to /logga-in on the
-    // downstream render). The session cookie is left untouched.
+    // while recovery stays prompt. The session cookie is left untouched.
     const response = NextResponse.next();
     setThrottleCookie(
       response,
@@ -245,9 +243,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
-function loginUrlFor(request: NextRequest, pathname: string): URL {
+function loginUrlFor(request: NextRequest): URL {
   const loginUrl = new URL("/logga-in", request.url);
-  loginUrl.searchParams.set("next", pathname);
+  const next = returnPathFor(request.nextUrl);
+  if (next !== null) loginUrl.searchParams.set("next", next);
   return loginUrl;
 }
 
@@ -256,8 +255,8 @@ function loginUrlFor(request: NextRequest, pathname: string): URL {
  * 503 or a timeout says nothing about the session, and a Server Action POST must never be answered with a
  * redirect. The cookie goes on the way, so the next request does not ask again, and the login returns to the page.
  */
-function expiredSessionRedirect(request: NextRequest, pathname: string): NextResponse {
-  const response = NextResponse.redirect(loginUrlFor(request, pathname));
+function expiredSessionRedirect(request: NextRequest): NextResponse {
+  const response = NextResponse.redirect(loginUrlFor(request));
   response.cookies.set(SESSION_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
   response.cookies.set(REFRESH_AFTER_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
   response.headers.set("Cache-Control", "no-store");

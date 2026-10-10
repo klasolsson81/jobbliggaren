@@ -169,7 +169,7 @@ internal static partial class EmailTemplates
         string baseUrl, FollowedCompanyNotificationEmail content)
     {
         var trimmed = baseUrl.TrimEnd('/');
-        // The page of exactly these new ads from followed companies (#2094). `/jobb` was the whole market,
+        // The page of new ads from followed companies (#2094). `/jobb` was the whole market,
         // and as a login `next` it resolves to /oversikt.
         var newAdsLink = $"{trimmed}/foretag/bevakade/nya";
         var settingsLink = $"{trimmed}/mina-sidor/notiser";

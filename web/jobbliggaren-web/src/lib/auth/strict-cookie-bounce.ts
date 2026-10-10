@@ -6,6 +6,7 @@ import svPages from "../../../messages/sv/pages.json";
 import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "@/i18n/routing";
 import { isCrossSiteDocumentNavigation } from "@/lib/http/fetch-metadata";
 import { buildContinuationDocument } from "./continuation-document";
+import { hasControlCharacterOrBackslash } from "./safe-redirect";
 import { returnPathFor } from "./return-path";
 
 /**
@@ -78,10 +79,7 @@ export function strictCookieBounce(request: NextRequest, hasSession: boolean): N
 /** One slash, then a path on this origin; no backslash or control character, and nothing a browser reads as a host. */
 function isSameSitePath(target: string): boolean {
   if (target.length > MAX_TARGET_LENGTH || !target.startsWith("/") || target.startsWith("//")) return false;
-  for (const ch of target) {
-    const code = ch.charCodeAt(0);
-    if (code < 0x20 || code === 0x7f || ch === "\\") return false;
-  }
+  if (hasControlCharacterOrBackslash(target)) return false;
   return new URL(target, PARSE_BASE).origin === PARSE_BASE.origin;
 }
 

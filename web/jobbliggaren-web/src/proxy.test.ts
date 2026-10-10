@@ -137,11 +137,11 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)).toBeUndefined();
   });
 
-  it("prefetch (next-router-prefetch) — no backend call, plain passthrough", async () => {
+  it("prefetch (sec-purpose: prefetch) — no backend call, plain passthrough", async () => {
     const res = await proxy(
       makeRequest("/oversikt", {
         cookies: { [SESSION_COOKIE_NAME]: "OLDID" },
-        headers: { "next-router-prefetch": "1" },
+        headers: { "sec-purpose": "prefetch" },
       })
     );
 
@@ -631,6 +631,12 @@ describe("proxy — the Strict-cookie bounce (#2094)", () => {
     expect(res.status).toBe(307);
     const location = new URL(res.headers.get("location") ?? "", "https://app.test");
     expect([...location.searchParams.entries()]).toEqual([["next", "/matchningar"]]);
+  });
+
+  it("does not bounce a path past the length cap", async () => {
+    const res = await proxy(makeRequest(`/jobb/${"a".repeat(2050)}`, { headers: MAIL_CLICK }));
+
+    expect(res.status).toBe(307);
   });
 
   it("does not bounce a client that sends no Fetch Metadata", async () => {

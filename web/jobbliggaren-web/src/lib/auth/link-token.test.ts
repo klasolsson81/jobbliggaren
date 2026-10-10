@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { linkChallengeId } from "./link-token";
 
-// The fixture is built the way RedisLoginChallengeStore.IssueAsync builds a token: Base64Url of the challenge id's
+// The fixture is built the way RedisLoginChallengeStore.PutAsync builds a token: Base64Url of the challenge id's
 // 16 bytes followed by a 16-byte secret.
 const idBytes = Buffer.from(Array.from({ length: 16 }, (_, i) => 200 + i));
 const token = Buffer.concat([idBytes, Buffer.alloc(16, 3)]).toString("base64url");

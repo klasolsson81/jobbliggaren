@@ -2749,8 +2749,10 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   cursor: pointer;
 }
 .jp-feedback__star[data-filled] { color: var(--jp-accent-700); }
-.jp-feedback__star svg { transition: transform 120ms ease-out; }
-.jp-feedback__star:hover svg { transform: scale(1.1); }
+@media (hover: hover) and (pointer: fine) {
+  .jp-feedback__star svg { transition: transform 120ms ease-out; }
+  .jp-feedback__star:hover svg { transform: scale(1.1); }
+}
 @media (prefers-reduced-motion: reduce) {
   .jp-feedback__star svg { transition: none; }
   .jp-feedback__star:hover svg { transform: none; }

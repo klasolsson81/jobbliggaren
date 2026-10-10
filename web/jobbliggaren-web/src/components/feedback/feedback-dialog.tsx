@@ -37,6 +37,7 @@ export function useFeedbackDialog({
   initialRating?: number | null;
 }): FeedbackDialogState {
   const [open, setOpen] = useState(false);
+  const [seeded, setSeeded] = useState(initialRating !== null);
   const controller = useFeedbackForm({
     page,
     renderedVersion: session.renderedVersion,
@@ -51,10 +52,13 @@ export function useFeedbackDialog({
     open,
     onOpenChange: (next) => {
       setOpen(next);
-      if (!next && phase.kind === "saved") controller.reset();
+      if (!next && phase.kind === "saved") {
+        controller.reset();
+        setSeeded(false);
+      }
     },
     holding: open || controller.hasDraft || phase.kind === "sending" || phase.kind === "saved",
-    clearable: initialRating === null,
+    clearable: !seeded,
   };
 }
 

@@ -244,6 +244,9 @@ describe("PageFeedback and the rating row — after the rating", () => {
     await user.click(screen.getByRole("button", MORE));
     const reopened = screen.getByRole("dialog");
     expect(within(reopened).getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
+    // Empty again, so a star chosen now is the form's own and can be taken back.
+    await user.click(within(reopened).getByRole("radio", { name: "2 av 5" }));
+    expect(within(reopened).getByRole("button", { name: "Ta bort betyget" })).toBeVisible();
   });
 
   it("keeps the dialog's draft over close and reopen", async () => {
@@ -280,28 +283,10 @@ describe("PageFeedback and the rating row — after the rating", () => {
     await user.click(screen.getByRole("button", CLOSE));
 
     expect(screen.queryByText(RATED, SHOWN)).toBeNull();
-    expect(screen.getByRole("link", { name: "Kontakt" })).toHaveFocus();
-  });
-
-  it("moves focus to the page's h1 when nothing follows the row", async () => {
-    fetchMock.mockResolvedValueOnce(answer({ outcome: "saved" }));
-    render(
-      <main>
-        <h1>Jobb</h1>
-        <FeedbackSessionProvider state={OPEN} renderedVersion={null}>
-          <PageFeedback pageKey="jobs" />
-        </FeedbackSessionProvider>
-      </main>,
-    );
-    const user = userEvent.setup();
-    await user.click(star(5));
-    await screen.findByText(RATED, SHOWN);
-
-    await user.click(screen.getByRole("button", CLOSE));
-
-    const heading = screen.getByRole("heading", { name: "Jobb" });
-    expect(heading).toHaveAttribute("tabindex", "-1");
-    expect(heading).toHaveFocus();
+    const next = screen.getByRole("link", { name: "Kontakt" });
+    expect(next).toHaveFocus();
+    // Focus was moved to an ordinary stop; the control is not made unreachable by Tab.
+    expect(next).not.toHaveAttribute("tabindex");
   });
 
   it("removes the row for the rest of the visit when it is closed", async () => {
@@ -338,6 +323,8 @@ describe("PageFeedback and the rating row — refusals", () => {
     expect(message).toHaveClass("jp-feedback__message");
     expect(message.classList.contains("jp-feedback__message--error")).toBe(error);
     expect(status()).toHaveTextContent(text);
+    // The click left the pointer and focus on star 3; with both away, the fill is the kept rating.
+    await user.click(document.body);
     expect(filledStars()).toEqual([1, 2, 3]);
     expect(screen.queryByRole("button", { name: "Skicka igen" })).toBeNull();
   });

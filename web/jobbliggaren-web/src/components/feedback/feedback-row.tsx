@@ -27,16 +27,12 @@ const TABBABLE =
 
 /**
  * Moves focus off the row before it goes, so it does not fall to `<body>` (DESIGN.md §6, WCAG 2.4.3):
- * to the next stop in reading order, the footer's first control, else the page's h1.
+ * to the next stop in reading order, which in the signed-in layout is the footer's first control.
  */
 function moveFocusPast(row: HTMLElement) {
-  const next = Array.from(document.querySelectorAll<HTMLElement>(TABBABLE)).find(
-    (element) => !row.contains(element) && row.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
-  );
-  const target = next ?? document.querySelector<HTMLElement>("main h1");
-  if (target === null) return;
-  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
-  target.focus({ preventScroll: true });
+  Array.from(document.querySelectorAll<HTMLElement>(TABBABLE))
+    .find((element) => !row.contains(element) && row.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ?.focus({ preventScroll: true });
 }
 
 /**

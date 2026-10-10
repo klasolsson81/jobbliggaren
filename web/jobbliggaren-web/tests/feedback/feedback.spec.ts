@@ -177,7 +177,9 @@ test("a star in the row sends the rating alone at once, and the confirmation's c
   await expect(footerButton(page)).toBeVisible();
   expect(harness.feedbackReceipts).toHaveLength(1);
   // Focus left with the row, to the next stop in reading order, instead of dropping to <body>.
-  await expect(page.locator("footer").locator("a[href], button").first()).toBeFocused();
+  const next = page.locator("footer").locator("a[href], button").first();
+  await expect(next).toBeFocused();
+  await expect(next).not.toHaveAttribute("tabindex");
 });
 
 test("the stars take Tab and fill under focus, and Enter sends the star focus is on", async ({ page }) => {

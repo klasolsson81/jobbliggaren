@@ -1,6 +1,6 @@
 /**
  * Structured data as one `application/ld+json` script. Every `<` is written as
- * `<`, so no string inside the data can close the script element; the JSON it
+ * `\u003c`, so no string inside the data can close the script element; the JSON it
  * parses to is unchanged.
  */
 export function JsonLdScript({ data }: { data: Record<string, unknown> }) {

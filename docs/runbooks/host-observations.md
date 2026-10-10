@@ -4,8 +4,8 @@
 > rolled back. The decision and its alternatives are in
 > [ADR 0157](../decisions/0157-the-admin-backup-card-reads-a-host-sampler-through-a-read-only-directory.md);
 > the card's page contract is in [BUILD.md §10](../../BUILD.md) and [ADR 0150](../decisions/0150-the-admin-surface-a-scoped-dashboard-honest-unavailability-and-a-preview-no-deployed-build-contains.md).
-> The resource meters on the Server card are a different mechanism and a different document
-> (`admin-host-observations.md`); this one covers only what the API container cannot see for itself.
+> The resource meters on the Server card are a different mechanism; this one covers only what the API
+> container cannot see for itself.
 
 ## 1. What it is
 
@@ -34,7 +34,7 @@ One file per source, one fixed name each. The reader never lists the directory.
 
 * Exactly the keys above, each once; exactly one of `data` and `error`. `schema` is the integer `1`.
 * Every instant is `yyyy-MM-ddTHH:mm:ssZ`: UTC, whole seconds, nothing else. No offset, no decimals.
-* The file is at most 16 KiB, regular, not a symlink, valid UTF-8 with no byte-order mark.
+* The file is at most 16 KiB, regular, not empty, not a symlink, valid UTF-8 with no byte-order mark and no backslash.
 * The golden files in [`deploy/systemd/fixtures/observations/`](../../deploy/systemd/fixtures/observations)
   are exactly what the sampler publishes in each scenario. The sampler's shell suite compares its output
   with them byte for byte, and the API's parser tests read the same files. After a deliberate change:
@@ -108,9 +108,10 @@ per poll the API reads one file of at most 16 KiB. Nothing here is a live number
 ```bash
 # host: the cost of one sample (CPU time and wall time of the last run)
 systemctl show jobbliggaren-observe.service -p CPUUsageNSec -p ExecMainStartTimestamp -p ExecMainExitTimestamp
-# API: the cost of one read (the handler's stopwatch — the overview perf probe in docs/runbooks/performance-measurement.md)
-dotnet test --project tests/Jobbliggaren.Application.UnitTests -- --filter-class "*Admin.Backup.BackupSampleSourceTests"
 ```
+
+and, for the API's side, the `Handled GetBackupStatusQuery in {ElapsedMs}ms` events through the query in
+[performance-measurement.md](performance-measurement.md) §A.
 
 ## 4. Security model
 
@@ -131,59 +132,68 @@ dotnet test --project tests/Jobbliggaren.Application.UnitTests -- --filter-class
 * **What the API refuses.** Anything the contract above does not allow, with a typed reason and no echo of
   the file's content or an exception message into a log or a response. Residual, stated rather than closed:
   a file replaced between the reader's check and its open can only be replaced by the sampler or root, and
-  a FIFO at the file's name would block the read; both need a writer the model already trusts.
+  a FIFO put there after the length check would block the read; both need a writer the model already trusts.
 * **What the browser receives.** `{status, reason, observedAt, stale, lastSuccess{state, completedAt, overdue}, timer{state, nextRunAt}}`.
   No path, no systemd text, no run start, no error message. A test pins the key set.
 
 ## 5. Install on the box
 
-The release path (ADR 0154) delivers the files by advancing the box's checkout, and under the standing GO
-(A2) the session whose merge needs it may do that, copy a changed unit file and run `daemon-reload`.
-`docker-compose.yml` changes in this release, so the checkout must be advanced before the next reconcile:
-until it is, every reconcile refuses and prints the exact command. Everything below that creates an account,
-a tmpfiles entry or enables a timer is a one-off write on the box and needs Klas's GO for exactly these lines.
+The release path (ADR 0154) delivers the files by advancing the box's checkout. Under the standing GO (A2) the
+session whose merge needs it does steps 1, 3 and 5: advance the checkout, copy a changed unit file, run
+`daemon-reload` and the reconcile. `docker-compose.yml` changes in this release, so the checkout must be advanced
+before the next reconcile: until it is, every reconcile refuses and prints the exact command. **Steps 2, 4 and 6
+are one-off writes on the box and need Klas's GO for exactly these lines; they are one list**, and `security-auditor`'s
+condition for step 6 is step 4's result.
 
 ```bash
 cd /opt/jobbliggaren
-# 1. The release's files (A2).
-sudo git -C /opt/jobbliggaren fetch origin main
-sudo flock /run/jobbliggaren-reconcile.lock git -C /opt/jobbliggaren merge --ff-only <release commit>
+# 1. (A2) The release's files: the advance block in vps-deploy-stack.md ("Advancing the checkout is a deploy").
+#    Nothing here repeats it; it carries the guards this step needs.
 
-# 2. The account, then the directory it owns. Order matters: the tmpfiles line names the account.
+# 2. (GO) The account, then the directory it owns. Order matters: the tmpfiles line names the account.
 sudo install -m 0644 deploy/systemd/jobbliggaren-observe-sysusers.conf /etc/sysusers.d/jobbliggaren-observe.conf
 sudo systemd-sysusers /etc/sysusers.d/jobbliggaren-observe.conf
 sudo install -m 0644 deploy/systemd/jobbliggaren-observe-tmpfiles.conf /etc/tmpfiles.d/jobbliggaren-observe.conf
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/jobbliggaren-observe.conf
 stat -c '%a %U:%G %n' /run/jobbliggaren/observations          # expect: 755 jbl-observe:jbl-observe
 
-# 3. The units (A2).
+# 3. (A2) The units.
 sudo install -m 0644 deploy/systemd/jobbliggaren-observe.service deploy/systemd/jobbliggaren-observe.timer /etc/systemd/system/
 sudo chmod 0755 deploy/systemd/jobbliggaren-observe-backup.sh deploy/systemd/jobbliggaren-observe-lib.sh
 sudo systemctl daemon-reload
 
-# 4. Measure the sandbox before arming anything: the same properties as the unit, as a transient
-#    unit, run as the sampler account. It must write backup.json, and it must not reach the secrets.
-sudo systemd-run --wait --collect --pipe --uid=jbl-observe --gid=jbl-observe \
-  -p ReadWritePaths=-/run/jobbliggaren/observations \
-  -p InaccessiblePaths="-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren" \
-  -p ProtectSystem=strict -p ProtectHome=yes -p ProtectProc=invisible -p PrivateTmp=yes -p PrivateNetwork=yes \
-  -p RestrictAddressFamilies=AF_UNIX -p CapabilityBoundingSet= -p NoNewPrivileges=yes \
-  /opt/jobbliggaren/deploy/systemd/jobbliggaren-observe-backup.sh
-sudo systemd-run --wait --collect --pipe --uid=jbl-observe --gid=jbl-observe \
-  -p InaccessiblePaths="-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren" \
-  /bin/sh -c 'for d in /run/jobbliggaren/host-secrets /run/jobbliggaren/secrets /etc/jobbliggaren; do test -r "$d" && echo "READABLE $d" || echo "denied $d"; done'
+# 4. (GO) Measure the sandbox on the installed unit before arming anything. A start of the unit runs it once as
+#    jbl-observe under the unit's own properties and arms nothing: the timer is still off.
+sudo systemctl start jobbliggaren-observe.service
+journalctl -u jobbliggaren-observe.service -n 20 --no-pager
 stat -c '%a %U:%G %s bytes %n' /run/jobbliggaren/observations/backup.json   # expect: 644 jbl-observe:jbl-observe
+sudo cat /run/jobbliggaren/observations/backup.json
+#    expect today: "lastSuccess":{"state":"missing"},"timer":{"state":"inactive"}. "timer":{"state":"unknown"} means the
+#    sandbox cut the sampler off from systemd, and nothing below may be armed.
+#    InaccessiblePaths hides the three directories even from root, so a count is the measurement (a permission test
+#    would answer "denied" without it). The property string is read from the installed unit, so the copy below is
+#    compared with it and cannot drift from it.
+systemctl show jobbliggaren-observe.service -p InaccessiblePaths
+for d in /run/jobbliggaren/host-secrets /run/jobbliggaren/secrets /etc/jobbliggaren; do
+  printf '%s entries without the property: ' "$d"; sudo ls -A "$d" | wc -l
+  printf '%s entries under it:            ' "$d"; sudo systemd-run --wait --collect --pipe \
+    -p InaccessiblePaths="-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren" \
+    /bin/sh -c "ls -A $d | wc -l"                                   # expect: 0 under it
+done
 
-# 5. Reconcile applies the new compose (api is recreated with the mount); judge the journal, not the exit code.
+# 5. (A2) Reconcile applies the new compose (api is recreated with the mount); judge the journal, not the exit code.
 sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggaren-reconcile -n 40 --no-pager
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh --status            # expect: verdict: consistent
 
-# 6. Arm it, and prove it runs rather than that it is scheduled.
+# 6. (GO) Arm it, and prove it runs rather than that it is scheduled.
 sudo systemctl enable --now jobbliggaren-observe.timer
 sudo systemctl start jobbliggaren-observe.service
 journalctl -u jobbliggaren-observe.service -n 20 --no-pager
 systemctl list-timers jobbliggaren-observe
 ```
+
+Write step 4's result (the date, the published states, the three counts and the property string) into §8 in the
+next PR that touches this file.
 
 The sampler is deliberately not in the heartbeat's floor timers (`jobbliggaren-heartbeat.sh`): its reader is
 the card, and a stopped sampler shows there as an old observation.
@@ -222,3 +232,9 @@ adds a key to the envelope or carries anything beyond the content rule above, an
 that before it is built. Facts the container can observe for itself (CPU, memory and disk of the host through
 procfs and `statfs`) do not belong here: they are sampled in the API process, and that is the Server card's
 own design.
+
+## 8. Measurements
+
+| Date | Step | Result |
+|---|---|---|
+| (none yet: step 4 runs under Klas's GO) | | |

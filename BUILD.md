@@ -639,8 +639,8 @@ as a failed update. Each source displays its observation time; values older than
 Any 401/403 clears all privileged overview data and stops polling. Initial data always comes from the server.
 
 **The Backup card (#1982 part 1, ADR 0157; operations in `docs/runbooks/host-observations.md`).** A fourth source, read
-**after** the three above have passed their 401/403 check, in one request, so the work an unauthenticated caller can
-start stays at three (#2064). The API container cannot see the host, so a sandboxed host sampler (`jbl-observe`, once
+only once one of the three above has succeeded, in one request beside the slower ones, so the work an unauthenticated
+caller can start stays at three (#2064); the loader's worst case is the first success plus the read's own 10 s. The API container cannot see the host, so a sandboxed host sampler (`jbl-observe`, once
 a minute) publishes `/run/jobbliggaren/observations/backup.json` and the `api` service mounts that directory
 read-only. The API validates the file strictly and judges it against its own clock: the last successful run is the
 backup stamp's mtime, *overdue* beyond 26 h (the backup script's own threshold) measured against now, *stale* beyond

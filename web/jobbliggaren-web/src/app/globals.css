@@ -3499,6 +3499,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
   align-items: center;
 }
+.jp-segment__count {
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Sub-nav (S1 #996; refined per #996 live-review + senior-cto-advisor) — persistent
    horizontal wayfinding under the pagehero for the /foretag surfaces (Bevakade företag ·
@@ -6480,51 +6484,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvreview__profile {
   display: flex;
 }
-/* #1062 Q1: täckningsberättelsen leder. "17 av 35 kriterier bedöms" svarar på den ena
-   av de två frågor en förstagångsanvändare kommer med — hur mycket av mitt CV blev
-   faktiskt granskat — och stod på samma storlek som brödtexten runt sig, medan de 18
-   obedömda låg 3051px längre ned. Ett steg upp i skalan, aldrig ett tal i en box:
-   §5 förbjuder en OPAK poäng, och en mening med sina två tal i sig är motsatsen. */
-.jp-cvreview__coverage {
-  margin: 0;
-  font-size: var(--text-body);
-  font-weight: var(--jp-fw-semibold);
-  color: var(--jp-ink-1);
-  line-height: 1.5;
-  max-width: 68ch;
-}
-/* #1062 design-M1: gränsen mellan två SEKTIONER måste mäta mer än gränsen mellan två
-   syskon inuti en sektion, och efter Q1:s kollaps gjorde den inte det — mätt på den
-   renderade ytan låg de två gränserna mellan olika saker lika högt som eller lägre än
-   gränsen mellan två likadana. `.jp-cvreview`s gap kalibrerades när lagren var lådor med
-   egen ram; kollapsen tog bort behållaren men flyttade aldrig behållarens uppgift.
-   Sektionerna får därför sin egen marginal ovanpå panelens gap, och täckningsparet buntas
-   ihop så att lyftet inte drar isär en mening från sin egen stödrad. Talen står i
-   PR-kroppen: de mäter renderad geometri och skulle dö här vid nästa spacing-ändring. */
-.jp-cvreview__todo,
-.jp-cvreview__dimensions,
-.jp-cvreview__unassessed {
-  margin-top: 16px;
-}
-.jp-cvreview__coverage-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-/* Rubrikversionen är villkoret täckningen läses under, inte påståendet — den stöder
-   från raden under den. */
-.jp-cvreview__coverage-note {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-  line-height: 1.55;
-  max-width: 68ch;
-}
-.jp-cvreview__rubric {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-}
 .jp-cvreview__unavailable {
   margin: 0;
   padding: 16px 18px;
@@ -6536,210 +6495,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.55;
   max-width: 68ch;
 }
-/* Lager 1 — "Att åtgärda", sidans huvudinnehåll (#1062 Q1 punkt 1). Kort-kromet är
-   borta: ramen skilde sig från kategorikortens bara på `--jp-border-strong` mot deras
-   `--jp-border`, vilket vid 1px är nära osynligt, så lagret läste som en låda bland
-   lådor i stället för som sidans svar på "vad ska jag laga?". Ingen färgad larm-platta
-   nu heller — severiteten bärs av varje rads verdict-pill (WCAG 1.4.1). */
-.jp-cvreview__todo {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* Lagerrubrikerna är jämlikar och ser likadana ut, för de ÄR jämlikar: h2 båda två,
-   under sidans h1. Vikten mellan dem bärs av innehållsmassa, vilket är hela Q1:s
-   poäng — ordningen var aldrig fel, bara vikten. */
-.jp-cvreview__todo-title,
-.jp-cvreview__dimensions-title {
-  margin: 0;
-  font-size: var(--text-h3);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-heading-2);
-  letter-spacing: -0.01em;
-}
-.jp-cvreview__todo-empty {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  line-height: 1.55;
-  max-width: 68ch;
-}
 .jp-cvreview__categories {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-/* #1062 M1/M2: bandet står aldrig utan sin täckning. Bandet är en VIKTAD poäng och
-   räknarna under det en OVIKTAD tally, så pillen ensam kunde läsa "Toppskikt" ovanför
-   sin egen "Delvis = 2" — och "Toppskikt" av 2 bedömda kriterier såg identiskt ut med
-   "Toppskikt" av 10. `align-items: baseline` sätter täckningens text på pillens
-   textlinje så de två läser som en enhet. */
-.jp-cvreview__band {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.jp-cvreview__band-coverage {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
-/* #1062 B1: kategorin har noll bedömda kriterier, alltså ingen grad — inte den lägsta.
-   Frånvaron skrivs ut i klartext i stället för att förmedlas genom en pill som saknas. */
-.jp-cvreview__band-unassessed {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  line-height: 1.5;
-  max-width: 68ch;
-}
-/* Lager 2 — "Bedömning per dimension" (#1062 Q1 punkt 2). Fyra RADER i stället för fyra
-   kort, därför att avklarade verdikt inte ska äga sidans mitt; massmätningen som bar det
-   beslutet står i `cv-review-panel.tsx`s docblock och i PR #1393.
-   Egen klass och inte `.jp-cvreview__categories`: den klassen renderar kort, och sedan
-   det här deltat är förbättringsytan (`cv-improve-panel.tsx`) dess enda konsument — att
-   peka om den hade ändrat en yta som inte är med i den här ändringen.
-   Varje rad bär en topplinje, även den första — då blir linjen under rubriken sektionens
-   egen rubriklinje i stället för ett specialfall. */
-.jp-cvreview__dimensions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.jp-cvreview__dimension {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-cvreview__dimension-head {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.jp-cvreview__dimension-name {
-  margin: 0;
-  font-size: var(--text-ui);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-  line-height: 1.4;
-}
-/* #1062 Q2: räknarna byter MEDIUM, inte information. Fyra boxade tal i `--text-h3`,
-   bold och tonfärg tog den starkaste typografiska positionen i varje kort; de är nu en
-   rad i brödtext. Etikett + siffra står kvar båda två (status aldrig enbart färg, WCAG
-   1.4.1), och tonfärgerna är borta med boxarna — statusen bärs av verdict-pillarna på
-   raderna, inte av en sammanräkning. Det stänger också M1:s residual: pillen ovanför är
-   en VIKTAD poäng och den här raden en OVIKTAD tally, och de läser inte längre som
-   jämlikar. */
-.jp-cvreview__tally {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
-.jp-cvreview__tally-item {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-/* Separatorn är dekor, inte innehåll. `content` exponeras i a11y-trädet, så mätt på den
-   levererade sidan lade den 12 lösa "·"-noder i uppläsningen; alt-formen `"·" / ""` ger
-   den ett tomt tillgängligt namn utan att ändra något visuellt (#1062 design-m3). */
-.jp-cvreview__tally-item + .jp-cvreview__tally-item::before {
-  /* Reservdeklaration först: `/ alt` gör HELA `content`-deklarationen ogiltig i en browser
-     som inte parsar formen, så utan den här raden försvinner separatorn helt där. */
-  content: "·";
-  content: "·" / "";
-  color: var(--jp-ink-3);
-}
-.jp-cvreview__tally-value {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--jp-fw-semibold);
-  color: var(--jp-ink-1);
-}
-/* De Godkända bakom varsin disclosure: de är avklarade verdikt och därmed
-   referensmaterial. Demotering, aldrig döljande — raderna står i DOM:en och är
-   tangentbordsnåbara, vilket är samma gräns honesty-invarianten drar för "Ej bedömt".
-   Träffytan har TVÅ golv ur två källor, och de blandas inte ihop: 44px på touch är
-   DESIGN.md §5, 32px i appen är `jobbpilot-design-a11y` §9. Bara touch-golvet DEKLARERAS
-   här — 32px nås av arv (radhöjd + padding), precis som `.jp-criterionrow`, medan
-   `.jp-backlink` deklarerar sitt. Brytpunkten är densamma som bådas. */
-.jp-cvreview__pass-summary {
-  padding: 8px 0;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-  cursor: pointer;
-  list-style: none;
-}
-.jp-cvreview__pass .jp-cvreview__verdicts {
-  padding-left: 20px;
-}
-@media (max-width: 768px) {
-  .jp-cvreview__pass-summary,
-  .jp-cvreview__unassessed-summary {
-    min-height: 44px;
-  }
-}
-.jp-cvreview__verdicts {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Lager 3 — "Ej bedömt" kollapsad disclosure (lågprioriterad, längst ned).
-   Stängd som default; honesty-invarianten (ADR 0074) — demoterad men aldrig dold. */
-.jp-cvreview__unassessed {
-  border: 1px solid var(--jp-border-soft);
-  border-radius: var(--jp-r-md);
-  background: var(--jp-surface-2);
-}
-.jp-cvreview__unassessed-summary {
-  padding: 12px 16px;
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  color: var(--jp-ink-2);
-  cursor: pointer;
-  list-style: none;
-}
-/* Disclosure-markören har EN hemvist sedan #1062 gav granskningen en andra disclosure.
-   `list-style: none` och `::-webkit-details-marker` behövs båda — WebKit läser bara den
-   senare. Bara markören är delad; typografin är varje summarys egen. Barnkombinatorn
-   hindrar att en yttre öppen disclosure roterar en inre stängd markör. */
-.jp-cvreview__unassessed-summary::-webkit-details-marker,
-.jp-cvreview__pass-summary::-webkit-details-marker {
-  display: none;
-}
-.jp-cvreview__unassessed-summary::before,
-.jp-cvreview__pass-summary::before {
-  /* Samma alt-form som tally-separatorn: markören är dekor och hörde aldrig hemma i
-     disclosurens tillgängliga NAMN — `<details>` annonserar sitt öppet/stängt-tillstånd
-     självt. Deltat multiplicerade markören 1 -> 5, och att den redan hade EN hemvist är
-     varför fixen är en rad (#1062 design-m3). */
-  /* Reservdeklaration först, och den är bärande här: `list-style: none` plus den släckta
-     `::-webkit-details-marker` gör den här glyfen till disclosurens ENDA visuella signal,
-     så en ogiltig `content` hade tagit bort affordansen och inte bara dess uppläsning.
-     Mätt 2026-08-18: alt-formen stöds av 93,6 % globalt (Chrome 77+, Edge 79+,
-     Safari 17.4+, Firefox 128+) — resten får glyfen och hör den, precis som före #1062. */
-  content: "▸";
-  content: "▸" / "";
-  display: inline-block;
-  margin-right: 8px;
-  color: var(--jp-ink-3);
-  transition: transform 150ms linear;
-}
-.jp-cvreview__unassessed[open] > .jp-cvreview__unassessed-summary::before,
-.jp-cvreview__pass[open] > .jp-cvreview__pass-summary::before {
-  transform: rotate(90deg);
-}
-.jp-cvreview__unassessed .jp-cvreview__verdicts {
-  padding: 0 16px 8px;
-}
-
 /* ── Enskilt kriterie-verdikt + citerad evidens ──── */
 .jp-criterion {
   display: flex;
@@ -6763,30 +6523,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   line-height: 1.4;
 }
-/* Rad-kontext-tagg: kategori-etikett när verdiktet är utlyft ur sitt kort. */
-.jp-criterion__category {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  padding: 2px 8px;
-  border-radius: var(--jp-r-pill);
-}
-/* Dämpad sekundär kod-referens (A1) för support-spårbarhet — aldrig primär.
-   Skjuts längst ut till höger; mono som signal (regel 4), ej informationsbärare. */
-.jp-criterion__id {
-  margin-left: auto;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  color: var(--jp-ink-3);
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  padding: 2px 6px;
-  border-radius: var(--jp-r-sm);
-}
-/* Improvement-suggestion target field rendered inline mid-sentence ("…på <target>").
-   Distinct from the demoted verdict id (.jp-criterion__id): here the code is essential
-   content, so it sits on ink-1 (#549 WS1 content-doctrine) and does not float right. */
+/* Improvement-suggestion target field rendered inline mid-sentence ("…på <target>"). The code
+   is essential content here, so it sits on ink-1 (#549 WS1 content-doctrine). */
 .jp-improve__target {
   font-family: var(--jp-font-mono);
   /* guard-allow: relativ storlek (0.9em av omgivande mening) — inline-koden
@@ -6848,9 +6586,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* #1062 minor 6: diagnosen är det användaren behöver först på ett Underkänt, och stod
    både sist och minst — `--text-caption` (13px) under ett utdrag på `--text-body-sm`.
-   Den leder nu, på brödtextens storlek och ink-1. Klassen har tre konsumentfiler
-   (granskningen, förbättringsytan och den publika /cv-granskning) och alla tre renderar
-   samma sak: motorns egen diagnos om ett kriterium. */
+   Den leder nu, på brödtextens storlek och ink-1. Konsumenterna är förbättringsytan och den
+   publika /cv-granskning; granskningens liggare har egen `.jp-cvledger__note` (#2083). */
 .jp-criterion__note {
   margin: 0;
   font-size: var(--text-body-sm);
@@ -6859,43 +6596,488 @@ a.jp-adminnav__link[aria-current="page"]::after {
   max-width: 68ch;
 }
 
-/* ── Per-anmärkning statuskontroll (Fas 4b PR-8.4) ─────────────────
-   Understated inline-kontroll i den KANONISKA granskningens "Att åtgärda"-lager
-   (renderas via .jp-criterion footer-slot). Vertikal stack: status-indikator
-   (pill + hint) → knapp-rad → fel. En hairline skiljer den från evidensen ovan.
-   Tokens only; prosa på ink-2 (informationsbärande, aldrig ink-3). */
-.jp-cvreview__status {
+/* ── CV review ledger (#2083, Klas's Claude Design handoff 1c) ─────────────────
+   Identity row, dimension strip, outcome filter and one table grouped by dimension.
+   The rows are a table for assistive technology and a grid for layout; the grid is what lets a
+   row restack at narrow widths, and the explicit ARIA roles in the markup keep the table
+   semantics that some engines drop when a table element's `display` changes. */
+.jp-cvledger {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--jp-border-soft);
+  gap: 24px;
 }
-.jp-cvreview__status-indicator {
+.jp-cvledger__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.jp-cvledger__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  min-width: 0;
+}
+.jp-cvledger__coverage {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+/* The CV's name and the rubric version are identifiers, so mono (DESIGN.md §4). */
+.jp-cvledger__meta {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-mono);
+  color: var(--jp-ink-2);
+  overflow-wrap: anywhere;
+}
+.jp-cvledger__meta > span + span::before {
+  /* Fallback first: the `/ alt` form invalidates the whole declaration where it is not parsed. */
+  content: " · ";
+  content: " · " / "";
+}
+
+/* Dimension strip: one toggle per dimension. Each cell draws its own top and left hairline and is
+   pulled 1px up and left, so the frame clips the outer ones and the inner ones survive however
+   auto-fit wraps the cells. */
+.jp-cvstrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-cvstrip__cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-}
-.jp-cvreview__status-hint {
-  margin: 0;
-  font-size: var(--text-body-sm);
+  gap: 8px;
+  margin: -1px 0 0 -1px;
+  padding: 13px 20px 16px;
+  border: 0;
+  border-top: 1px solid var(--jp-border-soft);
+  border-left: 1px solid var(--jp-border-soft);
+  background: transparent;
   color: var(--jp-ink-1);
-  line-height: 1.5;
-  max-width: 68ch;
+  font: inherit;
+  text-align: left;
 }
-.jp-cvreview__status-actions {
+button.jp-cvstrip__cell {
+  cursor: pointer;
+}
+button.jp-cvstrip__cell:hover,
+.jp-cvstrip__cell[aria-pressed="true"] {
+  background: var(--jp-accent-50);
+}
+/* The selected cell's indicator bar: a shape as well as a tint, since the tint alone is 1.14:1. */
+.jp-cvstrip__cell[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--jp-accent-700);
+}
+/* Inset, because the strip's frame clips anything drawn outside a cell. */
+.jp-cvstrip__cell:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+.jp-cvstrip__name {
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1.3;
+}
+.jp-cvstrip__detail {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
-.jp-cvreview__status-error {
+.jp-cvstrip__none {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-cvstrip__coverage {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-cvstrip__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.jp-cvstrip__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.jp-cvstrip__count[data-verdict="Fail"] { color: var(--jp-danger); }
+.jp-cvstrip__count[data-verdict="Warn"] { color: var(--jp-warning); }
+.jp-cvstrip__count[data-verdict="Pass"] { color: var(--jp-success); }
+.jp-cvstrip__count[data-verdict="NotAssessed"] { color: var(--jp-ink-2); }
+/* A zero recedes, but its number stays readable text (ink-3, AA); only the icon takes the
+   lighter border tone. */
+.jp-cvstrip__count[data-zero] {
+  color: var(--jp-ink-3);
+}
+.jp-cvstrip__count[data-zero] svg {
+  color: var(--jp-border-strong);
+}
+
+/* The preamble notice: text above the first heading, folded away behind its own toggle. */
+.jp-cvnotice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  background: var(--jp-info-bg);
+  border: 1px solid var(--jp-info-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-cvnotice__icon {
+  margin-top: 2px;
+  color: var(--jp-info);
+}
+.jp-cvnotice__text {
+  margin: 0;
+  font-size: var(--text-ui);
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+}
+.jp-cvnotice__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.jp-cvnotice__panel {
+  grid-column: 2 / -1;
+}
+.jp-cvnotice__quote {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-info-border);
+  border-radius: var(--jp-r-md);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Filter row: the outcome segment on the left, the dimension reset and the help on the right. */
+.jp-cvledger__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jp-cvledger__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* The table. */
+.jp-cvledger__frame {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-cvledger__table,
+.jp-cvledger__table > thead,
+.jp-cvledger__table > tbody {
+  display: block;
+}
+.jp-cvledger__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.jp-cvledger__headrow,
+.jp-cvledger__row {
+  display: grid;
+  grid-template-columns: 150px minmax(180px, 260px) minmax(0, 1fr) 220px;
+  column-gap: 20px;
+  padding: 0 20px;
+}
+.jp-cvledger__table[data-cols="3"] .jp-cvledger__headrow,
+.jp-cvledger__table[data-cols="3"] .jp-cvledger__row {
+  grid-template-columns: 150px minmax(180px, 260px) minmax(0, 1fr);
+}
+/* The ledger's heavier top rule; the head is static, so mono caps (DESIGN.md §4). */
+.jp-cvledger__headrow {
+  border-bottom: 2px solid var(--jp-ink-1);
+}
+.jp-cvledger__headrow > th {
+  padding: 12px 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  text-align: left;
+}
+.jp-cvledger__headrow > .jp-cvledger__actionhead {
+  text-align: right;
+}
+.jp-cvledger__grouprow,
+.jp-cvledger__emptyrow {
+  display: block;
+}
+.jp-cvledger__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 20px;
+  background: var(--jp-surface-2);
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-weight: var(--jp-fw-regular);
+  text-align: left;
+}
+.jp-cvledger__table > tbody + tbody .jp-cvledger__group {
+  border-top: 1px solid var(--jp-border);
+}
+.jp-cvledger__groupname {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-cvledger__groupcount {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jp-cvledger__row {
+  align-items: start;
+  padding-block: 14px;
+}
+.jp-cvledger__row + .jp-cvledger__row {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-cvledger__row > td,
+.jp-cvledger__row > th {
+  min-width: 0;
+  padding: 0;
+  font-weight: var(--jp-fw-regular);
+  text-align: left;
+}
+/* Status: icon and word in the status colour, no fill — the table form of `.jp-statusDot`. */
+.jp-cvledger__row > .jp-cvledger__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 1px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
+  white-space: nowrap;
+}
+.jp-cvledger__status svg {
+  flex-shrink: 0;
+}
+.jp-cvledger__status[data-verdict="Fail"] { color: var(--jp-danger); }
+.jp-cvledger__status[data-verdict="Warn"] { color: var(--jp-warning); }
+.jp-cvledger__status[data-verdict="Pass"] { color: var(--jp-success); }
+.jp-cvledger__status[data-verdict="NotAssessed"] { color: var(--jp-ink-2); }
+.jp-cvledger__criterion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-cvledger__name {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.jp-cvledger__id {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  color: var(--jp-ink-3);
+}
+.jp-cvledger__evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 68ch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-cvledger__evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-cvledger__evidence .jp-criterion__quote {
+  overflow-wrap: anywhere;
+}
+.jp-cvledger__note,
+.jp-cvledger__reason {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.jp-cvledger__note {
+  color: var(--jp-ink-1);
+}
+/* Ej bedömt is demoted, never hidden: its reason stands in the secondary ink. */
+.jp-cvledger__reason {
+  color: var(--jp-ink-2);
+}
+.jp-cvledger__action {
+  display: flex;
+  justify-content: flex-end;
+}
+.jp-cvledger__empty {
+  display: block;
+  padding: 20px;
+  font-size: var(--text-ui);
+  color: var(--jp-ink-1);
+}
+
+/* The status of one finding, in the action column. */
+.jp-findingstatus {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.jp-findingstatus__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.jp-findingstatus__hint,
+.jp-findingstatus__error {
   margin: 0;
   font-size: var(--text-body-sm);
+  line-height: 1.45;
+  text-align: right;
+}
+.jp-findingstatus__hint {
+  color: var(--jp-ink-2);
+}
+.jp-findingstatus__error {
   color: var(--jp-danger);
-  line-height: 1.5;
-  max-width: 68ch;
+}
+
+/* Below 1024px a fourth column would squeeze Underlag to a sliver: the action moves under the
+   evidence, and its header leaves the visual grid but stays in the table for assistive technology. */
+@media (max-width: 1023px) {
+  .jp-cvledger__headrow,
+  .jp-cvledger__row,
+  .jp-cvledger__table[data-cols="3"] .jp-cvledger__headrow,
+  .jp-cvledger__table[data-cols="3"] .jp-cvledger__row {
+    grid-template-columns: 130px minmax(140px, 200px) minmax(0, 1fr);
+    row-gap: 12px;
+  }
+  .jp-cvledger__headrow > .jp-cvledger__actionhead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .jp-cvledger__action {
+    grid-column: 3;
+    justify-content: flex-start;
+  }
+  .jp-cvledger__action:empty {
+    display: none;
+  }
+  .jp-findingstatus {
+    align-items: flex-start;
+  }
+  .jp-findingstatus__line {
+    justify-content: flex-start;
+  }
+  .jp-findingstatus__hint,
+  .jp-findingstatus__error {
+    text-align: left;
+  }
+}
+
+/* Phone width: a strip cell runs its band, coverage and counts on as text, each ledger row stacks
+   — status and criterion, then the evidence, then the action — and the outcome segment becomes a
+   2×2 grid, so the page never scrolls sideways (WCAG 1.4.10). */
+@media (max-width: 720px) {
+  .jp-cvstrip__cell {
+    padding: 12px 16px;
+  }
+  .jp-cvstrip__detail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .jp-cvledger__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .jp-cvledger__row,
+  .jp-cvledger__table[data-cols="3"] .jp-cvledger__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+    padding-inline: 16px;
+  }
+  .jp-cvledger__group {
+    padding-inline: 16px;
+  }
+  .jp-cvledger__evidence,
+  .jp-cvledger__action {
+    grid-column: 1 / -1;
+  }
+  .jp-cvnotice {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .jp-cvnotice__toggle {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .jp-cvnotice__panel {
+    grid-column: 1 / -1;
+  }
+  .jp-cvledger__filters .jp-segment {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .jp-cvledger__filters .jp-segment__opt {
+    justify-content: center;
+  }
+  .jp-cvledger__filters .jp-segment__opt:nth-child(3) {
+    border-left: 0;
+  }
+  .jp-cvledger__filters .jp-segment__opt:nth-child(n + 3) {
+    border-top: 1px solid var(--jp-border-input);
+  }
 }
 
 /* ── CTA-söm mot F2 ──────────────────────────────── */
@@ -6970,7 +7152,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── CV-förbättringsförslag (F4-10, propose-and-approve) ──────────
-   Display-only diffar. Återanvänder granskningens .jp-criterion__quote/__note/__id
+   Display-only diffar. Återanvänder granskningens .jp-criterion__quote/__note
    och .jp-cvreview-skalet; egna klasser bara för diff-paret + provenance-foten. */
 .jp-improve__changes {
   display: flex;

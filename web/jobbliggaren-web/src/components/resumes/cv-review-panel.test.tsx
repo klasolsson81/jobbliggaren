@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { CvReviewPanel } from "./cv-review-panel";
 import type {
   CvReviewDto,
@@ -10,18 +11,55 @@ import type {
 } from "@/lib/dto/parsed-resume";
 
 /**
- * IA-redesign (B.1–B.4), omviktad i #1062 Q1. Tre lager top-down:
- *   1. "Att åtgärda" — alla Underkänt/Delvis över ALLA kategorier, severitets-
- *      sorterade (Underkänt före Delvis), kritiska först (criticalFails = intern
- *      sortnyckel, inte en separat region). Sidans huvudinnehåll: h2, inget kort.
- *   2. "Bedömning per dimension" — EN rad per kategori: band med sin täckning + en
- *      demoterad räknarrad, med Godkänt-verdikten bakom en disclosure.
- *   3. "Ej bedömt" — kollapsad disclosure längst ned (demoterad, aldrig dold —
- *      honesty-invarianten ADR 0074).
- * Ingen opak totalpoäng (Goodhart, §5). Summary utan "v1" (C).
+ * The CV review as a ledger (#2083): identity row, dimension strip, outcome filter and one table
+ * grouped by dimension. The filter lives in the URL — read with `useSearchParams`, written with
+ * `history.replaceState` — so the navigation hooks are mocked with a store the replaceState spy
+ * updates, which is how Next syncs its router to a native history call.
+ *
+ * Invariants: no total score; a band never stands without its coverage; Ej bedömt is shown by
+ * default and never relabelled; every Godkänt, Delvis and Underkänt shows its evidence.
  */
 
-const PARSED_ID = "11111111-1111-4111-8111-111111111111";
+const nav = vi.hoisted(() => {
+  let search = "";
+  const listeners = new Set<() => void>();
+  return {
+    get search() {
+      return search;
+    },
+    set(next: string) {
+      search = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+});
+
+vi.mock("next/navigation", async (importOriginal) => {
+  const React = await import("react");
+  return {
+    ...(await importOriginal<typeof import("next/navigation")>()),
+    usePathname: () => "/cv/resume-1/granska",
+    useSearchParams: () =>
+      new URLSearchParams(React.useSyncExternalStore(nav.subscribe, () => nav.search)),
+  };
+});
+
+const replaceState = vi.fn();
+
+beforeEach(() => {
+  nav.set("");
+  replaceState.mockReset();
+  replaceState.mockImplementation((_data: unknown, _unused: string, url?: string | URL | null) => {
+    nav.set(new URL(String(url), "http://localhost").search);
+  });
+  vi.spyOn(window.history, "replaceState").mockImplementation(replaceState);
+});
 
 function verdict(
   criterionId: string,
@@ -44,13 +82,12 @@ function verdict(
               start: 0,
               length: 4,
               quote: `citat-${criterionId}`,
-              note: null,
+              note: `diagnos-${criterionId}`,
               observation: null,
               isExcerpt: false,
             },
           ],
-    notAssessedReason:
-      v === "NotAssessed" ? `Bedöms inte: ${name}.` : null,
+    notAssessedReason: v === "NotAssessed" ? `Bedöms inte: ${name}.` : null,
     userStatus: null,
     userStatusStaleAt: null,
     isIgnorable: false,
@@ -60,828 +97,308 @@ function verdict(
 
 function category(
   cat: RubricCategory,
-  counts: Pick<
-    CvReviewCategoryDto,
-    "passCount" | "warnCount" | "failCount" | "notAssessedCount"
-  >,
-  /** `null` = kategorin har inget bedömt kriterium och bär därför inget band
-   * (#1062 B1). Explicit parameter så att ett obandat kort måste väljas, inte
-   * uppstå av att ett fält glöms. */
-  band: CvReviewCategoryDto["band"] = "Competitive",
+  band: CvReviewCategoryDto["band"],
+  counts: Pick<CvReviewCategoryDto, "passCount" | "warnCount" | "failCount" | "notAssessedCount">,
 ): CvReviewCategoryDto {
   return { category: cat, band, ...counts };
 }
 
 /**
- * Fixture med en blandning över flera kategorier:
- *  - Content: ett kritiskt Underkänt (A1), ett Godkänt (A2), ett Ej bedömt (A3)
- *  - Language: ett vanligt Underkänt (C1), ett Delvis (C2)
- *  - Structure: ett kritiskt Delvis (B1), ett Godkänt (B2)
- * criticalFails = A1 (Fail, kritiskt) + B1 (Warn, kritiskt).
+ * Content (in rubric order): A1 Pass, A2 Fail, A3 Ej bedömt, A4 Fail (critical), A5 Delvis.
+ * Language: C1 Fail, C2 Delvis. Structure: B1 Godkänt, B2 Ej bedömt.
+ * AtsParsability: one Ej bedömt and no band.
  */
 function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
-  const a1 = verdict("A1", "Mätbara resultat", "Content", "Fail");
-  const a2 = verdict("A2", "Kontaktuppgifter", "Content", "Pass");
-  const a3 = verdict("A3", "Karriärutveckling", "Content", "NotAssessed");
-  const c1 = verdict("C1", "Stavning", "Language", "Fail");
-  const c2 = verdict("C2", "Meningsbyggnad", "Language", "Warn");
-  const b1 = verdict("B1", "Sektionsordning", "Structure", "Warn");
-  const b2 = verdict("B2", "Tydliga rubriker", "Structure", "Pass");
-
+  const a4 = verdict("A4", "Mätbara resultat", "Content", "Fail");
   return {
-    rubricVersion: "1.0.0",
+    rubricVersion: "2.3.0",
     profile: "Ats",
     categories: [
-      category("Content", {
-        passCount: 1,
-        warnCount: 0,
-        failCount: 1,
-        notAssessedCount: 1,
-      }),
-      category("Language", {
-        passCount: 0,
-        warnCount: 1,
-        failCount: 1,
-        notAssessedCount: 0,
-      }),
-      category("Structure", {
-        passCount: 1,
-        warnCount: 1,
-        failCount: 0,
-        notAssessedCount: 0,
-      }),
+      category("Content", "Competitive", { passCount: 1, warnCount: 1, failCount: 2, notAssessedCount: 1 }),
+      category("Language", "NeedsRework", { passCount: 0, warnCount: 1, failCount: 1, notAssessedCount: 0 }),
+      category("Structure", null, { passCount: 1, warnCount: 0, failCount: 0, notAssessedCount: 1 }),
+      category("AtsParsability", null, { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 1 }),
     ],
-    verdicts: [a1, a2, a3, c1, c2, b1, b2],
-    criticalFails: [a1, b1],
+    verdicts: [
+      verdict("A1", "Action verbs", "Content", "Pass"),
+      verdict("A2", "Profiltext", "Content", "Fail"),
+      verdict("A3", "Karriärutveckling", "Content", "NotAssessed"),
+      a4,
+      verdict("A5", "Anti-klyschor", "Content", "Warn", { isIgnorable: true }),
+      verdict("C1", "Stavning", "Language", "Fail"),
+      verdict("C2", "Ton", "Language", "Warn"),
+      verdict("B1", "Sektioner", "Structure", "Pass"),
+      verdict("B2", "Längd", "Structure", "NotAssessed"),
+      verdict("D2", "Tabeller", "AtsParsability", "NotAssessed"),
+    ],
+    criticalFails: [a4],
     assessedCount: 6,
-    totalCount: 42,
+    totalCount: 10,
     ...overrides,
   };
 }
 
-/** Kategorins rad i lager 2. Raderna ersatte korten i #1062 Q1; rubriken är den
- * stabila ankaren i båda formerna. */
-function dimensionRow(cat: string): HTMLElement {
-  // Medvetet UTAN `level`: rangen skiljer sig mellan ytorna (design-M2) och pinnas av
-  // rubriktestet nedan. En locator som band rangen hade gjort varje annat test till ett
-  // andra, tyst rangtest.
-  return screen
-    .getByRole("heading", { name: cat })
-    .closest(".jp-cvreview__dimension") as HTMLElement;
-}
-
-type DimensionCounts = Pick<
-  CvReviewCategoryDto,
-  "passCount" | "warnCount" | "failCount" | "notAssessedCount"
->;
-
-/** Alla fyra räknarna nollskilda SAMTIDIGT. `makeReview`s Innehåll bär `warnCount: 0`,
- * så en regel som aldrig renderade "Delvis" hade passerat mot den fixturen. */
-const ALL_NONZERO: DimensionCounts = {
-  passCount: 5,
-  warnCount: 2,
-  failCount: 1,
-  notAssessedCount: 3,
-};
-
-/** En granskning med EN kategori vars räknare är `counts` OCH vars verdikt-lista
- * summerar till dem. Räknarna kommer ur `categories` och raderna ur `verdicts`, så en
- * fixtur som lät dem gå isär hade mätt räknarraden mot ett underlag motorn aldrig
- * producerar. */
-function makeTallyReview(counts: DimensionCounts): CvReviewDto {
-  const rows = (n: number, prefix: string, v: CriterionVerdict) =>
-    Array.from({ length: n }, (_, i) =>
-      verdict(`${prefix}${i + 1}`, `${prefix}-kriterium ${i + 1}`, "Content", v),
-    );
-  const assessed = counts.passCount + counts.warnCount + counts.failCount;
-  return makeReview({
-    verdicts: [
-      ...rows(counts.passCount, "P", "Pass"),
-      ...rows(counts.warnCount, "W", "Warn"),
-      ...rows(counts.failCount, "F", "Fail"),
-      ...rows(counts.notAssessedCount, "N", "NotAssessed"),
-    ],
-    criticalFails: [],
-    categories: [category("Content", counts)],
-    assessedCount: assessed,
-    totalCount: assessed + counts.notAssessedCount,
-  });
-}
-
-function tallyOf(row: HTMLElement): HTMLElement {
-  return row.querySelector(".jp-cvreview__tally") as HTMLElement;
-}
-
-function renderTally(counts: DimensionCounts) {
+function renderCanonical(review: CvReviewDto | null = makeReview(), notice?: React.ReactNode) {
   return render(
     <CvReviewPanel
-      review={makeTallyReview(counts)}
-      target={{ kind: "parsed", parsedId: PARSED_ID }}
+      review={review}
+      target={{ kind: "canonical", resumeId: "resume-1" }}
       profile="Ats"
+      documentName="Mitt CV"
+      notice={notice}
     />,
   );
 }
 
-describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
-  it("aggregerar ALLA Underkänt/Delvis över alla kategorier och utelämnar Godkänt/Ej bedömt", () => {
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
+function table() {
+  return screen.getByRole("table", { name: "Granskning per kriterium" });
+}
 
-    const todo = screen
-      .getByRole("heading", { name: /Att åtgärda/ })
-      .closest(".jp-cvreview__todo");
-    expect(todo).not.toBeNull();
-    const scope = within(todo as HTMLElement);
+/** Criterion ids of the visible rows, in order. */
+function rowIds(): string[] {
+  return Array.from(document.querySelectorAll(".jp-cvledger__id")).map((el) => el.textContent ?? "");
+}
 
-    // Åtgärdbara (Fail/Warn) finns; Godkänt och Ej bedömt finns INTE här.
-    expect(scope.getByText("Mätbara resultat")).toBeInTheDocument(); // A1 Fail
-    expect(scope.getByText("Stavning")).toBeInTheDocument(); // C1 Fail
-    expect(scope.getByText("Meningsbyggnad")).toBeInTheDocument(); // C2 Warn
-    expect(scope.getByText("Sektionsordning")).toBeInTheDocument(); // B1 Warn
-    expect(scope.queryByText("Kontaktuppgifter")).toBeNull(); // A2 Pass
-    expect(scope.queryByText("Karriärutveckling")).toBeNull(); // A3 NotAssessed
-  });
+function stripCell(name: string) {
+  return within(screen.getByRole("group", { name: "Filtrera på dimension" })).getByRole("button", { name });
+}
 
-  it("räknar antalet åtgärdbara i rubriken", () => {
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    // 2 Fail + 2 Warn = 4.
-    expect(
-      screen.getByRole("heading", { name: "Att åtgärda (4)" }),
-    ).toBeInTheDocument();
-  });
-
-  it("sorterar Underkänt före Delvis, och kritiska först inom severiteten", () => {
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-
-    const todo = screen
-      .getByRole("heading", { name: /Att åtgärda/ })
-      .closest(".jp-cvreview__todo") as HTMLElement;
-    const names = Array.from(
-      todo.querySelectorAll(".jp-criterion__name"),
-    ).map((n) => n.textContent);
-
-    // Förväntad ordning:
-    //  1. A1 "Mätbara resultat"  — Fail + kritisk
-    //  2. C1 "Stavning"          — Fail (icke-kritisk)
-    //  3. B1 "Sektionsordning"   — Warn + kritisk
-    //  4. C2 "Meningsbyggnad"    — Warn (icke-kritisk)
-    expect(names).toEqual([
-      "Mätbara resultat",
-      "Stavning",
-      "Sektionsordning",
-      "Meningsbyggnad",
+describe("CvReviewPanel — identity row", () => {
+  it("leads with the coverage sentence, then the CV's name and the rubric version", () => {
+    renderCanonical();
+    expect(screen.getByText("6 av 10 kriterier är bedömda.")).toBeInTheDocument();
+    const meta = document.querySelector(".jp-cvledger__meta");
+    expect(Array.from(meta?.children ?? []).map((el) => el.textContent)).toEqual([
+      "Mitt CV",
+      "Rubrik 2.3.0",
     ]);
   });
 
-  it("visar en lugn positiv rad (ingen utropstecken) när inget kräver åtgärd", () => {
-    const allPass = makeReview({
-      verdicts: [verdict("A2", "Kontaktuppgifter", "Content", "Pass")],
-      criticalFails: [],
-      categories: [
-        category("Content", {
-          passCount: 1,
-          warnCount: 0,
-          failCount: 0,
-          notAssessedCount: 0,
-        }),
-      ],
-    });
-    render(
-      <CvReviewPanel review={allPass} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    expect(
-      screen.getByRole("heading", { name: "Att åtgärda (0)" }),
-    ).toBeInTheDocument();
-    // #1062 minor 3: meningen är knuten till sitt UNDERLAG. Pre-fix stod "Inget
-    // kräver åtgärd just nu." ensamt medan 36 av 42 kriterier aldrig bedömdes — en
-    // rad som läses som ett utlåtande om hela CV:t men bara bär de 6 bedömda.
-    // Fixturen bär avsiktligt assessedCount 6 av totalCount 42.
-    expect(
-      screen.getByText(/Inget av de 6 bedömda kriterierna kräver åtgärd\./),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/36 kriterier kunde inte bedömas\./),
-    ).toBeInTheDocument();
-  });
+  it("carries a chosen outcome filter across the profile switch, but never the dimension", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    const visual = () => screen.getByRole("link", { name: "Visuell profil" });
+    expect(visual()).toHaveAttribute("href", "/cv/resume-1/granska?profile=Visual");
 
-  it("utelämnar ej-bedömt-meningen när allt faktiskt bedömdes", () => {
-    // Kontrafaktum till testet ovan: utan det hade "36 kriterier kunde inte
-    // bedömas" kunnat renderas ovillkorligt och ändå passerat.
-    const everythingAssessed = makeReview({
-      verdicts: [verdict("A2", "Kontaktuppgifter", "Content", "Pass")],
-      criticalFails: [],
-      categories: [
-        category("Content", {
-          passCount: 1,
-          warnCount: 0,
-          failCount: 0,
-          notAssessedCount: 0,
-        }),
-      ],
-      assessedCount: 1,
-      totalCount: 1,
-    });
-    const { container } = render(
-      <CvReviewPanel
-        review={everythingAssessed}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Ats"
-      />,
-    );
-    expect(container.textContent ?? "").not.toMatch(/kunde inte bedömas/);
-  });
-
-  it("noll bedömda kriterier: meningen påstår inget om CV:t, bara om underlaget", () => {
-    // ICU-grenen `=0`. Ett CV där ingenting kunde bedömas får INTE läsa "inget kräver
-    // åtgärd" — det vore ett utlåtande om ett CV granskningen aldrig läste. Samma
-    // §5-familj som B1, och fullt producerbar (en degraderad parse).
-    const nothingAssessed = makeReview({
-      verdicts: [verdict("A8", "Profiltext", "Content", "NotAssessed")],
-      criticalFails: [],
-      categories: [
-        category(
-          "Content",
-          { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 1 },
-          null,
-        ),
-      ],
-      assessedCount: 0,
-      totalCount: 1,
-    });
-    render(
-      <CvReviewPanel
-        review={nothingAssessed}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Ats"
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        /Inget kriterium kunde bedömas, så granskningen pekar inte ut något/,
-      ),
-    ).toBeInTheDocument();
-    // singularis-grenen av todoEmptyUnassessed: "1 kriterium", aldrig "1 kriterier".
-    expect(screen.getByText(/1 kriterium kunde inte bedömas\./)).toBeInTheDocument();
+    await user.click(stripCell("Språk"));
+    await user.click(screen.getByRole("radio", { name: /Att åtgärda/ }));
+    expect(visual()).toHaveAttribute("href", "/cv/resume-1/granska?profile=Visual&visa=todo");
   });
 });
 
-// #1062 Q1: lagren har rätt ORDNING och hade fel VIKT — kategorikorten tog merparten av
-// sidan för att visa verdikt som redan var avklarade. Massmätningen bakom beslutet står i
-// `cv-review-panel.tsx`s docblock; den hör inte hemma i tre filer.
-describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
-  function renderDefault() {
-    return render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-  }
-
-  it("renderar en rad per kategori och inget Card alls", () => {
-    const { container } = renderDefault();
-    expect(container.querySelectorAll("[data-slot='card']")).toHaveLength(0);
-    expect(container.querySelectorAll(".jp-cvreview__dimension")).toHaveLength(3);
+describe("CvReviewPanel — headings and the table's name", () => {
+  it("canonical: no heading of its own; the table carries the review's name", () => {
+    renderCanonical();
+    expect(screen.queryByRole("heading", { name: "Granskning per kriterium" })).not.toBeInTheDocument();
+    expect(table()).toBeInTheDocument();
+    expect(within(table()).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      "Status",
+      "Kriterium",
+      "Underlag",
+      "Åtgärd",
+    ]);
   });
 
-  it("kanonisk yta: lagren äger h2, och panelen har ingen egen rubrik", () => {
-    // Där säger sidans h1 "Granskning av ditt CV" — panelen ÄR sidan. Före fixen ägde
-    // panelen en h2 som upprepade den h1:an, vilket sköt ned "Att åtgärda" till h3, samma
-    // nivå som kategorirubrikerna. Rangen bar peer-läsningen, inte bara typografin.
+  it("staging: its own h2, three columns and no status control", () => {
     render(
-      <CvReviewPanel
-        review={makeReview()}
-        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
-        profile="Ats"
-      />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: "p-1" }} profile="Ats" />,
     );
-    expect(
-      screen.getByRole("heading", { name: "Att åtgärda (4)", level: 2 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Bedömning per dimension", level: 2 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Innehåll", level: 3 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Granskning per kriterium" }),
-    ).toBeNull();
-    // Regionen namnges ändå — utan synlig rubrik är aria-label det enda namnet den har.
-    expect(
-      screen.getByRole("region", { name: "Granskning per kriterium" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Granskning per kriterium" })).toBeInTheDocument();
+    const staging = screen.getByRole("table", { name: "Granskning per kriterium" });
+    expect(within(staging).getAllByRole("columnheader")).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: /Markera som åtgärdad/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("CvReviewPanel — the dimension strip", () => {
+  it("shows a band only beside its coverage", () => {
+    renderCanonical();
+    const content = stripCell("Innehåll");
+    expect(content).toHaveAttribute("aria-pressed", "false");
+    expect(content).toHaveAccessibleDescription(
+      "Konkurrenskraftigt 4 av 5 kriterier bedömda Underkänt 2 Delvis 1 Godkänt 1 Ej bedömt 1",
+    );
   });
 
-  it("staging: panelen bär en egen h2 och lagren går ned ett steg (design-M2)", () => {
-    // Där handlar sidans h1 om den importerade FILEN, och granskningen är ett block bland
-    // parse-artefakter. Utan egen rubrik står lagren som jämlikar med artefakterna, och
-    // "Att åtgärda (4)" blir tvetydig om sitt objekt på just den sida som handlar om en
-    // fil. Ett landmark-namn räcker inte: det bär bara till AT.
-    renderDefault();
-    expect(
-      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Att åtgärda (4)", level: 3 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Bedömning per dimension", level: 3 }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Innehåll", level: 4 }),
-    ).toBeInTheDocument();
+  it("says Ingen bedömning where nothing could be assessed, never a low band", () => {
+    renderCanonical();
+    expect(stripCell("ATS-läsbarhet")).toHaveAccessibleDescription(
+      "Ingen bedömning 0 av 1 kriterier bedömda Underkänt 0 Delvis 0 Godkänt 0 Ej bedömt 1",
+    );
   });
 
-  it("håller de Godkända bakom en STÄNGD disclosure — demoterade, aldrig dolda", () => {
-    renderDefault();
-    const details = dimensionRow("Innehåll").querySelector(
-      "details.jp-cvreview__pass",
-    ) as HTMLDetailsElement;
-    expect(details).not.toBeNull();
-    expect(details.open).toBe(false);
-    // Innehåll har ETT Godkänt (A2). Det står i DOM:en även stängt — samma gräns som
-    // honesty-invarianten drar för "Ej bedömt".
-    expect(within(details).getByText("Godkänt kriterium")).toBeInTheDocument();
-    expect(within(details).getByText("Kontaktuppgifter")).toBeInTheDocument();
+  it("an unbanded dimension with assessed criteria shows its coverage without a verdict word", () => {
+    renderCanonical();
+    const description = stripCell("Struktur").getAttribute("aria-describedby") ?? "";
+    const detail = document.getElementById(description);
+    expect(detail?.textContent).toContain("1 av 2 kriterier bedömda");
+    expect(detail?.textContent).not.toContain("Ingen bedömning");
+    expect(detail?.querySelector(".jp-pill")).toBeNull();
+  });
+});
+
+describe("CvReviewPanel — the ledger at rest", () => {
+  it("starts on Alla, so Ej bedömt is shown by default with its reason", () => {
+    renderCanonical();
+    expect(screen.getByRole("radio", { name: "Alla 10" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Att åtgärda 5" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Godkänt 2" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Ej bedömt 3" })).toBeInTheDocument();
+    expect(screen.getByText("Bedöms inte: Karriärutveckling.")).toBeInTheDocument();
   });
 
-  it("lyfter fortfarande ut det åtgärdbara och det ej bedömda ur dimensionen", () => {
-    renderDefault();
-    const scope = within(dimensionRow("Innehåll"));
-    expect(scope.queryByText("Mätbara resultat")).toBeNull(); // A1 Fail → lager 1
-    expect(scope.queryByText("Karriärutveckling")).toBeNull(); // A3 NotAssessed → lager 3
+  it("orders a group Underkänt, Delvis, Godkänt, Ej bedömt — critical first, then rubric order", () => {
+    renderCanonical();
+    expect(rowIds()).toEqual(["A4", "A2", "A5", "A1", "A3", "C1", "C2", "B1", "B2", "D2"]);
   });
 
-  it("ger VARJE dimension sin räknarrad, inte bara den första", () => {
-    // Mätt av test-writer: en `CategoryTally` som returnerade null för Språk och Struktur
-    // passerade hela Q2-blocket, därför att varje fixtur DÄR bär en enda kategori.
-    // Kontrafaktumet hör alltså hemma på den flerdimensionella fixturen, inte hos Q2.
-    renderDefault();
-    for (const cat of ["Innehåll", "Språk", "Struktur"]) {
-      expect(tallyOf(dimensionRow(cat))).not.toBeNull();
+  it("names each group with its dimension and size, without its band", () => {
+    renderCanonical();
+    const groups = within(table()).getAllByRole("rowheader").filter((th) => th.classList.contains("jp-cvledger__group"));
+    expect(groups.map((th) => th.textContent)).toEqual([
+      "Innehåll5 kriterier",
+      "Språk2 kriterier",
+      "Struktur2 kriterier",
+      "ATS-läsbarhet1 kriterium",
+    ]);
+    expect(groups[0]?.querySelector(".jp-pill")).toBeNull();
+  });
+
+  it("shows evidence on every Godkänt, Delvis and Underkänt row", () => {
+    renderCanonical();
+    for (const id of ["A1", "A2", "A4", "A5", "C1", "C2", "B1"]) {
+      expect(screen.getByText(`diagnos-${id}`)).toBeInTheDocument();
+      expect(screen.getByText(`citat-${id}`).tagName).toBe("BLOCKQUOTE");
     }
   });
 
-  it("böjer disclosurens etikett i BÅDA pluralgrenarna", () => {
-    // `passSummary` är en ny ICU-pluralnyckel, och `todoEmptyUnassessed` i den här filen
-    // har båda grenarna pinnade. En ny nyckel får inte ha lägre krav än den befintliga.
-    // Scopat till EN rad: singularis-grenen renderas av två dimensioner i den här
-    // fixturen (Innehåll och Struktur bär ett Godkänt var), så en sökning utan scope mäter
-    // hur många kategorier som råkar ha exakt ett Godkänt, inte vilken gren som valdes.
-    const { unmount } = renderDefault();
-    expect(
-      within(dimensionRow("Innehåll")).getByText("Godkänt kriterium"),
-    ).toBeInTheDocument();
-    unmount();
-
-    renderTally(ALL_NONZERO);
-    expect(
-      within(dimensionRow("Innehåll")).getByText("Godkända kriterier"),
-    ).toBeInTheDocument();
+  it("offers a status control on Underkänt and Delvis rows only, named by the criterion", () => {
+    renderCanonical();
+    expect(screen.getAllByRole("button", { name: /Markera som åtgärdad/ })).toHaveLength(5);
+    expect(screen.getByRole("group", { name: "Mätbara resultat" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Action verbs" })).not.toBeInTheDocument();
+    // §5: the ignore offer only where the backend accepts it.
+    expect(screen.getAllByRole("button", { name: /Ignorera regeln/ })).toHaveLength(1);
   });
 
-  it("renderar INGEN disclosure på en dimension utan Godkänt", () => {
-    // Språk: 0 Pass. En <summary> som öppnar tomrum är en affordans som ljuger.
-    renderDefault();
-    expect(
-      dimensionRow("Språk").querySelector("details.jp-cvreview__pass"),
-    ).toBeNull();
-  });
-
-  it("täckningsberättelsen leder i eget element, och raden under bär bara rubrikversionen", () => {
-    const { container } = renderDefault();
-    expect(
-      container.querySelector(".jp-cvreview__coverage")?.textContent,
-    ).toBe("6 av 42 kriterier är bedömda.");
-    expect(
-      container.querySelector(".jp-cvreview__coverage-note")?.textContent,
-    ).toBe("Rubrik 1.0.0");
-    expect(screen.queryByText(/sänker inte omdömet/)).toBeNull();
-  });
-
-  it("hederlighetsklausulen ligger bakom ?-hjälpen vid dimensionsrubriken", async () => {
-    renderDefault();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Hur räknas omdömet per dimension?" }),
+  it("marks an excerpt with a hidden ellipsis and says so outside the quote", () => {
+    renderCanonical(
+      makeReview({
+        verdicts: [
+          verdict("A2", "Profiltext", "Content", "Fail", {
+            evidence: [
+              { kind: "TextSpan", start: 0, length: 4, quote: "Lång profil", note: null, observation: null, isExcerpt: true },
+            ],
+          }),
+        ],
+        criticalFails: [],
+      }),
     );
-    const dialog = await screen.findByRole("dialog", {
-      name: "Bedömning per dimension",
-    });
-    expect(dialog).toHaveAccessibleDescription(
-      /räknas som ej bedömda och sänker inte omdömet\./,
-    );
+    const quote = screen.getByText("Lång profil", { exact: false });
+    expect(quote.querySelector(".jp-criterion__quote-excerpt")).toHaveAttribute("aria-hidden", "true");
+    const note = screen.getByText("Utdrag, citatet fortsätter i ditt CV.");
+    expect(note).toHaveClass("sr-only");
+    expect(quote.contains(note)).toBe(false);
+  });
+
+  it("explains the dimension verdict behind the ? help", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    await user.click(screen.getByRole("button", { name: "Hur räknas omdömet per dimension?" }));
+    expect(await screen.findByRole("dialog", { name: "Bedömning per dimension" })).toBeInTheDocument();
+  });
+
+  it("never shows a total score", () => {
+    const { container } = renderCanonical();
+    expect(container.textContent ?? "").not.toMatch(/poäng|betyg|score|\/\s*100|av\s*100|%/i);
+  });
+
+  it("places the notice between the strip and the filter", () => {
+    renderCanonical(makeReview(), <p data-testid="notice">notis</p>);
+    const notice = screen.getByTestId("notice");
+    const strip = screen.getByRole("group", { name: "Filtrera på dimension" });
+    const filter = screen.getByRole("radiogroup", { name: "Visa kriterier" });
+    expect(strip.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
-// #1062 Q2 — räknarnas MEDIUM byter, informationen gör det inte. Det pinnade beslutet
-// ("information är design": fyra räknare, aldrig en enda sammanfattande siffra) står
-// kvar; det som ändrades är att de fyra boxade talen i --text-h3/bold/tonfärg blev en
-// rad i brödtext, och att NOLLOR undertrycks — 8 av 16 celler var `0` på ett rent CV.
-// Varje räknare mäts i BÅDA riktningarna: den renderas med sitt tal när den är
-// nollskild, och den finns inte alls när den är noll. Ett ensidigt test kan inte skilja
-// "undertrycker nollor" från "renderar aldrig".
-describe("CvReviewPanel — räknarna per dimension (#1062 Q2)", () => {
-  const COUNTERS = [
-    { label: "Godkänt", value: ALL_NONZERO.passCount, zero: { ...ALL_NONZERO, passCount: 0 } },
-    { label: "Delvis", value: ALL_NONZERO.warnCount, zero: { ...ALL_NONZERO, warnCount: 0 } },
-    { label: "Underkänt", value: ALL_NONZERO.failCount, zero: { ...ALL_NONZERO, failCount: 0 } },
-    {
-      label: "Ej bedömt",
-      value: ALL_NONZERO.notAssessedCount,
-      zero: { ...ALL_NONZERO, notAssessedCount: 0 },
-    },
-  ];
+describe("CvReviewPanel — filtering", () => {
+  it("Att åtgärda keeps the Underkänt and Delvis rows, writes the URL and announces the count", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    await user.click(screen.getByRole("radio", { name: "Att åtgärda 5" }));
 
-  it.each(COUNTERS)("renderar $label med sitt tal när räknaren är nollskild", ({ label, value }) => {
-    renderTally(ALL_NONZERO);
-    const item = within(tallyOf(dimensionRow("Innehåll")))
-      .getByText(label)
-      .closest(".jp-cvreview__tally-item") as HTMLElement;
-    expect(item.textContent).toBe(`${label}${value}`);
+    expect(replaceState).toHaveBeenLastCalledWith({}, "", "/cv/resume-1/granska?visa=todo");
+    expect(rowIds()).toEqual(["A4", "A2", "A5", "C1", "C2"]);
+    // Groups without a match are not shown; the shown count reads "x av y".
+    expect(screen.queryByText("Struktur", { selector: ".jp-cvledger__groupname" })).not.toBeInTheDocument();
+    expect(screen.getByText("3 av 5")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("5 kriterier visas.");
   });
 
-  it.each(COUNTERS)("utelämnar $label helt när räknaren är noll", ({ label, zero }) => {
-    renderTally(zero);
-    const tally = tallyOf(dimensionRow("Innehåll"));
-    expect(within(tally).queryByText(label)).toBeNull();
-    // …och de tre andra står kvar: undertryckningen är per räknare, inte per rad.
-    expect(tally.querySelectorAll(".jp-cvreview__tally-item")).toHaveLength(3);
+  it("Ej bedömt keeps only the rows that could not be assessed", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    await user.click(screen.getByRole("radio", { name: "Ej bedömt 3" }));
+    expect(rowIds()).toEqual(["A3", "B2", "D2"]);
   });
 
-  it("renderar alla fyra samtidigt när alla fyra är nollskilda", () => {
-    renderTally(ALL_NONZERO);
-    const labels = Array.from(
-      tallyOf(dimensionRow("Innehåll")).querySelectorAll("dt"),
-    ).map((n) => n.textContent);
-    expect(labels).toEqual(["Godkänt", "Delvis", "Underkänt", "Ej bedömt"]);
+  it("a dimension filters the table and the counts, and clicking it again clears it", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    await user.click(stripCell("Språk"));
+
+    expect(stripCell("Språk")).toHaveAttribute("aria-pressed", "true");
+    expect(replaceState).toHaveBeenLastCalledWith({}, "", "/cv/resume-1/granska?dim=Language");
+    expect(rowIds()).toEqual(["C1", "C2"]);
+    expect(screen.getByRole("radio", { name: "Alla 2" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Att åtgärda 2" })).toBeInTheDocument();
+
+    await user.click(stripCell("Språk"));
+    expect(stripCell("Språk")).toHaveAttribute("aria-pressed", "false");
+    expect(rowIds()).toHaveLength(10);
   });
 
-  it("skriver aldrig ut en nolla i raden", () => {
-    renderTally({ ...ALL_NONZERO, warnCount: 0, failCount: 0 });
-    const values = Array.from(
-      tallyOf(dimensionRow("Innehåll")).querySelectorAll("dd"),
-    ).map((n) => n.textContent);
-    expect(values).toEqual(["5", "3"]);
+  it("Visa alla dimensioner clears the dimension and puts focus back on its cell", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    expect(screen.queryByRole("button", { name: "Visa alla dimensioner" })).not.toBeInTheDocument();
+
+    await user.click(stripCell("Struktur"));
+    await user.click(screen.getByRole("button", { name: "Visa alla dimensioner" }));
+
+    expect(stripCell("Struktur")).toHaveFocus();
+    expect(stripCell("Struktur")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Visa alla dimensioner" })).not.toBeInTheDocument();
   });
 
-  it("utelämnar hela raden på den obandade dimensionen, där meningen ovanför bär talet", () => {
-    // Den enda platsen där raden bara skulle upprepa en mening ordagrant: CategoryBand
-    // skriver redan "Inget av de 8 kriterierna kunde bedömas". Grinden är DEN meningens
-    // egen. Att dess första konjunkt är redundant mot dagens motor står i CategoryTally:s
-    // docblock — testet mäter beteendet, inte grindens form.
-    const unmeasured = makeReview({
-      verdicts: [verdict("E1", "Layout", "VisualQuality", "NotAssessed")],
-      criticalFails: [],
-      categories: [
-        category(
-          "VisualQuality",
-          { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 8 },
-          null,
-        ),
-      ],
-    });
-    render(
-      <CvReviewPanel
-        review={unmeasured}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Visual"
-      />,
-    );
-    const row = dimensionRow("Visuell kvalitet");
-    expect(row.querySelector(".jp-cvreview__tally")).toBeNull();
-    expect(row.textContent ?? "").toMatch(
-      /Inget av de 8 kriterierna kunde bedömas\./,
-    );
+  it("says so when a combination matches nothing", async () => {
+    const user = userEvent.setup();
+    renderCanonical();
+    await user.click(stripCell("Språk"));
+    await user.click(screen.getByRole("radio", { name: /Ej bedömt/ }));
+    expect(screen.getByText("Inga kriterier i det här urvalet.")).toBeInTheDocument();
+    expect(rowIds()).toEqual([]);
   });
 
-  it("behåller raden på en obandad dimension som ändå har bedömda kriterier", () => {
-    // Kontrafaktum till testet ovan: undertryckningen får inte bita på `band === null`
-    // ensamt. En rubrikbump med en nollviktad nivå ger weightSum===0 med bedömda
-    // kriterier kvar, och då är räknarna det enda som säger hur de föll.
-    const zeroWeighted = makeReview({
-      verdicts: [verdict("E1", "Layout", "VisualQuality", "Pass")],
-      criticalFails: [],
-      categories: [
-        category(
-          "VisualQuality",
-          { passCount: 3, warnCount: 0, failCount: 0, notAssessedCount: 5 },
-          null,
-        ),
-      ],
-    });
-    render(
-      <CvReviewPanel
-        review={zeroWeighted}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Visual"
-      />,
-    );
-    const tally = tallyOf(dimensionRow("Visuell kvalitet"));
-    expect(tally).not.toBeNull();
-    expect(
-      Array.from(tally.querySelectorAll("dt")).map((n) => n.textContent),
-    ).toEqual(["Godkänt", "Ej bedömt"]);
+  it("reads the filter from the URL on arrival, ignoring a dimension this profile does not have", () => {
+    nav.set("?profile=Ats&dim=VisualQuality&visa=pass");
+    renderCanonical();
+    expect(screen.getByRole("radio", { name: "Godkänt 2" })).toBeChecked();
+    expect(rowIds()).toEqual(["A1", "B1"]);
+    // Arrival is not announced; only a change the user makes is.
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 });
 
-describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/M2)", () => {
-  it("renderar INGEN bandpill när kategorin saknar bedömda kriterier", () => {
-    // B1, mätt på levererad kod: ?profile=Visual gav ett FELFRITT CV
-    // "VisualQuality band=NotReady pass=0 warn=0 fail=0 na=8" — alltså rubrikens
-    // BOTTENETIKETT, röd "Ej redo", på en dimension där ingenting kunde mätas.
-    // Det är CLAUDE.md §5 ordagrant: "Ej bedömt" får demoteras men ALDRIG renderas
-    // som en låg grad.
-    const unmeasured = makeReview({
-      verdicts: [verdict("E1", "Layout", "VisualQuality", "NotAssessed")],
-      criticalFails: [],
-      categories: [
-        category(
-          "VisualQuality",
-          { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 8 },
-          null,
-        ),
-      ],
-    });
-    render(
-      <CvReviewPanel
-        review={unmeasured}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Visual"
-      />,
-    );
-
-    const card = dimensionRow("Visuell kvalitet");
-    const text = card.textContent ?? "";
-    expect(text).not.toMatch(/Ej redo|Behöver omarbetning|Konkurrenskraftigt|Toppskikt/);
-    // Frånvaron skrivs ut i klartext — den förmedlas inte genom att en pill saknas.
-    expect(text).toMatch(/Ingen bedömning\. Inget av de 8 kriterierna kunde bedömas\./);
-  });
-
-  it("renderar bandet MED sin täckning när kategorin är bedömd", () => {
-    // M2, mätt: ATS-läsbarhet stod "Toppskikt" på BÅDE ett svagt och ett rent CV,
-    // båda gånger av 2 bedömda kriterier av 10 — nämnaren var osynlig, så 3 av 4
-    // band var identiska mellan ett CV med 2 Underkänt och ett med 0. M1 är samma
-    // rot: bandet är en VIKTAD poäng, räknarna under det en OVIKTAD tally.
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-
-    const card = dimensionRow("Innehåll");
-    const band = card.querySelector(".jp-cvreview__band") as HTMLElement;
-    expect(band).not.toBeNull();
-    // Content: pass 1 + warn 0 + fail 1 = 2 bedömda, notAssessed 1 → 3 totalt.
-    expect(band.textContent ?? "").toMatch(
-      /Konkurrenskraftigt\s*2 av 3 kriterier bedömda/,
-    );
-  });
-
-  it("frånvaromeningen grindas på att inget bedömdes, inte på att bandet saknas", () => {
-    // Meningen PÅSTÅR "inget av de N kriterierna kunde bedömas". Backend håller
-    // band===null och assessed===0 ekvivalenta idag — men bara därför att rubrikens
-    // vikter alla är > 0. ⚠ Mätt 2026-08-18: `rubric.v2.3.0.json` bär vikterna 3/2/1/0.5,
-    // så INGEN väg i `src/` producerar det här tillståndet just nu. Aktören som skulle
-    // göra det är en ren rubrik-databump: `RubricLoader.MapToContract` mappar
-    // `file.Weights` rakt igenom och validerar id-prefix, critical-fail-ids, style-only,
-    // profilsignaler och trösklar — men har ingen viktpositivitets-validering alls.
-    // Assertionen är därför §5:s tillåtna form: läs-sidan degraderar säkert, aldrig ett
-    // påstående om vad producenten gör. En rubrikbump med en nollviktad nivå ger weightSum===0 med
-    // bedömda kriterier kvar, och då hade sidan skrivit ut ett påstående som räknarna
-    // på raden under motbevisar: B1:s felklass, inverterad.
-    const zeroWeighted = makeReview({
-      verdicts: [verdict("E1", "Layout", "VisualQuality", "Pass")],
-      criticalFails: [],
-      categories: [
-        category(
-          "VisualQuality",
-          { passCount: 3, warnCount: 0, failCount: 0, notAssessedCount: 5 },
-          null,
-        ),
-      ],
-    });
-    render(
-      <CvReviewPanel
-        review={zeroWeighted}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Visual"
-      />,
-    );
-
-    const card = dimensionRow("Visuell kvalitet");
-    const text = card.textContent ?? "";
-    expect(text).not.toMatch(/Ingen bedömning/);
-    expect(text).toMatch(/3 av 8 kriterier bedömda/);
-    // …och fortfarande ingen pill: bandet fick vi inte, så vi påstår det inte.
-    expect(text).not.toMatch(/Ej redo|Behöver omarbetning|Konkurrenskraftigt|Toppskikt/);
-  });
-
-  it("bär täckningen i SAMMA block som pillen, inte någon annanstans på raden", () => {
-    // Kontrafaktum: utan detta hade täckningen kunnat renderas var som helst på
-    // raden och testet ovan hade ändå passerat på card.textContent.
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-
-    const band = dimensionRow("Språk").querySelector(
-      ".jp-cvreview__band",
-    ) as HTMLElement;
-    expect(band.querySelector(".jp-cvreview__band-coverage")).not.toBeNull();
-  });
-});
-
-describe("CvReviewPanel — citerat utdrag markeras (#1062 B2)", () => {
-  it("ritar markören när evidensen är ett utdrag, och aldrig annars", () => {
-    // Motorn skriver ALDRIG in "…" i citatet (två pinnade backend-invarianter), så
-    // markören måste komma härifrån — annars implicerar ett kapat citat att det är
-    // hela användarens mening.
-    const withExcerpt = makeReview({
-      verdicts: [
-        verdict("A8", "Profiltext", "Content", "Pass", {
-          evidence: [
-            {
-              kind: "TextSpan",
-              start: 0,
-              length: 10,
-              quote: "Erfaren systemutvecklare",
-              note: null,
-              observation: null,
-              isExcerpt: true,
-            },
-          ],
-        }),
-        verdict("A2", "Kontaktuppgifter", "Content", "Pass"),
-      ],
-      criticalFails: [],
-      categories: [
-        category("Content", {
-          passCount: 2,
-          warnCount: 0,
-          failCount: 0,
-          notAssessedCount: 0,
-        }),
-      ],
-    });
-    const { container } = render(
-      <CvReviewPanel
-        review={withExcerpt}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Ats"
-      />,
-    );
-
-    expect(
-      container.querySelectorAll(".jp-criterion__quote-excerpt"),
-    ).toHaveLength(1);
-    // A2:s citat bär isExcerpt: false och får därför ingen markör — det är
-    // kontrafaktumet som gör räkningen ovan till en mätning.
-    expect(container.querySelectorAll(".jp-criterion__quote")).toHaveLength(2);
-
-    const mark = container.querySelector(".jp-criterion__quote-excerpt");
-    expect(mark).not.toBeNull();
-    // Ellipsen är dekorativ och MÅSTE vara dold — annars annonseras utdraget två gånger.
-    expect(mark?.textContent ?? "").toMatch(/…/);
-    expect(mark?.getAttribute("aria-hidden")).toBe("true");
-
-    // …och den talade meningen ligger UTANFÖR blockquote:n. Inne i den hade en
-    // skärmläsare hört motorns egen upplysning som en del av användarens citat —
-    // precis den klass av påstående den här PR:en stänger.
-    const spoken = container.querySelector(".sr-only");
-    expect(spoken?.textContent).toMatch(/Utdrag, citatet fortsätter i ditt CV\./);
-    expect(spoken?.closest("blockquote")).toBeNull();
-  });
-});
-
-describe("CvReviewPanel — Ej bedömt (kollapsad, men aldrig dold)", () => {
-  it("renderar Ej bedömt som en disclosure stängd som default", () => {
-    const { container } = render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    const details = container.querySelector("details.jp-cvreview__unassessed");
-    expect(details).not.toBeNull();
-    // Stängd som default — inget `open`-attribut.
-    expect((details as HTMLDetailsElement).open).toBe(false);
-  });
-
-  it("summary räknar de ej bedömda och bär den ärliga orsaken inuti", () => {
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    // En NotAssessed i fixturen (A3).
-    expect(screen.getByText("Ej bedömt (1)")).toBeInTheDocument();
-    // Den ärliga orsaken renderas (i DOM:en även när disclosure är stängd) —
-    // honesty-invarianten: demoterad, aldrig dold/om-etiketterad.
-    expect(
-      screen.getByText("Bedöms inte: Karriärutveckling."),
-    ).toBeInTheDocument();
-  });
-
-  it("renderar ingen Ej bedömt-disclosure när det inte finns några", () => {
-    const noUnassessed = makeReview({
-      verdicts: [verdict("A2", "Kontaktuppgifter", "Content", "Pass")],
-      criticalFails: [],
-      categories: [
-        category("Content", {
-          passCount: 1,
-          warnCount: 0,
-          failCount: 0,
-          notAssessedCount: 0,
-        }),
-      ],
-    });
-    const { container } = render(
-      <CvReviewPanel review={noUnassessed} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    expect(container.querySelector("details.jp-cvreview__unassessed")).toBeNull();
-  });
-});
-
-// Fas 4b PR-8.4 (CTO-bind Q3/Q4): den kanoniska granskningen (befordrad Resume) bär
-// statusledgern och renderar därför en per-anmärkning statuskontroll i FOTEN på varje
-// ÅTGÄRDBART verdikt. Den parsade stagingen har ingen ledger → inga kontroller. Kontrollens
-// grupp-aria-label ("Status för anmärkningen") är den stabila markören.
-const CANONICAL_ID = "22222222-2222-4222-8222-222222222222";
-const STATUS_GROUP = "Status för anmärkningen";
-
-describe("CvReviewPanel — statuskontroller (kanonisk vs parsad target)", () => {
-  it("kanonisk target renderar en statuskontroll per åtgärdbart verdikt (Fail/Warn)", () => {
-    render(
-      <CvReviewPanel
-        review={makeReview()}
-        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
-        profile="Ats"
-      />,
-    );
-    // 2 Fail + 2 Warn = 4 åtgärdbara → 4 kontroller. Godkänt/Ej bedömt får ingen.
-    expect(
-      screen.getAllByRole("group", { name: STATUS_GROUP }),
-    ).toHaveLength(4);
-  });
-
-  it("kanonisk target: Markera-som-åtgärdad-knappen finns på åtgärdbara anmärkningar", () => {
-    render(
-      <CvReviewPanel
-        review={makeReview()}
-        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
-        profile="Ats"
-      />,
-    );
-    expect(
-      screen.getAllByRole("button", { name: /Markera som åtgärdad/ }),
-    ).toHaveLength(4);
-  });
-
-  it("parsad target renderar INGA statuskontroller (ingen statusledger)", () => {
-    render(
-      <CvReviewPanel
-        review={makeReview()}
-        target={{ kind: "parsed", parsedId: PARSED_ID }}
-        profile="Ats"
-      />,
-    );
-    expect(
-      screen.queryAllByRole("group", { name: STATUS_GROUP }),
-    ).toHaveLength(0);
-    expect(
-      screen.queryByRole("button", { name: /Markera som åtgärdad/ }),
-    ).not.toBeInTheDocument();
-  });
-});
-
-describe("CvReviewPanel — copy + invarianter", () => {
-  it("summary står utan versions-token 'v1' (C), i samma böjning som täckningen", () => {
-    // design-m4: "bedöms" och "bedömda" stod intill varandra om samma faktum. Partikip-
-    // formen vann — den förekommer fyra gånger per sida i band-täckningen mot summaryns en.
-    render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    expect(
-      screen.getByText(/6 av 42 kriterier är bedömda\./),
-    ).toBeInTheDocument();
-    // Rubrik-versionstaggen står kvar, men ingen "v1"-jargong i prosan.
-    expect(screen.getByText("Rubrik 1.0.0")).toBeInTheDocument();
-  });
-
-  it("renderar ALDRIG en opak 0–100-poäng eller totalsumma (Goodhart, §5)", () => {
-    const { container } = render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
-    );
-    const text = container.textContent ?? "";
-    expect(text).not.toMatch(/poäng|betyg|score|\/\s*100|av\s*100/i);
-  });
-
-  it("degraderar civilt när review är null (role=status, sid-skalet kvar)", () => {
-    render(<CvReviewPanel review={null} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />);
-    // Frånvaro-grenen bär ALLTID rubriken, på båda ytorna: den har inga lager och alltså
-    // ingen rangkonflikt, och utan den stod notisen i en region utan synligt namn
-    // (design-M2, det skarpaste fallet).
-    expect(
-      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Granskningen kunde inte laddas just nu/,
-    );
+describe("CvReviewPanel — review could not be loaded", () => {
+  it("keeps the identity row and the profile switch, and says so where the strip would stand", () => {
+    renderCanonical(null, <p data-testid="notice">notis</p>);
+    expect(screen.getByRole("status")).toHaveTextContent("Granskningen kunde inte laddas just nu");
+    expect(screen.getByRole("link", { name: "Visuell profil" })).toBeInTheDocument();
+    expect(screen.getByText("Mitt CV")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByTestId("notice")).toBeInTheDocument();
   });
 });

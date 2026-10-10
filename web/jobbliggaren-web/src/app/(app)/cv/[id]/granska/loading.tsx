@@ -14,13 +14,14 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * cannot do across viewports. `aside={null}` because this page renders no aside element
  * (see the component for why an empty one is not the same thing).
  *
- * The panel below stays flat grey: the findings are data. `.jp-cvreview` is a layout
- * class only, so re-using it takes the gaps from the same rule the loaded page uses
- * rather than from a number here.
+ * The panel below stays flat grey: the findings are data. It re-uses the ledger's own layout
+ * classes (#2083) — identity row, strip, filter row, table frame — so the gaps and the strip's
+ * columns come from the same rules the loaded page uses rather than from numbers here.
  *
  * sr-only `role="status"` announces; visuals decorative. Sync RSC.
  */
-const DIMENSIONS = [0, 1, 2];
+const DIMENSIONS = [0, 1, 2, 3];
+const ROWS = [0, 1, 2];
 
 export default function Loading() {
   const t = useTranslations("pages");
@@ -37,23 +38,36 @@ export default function Loading() {
         aside={null}
       />
 
-      <div className="jp-container jp-page flex flex-col gap-6" aria-hidden="true">
+      <div className="jp-container jp-page flex flex-col gap-3" aria-hidden="true">
         <span className="jp-backlink self-start">
           <span className="jp-skeleton block h-4 w-40" />
         </span>
-        <span className="jp-skeleton block h-5 w-56 max-w-full" />
 
-        <section className="jp-cvreview">
-          <span className="jp-skeleton block h-7 w-64 max-w-full" />
-          <span className="jp-skeleton block h-16 w-full" />
-          {DIMENSIONS.map((dimension) => (
-            <div key={dimension} className="flex flex-col gap-2">
-              <span className="jp-skeleton block h-5 w-48 max-w-full" />
-              <span className="jp-skeleton block h-4 w-full" />
-              <span className="jp-skeleton block h-4 w-5/6 max-w-full" />
-            </div>
-          ))}
-        </section>
+        <div className="jp-cvledger">
+          <div className="jp-cvledger__head">
+            <span className="jp-skeleton block h-7 w-80 max-w-full" />
+            <span className="jp-skeleton block h-9 w-56 max-w-full" />
+          </div>
+          <div className="jp-cvstrip">
+            {DIMENSIONS.map((dimension) => (
+              <div key={dimension} className="jp-cvstrip__cell">
+                <span className="jp-skeleton block h-5 w-28" />
+                <span className="jp-skeleton block h-6 w-36 max-w-full" />
+                <span className="jp-skeleton block h-4 w-40 max-w-full" />
+              </div>
+            ))}
+          </div>
+          <span className="jp-skeleton block h-9 w-96 max-w-full" />
+          <div className="jp-cvledger__frame">
+            <span className="jp-skeleton block h-10 w-full" />
+            {ROWS.map((row) => (
+              <div key={row} className="flex flex-col gap-2 p-5">
+                <span className="jp-skeleton block h-5 w-64 max-w-full" />
+                <span className="jp-skeleton block h-4 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </>
   );

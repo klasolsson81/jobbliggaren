@@ -49,8 +49,9 @@ interface Props {
  * — degraderas civilt till `null`; sidan 404:ar aldrig på ett granskningsfel)
  * parallellt. Auth-/fel-formen är den som `/cv/[id]`-detaljvyn bar innan #1373
  * grindade den routen; formen ärvdes därifrån och står nu på egna ben.
- * CV-PII läses bara server-side; evidensen är redan personnummer-redigerad vid
- * motorns choke point innan den når klienten.
+ * CV-PII läses bara server-side and is rendered there; the ledger's filter island receives the
+ * rows as rendered nodes, never the text as props (#2083). Evidence is already
+ * personnummer-redacted at the engine's choke point.
  *
  * Shell (CCP): both review surfaces use `jp-pagehero` + `jp-container jp-page`, the `(app)`
  * standard. The invitation to design-reviewer that used to sit here is answered — she ruled
@@ -150,31 +151,22 @@ export default async function CanonicalCvReviewPage({
         </div>
       </section>
 
-      <div className="jp-container jp-page flex flex-col gap-6">
+      <div className="jp-container jp-page flex flex-col gap-3">
         <Link href="/cv" className="jp-backlink self-start">
           <ChevronLeft size={16} aria-hidden="true" />
           <span>{t("cv.backLink")}</span>
         </Link>
 
-        {/* The CV's name stays in the container for the same reason as the staging surface's
-            file name: the hero carries the page's identity, this line says which CV. */}
-        <p className="jp-cv-meta">
-          <span className="jp-cv-meta__file">{resume.name}</span>
-        </p>
-
-        {/* #1060 — samma neutrala, visnings-bara affordance som stagingvyn, nu på det
-            SPARADE CV:t. Texten kommer från innehållet sidan redan hämtar (ingen extra
-            request); den bärs på ResumeContent.Preamble sedan importen och är därmed
-            garanterat personnummer-fri vid SKRIVGRINDEN (ResumeContentPersonnummerGuard),
-            inte via en redigerare på läsvägen — se ResumeContentDto för varför de två
-            armarna inte delar kontroll. Renderas server-side, aldrig i en klient-ö.
-            Null för mall-skapade CV, så komponenten renderar ingenting där. */}
-        <CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />
-
+        {/* The hero carries the page's identity; the CV's name stands in the panel's identity row
+            and says which CV. The preamble notice (#1060) comes from the content the page already
+            fetched; it is personnummer-free at the WRITE gate (ResumeContentPersonnummerGuard), and
+            null for a template-made CV, where it renders nothing. */}
         <CvReviewPanel
           review={review}
           target={{ kind: "canonical", resumeId: id }}
           profile={profile}
+          documentName={resume.name}
+          notice={<CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />}
         />
       </div>
       <PageFeedback pageKey="cv-review" />

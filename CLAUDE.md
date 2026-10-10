@@ -539,10 +539,10 @@ command, the report-only prompt, the verdict-table format and the label checklis
   "repair" it toward the current key. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
   (BUILD.md §15). The `ForwardedHeaders:KnownNetworks` CIDR is injected by
   `deploy/docker-compose.yml`: the api service gets the reviewed `web-api` bridge
-  subnet from the same `${JBL_WEB_API_SUBNET:?…}` variable that declares that network,
+  subnet from the same `${JBL_WEB_API_SUBNET:?…}` variable that sets that network's subnet,
   pinned equal by `.github/scripts/redis-compose-contract.test.py`. The committed
   `appsettings.Production.json` keeps the list empty, so `ForwardedHeadersConfig`'s
-  fail-loud gate still stops any non-Development/Test host that boots without it.
+  fail-loud gate still stops any API that boots outside Development/Test without it.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

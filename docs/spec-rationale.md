@@ -293,7 +293,7 @@ Renaming one string buys one-of-N consistency and makes a record read as maintai
 `b7199bfb8`): the spec's earlier sentence — #196 owns the CIDR, no compose file declares a
 network, the gate stays armed rather than holding a guess — was written 2026-08-04 in
 PR #1203 and went stale the next day. PR #1221 (merged 2026-08-05, #196's deploy stack;
-#196 closed 2026-08-08) declared a `stack` bridge with a fixed `172.28.0.0/24` subnet and
+#196 closed 2026-08-08) declared a `stack` bridge with a fixed subnet and
 injected the same literal as `ForwardedHeaders__KnownNetworks__0`. PR #1775 (2026-09-24)
 replaced that bridge with per-pair networks and moved both the `web-api` subnet and the
 injection onto `${JBL_WEB_API_SUBNET:?…}`, which compose refuses to render without. The

@@ -14,13 +14,13 @@ job matching are rule-based and explainable: the product makes no AI or LLM call
 
 > [!NOTE]
 > **Status: pre-MVP, in early testing with real users at
-> [jobbliggaren.se](https://jobbliggaren.se), where registration is open.** Every merge to
-> `main` is built, attested and released to a single production server, which applies it
-> on its own
+> [jobbliggaren.se](https://jobbliggaren.se), where registration is open.** `main` is
+> released continuously: a release workflow builds and attests the images, and the single
+> production server applies each release itself
 > ([ADR 0149](docs/decisions/0149-a-release-is-one-verified-record-the-channel-moves-only-after-the-whole-set-and-the-box-applies-exactly-what-it-names.md),
 > [ADR 0154](docs/decisions/0154-one-box-one-domain-every-merged-release-goes-live-on-jobbliggaren-se.md)).
-> The user interface is in Swedish. Code and commits are in English, and the documentation
-> is partly in Swedish.
+> The user interface is in Swedish, with English as a secondary locale. Code and commits are
+> in English, and the documentation is partly in Swedish.
 
 ## Contents
 
@@ -45,7 +45,7 @@ job matching are rule-based and explainable: the product makes no AI or LLM call
 | **Applications** (`/ansokningar`) | A pipeline with ten statuses, from *Draft* to *Accepted*, *Rejected*, *Withdrawn* or *Ghosted*. Moves between statuses are free, with suggested next steps, and are recorded on an append-only timeline. Follow-ups are logged with channel and outcome. `/statistik` shows a funnel, the rejection rate and monthly volume. A monthly summary helps the user fill in Arbetsförmedlingen's activity report. |
 | **Companies** (`/foretag`) | Company search, follows, and watches that combine industry codes (SNI) with municipalities. They run against a local copy of Statistics Sweden's (SCB) company register, which the Worker refreshes on a schedule. |
 | **CV review** (`/cv`) | PDF or DOCX upload. A rule engine assesses the CV against a versioned Swedish rubric (`rubric.v2.3.0.json`, 43 criteria). Every verdict cites the span of the CV it is based on, and a personal identity number in the text is flagged. |
-| **Accounts** | Passwordless sign-in with a one-time code or link ([ADR 0142](docs/decisions/0142-passwordless-auth-one-page-code-or-link-oauth-ready.md)), optionally via Google, GitHub or LinkedIn. Self-service account deletion with a 30-day restore window. A per-page feedback form, behind a switch that is off by default. |
+| **Accounts** | Passwordless sign-in with a one-time code or link ([ADR 0142](docs/decisions/0142-passwordless-auth-one-page-code-or-link-oauth-ready.md)), optionally via Google, GitHub or LinkedIn. Self-service account deletion: access is blocked at once and the account is permanently deleted after 30 days. A per-page feedback form, behind a switch that is off by default. |
 | **Administration** (`/admin`) | Account directory, suspension and reinstatement, scheduled deletion, address change, audit-log search, background-job monitoring and a feedback inbox. |
 
 Not live today: the CV builder (paused), automatic CV improvement suggestions (the engine
@@ -100,12 +100,14 @@ flowchart TB
         Scaleway["Scaleway<br/>transactional email"]
         JobTech["JobTech JobStream<br/>job ads"]
         SCB["SCB<br/>company register"]
+        OAuth["Google · GitHub · LinkedIn<br/>optional sign-in"]
     end
 
     Api --> Scaleway
     Worker --> Scaleway
     Worker --> JobTech
     Worker --> SCB
+    Api --> OAuth
 ```
 
 ### Mechanisms worth reading
@@ -167,13 +169,13 @@ against a local snapshot behind a port, so the external vocabulary never becomes
 domain's language and search never calls the taxonomy API
 ([ADR 0043](docs/decisions/0043-taxonomy-acl-for-search-surface.md)).
 
-All architecture decisions are recorded as ADRs in [`docs/decisions/`](docs/decisions/),
-indexed in [`docs/decisions/README.md`](docs/decisions/README.md).
+Architecture decisions are recorded as ADRs in [`docs/decisions/`](docs/decisions/); the
+public subset is indexed in [`docs/decisions/README.md`](docs/decisions/README.md).
 
 ## Quality and CI
 
 `main` is protected: every change goes through a pull request, history is linear, and
-the single required check is the `ci` aggregate in
+merging requires the `ci` aggregate in
 [`.github/workflows/build.yml`](.github/workflows/build.yml)
 ([ADR 0065](docs/decisions/0065-pr-flow-restoration-with-ci-gate.md)). It passes only
 when all of these pass:
@@ -186,12 +188,13 @@ when all of these pass:
 | `images` | Docker builds of every deployable image and a Trivy scan |
 
 CodeQL (C# and TypeScript), Playwright end-to-end tests, Lighthouse, a load test and a
-dependency audit also run, but only report. Dependabot keeps NuGet, npm and Actions
-dependencies current.
+dependency audit also run, but only report. Dependabot keeps NuGet, npm, Actions, Docker
+and Compose dependencies current.
 
-**Tests.** Domain and Application logic is tested without a database. Handlers run
-against substitutes of `IAppDbContext`, while integration tests use real PostgreSQL and
-Redis containers through Testcontainers. On 2026-10-09 the `coverage` job at
+**Tests.** Domain and Application logic is tested without a database: handlers run
+against an in-memory `IAppDbContext` fake, with NSubstitute for other ports. Transactions,
+constraints, concurrency and `jsonb` are tested against real PostgreSQL and Redis
+containers through Testcontainers. On 2026-10-09 the `coverage` job at
 [`1f81187`](https://github.com/klasolsson81/jobbliggaren/actions/runs/37938563626) ran
 **26,283 backend tests**, and the `frontend` job ran **6,609 Vitest tests**, all passing.
 First-party .NET coverage was:
@@ -234,16 +237,16 @@ flowchart LR
   sets after every mandatory reviewer has reported with no open Blocker or Major finding.
 - **Decisions are recorded.** Architecture decisions become ADRs, and a changed decision
   gets a new ADR or an amendment instead of a silent edit.
-- **Every merge is released.** CI-built images are attested, recorded as one release,
-  and applied by the server itself
+- **Releases are continuous.** A release workflow builds and attests the images from
+  `main` and records them as one release, which the server applies itself
   ([ADR 0149](docs/decisions/0149-a-release-is-one-verified-record-the-channel-moves-only-after-the-whole-set-and-the-box-applies-exactly-what-it-names.md)).
 
 ## Tech stack
 
 Major versions are listed here. Exact versions are pinned in
-[`Directory.Packages.props`](Directory.Packages.props),
-[`global.json`](global.json) and
-[`web/jobbliggaren-web/package.json`](web/jobbliggaren-web/package.json).
+[`Directory.Packages.props`](Directory.Packages.props) and
+[`web/jobbliggaren-web/pnpm-lock.yaml`](web/jobbliggaren-web/pnpm-lock.yaml);
+[`global.json`](global.json) sets the minimum .NET SDK.
 
 | Layer | Technology |
 |---|---|
@@ -274,6 +277,8 @@ Swedish; the steps below summarise it.
 | Docker | Engine with Compose v2 |
 | PowerShell | 7 (`pwsh`), for `scripts/prepare-dev-redis.ps1` |
 | OpenSSL | for generating local secrets |
+| Python 3 | used by the guide's environment export block |
+| ImageSharp licence | a free Six Labors community licence: export the licence file's full contents as `SIXLABORS_LICENSE_KEY` before building, and never commit it ([guide](docs/runbooks/local-dev-setup.md#imagesharp-build-licence-1979-pr2)) |
 
 **1. Start the local services**
 
@@ -386,25 +391,32 @@ jobbliggaren/
 
 ## Security and privacy
 
-- **Field-level encryption.** Personal data fields are encrypted with AES-256-GCM using
-  per-user data keys in an envelope scheme. Deleting a user's key makes their encrypted
-  data unreadable
+- **Field-level encryption.** The most sensitive content (CVs, including uploaded files,
+  cover letters, application notes and follow-up notes) is encrypted field by field with
+  AES-256-GCM under a per-user data key, which is itself encrypted with a master key
+  (envelope encryption). Other personal data, such as the email address and saved
+  searches, is not field-encrypted. When an account is permanently deleted, its data key is
+  deleted and the remaining encrypted fields can no longer be read; older backups expire on
+  their own schedule
   ([ADR 0049](docs/decisions/0049-td13-pii-field-encryption-kms-envelope.md)).
 - **Sessions.** The browser holds an opaque, random session ID in an `HttpOnly`,
   `Secure`, `SameSite=Strict` cookie with the `__Host-` prefix. Sessions live in Redis.
-- **Rate limits.** Authentication endpoints are limited per IP address, and account
-  deletion per user.
+- **Rate limits.** Authentication and public endpoints are limited per IP address, and
+  signed-in endpoints per user.
 - **Audit trail.** State-changing commands marked as auditable are written to an audit
   log, with IP addresses truncated (IPv4 to /24, IPv6 to /48).
-- **Retention.** Logs are kept for 30 days. A deleted account can be restored for 30
-  days; after that it is hard-deleted and its audit trail anonymised
-  ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md)).
+- **Deletion and retention.** When an account is deleted, access is blocked at once. After
+  a 30-day grace period the account and its data are permanently deleted, and the audit-log
+  entries that can be linked to it are de-identified. Deletion cannot be undone. The audit
+  log and application logs are pruned on fixed schedules
+  ([ADR 0024](docs/decisions/0024-audit-retention-and-art17-cascade.md)); the
+  [privacy policy](https://jobbliggaren.se/integritet) states the periods.
 - **Transport.** HTTPS only, with HSTS for 365 days.
 - **Hosting.** The server is in Nuremberg, Germany (Netcup), and transactional email is
-  sent through Scaleway in Paris.
+  sent through Scaleway in Paris. Optional sign-in with Google or GitHub involves a
+  transfer to the US, as the privacy policy describes.
 
-The threat model is in [`docs/threat-model.md`](docs/threat-model.md). To report a
-vulnerability, email the address below instead of opening a public issue.
+The threat model is in [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Documentation
 

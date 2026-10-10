@@ -10,7 +10,8 @@ directly.
 Next.js 16 (App Router) · React 19 · TypeScript 6 in strict mode · Tailwind CSS 4 ·
 shadcn/ui on Radix · next-intl (Swedish by default, English as a secondary locale) ·
 React Hook Form with Zod ·
-Vitest with Testing Library · Playwright. Exact versions are in [`package.json`](package.json).
+Vitest with Testing Library · Playwright. Version ranges are in [`package.json`](package.json)
+and exact versions are locked in [`pnpm-lock.yaml`](pnpm-lock.yaml).
 
 ## Running locally
 
@@ -31,7 +32,7 @@ environment variables:
 | Variable | Purpose |
 |---|---|
 | `BACKEND_URL` | Base URL of the API. Required: server code throws without it. |
-| `NEXT_PUBLIC_SITE_URL` | Canonical site URL for `robots.txt` and the sitemap. Optional. |
+| `NEXT_PUBLIC_SITE_URL` | Canonical site URL for metadata, `robots.txt` and the sitemap. Inlined at build time, so the Dockerfile requires it as a build argument; a local build falls back to a default. |
 | `APP_VERSION` | Release commit, stamped into feedback submissions. Optional. |
 | `DEV_TOOLS_RESET_ENABLED` | Shows the data-reset tool on `/oversikt` in a production build; development always shows it. Optional. |
 | `ADMIN_PREVIEW_ENABLED` | Build-time flag for the admin preview with fixture data. Never set for a deployed build. |
@@ -61,7 +62,7 @@ own `playwright.*.config.ts` and run against fixture servers. Run one with
 src/
 ├── app/                 # routes, grouped by audience
 │   ├── (app)/           # signed-in pages: /oversikt, /jobb, /ansokningar, /foretag, /cv, /mina-sidor …
-│   ├── (auth)/          # sign-in: /logga-in and its code, link and terms steps
+│   ├── (auth)/          # sign-in (/logga-in and its code, link and terms steps) and /adressbyte
 │   ├── (admin)/         # /admin
 │   ├── (admin-preview)/ # admin preview with fixture data, built only behind its flag
 │   ├── (guest)/         # /gast: a demo with sample data

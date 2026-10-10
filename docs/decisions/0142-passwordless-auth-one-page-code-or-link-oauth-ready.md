@@ -188,7 +188,8 @@ residual — a hand-written line in `Worker/Program.cs` — is caught by nothing
 The flow's position lives in `__Host-jobbliggaren_login`, an httpOnly `SameSite=Strict` cookie set
 only by Server Actions and never in a URL: in its code phase the `challengeId` and the address as
 typed, for at most 15 minutes (Amendment 2026-09-21 (3) has the phases). The link path carries its
-own token and never reads this cookie.
+own token, and its GET never reads this cookie; the press, a same-site POST, reads it for the return path only
+(narrowed by Amendment 2026-10-10, #2094).
 
 ### D3 — Verify, then branch after proof
 
@@ -3841,6 +3842,22 @@ The notice distinguishes the active database's permanent cleanup from separately
 retained backups, without claiming immediate physical erasure of those copies.
 ADR 0144's amended row 12 binds the whole new plain/HTML email paragraphs.
 This correction changes no grace period, legal basis, restore capability or schema.
+
+## Amendment 2026-10-10 — The login link lands on its own login's return path (#2094)
+
+The "Link landing" bullet above sends every successful link to `/oversikt`, and `consumeLink` said the landing
+"never reads the flow cookie". A user sent to the login page by a notification mail's link carries the target in
+`next`, and lost it whenever they used the mail's link instead of typing the code.
+
+The press now lands on that `next`. `consumeLink` is a same-site Server Action POST, so it carries the Strict flow
+cookie the GET never sees. It uses the flow's `next` only when the flow is in the code phase **and** its
+`challengeId` is the challenge the token names (the token's first 16 bytes, `link-token.ts`); any other flow, or
+none, lands on `/oversikt` as before. The target passes `safeRedirectPath`, and the flow cookie is cleared as
+before. The GET still reads no cookie, the link still carries no `next` of its own, and a link never leads to the
+consent step. A link opened in another browser than the one that asked for it has no flow there and lands on
+`/oversikt`; the code typed on the code step keeps the target in every case.
+
+Additive amendment.
 
 ## References
 

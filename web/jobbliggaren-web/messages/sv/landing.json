@@ -1,4 +1,8 @@
 {
+  "meta": {
+    "title": "Sök jobb och följ upp dina ansökningar",
+    "description": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan. Jobbliggaren är gratis att använda."
+  },
   "common": {
     "loginLink": "Logga in",
     "headerNavAriaLabel": "Webbplatsnavigation",

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
 import { LandingAccountCard } from "@/components/landing/landing-account-card";
@@ -35,11 +36,15 @@ export function LandingHeroSection() {
       <div className="jp-land-hero__inner jp-land-hero__inner--plate">
         <div className="jp-land-hero__copy">
           <p className="jp-land-hero__kicker">{t("hero.kicker")}</p>
+          {/* The space between the verbs is for the heading's text content, which a
+              search snippet read as "jobbet.Sök" without it (#2092). The flex column
+              renders no white-space-only run, so nothing moves on screen. */}
           <h1 className="jp-land-hero__stack">
-            {VERB_KEYS.map((key) => (
-              <span key={key} className="jp-land-hero__stack-verb">
-                {t(key)}
-              </span>
+            {VERB_KEYS.map((key, index) => (
+              <Fragment key={key}>
+                {index > 0 && " "}
+                <span className="jp-land-hero__stack-verb">{t(key)}</span>
+              </Fragment>
             ))}
           </h1>
           <p className="jp-land-hero__lede--plate">{t("hero.ledgerLede")}</p>

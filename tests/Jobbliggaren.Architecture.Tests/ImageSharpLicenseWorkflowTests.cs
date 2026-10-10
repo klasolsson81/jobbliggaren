@@ -9,7 +9,7 @@ public sealed class ImageSharpLicenseWorkflowTests
         "\\bsecrets\\s*(?:\\.\\s*SIXLABORS_LICENSE_KEY\\b|\\[\\s*['\"]SIXLABORS_LICENSE_KEY['\"]\\s*\\])";
 
     [Fact]
-    public void LicensedJobs_ShouldUseProtectedEnvironmentsAndPinnedCheckouts_ForEverySecretConsumer()
+    public void LicensedJobs_ShouldGateTheMainEnvironmentAndPinCheckouts_ForEverySecretConsumer()
     {
         var jobs = ReadWorkflowJobs();
         var licensed = jobs.Where(job => LicenseReferences(job.Source) > 0).ToList();

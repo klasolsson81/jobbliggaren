@@ -34,20 +34,21 @@ function verdict(
   };
 }
 
-function review(
-  verdicts: CvCriterionVerdictDto[],
-  critical: string[] = [],
-  categories: RubricCategory[] = ["Content", "Structure", "Language", "AtsParsability"],
-): CvReviewDto {
+/** A review shaped as the engine builds one: one category per distinct verdict category, in
+ * rubric order, with its counts; the band is left out because these tests do not read it. */
+function review(verdicts: CvCriterionVerdictDto[], critical: string[] = []): CvReviewDto {
+  const categories = [...new Set(verdicts.map((v) => v.category))];
+  const count = (category: RubricCategory, v: CriterionVerdict) =>
+    verdicts.filter((x) => x.category === category && x.verdict === v).length;
   return {
     rubricVersion: "2.3.0",
     profile: "Ats",
     categories: categories.map((category) => ({
       category,
-      passCount: 0,
-      warnCount: 0,
-      failCount: 0,
-      notAssessedCount: 0,
+      passCount: count(category, "Pass"),
+      warnCount: count(category, "Warn"),
+      failCount: count(category, "Fail"),
+      notAssessedCount: count(category, "NotAssessed"),
       band: null,
     })),
     verdicts,
@@ -150,20 +151,22 @@ describe("groupVerdicts", () => {
     expect(groups[0]?.verdicts.map((v) => v.criterionId)).toEqual(["A3", "A1", "A2"]);
   });
 
-  it("follows the review's dimension order and keeps empty dimensions as empty groups", () => {
+  it("follows the review's dimension order and puts each verdict in its own dimension", () => {
     const groups = groupVerdicts(
-      review([verdict("C1", "Language", "Pass"), verdict("A1", "Content", "Pass")]),
+      review([
+        verdict("A1", "Content", "Pass"),
+        verdict("B1", "Structure", "Fail"),
+        verdict("C1", "Language", "Pass"),
+        verdict("D1", "AtsParsability", "NotAssessed"),
+      ]),
     );
     expect(groups.map((g) => g.category)).toEqual(ATS);
-    expect(groups.find((g) => g.category === "Structure")?.verdicts).toEqual([]);
-  });
-
-  it("never drops a verdict whose dimension the review does not list", () => {
-    const groups = groupVerdicts(
-      review([verdict("E1", "VisualQuality", "NotAssessed")], [], ["Content"]),
-    );
-    expect(groups.map((g) => g.category)).toEqual(["Content", "VisualQuality"]);
-    expect(groups[1]?.verdicts).toHaveLength(1);
+    expect(groups.map((g) => g.verdicts.map((v) => v.criterionId))).toEqual([
+      ["A1"],
+      ["B1"],
+      ["C1"],
+      ["D1"],
+    ]);
   });
 });
 

@@ -106,18 +106,10 @@ export interface ReviewGroup {
  * The ledger's groups: one per dimension, in the order the review lists its dimensions. Within a
  * group: Underkänt, Delvis, Godkänt, Ej bedömt; within one outcome the critical criteria first,
  * then the rubric's own order (`verdicts` arrives in rubric order and `sort` is stable).
- *
- * A verdict whose dimension the review does not list still gets a group, after the listed ones —
- * a row the backend sent is never dropped by the page.
  */
 export function groupVerdicts(review: CvReviewDto): ReviewGroup[] {
   const critical = new Set(review.criticalFails.map((v) => v.criterionId));
-  const order: RubricCategory[] = review.categories.map((c) => c.category);
-  for (const verdict of review.verdicts) {
-    if (!order.includes(verdict.category)) order.push(verdict.category);
-  }
-
-  return order.map((category) => ({
+  return review.categories.map(({ category }) => ({
     category,
     verdicts: review.verdicts
       .filter((verdict) => verdict.category === category)

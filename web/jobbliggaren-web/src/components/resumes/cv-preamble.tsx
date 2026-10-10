@@ -1,3 +1,4 @@
+import "server-only";
 import { useTranslations } from "next-intl";
 import { Info } from "lucide-react";
 import { CvPreambleDisclosure } from "@/components/resumes/cv-preamble-disclosure";

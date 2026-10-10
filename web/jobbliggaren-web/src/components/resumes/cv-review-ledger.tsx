@@ -9,6 +9,7 @@ import { Segment } from "@/components/ui/segment";
 import { CvReviewStrip, type StripDimension } from "@/components/resumes/cv-review-strip";
 import { categoryLabel } from "@/lib/resumes/review-labels";
 import {
+  REVIEW_OUTCOME_FILTERS,
   matchesFilter,
   outcomeCounts,
   parseReviewFilter,
@@ -25,11 +26,12 @@ import type {
 /**
  * The review ledger (#2083): the dimension strip, the outcome filter and the table.
  *
- * The URL is the only state (senior-cto-advisor, `docs/reviews/2026-10-10-cv-ledger-form-cto.md`).
+ * The URL is the only filter state (senior-cto-advisor, `docs/reviews/2026-10-10-cv-ledger-form-cto.md`).
  * The filter is read from `useSearchParams()` and written with `history.replaceState`, which Next
  * syncs into its router without a request: a filter is a view over a review already fetched, and a
- * navigation would recompute the review on the server for nothing. Holding no state of its own
- * keeps back/forward, the profile switch and a status change's revalidation in step with the URL.
+ * navigation would recompute the review on the server for nothing. Holding no filter state of its
+ * own keeps back/forward, the profile switch and a status change's revalidation in step with the
+ * URL.
  *
  * The rows arrive rendered on the server, beside the three fields the filter reads, so the CV text
  * they carry is never a prop of this island.
@@ -48,8 +50,6 @@ export interface LedgerGroup {
   /** Already sorted: Underkänt, Delvis, Godkänt, Ej bedömt; critical first; then rubric order. */
   readonly rows: ReadonlyArray<LedgerRow>;
 }
-
-const OUTCOME_OPTIONS: ReadonlyArray<ReviewOutcomeFilter> = ["todo", "pass", "na", "all"];
 
 function countVerdicts(rows: ReadonlyArray<LedgerRow>): Record<CriterionVerdict, number> {
   const counts: Record<CriterionVerdict, number> = { Fail: 0, Warn: 0, Pass: 0, NotAssessed: 0 };
@@ -79,14 +79,17 @@ export function CvReviewLedger({
     groups.map((group) => group.category),
   );
   const cells = useRef(new Map<RubricCategory, HTMLButtonElement>());
-  // The live region speaks only after the user has changed the filter, never on arrival.
+  // The live region speaks only once the filter in the URL differs from the one the page arrived
+  // with, in the same render that shows the new rows.
+  const filterKey = `${filter.dim ?? ""}|${filter.visa}`;
+  const [arrivalKey] = useState(filterKey);
   const [changed, setChanged] = useState(false);
+  if (!changed && filterKey !== arrivalKey) setChanged(true);
 
   function apply(next: ReviewFilter) {
     // A fresh object, never `history.state`: Next's patch skips its router update for a state
     // carrying `__NA` (the binding condition in the CTO report).
     window.history.replaceState({}, "", `${pathname}${reviewFilterSearch(searchParams.toString(), next)}`);
-    setChanged(true);
   }
 
   function toggleDimension(category: RubricCategory) {
@@ -133,7 +136,7 @@ export function CvReviewLedger({
           value={filter.visa}
           onChange={(visa) => apply({ ...filter, visa })}
           aria-label={t("review.filter.groupLabel")}
-          options={OUTCOME_OPTIONS.map((option) => ({
+          options={REVIEW_OUTCOME_FILTERS.map((option) => ({
             value: option,
             label: t(`review.filter.${option}`),
             count: counts[option],

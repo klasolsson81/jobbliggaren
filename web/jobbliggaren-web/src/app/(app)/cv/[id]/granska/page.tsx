@@ -49,9 +49,9 @@ interface Props {
  * — degraderas civilt till `null`; sidan 404:ar aldrig på ett granskningsfel)
  * parallellt. Auth-/fel-formen är den som `/cv/[id]`-detaljvyn bar innan #1373
  * grindade den routen; formen ärvdes därifrån och står nu på egna ben.
- * CV-PII läses bara server-side and is rendered there; the ledger's filter island receives the
- * rows as rendered nodes, never the text as props (#2083). Evidence is already
- * personnummer-redacted at the engine's choke point.
+ * CV-PII läses och renderas bara server-side; liggarens filter-ö får raderna som renderade
+ * noder, aldrig texten som props (#2083). Evidensen är redan personnummer-redigerad vid
+ * motorns choke point.
  *
  * Shell (CCP): both review surfaces use `jp-pagehero` + `jp-container jp-page`, the `(app)`
  * standard. The invitation to design-reviewer that used to sit here is answered — she ruled

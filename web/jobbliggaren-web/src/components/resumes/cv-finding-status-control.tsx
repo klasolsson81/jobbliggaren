@@ -78,8 +78,16 @@ export function CvFindingStatusControl({
   const isResolved = userStatus === "Resolved";
   const isIgnored = userStatus === "Ignored";
 
-  function label(status: FindingStatusValue, resting: string): string {
-    return isPending && pending === status ? t("updating") : resting;
+  // Both labels stay in the layout and only one is shown, so the button keeps its resting width
+  // (DESIGN.md §6) and the accessible name is the shown label.
+  function label(status: FindingStatusValue, resting: string) {
+    const busy = isPending && pending === status;
+    return (
+      <span className="jp-findingstatus__label">
+        <span aria-hidden={busy || undefined}>{resting}</span>
+        <span aria-hidden={!busy || undefined}>{t("updating")}</span>
+      </span>
+    );
   }
 
   function busyProps(status: FindingStatusValue) {

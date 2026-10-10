@@ -116,7 +116,7 @@
       "updating": "Updating…",
       "resolvedLabel": "Fixed",
       "ignoredLabel": "Ignored",
-      "resolvedHint": "Stays until it is gone from your CV.",
+      "resolvedHint": "The finding stays until it is gone from your CV.",
       "ignoredHint": "The finding no longer counts as something to fix.",
       "staleHint": "The finding is still present in your CV."
     }

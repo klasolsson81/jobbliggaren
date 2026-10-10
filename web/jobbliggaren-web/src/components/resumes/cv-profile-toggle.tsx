@@ -3,8 +3,8 @@ import { useTranslations } from "next-intl";
 import type { RenderProfile } from "@/lib/dto/parsed-resume";
 
 /**
- * Profil-växel (F4-9). RSC, searchParam-driven — två `<Link>`:ar styled som
- * `.jp-segment` ger en server-re-render utan klient-JS. `aria-current` +
+ * Profil-växel (F4-9). SearchParam-driven — två `<Link>`:ar styled som
+ * `.jp-segment` ger en server-re-render. `aria-current` +
  * `data-active` markerar vald profil. Hrefs är fulla sökvägar så delning/
  * bokmärke bevarar profilvalet.
  *
@@ -38,7 +38,7 @@ export function CvProfileToggle({
   /** Route-bas växeln länkar inom. Default: granska-vyn (`/cv/granska/{id}`). */
   basePath?: string;
   /** Parameters to carry across the switch, after `profile`. */
-  query?: Readonly<Record<string, string>>;
+  query?: Readonly<Record<string, string>> & { profile?: never };
 }) {
   const t = useTranslations("resumes.profileToggle");
   const base = basePath ?? `/cv/granska/${parsedId}`;

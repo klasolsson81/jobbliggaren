@@ -1,8 +1,7 @@
 import { Fragment, useId } from "react";
 import { useTranslations } from "next-intl";
-import { CircleAlert, CircleCheck, CircleDashed, CircleX } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
+import { VERDICT_ICON } from "@/components/resumes/verdict-icon";
 import { bandLabel, categoryLabel } from "@/lib/resumes/review-labels";
 import type {
   CriterionVerdict,
@@ -25,12 +24,7 @@ export interface StripDimension {
   readonly counts: Readonly<Record<CriterionVerdict, number>>;
 }
 
-const COUNT_ORDER: ReadonlyArray<{ verdict: CriterionVerdict; Icon: LucideIcon }> = [
-  { verdict: "Fail", Icon: CircleX },
-  { verdict: "Warn", Icon: CircleAlert },
-  { verdict: "Pass", Icon: CircleCheck },
-  { verdict: "NotAssessed", Icon: CircleDashed },
-];
+const COUNT_ORDER: ReadonlyArray<CriterionVerdict> = ["Fail", "Warn", "Pass", "NotAssessed"];
 
 function StripCell({
   dimension,
@@ -77,7 +71,9 @@ function StripCell({
           {t("review.band.coverage", { assessed, total })}
         </span>{" "}
         <span className="jp-cvstrip__counts">
-          {COUNT_ORDER.map(({ verdict, Icon }, index) => (
+          {COUNT_ORDER.map((verdict, index) => {
+            const Icon = VERDICT_ICON[verdict];
+            return (
             <Fragment key={verdict}>
               {index > 0 && " "}
               <span
@@ -89,7 +85,8 @@ function StripCell({
                 <span className="sr-only">{tEnum(`verdict.${verdict}`)}</span> {counts[verdict]}
               </span>
             </Fragment>
-          ))}
+            );
+          })}
         </span>
       </span>
     </button>

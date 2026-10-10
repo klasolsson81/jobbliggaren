@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useTranslations } from "next-intl";
 import { CvReviewProfileToggle } from "@/components/resumes/cv-review-profile-toggle";
 import { CvCriterionRow, criterionNameId } from "@/components/resumes/cv-criterion-row";
@@ -75,8 +76,11 @@ export function CvReviewPanel({
         )}
         {metaParts.length > 0 && (
           <p className="jp-cvledger__meta">
-            {metaParts.map((part) => (
-              <span key={part}>{part}</span>
+            {metaParts.map((part, index) => (
+              <Fragment key={part}>
+                {index > 0 && " "}
+                <span>{part}</span>
+              </Fragment>
             ))}
           </p>
         )}

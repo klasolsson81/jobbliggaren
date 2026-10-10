@@ -1,11 +1,7 @@
+import "server-only";
 import { useTranslations } from "next-intl";
-import { CircleAlert, CircleCheck, CircleDashed, CircleX } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import type {
-  CitedEvidenceDto,
-  CriterionVerdict,
-  CvCriterionVerdictDto,
-} from "@/lib/dto/parsed-resume";
+import { VERDICT_ICON } from "@/components/resumes/verdict-icon";
+import type { CitedEvidenceDto, CvCriterionVerdictDto } from "@/lib/dto/parsed-resume";
 
 /**
  * One criterion as a row in the review ledger (#2083). RSC: the CV text in the evidence is rendered
@@ -14,13 +10,6 @@ import type {
  * Every Godkänt, Delvis and Underkänt shows the evidence the engine cited (ADR 0074). Ej bedömt
  * shows the honest reason and nothing that could read as a verdict.
  */
-
-const STATUS_ICON: Record<CriterionVerdict, LucideIcon> = {
-  Fail: CircleX,
-  Warn: CircleAlert,
-  Pass: CircleCheck,
-  NotAssessed: CircleDashed,
-};
 
 /** The id of a row's criterion name, which the row's status control is labelled by. */
 export function criterionNameId(criterionId: string): string {
@@ -77,7 +66,7 @@ export function CvCriterionRow({
 }) {
   const t = useTranslations("resumes");
   const tEnum = useTranslations("resumes.enums");
-  const Icon = STATUS_ICON[verdict.verdict];
+  const Icon = VERDICT_ICON[verdict.verdict];
 
   return (
     <tr role="row" className="jp-cvledger__row">

@@ -96,7 +96,7 @@ describe("CvFindingStatusControl — what each status shows", () => {
     renderControl({ userStatus: "Resolved", userStatusStaleAt: null });
     expect(screen.getByText("Åtgärdad")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Återställ" })).toBeInTheDocument();
-    expect(screen.getByText("Ligger kvar tills den är borta ur ditt CV.")).toBeInTheDocument();
+    expect(screen.getByText("Anmärkningen ligger kvar tills den är borta ur ditt CV.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Markera som åtgärdad/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/finns fortfarande kvar i ditt CV/)).not.toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("CvFindingStatusControl — what each status shows", () => {
   it("Resolved but stale: the stale hint replaces the short one", () => {
     renderControl({ userStatus: "Resolved", userStatusStaleAt: "2026-07-10T08:00:00Z" });
     expect(screen.getByText(/finns fortfarande kvar i ditt CV/)).toBeInTheDocument();
-    expect(screen.queryByText("Ligger kvar tills den är borta ur ditt CV.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Anmärkningen ligger kvar tills den är borta ur ditt CV.")).not.toBeInTheDocument();
   });
 
   it("Ignored: the Ignorerad pill, Återställ and its hint, and no Markera", () => {

@@ -15,7 +15,7 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * (see the component for why an empty one is not the same thing).
  *
  * The panel below stays flat grey: the findings are data. It re-uses the ledger's own layout
- * classes (#2083) — identity row, strip, filter row, table frame — so the gaps and the strip's
+ * classes (#2083) — identity row, strip, table frame — so the gaps and the strip's
  * columns come from the same rules the loaded page uses rather than from numbers here.
  *
  * sr-only `role="status"` announces; visuals decorative. Sync RSC.

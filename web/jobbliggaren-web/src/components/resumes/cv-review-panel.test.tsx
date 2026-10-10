@@ -106,7 +106,8 @@ function category(
 /**
  * Content (in rubric order): A1 Pass, A2 Fail, A3 Ej bedömt, A4 Fail (critical), A5 Delvis.
  * Language: C1 Fail, C2 Delvis. Structure: B1 Godkänt, B2 Ej bedömt.
- * AtsParsability: one Ej bedömt and no band.
+ * AtsParsability: one Ej bedömt, so nothing assessed and no band — the one case where the engine
+ * leaves a band out.
  */
 function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
   const a4 = verdict("A4", "Mätbara resultat", "Content", "Fail");
@@ -116,7 +117,7 @@ function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
     categories: [
       category("Content", "Competitive", { passCount: 1, warnCount: 1, failCount: 2, notAssessedCount: 1 }),
       category("Language", "NeedsRework", { passCount: 0, warnCount: 1, failCount: 1, notAssessedCount: 0 }),
-      category("Structure", null, { passCount: 1, warnCount: 0, failCount: 0, notAssessedCount: 1 }),
+      category("Structure", "TopTier", { passCount: 1, warnCount: 0, failCount: 0, notAssessedCount: 1 }),
       category("AtsParsability", null, { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 1 }),
     ],
     verdicts: [
@@ -227,14 +228,6 @@ describe("CvReviewPanel — the dimension strip", () => {
     );
   });
 
-  it("an unbanded dimension with assessed criteria shows its coverage without a verdict word", () => {
-    renderCanonical();
-    const description = stripCell("Struktur").getAttribute("aria-describedby") ?? "";
-    const detail = document.getElementById(description);
-    expect(detail?.textContent).toContain("1 av 2 kriterier bedömda");
-    expect(detail?.textContent).not.toContain("Ingen bedömning");
-    expect(detail?.querySelector(".jp-pill")).toBeNull();
-  });
 });
 
 describe("CvReviewPanel — the ledger at rest", () => {
@@ -284,6 +277,9 @@ describe("CvReviewPanel — the ledger at rest", () => {
   it("marks an excerpt with a hidden ellipsis and says so outside the quote", () => {
     renderCanonical(
       makeReview({
+        categories: [
+          category("Content", "NotReady", { passCount: 0, warnCount: 0, failCount: 1, notAssessedCount: 0 }),
+        ],
         verdicts: [
           verdict("A2", "Profiltext", "Content", "Fail", {
             evidence: [
@@ -292,6 +288,8 @@ describe("CvReviewPanel — the ledger at rest", () => {
           }),
         ],
         criticalFails: [],
+        assessedCount: 1,
+        totalCount: 1,
       }),
     );
     const quote = screen.getByText("Lång profil", { exact: false });

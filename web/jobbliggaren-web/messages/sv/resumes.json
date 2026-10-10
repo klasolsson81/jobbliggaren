@@ -116,7 +116,7 @@
       "updating": "Uppdaterar…",
       "resolvedLabel": "Åtgärdad",
       "ignoredLabel": "Ignorerad",
-      "resolvedHint": "Ligger kvar tills den är borta ur ditt CV.",
+      "resolvedHint": "Anmärkningen ligger kvar tills den är borta ur ditt CV.",
       "ignoredHint": "Anmärkningen räknas inte längre som en åtgärd.",
       "staleHint": "Anmärkningen finns fortfarande kvar i ditt CV."
     }

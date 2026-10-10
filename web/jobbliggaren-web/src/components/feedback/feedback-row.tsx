@@ -17,10 +17,27 @@ import {
   type SendLabel,
 } from "./feedback-messages";
 import type { FeedbackSession } from "./feedback-session";
-import { StarRating } from "./star-rating";
+import { StarButtons } from "./star-rating";
 import { useFeedbackForm } from "./use-feedback-form";
 
 const RETRY_LABELS: ReadonlyArray<SendLabel> = ["sendAgain", "sending"];
+
+const TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Moves focus off the row before it goes, so it does not fall to `<body>` (DESIGN.md §6, WCAG 2.4.3):
+ * to the next stop in reading order, the footer's first control, else the page's h1.
+ */
+function moveFocusPast(row: HTMLElement) {
+  const next = Array.from(document.querySelectorAll<HTMLElement>(TABBABLE)).find(
+    (element) => !row.contains(element) && row.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  const target = next ?? document.querySelector<HTMLElement>("main h1");
+  if (target === null) return;
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+}
 
 /**
  * Replaces the stars once the rating is saved and takes focus, so the outcome is read where the user is.
@@ -87,6 +104,7 @@ export function FeedbackRow({ pageKey, session }: { pageKey: FeedbackRoutePageKe
     codec: browserCodec,
     onSaved: () => session.markAnswered(pageKey),
   });
+  const rowRef = useRef<HTMLElement>(null);
   const [closed, setClosed] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const { phase, rating } = controller.state;
@@ -98,21 +116,24 @@ export function FeedbackRow({ pageKey, session }: { pageKey: FeedbackRoutePageKe
   const offerRetry = rating !== null && (retrying || refusal?.outcome === "unknown");
 
   return (
-    <section className="jp-container jp-feedback">
+    <section ref={rowRef} className="jp-container jp-feedback">
       <div className="jp-feedback__inner">
         {phase.kind === "saved" ? (
-          <RatingConfirmation page={pageKey} session={session} rating={rating} onClose={() => setClosed(true)} />
+          <RatingConfirmation
+            page={pageKey}
+            session={session}
+            rating={rating}
+            onClose={() => {
+              if (rowRef.current !== null) moveFocusPast(rowRef.current);
+              setClosed(true);
+            }}
+          />
         ) : (
           <div className="jp-feedback__ask">
-            <StarRating
+            <StarButtons
               question={question}
               value={rating}
-              clearable={false}
-              onChange={(next) => {
-                if (sending) return;
-                setRetrying(false);
-                controller.setRating(next);
-              }}
+              sending={sending}
               onCommit={(next) => {
                 if (sending) return;
                 setRetrying(false);

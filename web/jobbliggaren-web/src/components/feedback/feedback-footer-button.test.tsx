@@ -54,7 +54,9 @@ describe("FeedbackFooterButton", () => {
     render(<Footer state={{ kind: "open", answered: ["jobs", "cv"] }} />);
     const button = screen.getByRole("button", OPEN_BUTTON);
     expect(button.closest("li")).not.toBeNull();
-    expect(button).toHaveClass("jp-foot__linkbtn");
+    expect(button).toHaveClass("jp-foot__cta");
+    // The icon is decoration: the button is still named by its words alone.
+    expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("opens a dialog for general feedback, and Escape returns focus to the button", async () => {
@@ -142,7 +144,7 @@ describe("FeedbackFooterButton", () => {
     fetchMock.mockImplementation(async () => saved());
     render(<Footer withRow />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("radio", { name: "4 av 5" }));
+    await user.click(screen.getByRole("button", { name: "4 av 5" }));
     await screen.findByText("Tack för ditt betyg.");
 
     await user.click(screen.getByRole("button", OPEN_BUTTON));

@@ -18,6 +18,8 @@ export type FeedbackDialogState = {
   readonly onOpenChange: (open: boolean) => void;
   /** Open, or holding work that the dialog's owner going away would throw away. */
   readonly holding: boolean;
+  /** A rating the form was opened with is already saved, so it is not the form's to take back. */
+  readonly clearable: boolean;
 };
 
 /**
@@ -52,6 +54,7 @@ export function useFeedbackDialog({
       if (!next && phase.kind === "saved") controller.reset();
     },
     holding: open || controller.hasDraft || phase.kind === "sending" || phase.kind === "saved",
+    clearable: initialRating === null,
   };
 }
 
@@ -67,7 +70,7 @@ export function FeedbackDialog({ dialog, children }: { dialog: FeedbackDialogSta
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent aria-describedby={undefined} className="jp-feedback-dialog">
         <DialogTitle>{title}</DialogTitle>
-        <FeedbackForm controller={dialog.controller} question={question} />
+        <FeedbackForm controller={dialog.controller} question={question} clearable={dialog.clearable} />
       </DialogContent>
     </Dialog>
   );

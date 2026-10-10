@@ -40,7 +40,15 @@ function FeedbackReceipt() {
  * (DESIGN.md §6); it is `aria-disabled` and its handler refuses a second press. The live region is
  * mounted from the first render, so its first message is announced.
  */
-export function FeedbackForm({ controller, question }: { controller: FeedbackFormController; question: string }) {
+export function FeedbackForm({
+  controller,
+  question,
+  clearable = true,
+}: {
+  controller: FeedbackFormController;
+  question: string;
+  clearable?: boolean;
+}) {
   const t = useTranslations("feedback");
   const commentId = useId();
   const messageId = useId();
@@ -69,7 +77,7 @@ export function FeedbackForm({ controller, question }: { controller: FeedbackFor
         controller.addScreenshot(file);
       }}
     >
-      <StarRating question={question} value={state.rating} onChange={controller.setRating} />
+      <StarRating question={question} value={state.rating} onChange={controller.setRating} clearable={clearable} />
 
       <div className="jp-feedback__fields">
         <div className="jp-field">

@@ -1,7 +1,6 @@
 "use client";
 
-// "use client": a controlled radio group with event handlers, a pointer preview, and a clear button that
-// moves focus.
+// "use client": event handlers, a pointer and focus preview, and a clear button that moves focus.
 
 import { useId, useRef, useState, type PointerEvent } from "react";
 import { Star } from "lucide-react";
@@ -10,90 +9,70 @@ import { useTranslations } from "next-intl";
 const RATINGS = [1, 2, 3, 4, 5] as const;
 
 /**
- * The rating (#1979 PR3): five native radios in a fieldset whose legend is the question, so the group,
- * its name and arrow-key operation are the browser's own. The stars up to the chosen rating, or
- * up to the one a mouse points at, are filled and the rest outlined (DESIGN.md §7's exception), so the
- * state is told by shape as well as colour.
- *
- * `clearable` adds the rating written out beside the stars and a clear button; clearing moves focus to
- * the first star, since the clear button itself goes away.
- *
- * With `onCommit` a star is an answer: a click, a tap, Space or Enter on a star commits it, also the one
- * already chosen. The arrow keys only move the choice and report it through `onChange`, because a
- * keyboard reaches the fourth star through the second and third.
+ * Which star the mouse points at or the keyboard stands on, and how far the stars are filled for it.
+ * A touch has no hover: its emulated enter would leave a preview behind after the tap.
+ */
+function useStarPreview(value: number | null) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [focused, setFocused] = useState<number | null>(null);
+  const hover = (rating: number | null) => (event: PointerEvent) => {
+    if (event.pointerType === "mouse") setHovered(rating);
+  };
+  return { shown: hovered ?? focused ?? value, hover, setFocused };
+}
+
+/** Filled up to the rating shown and outlined after it (DESIGN.md §7's exception), so shape tells the state. */
+function StarGlyph({ filled }: { filled: boolean }) {
+  return <Star size={32} strokeWidth={2} fill={filled ? "currentColor" : "none"} aria-hidden="true" />;
+}
+
+/**
+ * The rating inside the feedback dialog (#1979 PR3): five native radios in a fieldset whose legend is the
+ * question, so the group, its name and arrow-key operation are the browser's own. The rating is a form
+ * value that Send carries; `clearable` adds it written out beside the stars and a clear button, and
+ * clearing moves focus to the first star, since the clear button itself goes away.
  */
 export function StarRating({
   question,
   value,
   onChange,
-  onCommit,
   clearable = true,
 }: {
   question: string;
   value: number | null;
   onChange: (value: number | null) => void;
-  onCommit?: (value: number) => void;
   clearable?: boolean;
 }) {
   const t = useTranslations("feedback");
   const name = useId();
   const firstRef = useRef<HTMLInputElement>(null);
-  // The browser answers an arrow key with a click on the next radio, so the click alone cannot tell.
-  const arrowRef = useRef(false);
-  const [pointed, setPointed] = useState<number | null>(null);
-  const shown = pointed ?? value;
-  // A touch has no hover: its emulated enter would leave a preview behind after the tap.
-  const point = (rating: number | null) => (event: PointerEvent) => {
-    if (event.pointerType === "mouse") setPointed(rating);
-  };
+  const { shown, hover } = useStarPreview(value);
 
   return (
     <fieldset className="jp-feedback__rating">
       <legend className="jp-feedback__question">{question}</legend>
       <div className="jp-feedback__stars">
-        <span
-          className="jp-feedback__starset"
-          onPointerLeave={point(null)}
-          onPointerDown={() => {
-            arrowRef.current = false;
-          }}
-          onKeyDown={(event) => {
-            arrowRef.current = event.key.startsWith("Arrow");
-          }}
-        >
-          {RATINGS.map((rating) => {
-            const filled = shown !== null && rating <= shown;
-            return (
-              <label
-                key={rating}
-                className="jp-feedback__star"
-                data-filled={filled || undefined}
-                onPointerEnter={point(rating)}
-              >
-                <input
-                  ref={rating === 1 ? firstRef : undefined}
-                  type="radio"
-                  name={name}
-                  value={rating}
-                  checked={value === rating}
-                  onChange={() => {
-                    if (onCommit === undefined || arrowRef.current) onChange(rating);
-                  }}
-                  onClick={() => {
-                    if (onCommit !== undefined && !arrowRef.current) onCommit(rating);
-                  }}
-                  onKeyDown={(event) => {
-                    if (onCommit === undefined || event.key !== "Enter") return;
-                    event.preventDefault();
-                    onCommit(rating);
-                  }}
-                  aria-label={t("rating.option", { rating })}
-                  className="sr-only"
-                />
-                <Star size={32} strokeWidth={2} fill={filled ? "currentColor" : "none"} aria-hidden="true" />
-              </label>
-            );
-          })}
+        <span className="jp-feedback__starset" onPointerLeave={hover(null)}>
+          {RATINGS.map((rating) => (
+            <label
+              key={rating}
+              className="jp-feedback__star"
+              data-filled={(shown !== null && rating <= shown) || undefined}
+              onPointerEnter={hover(rating)}
+            >
+              <input
+                ref={rating === 1 ? firstRef : undefined}
+                type="radio"
+                name={name}
+                value={rating}
+                checked={value === rating}
+                onChange={() => onChange(rating)}
+                aria-label={t("rating.option", { rating })}
+                className="sr-only"
+              />
+              <StarGlyph filled={shown !== null && rating <= shown} />
+            </label>
+          ))}
         </span>
         {clearable && value !== null && (
           <>
@@ -112,6 +91,58 @@ export function StarRating({
               {t("rating.clear")}
             </button>
           </>
+        )}
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * The rating row's stars (#1979 PR3): five buttons in a fieldset whose legend is the question. A star is
+ * an answer, not a value to be confirmed later, so pressing one — click, tap, Enter or Space — sends it,
+ * also the one already filled. The stars are filled up to the one the mouse points at or focus stands on,
+ * and up to `value` where a refused answer is kept. `sending` writes it beside the stars.
+ */
+export function StarButtons({
+  question,
+  value,
+  onCommit,
+  sending,
+}: {
+  question: string;
+  value: number | null;
+  onCommit: (value: number) => void;
+  sending: boolean;
+}) {
+  const t = useTranslations("feedback");
+  const { shown, hover, setFocused } = useStarPreview(value);
+
+  return (
+    <fieldset className="jp-feedback__rating">
+      <legend className="jp-feedback__question">{question}</legend>
+      <div className="jp-feedback__stars">
+        <span className="jp-feedback__starset" onPointerLeave={hover(null)}>
+          {RATINGS.map((rating) => (
+            <button
+              key={rating}
+              type="button"
+              className="jp-feedback__star"
+              data-filled={(shown !== null && rating <= shown) || undefined}
+              aria-label={t("rating.option", { rating })}
+              onPointerEnter={hover(rating)}
+              onFocus={() => setFocused(rating)}
+              onBlur={() => setFocused(null)}
+              onClick={() => onCommit(rating)}
+            >
+              <StarGlyph filled={shown !== null && rating <= shown} />
+            </button>
+          ))}
+        </span>
+        {/* The row's live region already says it; this is the same word for the eye. */}
+        {sending && (
+          <span className="jp-feedback__readout" aria-hidden="true">
+            {t("sending")}
+          </span>
         )}
       </div>
     </fieldset>

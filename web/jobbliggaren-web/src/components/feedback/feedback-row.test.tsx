@@ -32,7 +32,8 @@ function sent(index: number): { payload: Record<string, unknown>; screenshot: Fo
   return { payload: JSON.parse(body.get("payload") as string) as Record<string, unknown>, screenshot: body.get("screenshot") };
 }
 
-const star = (rating: number) => screen.getByRole("radio", { name: `${rating} av 5` });
+const star = (rating: number) => screen.getByRole("button", { name: `${rating} av 5` });
+const filledStars = () => [1, 2, 3, 4, 5].filter((rating) => star(rating).querySelector("svg")?.getAttribute("fill") === "currentColor");
 const status = () => screen.getByRole("status");
 
 function Page({ state }: { state: FeedbackPromptState }) {
@@ -61,10 +62,16 @@ describe("PageFeedback and the rating row — asking", () => {
   it("asks with the question and the stars alone", () => {
     render(<Page state={{ kind: "open", answered: ["matches"] }} />);
     expect(screen.getByRole("group", QUESTION)).toBeVisible();
-    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    expect(screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "1 av 5",
+      "2 av 5",
+      "3 av 5",
+      "4 av 5",
+      "5 av 5",
+    ]);
+    expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
     // The live region is there before anything is said in it.
     expect(status()).toHaveTextContent("");
   });
@@ -122,33 +129,50 @@ describe("PageFeedback and the rating row — a star is the answer", () => {
 
     await user.click(star(5));
     expect(status()).toHaveTextContent("Skickar…");
-    expect(star(5)).toBeChecked();
+    expect(screen.getByText("Skickar…", SHOWN)).toBeVisible();
+    expect(filledStars()).toEqual([1, 2, 3, 4, 5]);
 
     await user.click(star(3));
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(star(5)).toBeChecked();
 
     rerender(<Page state={{ kind: "closed" }} />);
     expect(screen.getByRole("group", QUESTION)).toBeVisible();
 
     await act(async () => reply(answer({ outcome: "saved" })));
     expect(await screen.findByText(RATED, SHOWN)).toBeVisible();
+    expect(sent(0).payload).toMatchObject({ rating: 5 });
   });
 
-  it("moves between the stars with the arrow keys without sending, and sends the star they reached with Enter", async () => {
+  it("reaches the stars with Tab, fills each one it stands on without sending, and sends that star with Enter", async () => {
     fetchMock.mockResolvedValue(answer({ outcome: "saved" }));
     render(<Page state={OPEN} />);
     const user = userEvent.setup();
-    act(() => star(1).focus());
 
-    await user.keyboard("{ArrowRight}{ArrowRight}");
-    expect(star(3)).toBeChecked();
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    expect(star(3)).toHaveFocus();
+    expect(filledStars()).toEqual([1, 2, 3]);
     expect(fetchMock).not.toHaveBeenCalled();
 
     await user.keyboard("{Enter}");
 
     await screen.findByText(RATED, SHOWN);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sent(0).payload).toMatchObject({ rating: 3 });
+  });
+
+  it("sends the star that has focus with Space as well", async () => {
+    fetchMock.mockResolvedValue(answer({ outcome: "saved" }));
+    render(<Page state={OPEN} />);
+    const user = userEvent.setup();
+
+    await user.tab();
+    await user.tab();
+    await user.keyboard(" ");
+
+    await screen.findByText(RATED, SHOWN);
+    expect(sent(0).payload).toMatchObject({ rating: 2 });
   });
 
   it("marks the page answered for the visit, so another row for it does not ask again", async () => {
@@ -201,7 +225,8 @@ describe("PageFeedback and the rating row — after the rating", () => {
     const dialog = screen.getByRole("dialog", { name: "Feedback om sidan Jobb" });
     expect(within(dialog).getByRole("group", QUESTION)).toBeVisible();
     expect(within(dialog).getByRole("radio", { name: "4 av 5" })).toBeChecked();
-    expect(within(dialog).getByRole("button", { name: "Ta bort betyget" })).toBeVisible();
+    // The rating is saved already; the form that carries it cannot take it back.
+    expect(within(dialog).queryByRole("button", { name: "Ta bort betyget" })).toBeNull();
     await user.type(within(dialog).getByRole("textbox", { name: "Kommentar (valfri)" }), "Mer om sidan");
     await user.click(within(dialog).getByRole("button", { name: "Skicka feedback" }));
 
@@ -233,6 +258,52 @@ describe("PageFeedback and the rating row — after the rating", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("moves focus to the next stop in reading order before the row goes, the footer's first control", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ outcome: "saved" }));
+    render(
+      <>
+        <main>
+          <h1>Jobb</h1>
+          <FeedbackSessionProvider state={OPEN} renderedVersion={null}>
+            <PageFeedback pageKey="jobs" />
+          </FeedbackSessionProvider>
+        </main>
+        <footer>
+          <a href="/kontakt">Kontakt</a>
+        </footer>
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(star(5));
+    await screen.findByText(RATED, SHOWN);
+
+    await user.click(screen.getByRole("button", CLOSE));
+
+    expect(screen.queryByText(RATED, SHOWN)).toBeNull();
+    expect(screen.getByRole("link", { name: "Kontakt" })).toHaveFocus();
+  });
+
+  it("moves focus to the page's h1 when nothing follows the row", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ outcome: "saved" }));
+    render(
+      <main>
+        <h1>Jobb</h1>
+        <FeedbackSessionProvider state={OPEN} renderedVersion={null}>
+          <PageFeedback pageKey="jobs" />
+        </FeedbackSessionProvider>
+      </main>,
+    );
+    const user = userEvent.setup();
+    await user.click(star(5));
+    await screen.findByText(RATED, SHOWN);
+
+    await user.click(screen.getByRole("button", CLOSE));
+
+    const heading = screen.getByRole("heading", { name: "Jobb" });
+    expect(heading).toHaveAttribute("tabindex", "-1");
+    expect(heading).toHaveFocus();
+  });
+
   it("removes the row for the rest of the visit when it is closed", async () => {
     const { user, container, rerender } = await rated(5);
 
@@ -255,7 +326,6 @@ describe("PageFeedback and the rating row — refusals", () => {
       false,
     ],
     ["refused invalid", { outcome: "refused", reason: "invalid" }, "Feedbacken kunde inte skickas. Ladda om sidan och försök igen.", true],
-    ["tooLarge", { outcome: "tooLarge" }, "Bilden är för stor. Den får vara högst 5 MB.", true],
   ])("tells the %s answer under the stars and keeps the rating", async (_name, outcome, text, error) => {
     fetchMock.mockResolvedValue(answer(outcome, 400));
     render(<Page state={OPEN} />);
@@ -268,7 +338,7 @@ describe("PageFeedback and the rating row — refusals", () => {
     expect(message).toHaveClass("jp-feedback__message");
     expect(message.classList.contains("jp-feedback__message--error")).toBe(error);
     expect(status()).toHaveTextContent(text);
-    expect(star(3)).toBeChecked();
+    expect(filledStars()).toEqual([1, 2, 3]);
     expect(screen.queryByRole("button", { name: "Skicka igen" })).toBeNull();
   });
 

@@ -2,6 +2,7 @@
 
 // "use client": reads the visit's feedback session and owns a dialog's state.
 
+import { MessageSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FeedbackDialog, useFeedbackDialog } from "./feedback-dialog";
 import { useFeedbackSession, type FeedbackSession } from "./feedback-session";
@@ -15,7 +16,8 @@ function GeneralFeedback({ session }: { session: FeedbackSession }) {
   return (
     <li>
       <FeedbackDialog dialog={dialog}>
-        <button type="button" className="jp-foot__linkbtn">
+        <button type="button" className="jp-foot__cta">
+          <MessageSquare size={18} aria-hidden="true" />
           {t("footer.open")}
         </button>
       </FeedbackDialog>

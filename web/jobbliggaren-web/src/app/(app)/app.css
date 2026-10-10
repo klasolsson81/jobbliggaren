@@ -2741,7 +2741,10 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   justify-content: center;
   width: 44px;
   height: 44px;
+  padding: 0;
+  border: 0;
   border-radius: var(--jp-r-md);
+  background: transparent;
   color: var(--jp-ink-2);
   cursor: pointer;
 }
@@ -2752,7 +2755,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   .jp-feedback__star svg { transition: none; }
   .jp-feedback__star:hover svg { transform: none; }
 }
-/* The radio is visually hidden, so its focus ring is drawn on the box around it. */
+/* A radio is visually hidden, so its focus ring is drawn on the box around it; a button is the box. */
+.jp-feedback__star:focus-visible,
 .jp-feedback__star:has(:focus-visible) {
   outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
@@ -2849,18 +2853,30 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-feedback-dialog .jp-feedback__question { font-weight: var(--jp-fw-regular); }
 
 /* ── The footer's feedback button (#1979 PR3) ──
-   A <button> in a link column that reads as one of the links: colour, size and hover come from
-   `.jp-foot__links a` in globals.css, and this only takes away the button's own chrome. The ring is
-   the theme-stable white, since an accent ring does not show on the deep-green footer. */
-.jp-foot__linkbtn {
-  padding: 0;
+   The one filled button on the deep-green footer, so the invitation reads as an action and not as one
+   more link: a white plate with deep-green text (15.39:1), the same two theme-stable colours the footer
+   already uses. It stays the last row of the support column, set off from the links above it. No motion
+   but the 150ms opacity DESIGN.md §10 allows on hover. The ring is the theme-stable white, since an
+   accent ring does not show on the deep-green footer. */
+.jp-foot__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  margin-top: 12px;
+  padding: 0 var(--jp-btn-px);
   border: 0;
-  background: none;
+  border-radius: var(--jp-r-md);
+  background: var(--jp-on-fill);
+  color: var(--jp-accent-900);
   font: inherit;
-  text-align: start;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
   cursor: pointer;
+  transition: opacity 150ms ease-out;
 }
-.jp-foot__linkbtn:focus-visible {
+.jp-foot__cta:hover { opacity: 0.88; }
+.jp-foot__cta:focus-visible {
   outline: 2px solid var(--jp-on-fill);
   outline-offset: 2px;
 }

@@ -23,7 +23,6 @@ import {
   type AdminOverviewRegions,
   type AdminRecentEvent,
   type AdminRegion,
-  type AdminServerReading,
   type AdminServiceStatus,
   type AdminValueRegion,
 } from "@/lib/admin/view-models";
@@ -33,6 +32,7 @@ import { AdminObservationNote } from "./admin-observation-note";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
+import { AdminServerBody } from "./admin-server-body";
 import { AdminTrendCard } from "./admin-trend-card";
 import { AdminUnknown } from "./admin-unknown";
 
@@ -163,7 +163,7 @@ export function AdminOverview({
         </AdminCard>
 
         <AdminCard id="admin-overview-server" title={t("server.title")} icon={Server} span={4}>
-          <ServerBody region={regions.server} />
+          <AdminServerBody region={regions.server} />
         </AdminCard>
 
         <AdminCard
@@ -310,35 +310,6 @@ function ServicesBody({ region }: { readonly region: AdminRegion<ReadonlyArray<A
         </li>
       ))}
     </ul>
-  );
-}
-
-const METERS = ["cpu", "memory", "disk"] as const;
-
-function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerReading> }) {
-  const t = useTranslations("admin.overview.server");
-  const format = useFormatter();
-
-  return (
-    <div className="jp-admincard__body">
-      <dl className="jp-admindl">
-        {METERS.map((meter) => (
-          <Row key={meter} label={t(meter)}>
-            {region.kind === "loaded" ? (
-              <span className="jp-adminmeter">
-                <span>{format.number(region.data[meter] / 100, { style: "percent" })}</span>
-                <span className="jp-adminmeter__track" aria-hidden="true">
-                  <span className="jp-adminmeter__fill" style={{ inlineSize: `${Math.min(100, Math.max(0, region.data[meter]))}%` }} />
-                </span>
-              </span>
-            ) : (
-              <AdminUnknown />
-            )}
-          </Row>
-        ))}
-      </dl>
-      {region.kind === "loaded" ? null : <AdminRegionLine quiet kind={region.kind} />}
-    </div>
   );
 }
 

@@ -76,7 +76,17 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Memory",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Average over {seconds} s",
+      "memoryUsed": "{used} of {total} {unit}",
+      "diskFree": "{free} {unit} free of {total} {unit}",
+      "sampledAt": "Measured",
+      "stale": "The reading is older than {minutes} min.",
+      "state": {
+        "collecting": "Measuring…",
+        "notObservable": "Not measured in this environment",
+        "failed": "The measurement failed"
+      }
     },
     "backup": {
       "title": "Backup",

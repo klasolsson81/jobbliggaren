@@ -1,4 +1,5 @@
 import { FEEDBACK_PAGE_KEYS } from "@/lib/admin/feedback";
+import { toServerReading } from "@/lib/admin/host-observation";
 import type {
   AdminAccountDetail,
   AdminAccountTotals,
@@ -212,7 +213,13 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
     marked({ id: "platsbanken", label: "Platsbanken", state: "warning" as const, detail: "Senaste hämtningen misslyckades" }),
     marked({ id: "email", label: "E-postutskick", state: "ok" as const, detail: "212 ms" }),
   ],
-  server: marked({ cpu: 23, memory: 61, disk: 38 }),
+  server: marked(toServerReading({
+    readAt: FIXTURE_NOW,
+    staleAfterSeconds: 120,
+    cpu: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 23.4, windowSeconds: 30 } },
+    memory: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 61.1, usedBytes: 5_244_620_800, totalBytes: 8_589_934_592 } },
+    disk: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 38, freeBytes: 133_143_986_176, totalBytes: 214_748_364_800 } },
+  })),
   backup: marked({
     latestAt: daysAgo(0, 1, 30),
     offsiteAt: daysAgo(0, 1, 45),
@@ -258,6 +265,15 @@ export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   services: [],
   attention: [],
   events: [],
+  // "Tom" shows the three readings that are not values: the CPU's first window, a host that cannot be measured
+  // here, and a failed read. Zero is a value, but an unmeasured reading is not zero (ADR 0150 D2).
+  server: marked(toServerReading({
+    readAt: FIXTURE_NOW,
+    staleAfterSeconds: 120,
+    cpu: { state: "Collecting", sampledAt: null, value: null },
+    memory: { state: "NotObservable", sampledAt: null, value: null },
+    disk: { state: "Failed", sampledAt: null, value: null },
+  })),
 });
 
 // ── Feedback (#1979) ──────────────────────────────────────────────────────────────────────────

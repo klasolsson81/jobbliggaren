@@ -312,7 +312,8 @@
 }
 .jp-adminmeter {
   display: grid;
-  grid-template-columns: 3.5em minmax(0, 1fr);
+  /* Wide enough for "100,0 %" in bold: the percent has one decimal since #1982. */
+  grid-template-columns: 4.75em minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   font-weight: var(--jp-fw-bold);
@@ -328,6 +329,11 @@
   display: block;
   height: 100%;
   background: var(--jp-accent-500);
+}
+/* What the meter measures, or why there is no meter: a quiet line under the value (#1982). */
+.jp-adminmeter__detail {
+  display: block;
+  color: var(--jp-ink-2);
 }
 
 /* ── Filter and period groups: the house `.jp-segment` ─────────────────────────────────── */

@@ -6,6 +6,7 @@ import {
   type AdminOverviewRegions,
   type AdminTrendDay,
 } from "@/lib/admin/view-models";
+import { serverRegion, toServerReading } from "@/lib/admin/host-observation";
 import { AdminOverview } from "./admin-overview";
 
 const TREND: ReadonlyArray<AdminTrendDay> = Array.from({ length: 90 }, (_, index) => ({
@@ -27,7 +28,13 @@ const LOADED: AdminOverviewRegions = {
       { id: "platsbanken", label: "Platsbanken", state: "warning", detail: "Senaste hämtningen misslyckades" },
     ],
   },
-  server: { kind: "loaded", data: { cpu: 23, memory: 61, disk: 38 } },
+  server: serverRegion(toServerReading({
+    readAt: "2026-10-04T05:00:10Z",
+    staleAfterSeconds: 120,
+    cpu: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 23.4, windowSeconds: 30 } },
+    memory: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 61.1, usedBytes: 5_244_620_800, totalBytes: 8_589_934_592 } },
+    disk: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 38, freeBytes: 133_143_986_176, totalBytes: 214_748_364_800 } },
+  })),
   backup: {
     kind: "loaded",
     data: {
@@ -69,7 +76,7 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
       "PlatsbankenVarningSenaste hämtningen misslyckades",
     ]);
     const server = card("Server");
-    expect(within(server).getByText("CPU").nextElementSibling).toHaveTextContent("23 %");
+    expect(within(server).getByText("CPU").nextElementSibling).toHaveTextContent("23,4 %");
     expect(within(server).queryByText("Kommer snart")).toBeNull();
     expect(card("Backup")).toHaveTextContent("Behålls30 dygn");
   });

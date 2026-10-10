@@ -76,7 +76,17 @@
       "title": "Server",
       "cpu": "CPU",
       "memory": "Minne",
-      "disk": "Disk"
+      "disk": "Disk",
+      "cpuWindow": "Snitt över {seconds} s",
+      "memoryUsed": "{used} av {total} {unit}",
+      "diskFree": "{free} {unit} ledigt av {total} {unit}",
+      "sampledAt": "Mätt",
+      "stale": "Mätningen är äldre än {minutes} min.",
+      "state": {
+        "collecting": "Mäter…",
+        "notObservable": "Mäts inte i den här miljön",
+        "failed": "Mätningen misslyckades"
+      }
     },
     "backup": {
       "title": "Backup",

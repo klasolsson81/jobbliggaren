@@ -1,5 +1,6 @@
 /** The admin surface's view models (ADR 0150). */
 import type { AdminDeletionTiming } from "./account-deletion";
+import type { AdminServerReading } from "./host-observation";
 
 /**
  * A data region is exactly one of these (ADR 0150 D2). `unavailable` means no source exists yet,
@@ -10,7 +11,14 @@ export type AdminRegion<T> =
   | { readonly kind: "loading" }
   | { readonly kind: "empty" }
   | { readonly kind: "failed" }
-  | { readonly kind: "loaded"; readonly data: T };
+  | {
+      readonly kind: "loaded";
+      readonly data: T;
+      /** When the source was last sampled, for a region whose source dates itself (ADR 0150 D2). */
+      readonly sampledAt?: string;
+      /** True when that sample is older than the source's own limit. */
+      readonly stale?: boolean;
+    };
 
 export type AdminRegionKind = AdminRegion<unknown>["kind"];
 
@@ -147,12 +155,7 @@ export interface AdminServiceStatus {
   readonly detail: string;
 }
 
-/** Observed readings in percent of capacity. */
-export interface AdminServerReading {
-  readonly cpu: number;
-  readonly memory: number;
-  readonly disk: number;
-}
+export type { AdminServerReading } from "./host-observation";
 
 export interface AdminBackupStatus {
   readonly latestAt: string;

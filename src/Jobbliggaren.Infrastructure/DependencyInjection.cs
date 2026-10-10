@@ -73,6 +73,7 @@ public static class DependencyInjection
         services.AddLandingStats();
         services.AddTextAnalysis();
         services.AddCvParsing();
+        Admin.HostBridge.HostBridgeServiceCollectionExtensions.AddHostBridge(services, configuration);
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }

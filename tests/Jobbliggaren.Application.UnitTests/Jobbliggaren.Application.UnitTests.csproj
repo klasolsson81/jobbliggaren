@@ -38,6 +38,15 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <!-- #1982 — the golden files the host sampler publishes (deploy/systemd/fixtures/observations). The
+       sampler's own shell suite compares its output with them byte for byte, so a parser test that reads
+       them rests on something production can produce, not on JSON written here. -->
+  <ItemGroup>
+    <Content Include="..\..\deploy\systemd\fixtures\observations\*.json"
+             Link="HostBridgeFixtures\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

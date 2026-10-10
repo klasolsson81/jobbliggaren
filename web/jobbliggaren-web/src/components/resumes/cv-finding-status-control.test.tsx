@@ -5,14 +5,13 @@ import { CvFindingStatusControl } from "./cv-finding-status-control";
 import type { ActionResult } from "@/lib/actions/_action-result";
 
 /**
- * Fas 4b PR-8.4 (CTO-bind Q3/Q4) — per-anmärkning statuskontrollen på den KANONISKA
- * granskningen. `setFindingStatusAction` mockas (klient-ön kallar den vid klick); dess
- * signatur speglar den äkta `(resumeId, criterionId, status)`. `useTranslations`
- * (resumes.review.status) är ÄKTA via test-shimmens NextIntlClientProvider — testet kör mot
- * de svenska katalogerna, precis som produktion.
+ * The per-finding status control in the review ledger's action column (#2083; Fas 4b PR-8.4).
+ * `setFindingStatusAction` is mocked; its signature mirrors the real `(resumeId, criterionId,
+ * status)`. `useTranslations` is REAL via the test shim's NextIntlClientProvider, so the test runs
+ * against the Swedish catalogue, as production does.
  *
- * Kärninvarianten (CLAUDE.md §5-ärlighet): "Ignorera regeln (stilfråga)" får renderas ENBART
- * när `isIgnorable === true` — aldrig ett erbjudande servern nekar (400 FindingNotIgnorable).
+ * Core invariant (CLAUDE.md §5 honesty): "Ignorera regeln (stilfråga)" renders ONLY when
+ * `isIgnorable === true` — never an offer the server refuses (400 FindingNotIgnorable).
  */
 
 const setFindingStatusMock =
@@ -25,20 +24,29 @@ vi.mock("@/lib/actions/resumes", () => ({
 
 const RESUME_ID = "11111111-1111-4111-8111-111111111111";
 const CRITERION = "A7";
+const NAME_ID = "cvledger-A7-name";
 
 type ControlProps = Parameters<typeof CvFindingStatusControl>[0];
 
-function renderControl(props: Partial<ControlProps> = {}) {
-  return render(
-    <CvFindingStatusControl
-      resumeId={RESUME_ID}
-      criterionId={CRITERION}
-      userStatus={null}
-      userStatusStaleAt={null}
-      isIgnorable={false}
-      {...props}
-    />,
+function control(props: Partial<ControlProps> = {}) {
+  return (
+    <>
+      <span id={NAME_ID}>Anti-klyschor</span>
+      <CvFindingStatusControl
+        resumeId={RESUME_ID}
+        criterionId={CRITERION}
+        labelledBy={NAME_ID}
+        userStatus={null}
+        userStatusStaleAt={null}
+        isIgnorable={false}
+        {...props}
+      />
+    </>
   );
+}
+
+function renderControl(props: Partial<ControlProps> = {}) {
+  return render(control(props));
 }
 
 beforeEach(() => {
@@ -46,220 +54,136 @@ beforeEach(() => {
   setFindingStatusMock.mockResolvedValue({ success: true });
 });
 
-describe("CvFindingStatusControl — §5-honesty-gate (Ignorera-knappen)", () => {
-  it("döljer 'Ignorera regeln (stilfråga)' när isIgnorable=false", () => {
+describe("CvFindingStatusControl — the §5 honesty gate", () => {
+  it("hides 'Ignorera regeln (stilfråga)' when isIgnorable=false", () => {
     renderControl({ isIgnorable: false });
-    expect(
-      screen.queryByRole("button", { name: /Ignorera regeln/ }),
-    ).not.toBeInTheDocument();
-    // Den lugna åtgärdsknappen finns kvar (det är bara Ignorera-erbjudandet som gate:as).
-    expect(
-      screen.getByRole("button", { name: /Markera som åtgärdad/ }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ignorera regeln/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Markera som åtgärdad/ })).toBeInTheDocument();
   });
 
-  it("visar 'Ignorera regeln (stilfråga)' när isIgnorable=true och status är öppen", () => {
+  it("shows it when isIgnorable=true and the finding is open", () => {
     renderControl({ isIgnorable: true });
-    expect(
-      screen.getByRole("button", { name: /Ignorera regeln/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ignorera regeln/ })).toBeInTheDocument();
   });
 
-  it("döljer Ignorera-knappen igen när anmärkningen redan är Ignored", () => {
+  it("hides it again once the finding is Ignored", () => {
     renderControl({ isIgnorable: true, userStatus: "Ignored" });
-    expect(
-      screen.queryByRole("button", { name: /Ignorera regeln/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ignorera regeln/ })).not.toBeInTheDocument();
   });
 });
 
-describe("CvFindingStatusControl — knapp-synlighet per status", () => {
-  it("öppen status: 'Markera som åtgärdad' synlig, 'Återställ' dold", () => {
-    renderControl({ userStatus: null });
-    expect(
-      screen.getByRole("button", { name: /Markera som åtgärdad/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Återställ" }),
-    ).not.toBeInTheDocument();
+describe("CvFindingStatusControl — what each status shows", () => {
+  it("names its group after the row's criterion", () => {
+    renderControl();
+    expect(screen.getByRole("group", { name: "Anti-klyschor" })).toBeInTheDocument();
   });
 
-  it("Resolved: 'Markera som åtgärdad' dold, 'Återställ' synlig", () => {
-    renderControl({ userStatus: "Resolved" });
-    expect(
-      screen.queryByRole("button", { name: /Markera som åtgärdad/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Återställ" }),
-    ).toBeInTheDocument();
+  it("open: only the action — no pill and no hint, since a row without a status reads as open", () => {
+    const { container } = renderControl({ userStatus: null });
+    expect(screen.getByRole("button", { name: /Markera som åtgärdad/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Återställ" })).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".jp-pill")).toHaveLength(0);
+    expect(container.querySelectorAll(".jp-findingstatus__hint")).toHaveLength(0);
   });
 
-  it("Ignored: 'Återställ' synlig", () => {
-    renderControl({ userStatus: "Ignored", isIgnorable: true });
-    expect(
-      screen.getByRole("button", { name: "Återställ" }),
-    ).toBeInTheDocument();
+  it("an explicit Open reads the same as no decision", () => {
+    const { container } = renderControl({ userStatus: "Open" });
+    expect(screen.getByRole("button", { name: /Markera som åtgärdad/ })).toBeInTheDocument();
+    expect(container.querySelectorAll(".jp-pill")).toHaveLength(0);
   });
-});
 
-describe("CvFindingStatusControl — pill + hjälptext per status", () => {
-  it("Resolved utan stale: Åtgärdad-pill + resolvedHint (inte staleHint)", () => {
+  it("Resolved: the Åtgärdad pill, Återställ and the short hint", () => {
     renderControl({ userStatus: "Resolved", userStatusStaleAt: null });
     expect(screen.getByText("Åtgärdad")).toBeInTheDocument();
-    expect(screen.getByText(/ligger kvar i granskningen/)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/finns fortfarande kvar i ditt CV/),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Återställ" })).toBeInTheDocument();
+    expect(screen.getByText("Ligger kvar tills den är borta ur ditt CV.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Markera som åtgärdad/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/finns fortfarande kvar i ditt CV/)).not.toBeInTheDocument();
   });
 
-  it("Resolved med stale-stämpel: staleHint (inte resolvedHint)", () => {
-    renderControl({
-      userStatus: "Resolved",
-      userStatusStaleAt: "2026-07-10T08:00:00Z",
-    });
-    expect(
-      screen.getByText(/finns fortfarande kvar i ditt CV/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/ligger kvar i granskningen/),
-    ).not.toBeInTheDocument();
+  it("Resolved but stale: the stale hint replaces the short one", () => {
+    renderControl({ userStatus: "Resolved", userStatusStaleAt: "2026-07-10T08:00:00Z" });
+    expect(screen.getByText(/finns fortfarande kvar i ditt CV/)).toBeInTheDocument();
+    expect(screen.queryByText("Ligger kvar tills den är borta ur ditt CV.")).not.toBeInTheDocument();
   });
 
-  it("Ignored: Ignorerad-pill + ignoredHint", () => {
+  it("Ignored: the Ignorerad pill, Återställ and its hint, and no Markera", () => {
     renderControl({ userStatus: "Ignored", isIgnorable: true });
     expect(screen.getByText("Ignorerad")).toBeInTheDocument();
-    expect(
-      screen.getByText(/räknas inte längre som en åtgärd/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Återställ" })).toBeInTheDocument();
+    expect(screen.getByText(/räknas inte längre som en åtgärd/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Markera som åtgärdad/ })).not.toBeInTheDocument();
   });
 
-  // #1062 M4: "Öppen" är ett av ADR 0097/0112:s TRE skyddade ledger-tillstånd, men
-  // hade ingen representation alls — det förmedlades genom FRÅNVARON av en pill plus
-  // NÄRVARON av en knapp, så användaren fick läsa systemets STATUS ur dess
-  // ÅTGÄRDSERBJUDANDE. Mätt på ytan: {"pills":[],"hint":null,"buttons":["Markera som
-  // åtgärdad"]}.
-  // Hjälptexten togs bort i #1062 Q1-rundan (design-reviewers minor 2, buren ur PR 2):
-  // de tre andra hintarna förklarar en KONSEKVENS av ett val användaren gjort, medan
-  // "Du har inte tagit ställning …" bara omformulerade pillen bredvid sig — en gång per
-  // anmärkning, i det lager Q1 gör till sidans huvudinnehåll. M4:s fynd gällde PILLEN,
-  // och den är kvar; båda halvorna mäts här så att en framtida borttagning av pillen
-  // inte kan passera som "hinten är ju borttagen".
-  it("inget beslut registrerat: Öppen-pill, och ingen hjälptext som upprepar den", () => {
-    const { container } = renderControl({ userStatus: null });
-    expect(screen.getByText("Öppen")).toBeInTheDocument();
-    expect(
-      container.querySelectorAll(".jp-cvreview__status-hint"),
-    ).toHaveLength(0);
-  });
-
-  it("de tre andra tillstånden behåller sin hjälptext", () => {
-    // Kontrafaktum: utan det hade en borttagen hint-rendering i ALLA tillstånd
-    // passerat testet ovan. Alla tre mäts — namnet lovade tre och kroppen bar två.
-    for (const props of [
-      { userStatus: "Resolved", userStatusStaleAt: null },
-      { userStatus: "Resolved", userStatusStaleAt: "2026-07-10T08:00:00Z" },
-      { userStatus: "Ignored", isIgnorable: true },
-    ]) {
-      const { container, unmount } = renderControl(props);
-      expect(
-        container.querySelectorAll(".jp-cvreview__status-hint"),
-      ).toHaveLength(1);
-      unmount();
-    }
-  });
-
-  it("uttalat Open: samma representation som ett oregistrerat beslut", () => {
-    renderControl({ userStatus: "Open" });
-    expect(screen.getByText("Öppen")).toBeInTheDocument();
-  });
-
-  it("Resolved och Ignored bär ALDRIG Öppen-pillen samtidigt", () => {
-    // Kontrafaktum till de två testen ovan: en indikator som renderades
-    // ovillkorligt hade passerat dem och gjort pillen informationslös.
-    const { unmount } = renderControl({ userStatus: "Resolved" });
-    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
-    unmount();
-
-    renderControl({ userStatus: "Ignored", isIgnorable: true });
-    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
-  });
-
-  it("okänt statusvärde renderar INGEN pill — det är ett tillstånd vi inte känner", () => {
-    // Deploy-skew: zod-schemat håller medvetet statusmängden öppen hellre än att
-    // fälla hela granskningen. Att då etikettera värdet "Öppen" vore ett PÅSTÅENDE
-    // om ett tillstånd vi inte känner — samma klass av fel som M4 stänger, bara i
-    // motsatt riktning. Därför skrivs Öppen positivt (null | "Open") och inte som
-    // negationen av de andra två.
-    renderControl({ userStatus: "SomethingNewFromANewerBackend" });
-    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
-    expect(screen.queryByText("Åtgärdad")).not.toBeInTheDocument();
-    expect(screen.queryByText("Ignorerad")).not.toBeInTheDocument();
+  it("an unknown status renders no pill — it is a state we do not know", () => {
+    // Deploy skew: the zod schema keeps the set open rather than fail the whole review, and a
+    // pill would claim a state the page cannot name.
+    const { container } = renderControl({ userStatus: "SomethingNewFromANewerBackend" });
+    expect(container.querySelectorAll(".jp-pill")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: /Markera som åtgärdad/ })).toBeInTheDocument();
   });
 });
 
-describe("CvFindingStatusControl — anropar setFindingStatusAction", () => {
-  it("klick på 'Markera som åtgärdad' skickar (resumeId, criterionId, 'Resolved')", async () => {
+describe("CvFindingStatusControl — calls setFindingStatusAction", () => {
+  it.each([
+    [{ userStatus: null }, /Markera som åtgärdad/, "Resolved"],
+    [{ userStatus: null, isIgnorable: true }, /Ignorera regeln/, "Ignored"],
+    [{ userStatus: "Resolved" }, /^Återställ$/, "Open"],
+  ] as const)("%o: %s sends %s", async (props, name, status) => {
     const user = userEvent.setup();
-    renderControl({ isIgnorable: false, userStatus: null });
-
-    await user.click(
-      screen.getByRole("button", { name: /Markera som åtgärdad/ }),
-    );
-
+    renderControl(props);
+    await user.click(screen.getByRole("button", { name }));
     await waitFor(() =>
-      expect(setFindingStatusMock).toHaveBeenCalledWith(
-        RESUME_ID,
-        CRITERION,
-        "Resolved",
-      ),
+      expect(setFindingStatusMock).toHaveBeenCalledWith(RESUME_ID, CRITERION, status),
     );
   });
 
-  it("klick på 'Ignorera regeln' skickar status 'Ignored'", async () => {
-    const user = userEvent.setup();
-    renderControl({ isIgnorable: true, userStatus: null });
-
-    await user.click(screen.getByRole("button", { name: /Ignorera regeln/ }));
-
-    await waitFor(() =>
-      expect(setFindingStatusMock).toHaveBeenCalledWith(
-        RESUME_ID,
-        CRITERION,
-        "Ignored",
-      ),
-    );
-  });
-
-  it("klick på 'Återställ' skickar status 'Open'", async () => {
-    const user = userEvent.setup();
-    renderControl({ userStatus: "Resolved" });
-
-    await user.click(screen.getByRole("button", { name: "Återställ" }));
-
-    await waitFor(() =>
-      expect(setFindingStatusMock).toHaveBeenCalledWith(
-        RESUME_ID,
-        CRITERION,
-        "Open",
-      ),
-    );
-  });
-
-  it("ytar action-felet i en role='alert' när skrivningen misslyckas", async () => {
+  it("surfaces the action's error in a role='alert'", async () => {
     const user = userEvent.setup();
     setFindingStatusMock.mockResolvedValue({
       success: false,
       error: "Det gick inte att uppdatera åtgärdsstatusen.",
     });
     renderControl({ userStatus: null });
-
-    await user.click(
-      screen.getByRole("button", { name: /Markera som åtgärdad/ }),
-    );
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(
+    await user.click(screen.getByRole("button", { name: /Markera som åtgärdad/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Det gick inte att uppdatera åtgärdsstatusen.",
+    );
+  });
+
+  it("keeps the pressed button focusable while pending: aria-disabled, never disabled", async () => {
+    const user = userEvent.setup();
+    let resolve: (result: ActionResult) => void = () => {};
+    setFindingStatusMock.mockReturnValue(
+      new Promise<ActionResult>((r) => {
+        resolve = r;
+      }),
+    );
+    renderControl({ userStatus: null });
+    const button = screen.getByRole("button", { name: /Markera som åtgärdad/ });
+    await user.click(button);
+
+    const pending = await screen.findByRole("button", { name: "Uppdaterar…" });
+    expect(pending).toHaveAttribute("aria-disabled", "true");
+    expect(pending).not.toBeDisabled();
+    expect(pending).toHaveFocus();
+
+    // A second press while pending sends nothing.
+    await user.click(pending);
+    expect(setFindingStatusMock).toHaveBeenCalledTimes(1);
+    resolve({ success: true });
+  });
+
+  it("moves focus to the group's new first button when the status it changed arrives", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderControl({ userStatus: null });
+    await user.click(screen.getByRole("button", { name: /Markera som åtgärdad/ }));
+    await waitFor(() => expect(setFindingStatusMock).toHaveBeenCalled());
+
+    // The revalidated page brings the new status as a prop; the pressed button is gone.
+    rerender(control({ userStatus: "Resolved" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Återställ" })).toHaveFocus(),
     );
   });
 });

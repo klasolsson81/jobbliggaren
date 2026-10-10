@@ -1,13 +1,13 @@
 "use client";
 
-// Client-ö: den ENDA interaktiva biten av den (annars RSC) kanoniska granska-
-// panelen. "use client" krävs för onClick-hanterare + useTransition (pending-UI)
-// + lokal fel-state. Ingen klient-optimism: server-actionen skriver + revaliderar
-// BÅDE granska-vyn och /cv, så statusen/stale-hinten re-beräknas server-side och
-// kommer tillbaka som nya props vid re-render (CTO-bind).
+// Client island: the only interactive part of a ledger row. `"use client"` is needed for the click
+// handlers, useTransition (pending UI) and local error state. No client optimism: the server action
+// writes and revalidates both the review and /cv, so the status and the stale hint come back as new
+// props.
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { Check } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
   setFindingStatusAction,
@@ -15,44 +15,60 @@ import {
 } from "@/lib/actions/resumes";
 
 /**
- * Per-anmärkning statuskontroll (Fas 4b PR-8.4, CTO-bind Q3/Q4). Registrerar
- * användarens beslut om EN granskningsanmärkning i den kanoniska granskningen.
+ * The user's decision on one finding of the canonical review, in the ledger's action column
+ * (#2083). An open finding shows only the action: a row with no status already reads as open.
  *
- * §5-ärlighet (icke-förhandlingsbar): "Ignorera regeln (stilfråga)"-knappen
- * renderas ENBART när `isIgnorable === true` — samma mängd som backend
- * upprätthåller (400 `FindingNotIgnorable` annars). Aldrig ett erbjudande som
- * servern nekar.
+ * §5 honesty: "Ignorera regeln (stilfråga)" renders ONLY when `isIgnorable` is true — the same set
+ * the backend enforces (400 `FindingNotIgnorable` otherwise). Never an offer the server refuses.
  *
- * Status visas alltid med textetikett (aldrig enbart färg, WCAG 1.4.1): en
- * StatusPill bär både färg och ord. Fel ytas i en `role="alert"` med den civila
- * text som action:en redan returnerar.
+ * A status is always a word in a StatusPill, never colour alone (WCAG 1.4.1). An unknown value
+ * (deploy skew; the zod schema keeps the set open on purpose) renders no pill: a pill would claim
+ * a state we do not know.
+ *
+ * While the action runs, the pressed button is `aria-disabled` and the handler refuses, rather than
+ * `disabled`: a disabled button that has focus drops it to `<body>` (DESIGN.md §6, #1391). When the
+ * new status arrives, the button that was pressed has gone, so focus moves to the group's first
+ * button if it was inside the group.
  */
 export function CvFindingStatusControl({
   resumeId,
   criterionId,
+  labelledBy,
   userStatus,
   userStatusStaleAt,
   isIgnorable,
 }: {
   resumeId: string;
   criterionId: string;
+  /** The id of the row's criterion name, which names this group. */
+  labelledBy: string;
   userStatus: string | null;
   userStatusStaleAt: string | null;
   isIgnorable: boolean;
 }) {
   const t = useTranslations("resumes.review.status");
   const [isPending, startTransition] = useTransition();
-  // Lokal UI-fel-state (inte server-data — tillåtet). Vilket status-byte som
-  // pågår spåras så att "Uppdaterar" visas på den knapp användaren tryckte.
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<FindingStatusValue | null>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef(false);
+
+  useEffect(() => {
+    if (!restoreFocus.current) return;
+    restoreFocus.current = false;
+    groupRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [userStatus]);
 
   function submit(status: FindingStatusValue) {
+    if (isPending) return;
     setError(null);
     setPending(status);
+    restoreFocus.current =
+      groupRef.current?.contains(document.activeElement) ?? false;
     startTransition(async () => {
       const result = await setFindingStatusAction(resumeId, criterionId, status);
       if (!result.success) {
+        restoreFocus.current = false;
         setError(result.error);
       }
       setPending(null);
@@ -61,92 +77,81 @@ export function CvFindingStatusControl({
 
   const isResolved = userStatus === "Resolved";
   const isIgnored = userStatus === "Ignored";
-  // Öppen skrivs POSITIVT och inte som `!isResolved && !isIgnored`. Skillnaden gäller
-  // bara ett okänt värde vid deploy-skew: negationen hade etiketterat det "Öppen",
-  // alltså ett PÅSTÅENDE om ett tillstånd vi inte känner. Det renderas hellre utan pill
-  // — zod-schemat höll medvetet statusmängden öppen av samma skäl (#1062 M4).
-  const isOpen = userStatus === null || userStatus === "Open";
 
   function label(status: FindingStatusValue, resting: string): string {
     return isPending && pending === status ? t("updating") : resting;
   }
 
+  function busyProps(status: FindingStatusValue) {
+    return {
+      "aria-disabled": isPending || undefined,
+      "aria-busy": (isPending && pending === status) || undefined,
+    };
+  }
+
+  const revert = (
+    <button
+      type="button"
+      className="jp-btn jp-btn--ghost jp-btn--sm"
+      onClick={() => submit("Open")}
+      {...busyProps("Open")}
+    >
+      {label("Open", t("revert"))}
+    </button>
+  );
+
   return (
     <div
-      className="jp-cvreview__status"
+      ref={groupRef}
+      className="jp-findingstatus"
       role="group"
-      aria-label={t("groupLabel")}
+      aria-labelledby={labelledBy}
     >
-      {isResolved && (
-        <div className="jp-cvreview__status-indicator">
-          <StatusPill tone="success">{t("resolvedLabel")}</StatusPill>
-          <p className="jp-cvreview__status-hint">
-            {userStatusStaleAt !== null ? t("staleHint") : t("resolvedHint")}
+      {isResolved || isIgnored ? (
+        <>
+          <div className="jp-findingstatus__line">
+            {isResolved ? (
+              <StatusPill tone="success">{t("resolvedLabel")}</StatusPill>
+            ) : (
+              <StatusPill tone="neutral">{t("ignoredLabel")}</StatusPill>
+            )}
+            {revert}
+          </div>
+          <p className="jp-findingstatus__hint">
+            {isIgnored
+              ? t("ignoredHint")
+              : userStatusStaleAt !== null
+                ? t("staleHint")
+                : t("resolvedHint")}
           </p>
-        </div>
-      )}
-
-      {isIgnored && (
-        <div className="jp-cvreview__status-indicator">
-          <StatusPill tone="neutral">{t("ignoredLabel")}</StatusPill>
-          <p className="jp-cvreview__status-hint">{t("ignoredHint")}</p>
-        </div>
-      )}
-
-      {/* Öppen bär ingen hint (#1062). De tre andra hintarna förklarar en KONSEKVENS
-          av ett val användaren gjort — att en åtgärdad anmärkning ligger kvar tills den
-          är borta ur CV:t, att en ignorerad inte längre räknas, att en åtgärdad ändå
-          finns kvar. "Du har inte tagit ställning till den här anmärkningen än" förklarar
-          ingen konsekvens; den omformulerade pillen bredvid sig, en gång per anmärkning,
-          i det lager Q1 gör till sidans huvudinnehåll. M4:s fynd står kvar orört: det
-          gällde att Öppen förmedlades genom FRÅNVARO av pill, och pillen är kvar. */}
-      {isOpen && (
-        <div className="jp-cvreview__status-indicator">
-          <StatusPill tone="neutral">{t("openLabel")}</StatusPill>
-        </div>
-      )}
-
-      <div className="jp-cvreview__status-actions">
-        {!isResolved && (
+        </>
+      ) : (
+        <div className="jp-findingstatus__line">
           <button
             type="button"
             className="jp-btn jp-btn--secondary jp-btn--sm"
             onClick={() => submit("Resolved")}
-            disabled={isPending}
-            aria-busy={isPending && pending === "Resolved"}
+            {...busyProps("Resolved")}
           >
+            <Check size={16} aria-hidden="true" />
             {label("Resolved", t("markResolved"))}
           </button>
-        )}
-
-        {/* §5-honesty-gate: bara stilkriterier (isIgnorable) får ignoreras. */}
-        {isIgnorable && !isIgnored && (
-          <button
-            type="button"
-            className="jp-btn jp-btn--ghost jp-btn--sm"
-            onClick={() => submit("Ignored")}
-            disabled={isPending}
-            aria-busy={isPending && pending === "Ignored"}
-          >
-            {label("Ignored", t("ignoreRule"))}
-          </button>
-        )}
-
-        {(isResolved || isIgnored) && (
-          <button
-            type="button"
-            className="jp-btn jp-btn--ghost jp-btn--sm"
-            onClick={() => submit("Open")}
-            disabled={isPending}
-            aria-busy={isPending && pending === "Open"}
-          >
-            {label("Open", t("revert"))}
-          </button>
-        )}
-      </div>
+          {/* §5 honesty gate: only style criteria (isIgnorable) may be ignored. */}
+          {isIgnorable && (
+            <button
+              type="button"
+              className="jp-btn jp-btn--ghost jp-btn--sm"
+              onClick={() => submit("Ignored")}
+              {...busyProps("Ignored")}
+            >
+              {label("Ignored", t("ignoreRule"))}
+            </button>
+          )}
+        </div>
+      )}
 
       {error !== null && (
-        <p className="jp-cvreview__status-error" role="alert">
+        <p className="jp-findingstatus__error" role="alert">
           {error}
         </p>
       )}

@@ -1,17 +1,22 @@
 import { useTranslations } from "next-intl";
+import { Info } from "lucide-react";
+import { CvPreambleDisclosure } from "@/components/resumes/cv-preamble-disclosure";
 
 /**
- * CvPreamble — neutral, display-only affordance for the verbatim text a CV carried ABOVE its
- * first heading that no contact extractor claimed (#844, ADR 0109). RSC.
+ * CvPreamble — neutral, display-only notice for the verbatim text a CV carried ABOVE its first
+ * heading that no contact extractor claimed (#844, ADR 0109). RSC.
  *
- * ADR 0109's doctrine: the engine describes, the user classifies. We show the text and say what
- * it is — text above the first heading, not classified — and NEVER claim it is a profile: no
- * badge, no "Hittad i filen", no grading, no prefill. Caller-gated: renders only when `preamble`
- * is non-empty (null = the residue was fully accounted for by name/e-mail/phone/location, the
- * common case, and the case that keeps A8's honest Fail alive).
+ * ADR 0109's doctrine: the engine describes, the user classifies. We say what the text is — text
+ * above the first heading, not classified — and NEVER claim it is a profile: no badge, no "Hittad i
+ * filen", no grading, no prefill. Caller-gated: renders only when `preamble` is non-empty (null =
+ * the residue was fully accounted for by name/e-mail/phone/location, the common case, and the case
+ * that keeps A8's honest Fail alive).
  *
- * TWO CALLERS, TWO GUARANTEE CLASSES (#1060). Rendered in the SERVER component only on both —
- * never hydrated into a client island — but the personnummer control differs by arm and the
+ * The text is folded away behind "Visa texten" (#2083). The toggle is a client island that holds
+ * only the open state; the blockquote is rendered HERE and passed to it as children, so the CV text
+ * is never a client prop.
+ *
+ * TWO CALLERS, TWO GUARANTEE CLASSES (#1060). The personnummer control differs by arm and the
  * difference is deliberate, so read it here rather than assume parity:
  *
  *  - STAGING (`/cv/granska/[parsedId]`, from `ParsedResumeDetailDto.Preamble`): pnr-redacted at
@@ -23,15 +28,9 @@ import { useTranslations } from "next-intl";
  *    `ResumeContentPersonnummerGuard`, enforced by an architecture tripwire. See that DTO's
  *    docblock for why a second read-side redactor there would be worse, not safer.
  *
- * ADR 0109 Amendment (5c-b): the adopt/classify ACTION is FAS-DEFERRED. The Slutför guide that
- * once hosted it is retired (ADR 0112) and the review is read-only, so the affordance is
- * display-only. The honest path to adopt the text is still to give it a heading in the file and
- * upload again.
- *
- * ADR 0109 Amendment (2026-07-27, #1060): the residue no longer BLOCKS auto-promote — that gate
- * is retired. So this component is no longer "the explanation a pending outcome owes the user";
- * on the canonical arm it is the affordance following a CV that saved, and the text it shows is
- * part of that saved CV rather than a loan from a staging row.
+ * ADR 0109 Amendment (5c-b): the adopt/classify ACTION is FAS-DEFERRED. The review is read-only, so
+ * the notice is display-only. The honest path to adopt the text is still to give it a heading in
+ * the file and upload again.
  */
 export function CvPreamble({ preamble }: { preamble: string | null }) {
   const t = useTranslations("resumes");
@@ -40,20 +39,16 @@ export function CvPreamble({ preamble }: { preamble: string | null }) {
   if (!text) return null;
 
   return (
-    <section aria-labelledby="cv-preamble-title" className="flex flex-col gap-3">
-      <h2
-        id="cv-preamble-title"
-        className="text-h3 font-medium text-text-primary"
-      >
-        {t("preamble.title")}
-      </h2>
-      <p className="max-w-[68ch] text-body-sm text-text-primary">{t("preamble.body")}</p>
-      {/* blockquote: the text is quoted verbatim from the user's own file — semantic, not a
-          nested landmark. whitespace-pre-wrap keeps the file's own line breaks. */}
-      <blockquote className="m-0 whitespace-pre-wrap rounded-md border border-border bg-card p-4 text-body-sm text-text-primary">
-        {text}
-      </blockquote>
-      <p className="max-w-[68ch] text-body-sm text-text-primary">{t("preamble.useHint")}</p>
-    </section>
+    <div className="jp-cvnotice">
+      <Info size={18} className="jp-cvnotice__icon" aria-hidden="true" />
+      <p className="jp-cvnotice__text">
+        <strong>{t("preamble.title")}</strong> {t("preamble.body")} {t("preamble.useHint")}
+      </p>
+      <CvPreambleDisclosure showLabel={t("preamble.show")} hideLabel={t("preamble.hide")}>
+        {/* blockquote: the text is quoted verbatim from the user's own file. `pre-wrap` keeps the
+            file's own line breaks. */}
+        <blockquote className="jp-cvnotice__quote">{text}</blockquote>
+      </CvPreambleDisclosure>
+    </div>
   );
 }

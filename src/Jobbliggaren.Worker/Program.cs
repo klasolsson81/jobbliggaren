@@ -25,104 +25,72 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container
-// environment values (Docker persists those to disk in its own container state). LAST source,
-// deliberately: on the box the file is the authority. Development also uses role-specific Redis files; other local options remain in appsettings.Local.json.
+// Secrets named by *_FILE variables arrive as files on a RAM-backed mount instead of as
+// container environment values, which Docker persists to disk (ADR 0050 gate B-1). This is
+// deliberately the last source, so on the server the file wins. Development also reads
+// role-specific Redis files; other local options stay in appsettings.Local.json.
 builder.Configuration.AddEnvFileSecrets();
 
-// TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på
-// Seq:ServerUrl). Delad extension med Api så sink-konfig inte driftar mellan hosts.
+// Structured logging to the console and, when Seq:ServerUrl is set, to Seq. Shared with
+// the API so the two hosts' sinks cannot drift apart.
 builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 
-// DI-validerings-policy (ADR 0023 amendment 2026-06-06, senior-cto-advisor).
-// Host.CreateApplicationBuilder sätter ValidateOnBuild=true i Development.
-// Worker registrerar via AddMediator HELA Application-assemblyns handler-set
-// (Mediator.SourceGenerator scannar per assembly — kan inte subset:as), men
-// laddar MEDVETET bara sin minimala DI-yta per ADR 0023 (HTTP-fri) — INTE
-// AddIdentityAndSessions. Eager ValidateOnBuild
-// försöker därför konstruera Api-only-handlers (Auth) vars
-// deps (t.ex. ISessionStore) Worker
-// aldrig registrerar och aldrig kör → falsk positiv. (IEmailSender registreras
-// via den extraherade AddEmailSender för Vag 4-notisjobben, ADR 0080
-// PR-4b.) På Fargate
-// (Production) var ValidateOnBuild=false så detta dök upp först vid lokal
-// Development-boot efter AWS-avveckling (ADR 0066). ValidateScopes BEHÅLLS
-// (captive-dependency-skydd är hög-värde i Hangfire-host:en där varje job kör i
-// eget scope). Worker:s egna job-handler-deps valideras lazily vid Hangfire-
-// invocation + av WorkerLayerTests + integ-tester. Variant C (split av
-// Application-assemblyn för isolerad Worker-scan) är framtida TD/Trigger.
+// DI validation (ADR 0023 amendment 2026-06-06). AddMediator registers every handler in the
+// Application assembly, since the source generator scans per assembly, but the Worker
+// deliberately loads only its minimal, HTTP-free services. ValidateOnBuild would therefore try
+// to construct API-only handlers whose dependencies (such as ISessionStore) the Worker never
+// registers and never runs, so it is off. ValidateScopes stays on: captive dependencies matter
+// in a host where every job runs in its own scope.
+//
+// Consequence: a missing dependency of a Worker job surfaces only when Hangfire invokes the job.
 builder.ConfigureContainer(new DefaultServiceProviderFactory(
     new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false }));
 
-// Persistence-modul (DbContext, IAppDbContext, IDateTimeProvider, IDbExceptionInspector)
-// — utan HTTP-bagage, utan Identity. Worker-kontextens DI-yta är medvetet minimerad
-// per ADR 0023 / STEG 9.
+// Persistence (DbContext, IAppDbContext, IDateTimeProvider, IDbExceptionInspector) without
+// any HTTP services or Identity (ADR 0023).
 builder.Services.AddPersistence(builder.Configuration);
 
-// HTTP-fri Identity-modul för Worker (per ADR 0024 D6 / STEG 10b). UserManager +
-// AppIdentityDbContext krävs av AccountHardDeleter (HardDeleteAccountsJob använder
-// porten för Identity-DELETE och orphan-cleanup). AddIdentityCore<>() utelämnar
-// AuthenticationScheme/Cookies/SignInManager — håller Worker HTTP-fri.
+// An HTTP-free Identity core (ADR 0024 D6): AccountHardDeleter needs UserManager and
+// AppIdentityDbContext for the hard-delete job. AddIdentityCore leaves out authentication
+// schemes, cookies and SignInManager.
 builder.Services.AddCoreIdentityForWorker(builder.Configuration);
 
-// JobTech-integration (F2-P8c). Refit + IJobTechStreamClient + PlatsbankenJobSource
-// som IJobSource. Resilience-pipelinen (rate-limiter, retry, CB) registreras via
-// Microsoft.Extensions.Http.Resilience. Outgoing HTTP är OK i Worker — ADR 0023
-// förbjuder ASP.NET Core HTTP-server-bagage, inte System.Net.Http-utgående trafik.
+// The JobTech integration: the HTTP clients and PlatsbankenJobSource as IJobSource, with rate
+// limiting, retries and a circuit breaker from Microsoft.Extensions.Http.Resilience. ADR 0023
+// bans ASP.NET Core server components from the Worker, not outgoing HTTP.
 builder.Services.AddJobSources(builder.Configuration);
 
-// Worker-wrappers för DisableConcurrentExecution-attribut på stream- + snapshot-
-// jobben (CTO-rond 2026-05-13 punkt 8 + root-cause-fix 2026-05-16 — snapshot
-// tar tiotals min efter streaming-fixen, måste skyddas mot AutomaticRetry-overlap).
+// Job wrappers carry the Hangfire attributes, such as DisableConcurrentExecution, so a long
+// run is not overlapped by a retry. The Platsbanken snapshot can take tens of minutes.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenStreamWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
-// ADR 0032-amendment 2026-05-23 — retention-wrappers (paritet snapshot,
-// DisableConcurrentExecution-skydd mot Hangfire-retry-overlap).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RetainPlatsbankenJobAdsWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
-// ADR 0080 Vag 4 PR-3 — den dagliga per-user matchnings-scannen. Wrappern DI-resolverar
-// inner-jobbet (BackgroundMatchingJob), så jobbet registreras explicit (paritet ExpireJobAds).
-// AddMatchingEngine ger IMatchScorer + IMatchProfileBuilder i Worker-SP — Worker anropar INTE
-// AddInfrastructure (HTTP-fri, ADR 0023), så dessa portar (registrerade där) saknas annars och
-// ValidateOnBuild=false (TD-103) skulle dölja gapet till Hangfire-invocation 03:20 UTC.
-// #751: jobbet resolvar db/builder/scorer/kontoservice ur en child-scope PER USER (via
-// IServiceScopeFactory, intrinsisk) — portarna måste alltså finnas i Worker-SP:n precis som förr.
+// The daily matching scan (ADR 0080). The job resolves the matching engine's ports in a
+// child scope per user.
 builder.Services.AddMatchingEngine();
-// ADR 0080 Vag 4 PR-4b — IEmailSender för bakgrundsmatchnings-notiserna (Top-direkt-hook i
-// scannen + DigestDispatchJob). Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)
-// utan den extraherade provider-switchen → samma dev=Console, non-dev=Null-grindning som
-// Api, utan drift. Non-dev defaultar till NullEmailSender (vilande) tills Scaleway explicit
-// konfigureras (#183 — både "Resend" och "Ses" kastar numera vid boot, som varje annat okänt värde).
-// DI i samma commit som jobben (feedback_di_with_handlers_same_commit).
+// The email sender, through the same provider switch as the API: console in development, a
+// null sender elsewhere unless Scaleway is configured.
 builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
-// ADR 0087 D5 (#311 PR-4) — den nattliga företagsföljnings-scannen. Egen watermark, org.nr
-// IN-membership, INGEN scorer (drar inte in AddMatchingEngine-portar). Wrapper + jobb i samma commit
-// (TD-103: Worker ValidateOnBuild=false → en saknad dep failar först vid Hangfire-invocation 03:25 UTC).
+// The nightly followed-company scan (ADR 0087 D5): its own watermark, matched on organisation
+// number, with no scorer.
 builder.Services.AddScoped<Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>();
-// #560 (ADR 0091) — SCB company-register population module + Worker wrapper. AddScbCompanyRegister
-// registers the refresh orchestrator + bulk store + partition planner, and (only when
-// ScbRegister:Enabled=true) the real cert-based client with the process-wide 10/10s limiter; else a
-// Null source so cert-less dev/CI stay dark. Worker-only (the Api never populates — parity the
-// registry-free company-watch scan). Wrapper + module in the same commit (TD-103: Worker
-// ValidateOnBuild=false → a missing dep fails first at Hangfire-invocation, verified manually in dev).
+// The SCB company-register refresh (ADR 0091): orchestrator, bulk store and partition planner,
+// plus the certificate-based client with its process-wide rate limiter only when
+// ScbRegister:Enabled is true; otherwise a null source, so development and CI without a
+// certificate stay offline. Only the Worker populates the register.
 builder.Services.AddScbCompanyRegister(builder.Configuration);
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
-// #1681 (ADR 0139) — the criterion-membership materialisation wrapper. Registered
-// EXPLICITLY, parity every sibling above: without this the job still ran, but only
-// because Hangfire.AspNetCore falls back on ActivatorUtilities.GetServiceOrCreate-
-// Instance — a package implementation detail, not a contract of this host, and one
-// nothing in the suite measures (code-reviewer, 2026-09-06).
+// Registered explicitly like every wrapper here. Without it the job would still run, but only
+// because Hangfire.AspNetCore falls back on ActivatorUtilities, a package detail rather than a
+// contract of this host.
 builder.Services.AddScoped<CompanyWatchCriterionMaterialisationWorker>();
-// #1682 — the occupation × SNI-division profile wrapper, same explicit registration for the same reason.
 builder.Services.AddScoped<OccupationDivisionProfileWorker>();
-// ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch (kadens-cap:ad sammanfattning). Två cron-ingångar
-// (Daglig/Veckovis) via DigestDispatchWorker; jobbet filtrerar konsenterade användare på den kadens
-// det anropas för (cron = fönstret). Cap via IOptions (Digest-sektionen, ValidateDataAnnotations +
-// ValidateOnStart — paritet backfill-options). Wrapper + jobb + options i samma commit (TD-103:
-// Worker kör ValidateOnBuild=false, så en saknad dep failar först vid Hangfire-invocation).
+// The match digest (ADR 0080): daily and weekly cron entries; each run sends to the consenting
+// users who chose that cadence. Its cap comes from the validated Digest options.
 builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions>()
     .Bind(builder.Configuration.GetSection(
         Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions.SectionName))
@@ -130,105 +98,69 @@ builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatc
     .ValidateOnStart();
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.DigestDispatchWorker>();
-// TD-114 (ADR 0080 Vag 4) — stranded-Queued match reaper. Marks a UserJobAdMatch left
-// Queued past the threshold as terminal Failed (no re-send). Needs only IAppDbContext +
-// IDateTimeProvider (no IEmailSender / matching engine — it never sends). Wrapper + job in
-// the same commit (TD-103: Worker ValidateOnBuild=false → a missing dep fails first at
-// Hangfire-invocation; verified manually in dev).
+// Marks a match notice left Queued past the threshold as Failed, without re-sending it.
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper.StrandedMatchReaperJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker>();
-// TD-111 (ADR 0074 F4-8) — ParsedResume staging-retention sweep (GDPR Art. 5(1)(e)).
-// Set-based ExecuteDelete, DEK-free (no IRequiresFieldEncryptionKey — see the job doc).
-// Wrapper + job in the same commit (TD-103: Worker ValidateOnBuild=false).
+// Deletes parsed CVs left in staging past their retention (GDPR Art. 5(1)(e)) with one
+// set-based delete that needs no encryption key.
 builder.Services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
-// #1979 — the feedback notice dispatch and the 90-day feedback retention.
+// Feedback notices and feedback retention.
 builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.DispatchFeedbackNotifications.FeedbackNotificationDispatchJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackNotificationDispatchWorker>();
 builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
-// TD-13 C5 (ADR 0049 Beslut 4) — DisableConcurrentExecution-wrapper för
-// fält-krypterings-backfillen (potentiellt långkörande, paritet snapshot).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();
-// STEG 6 (2026-05-24) — DisableConcurrentExecution-wrapper för ssyk-backfill
-// (~2h körnings-tid vid default-throttle, paritet snapshot/field-encryption).
-// Wrappern registreras för framtida cron-användning; Api enqueue:ar för MVP-
-// triggern Application-jobbet direkt (Clean Arch — Api refererar inte Worker).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdSsykWorker>();
-// Fas B2 (2026-06-08, ADR 0067) — DisableConcurrentExecution-wrapper för Klass 2-
-// backfill (~2,5h körnings-tid vid default-throttle mot ~44k rader, paritet
-// ssyk-backfill). Wrappern registreras för framtida cron-användning; Api
-// enqueue:ar för triggern Application-jobbet direkt (Clean Arch — Api refererar
-// inte Worker).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdKlass2Worker>();
-// Fas 4 STEG 4 (F4-4, ADR 0071/0074) — DisableConcurrentExecution-wrapper för
-// extraction-backfill (lokal re-projektion). Wrappern registreras för framtida
-// cron-användning; Api enqueue:ar för triggern Application-jobbet direkt.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdExtractedTermsWorker>();
-// Fas 4 STEG 4b (F4-4b, ADR 0071/0074/0075) — DisableConcurrentExecution-wrapper för
-// requirements re-ingest-backfill (must_have/nice_to_have → Requirement-termer; per-ID-
-// refetch, paritet Klass2). Engångs-op; Api enqueue:ar Application-jobbet direkt.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdRequirementsWorker>();
 
-// ADR 0064 — Worker:s landing-stats-refresh-wrapper. Job-klassen registreras
-// av AddLandingStats() nedan; wrappern bär bara Hangfire-attributet
-// (paritet ExpireJobAdsWorker per ADR 0023 delbeslut 2).
+// The landing-page statistics refresh (ADR 0064). AddLandingStats() below registers the job;
+// the wrapper only carries the Hangfire attribute.
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RefreshLandingStatsWorker>();
 
 // The publishing cache and process readiness share the Worker identity and connection.
 builder.Services.AddWorkerRedisConnection(builder.Configuration);
 builder.Services.AddLandingStats();
 
-// Fas 4 STEG 2 (F4-2) — delad lokal svensk NLP-tier (stemmer/analyzer/spell-check).
-// Standalone-modul (speglar AddLandingStats); BCL-only paket → bryter ej Worker:s
-// HTTP-fria invariant (ADR 0023). Worker konsumerar den i CV-/matchnings-motorerna
-// (F4-4 och framåt). Startup-existens-check på DSSO-filerna körs här.
+// Local Swedish text analysis (stemming, analysis, spell-checking) for the CV and matching
+// engines. It brings no HTTP dependencies, and its dictionary files are checked at startup.
 builder.Services.AddTextAnalysis();
 
 builder.Services.AddApplication();
 
-// Worker-stubs av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).
-// HTTP-baserade implementationerna (CorrelationIdProvider, RequestContextProvider,
-// CurrentUser) är HTTP-only och får aldrig laddas i Worker.
+// Worker implementations of the audit ports (ADR 0022, ADR 0023). The API's versions read the
+// HTTP context and must never be loaded here.
 builder.Services.AddSingleton<ICurrentUser, WorkerSystemUser>();
 builder.Services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
 builder.Services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();
 
-// Mediator-pipeline — delad konstant per ADR 0008 + ADR 0022 garanterar att Api/Worker
-// inte driftar isär. AuditBehavior innerst (atomisk persistens via UoW).
+// The same Mediator pipeline as the API (ADR 0008, ADR 0022), with AuditBehavior innermost so
+// audit rows persist in the same unit of work.
 builder.Services.AddMediator(options =>
 {
     options.ServiceLifetime = ServiceLifetime.Scoped;
     options.Assemblies = [typeof(Jobbliggaren.Application.AssemblyMarker)];
 });
 
-// Pipeline-behaviors registreras explicit (se Api/Program.cs för rationale).
+// Registered explicitly; Api/Program.cs explains why.
 builder.Services.AddMediatorPipelineBehaviors();
 
-// Hangfire-storage. Egen schema "hangfire" undviker konflikt med Jobbliggaren-tabeller.
-// PrepareSchemaIfNecessary styrs per miljö via HangfireWorkerOptions (TD-17 punkt 1):
-// dev/test = true (enklare lokal uppstart), prod = false (schema-DDL körs via
-// docs/runbooks/hangfire-schema.md innan första prod-deploy så Worker-DB-user kan
-// köras med minimal GRANT-set).
+// Hangfire storage in its own "hangfire" schema. Creating the schema is allowed only in
+// Development and Test; elsewhere the DDL is applied beforehand
+// (docs/runbooks/hangfire-schema.md), so the Worker's database user needs no CREATE grant.
 //
-// SECURITY (TD-17 punkt 3): Worker hostar idag ingen Hangfire-dashboard. Om
-// dashboard någonsin exponeras (i Api eller dev-tooling) MÅSTE den skyddas via
-// custom IDashboardAuthorizationFilter + admin-policy + IP-restrict — Hangfire-
-// default är PUBLIK. Dashboard exponerar job-arguments (user-IDs/aggregat-IDs)
-// och stack-traces (potentiellt PII). Se docs/runbooks/hangfire-schema.md.
+// SECURITY: no host mounts the Hangfire dashboard (docs/runbooks/hangfire-schema.md §5). It
+// shows job arguments (user and aggregate ids) and stack traces that may contain personal data.
 //
-// TD-17 punkt 4 — split jobbliggaren_app (Postgres) / jobbliggaren_worker (HangfireStorage)
-// via fallback-kedja. Prod-overlay sätter HangfireStorage; dev faller tillbaka på
-// Postgres. Resolver lyft till testbar statisk metod (STEG 12).
+// The connection string prefers HangfireStorage and falls back to Postgres.
 var hangfireConnectionString = HangfireConnectionStringResolver.Resolve(builder.Configuration);
 
 var hangfireOpts = builder.Configuration.GetSection(HangfireWorkerOptions.SectionName)
     .Get<HangfireWorkerOptions>() ?? new HangfireWorkerOptions();
 
-// Production-defense via allow-list: bara Development och Test får auto-skapa schema.
-// Staging/Preprod/Demo/Production etc. tvingas till explicit overlay (TD-17 punkt 1,
-// security-auditor STEG 11 Sec-Major-1+4). Worker-DB-användarens GRANT-set ska aldrig
-// innehålla CREATE i icke-dev-miljöer.
+// An allow-list: only Development and Test may create the schema.
 var safeForAutoSchema =
     builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test");
 if (!safeForAutoSchema && hangfireOpts.PrepareSchemaIfNecessary)
@@ -239,9 +171,7 @@ if (!safeForAutoSchema && hangfireOpts.PrepareSchemaIfNecessary)
         "docs/runbooks/hangfire-schema.md innan deploy. (TD-17)");
 }
 
-// Range-validering på ShutdownTimeoutSeconds — fail-loud om någon sätter 0/negativt
-// eller orealistiskt högt värde via overlay. Direct-bound config (utan IOptions) ger
-// ingen DataAnnotations-validering "gratis" — manuell guard räcker för en option.
+// The option is bound directly, without IOptions validation, so its range is checked here.
 if (hangfireOpts.ShutdownTimeoutSeconds is < 1 or > 300)
 {
     throw new InvalidOperationException(
@@ -255,42 +185,32 @@ builder.Services.AddHangfire(cfg => cfg
     .UseSimpleAssemblyNameTypeSerializer()
     .UsePostgreSqlStorage(
         opts => opts.UseNpgsqlConnection(hangfireConnectionString),
-        // #688 — factory sets UseSlidingInvisibilityTimeout=true (long jobs keep their fetch
-        // lease via heartbeat instead of being re-fetched at the 30-min invisibility ceiling).
+        // The factory sets UseSlidingInvisibilityTimeout, so a long job keeps its lease through
+        // a heartbeat instead of being fetched again after 30 minutes.
         HangfireStorageOptionsFactory.Create(hangfireOpts.PrepareSchemaIfNecessary)));
 
-// Worker-count explicit satt. Skälet var ursprungligen att Fargate-tasken gav 0,25 vCPU och
-// därmed ProcessorCount=1; den plattformen är riven, och vad containern får på den nya
-// värden är inte avgjort i den här filens räckvidd (#196 äger resurstilldelningen). 4 är
-// valt för IO-bundna Mediator-jobb och är explicit just för att inte följa värdens
-// kärnantal.
+// Four workers, set explicitly so the count does not follow the host's core count; the jobs
+// are I/O-bound.
 //
-// ShutdownTimeout ligger 3 s under host disposal, som i sin tur måste ligga under
-// orkestratorns grace-period, så Hangfire hinner
-// committa job-state innan SIGKILL (TD-17 punkt 6). Grace-perioden är INTE satt i
-// repot ännu — den ägs av #196, som levererar compose-stacken; tills dess står 25 s mot
-// ett kontrakt som ingen fil bär. Alla jobb är idempotenta — vid abort plockar nästa
-// daily run upp igen via orphan/state-check.
+// The shutdown timeout is 3 s below host disposal, which must stay below the container's
+// stop grace period (`stop_grace_period` for the worker in deploy/docker-compose.yml), so
+// Hangfire can commit job state before SIGKILL. All jobs are idempotent: an aborted run is
+// picked up by the next one.
 builder.Services.AddHangfireServer(opts =>
 {
     opts.WorkerCount = 4;
     opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds);
 });
 
-// Generic Host shutdown-timeout — explicit satt så hela timeout-kedjan (Hangfire 25s →
-// Host disposal 28s → orkestratorns grace-period → SIGKILL) är synlig på ett ställe.
-// 3s marginal mellan Hangfire-stop och host-disposal räcker för EF Core dispose +
-// log-flush.
+// The host's shutdown timeout, set explicitly so the chain (Hangfire, then host disposal 3 s
+// later, then the container's grace period, then SIGKILL) is visible in one place. Three
+// seconds is enough for EF Core disposal and log flushing.
 builder.Services.Configure<HostOptions>(opts =>
     opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds + 3));
 
-// #754 (ADR 0045 Beslut 3) — Worker memory trend sampler. Options bound HÄR
-// (inte i AddJobSources) eftersom instrumentet existerar ENDAST i Worker — en
-// delad modul hade tryckt in ett Worker-only-koncept i Api:ts container för
-// ingenting (CTO bind #754 Q4). WorkerMemoryTrendSampler registreras singleton
-// (den bär below/above-cap-edge-state över ticks) — Worker kör
-// ValidateScopes=true och hela beroendekedjan (probe, IOptions, ILogger) är
-// singleton-säker per konstruktion (CTO bind #754 Q2).
+// The Worker memory-trend sampler (ADR 0045 Beslut 3) exists only in the Worker, so its
+// options are bound here rather than in a shared module. It is a singleton because it keeps
+// state across ticks; its whole dependency chain is singleton-safe.
 builder.Services.AddOptions<Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendOptions>()
     .Bind(builder.Configuration.GetSection(
         Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendOptions.SectionName))
@@ -302,7 +222,7 @@ builder.Services.AddSingleton<
 builder.Services.AddSingleton<Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendSampler>();
 builder.Services.AddHostedService<Jobbliggaren.Worker.Hosting.WorkerMemoryTrendService>();
 
-// Recurring-jobs registreras vid host-start.
+// Registers the recurring jobs at host start.
 builder.Services.AddHostedService<RecurringJobRegistrar>();
 
 builder.Services.AddHostedService<WorkerReadinessSocketService>();

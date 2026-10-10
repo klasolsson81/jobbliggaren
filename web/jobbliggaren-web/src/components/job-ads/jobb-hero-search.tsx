@@ -46,31 +46,28 @@ import {
 import { JobAdTypeahead } from "./job-ad-typeahead";
 
 /**
- * Hero-sökruta som SPEGLAR söket (Fas E2i, Klas-val 2026-06-11 "Normal ruta
- * som speglar söket" — ersätter E2h:s chips-i-fältet som blev fult renderat
- * och inte visade alla taggar i filter-raden).
+ * The hero search field, which mirrors the current search as text.
  *
- * Modell (CTO VAL 1 = Variant C′, docs/reviews/2026-06-11-sok-paritet-
- * e2i-cto.md): fältets text är ANVÄNDARENS buffert; URL:en är persistent
- * sanning; invariant I1: parse(text) ⊆ state (delmängd — state får bära MER:
- * popover-valda dimensioner och icke-representabla labels lever enbart i
- * filter-raden under träffarna, som är TOTAL spegel; fältet är best-effort).
+ * The field's text is the user's buffer and the URL is the source of truth. The
+ * invariant is parse(text) ⊆ state: the state may hold more than the text, because
+ * filters chosen in the popovers, and labels that cannot be written as text, appear
+ * only in the filter row under the results. That row mirrors everything; the field
+ * is best effort.
  *
- * - **Egen skrivning = delta-parse vid commit-punkter** (avgränsar-keystroke,
- *   Enter/Sök, förslags-val): skillnaden mellan föregående och nya text-
- *   anspråk appliceras på staten — popover-valda filter som texten aldrig
- *   gjort anspråk på rörs inte. Ordet under caret är pågående (CTO VAL 3 —
- *   radering mitt i ett ord släpper inte filtret per keystroke).
- * - **Texten behålls** — ord försvinner ALDRIG ur fältet vid taggning
- *   (E2d/E2h-felklassen). Tar man bort en tagg i filter-raden (×) uppdateras
- *   texten via extern-divergens-synken (kirurgisk borttagning som bevarar
- *   ordningen; annars kanonisk serialize).
- * - **Popover-val skrivs INTE in i texten** (CTO VAL 4a) — fältet visar det
- *   SKRIVNA; filter-raden visar allt.
- * - `router.replace` + `{scroll:false}` (E2h VAL 2 består); toolbar pushar.
- * - No-JS/pre-hydration: samma fält, med `name="q"` och värdet q; efter
- *   hydration är det NAMNLÖST (texten "Göteborg systemutvecklare" som q vore
- *   dubbel-filtrering) — hidden inputs bär de riktiga parametrarna.
+ * - **Typing applies a delta at commit points** (a separator key, Enter or the
+ *   search button, picking a suggestion): the difference between the previous and
+ *   the new text claims is applied to the state, so filters the text never claimed
+ *   are left alone. The word under the caret is still being typed, so deleting
+ *   inside a word does not drop its filter on every keystroke.
+ * - **Text is never removed by tagging.** Removing a chip in the filter row updates
+ *   the text through the external-change sync: a surgical removal that keeps the
+ *   order, otherwise a canonical re-serialisation.
+ * - **Popover choices are not written into the text.** The field shows what was
+ *   typed; the filter row shows everything.
+ * - Navigation uses `router.replace` with `{ scroll: false }`; the toolbar pushes.
+ * - Before hydration and without JavaScript the same field is named `q` and holds
+ *   `q`. Once hydrated it has no name, since submitting the mirrored text as q would
+ *   filter twice; hidden inputs carry the real parameters.
  */
 
 interface JobbHeroSearchProps {
@@ -79,46 +76,30 @@ interface JobbHeroSearchProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
-  // #551 punkt 4 — Distans. Aldrig text-representabel i fältet, precis som
-  // Klass 2 nedan, och bärs därför genom delta-/commit-vägen. UTAN denna tråd
-  // bygger fältets commit en href som tappar `?distans=on` — och den vägen
-  // träffas av Enter, Sök-knappen, förslags-val, ×-clear OCH live-deltat per
-  // tangenttryck, alltså tystast tänkbara radering av ett aktivt filter.
+  // The filters below are never written as text in the field, but every commit and
+  // the no-JS form must carry them. Otherwise a commit from the field (Enter, the
+  // search button, a suggestion, clearing, or a live delta while typing) would build
+  // a URL without them and silently drop an active filter.
   remote: boolean;
-  // Klass 2 (2026-06-13) — panel-valda anställningsform/omfattning. Aldrig
-  // text-representabla i fältet (som popover-dimensionerna, CTO VAL 4a) —
-  // de bärs bara genom delta-/commit-vägen så en sökord-ändring inte raderar
-  // ett aktivt Klass-2-filter (buildJobbHref kräver dem; utan denna tråd
-  // skulle fältets commit bygga en href som tappar dem).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
-  // STEG 5 (grade-filter, 2026-06-23) — aktivt matchningsgrad-filter. Som
-  // Klass-2-dimensionerna: aldrig text-representabelt i fältet, men bärs genom
-  // commit-/delta-vägen + no-JS-hidden-inputs så en sökord-ändring inte raderar
-  // ett aktivt grad-filter (buildJobbHref kräver fältet).
   matchGrades: ReadonlyArray<string>;
-  // #454 PR-0 — aktivt arbetsgivar-filter (ETT org.nr, page-validerat). Som
-  // Klass-2-dimensionerna: aldrig text-representabelt i fältet, men bärs genom
-  // commit-/delta-vägen + no-JS-hidden-input så en sökord-ändring inte raderar
-  // ett aktivt arbetsgivar-filter (samma param-bevarande-disciplin).
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
-  // #419 pt6 (CTO A1) — commit-intent på mount-URL:en (page.tsx parsar `?commit=true`).
-  // Init-värde för `savedByIntent`: true ⇒ sökningen är redan sparad (Enter/Sök/förslag/
-  // no-JS-submit fångade den) → ingen "Spara sökningen"-länk. false (delad/bokmärkt URL
-  // utan commit) ⇒ länken visas så mottagaren kan spara söket i sin lista.
+  // Whether the URL this page loaded with carried `?commit=true`. If it did, the
+  // search is already saved and the "Spara sökningen" link is hidden; a shared or
+  // bookmarked URL without it shows the link, so its recipient can save the search.
   initialCommitted: boolean;
 }
 
 const emptySubscribe = () => () => {};
 
 /**
- * Hjälpradens notis-slot (#823). Ett värde i taget:
- * - `limit`    — söktexten är full (Q_MAX_LENGTH): skrivna ord committas inte.
- * - `tooShort` — den sammansatta söktexten är kortare än Q_MIN_LENGTH och används
- *   därför inte i sökningen (dimensionerna körs ändå — spegling av backendens
- *   SearchQueryParser).
+ * The help line's notice, one at a time:
+ * - `limit`: the search text is full (Q_MAX_LENGTH), so further words are not committed.
+ * - `tooShort`: the combined search text is shorter than Q_MIN_LENGTH and is not used
+ *   in the search; the filters still apply, as in the backend's SearchQueryParser.
  */
 type Notice =
   | { kind: "limit" }
@@ -173,8 +154,6 @@ export function JobbHeroSearch({
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
-      // #454 PR-0 — bärs genom delta-/commit-vägen så en sökord-ändring inte
-      // raderar arbetsgivar-filtret (ingår i sameUrlState-komparatorn).
       employer,
       sortBy,
       pageSize,
@@ -194,58 +173,50 @@ export function JobbHeroSearch({
     ],
   );
 
-  // Fältets text — användarens buffert. Initieras till kanonisk spegel av
-  // landnings-staten (recent-/direktlänk-navigering visar sitt sök).
+  // The field's text starts as the canonical mirror of the URL the page loaded with,
+  // so a recent search or a direct link shows its search.
   const [text, setText] = useState(() =>
     serializeSearchText(base, resolveLabel, labelIndex),
   );
   const [caret, setCaret] = useState<number | null>(null);
-  // Hjälpradens notis-slot. Ett värde i taget: "limit" = söktexten är full
-  // (Q_MAX_LENGTH), "tooShort" = söktexten är kortare än Q_MIN_LENGTH (#823).
-  // Båda vaktar samma sak — att navigera med ett q som backend avvisar (400) och
-  // därmed måla teknisk-fel-kortet mitt i skrivflödet.
+  // Both notices guard the same thing: navigating with a q the backend would reject
+  // with 400, which would show the technical-error card while the user types.
   const [notice, setNotice] = useState<Notice>(null);
   const [announcement, setAnnouncement] = useState("");
 
-  // #419 pt6 (CTO A1) — "är det här söket sparat i Senaste sökningar?". SSOT-signalen
-  // är commit-INTENT: true efter en avsiktlig commit (Enter/Sök/förslags-val/×-clear —
-  // alla markCommit), false efter en live-delta (typeahead utan Enter). Init ur
-  // mount-URL:ens commit-flagga. Sätts på ETT ställe (commit()); extern-divergens sätter
-  // det direkt (recent-nav = redan sparad). `savedNotice` = den korta inline-bekräftelsen
-  // efter ett explicit spara-klick (självrensande vid nästa redigering).
+  // Whether this search is saved in recent searches. It is true after a deliberate
+  // commit (Enter, the search button, a suggestion, clearing) and false after a live
+  // delta. commit() sets it, and an external change sets it to true, since navigating
+  // to a recent search means it is already saved. `savedNotice` is the short inline
+  // confirmation after the user clicks save; the next edit clears it.
   const [savedByIntent, setSavedByIntent] = useState(initialCommitted);
   const [savedNotice, setSavedNotice] = useState(false);
 
-  // Senast applicerade text-anspråk (delta-basen). Init mot start-texten
-  // så landnings-spegeln inte re-committas som "nya" anspråk. State (inte
-  // ref) — läses/skrivs i render-sentinelen nedan (react-hooks/refs
-  // förbjuder ref-access under render).
+  // The text claims last applied: the base for the next delta. It starts from the
+  // initial text, so the mirrored search is not committed again as new claims. It is
+  // state, not a ref, because the render-time check below reads and writes it.
   const [prevClaims, setPrevClaims] = useState<ParsedClaims>(() =>
     parseSearchText(text, labelIndex, null),
   );
 
-  // ARBETS-STATEN (delta-basen): URL-sanningen sådan vi känner den
-  // INKLUSIVE egna in-flight-commits. Delta-appliceringen går mot denna —
-  // INTE mot en useOptimistic-overlay, som reverterar till (stale) base
-  // mellan transitions och då skulle tappa nyss committade dimensioner ur
-  // nästa delta-bas (CTO-addendum BESLUT 3, deviation-ACK).
+  // The working state: the URL state as this component knows it, including its own
+  // commits still in flight. Deltas apply to this, not to a useOptimistic overlay,
+  // which reverts to the stale base between transitions and would drop just-committed
+  // filters from the next delta's base.
   const [lastCommitted, setLastCommitted] = useState<JobbUrlState>(base);
-  // Own-roundtrip-DETEKTORN (CTO-addendum BESLUT 1): lista över egna
-  // commits i flykt — singel-värdet räckte inte (två commits i flykt →
-  // mellanliggande egen props-leverans mis-klassades som extern och
-  // serialiserade om texten mitt under skrivning, E2d/E2h-felklassen).
-  // Base som matchar NÅGON post = egen (prune t.o.m. träffen; lastCommitted
-  // RÖRS EJ — den ligger före base tills listan är tom); annars extern.
+  // Detects this component's own round trips. It must be a list: with two commits in
+  // flight, a single value misclassified the first arriving props as an external
+  // change and re-serialised the text mid-typing. A base matching any entry is our
+  // own (the list is pruned up to the match and lastCommitted is left alone, since it
+  // is ahead of base until the list empties); anything else is external.
   const [recentCommits, setRecentCommits] = useState<JobbUrlState[]>([]);
   const [prevBase, setPrevBase] = useState(base);
   if (base !== prevBase) {
     const hitIndex = recentCommits.findIndex((s) => sameUrlState(base, s));
     const adoptSortPageSize = () => {
-      // Adoptera sort/pageSize ur basen — sameUrlState jämför dem inte, så
-      // en extern sort-ändring vars filter-axlar matchar (in-flight-post
-      // eller oförändrad state) får inte lämna stale sortBy i delta-basen
-      // (code-reviewer re-review Minor: nästa text-commit skulle annars
-      // tyst revertera sort-valet).
+      // sameUrlState ignores sort and page size, so they are taken from the base here.
+      // Otherwise an external sort change with unchanged filters would leave a stale
+      // sortBy in the delta base, and the next text commit would silently revert it.
       if (
         lastCommitted.sortBy !== base.sortBy ||
         lastCommitted.pageSize !== base.pageSize
@@ -257,26 +228,22 @@ export function JobbHeroSearch({
         });
     };
     if (hitIndex >= 0) {
-      // Egen roundtrip (in-flight-commit landar) — texten orörd.
+      // Our own commit has arrived: the text stays as it is.
       setRecentCommits(recentCommits.slice(hitIndex + 1));
       adoptSortPageSize();
     } else if (sameUrlState(base, lastCommitted)) {
-      // E2j skip-guard: den inkommande basens filter-state (q + dimensioner)
-      // matchar vad vi SENAST committade — endast en icke-state-param
-      // (commit-flaggan, sort eller pageSize) skiftade. Texten speglar redan
-      // den staten → ingen resync, ingen extern-divergens-klassning. Detta
-      // skyddar strip-efter-mount (?commit=1-borttagning, StripCommitParam)
-      // från att felaktigt serialisera om användarens text (E2d/E2h-felklassen).
-      // Jämförs mot lastCommitted (hero:ns auktoritativa state), INTE prevBase
-      // — prevBase kan vara stale (props uppdateras inte synkront med egna
-      // commits) och en äkta extern "Rensa allt" till tomt får då inte
-      // miss-klassas som no-op. sort/pageSize adopteras fortfarande.
+      // The filters match what was last committed; only a parameter outside the
+      // state changed (the commit flag, sort or page size). The text already mirrors
+      // this state, so it is not re-synced. This keeps StripCommitParam's removal of
+      // `?commit=true` after mount from re-serialising the user's text. The comparison
+      // is against lastCommitted, not prevBase: prevBase can be stale, and a real
+      // external "clear all" must not be mistaken for a no-op.
       adoptSortPageSize();
     } else {
-      // EXTERN divergens (toolbar-×/Rensa/recent-nav): synka texten,
-      // nollställ delta-bokföringen + caret/notis/annons (annars kan en
-      // stale suggestQuery hålla listan öppen och en identisk framtida
-      // annons-sträng utebli — code-reviewer Minor 2 + design Mi2).
+      // An external change (a chip removed in the toolbar, "clear all", a recent
+      // search): sync the text and reset the delta bookkeeping, caret, notice and
+      // announcement. Otherwise a stale suggestion query could keep the list open,
+      // and an identical later announcement would not be read out.
       const nextText = updateTextForStateChange(
         text,
         prevBase,
@@ -291,26 +258,22 @@ export function JobbHeroSearch({
       setAnnouncement("");
       setLastCommitted(base);
       setRecentCommits([]);
-      // #419 pt6 — extern divergens (recent-nav/toolbar-×/Rensa): state kom utifrån
-      // URL:en → behandla som redan-i-världen (recent-nav ÄR en sparad sökning). Nolla
-      // spara-bekräftelsen; capture förblir backendens best-effort-ansvar.
+      // State that came from the URL counts as saved: a recent search already is.
       setSavedByIntent(true);
       setSavedNotice(false);
     }
     setPrevBase(base);
   }
 
-  // markCommit (E2j) = avsiktlig commit (Enter/Sök/förslags-val/×-clear) →
-  // ?commit=1-suffix så backend auto-capturerar. Live-delta (onFieldChange)
-  // utelämnar det. commit-flaggan ligger UTANFÖR JobbUrlState/buildJobbHref/
-  // sameUrlState (transient signal) — den adderas bara på navigerings-
-  // strängen och strippas efter mount (StripCommitParam).
+  // `markCommit` marks a deliberate commit (Enter, the search button, a suggestion,
+  // clearing): the URL gets `?commit=true` so the backend saves the search. A live
+  // delta leaves it out. The flag is not part of JobbUrlState, buildJobbHref or
+  // sameUrlState; it is added to the navigation URL only, and StripCommitParam removes
+  // it after mount.
   function commit(next: JobbUrlState, announce: string, markCommit = false) {
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
-    // #419 pt6 (CTO A1) — ETT ställe för spar-signalen: en avsiktlig commit (markCommit)
-    // capture:as av backend (?commit=true) → sparad; en live-delta (markCommit=false) är
-    // en ny osparad sökning → länken återkommer. Enda mutationspunkten utöver spara-klicket.
+    // The only place, apart from the save click, that sets whether the search is saved.
     setSavedByIntent(markCommit);
     startTransition(() => {
       const href = buildJobbHref(next);
@@ -321,9 +284,8 @@ export function JobbHeroSearch({
     if (announce) setAnnouncement(announce);
   }
 
-  // #823 — SPOT för notis-precedensen. `limit` väger tyngst: där FÖRLORAR användaren
-  // skriven text (taket är nått), medan ett för kort ord bara inte används i sökningen.
-  // Tre kopior av en precedensregel är tre ställen att få den fel på.
+  // The one place that decides which notice wins. `limit` outranks `tooShort`: at the
+  // limit the user loses typed text, while a short word is merely not used.
   function noticeFor(result: ClaimsDeltaResult): Notice {
     if (result.rejectedQ.length > 0) return { kind: "limit" };
     const tooShort = result.tooShortQ[0];
@@ -331,9 +293,9 @@ export function JobbHeroSearch({
     return null;
   }
 
-  // Notis-texten annonseras genom den befintliga annons-regionen (EN live-region i
-  // komponenten) — hjälpraden är därför INTE längre en egen role="status". Annars
-  // annonserades hela default-hjälptexten om varje gång en notis släcktes.
+  // Notices are announced through the component's single live region. The help line
+  // is therefore not a role="status" of its own, which would read the whole help text
+  // aloud again every time a notice cleared.
   function noticeText(next: Notice): string | null {
     if (next?.kind === "limit")
       return t("heroSearch.limitNotice", { max: Q_MAX_LENGTH });
@@ -350,7 +312,7 @@ export function JobbHeroSearch({
     return text ? [text] : [];
   }
 
-  // Delta-commit (C′ regel 1): parse → diff mot förra anspråken → applicera.
+  // Parse the text, diff it against the previous claims, and apply the difference.
   function runDelta(nextText: string, caretIndex: number | null) {
     const claims = parseSearchText(nextText, labelIndex, caretIndex);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
@@ -369,8 +331,8 @@ export function JobbHeroSearch({
     if (!sameUrlState(result.next, lastCommitted)) {
       commit(result.next, announce);
     } else if (announce) {
-      // Staten ändrades inte (t.ex. enbart ett enteckensord skrevs), så ingen commit —
-      // men notisen måste ändå nå skärmläsaren.
+      // Nothing to commit (for example a one-letter word), but the notice must still
+      // reach a screen reader.
       setAnnouncement(announce);
     }
   }
@@ -393,45 +355,36 @@ export function JobbHeroSearch({
   function onFieldChange(nextText: string, caretIndex: number | null) {
     setText(nextText);
     setCaret(caretIndex);
-    // #419 pt6 — börja användaren redigera söket är ev. "sparad"-bekräftelse inaktuell
-    // (redan på första tecknet, före delta-commit) → nolla den så UI:t inte påstår sparat
-    // om texten redan divergerat. Länken återkommer när deltat committas (savedByIntent).
+    // Any edit makes a "saved" confirmation stale, from the first keystroke.
     if (savedNotice) setSavedNotice(false);
-    // #823 — min-längdsnotisen beskriver det SENAST försökta söket, så vilken redigering
-    // som helst gör den inaktuell: släpp den på tangenttrycket. Ett pågående ord är INTE
-    // en commit-punkt (CTO VAL 3), så utan detta hade notisen stått kvar och påstått
-    // "minst 2 tecken" medan fältet redan visade fler — eller, värre, medan fältet var
-    // TOMT (×-knappen renderas inte då, så användaren kunde inte ens rensa bort den).
-    // Räcker texten fortfarande inte sätts notisen om vid nästa commit-försök.
+    // The too-short notice describes the last attempted search, so any edit makes it
+    // stale. A word in progress is not a commit point, so without this the notice could
+    // stay while the field showed more characters, or while the field was empty and had
+    // no clear button to dismiss it. If the text is still too short, the next commit
+    // sets the notice again.
     if (notice?.kind === "tooShort") {
       setNotice(null);
-      // Nolla ÄVEN annonsen. Annars ligger notissträngen kvar i live-regionen, och nästa
-      // för-korta försök producerar en IDENTISK sträng → ingen DOM-mutation → aria-live
-      // fyrar aldrig. Seende användare ser notisen igen; skärmläsaren får total tystnad
-      // efter ett tryck på primär-CTA:n (WCAG 4.1.3). Samma felklass som extern-divergens-
-      // grenen ovan redan nollar annonsen för.
+      // Clear the announcement too. Otherwise the next too-short attempt produces an
+      // identical string, the live region does not change, and a screen reader hears
+      // nothing (WCAG 4.1.3). Pressing search twice on the same short word without an
+      // edit stays silent on purpose: nothing new has happened.
       setAnnouncement("");
     }
-    // (Två Sök-tryck på SAMMA för-korta ord utan mellanliggande redigering förblir tyst:
-    // identisk sträng → ingen DOM-mutation. Medvetet — ingenting nytt har hänt, och att
-    // upprepa samma mening vore brus. Det är redigeringen som gör notisen inaktuell.)
-    // Commit-punkt = tecknet före caret är en avgränsare (ordet avslutades
-    // nyss). Ren radering committas inte per keystroke — deltat landar vid
-    // nästa commit-punkt/Enter (CTO VAL 3, dokumenterad konsekvens).
+    // A commit point is a separator just before the caret: a word was just finished.
+    // Deleting alone is not committed per keystroke; the delta lands at the next
+    // commit point or Enter.
     const justTyped = caretIndex !== null ? nextText[caretIndex - 1] : null;
     if (justTyped === " " || justTyped === ",")
       runDelta(nextText, caretIndex);
   }
 
-  // Förslags-val (klick / Tab / pil+Enter). Text-insert är GATED: labeln
-  // skrivs in ENDAST om parse bevisligen återfinner den (dimensions-label:
-  // isTextRepresentable; Title-label: inga taxonomi-ord — annars skulle
-  // texten claima en dimension staten inte fick, I1-brott; code-reviewer
-  // Major 2). State går via DELTA-vägen (enforcement-täckt, CTO BESLUT 2-
-  // synergin) + en garanterad compose av själva valet (täcker icke-
-  // insertbara: ambiguös label/Title-med-taxonomi-ord — staten får valet,
-  // texten claimar det inte) + slutlig enforceClaims (compose-vägens
-  // normalisering får inte släcka text-claimade dimensioner).
+  // A suggestion picked by click, Tab or arrow keys and Enter. Its label is written
+  // into the text only if parsing would find it again (isTextRepresentable for a
+  // filter; a title must contain no taxonomy words), or the text would claim a filter
+  // the state does not have. The state goes through the delta path, then the pick
+  // itself is composed in (so a label that cannot be inserted still reaches the
+  // state), and enforceClaims runs last so that composing cannot drop a filter the
+  // text claims.
   function onSelectSuggestion(suggestion: SuggestionDto) {
     const range =
       caret !== null
@@ -441,13 +394,11 @@ export function JobbHeroSearch({
       suggestion.kind === "Title"
         ? parseSearchText(suggestion.label, labelIndex, null).matches
             .length === 0
-        : // #1546 — en arbetsgivare skrivs ALDRIG in i fältet. Skrivet som en egen
-          // gren i stället för att falla igenom på `conceptId !== null`: det gamla
-          // uttrycket gav rätt svar av fel skäl (arbetsgivare saknar conceptId), och
-          // nästa kind hade ärvt olyckan. Skälet: ett arbetsgivarnamn är inte
-          // text-representabelt — vore det det, skulle "Volvo" som fritext göra
-          // anspåk på ?employer= som användaren aldrig valde (I1-brott). Axeln sätts
-          // enbart via composeSuggestionChip nedan, och tas bort via toolbarens chip.
+        : // An employer is never written into the field: if it were, "Volvo" typed as
+          // free text would claim an `?employer=` the user never chose. The employer
+          // filter is set only through composeSuggestionChip and removed through the
+          // toolbar chip. It is checked explicitly rather than relying on employers
+          // having no conceptId.
           suggestion.kind !== "Employer" &&
           suggestion.conceptId !== null &&
           isTextRepresentable(
@@ -471,17 +422,13 @@ export function JobbHeroSearch({
     setText(nextText);
     setCaret(null);
     setPrevClaims(delta.appliedClaims);
-    // OBS (#823): composeSuggestionChip kan appenda ett Title-q-ord EFTER att
-    // applyClaimsDelta kört sin q-min-regel, så ett enteckens Title-förslag ("C", "R")
-    // skulle kunna committa ?q=C utan notis. Server-klampen i page.tsx fångar det (ingen
-    // 400, inget felkort) — men regeln bor alltså inte på ETT ställe för just den vägen.
-    // Ofarligt i praktiken (inga enteckens-labels i taxonomin idag); dokumenterat hellre
-    // än tyst.
+    // composeSuggestionChip can append a title word to q after applyClaimsDelta has
+    // applied the minimum-length rule, so a one-letter title suggestion could commit
+    // `?q=C` without a notice. The server-side clamp in page.tsx still prevents a 400.
     const selectNotice = noticeFor(delta);
     setNotice(selectNotice);
-    // Förslags-val är en commit-punkt (E2j): committa ALLTID med commit-intent
-    // så sökningen auto-capturas — även i det sällsynta fall valet inte
-    // ändrar filter-staten (re-val av redan applicerat förslag = "kör igen").
+    // A pick always commits with intent, so the search is saved, even when it does not
+    // change the filters (picking an applied suggestion again means "run it again").
     commit(
       withSelection,
       [
@@ -492,11 +439,10 @@ export function JobbHeroSearch({
     );
   }
 
-  // Sök/Enter utan markerat förslag: finalisera HELA texten (inget caret-
-  // undantag) — pågående ord committas. E2j: detta är den primära commit-
-  // punkten → committa ALLTID med commit-intent (?commit=1), även när filter-
-  // staten är oförändrad. "Sök" betyder "kör/spara den här sökningen" — en
-  // re-sökning på samma filter ska bumpa recency, inte vara en no-op.
+  // Search or Enter without a highlighted suggestion: the whole text is final, including
+  // the word in progress. It always commits with intent (`?commit=true`), even when the
+  // filters are unchanged, because searching again should move the search to the top of
+  // the recent list.
   function onSubmitText() {
     const claims = parseSearchText(text, labelIndex, null);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
@@ -518,12 +464,10 @@ export function JobbHeroSearch({
     );
   }
 
-  // ×-clear (E2j, CTO VAL 4 = semantik ii): rensa texten + de filter texten
-  // gjorde anspråk på (parse(text)-delmängden) — INTE popover-valda
-  // dimensioner (I1: state får bära mer än texten). Delta mot tomma claims
-  // tar bort exakt prevClaims ur staten; popover-dim överlever. Egen commit
-  // via commit()-vägen (recentCommits-registrering) så texten inte
-  // serialiseras om vid props-retur. commit-intent satt (CTO VAL 5 punkt 3).
+  // The clear button removes the text and the filters the text claimed, but not filters
+  // chosen in the popovers: a delta against empty claims removes exactly prevClaims.
+  // It commits through commit(), so the returning props are recognised as our own and
+  // the text is not re-serialised. It commits with intent.
   function onClear() {
     const delta = applyClaimsDelta(lastCommitted, prevClaims, EMPTY_CLAIMS, taxonomy);
     setText("");
@@ -533,8 +477,7 @@ export function JobbHeroSearch({
     commit(delta.next, t("heroSearch.announceCleared"), true);
   }
 
-  // Suggest-prefix = ordet under caret (fältet bär hela söktexten — förslag
-  // ska gälla det man skriver, inte hela strängen).
+  // Suggestions are for the word under the caret, not the whole search text.
   const caretToken =
     caret !== null ? getTokenRange(text, caret) : null;
   const suggestQuery = caretToken
@@ -551,45 +494,34 @@ export function JobbHeroSearch({
       ["occupationGroup", lastCommitted.occupationGroup],
       ["region", lastCommitted.region],
       ["municipality", lastCommitted.municipality],
-      // Klass 2 — no-JS-submit bär aktiva anställningsform/omfattning-filter så
-      // en sökord-sökning utan JS inte tappar panelvalen.
       ["employmentType", lastCommitted.employmentType],
       ["worktimeExtent", lastCommitted.worktimeExtent],
-      // STEG 5 — no-JS-submit bär aktivt grad-filter (paritet med Klass-2).
       ["matchGrades", lastCommitted.matchGrades],
-      // #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökordssökning utan
-      // JS inte tappar det. Låg utanför listan medan axeln var enkelvärd; sedan #1547 är
-      // den en vanlig joinad axel och serialiseras här, en gång.
       ["employer", lastCommitted.employer ?? []],
     ] as const
   )
     .map(([name, values]) => [name, serializeJobbAxis(values)] as const)
     .filter(([, joined]) => joined.length > 0);
 
-  // #419 pt6 (CTO A1) — "sparbart sök?" speglar backendens capture-guard
-  // (RecentJobSearchCaptureBehavior: q ELLER någon dimension icke-tom; matchGrades/
-  // sortBy/runtime-flaggor räknas INTE). Samma knowledge piece, inte en egen definition.
+  // Mirrors the backend's capture rule in RecentJobSearchCaptureBehavior: a search is
+  // savable when it has q, an occupation, a place, remote work, an employment type or
+  // working hours. Match grades, sort and view toggles do not count.
   const hasSavableSearch =
     committedQ.length > 0 ||
     lastCommitted.occupationGroup.length > 0 ||
     lastCommitted.region.length > 0 ||
     lastCommitted.municipality.length > 0 ||
-    // #551 punkt 4 — ICapturesRecentSearch bär Remote sedan #551 PR-D, så ett
-    // rent Distans-sök ÄR sparbart backend-sidigt. Samma knowledge piece.
     lastCommitted.remote ||
     lastCommitted.employmentType.length > 0 ||
     lastCommitted.worktimeExtent.length > 0;
 
-  // "Spara sökningen"-länken visas när det finns ett sparbart sök som ännu inte
-  // committats med intent (typeahead-komponerat utan Enter/Sök). Klick återkommittar
-  // nuvarande state MED intent → backend auto-capturerar (samma väg som "kör om sök",
-  // ingen ny navigeringsmekanik); commit() sätter savedByIntent → länken försvinner.
+  // "Spara sökningen" shows when a savable search has not been committed with intent,
+  // for example one composed from suggestions without Enter. Clicking it commits the
+  // current state again with intent, so the backend saves it, and commit() hides the link.
   function onSaveSearch() {
-    // Dirigera bekräftelsen genom den BEFINTLIGA persistenta aria-live-regionen
-    // (commit → setAnnouncement) i stället för en villkorligt mountad role="status" —
-    // en live-region som injiceras med sitt innehåll redan på plats annonseras inte
-    // tillförlitligt av alla skärmläsare (design-reviewer Minor, a11y §6). Den synliga
-    // .jp-hero__searchsaved-spanen är då rent visuell (aria-hidden) → ingen dubbel.
+    // The confirmation is announced through the persistent live region below. A live
+    // region mounted together with its content is not reliably announced by every
+    // screen reader, so the visible confirmation is aria-hidden.
     commit(lastCommitted, t("heroSearch.saved"), true);
     setSavedNotice(true);
   }
@@ -625,11 +557,9 @@ export function JobbHeroSearch({
           inputClassName="jp-hero__input"
           ariaDescribedBy={notice ? `${helpId} ${noticeId}` : helpId}
         />
-        {/* Kontrollerad ×-clear (E2j): ersätter native
-            ::-webkit-search-cancel-button (suppress:ad i CSS) som bara
-            rensade texten utan att committa en delta → filtren överlevde.
-            Denna går genom onClear → applyClaimsDelta(EMPTY_CLAIMS) (semantik
-            ii). Visas bara när det finns text att rensa. */}
+        {/* Replaces the browser's own clear button (hidden in CSS), which cleared the
+            text without committing a delta, so the filters survived. Shown only when
+            there is text to clear. */}
         {hydrated && text.length > 0 && (
           <button
             type="button"
@@ -644,14 +574,11 @@ export function JobbHeroSearch({
           <Search size={18} aria-hidden="true" /> {t("heroSearch.submit")}
         </button>
       </div>
-      {/* Hjälptext bär tagg-/Tab-instruktionen (ALDRIG placeholder — Klas hård regel).
-          INGEN role="status" (#823): raden bytte tidigare innehåll mellan hjälptext och
-          notis, så varje släckt notis lät skärmläsaren läsa upp HELA default-hjälptexten på
-          nytt. Notiserna annonseras i stället genom komponentens enda live-region.
-          Notisen LÄGGS TILL — den ersätter inte hjälptexten (#823, design-review): annars
-          försvinner instruktionen för hela sökmodellen, både visuellt och ur fältets
-          accessible description, i exakt det läge användaren visade sig behöva den. Båda
-          raderna ingår i aria-describedby (GOV.UK hint + message). */}
+      {/* The help text carries the instruction; the field has no placeholder. It is not
+          a role="status": notices are announced through the component's single live
+          region. A notice is added below the help text rather than replacing it, so the
+          instruction stays visible and in the field's description when it is most
+          needed. Both lines are in aria-describedby (GOV.UK's hint and message). */}
       <p id={helpId} className="jp-hero__searchhelp">
         {t("heroSearch.help")}
       </p>
@@ -664,12 +591,8 @@ export function JobbHeroSearch({
         </p>
       )}
 
-      {/* #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken: diskret text-knapp
-          (INTE <a> — ingen navigering) som visas när ett sparbart sök komponerats via
-          typeahead utan Enter/Sök (osparat). Klick capture:ar via ?commit=true + visar en
-          kort inline-bekräftelse (role="status", polite) på samma plats — inget toast-
-          bibliotek (§9.2). Bekräftelsen står kvar tills söket ändras (civic, ingen
-          animation). Placerad direkt efter hjälptexten, delar dess soft-ink-ton. */}
+      {/* "Spara sökningen" is a button, not a link, since it does not navigate. After a
+          click a short inline confirmation stays until the search changes. */}
       {showSaveAction && (
         <button
           type="button"
@@ -680,23 +603,20 @@ export function JobbHeroSearch({
         </button>
       )}
       {savedNotice && (
-        // Rent visuell (aria-hidden) — SR-annonsen bärs av den persistenta
-        // aria-live-regionen nedan (announcement), satt av onSaveSearch via commit.
+        // Visual only: the live region below announces it.
         <p className="jp-hero__searchsaved" aria-hidden="true">
           {t("heroSearch.saved")}
         </p>
       )}
 
-      {/* aria-live-annons för tagg-tillägg/-borttagning — viktigare än i
-          E2h: den visuella feedbacken (taggarna) sitter nu i filter-raden
-          under träfflistan, långt från fältet. */}
+      {/* Announces added and removed filters. The visible feedback is in the filter
+          row under the results, far from the field. */}
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
 
-      {/* No-JS-fallback: aktiva filter som hidden inputs. Synliga inputen
-          är NAMNLÖS efter hydration — spegel-texten som q vore dubbel-
-          filtrering; committad residual-q bärs som hidden input. */}
+      {/* The active filters as hidden inputs. After hydration the visible field has no
+          name, so the committed free-text q travels in a hidden input instead. */}
       {hydrated && committedQ.length > 0 && (
         <input type="hidden" name="q" value={committedQ} />
       )}
@@ -715,10 +635,8 @@ export function JobbHeroSearch({
       {axisInputs.map(([name, joined]) => (
         <input key={name} type="hidden" name={name} value={joined} />
       ))}
-      {/* #551 punkt 4 — no-JS-submit bär Distans (paritet employer ovan). Ligger
-          UTANFÖR axisInputs: den är en boolean med ett sentinel-värde, inte en
-          joinad id-lista. Utan raden raderar en native GET före hydrering
-          ?distans=on tyst — precis den felklass kommentaren ovan varnar för. */}
+      {/* Remote work is a flag with one value, not a joined id list, so it sits outside
+          axisInputs. Without it a native GET before hydration would drop `?distans=on`. */}
       {lastCommitted.remote && (
         <input type="hidden" name={DISTANS_PARAM} value={DISTANS_ON_VALUE} />
       )}
@@ -726,11 +644,9 @@ export function JobbHeroSearch({
         <input type="hidden" name="sortBy" value={sortBy} />
       )}
       {pageSize && <input type="hidden" name="pageSize" value={pageSize} />}
-      {/* E2j — no-JS-submit ÄR per definition en commit (användaren tryckte
-          Sök) → statiskt commit=1 så backend auto-capturerar. Vid hydration
-          interceptas submit (onSubmit preventDefault) och router-vägen bär
-          commit som transient suffix istället — denna åker då aldrig.
-          Värde "true" (ASP.NET bool-binding tar inte "1"). */}
+      {/* A no-JS submit is always a deliberate search, so it carries commit=true and the
+          backend saves it. ASP.NET's bool binding does not accept "1". Once hydrated,
+          onSubmit prevents the native submit and the router adds the flag instead. */}
       <input type="hidden" name="commit" value="true" />
     </form>
   );

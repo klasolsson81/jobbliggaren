@@ -32,24 +32,20 @@ import { JobbToolbarPopover } from "./jobb-toolbar-popover";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
 /**
- * Hero-filter-pills + Platsbanken-popovers (HANDOVER-v3.md §5.4/§5.5,
- * ADR 0055 + ADR 0067 Fas E2b). Client-island under hero-sökrutan:
- * `Ort ▾` (tvåkolumns Län→Kommuner, dual-axis per CTO VAL 3) ·
- * `Yrke ▾` (tvåkolumns Yrkesområde→Yrkesgrupper, enaxel).
+ * The filter pills under the hero search, with Platsbanken-style popovers (ADR 0055,
+ * ADR 0067): place (region, then municipality, in two columns), occupation (field,
+ * then occupation group), a "Filter" panel for employment type and working hours,
+ * matching, and "Dölj ansökta".
  *
- * Ort-semantik (CTO VAL 1, docs/reviews/2026-06-11-sok-paritet-e2b-cto.md):
- * "Hela länet"-raden togglar ETT region-conceptId (`?region=`, aldrig
- * materialiserade kommun-ids — 414-skydd + en chip); kommun-rader togglar
- * `?municipality=`. Backend unionerar region∪municipality (Ort = EN
- * dimension i två granulariteter). Per-län-normaliseringen
- * (lib/job-ads/ort-selection.ts) håller URL:en minimal — ren UX-kosmetik,
- * ingen korrekthets-bärare.
+ * Place is one dimension at two granularities: the "whole region" row toggles one
+ * region id (`?region=`), never the region's municipality ids (which keeps the URL
+ * short and gives one chip), and a municipality row toggles `?municipality=`. The
+ * backend combines them, together with remote work. The per-region normalisation in
+ * `lib/job-ads/ort-selection.ts` only keeps the URL minimal; correctness does not
+ * depend on it.
  *
- * RSC→client-kontrakt: tar serialiserbara props (taxonomy-träd, valda
- * conceptId string[], q, sortBy, pageSize) från jobb/page.tsx (RSC).
- * Live-commit: varje markering → `router.push` i `useTransition`, övriga
- * params bevaras symmetriskt via `buildJobbHref` (ADR 0042 Beslut B,
- * OFÖRÄNDRAT; samma param-bevarande-disciplin som F3 B-FIX).
+ * Every change navigates at once with `router.push` in a transition, and every other
+ * parameter is carried through `buildJobbHref`, so a click never drops a filter.
  */
 
 interface JobbHeroFiltersProps {
@@ -58,58 +54,37 @@ interface JobbHeroFiltersProps {
   initialRegion: ReadonlyArray<string>;
   initialMunicipality: ReadonlyArray<string>;
   /**
-   * #551 punkt 4 — Distans (`?distans=on`). Ort-dimensionens tredje granularitet:
-   * backend unionerar kommun ∨ län ∨ remote, så den BREDDAR ort-valet.
+   * `?distans=on`: the place dimension's third granularity. The backend combines
+   * municipality, region and remote, so it widens the place choice.
    */
   initialRemote: boolean;
-  // Klass 2 (2026-06-13) — anställningsform (checkbox-multi) + omfattning
-  // (radio-single). Driver "Filter"-pillen + Klass-2-panelen.
+  // Employment type (several) and working hours (one), shown in the "Filter" panel.
   initialEmploymentType: ReadonlyArray<string>;
   initialWorktimeExtent: ReadonlyArray<string>;
-  /**
-   * STEG 5 (grade-filter, 2026-06-23) — aktivt matchningsgrad-filter. Ön
-   * redigerar ALDRIG grader (de bor i toolbaren), men måste bära dem vidare i
-   * varje buildJobbHref-commit så ett filter-pill-klick inte raderar ett aktivt
-   * grad-filter (samma param-bevarande-disciplin som q/sort/Klass-2).
-   */
+  /** The active grade filter, edited in the matching popover. */
   initialMatchGrades: ReadonlyArray<string>;
   /**
-   * Matchnings-/status-axeln (2026-06-30 — flyttad hit från resultat-toolbaren
-   * så hela filterraden delar EN form på ETT ställe, Klas). Runtime-view-state
-   * (navigerar utan commit-flaggan, paritet matchGrades): `matchningOff` =
-   * huvudbrytaren av (`?matchning=off`); `includeRelated` = "Visa relaterade
-   * också" (`?relaterade=on`); `hideApplied` = "Dölj ansökta" (`?doljAnsokta=on`).
+   * View toggles: `matchningOff` (`?matchning=off`), `includeRelated`
+   * (`?relaterade=on`) and `hideApplied` (`?doljAnsokta=on`).
    */
   initialMatchningOff: boolean;
   initialIncludeRelated: boolean;
   initialHideApplied: boolean;
-  /**
-   * #419 pt1 (CTO Approach A) — "Visa bara matchade" (`?baraMatchade=on`). Runtime-
-   * view-state (paritet matchGrades/includeRelated): visa ENDAST annonser med positiv
-   * matchningsgrad. Kontrollen (kryssrutan) bor i Matchning-popovern.
-   */
+  /** `?baraMatchade=on`: only ads with a positive grade. Its checkbox is in the matching popover. */
   initialOnlyMatched: boolean;
   /**
-   * F4-16 (CTO D8) — server-härlett: true så snart minst en yrkesgrupp angetts i
-   * matchnings-preferenserna. Gatar Matchning-pillen (utan angivet yrke kan
-   * graden inte beräknas). Härlett i page.tsx via cache():ad getMyProfile.
+   * True once the user has stated at least one occupation. Without one no grade can
+   * be computed, so the matching pill is hidden.
    */
   hasStatedDesiredOccupation: boolean;
   /**
-   * #383 — true när användaren har en seeker (lyckad profil-läsning). Gatar
-   * "Dölj ansökta"-toggle:n (den gallrar mot seekerns ansökta; utan seeker finns
-   * inget att dölja). Skild från `hasStatedDesiredOccupation`: status kräver
-   * INTE ett angivet yrke.
+   * True when the user has a job-seeker profile. Gates "Dölj ansökta", which needs
+   * applications to hide but not a stated occupation.
    */
   hasSeeker: boolean;
-  /** Hero-sökordet — bärs vidare så filter-klick inte raderar q. */
+  /** The search text, carried so a filter click keeps it. */
   q: string;
-  /**
-   * #454 PR-0 — aktivt arbetsgivar-filter (ETT org.nr, page-validerat). Ön
-   * redigerar det ALDRIG (chipen + × bor i toolbaren), men bär det vidare i
-   * varje buildJobbHref-commit så ett filter-pill-klick inte raderar det
-   * (samma param-bevarande-disciplin som q/sort — closure-prop, ej selection).
-   */
+  /** The employer filter. It is edited only in the toolbar; here it is carried along. */
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
@@ -117,30 +92,19 @@ interface JobbHeroFiltersProps {
 
 type OpenPop = "ort" | "yrke" | "filter" | "match" | null;
 
-// Öns filterval-vy (E2g): bas = props (URL-sanningen), optimistiskt
-// overlay under pågående router.push-transition.
+// Everything the pills can change. The base is the props (the URL); during a
+// router.push transition an optimistic overlay shows the new value at once.
 interface FilterSelection {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
-  // #551 punkt 4 — Distans. Samma ORT-dimension som region/municipality (backend
-  // unionerar: kommun ∨ län ∨ remote), i samma optimistiska overlay så
-  // Ort-pillen svarar omedelbart under transitionen.
   remote: boolean;
-  // Klass 2 — anställningsform + omfattning bärs i samma optimistiska overlay
-  // så pill-count + panel-markeringar svarar omedelbart under transitionen.
   employmentType: string[];
   worktimeExtent: string[];
-  // Matchnings-/status-axeln (2026-06-30 — flyttad hit från toolbaren). I SAMMA
-  // optimistiska overlay så Matchning-pillen/popovern + Dölj ansökta-toggle:n
-  // svarar omedelbart, och varje facett-commit bär dem vidare (param-bevarande,
-  // ADR 0042 Beslut B). Runtime-view-state (navigerar utan commit-flaggan).
   matchGrades: string[];
   matchningOff: boolean;
   includeRelated: boolean;
   hideApplied: boolean;
-  // #419 pt1 — "Visa bara matchade" i samma optimistiska overlay (paritet hideApplied)
-  // så kryssrutan svarar omedelbart och varje facett-commit bär den vidare.
   onlyMatched: boolean;
 }
 
@@ -166,18 +130,16 @@ export function JobbHeroFilters({
 }: JobbHeroFiltersProps) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
-  // Skilda namespaces (next-intl typar `t()` mot den literala message-key-unionen).
+  // Separate namespaces, since next-intl types `t()` against each namespace's keys.
   const tGrade = useTranslations("jobads.ui.gradeFilter");
   const tStatus = useTranslations("jobads.ui.statusFilter");
   const [, startTransition] = useTransition();
 
-  // E2g (CTO-dom 2026-06-11, Variant A — useOptimistic): URL:en (via props)
-  // är ENDA sanningen för valda filter; öns tidigare useState-kopior synkade
-  // aldrig vid EXTERNA URL-ändringar (toolbar-chippens ×, "Rensa alla
-  // filter", recent-search-navigering) eftersom ön medvetet aldrig remountas
-  // (utanför Suspense — F6 P4 B1). useOptimistic ger omedelbar egen-toggle-
-  // respons (overlay inuti router.push-transitionen) och faller garanterat
-  // tillbaka till färska props när RSC-navigeringen landat.
+  // The URL, through props, is the only source of truth for the selected filters.
+  // This component sits outside the Suspense boundary and is never remounted, so
+  // local useState copies would miss external URL changes (a chip removed in the
+  // toolbar, "clear all", a recent search). useOptimistic answers a click at once and
+  // falls back to the fresh props when the navigation lands.
   const base = useMemo<FilterSelection>(
     () => ({
       occupationGroup: [...initialOccupationGroup],
@@ -220,8 +182,8 @@ export function JobbHeroFilters({
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const matchBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Taxonomi → popover-form. Län→Kommuner (E2b-kaskad) + Yrkesområde→
-  // Yrkesgrupper (ssyk-level-4, E2a nivå-skifte).
+  // The taxonomy in popover form: regions with their municipalities, and occupation
+  // fields with their SSYK level-4 occupation groups.
   const regionGroups: PopoverGroup[] = (taxonomy?.regions ?? []).map((r) => ({
     conceptId: r.conceptId,
     label: r.label,
@@ -241,7 +203,7 @@ export function JobbHeroFilters({
     })),
   }));
 
-  // Lookups för per-län-normaliseringen (ort-selection.ts).
+  // Lookups for the per-region normalisation in ort-selection.ts.
   const regionOfMunicipality = useMemo(() => {
     const map = new Map<string, string>();
     for (const r of taxonomy?.regions ?? [])
@@ -258,13 +220,10 @@ export function JobbHeroFilters({
     return map;
   }, [taxonomy]);
 
-  // Optimistiskt overlay + navigering i SAMMA transition (CTO-krav 1 —
-  // setOptimisticSelection utanför en transition kastas direkt av React).
-  // Alla hero-ändringar (facetter OCH matchning/status) navigerar UTAN commit-
-  // flaggan — hero:n auto-capturar aldrig till Senaste sökningar (det gör bara
-  // explicit Sök/Enter/förslags-val + toolbar-handlingar). matchGrades/matchning/
-  // related/hideApplied är dessutom uttryckligen runtime-view-state (#292/#383).
-  // Hela `next`-staten bärs ut (param-bevarande symmetri, ADR 0042 Beslut B).
+  // The optimistic overlay and the navigation share one transition: React discards
+  // an optimistic update made outside a transition. Filter changes navigate without
+  // the commit flag, so they are never saved as recent searches; only a deliberate
+  // search and toolbar actions are. The whole state is carried into the URL.
   function commit(next: FilterSelection) {
     startTransition(() => {
       setOptimisticSelection(next);
@@ -282,8 +241,6 @@ export function JobbHeroFilters({
           includeRelated: next.includeRelated,
           hideApplied: next.hideApplied,
           onlyMatched: next.onlyMatched,
-          // #454 PR-0 — bärs vidare oförändrat (ön redigerar det aldrig) så
-          // ett pill-klick inte raderar arbetsgivar-filtret.
           employer,
           sortBy,
           pageSize,
@@ -302,30 +259,27 @@ export function JobbHeroFilters({
       municipality: [...next.municipality],
     });
   }
-  // Distans togglas fristående från de två id-axlarna — den har ingen
-  // län→kommun-hierarki att normalisera, så den går aldrig via ort-selection.ts.
+  // Remote work has no region-to-municipality hierarchy to normalise, so it bypasses
+  // ort-selection.ts.
   function toggleRemote() {
     commit({ ...selection, remote: !selection.remote });
   }
-  // Klass 2 — anställningsform (checkbox-multi) + omfattning (radio-single).
-  // Speglar changeOccupationGroup: byt EN axel, bevara resten via spread.
   function changeEmploymentType(next: string[]) {
     commit({ ...selection, employmentType: next });
   }
   function changeWorktimeExtent(next: string[]) {
     commit({ ...selection, worktimeExtent: next });
   }
-  // Defensiv list-väg (popoverns onChange-kontrakt) — i dual-axis-läget går
-  // item-klick via toggleMunicipality nedan; denna nås aldrig vid runtime
-  // men håller kontraktet semantiskt korrekt om popovern någonsin emitterar.
+  // Required by the popover's onChange contract. With two axes, item clicks go
+  // through toggleMunicipality below, so this path is not reached today.
   function changeMunicipality(nextMunicipality: string[]) {
     commitOrt(
       applyMunicipalityChange(ort, nextMunicipality, regionOfMunicipality),
     );
   }
-  // E2f — per-kommun-toggle med Platsbanken-semantik ("hela länet minus en
-  // kommun" materialiserar länets övriga; komplettering kollapsar tillbaka
-  // till region-id:t). Föräldern äger semantiken — den kräver båda axlarna.
+  // Platsbanken's semantics: removing one municipality from a whole region selects
+  // the region's other municipalities, and selecting the last missing one collapses
+  // back to the region id. This component owns it because it needs both axes.
   function toggleMunicipality(
     municipalityConceptId: string,
     regionConceptId: string,
@@ -358,11 +312,10 @@ export function JobbHeroFilters({
     );
   }
 
-  // Matchnings-axeln (flyttad hit från toolbaren 2026-06-30). SSOT-härledning =
-  // toolbarens: PÅ exakt när yrke angetts OCH huvudbrytaren inte är av. Handlers
-  // speglar toolbaren 1:1 (commit = navigera utan flagga); en tom matchGrades-
-  // lista = "alla grader visas" (ej av), av styrs av matchningOff (#292). AV nollar
-  // grader + relaterade ("forget"-semantik, CTO-bind).
+  // Matching is active exactly when an occupation is stated and matching is not
+  // switched off, as JobbResults derives it. An empty grade list means every grade
+  // is shown; only matchningOff turns matching off. Turning it off also forgets the
+  // grade choice and the toggles that depend on matching.
   const matchActive = hasStatedDesiredOccupation && !selection.matchningOff;
   const matchActiveCount = matchActive ? selection.matchGrades.length : 0;
 
@@ -375,17 +328,15 @@ export function JobbHeroFilters({
       matchningOff: true,
       matchGrades: [],
       includeRelated: false,
-      // #419 pt1 — "forget"-semantik: matchningen av ⇒ "Visa bara matchade" nollas också
-      // (kontrollen göms med PÅ-blocket; en kvarvarande flagga utan synlig kryssruta vore
-      // state/URL-divergens, paritet matchGrades/includeRelated).
+      // Its checkbox is hidden while matching is off, so the flag must not survive.
       onlyMatched: false,
     });
   }
   function onMatchTurnOn() {
     commit({ ...selection, matchningOff: false, matchGrades: [] });
   }
-  // #300 PR-5 — vid AV droppas `Related` ur den valda grad-listan (kontrollen
-  // dold ⇒ inget kvarvarande filter på en grad utan kryssruta).
+  // Turning related occupations off removes `Related` from the chosen grades, since
+  // its checkbox is then hidden.
   function onRelatedToggle(next: boolean) {
     commit({
       ...selection,
@@ -395,17 +346,14 @@ export function JobbHeroFilters({
         : selection.matchGrades.filter((g) => g !== "Related"),
     });
   }
-  // #383 → förenklat — "Dölj ansökta"-toggle:n (en enda boolean). Ortogonal mot
-  // matchningen (gatad på hasSeeker, inte på matchnings-axeln).
+  // Independent of matching; gated on hasSeeker.
   function toggleHideApplied() {
     commit({ ...selection, hideApplied: !selection.hideApplied });
   }
-  // #419 pt1 — "Visa bara matchade"-kryssrutan i Matchning-popovern. PÅ ⇒ visa bara
-  // annonser med positiv grad (rank > 0). AV ⇒ nolla onlyMatched OCH ev. grad-delmängd:
-  // att "kryssa ur bara matchade" betyder "visa allt" (även otaggade), och en grad-delmängd
-  // implicerar bara-matchade så den måste rensas med (annars vore kryssrutan derive-checkad
-  // direkt igen och klicket ett no-op). PÅ bevarar ev. delmängd (en redan smalnad vy är
-  // fortfarande bara-matchade, nu smalare). Navigerar utan commit-flaggan (runtime-view-state).
+  // Unchecking "Visa bara matchade" means "show everything", ungraded ads included.
+  // A chosen subset of grades implies only matched ads, so it is cleared too;
+  // otherwise the checkbox would be derived as checked again and the click would do
+  // nothing. Checking it keeps any chosen subset.
   function onOnlyMatchedToggle(next: boolean) {
     commit({
       ...selection,
@@ -414,35 +362,25 @@ export function JobbHeroFilters({
     });
   }
 
-  // #551 punkt 4 — distans räknas MED. Ort-pillens räknare är inte en chip utan
-  // ort-dimensionens statusvisning, och distans är samma dimension i en tredje
-  // granularitet. Utan detta blir pillen helt omarkerad medan listan är smalnad,
-  // och (eftersom Distans medvetet saknar chip) syns filtret ingenstans alls i
-  // stängt läge.
+  // Remote work counts towards the place pill. It has no chip of its own, so without
+  // this the filter would be visible nowhere while the popover is closed.
   const ortCount =
     ort.region.length + ort.municipality.length + (selection.remote ? 1 : 0);
-  // Klass 2 — "Filter"-pillens count = summan av aktiva anställningsform-
-  // + omfattning-val (omfattning bär 0–1, anställningsform 0–8).
   const filterCount =
     selection.employmentType.length + selection.worktimeExtent.length;
 
-  // E2c (ADR 0067 Beslut 4, CTO VAL 2 = A) — per-option-counts hämtas
-  // debouncat när respektive popover är öppen (enabled-gated, ingen
-  // bakgrunds-poll). Ort-popovern behöver två dimensioner (kommun-rader +
-  // "Hela länet"-raden); Yrke en. Backend exkluderar den facetterade
-  // dimensionen själv (ort-facetterna HELA ort-dimensionen — VAL 4).
+  // Per-option counts are fetched, debounced, only while their popover or panel is
+  // open (ADR 0067 Beslut 4). The place popover needs two dimensions, municipality
+  // rows and whole-region rows. The backend leaves out the dimension being counted
+  // (for place, the whole place dimension), so every other filter belongs here.
+  // Remote work matters for the occupation and panel counts: without it, a search
+  // with only remote work selected would count the whole corpus.
   const facetFilter = {
     occupationGroup,
     municipality: ort.municipality,
     region: ort.region,
-    // PR-3 — Klass 2 ingår i facett-filtret så Ort/Yrke-facetterna reflekterar
-    // anställningsform/omfattning OCH vice versa (backend exkluderar egen dim).
     employmentType: selection.employmentType,
     worktimeExtent: selection.worktimeExtent,
-    // #551 punkt 4 — samma regel som Klass 2 ovan. Ort-facetterna påverkas inte
-    // (backend exkluderar hela ort-dimensionen), men Yrke- och Klass-2-facetterna
-    // räknar annars mot ett ANNAT geo-predikat än listan: med bara Distans valt
-    // försvinner geo-filtret helt och counten blir hela korpusen.
     remote: selection.remote,
     q,
   };
@@ -457,7 +395,6 @@ export function JobbHeroFilters({
     facetFilter,
     openPop === "yrke",
   );
-  // PR-3 — Klass 2-facetter, gated på "Filter"-panelen öppen.
   const employmentTypeCounts = useFacetCounts(
     "EmploymentType",
     facetFilter,
@@ -469,12 +406,10 @@ export function JobbHeroFilters({
     openPop === "filter",
   );
 
-  // "Visa N annonser"-stängknappen (CTO VAL 2): N = list-svarets totalCount
-  // som toolbaren publicerar (SPOT — noll extra requests; ALDRIG en summa av
-  // facett-counts). null innan första list-svaret → "Visa annonser".
+  // The close button's N is the list's own total, which the toolbar publishes: no
+  // extra request, and never a sum of facet counts. Before the first list response
+  // it reads "Visa annonser". The catalogue handles singular and plural.
   const totalCount = useTotalCount();
-  // Singular-böjning (design-reviewer Major 1 E2c) — samma grammatikregel
-  // som träffräknaren ("träff"/"träffar").
   const showResultsLabel =
     totalCount !== null
       ? t("heroFilters.showResults", {
@@ -533,10 +468,8 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {/* Klass-2-pillen (ADR 0067 Fas E rad 109 "Filter-panel"). "Filter"
-          valt som tydligast civic-label: pillen samlar två dimensioner
-          (anställningsform + omfattning) — en enskild dimensions-label hade
-          varit missvisande. Speglar Ort/Yrke-pillarnas dot+count-mönster. */}
+      {/* "Filter" because the pill holds two dimensions, employment type and working
+          hours; either name alone would mislead. */}
       <button
         ref={filterBtnRef}
         type="button"
@@ -556,13 +489,9 @@ export function JobbHeroFilters({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
 
-      {/* [Matchning ▾]-pillen (2026-06-30, Klas: en form, en plats). Samma
-          .jp-hero-pill som Ort/Yrke/Filter. Renderas på hasStatedDesiredOccupation
-          (så switchen i popovern kan slå PÅ matchningen igen även när den är av).
-          data-active = matchActive; prick när PÅ; count-badge = antal smalnade grad-val
-          (0 = alla visas, ingen badge). #419 pt7 (Klas) — den tidigare EXTERNA "?" bredvid
-          pillen är borttagen; hjälpen bor nu per kontroll INNE i Matchning-popovern
-          (JobbMatchGradeFilter), där varje kontroll-rad har sin egen kontextuella "?". */}
+      {/* Rendered whenever an occupation is stated, so the switch inside can turn
+          matching back on. The count is the number of chosen grades; none means every
+          grade is shown. Help sits beside each control inside the popover. */}
       {hasStatedDesiredOccupation && (
         <button
           ref={matchBtnRef}
@@ -594,9 +523,8 @@ export function JobbHeroFilters({
         </div>
       )}
 
-      {/* key-remount vid öppning → activeLeft re-initieras till TOM (E2f
-          Platsbanken-paritet — höger kolumn tom tills län valts) utan
-          setState-i-effect. */}
+      {/* The key remounts the popover on opening, so the right column starts empty
+          until a region is picked, as on Platsbanken, without a setState in an effect. */}
       <JobbFilterPopover
         key={openPop === "ort" ? "ort-open" : "ort-closed"}
         open={openPop === "ort"}
@@ -650,10 +578,7 @@ export function JobbHeroFilters({
         triggerRef={yrkeBtnRef}
       />
 
-      {/* Klass-2-panel (enkelkolumn): Omfattning (radio) + Anställningsform
-          (checkbox). Live-commit per val (changeWorktimeExtent/
-          changeEmploymentType → router.push i transition, samma mönster som
-          popovrarna). Footer = samma "Visa N annonser"-knapp (SPOT). */}
+      {/* One column: working hours (radio) and employment type (checkboxes). */}
       <JobbKlass2Panel
         open={openPop === "filter"}
         employmentTypeOptions={taxonomy?.employmentTypes ?? []}
@@ -670,11 +595,8 @@ export function JobbHeroFilters({
         triggerRef={filterBtnRef}
       />
 
-      {/* [Matchning ▾]-popovern (flyttad hit från resultat-toolbaren 2026-06-30).
-          Samma enkelkolumns JobbToolbarPopover-skal; JobbMatchGradeFilter-kroppen
-          bär switch + relaterad-toggle + "Visa bara matchade"-kryssrutan (#419 pt1) +
-          grad-kryssrutor, wired till hero-handlers (commit = navigera utan commit-flaggan,
-          #292/#300/#419-semantiken bevarad). */}
+      {/* The matching switch, the related-occupations toggle, "Visa bara matchade" and
+          the grade checkboxes. */}
       {hasStatedDesiredOccupation && (
         <JobbToolbarPopover
           open={openPop === "match"}

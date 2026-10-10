@@ -26,31 +26,15 @@ import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 
 /**
- * Resultatdelen av /jobb (F6 P4).
+ * The results part of /jobb, and the only part of the page that depends on
+ * `getJobAds()`. It is its own async Server Component so that `jobb/page.tsx` can
+ * render the hero at once and wrap only this component in
+ * `<Suspense fallback={<JobAdListSkeleton />}>`: during a search only the results
+ * are replaced by the skeleton, and the search field the user just used stays.
  *
- * Detta är den enda delen av /jobb som hänger på `getJobAds()`. Den är
- * extraherad till en egen `async` Server Component så att `jobb/page.tsx`
- * kan rendera hero (sökfält, filter-pills) synkront och wrappa ENBART
- * denna komponent i `<Suspense fallback={<JobAdListSkeleton />}>`.
- *
- * Effekten: under en sökning byts bara resultat-ytan mot skeleton —
- * sökfältet användaren just använde, hero:n och sidans chrome förblir
- * renderade. Detta är den idiomatiska Next.js streaming-patternen och
- * ersätter det tidigare `loading.tsx`, som var en route-segment-fallback
- * och därför raderade HELA /jobb-segmentet (inklusive hero + träffräknare)
- * vid varje sökning (design-reviewer F6 P4 B1).
- *
- * Träffräknaren bor i `JobbResultsToolbar` och är data-beroende
- * (`totalCount` + filter-chip-labels). Den kan därför inte ligga utanför
- * Suspense-gränsen — den skulle inte kunna visa rätt antal innan
- * `getJobAds()` landat. Toolbaren renderas alltså tillsammans med listan
- * här inne, och `JobAdListSkeleton` speglar toolbar-raden så layouten
- * inte hoppar när data landar.
- *
- * `resolveTaxonomyLabels` hämtas också här: chip-labels i toolbaren beror
- * på de valda concept-id:na och hör ihop med resultat-renderingen. Träd-
- * och senaste-sökningar-hämtning ligger kvar i `page.tsx` (hero-beroenden
- * som måste renderas synkront).
+ * The hit count in `JobbResultsToolbar` and its chip labels depend on the data,
+ * so the toolbar renders here with the list, and `JobAdListSkeleton` reserves the
+ * toolbar's row so the layout does not jump when the data arrives.
  */
 
 interface JobbResultsProps {
@@ -60,64 +44,44 @@ interface JobbResultsProps {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
-  // #551 punkt 4 — Distans. En riktig ORT-facett (unionas med kommun/län i
-  // ApplyFilter), inte runtime-view-state: den når listanropet.
+  /** A place facet the backend combines with region and municipality. */
   remote: boolean;
-  // Klass 2 (2026-06-13) — anställningsform + omfattning.
   employmentType: string[];
   worktimeExtent: string[];
-  // STEG 5 (grade-filter, 2026-06-23) — valda matchningsgrader (enum-namn,
-  // delmängd av Basic/Good/Strong; validerad + Top-strippad i page.tsx). Tom =
-  // alla grader visas (NÄR matchningen är PÅ). Skickas vidare till list-queryn.
+  /** Selected grades, validated in page.tsx. Empty means every grade is shown. */
   matchGrades: string[];
-  /**
-   * issue #292 — matchnings-huvudbrytaren (parsad ur `?matchning=off` i
-   * page.tsx). `true` = AV. Härleds HÄR till `matchActive` (SSOT):
-   * `matchActive = hasStatedDesiredOccupation && !matchningOff`.
-   */
+  /** From `?matchning=off`; `true` means off. `matchActive` is derived from it below. */
   matchningOff: boolean;
   /**
-   * #300 PR-5 (ADR 0084) — "Visa relaterade också"-toggle:n (parsad ur
-   * `?relaterade=on` i page.tsx). `true` ⇒ related-graderade annonser tas med i
-   * list-queryn OCH i badge-batchen (master-switch). Default false (ren lista).
-   * Endast meningsfull när `matchActive` (badges hämtas bara då).
+   * From `?relaterade=on`: also include ads graded as a related occupation, in both
+   * the list query and the grade batch. Applies only while matching is active.
    */
   includeRelated: boolean;
   /**
-   * #383 → förenklat 2026-06-30 — "Dölj ansökta" (parsad ur `?doljAnsokta=on` i
-   * page.tsx). ORTOGONAL mot matchningen — gallrar bort annonser den inloggade
-   * seekern redan sökt. Skickas vidare till list-queryn; kontrollen (toggle:n) bor
-   * i hero-filterraden (gatad på hasSeeker där). ("Visa sparade"/"Visa bara
-   * ansökta" borttagna — Klas-förenkling.)
+   * From `?doljAnsokta=on`: hide ads the user has applied to. Independent of
+   * matching; the control lives in the hero filter row.
    */
   hideApplied: boolean;
   /**
-   * #419 pt1 (CTO Approach A) — "Visa bara matchade" (parsad ur `?baraMatchade=on` i
-   * page.tsx). Visar ENDAST annonser med en positiv matchningsgrad för seekern. Som
-   * includeRelated är den ett MATCHNINGS-koncept: gate:as på `matchActive` här
-   * (`effectiveOnlyMatched`) så en stale URL utan angivet yrke / matchning av inte gallrar
-   * listan. Kontrollen (kryssrutan) bor i Matchning-popovern (hero-filterraden).
+   * From `?baraMatchade=on`: list only ads with a positive grade for the user.
+   * Applies only while matching is active (see `effectiveOnlyMatched`).
    */
   onlyMatched: boolean;
   /**
-   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: en lista av org.nr
-   * (vardera 10 siffror, validerade i page.tsx). Skickas till list-queryn som `string[]`;
-   * ORTOGONAL mot matchningen (ren IN-equality-gallring).
+   * Organisation numbers of 10 digits each, validated in page.tsx. The list query
+   * filters on them exactly, independently of matching.
    */
   employer: ReadonlyArray<string>;
   q: string;
   /**
-   * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär
-   * ?commit=1 (avsiktlig sökning via Enter/Sök/förslags-val/toolbar) skickas
-   * det vidare till list-queryn så backend auto-capturerar sökningen.
-   * Live-förhandsvisning (utan flaggan) fångas EJ. Transient — strippas ur
-   * URL:en efter mount av `StripCommitParam`.
+   * From `?commit=true`, which a deliberate search sets (Enter, the search button,
+   * a picked suggestion, the toolbar). The list query passes it on so the backend
+   * saves the search as a recent search; a live preview without it is not saved.
    */
   commit: boolean;
   /**
-   * Råa searchParams — endast för att bygga paginerings-href. Formen bor i
-   * `lib/job-ads/search-params.ts` tillsammans med `buildPageHref`, dess enda
-   * konsument (#846).
+   * The raw search params, used only to build pagination links. Their shape lives
+   * with `buildPageHref` in `lib/job-ads/search-params.ts`.
    */
   rawParams: JobbRawSearchParams;
 }
@@ -142,21 +106,13 @@ export async function JobbResults({
   commit,
   rawParams,
 }: JobbResultsProps) {
-  // Async Server Component → awaitable next-intl translator (jobads.ui).
   const t = await getTranslations("jobads.ui");
-  // #1505 — the announced count is formatted by the SAME helper the toolbar renders with, so the
-  // number a screen reader hears and the number on screen can never diverge.
+  // The announced count is formatted by the same helper the toolbar renders with,
+  // so the number a screen reader hears and the number on screen cannot diverge.
   const format = await getFormatter();
-  // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
-  // Reverse-lookup-miss → backend skickar raden utan label, och chipet namnges
-  // ur katalogen i toolbaren (ADR 0043 Beslut B graceful degradation).
-  // Cap-aritmetik (E2b-architect fråga 5): backend-resolve-capet är
-  // MaxConceptIds × 4 = 1600; teoretiskt max här = 400 yrkesgrupper +
-  // 21 län + 290 kommuner = 711 — täcker, men marginalen krymper om en
-  // fjärde dimension (employmentType, B2) någonsin chip-resolvas.
-  // Klass 2 — anställningsform/omfattning chip-resolvas via samma server-
-  // reverse-lookup (kind-agnostisk sedan PR-1). Cap-aritmetik (E2b fråga 5):
-  // backend-resolve-capet MaxConceptIds×4 = 1600 täcker även de ~8+2 nya.
+  // Chip labels belong to the result, so they are resolved alongside the list. A
+  // concept id the backend cannot name comes back without a label, and the toolbar
+  // names its chip from the catalogue instead (ADR 0043 Beslut B).
   const selectedConceptIds = [
     ...occupationGroup,
     ...region,
@@ -164,66 +120,38 @@ export async function JobbResults({
     ...employmentType,
     ...worktimeExtent,
   ];
-  // F4-16 (CTO D8) — `hasStatedDesiredOccupation` hämtas via getMyProfile
-  // (`cache()`:ad → dedupar mot andra läsare i samma request). Fel/anonym →
-  // false (ingen falsk disclosure).
-  //
-  // issue #292 — den måste resolveras FÖRE getJobAds: `matchActive` (SSOT,
-  // härledd här) gatar list-queryns sort-koercion (gate (b): MatchDesc →
-  // PublishedAtDesc när matchningen är av/saknar yrke). getMyProfile är
-  // `cache()`:ad och deduppas per request (app-shellen läser den redan), så
-  // detta sekventiella await är en gratis cache-träff utan extra round-trip.
-  // Det är en MINIMAL waterfall — getJobAds startar efter den (instant) cache-
-  // träffen — medvetet motiverad: matchActive måste vara känt för sort-
-  // koercionen + badge-gaten innan list-queryn körs. De tunga anropen
-  // (getJobAds/resolveTaxonomyLabels) körs sedan parallellt i Promise.all nedan.
+  // The profile is read before the list query because matchActive decides the
+  // sort and whether grades are fetched. getMyProfile is cache()-wrapped and the
+  // page has already started the same read, so this await costs no extra
+  // round-trip. An error or a guest counts as no stated occupation.
   const profileResult = await getMyProfile();
   const hasStatedDesiredOccupation =
     profileResult.kind === "ok" &&
     profileResult.data.hasStatedDesiredOccupation;
 
-  // issue #292 (senior-cto-advisor-bind) — matchnings-axelns SSOT: PÅ exakt när
-  // användaren angett ett yrke OCH huvudbrytaren inte är avstängd. Allt nedan
-  // (badge-fetch, sort-koercion, toolbar) hänger på detta enda härledda värde.
+  // Matching is active exactly when the user has stated an occupation and has not
+  // switched matching off. Everything below that depends on matching reads this.
   const matchActive = hasStatedDesiredOccupation && !matchningOff;
 
-  // #300 PR-5 — den effektiva "Visa relaterade också". Related är ett MATCHNINGS-
-  // koncept: det är bara meningsfullt när matchnings-axeln är aktiv. En stale URL
-  // som bär `?relaterade=on` MEN matchningen av (eller inget angett yrke) ska inte
-  // bredda listan med related-yrken — gate:a på matchActive (paritet med badge-/
-  // sort-gaterna). Toggle:n renderas ändå bara inne i matchningens PÅ-block, så
-  // det här är skyddet mot en manipulerad/stale URL.
+  // Both toggles are matching concepts. Their controls render only while matching
+  // is on, so these guards stop a stale or edited URL from widening or narrowing
+  // the list when it is off.
   const effectiveIncludeRelated = matchActive && includeRelated;
-
-  // #419 pt1 — den effektiva "Visa bara matchade". Som includeRelated är "bara matchade"
-  // ett MATCHNINGS-koncept: bara meningsfullt när matchnings-axeln är aktiv. En stale URL
-  // som bär `?baraMatchade=on` MEN matchningen av (eller inget angett yrke) ska inte gallra
-  // listan till positiv-grad-only — gate:a på matchActive (paritet effectiveIncludeRelated).
-  // Kontrollen renderas ändå bara inne i matchningens PÅ-block; detta är skyddet mot en
-  // manipulerad/stale URL.
   const effectiveOnlyMatched = matchActive && onlyMatched;
 
-  // Gate (b) — list-queryns sort. När matchningen inte är aktiv coerceras en
-  // aktiv MatchDesc-sort honest tillbaka till nyaste-först (PublishedAtDesc):
-  // match-sorten får inte styra ordningen när matchnings-axeln är av/saknar
-  // yrke. Toolbaren gör samma koercion på SIN sida (select-värdet) — bägge
-  // läser samma matchActive så SYNLIG ordning (select) och faktisk ordning
-  // aldrig divergerar (URL-strängen kan bära en inert MatchDesc-token tills
-  // nästa aktiva sort-byte — pre-existerande self-healing-doktrin).
+  // With matching inactive, a match sort falls back to newest first. The toolbar
+  // applies the same rule to its select from the same matchActive, so the order
+  // shown and the order used agree; the URL may keep the inert MatchDesc until
+  // the user next picks a sort.
   const effectiveSortBy: JobAdSortBy =
     !matchActive && sortBy === "MatchDesc" ? "PublishedAtDesc" : sortBy;
 
-  // #380 — bygg den nuvarande listans query-sträng som varje radlänk bär in i
-  // modal-soft-naven (se `JobAdCard.listQuery`). En NAKEN `/jobb/[id]`-länk lät
-  // children-slottens `/jobb` re-rendras till tomma searchParams under modalen
-  // (Suspense-keyn flippade relaterade/grader/matchning till av), och
-  // `router.back()` återställer bara `@modal`-slotten ⇒ listan fastnade i av-
-  // läget. Med hela list-staten i länken speglar modal-URL:en listan exakt, så
-  // öppna→stäng bevarar HELA filter-/match-läget. Spegla den RÅA URL-staten
-  // (sortBy/includeRelated/matchningOff/matchGrades som de ligger i adressen),
-  // INTE de coercerade `effective*`-värdena — målet är att close-URL === open-
-  // URL. Återbruka den kanoniska `buildJobbHref` (hanterar default-utelämning)
-  // och lägg på `page` så djupa sidor också överlever.
+  // Every row links into the job modal with the current list's query string (see
+  // `JobAdCard.listQuery`). With a bare `/jobb/[id]` link the list beneath the
+  // modal re-rendered with empty search params, and `router.back()` restores only
+  // the `@modal` slot, so closing the modal left the list unfiltered. The link
+  // carries the raw URL state, not the effective values above, so the URL after
+  // closing equals the URL before opening; `page` is added so deep pages survive.
   const listHref = buildJobbHref({
     q,
     occupationGroup,
@@ -235,15 +163,8 @@ export async function JobbResults({
     matchGrades,
     matchningOff,
     includeRelated,
-    // #383 → förenklat — bär "Dölj ansökta" i modal-soft-naven så öppna→stäng av
-    // ett jobbkort bevarar HELA list-läget (paritet relaterade/matchGrades).
     hideApplied,
-    // #419 pt1 — bär "Visa bara matchade" i modal-soft-naven så öppna→stäng bevarar HELA
-    // list-läget. Spegla den RÅA URL-staten (onlyMatched, INTE effectiveOnlyMatched) — målet
-    // är close-URL === open-URL (paritet hideApplied/includeRelated/matchningOff).
     onlyMatched,
-    // #454 PR-0 — bär arbetsgivar-filtret i modal-soft-naven så öppna→stäng
-    // av ett jobbkort bevarar det (samma felklass som ovan).
     employer,
     sortBy,
     pageSize: rawParams.pageSize,
@@ -255,10 +176,9 @@ export async function JobbResults({
     rawParams.page && rawParams.page !== "1" ? `page=${rawParams.page}` : "";
   const listQuery = [listBaseQuery, pageParam].filter(Boolean).join("&");
 
-  // #293/#306 — den per-användar oläst-watermarken (`lastSeenJobsAt`) hämtas
-  // parallellt med listan. NY renderas mot den HÄMTADE (gamla) watermarken
-  // (fetch-then-mark, spegling av /matchningar) — sedan flyttas den fram nedan.
-  // Degraderar civilt: läs-fel/anon → null ⇒ ingen NY (W4 cold-start).
+  // The user's "seen up to" watermark is read alongside the list. "New" is judged
+  // against the watermark as read, and the watermark moves forward afterwards (as
+  // on /matchningar). A read error or a guest gives null, so nothing is new.
   const [result, labelsResult, watermarkResult] = await Promise.all([
     getJobAds({
       page,
@@ -267,24 +187,15 @@ export async function JobbResults({
       occupationGroup,
       region,
       municipality,
-      // FE:ns svenska rutt-flagga `?distans=on` blir API-kontraktets engelska
-      // `remote` (endpointen binder en bool → wire-formen är ?remote=true).
       remote,
       employmentType,
       worktimeExtent,
       matchGrades,
-      // #300 PR-5 — master-switch för related-yrken i listan (gate:ad på
-      // matchActive ovan). Default false ⇒ ren exakt-match-lista.
       includeRelated: effectiveIncludeRelated,
-      // #383 → förenklat — "Dölj ansökta". Skickas rakt igenom; backend gallrar
-      // bort annonser seekern redan sökt (guardar en seeker-lös begäran med tom
-      // sida). ORTOGONAL mot matchningen — passeras oavsett matchActive.
+      // The backend answers a request from a user without a job-seeker profile
+      // with an empty page.
       hideApplied,
-      // #419 pt1 — "Visa bara matchade" (gate:ad på matchActive ovan → effectiveOnlyMatched).
-      // Backend visar då ENDAST annonser med positiv matchningsgrad för seekern.
       onlyMatched: effectiveOnlyMatched,
-      // #454 PR-0 — arbetsgivar-filtret (ortogonalt mot matchningen; skickas
-      // rakt igenom — backend IN-equality-gallrar på organization_number).
       employer,
       q,
       commit,
@@ -296,12 +207,9 @@ export async function JobbResults({
   const watermark =
     watermarkResult.kind === "ok" ? watermarkResult.data.lastSeenJobsAt : null;
 
-  // Plain Record (EJ Map) — passas över RSC→client-gränsen till
-  // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden).
-  //
-  // Rader utan label utelämnas ur recordet i stället för att bära null: toolbaren
-  // grenar redan på `=== undefined` och namnger id:t ur katalogen, så frånvaron
-  // hamnar i den gren som redan finns i stället för att kräva en andra (#1540).
+  // A plain Record rather than a Map, because it crosses the RSC boundary to the
+  // toolbar. Ids without a label are left out instead of carrying null: the
+  // toolbar already names a missing id from the catalogue.
   const resolvedLabels: Record<string, string> =
     labelsResult.kind === "ok"
       ? Object.fromEntries(
@@ -313,10 +221,7 @@ export async function JobbResults({
 
   switch (result.kind) {
     case "ok": {
-      // #293/#306 — NY = oläst: annonser vars `createdAt` (ingestion, Klas-val)
-      // ligger EFTER den hämtade (gamla) watermarken. Kall start (null) eller
-      // läs-fel → tomt set ⇒ ingen NY (W4 cold-start). Beräknas FÖRE mark-seen
-      // (fetch-then-mark) så nästa besök bara visar nytt-sedan-detta-besök.
+      // An ad is new when it was ingested (`createdAt`) after the watermark as read.
       const watermarkMs = watermark != null ? Date.parse(watermark) : Number.NaN;
       const newIdSet = new Set<string>(
         Number.isNaN(watermarkMs)
@@ -326,75 +231,44 @@ export async function JobbResults({
               .map((it) => it.id)
       );
 
-      // PR5 / ADR 0063 — per-user-overlay-status batch (Sparad/Ansökt-taggar
-      // på list-kort). Anonym/utan-auth → tomma set:n (degraderar civilt,
-      // inga taggar visas). Max 100 IDs per anrop = validator-cap.
+      // Per-card overlays for this page (at most 100 ids, the batch validator's cap;
+      // page.tsx caps pageSize to match). Grades are fetched only while matching is
+      // active; saved/applied status, earlier applications per employer and followed
+      // employers do not depend on matching and are always fetched. Each batch
+      // degrades to empty for a guest or on error, so the cards simply show no tags.
       const itemIds = result.data.items.map((it) => it.id);
-      // issue #292 — gate (a): badge-fetchen är BARA av när matchningen är aktiv.
-      // När den är av (huvudbrytare av, eller inget angett yrke) hämtas inga
-      // grad-taggar alls → tom matchGradeById → inga MatchChip på korten. Status-
-      // batchen (Sparad/Ansökt) är oberoende av matchnings-axeln och hämtas
-      // alltid.
       const [status, matchTags, employerApplicationCounts, followedIds] = await Promise.all([
         getJobAdStatusBatch(itemIds),
-        // F4-13 (ADR 0076) — graderad match-tagg-overlay. Anonym/utan-auth →
-        // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
-        // annonser med positiv grad finns i `entries`. Hoppas över helt när
-        // matchningen är av (issue #292) — Promise.resolve undviker round-trip.
-        // #300 PR-5 — `effectiveIncludeRelated` (master-switch, gate:ad på
-        // matchActive) ⇒ related-graderade annonser får sin `Related`-chip i
-        // listan, koherent med list-queryns breddning ovan.
+        // Only ads with a positive grade are present (ADR 0076).
         matchActive
           ? getJobAdMatchTags(itemIds, effectiveIncludeRelated)
           : Promise.resolve<JobAdMatchBatch>({ entries: {} }),
-        // #446 (#311) — per-arbetsgivare "tidigare ansökningar"-räknare. ORTOGONAL
-        // mot matchnings-axeln (application-historik, inte match): hämtas ALLTID
-        // (paritet status-batchen), aldrig gate:ad på matchActive — badgen ska
-        // synas även vid ren bläddring, inte bara i match-läge. Anonym/utan-auth/
-        // fel → tom batch (civil degradering, inga badges). POSITIVE-ONLY.
         getEmployerApplicationCounts(itemIds),
-        // #1000 (V1) — BEVAKAR-overlay: which of these ads' employers the user follows. ORTHOGONAL
-        // to the match axis (a relationship, not a grade): fetched ALWAYS (parity the status +
-        // employer-count batches), never gated on matchActive — a followed company reads on the card
-        // whether or not matching is on. Auth-gated → anon/utan-auth returns [] (civil degradering).
         getFollowedJobAdIds(itemIds),
       ]);
       const savedIdSet = new Set(status.savedIds);
       const appliedIdSet = new Set(status.appliedIds);
-      // #1000 — Set<JobAdId> för O(1)-lookup per kort (paritet saved/applied). Tom = anon/ingen follow.
       const followedIdSet = new Set(followedIds);
-      // #446 — Map<JobAdId, antal> för O(1)-lookup per kort (paritet
-      // savedIdSet/matchGradeById). Bara positiva räknare finns i mappen ⇒ en
-      // saknad nyckel = 0 tidigare ansökningar ⇒ ingen badge.
+      // Only positive counts are present, so a missing key means no badge.
       const employerApplicationCountById = new Map<string, number>(
         Object.entries(employerApplicationCounts.countsByJobAdId)
       );
-      // Map<JobAdId, MatchGrade> — O(1)-lookup per kort (paritet med
-      // savedIdSet/appliedIdSet). `entries` är ett plain Record; bygg Map här.
-      // matchActive=false ⇒ entries={} ⇒ tom Map ⇒ inga badges.
       const matchGradeById = new Map<string, MatchGrade>(
         Object.entries(matchTags.entries).map(
           ([id, entry]) => [id, entry.grade] as const
         )
       );
 
-      // fetch-then-mark: flytta fram watermarken EFTER att NY beräknats mot den
-      // gamla (newIdSet ovan) — nästa besök visar då bara annonser som kommit in
-      // sedan detta besök. #759 (syskon #477 Low 4): flytta fram till det HÄMTADE
-      // fönstrets max `createdAt`, INTE klock-nu — en annons som ingestas mellan
-      // hämtningen och detta anrop (`createdAt > seenThrough`) förblir korrekt
-      // flaggad NY. Till skillnad från /matchningars nyast-först-lista kan /jobb
-      // vara relevans-/matchrank-sorterad, så vi tar MAX över sidan (inte
-      // items[0]) och bär den ORIGINALA ISO-strängen (full precision, paritet
-      // markMatchesSeen). Tom sida → undefined ⇒ backend faller tillbaka på nu.
-      // Icke-blockerande: markJobsSeen degraderar civilt (kastar aldrig), ett fel
-      // lämnar bara watermarken orörd denna gång. Gatas på en lyckad watermark-
-      // LÄSNING: utan en koherent baseline avancerar vi inte (annars kan en
-      // transient läs-miss tyst nolla NY). Speglar /matchningar (mark-seen on open).
-      // Skjuts av render-vägen med `after()` (#741): writet körs EFTER svaret så
-      // skeleton→innehåll-bytet inte betalar en POST-RTT. Sessionen läses UNDER
-      // render och passas in — en `after()`-callback i en Server Component kan inte
-      // läsa cookies; anon (ingen session) → inget write.
+      // Move the watermark forward only now that "new" has been judged against the
+      // old one, so the next visit shows only what arrived since this one. It moves
+      // to the newest `createdAt` on this page, not to the current time, so an ad
+      // ingested in between stays new; the maximum is taken over the whole page
+      // because /jobb can be sorted by relevance or match. The original ISO string
+      // keeps full precision, and an empty page sends undefined, which the backend
+      // reads as now. It moves only after a successful read, so a transient error
+      // cannot clear "new". The write runs after the response via `after()`; the
+      // session is read during render, because an `after()` callback in a Server
+      // Component cannot read cookies. A failed write leaves the watermark as it was.
       if (watermarkResult.kind === "ok") {
         const seenThrough = maxCreatedAt(result.data.items);
         const sessionId = await getSessionId();
@@ -403,12 +277,11 @@ export async function JobbResults({
         }
       }
 
-      // #1546 — arbetsgivar-chippets namn, härlett ur träffarna sidan redan har.
-      //
-      // Nyckelinsikten: `?employer=` är ett exakt IN-filter på org.nr, så när EXAKT en
-      // arbetsgivare filtreras tillhör VARJE rad på sidan den arbetsgivaren. Radens
-      // `companyName` ÄR alltså dess namn — org.nr och namn behöver aldrig mötas på
-      // klienten, och ingen uppslagstjänst behövs (#408 förblir orörd).
+      // `?employer=` is an exact filter on organisation number, so when exactly one
+      // employer is filtered, every row belongs to it and its `companyName` is the
+      // employer's name. The chip shows that name without a lookup service and
+      // without putting the name in the URL. On an empty page the chip falls back
+      // to the organisation number.
       const soleEmployerName =
         employer.length === 1
           ? [...new Set(result.data.items.map((it) => it.companyName))]
@@ -430,16 +303,7 @@ export async function JobbResults({
                 : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
             }
           />
-          {/* #1546 — arbetsgivar-chippets NAMN, hämtat ur träffarna sidan redan har.
-              Namnet får inte rida URL:en (chip-composition: "URL är ENDA sanningen") och
-              behöver ingen uppslagstjänst: varje annonskort renderar redan `companyName`.
-              Endast när EXAKT en arbetsgivare filtreras — flera är "N arbetsgivare" ändå.
-              `undefined` när sidan är tom (t.ex. sida 2 utan träffar); chippet faller då
-              tillbaka på org.nr, vilket är dagens beteende. */}
-          {/* Result-toolbar (client-island): N träffar + aktiva chips +
-              sort-dropdown på samma rad (F4/ADR 0055). totalCount kommer
-              från RSC-fetchen; chips/sort live-commit:ar searchParams
-              symmetriskt med hero-pills (buildJobbHref). */}
+          {/* Hit count, active filter chips and sort on one row (ADR 0055). */}
           <JobbResultsToolbar
             totalCount={result.data.totalCount}
             occupationGroup={occupationGroup}
@@ -493,7 +357,7 @@ export async function JobbResults({
         // where the results would. Without it the card butts against the section heading added
         // above the boundary and reads as that heading's own box. The margin lives HERE and not
         // on the `.jp-h2`: `.jp-*` is unlayered and beats `@layer utilities`, so an `mb-*` on
-        // the heading computes to 0 (globals.css:1731 names the same trap). Same placement as
+        // the heading computes to 0 (globals.css names the same trap). Same placement as
         // `foretag-sok-results.tsx`'s ErrorShell, which carries its own margin for this reason.
         <div className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4">
           {/* #1505 — a start that is never closed leaves a screen reader waiting on a load that
@@ -513,10 +377,8 @@ export async function JobbResults({
           </p>
         </div>
       );
-    // notFound/forbidden/error kollapsas till samma copy: list-endpointen kan
-    // aldrig runtime-faktiskt returnera 404 (responseToResult sätter inte
-    // includeNotFound) och job-ads endpoint är endast auth-gated (forbidden
-    // exponeras inte idag) — alla tre faller till samma "tekniskt fel"-copy.
+    // The list endpoint cannot return 404 (responseToResult is not asked to map it)
+    // and has no 403 today, so all three share the technical-error copy.
     case "notFound":
     case "forbidden":
     case "error":

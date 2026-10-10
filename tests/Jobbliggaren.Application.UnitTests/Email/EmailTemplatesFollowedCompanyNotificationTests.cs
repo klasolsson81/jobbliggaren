@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
@@ -158,7 +159,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
 
         email.PlainTextBody.ShouldNotContain(Disclosure);
         email.PlainTextBody.ShouldNotContain(DisclosureFooter);
-        email.PlainTextBody.ShouldNotContain($"{BaseUrl}/foretag");
+        CompaniesLink.IsMatch(email.PlainTextBody).ShouldBeFalse();
     }
 
     [Fact]
@@ -277,8 +278,26 @@ public class EmailTemplatesFollowedCompanyNotificationTests
                 new FollowedCompanyFilterSummary(OnlyMatchedActive: false, LocationFilterActive: true),
                 Item()));
 
-        email.PlainTextBody.ShouldContain($"{BaseUrl}/foretag");
+        CompaniesLink.IsMatch(email.PlainTextBody).ShouldBeTrue();
     }
+
+    [Fact]
+    public void FollowedCompanyNotification_LinksThePageOfNewAdsFromFollowedCompanies()
+    {
+        // #2094: the button opens exactly these ads. `/jobb` was the whole market, and as a login `next` it
+        // resolves to /oversikt.
+        var email = EmailTemplates.FollowedCompanyNotification(BaseUrl, ContentWithSummary(summary: null, Item()));
+
+        email.PlainTextBody.ShouldContain($"{BaseUrl}/foretag/bevakade/nya");
+        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/foretag/bevakade/nya\"");
+        email.HtmlBody.ShouldNotContain($"href=\"{BaseUrl}/jobb\"");
+    }
+
+    /// <summary>
+    /// The disclosure's link to /foretag itself, not the button's /foretag/bevakade/nya, which shares the prefix.
+    /// </summary>
+    private static readonly Regex CompaniesLink = new(
+        Regex.Escape(BaseUrl) + @"/foretag(?![/\w-])", RegexOptions.CultureInvariant);
 
     [Fact]
     public void FollowedCompanyNotification_Disclosure_CarriesNoOrtNameAndNoGradeWord()

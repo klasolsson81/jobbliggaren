@@ -221,7 +221,7 @@ public sealed partial class DigestDispatchJob(
             join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
             where j.Status == JobAdStatus.Active
             orderby m.CreatedAt descending, m.Id
-            select new { j.Title, Company = j.Company.Name };
+            select new { j.Id, j.Title, Company = j.Company.Name };
 
         // ONE materialisation, then count, THEN cap. The count and the displayed rows come from the SAME
         // list, so `TotalCount >= Items.Count` holds BY CONSTRUCTION.
@@ -285,7 +285,7 @@ public sealed partial class DigestDispatchJob(
         // could have listed.
         var items = displayRows
             .Select(r => new MatchNotificationItem(
-                r.Title, r.Company, NotifiableMatchGrade.Strong.ToSwedishLabel()))
+                r.Id.Value, r.Title, r.Company, NotifiableMatchGrade.Strong.ToSwedishLabel()))
             .ToList();
         var content = new MatchNotificationEmail(
             MatchNotificationKind.Digest, cadence, items, presentableTotal);

@@ -93,7 +93,7 @@ public class EmailHtmlNoRemoteResourceTests
                 new MatchNotificationEmail(
                     MatchNotificationKind.Direct,
                     Cadence: null,
-                    Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
+                    Items: [new MatchNotificationItem(Guid.NewGuid(), "Backend-utvecklare", "Acme AB", "Toppmatch")],
                     TotalCount: 1))),
 
         ("MatchNotification/digest",
@@ -174,7 +174,7 @@ public class EmailHtmlNoRemoteResourceTests
     /// <summary>A body filled to the cap, which is the only state in which a remainder can exist.</summary>
     private static List<MatchNotificationItem> FullMatchPage() =>
         [.. Enumerable.Range(1, MaxItemsPerDigest)
-            .Select(i => new MatchNotificationItem($"Backend-utvecklare {i}", "Acme AB", "Stark match"))];
+            .Select(i => new MatchNotificationItem(Guid.NewGuid(), $"Backend-utvecklare {i}", "Acme AB", "Stark match"))];
 
     private static List<FollowedCompanyAdItem> FullFollowPage() =>
         [.. Enumerable.Range(1, MaxItemsPerDigest)
@@ -376,7 +376,7 @@ public class EmailHtmlNoRemoteResourceTests
             new MatchNotificationEmail(
                 MatchNotificationKind.Direct,
                 Cadence: null,
-                Items: [new MatchNotificationItem(hostile, $"Acme {hostile} AB", "Toppmatch")],
+                Items: [new MatchNotificationItem(Guid.NewGuid(), hostile, $"Acme {hostile} AB", "Toppmatch")],
                 TotalCount: 1)).HtmlBody;
 
         RemoteResourceDetector.FindRemoteResources(html, BaseUrl).ShouldBeEmpty();

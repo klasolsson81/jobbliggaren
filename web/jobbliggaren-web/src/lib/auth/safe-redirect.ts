@@ -17,7 +17,7 @@ const PARSE_BASE = new URL("https://jobbliggaren.invalid");
 
 const BACKSLASH = String.fromCharCode(92);
 
-function hasControlCharacterOrBackslash(raw: string): boolean {
+export function hasControlCharacterOrBackslash(raw: string): boolean {
   for (const ch of raw) {
     const code = ch.charCodeAt(0);
     if (code < 0x20 || code === 0x7f || ch === BACKSLASH) return true;

@@ -10,6 +10,7 @@ import { cookieSafeNext } from "@/lib/auth/login-flow";
 import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { env } from "@/lib/env";
+import { isEmbedded, isPrefetch } from "@/lib/http/fetch-metadata";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 const ENTRY = LOGIN_ENTRY_PATH;
@@ -28,25 +29,6 @@ function notCompleted(provider: ExternalProviderKey): NextResponse {
   const response = redirectTo(ENTRY);
   setLoginFlow(response, { phase: "notice", notice: "externalNotCompleted", provider });
   return response;
-}
-
-function isPrefetch(request: NextRequest): boolean {
-  return (
-    request.headers.get("next-router-prefetch") !== null ||
-    (request.headers.get("sec-purpose") ?? "").includes("prefetch") ||
-    request.headers.get("purpose") === "prefetch"
-  );
-}
-
-/**
- * A start is a click on the row, a top-level navigation. An image, a frame or a fetch on another page is not one,
- * and would otherwise spend the start budget and the visitor's own rate limit. A client that sends neither header
- * is let through.
- */
-function isEmbedded(request: NextRequest): boolean {
-  const mode = request.headers.get("sec-fetch-mode");
-  const dest = request.headers.get("sec-fetch-dest");
-  return (mode !== null && mode !== "navigate") || (dest !== null && dest !== "document");
 }
 
 /** The authorization request goes to the provider's one endpoint, and carries the state the cookie will. */
@@ -73,7 +55,9 @@ export async function GET(
 ): Promise<NextResponse> {
   const provider = toExternalProviderKey((await params).provider);
   if (provider === null) return redirectTo(ENTRY);
-  if (isPrefetch(request) || isEmbedded(request)) {
+  // A start is a click on the row, a top-level navigation. An image, a frame or a fetch on another page is not
+  // one, and would otherwise spend the start budget and the visitor's own rate limit.
+  if (isPrefetch(request.headers) || isEmbedded(request.headers)) {
     return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   }
 

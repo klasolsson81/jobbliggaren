@@ -401,8 +401,6 @@ jobbliggaren/
   ([ADR 0049](docs/decisions/0049-td13-pii-field-encryption-kms-envelope.md)).
 - **Sessions.** The browser holds an opaque, random session ID in an `HttpOnly`,
   `Secure`, `SameSite=Strict` cookie with the `__Host-` prefix. Sessions live in Redis.
-- **Rate limits.** Authentication and public endpoints are limited per IP address, and
-  signed-in endpoints per user.
 - **Audit trail.** State-changing commands marked as auditable are written to an audit
   log, with IP addresses truncated (IPv4 to /24, IPv6 to /48).
 - **Deletion and retention.** When an account is deleted, access is blocked at once. After

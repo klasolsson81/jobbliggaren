@@ -178,7 +178,7 @@ for d in /run/jobbliggaren/host-secrets /run/jobbliggaren/secrets /etc/jobbligga
   printf '%s entries without the property: ' "$d"; sudo ls -A "$d" | wc -l
   printf '%s entries under it:            ' "$d"; sudo systemd-run --wait --collect --pipe \
     -p InaccessiblePaths="-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren" \
-    /bin/sh -c "ls -A $d | wc -l"                                   # expect: 0 under it
+    /bin/sh -c "ls -A $d | wc -l"                                   # expect: 0 under it, and a non-zero count without it for at least one directory
 done
 
 # 5. (A2) Reconcile applies the new compose (api is recreated with the mount); judge the journal, not the exit code.

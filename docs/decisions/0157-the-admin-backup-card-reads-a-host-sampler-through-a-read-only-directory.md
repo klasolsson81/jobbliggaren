@@ -150,7 +150,7 @@ The sampler is not one of the heartbeat's floor timers: its only reader is the c
 observation, and the collector exits 0 on every path so that a cosmetic unit never lights `systemctl --failed`, the alarm
 surface the heartbeat pages from. The install is the runbook's §5 block. Under ADR 0154 §4 (A2) the merging session may
 advance the box's checkout and refresh a changed unit file (`install`, `daemon-reload`); **creating the account, the
-tmpfiles entry (runbook §5 step 2), the transient measurement run of the sampler as that account (step 4) and enabling the
+tmpfiles entry (runbook §5 step 2), the measurement run of the installed unit (step 4) and enabling the
 new timer with its first `start` (step 6) are one-off writes that need Klas's GO for exactly those lines;** steps 1, 3 and
 5 are A2. Compose is
 release-bound, so this release's compose change freezes delivery until the checkout is advanced: every reconcile refuses

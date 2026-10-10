@@ -321,9 +321,8 @@ function Drawer({
             <UserRound size={18} aria-hidden="true" /> {t("nav.minaSidor")}
           </Link>
         </nav>}
-        {/* #2047 — outside the nav switch so the user and admin drawers both end in it. The popup behind
-            the account icon is covered by the open drawer, and nothing here told a phone user to look
-            for it. Shared label with the popup (userMenu.loggaUt) so the two never drift. */}
+        {/* #2047 — outside the nav switch so the user and admin drawers both end in it. Shared label
+            with the popup (userMenu.loggaUt) so the two never drift. */}
         <div className="jp-drawer__foot">
           <LogoutForm>
             <button type="submit" className="jp-drawer__item">

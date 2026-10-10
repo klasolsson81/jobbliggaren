@@ -1242,8 +1242,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-drawer__item:hover { background: var(--jp-surface-3); }
 /* The drawer's last row, pinned to the bottom (#2047): Logga ut is a <button> in a form POST, so it
-   takes the link rows' box and drops the button chrome. margin-top:auto does nothing once the list
-   outgrows the panel, which is why .jp-drawer scrolls instead of clipping it. */
+   takes the link rows' box and drops the button chrome. */
 .jp-drawer__foot {
   margin-top: auto;
   padding: 8px 6px;

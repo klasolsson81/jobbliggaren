@@ -310,3 +310,16 @@ cannot produce zero or a general all-clear.
 
 The dashboard's existing tokens/layout and the stored audit's existing retention remain unchanged. No migration,
 dependency, Hangfire port, mutation or feedback expansion is introduced.
+
+## Amendment 2026-10-10 — The Backup card reads an observation (#1982)
+
+The overview's Backup card now reads one observation: what a host sampler publishes about the backup stamp and the backup
+timer, through a read-only directory (ADR 0157). *Senaste lyckade körning* shows the end of the last successful run and
+*Nästa planerade körning* the instant the timer is armed for. *Extern kopia* and *Behålls* still say "Saknar verifierad
+datakälla" in every state: no source for them is verified. A recorded run is never shown as proof of a working restore.
+D2's closed union gains one state for this source only, `awaiting`: the host has not reported, which is a built source and
+not an error, so it is neither "Kommer snart" nor an alarm.
+
+D4's #1982 row is partly flipped: Backup is real. Services and host resources stay with #1982's other part and are not made
+real by this amendment. The decision, its alternatives and the contract are ADR 0157; the operational contract is
+`docs/runbooks/host-observations.md`. No other decision of this ADR changes.

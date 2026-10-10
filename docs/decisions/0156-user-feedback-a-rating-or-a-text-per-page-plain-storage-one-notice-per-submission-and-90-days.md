@@ -283,11 +283,11 @@ Klas tried the switched-on row and asked for less: *"Att trycka på en stjärna 
 optional field *"krävs inte för att spara en stjärna... och det är för mycket brus"*, and after the star *"en
 bekräftelse ... Skicka gärna mer feedback ... men allt detta ska kunna stängas med ett kryss"*. So a star in the row
 submits a rating at once and the row becomes a confirmation with a close button; its "Lämna mer feedback" opens the
-footer's dialog with the rating filled in, and the comment, the screenshot and the device-context box live only in
+dialog with the rating filled in, and the comment, the screenshot and the device-context box live only in
 that dialog. The stars fill up to the rating, DESIGN.md §7's scoped exception. The bullet above about a draft in the
 row now holds for the dialog; the row holds only a request in flight or its confirmation.
 
-The footer's link is no longer about a page either (*"länken i footern borde inte ha någon sida, bara rent allmän
+The footer's link is no longer about a page (*"länken i footern borde inte ha någon sida, bara rent allmän
 feedback"*): it reads "Lämna feedback" on every `(app)` route and submits under a 20th key, `general`, which no route
 maps to and which therefore never hides a page's row. It is stored by name like the others, so no migration.
 

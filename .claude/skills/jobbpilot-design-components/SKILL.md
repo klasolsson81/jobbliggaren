@@ -358,7 +358,7 @@ See Dialog section above. Button text is always action-specific.
 - Library: `lucide-react`
 - Default size: `size-4` (16px) inline with text; `size-5` (20px) standalone
 - Color: inherits `currentColor` — never hardcode icon color (except the provider mark, DESIGN.md §3)
-- Style: stroke/outline only — no filled icon variants (except the provider mark, DESIGN.md §3)
+- Style: stroke/outline only — no filled icon variants (except the provider mark, DESIGN.md §3, and the feedback rating stars, DESIGN.md §7)
 
 ---
 

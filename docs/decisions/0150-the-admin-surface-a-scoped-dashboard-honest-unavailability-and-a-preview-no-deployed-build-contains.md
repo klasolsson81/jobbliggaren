@@ -215,10 +215,10 @@ The handoff is a design reference, not production code. What ships departs from 
 | Filters Alla, Aktiva, Suspenderade, Ej verifierade and Under radering | Alla, Aktiva, Under radering and Ofullständiga | No account can be suspended before #1976 (D4); an option that overlaps the others breaks the counts' sum (ADR 0047) |
 | Activity counts on every account | Active accounts only: "–" in the ledger, and no count rows in the panel | Measured: the counts are reliable only for an active account (ADR 0151); ADR 0120 |
 | Actions on every account | None on an incomplete account, and one line instead | It has no profile to act on; D2 |
-| A category on each feedback item (Fel, Förslag, Fråga) | A rating, "4 av 5" or "Inget betyg"; no category | A submission is a rating, a text or both for one of 19 pages and nothing asks for a category (ADR 0156 D1) |
+| A category on each feedback item (Fel, Förslag, Fråga) | A rating, "4 av 5" or "Inget betyg"; no category | A submission is a rating, a text or both for one of 19 pages *(2026-10-09, ADR 0156: a 20th key, `general`, bound to no page)* and nothing asks for a category (ADR 0156 D1) |
 | Statuses Ny, Pågår, Löst and Avfärdad | Ny, Pågår, Åtgärdad and Avstår | ADR 0156 D8 |
 | The sender's address in every feedback list row | None in the list; the detail reads it on the server | The list carries no personal data (ADR 0156 D8); the account has no name (D3) |
-| The page as the app path the report was sent from | The page's name from a closed set of 19; no URL or query string is collected | ADR 0156 D2 |
+| The page as the app path the report was sent from | The page's name from a closed set of 19 *(2026-10-09, ADR 0156: a 20th key, `general`, bound to no page)*; no URL or query string is collected | ADR 0156 D2 |
 | Feedback's status filter and summary period as the house `Segment` | `.jp-subnav` links, one URL each | The page is driven by its URL, so the notice's link opens its item; a filter that is client state (Användare) keeps `Segment` |
 
 ## Alternatives considered

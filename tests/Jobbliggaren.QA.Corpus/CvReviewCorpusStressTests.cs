@@ -117,9 +117,15 @@ public class CvReviewCorpusStressTests(ITestOutputHelper output)
             foreach (var v in result.Verdicts)
             {
                 if (v.Verdict == CriterionVerdict.NotAssessed)
+                {
                     v.NotAssessedReason.ShouldNotBeNullOrWhiteSpace($"{c.Label}/{v.CriterionId}: NotAssessed needs a reason.");
+                    v.NotAssessedKind.ShouldNotBeNull($"{c.Label}/{v.CriterionId}: NotAssessed carries its reason's kind (#2083).");
+                }
                 else
+                {
                     v.Evidence.ShouldNotBeEmpty($"{c.Label}/{v.CriterionId}: assessed verdict must cite evidence (Inv. 2).");
+                    v.NotAssessedKind.ShouldBeNull($"{c.Label}/{v.CriterionId}: an assessed verdict carries no kind (#2083).");
+                }
             }
         }
     }

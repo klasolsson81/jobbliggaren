@@ -193,6 +193,45 @@ public class ResumeReviewEndpointTests(ApiFactory factory)
         VerdictById(review, "B8").GetProperty("verdict").GetString().ShouldBe("NotAssessed");
     }
 
+    [Fact]
+    public async Task GET_review_carries_notAssessedKind_and_passCriterion_from_the_served_rubric()
+    {
+        // #2083 PR 2 over the real canonical round-trip. The promoted CV carries no education, no
+        // summary and no source file, so it has a Fail (A10), a Pass (B4) and NotAssessed rows of two
+        // kinds (B8 file, A3 job ad) — each a state promote produces, nothing seeded.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await PromoteAsync(_client, ct);
+        var rubric = CvReviewWireContract.ServedRubric(_factory);
+
+        var review = await GetReviewAsync(_client, resumeId, ct);
+
+        var b8 = VerdictById(review, "B8");
+        b8.GetProperty("verdict").GetString().ShouldBe("NotAssessed");
+        CvReviewWireContract.NullableString(b8, "notAssessedKind").ShouldBe("TextOnly");
+        CvReviewWireContract.NullableString(b8, "notAssessedReason")
+            .ShouldBe(rubric.Criteria.Single(c => c.Id == "B8").NotAssessedReason);
+
+        var a3 = VerdictById(review, "A3");
+        a3.GetProperty("verdict").GetString().ShouldBe("NotAssessed");
+        CvReviewWireContract.NullableString(a3, "notAssessedKind").ShouldBe("RequiresJobAd");
+
+        var b4 = VerdictById(review, "B4");
+        b4.GetProperty("verdict").GetString().ShouldBe("Pass");
+        CvReviewWireContract.NullableString(b4, "notAssessedKind").ShouldBeNull();
+        CvReviewWireContract.NullableString(b4, "passCriterion").ShouldBeNull(
+            "Godkänns när visas bara på ett fynd, aldrig på en godkänd rad (CTO F6).");
+
+        var a10 = VerdictById(review, "A10");
+        a10.GetProperty("verdict").GetString().ShouldBe("Fail");
+        CvReviewWireContract.NullableString(a10, "notAssessedKind").ShouldBeNull();
+        CvReviewWireContract.NullableString(a10, "passCriterion").ShouldNotBeNull();
+        CvReviewWireContract.NullableString(a10, "passCriterion")
+            .ShouldBe(rubric.Criteria.Single(c => c.Id == "A10").PassCriterion);
+
+        CvReviewWireContract.ShouldCarryKindAndPassCriterionOnEveryVerdict(review, rubric);
+    }
+
     // ---- Finding-status ledger ----
 
     [Fact]
@@ -334,6 +373,9 @@ public class ResumeReviewEndpointTests(ApiFactory factory)
         var review = await GetReviewAsync(_client, resumeId, ct);
         VerdictById(review, "B5").GetProperty("verdict").GetString().ShouldBe("Warn",
             "en beskrivning med blandade punktsymboler ska ge B5 = Warn (arm-oberoende).");
+        // #2083: B5 can never return Pass, so the rubric authors no "Godkänns när" for it and its
+        // Warn row carries none (a pass condition no outcome can meet would be a false promise).
+        VerdictById(review, "B5").GetProperty("passCriterion").ValueKind.ShouldBe(JsonValueKind.Null);
 
         // B5 is styleOnly → Ignored is allowed. This is the path that returned 400 before B5 had a rule.
         var ignore = await _client.PutAsJsonAsync(

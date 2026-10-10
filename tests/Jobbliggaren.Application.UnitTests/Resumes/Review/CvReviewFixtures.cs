@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -8,6 +11,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using NSubstitute;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
@@ -46,6 +50,68 @@ internal static class CvReviewFixtures
     internal static IClicheLexicon RealClicheLexicon() => new ClicheLexicon();
     internal static IVerbMapper RealVerbMapper() => new VerbMapper();
     internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
+
+    // ── Older (N-1) rubric assets, produced by the REAL loader (#2083) ───
+    // The engine's and the rules' code-side NotAssessed fallback pairs are reached only on an
+    // asset that predates a field. RubricLoader is the actor that turns an asset into the Rubric
+    // the engine reads, so an N-1 state is built by removing fields from the SHIPPED JSON and
+    // loading the result through RubricLoader.LoadFrom: whatever it returns is a state production
+    // can hold. A loaded criterion is never `with`-ed into a shape the loader would reject (it fails
+    // loud on a kind without a reason, RubricPassCriterionAndNotAssessedKindTests
+    // .Load_ShouldFailLoud_WhenAKindHasNoReason).
+
+    /// <summary>The shipped asset as it stood before #2083: every <c>notAssessedReason</c>, no
+    /// <c>notAssessedKind</c>. (B8's reason arrived with #2083 too, so B8 still carries one here;
+    /// <see cref="RubricWithoutNotAssessedPairOn"/> is B8's pre-#2083 shape.)</summary>
+    internal static IRubricProvider RubricPredatingNotAssessedKind() =>
+        ShippedRubricLoadedWithout(["notAssessedKind"], onlyCriterionIds: null);
+
+    /// <summary>An asset whose named criteria carry neither half of the pair — the shape of an
+    /// asset that predates <c>notAssessedReason</c> (the v1.0.0 synthetic fixture), and B8 before
+    /// #2083.</summary>
+    internal static IRubricProvider RubricWithoutNotAssessedPairOn(params string[] criterionIds) =>
+        ShippedRubricLoadedWithout(["notAssessedReason", "notAssessedKind"], criterionIds);
+
+    private static IRubricProvider ShippedRubricLoadedWithout(
+        IReadOnlyCollection<string> fields, IReadOnlyCollection<string>? onlyCriterionIds)
+    {
+        var root = JsonNode.Parse(
+            ShippedRubricJson(),
+            documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true })!.AsObject();
+
+        foreach (var node in root["criteria"]!.AsArray())
+        {
+            var criterion = node!.AsObject();
+            if (onlyCriterionIds is not null
+                && !onlyCriterionIds.Contains(criterion["id"]!.GetValue<string>()))
+            {
+                continue;
+            }
+
+            foreach (var field in fields)
+            {
+                criterion.Remove(field);
+            }
+        }
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+        var rubric = RubricLoader.LoadFrom(stream);
+
+        var provider = Substitute.For<IRubricProvider>();
+        provider.GetRubric().Returns(rubric);
+        return provider;
+    }
+
+    // Resolved by prefix so a rubric version bump does not silently point this at a stale name.
+    private static string ShippedRubricJson()
+    {
+        const string prefix = "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v";
+        var assembly = typeof(RubricProvider).Assembly;
+        var name = assembly.GetManifestResourceNames().Single(n => n.StartsWith(prefix, StringComparison.Ordinal));
+        using var stream = assembly.GetManifestResourceStream(name)!;
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
 
     // Fas 4b 8b.4b (ADR 0108) — B1 assesses the section ORDER, so the review engine reads the
     // parsing lexicon (heading recognition) and cv-conventions (the recommended order). Real

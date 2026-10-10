@@ -16,6 +16,7 @@ using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
+using Jobbliggaren.Infrastructure.Admin.HostBridge;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Access;
@@ -73,6 +74,7 @@ public static class DependencyInjection
         services.AddLandingStats();
         services.AddTextAnalysis();
         services.AddCvParsing();
+        services.AddHostBridge(configuration);
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }

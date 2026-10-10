@@ -419,6 +419,11 @@ services:
       # NOT passed to `worker`: it mints and validates no DataProtector tokens and must not
       # share this keyring.
       DataProtection__KeyPath: /keys
+      # #1982, ADR 0157 — where the host sampler's files appear, matched by the read-only bind below.
+      # The key is HostBridgeOptions.DirectoryConfigKey, built from the options property's own name, and
+      # DeployComposeHostBridgeTests pins that this value and the mount target stay the same path.
+      # NOT passed to `worker`: it reads nothing from the host bridge.
+      HostBridge__Directory: /run/observations
     volumes:
       - *app-secrets-entry
       # Writable, unlike the secrets mount: the keyring is written by the app, not injected.
@@ -435,6 +440,20 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # #1982, ADR 0157 — what the host sampler publishes for the admin Backup card: timestamps and
+      # closed tokens, fit for any admin to read. Read-only, and mounted into `api` and nothing else.
+      # `create_host_path: true` is the opposite of the two mounts above, on purpose: those protect
+      # secrets and must fail loudly when absent; this directory is not secret, Docker's root-owned
+      # 0755 default is harmless, and a recreate of `api` that runs before the directory exists must
+      # not stop the application from starting over a metadata card. jobbliggaren-observe-tmpfiles.conf
+      # then hands it to the unprivileged sampler account. The source must never become a parent of
+      # /run/jobbliggaren/secrets or host-secrets; DeployComposeHostBridgeTests pins it.
+      - type: bind
+        source: /run/jobbliggaren/observations
+        target: /run/observations
+        read_only: true
+        bind:
+          create_host_path: true
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
     # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a

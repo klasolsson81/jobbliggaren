@@ -7,10 +7,13 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { auditLogPagedResultSchema, failedJobsResponseSchema } from "@/lib/dto/admin";
 import {
   accountOverviewSchema,
+  backupStatusResponseSchema,
   overviewAuditEventSchema,
   type AdminOverviewSnapshot,
+  type BackupObservationData,
+  type BackupStatusResponse,
 } from "@/lib/dto/admin-overview";
-import type { OverviewObservation } from "@/lib/admin/overview";
+import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
 
 const SOURCE_DEADLINE_MS = 10_000;
 const SAMPLED_AT_HEADER = "X-Admin-Sampled-At";
@@ -49,15 +52,68 @@ function observed<T>(result: ApiResult<Observed<T>>, empty = false): OverviewObs
     : { kind: "failed" };
 }
 
+const LAST_SUCCESS_STATES = { Missing: "missing", Unreadable: "unreadable", Invalid: "invalid" } as const;
+const TIMER_STATES = { Inactive: "inactive", NotInstalled: "notInstalled", Unknown: "unknown" } as const;
+
+/**
+ * The Backup card's source. The observation's time is the host's own (`observedAt`), never the time of this
+ * read: the generic header stamps the response, and an old sample must stay old however late it is read.
+ * A host that has not reported is `awaiting`, which is not a failure.
+ */
+function backupObservation(result: ApiResult<Observed<BackupStatusResponse>>): AwaitingObservation<BackupObservationData> {
+  if (result.kind !== "ok") return { kind: "failed" };
+  const status = result.data.data;
+  if (status.status === "NotObserved") return { kind: "awaiting" };
+  if (status.status === "Failed") return { kind: "failed" };
+
+  const { lastSuccess, timer } = status;
+  return {
+    kind: "loaded",
+    sampledAt: status.observedAt,
+    refreshFailed: false,
+    data: {
+      lastSuccess: lastSuccess.state === "Recorded"
+        ? { state: "recorded", completedAt: lastSuccess.completedAt, overdue: lastSuccess.overdue }
+        : { state: LAST_SUCCESS_STATES[lastSuccess.state] },
+      timer: timer.state === "Scheduled"
+        ? { state: "scheduled", nextRunAt: timer.nextRunAt }
+        : { state: TIMER_STATES[timer.state] },
+    },
+  };
+}
+
+/**
+ * Resolves true as soon as one of the reads has succeeded, and false once every one has settled without a success.
+ * `read` never rejects: a failure is a result.
+ */
+function anySucceeds(reads: ReadonlyArray<Promise<ApiResult<unknown>>>): Promise<boolean> {
+  return new Promise((resolve) => {
+    let pending = reads.length;
+    for (const pendingRead of reads) {
+      void pendingRead.then((result) => {
+        if (result.kind === "ok") resolve(true);
+        else if (--pending === 0) resolve(false);
+      });
+    }
+  });
+}
+
 export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewRead> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
-  const [accounts, audit, jobs] = await Promise.all([
-    read(sessionId, "/api/v1/admin/overview/accounts", accountOverviewSchema, signal),
-    read(sessionId, "/api/v1/admin/audit-log?page=1&pageSize=5", auditLogPagedResultSchema, signal),
-    read(sessionId, "/api/v1/admin/jobs/failed", failedJobsResponseSchema, signal),
-  ]);
-  for (const result of [accounts, audit, jobs]) {
+  const accountsRead = read(sessionId, "/api/v1/admin/overview/accounts", accountOverviewSchema, signal);
+  const auditRead = read(sessionId, "/api/v1/admin/audit-log?page=1&pageSize=5", auditLogPagedResultSchema, signal);
+  const jobsRead = read(sessionId, "/api/v1/admin/jobs/failed", failedJobsResponseSchema, signal);
+  // A source beyond the first three is asked only once an admin read has SUCCEEDED, so the authentication work a
+  // caller with a forged or an ordinary session can start stays at the three reads above (#2064); it then runs
+  // beside the slower of them instead of after them. If none succeeded there is nothing to prove the caller and
+  // nothing to wait for, and the source reads as failed without a request. Every later source goes through `gated`.
+  const authorized = anySucceeds([accountsRead, auditRead, jobsRead]);
+  const gated = <T>(path: string, schema: z.ZodType<T>): Promise<ApiResult<Observed<T>>> =>
+    authorized.then((proven) => (proven ? read(sessionId, path, schema, signal) : { kind: "error" as const }));
+  const backupRead = gated("/api/v1/admin/overview/backup", backupStatusResponseSchema);
+  const [accounts, audit, jobs, backup] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead]);
+  for (const result of [accounts, audit, jobs, backup]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };
   }
 
@@ -77,5 +133,10 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
   const jobObservation = jobs.kind === "ok"
     ? observed({ kind: "ok", data: { data: { totalCount: jobs.data.data.totalCount }, sampledAt: jobs.data.sampledAt } })
     : { kind: "failed" as const };
-  return { kind: "ok", data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation }, loadedAt: Date.now() };
+
+  return {
+    kind: "ok",
+    data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup) },
+    loadedAt: Date.now(),
+  };
 }

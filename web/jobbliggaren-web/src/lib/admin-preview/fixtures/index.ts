@@ -214,10 +214,8 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
   ],
   server: marked({ cpu: 23, memory: 61, disk: 38 }),
   backup: marked({
-    latestAt: daysAgo(0, 1, 30),
-    offsiteAt: daysAgo(0, 1, 45),
-    nextAt: daysAgo(-1, 1, 30),
-    retentionDays: 30,
+    lastSuccess: marked({ state: "recorded" as const, completedAt: daysAgo(0, 1, 30), overdue: false }),
+    timer: marked({ state: "scheduled" as const, nextRunAt: daysAgo(-1, 1, 30) }),
   }),
   email: marked({
     sent: 57,

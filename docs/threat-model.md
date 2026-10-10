@@ -282,6 +282,22 @@ or Dependabot fallback. Only fixed-SHA push/schedule/workflow_dispatch main
 code may select the main environment. Review PR code before approving its
 environment; new heads require new review.
 
+## Host facts the application reads (#1982, ADR 0157)
+
+One boundary runs from the box towards the API, and none the other way. A sandboxed host sampler
+(`jobbliggaren-observe.service`, account `jbl-observe`: no shell, no home, no groups, no access to
+`host-secrets/`, `secrets/` or `/etc/jobbliggaren`) publishes small JSON files into
+`/run/jobbliggaren/observations`, which only the `api` service mounts, read-only. Its alphabet is
+timestamps and closed tokens, and its content rule is that anything in it is fit for any admin to read
+(`docs/runbooks/host-observations.md`); a source that needs more is a new contract version and a
+security review. The API treats the file as untrusted input: a regular file under 16 KiB, strict UTF-8 and
+JSON, exact keys and tokens, a refusal with a typed reason and no echo of its content. The browser receives a
+closed union with no path, no run start and no message, and never causes the host to do anything.
+Residual, and stated as such: the account that writes the file, and root, can swap it between the API's
+check and its open or put a FIFO in its place after the length check; both are writers the model already trusts. The sampler is
+not a heartbeat floor timer, because its only reader is the card, which shows a stopped sampler as an old
+observation.
+
 ## Release chain and the deploy box
 
 `.github/workflows/release-images.yml` publishes and

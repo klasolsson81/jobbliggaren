@@ -216,6 +216,11 @@
   color: var(--jp-danger-700);
   font-weight: var(--jp-fw-bold);
 }
+/* A state that needs attention but is not a failure count (a backup that is off or overdue): same form, warning hue. */
+.jp-admin-warning {
+  color: var(--jp-warning-700);
+  font-weight: var(--jp-fw-bold);
+}
 
 /* The trend region's frame: three dashed guides and a baseline around the plot area. */
 .jp-admintrend__plot {
@@ -304,6 +309,9 @@
   font-size: var(--text-body-sm);
 }
 .jp-admindl dt { color: var(--jp-ink-2); }
+/* Secondary text inside a row keeps the row's size; the KPI unit class is larger than a .jp-admindl value. */
+.jp-admindl__aside { color: var(--jp-ink-2); }
+.jp-admindl__age { white-space: nowrap; }
 .jp-admindl dd {
   margin: 0;
   color: var(--jp-ink-1);

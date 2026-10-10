@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { OVERVIEW_STALE_MS, type OverviewObservation } from "@/lib/admin/overview";
+import { OVERVIEW_STALE_MS, type AwaitingObservation } from "@/lib/admin/overview";
 import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
-const SOURCES = ["accounts", "audit", "jobs"] as const;
-type Health = "current" | "retained" | "stale" | "retainedStale" | "failed" | "loading";
+const SOURCES = ["accounts", "audit", "jobs", "backup"] as const;
+type Health = "current" | "retained" | "stale" | "retainedStale" | "failed" | "loading" | "awaiting";
 
-function health(observation: OverviewObservation<unknown>, now: number): Health {
+function health(observation: AwaitingObservation<unknown>, now: number): Health {
   if (observation.kind !== "loaded" && observation.kind !== "empty") return observation.kind;
   const stale = now - Date.parse(observation.sampledAt) > OVERVIEW_STALE_MS;
   return observation.refreshFailed
@@ -28,7 +28,7 @@ export function AdminOverviewAnnouncements({ observations, now }: {
     const message = SOURCES.flatMap((source, index) => {
       const state = health(observations[source], now);
       if (state === previous.health[index]) return [];
-      const text = state === "failed" || state === "loading" ? t(`regions.${state}`)
+      const text = state === "failed" || state === "loading" || state === "awaiting" ? t(`regions.${state}`)
         : state === "retainedStale"
           ? `${t("overview.observation.refreshFailed")} ${t("overview.observation.stale")}`
           : t(`overview.observation.${state === "retained" ? "refreshFailed" : state}`);

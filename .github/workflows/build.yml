@@ -285,13 +285,13 @@ jobs:
           # logship and its own, twelve until #1295 added the runtime-id helper and its own, fourteen
           # until #1170 added the log prune and its own, sixteen until #1775 added the two Redis
           # scripts without raising it, eighteen until #1238 added the release record tool and its
-          # own); the
+          # own, twenty-two until #1982 added the host sampler's collector, library and suite); the
           # floor is a floor and not an equality, so adding one does not fail the build for the
           # wrong reason — but it is RAISED when scripts land, or the gate silently stops
           # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 22 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 22."
+          if [ "$n" -lt 25 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 25."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -448,6 +448,15 @@ jobs:
 
       - name: jobbliggaren-backup (fixturer)
         run: bash deploy/systemd/jobbliggaren-backup.test.sh
+
+      # Värdsamplern för adminöversiktens Backup-kort (#1982, ADR 0157). Sviten jämför samplerns utdata
+      # byte för byte med de guldfiler som API:ts parsertester också läser. Läs-/skrivrättighetsfallen
+      # skippar sig själva på filsystem utan POSIX-lägen (Git Bash/Windows); på ubuntu ska ingenting
+      # skippas, så en skip blir här ett fel, som JBL_REQUIRE_MODE_CASES på inject-secrets-steget.
+      - name: jobbliggaren-observe (fixturer)
+        run: bash deploy/systemd/jobbliggaren-observe.test.sh
+        env:
+          JBL_REQUIRE_MODE_CASES: "1"
 
       # Lådans kadenserade läsare och dess dead-man (#1201, grind M-7). Sviten stubbar
       # `systemctl`, `auditctl`, `df` och `curl` — varken root, auditd eller nätverk krävs.

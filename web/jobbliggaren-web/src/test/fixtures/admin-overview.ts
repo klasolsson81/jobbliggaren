@@ -1,4 +1,4 @@
-import type { AccountOverviewDto, AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
+import type { AccountOverviewDto, AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
 
 export const OVERVIEW_TIME = "2026-10-08T10:00:00Z";
 
@@ -19,6 +19,14 @@ export function accountOverviewFixture(): AccountOverviewDto {
   };
 }
 
+/** A recorded run at 02:19 and a timer armed for the next night, as the host sampler publishes them. */
+export function backupFixture(): BackupObservationData {
+  return {
+    lastSuccess: { state: "recorded", completedAt: "2026-10-08T00:19:07+00:00", overdue: false },
+    timer: { state: "scheduled", nextRunAt: "2026-10-09T00:17:55+00:00" },
+  };
+}
+
 export function overviewSnapshotFixture(): AdminOverviewSnapshot {
   return {
     accounts: { kind: "loaded", data: accountOverviewFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
@@ -27,5 +35,6 @@ export function overviewSnapshotFixture(): AdminOverviewSnapshot {
       aggregateType: "JobSeeker", aggregateId: "00000000-0000-4000-8000-000000000001",
     }], sampledAt: OVERVIEW_TIME, refreshFailed: false },
     jobs: { kind: "loaded", data: { totalCount: 3 }, sampledAt: OVERVIEW_TIME, refreshFailed: false },
+    backup: { kind: "loaded", data: backupFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
   };
 }

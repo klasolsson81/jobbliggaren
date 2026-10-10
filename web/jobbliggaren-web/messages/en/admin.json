@@ -80,11 +80,21 @@
     },
     "backup": {
       "title": "Backup",
-      "latest": "Latest",
+      "latest": "Last successful run",
       "offsite": "Off-site copy",
-      "next": "Next",
+      "next": "Next scheduled run",
       "retention": "Kept",
-      "retentionDays": "{days} days"
+      "noVerifiedSource": "No verified data source",
+      "lastSuccess": {
+        "missing": "No successful run recorded",
+        "unreadable": "The timestamp could not be read",
+        "invalid": "The timestamp is invalid",
+        "overdue": "Older than 26 hours"
+      },
+      "nextRun": {
+        "inactive": "No run scheduled",
+        "notInstalled": "The schedule is not installed on the server"
+      }
     },
     "email": {
       "title": "Email",
@@ -129,7 +139,8 @@
       "sources": {
         "accounts": "Account statistics",
         "audit": "Audit events",
-        "jobs": "Failed background jobs"
+        "jobs": "Failed background jobs",
+        "backup": "Backup"
       }
     },
     "registrationPeriods": {
@@ -726,6 +737,7 @@
   },
   "regions": {
     "failed": "The data could not be fetched. Try again in a moment.",
-    "loading": "Fetching data…"
+    "loading": "Fetching data…",
+    "awaiting": "The server has not reported yet."
   }
 }

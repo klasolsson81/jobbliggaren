@@ -27,7 +27,7 @@ import {
   type AdminServiceStatus,
   type AdminValueRegion,
 } from "@/lib/admin/view-models";
-import { accountsHref, type AdminOverviewSnapshot } from "@/lib/admin/overview";
+import { accountsHref, OVERVIEW_STALE_MS, type AdminOverviewSnapshot, type AwaitingObservation } from "@/lib/admin/overview";
 import type { RegistrationPeriod } from "@/lib/dto/admin-overview";
 import { AdminObservationNote } from "./admin-observation-note";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
@@ -172,7 +172,7 @@ export function AdminOverview({
           icon={HardDriveDownload}
           span={4}
         >
-          <BackupBody region={regions.backup} />
+          {observations ? <ObservedBackup observation={observations.backup} now={now} /> : <BackupBody region={regions.backup} />}
         </AdminCard>
 
         <ValueCard
@@ -342,20 +342,79 @@ function ServerBody({ region }: { readonly region: AdminValueRegion<AdminServerR
   );
 }
 
-function BackupBody({ region }: { readonly region: AdminValueRegion<AdminBackupStatus> }) {
+/**
+ * The Backup card's rows (#1982, ADR 0157). "Extern kopia" and "Behålls" keep their place and keep saying that
+ * nothing observes them, in every state: a successful nightly run is not evidence of either. A state that needs
+ * attention (no run, an overdue run, a timer that is off) reads in the warning form, with its words carrying it.
+ */
+function BackupRows({ status, age }: {
+  readonly status: AdminBackupStatus | null;
+  /** The instant to measure the last run's age from, or null when the observation is old or unmeasured. */
+  readonly age: number | null;
+}) {
   const t = useTranslations("admin.overview.backup");
   const format = useFormatter();
+  const noSource = <><AdminUnknown /> <span className="jp-admindl__aside">{t("noVerifiedSource")}</span></>;
+  const warn = (text: string) => <span className="jp-admin-warning">{text}</span>;
+
+  return (
+    <dl className="jp-admindl">
+      <Row label={t("latest")}>
+        {status === null ? <AdminUnknown /> : status.lastSuccess.state === "recorded" ? (
+          <>
+            {formatDateTime(format, status.lastSuccess.completedAt) ?? <AdminUnknown />}
+            {age === null ? null : (
+              <>
+                {" "}
+                <span className="jp-admindl__aside jp-admindl__age">({format.relativeTime(new Date(status.lastSuccess.completedAt), age)})</span>
+              </>
+            )}
+            {status.lastSuccess.overdue ? <><br />{warn(t("lastSuccess.overdue"))}</> : null}
+          </>
+        ) : warn(t(`lastSuccess.${status.lastSuccess.state}`))}
+      </Row>
+      <Row label={t("next")}>
+        {status === null ? <AdminUnknown /> : status.timer.state === "scheduled"
+          ? (formatDateTime(format, status.timer.nextRunAt) ?? <AdminUnknown />)
+          : status.timer.state === "unknown" ? <AdminUnknown /> : warn(t(`nextRun.${status.timer.state}`))}
+      </Row>
+      <Row label={t("offsite")}>{noSource}</Row>
+      <Row label={t("retention")}>{noSource}</Row>
+    </dl>
+  );
+}
+
+/** The card from a fixed region: the preview and the tests, which have no observation time to measure from. */
+function BackupBody({ region }: { readonly region: AdminValueRegion<AdminBackupStatus> }) {
   const data = region.kind === "loaded" ? region.data : null;
 
   return (
     <div className="jp-admincard__body">
-      <dl className="jp-admindl">
-        <Row label={t("latest")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.latestAt) ?? <AdminUnknown />)}</Row>
-        <Row label={t("offsite")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.offsiteAt) ?? <AdminUnknown />)}</Row>
-        <Row label={t("next")}>{data === null ? <AdminUnknown /> : (formatDateTime(format, data.nextAt) ?? <AdminUnknown />)}</Row>
-        <Row label={t("retention")}>{data === null ? <AdminUnknown /> : t("retentionDays", { days: data.retentionDays })}</Row>
-      </dl>
+      <BackupRows status={data} age={null} />
       {region.kind === "loaded" ? null : <AdminRegionLine quiet kind={region.kind} />}
+    </div>
+  );
+}
+
+/**
+ * The card from the host's observation. An old sample keeps its own time (the note says "Uppgift från ..." and
+ * marks it old), and its last run is shown without an age rather than with one that would read as current.
+ */
+function ObservedBackup({ observation, now }: {
+  readonly observation: AwaitingObservation<AdminBackupStatus>;
+  readonly now: number;
+}) {
+  const shared = useTranslations("admin.regions");
+  const sampled = observation.kind === "loaded" || observation.kind === "empty" ? observation : null;
+  const old = sampled !== null && now - Date.parse(sampled.sampledAt) > OVERVIEW_STALE_MS;
+
+  return (
+    <div className="jp-admincard__body">
+      <BackupRows status={sampled?.data ?? null} age={sampled === null || old || now <= 0 ? null : now} />
+      {observation.kind === "loaded" || observation.kind === "empty" ? null
+        : observation.kind === "awaiting" ? <p className="jp-adminsoon">{shared("awaiting")}</p>
+        : <AdminRegionLine quiet kind={observation.kind} />}
+      <AdminObservationNote observation={observation} now={now} />
     </div>
   );
 }

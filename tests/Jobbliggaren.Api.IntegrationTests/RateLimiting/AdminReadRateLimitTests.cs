@@ -51,4 +51,23 @@ public sealed class AdminReadRateLimitTests(StrictRateLimitApiFactory factory)
             .Select(log => $"{log.Category}: {log.Message}")
             .ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task The_Backup_card_s_429_is_private_and_uncacheable_like_its_other_refusals()
+    {
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var burst = new RateLimitingOptions().AdminRead.PermitLimit;
+
+        HttpResponseMessage? rejected = null;
+        for (var attempt = 0; attempt < burst * 2 && rejected is null; attempt++)
+        {
+            var response = await admin.GetAsync("/api/v1/admin/overview/backup", Ct);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                rejected = response;
+        }
+
+        rejected.ShouldNotBeNull();
+        rejected.Headers.CacheControl.ShouldNotBeNull().Private.ShouldBeTrue();
+        rejected.Headers.CacheControl.NoStore.ShouldBeTrue();
+    }
 }

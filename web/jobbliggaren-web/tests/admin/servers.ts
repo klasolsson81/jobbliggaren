@@ -51,6 +51,34 @@ export const SESSION_ID = "admin-harness-session";
 
 export type AdminMode = "ok" | "forbidden" | "error" | "rateLimited" | "unauthorized";
 
+/**
+ * What the host sampler last published, as the Backup status read answers it (#1982). `switchedOff` is the
+ * state the box is in until the backup is: no stamp, a disabled timer.
+ */
+export type BackupScenario = "observed" | "switchedOff" | "notObserved" | "failed" | "old" | "overdue" | "timerUnknown";
+
+const HOUR = 3_600_000;
+function backupAnswer(scenario: BackupScenario): unknown {
+  // The API's wire form for a DateTimeOffset in UTC: whole seconds and an offset, never a Z.
+  const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const nothing = { stale: null, lastSuccess: null, timer: null };
+  const recorded = (hoursAgo: number, overdue: boolean) =>
+    ({ state: "Recorded", completedAt: at(-hoursAgo * HOUR), overdue });
+  const scheduled = { state: "Scheduled", nextRunAt: at(14 * HOUR) };
+  const observed = { status: "Observed", reason: null };
+  switch (scenario) {
+    case "observed": return { ...observed, observedAt: at(-20_000), stale: false, lastSuccess: recorded(10, false), timer: scheduled };
+    case "switchedOff": return { ...observed, observedAt: at(-20_000), stale: false,
+      lastSuccess: { state: "Missing", completedAt: null, overdue: null }, timer: { state: "Inactive", nextRunAt: null } };
+    case "notObserved": return { status: "NotObserved", reason: "NotSampledYet", observedAt: null, ...nothing };
+    case "failed": return { status: "Failed", reason: "InvalidFormat", observedAt: null, ...nothing };
+    case "old": return { ...observed, observedAt: at(-10 * 60_000), stale: true, lastSuccess: recorded(10, false), timer: scheduled };
+    case "overdue": return { ...observed, observedAt: at(-20_000), stale: false, lastSuccess: recorded(30, true), timer: scheduled };
+    case "timerUnknown": return { ...observed, observedAt: at(-20_000), stale: false, lastSuccess: recorded(10, false),
+      timer: { state: "Unknown", nextRunAt: null } };
+  }
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -62,7 +90,8 @@ export type Harness = {
   /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
   who: "admin" | "member" | "stale";
   mode: AdminMode;
-  readonly overviewReads: Record<"accounts" | "audit" | "jobs", AdminMode>;
+  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup", AdminMode>;
+  overviewBackup: BackupScenario;
   overviewSampledAt: string | null;
   overviewEmpty: boolean;
   overviewDelayMs: number;
@@ -159,7 +188,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
-    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok" },
+    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok" },
+    overviewBackup: "observed",
     overviewSampledAt: new Date().toISOString(),
     overviewEmpty: false,
     overviewDelayMs: 0,
@@ -225,7 +255,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       issuedGrants = 0;
       harness.who = "admin";
       harness.mode = "ok";
-      harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = "ok";
+      harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
+      harness.overviewBackup = "observed";
       harness.overviewSampledAt = new Date().toISOString();
       harness.overviewEmpty = false;
       harness.overviewDelayMs = 0;
@@ -295,6 +326,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           eventType: "JobSeeker.FollowedCompanyNotificationConsentUpdated", aggregateType: "JobSeeker" })) } : AUDIT_PAGE,
       "GET /api/v1/admin/jobs/recurring": () => RECURRING_JOBS,
       "GET /api/v1/admin/jobs/failed": () => harness.overviewEmpty ? { ...FAILED_JOBS, items: [], totalCount: 0 } : FAILED_JOBS,
+      "GET /api/v1/admin/overview/backup": () => backupAnswer(harness.overviewBackup),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -574,7 +606,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const answer = adminRoutes[route];
     if (answer !== undefined) {
       const source = route.endsWith("/overview/accounts") ? "accounts"
-        : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs" : null;
+        : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs"
+        : route.endsWith("/overview/backup") ? "backup" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);

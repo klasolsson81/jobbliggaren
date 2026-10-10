@@ -55,9 +55,9 @@ namespace Jobbliggaren.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Composition-root entry för Api. Registrerar alla Infrastructure-moduler.
-    /// Worker använder INTE denna metod — Worker anropar bara <see cref="AddPersistence"/>
-    /// + egna stub-implementationer av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).
+    /// The API's entry point: registers every Infrastructure module. The Worker does not call
+    /// it; it registers <see cref="AddPersistence"/> and the modules it needs, with its own
+    /// implementations of the audit ports (ADR 0022, ADR 0023).
     /// </summary>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
@@ -144,22 +144,17 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// #454 (ADR 0088 D3/D6) — company-registry module: binds
-    /// <see cref="CompanyRegistry.CompanyRegistryOptions"/> and registers
-    /// <c>ICompanyRegistry</c> as a read-through cache decorator
-    /// (<see cref="CompanyRegistry.CachedCompanyRegistry"/>, Redis via <c>IDistributedCache</c>)
-    /// over the provider selected by <c>CompanyRegistry:Provider</c>: <c>Fake</c> (dev/test
-    /// allow-list, mirror <see cref="AddEmailSender"/>'s Console gating — falls back to Null
-    /// elsewhere) or <c>Off</c>/missing → <see cref="CompanyRegistry.NullCompanyRegistry"/> (always
-    /// Unavailable — the prod-dark backstop until the real SCB adapter lands; fail-CIVIC: the
-    /// lookup endpoint degrades, never crashes). Unknown values fail-stop. NO HttpClient in v1 —
-    /// the SCB adapter (Sept-2026 API-key API, DPIA-#456-gated) arrives as a follow-up provider
-    /// value with its own resilience pipeline + PROCESS-WIDE upstream limiter (10 calls/10 s per
-    /// API-Id — a per-user endpoint policy cannot protect a per-API-Id budget).
+    /// The company-registry lookup port (ADR 0088): binds
+    /// <see cref="CompanyRegistry.CompanyRegistryOptions"/> and registers <c>ICompanyRegistry</c>
+    /// as a read-through Redis cache (<see cref="CompanyRegistry.CachedCompanyRegistry"/>) over the
+    /// provider named by <c>CompanyRegistry:Provider</c>. <c>Fake</c> is allowed only in
+    /// Development and Test, like <see cref="AddEmailSender"/>'s console sender, and falls back to
+    /// Null elsewhere; <c>Off</c> or no value registers
+    /// <see cref="CompanyRegistry.NullCompanyRegistry"/>, which always answers Unavailable so the
+    /// lookup degrades instead of failing. Any other value stops startup.
     /// <para>
-    /// <c>IDistributedCache</c> förutsätts registrerad av anroparen (Api via
-    /// <see cref="AddIdentityAndSessions"/> — parity <see cref="AddLandingStats"/>-noten). Worker
-    /// anropar INTE denna modul (company-watch-scannen är registry-fri, ADR 0088).
+    /// The caller registers <c>IDistributedCache</c> first (the API through
+    /// <see cref="AddIdentityAndSessions"/>). The Worker does not call this module.
     /// </para>
     /// </summary>
     public static IServiceCollection AddCompanyRegistry(
@@ -179,8 +174,7 @@ public static class DependencyInjection
         if (string.Equals(provider, CompanyRegistry.CompanyRegistryOptions.ProviderFake,
                 StringComparison.OrdinalIgnoreCase))
         {
-            // Dev/Test allow-list (mirror ConsoleEmailSender): fixture-tabellen får aldrig
-            // maskera sig som register-sanning utanför dev/test — annars Null.
+            // The fixture table must never pass for register data outside Development and Test.
             if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
                 services.AddSingleton<CompanyRegistry.FakeCompanyRegistry>();
             else
@@ -197,9 +191,7 @@ public static class DependencyInjection
                 $"CompanyRegistry:Provider='{provider}' stöds inte i v1. Använd 'Fake' eller 'Off'.");
         }
 
-        // Decorator-wiring: porten resolvar till cache-dekoratorn över den inre providern som
-        // switchen registrerade (Fake om registrerad, annars Null). Scoped — port-konsumenten
-        // (handlern) är scoped; dekoratorn själv är stateless.
+        // The port resolves to the cache decorator over whichever provider was registered above.
         services.AddScoped<Jobbliggaren.Application.Companies.Abstractions.ICompanyRegistry>(sp =>
         {
             Jobbliggaren.Application.Companies.Abstractions.ICompanyRegistry innerProvider =
@@ -216,15 +208,14 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// #560 (ADR 0091) — SCB company-register POPULATION module (Worker-only; deliberately NOT part of
-    /// <see cref="AddInfrastructure"/> — the Api never populates, only the Worker's recurring job does).
-    /// Registers the refresh orchestrator (<see cref="IScbCompanyRegisterRefresher"/>), the bulk store,
-    /// and the partition planner unconditionally, and wires the REAL cert-based client ONLY when
-    /// <c>ScbRegister:Enabled=true</c> (otherwise <see cref="NullScbCompanyRegisterSource"/> — the
-    /// certificate is never touched in CI / cert-less dev). The typed HttpClient gets the client
-    /// certificate (loaded from the Windows cert-store by thumbprint — no password in config) plus a
-    /// PROCESS-WIDE 10-calls/10-s rate limiter FIRST in the resilience pipeline: a per-endpoint policy
-    /// cannot protect SCB's per-API-Id budget, and a breach risks a ban (§12 STOPP condition).
+    /// Populates the local SCB company register (ADR 0091). Worker only, so deliberately not part
+    /// of <see cref="AddInfrastructure"/>. The refresh orchestrator
+    /// (<see cref="IScbCompanyRegisterRefresher"/>), bulk store and partition planner are always
+    /// registered; the certificate-based client only when <c>ScbRegister:Enabled</c> is true,
+    /// otherwise <see cref="NullScbCompanyRegisterSource"/>, so CI and development without the
+    /// certificate never touch it. The client authenticates with a certificate loaded by
+    /// thumbprint and puts a process-wide rate limiter first in its pipeline: SCB's budget is per
+    /// API id, which no per-endpoint policy can protect, and exceeding it risks a ban.
     /// </summary>
     public static IServiceCollection AddScbCompanyRegister(
         this IServiceCollection services, IConfiguration configuration)
@@ -240,7 +231,7 @@ public static class DependencyInjection
         var enabled = configuration.GetValue<bool>($"{ScbRegisterOptions.SectionName}:Enabled");
         if (!enabled)
         {
-            // Prod-dark / CI: no SCB source, no certificate loaded. The refresh job no-ops.
+            // No SCB source and no certificate; the refresh job does nothing.
             services.AddSingleton<IScbCompanyRegisterSource, NullScbCompanyRegisterSource>();
             return services;
         }
@@ -272,21 +263,18 @@ public static class DependencyInjection
             })
             .AddResilienceHandler("scb-register", builder =>
             {
-                // Rate-limiter registered FIRST = Polly-outermost (the framework's default order): it
-                // paces NEW pipeline executions to <=6/10 s. Retries run INSIDE a single acquired permit
-                // and do not re-acquire, so the <=6-calls/10-s ceiling to SCB is upheld by the SEQUENTIAL
-                // single-in-flight client (exec N+1 awaits exec N's retries) + exponential backoff +
-                // 429-fail-fast (ScbRetryPolicy), not by per-attempt throttling (parity jobstream order).
+                // The rate limiter is registered first, so it is outermost and paces new executions.
+                // Retries run inside one acquired permit, so the ceiling towards SCB is held by the
+                // sequential client (one call in flight), exponential backoff and failing fast on
+                // 429, not by throttling each attempt.
                 builder.AddRateLimiter(_scbRegisterRateLimiter);
                 builder.AddRetry(new HttpRetryStrategyOptions
                 {
                     MaxRetryAttempts = 3,
                     BackoffType = DelayBackoffType.Exponential,
-                    // Fail fast on HTTP 429 (ScbRetryPolicy): SCB has explicitly signalled overload, so
-                    // the extra attempts would only add rejected calls to the API-Id ban counter and mask
-                    // the signal. Everything else keeps the framework's default transient handling. A
-                    // propagated 429 still trips the circuit breaker below — persistent 429 opens it for
-                    // 5 min, the intended backpressure (senior-cto-advisor 2026-07-05).
+                    // A 429 is not retried: SCB has signalled overload, and further attempts would
+                    // only add to the ban counter. Other failures keep the default transient handling.
+                    // A persistent 429 still opens the circuit breaker below for five minutes.
                     ShouldHandle = static args =>
                         ValueTask.FromResult(ScbRetryPolicy.ShouldRetry(args.Outcome)),
                 });
@@ -301,13 +289,12 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// F2-P8b (ADR 0032). Registrerar Refit-baserad <c>IJobTechSearchClient</c>,
-    /// typed <c>IJobTechStreamClient</c>, <see cref="JobTechPayloadSanitizer"/>
-    /// (singleton), och <see cref="PlatsbankenJobSource"/> som
-    /// <see cref="IJobSource"/>. Resilience-pipelinen (retry+CB) appliceras på
-    /// Search-klienten via Microsoft.Extensions.Http.Resilience; Stream-klienten
-    /// får custom pipeline (RateLimiter → Retry → CB) per dotnet-architect
-    /// 2026-05-12: JobStream:s hårda 1-req/min-gräns kräver proaktiv throttling.
+    /// The JobTech integration (ADR 0032): the Refit <c>IJobTechSearchClient</c>, the typed
+    /// <c>IJobTechStreamClient</c>, <see cref="JobTechPayloadSanitizer"/> and
+    /// <see cref="PlatsbankenJobSource"/> as <see cref="IJobSource"/>, together with the jobs,
+    /// taxonomy services and backfills built on them. Both hosts call it. The search client uses
+    /// the standard resilience pipeline; the stream client has its own (rate limiter, retry,
+    /// circuit breaker) because JobStream allows one request per minute.
     /// </summary>
     public static IServiceCollection AddJobSources(
         this IServiceCollection services,
@@ -318,10 +305,9 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Application-ägt retention-kontrakt (JobSourceRetentionOptions) binds
-        // mot samma section som JobTechOptions så Application-jobben
-        // (PurgeStaleRawPayloadsJob) inte behöver bero på Infrastructure-typen.
-        // RawPayloadRetentionDays-keyn matchar mellan typerna (default 30).
+        // The Application-owned retention options bind to the same section as JobTechOptions,
+        // so Application jobs such as PurgeStaleRawPayloadsJob need not depend on the
+        // Infrastructure type.
         services.AddOptions<JobSourceRetentionOptions>()
             .Bind(configuration.GetSection(JobTechOptions.SectionName))
             .ValidateDataAnnotations()
@@ -335,9 +321,7 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // JobSearch (Refit) — klassisk REST/JSON. Standard resilience-pipeline
-        // (retry+CB+timeout) räcker här eftersom JobSearch saknar publicerad
-        // rate-limit (429 endast vid abuse).
+        // JobSearch has no published rate limit, so the standard pipeline is enough.
         services.AddRefitClient<IJobTechSearchClient>()
             .ConfigureHttpClient((sp, client) =>
             {
@@ -353,35 +337,24 @@ public static class DependencyInjection
                 o.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(5);
             });
 
-        // JobStream (typed) — NDJSON snapshot + stream. Custom resilience-pipeline
-        // med RateLimiter FÖRE retry så 429 inte eskaleras inom samma minut.
-        // ADR 0032 §1 + JobTech 1-req/min-gräns (web-verifierat 2026-05-12).
+        // JobStream (NDJSON snapshot and stream). The rate limiter sits before the retry so
+        // retries count against the same one-request-per-minute window (ADR 0032 §1).
         services.AddHttpClient<IJobTechStreamClient, JobTechStreamClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<JobTechOptions>>().Value;
             client.BaseAddress = new Uri(options.JobStreamBaseUrl);
             ApplyApiKey(client, options);
-            // Snapshot kan vara ~50-100 MB; HttpClient default 100s räcker vid normal
-            // hastighet men höjs för säkerhets skull.
             client.Timeout = TimeSpan.FromMinutes(5);
-            // #483 Low — NO MaxResponseContentBufferSize here (deliberately). It only bounds a
-            // BUFFERED content read; both wire paths use HttpCompletionOption.ResponseHeadersRead
-            // + ReadAsStreamAsync + per-element DeserializeAsyncEnumerable<JsonElement>
-            // (JobTechStreamClient), so a cap would be a NO-OP — it enforces nothing on a streaming
-            // read. Protection against a maliciously/accidentally huge response comes from the
-            // streaming itself (memory bounded by the largest single element, never the whole
-            // response) and from the snapshot floor-guards (absolute 30k / relative 0.80×max7d,
-            // SyncPlatsbankenSnapshotJob) that fail-safe a corrupt corpus. It does NOT come from
-            // Timeout above: under ResponseHeadersRead, HttpClient.Timeout covers only the
-            // header-read phase, so the body-stream read is bounded by the job's CancellationToken
-            // (Hangfire abort / shutdown), not by Timeout. Never put a MaxResponseContentBufferSize
-            // "cap" back here thinking it bounds something — it does not.
+            // Deliberately no MaxResponseContentBufferSize: it bounds only a buffered read, and
+            // both paths in JobTechStreamClient stream the body (ResponseHeadersRead and
+            // per-element deserialisation), so a cap would enforce nothing. A huge response is
+            // contained by the streaming itself (memory is bounded by the largest element) and by
+            // SyncPlatsbankenSnapshotJob's floor guards against a corrupt corpus. Timeout covers
+            // only reading the headers; the body read is bounded by the job's cancellation token.
         })
         .AddResilienceHandler("jobstream", builder =>
         {
-            // Rate-limiter FÖRE retry så retries räknas mot samma 1-req/min-fönster
-            // (annars eskaleras 429 vid första försök). Polly v8 wrappar
-            // System.Threading.RateLimiting.RateLimiter direkt — async hela vägen.
+            // Before the retry, so retries count against the same one-per-minute window.
             builder.AddRateLimiter(_streamRateLimiter);
             builder.AddRetry(new HttpRetryStrategyOptions
             {
@@ -397,133 +370,79 @@ public static class DependencyInjection
 
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 
-        // ADR 0043 — Taxonomi-ACL (Variant A). Singleton: lat in-memory-cache
-        // av den bounded, oföränderliga snapshot-tabellen (invalideras vid
-        // app-restart efter deploy, samma livscykel som seedern). Seedern är
-        // IHostedService som idempotent + version-medvetet populerar
-        // taxonomy_concepts från embedded taxonomy-snapshot.json vid startup
-        // (speglar IdempotentAdminRoleSeeder). DI i samma commit som port-impl.
+        // The taxonomy anti-corruption layer (ADR 0043). The read model is a singleton with a
+        // lazy in-memory cache of the immutable snapshot table, refreshed on restart. The seeder
+        // fills taxonomy_concepts from the embedded taxonomy-snapshot.json at startup,
+        // idempotently and aware of the snapshot version.
         services.AddSingleton<ITaxonomyReadModel,
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
         services.AddHostedService<
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
 
-        // Fas 4 STEG 3 (F4-3, ADR 0040 amendment + ADR 0074) — deterministic SSYK
-        // level-4 derivation (yrkestitel → ssyk-4 yrkesgrupp; engine proposes, user
-        // confirms — ADR 0040 Beslut 4). Singleton with a lazy derivation cache
-        // (occupation-name index + label lexemes + the committed frozen
-        // occupation-name→ssyk-4 map), mirroring ITaxonomyReadModel; consumes
-        // ITaxonomyReadModel (GetTreeAsync) + ITextAnalyzer (AddTextAnalysis). DI in
-        // the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // Deterministic derivation of an SSYK level-4 occupation group from a job title: the
+        // engine proposes, the user confirms (ADR 0040 Beslut 4). A singleton with a lazy cache.
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
 
-        // ADR 0079-amendment (exp-per-occ PR-2) — the import-time per-occupation experience
-        // attribution pass. Stateless; reuses the singleton IOccupationCodeDeriver (its union
-        // DeriveManyAsync untouched — OCP) + IDateTimeProvider + the promoted PeriodParser. NO
-        // AI/LLM. DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // Attributes experience to occupations when a CV is imported (ADR 0079). Stateless.
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IOccupationExperienceDeriver,
             Jobbliggaren.Infrastructure.Resumes.Parsing.OccupationExperienceDeriver>();
 
-        // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the shared inverted skill-taxonomy
-        // index (embedded jobad-skill-taxonomy.v30.json), extracted from the extractor so
-        // BOTH the ad-side extractor AND the CV-side resolver reuse ONE index (no parallel
-        // resolver). Singleton (holds the Lazy index); consumes ITextAnalyzer.
+        // One shared skill-taxonomy index, used by both the job-ad extractor and the CV skill
+        // resolver so the two sides cannot diverge (ADR 0076 Decision 6).
         services.AddSingleton<Jobbliggaren.Infrastructure.Taxonomy.SkillTaxonomyIndex>();
 
-        // Fas 4 STEG 4 (F4-4, ADR 0071/0074 Path C) — deterministic per-job-ad
-        // keyword/skill extractor. Singleton; consumes ITextAnalyzer + IStemmer
-        // (AddTextAnalysis) + the shared SkillTaxonomyIndex (F4-15). NO AI/LLM.
-        // DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // Deterministic keyword and skill extraction per job ad.
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdKeywordExtractor,
             Jobbliggaren.Infrastructure.Taxonomy.JobAdKeywordExtractor>();
 
-        // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the CV-side skill resolver
-        // (free-text CV skill names → JobTech concept-ids), reusing the SAME
-        // SkillTaxonomyIndex as the extractor (Decision 6: no parallel resolver).
-        // Singleton (depends only on the singleton index). NO AI/LLM.
+        // Resolves free-text CV skill names to JobTech concept ids through the same index.
         services.AddSingleton<
             Jobbliggaren.Application.Matching.Abstractions.ISkillResolver,
             Jobbliggaren.Infrastructure.Taxonomy.SkillResolver>();
 
-        // The deterministic matching engine (scorer + profile builder). Own module
-        // (parity AddCvReview) so the HTTP-free Worker AND the Worker test fixture can
-        // register the matching ports WITHOUT pulling in the full AddInfrastructure /
-        // job-source HTTP wiring (ADR 0023) — the BackgroundMatchingJob (ADR 0080 Vag 4)
-        // needs IMatchScorer + IMatchProfileBuilder in the Worker SP.
+        // The matching engine is its own module so the Worker and its test fixture can register
+        // it without the rest of AddInfrastructure.
         services.AddMatchingEngine();
 
-        // Fas 4 STEG 7/9 — the CV knowledge bank + the deterministic review engine that
-        // consumes it (own module so both hosts AND the Worker test fixture register them
-        // independently of the job-source HTTP wiring). See AddCvReview.
+        // The CV knowledge bank and review engine, also its own module; see AddCvReview.
         services.AddCvReview();
 
-        // The improve module (åtgärda-lager) is DEFERRED, not removed (CV-pivot 2026-07-16,
-        // ADR 0112, CTO-bind D8 Opt C + mechanism rebind PR-4). Its three endpoints are gone,
-        // so nothing can SEND SuggestCvImprovements/Preview/Apply — no endpoint, no Hangfire
-        // job, no other in-tree sender. But it stays registered here ON PURPOSE:
-        // Mediator.SourceGenerator's AddMediator scans the whole Application assembly and
-        // registers the three mothballed handlers regardless; their ctor graph needs
-        // IFrameProvider + ICvImprovementEngine, and this Api host runs Development
-        // ValidateOnBuild=true, which resolves that graph at host build. Drop this call and
-        // host boot throws (measured: 4/4 GetParsedResumeEndpointTests fail on ApiFactory
-        // boot). The registration is INERT — lazy singletons the container never constructs,
-        // because no command path reaches them. Do NOT copy the Worker's ValidateOnBuild=false
-        // (TD-103, a known gap, not a pattern). The module/engine/frames stay revert-ready;
-        // #650 pnr-guard + Worker-encryption tests keep guarding the mothballed motor.
+        // The CV improvement module is deferred, not removed (ADR 0112): its endpoints are gone,
+        // so nothing sends its commands. It stays registered on purpose. AddMediator registers
+        // the deferred handlers anyway, and in Development the API validates the container on
+        // build, so without these registrations host startup fails. The registrations are inert:
+        // lazy singletons nothing constructs. Do not answer this by turning ValidateOnBuild off
+        // as the Worker does; that is a known gap, not a pattern.
         services.AddCvImprovement();
 
-        // Fas 4 STEG 10 — the deterministic CV renderer (QuestPDF ATS-plain + visual from the
-        // same JSON source). Own module (sets the QuestPDF Community licence once). See
-        // AddCvRendering. NO AI/LLM.
+        // The CV renderer; see AddCvRendering.
         services.AddCvRendering();
 
-        // #842 (2026-07-13): IRecruiterPiiPurger/RecruiterPiiPurger removed. It was the
-        // only Art. 17 erasure path for recruiter PII and it was structurally incapable of
-        // erasing anything — it probed raw_payload for a jsonb key the ingest sanitizer
-        // guarantees is absent (0 of 93 469 ingested ads carry it), then reported success.
-        // The replacement contract is ADR 0106: minimise at ingest (Tier A) + remove the
-        // whole ad record on request (Tier B). Nothing is registered here in the meantime;
-        // the admin route fails loud with 501 (AdminJobAdsEndpoints).
+        // Recruiter personal data has no erasure service here: ADR 0106 minimises it at
+        // ingest and removes the whole ad on request, and the admin route answers 501 until
+        // then (AdminJobAdsEndpoints).
 
-        // #754 (ADR 0045 Beslut 1 klass (d)) — options + delad reporter för
-        // ingestion-throughput-fitness-functionen. Bunden HÄR (inte i
-        // Worker/Program.cs) eftersom AddJobSources är den ENDA modulen båda
-        // hosts passerar (Api via AddInfrastructure, Worker direkt) — en
-        // registrering här kan strukturellt inte drifta mellan Api och Worker
-        // (CTO bind #754 Q4; precedent JobSourceRetentionOptions ovan).
-        // Same-commit DI (feedback_di_with_handlers_same_commit): options +
-        // reporter + de två jobbens ctor-ändring hör ihop — Worker kör
-        // ValidateOnBuild=false, så en saknad registrering hade annars
-        // synts först vid 02:00 UTC-invocationen.
+        // The ingestion-throughput measurement (ADR 0045). Bound here because both hosts call
+        // AddJobSources, so the registration cannot drift between them.
         services.AddOptions<IngestionThroughputOptions>()
             .Bind(configuration.GetSection(IngestionThroughputOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        // Singleton, inte Scoped: reportern är stateless (IOptions + ILogger). Samplern, som
-        // FAKTISKT bär state, är också singleton — lifetime ska spegla state, annars signalerar
-        // den "per-request-state" till nästa läsare (dotnet-architect, #754). Singleton→Scoped-
-        // injektion är alltid laglig, så båda sync-jobben (Scoped) kan konsumera den.
+        // A singleton: it is stateless, and scoped jobs may depend on a singleton.
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Jobs.Common.IngestionThroughputReporter>();
 
-        // F2-P8c: Application-orchestrator-jobb. Konsumeras av Hangfire via
-        // Worker-wrappers (SyncPlatsbankenStream/SnapshotWorker —
-        // DisableConcurrentExecution) som löser jobbet ur DI-scope. Snapshot
-        // konsumerades tidigare även av admin-trigger via Mediator, men den
-        // endpointen är avvecklad (ADR 0032 §9-amendment 2026-05-16, X4) →
-        // jobben är nu Hangfire-only. Registreras scoped för wrapper-resolution
-        // + test-discoverability via IServiceProvider.GetService.
+        // The ingestion jobs, run by Hangfire through the Worker's wrappers.
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenStreamJob>();
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken.SyncPlatsbankenSnapshotJob>();
         services.AddScoped<Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob>();
 
-        // ADR 0032-amendment 2026-05-23 — snapshot-retention. Port + jobb i
-        // samma DI-batch som handler-impl (feedback_di_with_handlers_same_commit).
-        // Tracker är scoped: delar AppDbContext med snapshot/retention-jobben.
+        // Snapshot retention (ADR 0032). The miss tracker is scoped so it shares the DbContext
+        // with the jobs.
         services.AddScoped<IJobAdSnapshotMissTracker,
             Jobbliggaren.Infrastructure.JobAds.SnapshotMisses.JobAdSnapshotMissTracker>();
         services.AddScoped<
@@ -531,21 +450,15 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds.ExpireJobAdsJob>();
 
-        // TD-13 C5 (ADR 0049 Beslut 4). Backfill-orchestrator scoped (paritet
-        // PurgeStaleRawPayloadsJob) — DI i samma commit som job/port-impl
-        // (feedback_di_with_handlers_same_commit).
+        // The field-encryption backfill (ADR 0049 Beslut 4).
         services.AddScoped<
             Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
 
-        // Delad re-ingest-kärna för backfill-jobben (senior-cto-advisor Variant H
-        // 2026-06-08). Konsumeras av både ssyk- och Klass2-backfillen — registreras
-        // en gång, scoped (paritet jobben).
+        // The shared re-ingest runner behind the occupation-code and employment-terms backfills.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.Common.JobAdRefetchBackfillRunner>();
 
-        // STEG 6 (2026-05-24) — ssyk_concept_id-backfill för pre-2026-05-20-
-        // fix-rader. IOptions-binding för delay/cap-tunables; jobbet self
-        // scoped (paritet BackfillFieldEncryptionJob).
+        // Backfills ssyk_concept_id on older rows. Its delay and cap are options.
         services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykOptions.SectionName))
@@ -554,11 +467,7 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk.BackfillJobAdSsykJob>();
 
-        // Fas B2 (2026-06-08, ADR 0067 Beslut 2) — Klass 2-backfill (employment_type
-        // + worktime_extent) för rader importerade före POCO-tillägget. Tunn wrapper
-        // kring JobAdRefetchBackfillRunner med eget NULL-predikat + tunables (paritet
-        // ssyk-backfillen). DI i samma commit som jobb/endpoint
-        // (feedback_di_with_handlers_same_commit).
+        // Backfills employment_type and worktime_extent on older rows (ADR 0067 Beslut 2).
         services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Options>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Options.SectionName))
@@ -567,11 +476,7 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2.BackfillJobAdKlass2Job>();
 
-        // Fas 4 STEG 4 (F4-4) — extraction-backfill (lokal re-projektion av
-        // extracted_terms; INGEN JobTech-refetch, till skillnad mot ssyk/Klass2
-        // som går via JobAdRefetchBackfillRunner). Self-scoped (paritet
-        // BackfillFieldEncryptionJob); tunables via IOptions. DI i samma commit som
-        // jobb/port (feedback_di_with_handlers_same_commit).
+        // Recomputes extracted_terms locally, without fetching from JobTech.
         services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsOptions.SectionName))
@@ -580,9 +485,8 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsJob>();
 
-        // #842 Tier A — the one-off contact-scrub backfill (local re-projection, parity the
-        // extraction backfill above). Execution is Klas-gated (STOPP-5); the admin endpoint
-        // defaults to dryRun. DI in the same commit as the job (feedback_di_with_handlers).
+        // A one-off scrub of recruiter contact details (ADR 0106 Tier A). It runs only on the
+        // owner's decision, and the admin endpoint defaults to a dry run.
         services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubOptions.SectionName))
@@ -591,9 +495,8 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubJob>();
 
-        // #544 (ADR 0090 D5) — one-off backfill that tokenises existing plaintext personnummer-shaped
-        // company_watches.organization_number rows. Execution is Klas-gated (STOPP-5, security-auditor
-        // B5); the admin endpoint defaults to dryRun. DI in the same commit as the job.
+        // A one-off backfill that tokenises organisation numbers shaped like a personal identity
+        // number in company_watches (ADR 0090 D5). Owner-gated; the endpoint defaults to a dry run.
         services.AddOptions<Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenOptions.SectionName))
@@ -602,11 +505,10 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenJob>();
 
-        // #664 (#479 Low, GDPR Art. 5(1)(c)/25) — one-off backfill that re-masks pre-#465 personnummer
-        // left plaintext in parsed_resumes.source_file_name. DEK-free set-based (ExecuteUpdate over a
-        // plaintext projection — NEVER materialise the DEK-bearing ParsedResume; senior-cto-advisor
-        // 2026-06-25 ParsedResumeRetentionJob rule). Execution is Klas-gated (STOPP-5); the admin
-        // endpoint defaults to dryRun. DI in the same commit as the job.
+        // A one-off backfill that masks personal identity numbers left in
+        // parsed_resumes.source_file_name (GDPR Art. 5(1)(c), 25). It runs as one set-based update
+        // over the plain column and never loads the encrypted ParsedResume. Owner-gated; the
+        // endpoint defaults to a dry run.
         services.AddOptions<Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskOptions.SectionName))
@@ -615,14 +517,9 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskJob>();
 
-        // Fas 4 STEG 4b (F4-4b) — requirements re-ingest backfill (must_have/
-        // nice_to_have-skills → Requirement-termer). Tunn wrapper kring
-        // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql
-        // jsonb ?-operatorn → kapslas i Infrastructure bakom
-        // IJobAdRequirementBackfillFilter så Application förblir Npgsql-fritt (CLAUDE.md
-        // §2.1). Filtret är stateless → Singleton; jobb +
-        // options paritet Klass2. DI i samma commit som jobb/endpoint
-        // (feedback_di_with_handlers_same_commit).
+        // Re-ingests must-have and nice-to-have skills as requirement terms. Its predicate needs
+        // Npgsql's jsonb `?` operator, so it sits behind IJobAdRequirementBackfillFilter and
+        // Application stays free of Npgsql (AGENTS.md §2.1).
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdRequirementBackfillFilter,
             JobAds.JobAdRequirementBackfillFilter>();
@@ -638,15 +535,12 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// ADR 0064 — publik anonym landing-stats med pre-computed Redis-cache.
-    /// Registrerar både Application-jobbet <c>RefreshLandingStatsJob</c> (Worker
-    /// orkestrerar via Hangfire) och port-impl <c>RedisLandingStatsCache</c>
-    /// (skriv/läs av cache-nyckel <c>landing:stats:v1</c>). Anropas av både
-    /// Api (handler-read) och Worker (Worker-job-write).
+    /// Public landing-page statistics from a precomputed Redis cache (ADR 0064): the
+    /// <c>RefreshLandingStatsJob</c> the Worker runs, and <c>RedisLandingStatsCache</c>, which
+    /// writes and reads <c>landing:stats:v1</c>. The API reads, the Worker writes.
     /// <para>
-    /// IDistributedCache förutsätts registrerad av anroparen (Api via
-    /// <see cref="AddIdentityAndSessions"/>; Worker via direkt
-    /// <c>AddWorkerRedisConnection</c> i <c>Program.cs</c>).
+    /// The caller registers <c>IDistributedCache</c> first (the API through
+    /// <see cref="AddIdentityAndSessions"/>, the Worker through <c>AddWorkerRedisConnection</c>).
     /// </para>
     /// </summary>
     public static IServiceCollection AddLandingStats(this IServiceCollection services)
@@ -659,22 +553,16 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 2 (F4-2, Swedish) + STEG 9 (F4-9, English) — registers the shared
-    /// local NLP tier: <see cref="TextAnalysis.SnowballStemmer"/> (Snowball stemmer,
-    /// to_tsvector('swedish')/('english') parity), <see cref="TextAnalysis.LocalTextAnalyzer"/>
-    /// (lowercase → tokenise → stopword-filter → stem), and
-    /// <see cref="TextAnalysis.HunspellSpellChecker"/> (sv_SE DSSO + en_US).
-    /// Standalone module called by BOTH hosts (Api via <see cref="AddInfrastructure"/>,
-    /// Worker via <c>Program.cs</c>), mirroring <see cref="AddLandingStats"/> — NLP
-    /// has no persistence coupling, so it does not belong in <see cref="AddPersistence"/>.
-    /// All three impls are thread-safe singletons; the Hunspell WordList loads lazily
-    /// on first use. The packages are plain BCL (no ASP.NET) so the Worker's
-    /// HTTP-free invariant (ADR 0023) is preserved.
+    /// The local text-analysis tier for Swedish and English:
+    /// <see cref="TextAnalysis.SnowballStemmer"/> (matching PostgreSQL's
+    /// to_tsvector('swedish') and ('english')), <see cref="TextAnalysis.LocalTextAnalyzer"/>
+    /// (lowercase, tokenise, drop stop words, stem) and
+    /// <see cref="TextAnalysis.HunspellSpellChecker"/> (sv_SE DSSO and en_US). Both hosts call
+    /// it. All three are thread-safe singletons, and the Hunspell word list loads on first use.
     ///
     /// <para>
-    /// A startup existence-check fails fast at composition if the DSSO Content files
-    /// did not reach the output directory — preventing a fail-late on the first
-    /// spell-check in production (CTO binding condition, ADR 0074 review).
+    /// Startup fails at once if the dictionary files did not reach the output directory, rather
+    /// than at the first spell-check in production.
     /// </para>
     /// </summary>
     public static IServiceCollection AddTextAnalysis(this IServiceCollection services)
@@ -694,23 +582,17 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 8 (F4-8, ADR 0071/0074) — deterministic CV import/parse tier.
-    /// Registers <see cref="Resumes.Parsing.PdfPigOpenXmlCvTextExtractor"/>
-    /// (<c>ICvTextExtractor</c> — PdfPig/OpenXml confined here) and
-    /// <see cref="Resumes.Parsing.HeadingDrivenResumeSegmenter"/>
-    /// (<c>IResumeSegmenter</c> — pure string algorithm over the embedded lexicon).
-    /// Both are stateless singletons (only immutable reference data, parity
-    /// <see cref="AddTextAnalysis"/>). The lexicon ships as an <c>EmbeddedResource</c>,
-    /// so the manifest-resource lookup fails loudly at first load — no separate
-    /// file-existence check is needed (unlike the DSSO Content files). NO AI/LLM.
+    /// CV import and parsing: <see cref="Resumes.Parsing.PdfPigOpenXmlCvTextExtractor"/>
+    /// (<c>ICvTextExtractor</c>; PdfPig and Open XML stay in this assembly), the PDF layout
+    /// analyser, and <see cref="Resumes.Parsing.HeadingDrivenResumeSegmenter"/>
+    /// (<c>IResumeSegmenter</c>, a string algorithm over the embedded lexicon). All are
+    /// stateless singletons over immutable data.
     /// </summary>
     public static IServiceCollection AddCvParsing(this IServiceCollection services)
     {
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvTextExtractor,
             Resumes.Parsing.PdfPigOpenXmlCvTextExtractor>();
-        // Fas 4b PR-6b — PDF page-geometry analyzer (ICvLayoutAnalyzer), PdfPig confined here,
-        // stateless singleton (parity the extractor). Read at import; feeds B2/D9/E2.
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
             Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
@@ -722,43 +604,26 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4b 8b.4a/8b.4b — the CV-parsing lexicon and the two knowledge-bank assets that are
-    /// cross-validated against it (branschgrupp, cv-conventions). Its own module, and
-    /// <b>IDEMPOTENT</b>, for one reason: <see cref="AddCvParsing"/> needs the lexicon for the
-    /// segmenter and <see cref="AddCvImprovement"/> needs it for the D6 + B1 transforms — and the
-    /// Worker registers the improvement engine <i>without</i> the parsing module
-    /// (<c>WorkerTestFixture</c>). Registering the lexicon in only one of them would leave an
-    /// unresolvable singleton in the other, and the Worker runs <c>ValidateOnBuild=false</c>
-    /// (TD-103), so that gap would surface first at Hangfire-invocation, not at boot. <b>A module
-    /// that owns its own dependency cannot rot that way.</b>
+    /// The CV-parsing lexicon and the two knowledge-bank assets validated against it
+    /// (branschgrupp, cv-conventions). It is its own idempotent module because
+    /// <see cref="AddCvParsing"/>, <see cref="AddCvReview"/> and <see cref="AddCvImprovement"/>
+    /// all need it, and the Worker registers some of them without the others; a module that owns
+    /// its dependency cannot leave one of them with an unresolvable singleton.
     ///
-    /// <para>The idempotence guard is not a micro-optimisation: loading the asset twice would
-    /// produce TWO <c>CvParsingLexiconData</c> instances, and 8b.4a's guarantee is that the
-    /// segmenter and every asset provider hold the SAME one, so that RECOGNITION ("is this a
-    /// heading?") and RESOLUTION ("WHICH canonical section is it?") provably cannot disagree.</para>
+    /// <para>Idempotence also guarantees a single <c>CvParsingLexiconData</c> instance, so
+    /// recognising a heading and resolving which section it is cannot disagree.</para>
     ///
-    /// <para><b>INSTANCE registrations, not type registrations, and the difference is the whole
-    /// point.</b> A type registration (<c>AddSingleton&lt;IPort, Impl&gt;()</c>) constructs Impl at
-    /// the FIRST RESOLVE — i.e. inside the first HTTP request that needs it — and
-    /// <c>ValidateOnBuild</c> does not instantiate singletons, so it would not catch a broken asset
-    /// either. All three of these types validate in their constructors (both providers run a full
-    /// cross-asset pin against the lexicon), so registering them by TYPE would mean a malformed
-    /// asset surfaces as a 500 inside a user's CV import, cached for the life of the process. That
-    /// is not hypothetical: it is exactly the defect 8b.4a PR-1 fixed, where the lexicon's static
-    /// ctor loaded on first parse and threw a <c>TypeInitializationException</c> mid-request.
-    /// Constructing here makes "fail loud at startup, never mid-request" TRUE rather than merely
-    /// claimed — the host refuses to build.</para>
+    /// <para>The services are registered as constructed instances, not as types. A type
+    /// registration would construct them at the first resolve, inside the first request that
+    /// needs them, and <c>ValidateOnBuild</c> does not instantiate singletons. They validate the
+    /// assets in their constructors, so constructing them here makes a malformed asset stop the
+    /// host at startup instead of failing a user's CV import.</para>
     /// </summary>
     public static IServiceCollection AddCvLexicon(this IServiceCollection services)
     {
-        // The sentinel is the LAST thing this method registers, not the first, and the difference is
-        // the guard's whole scope. Keyed on CvParsingLexiconData (the first), a caller who registered
-        // that type on its own — a future test host injecting a synthetic lexicon — would switch this
-        // module OFF and leave ICvConventionsProvider UNREGISTERED. The engines would then fail at
-        // first resolve, and in the Worker (ValidateOnBuild=false, TD-103) not until a Hangfire
-        // invocation. A guard whose sentinel is narrower than the set it guards is not a guard; it is
-        // a claim. (Both review gates flagged it — latent today, since nothing else registers the
-        // lexicon, and a composition test now pins that it stays that way.)
+        // The guard keys on the LAST service this method registers. Keyed on the first, a caller
+        // that registered only that type (a test host with a synthetic lexicon) would switch the
+        // module off and leave ICvConventionsProvider unregistered.
         if (services.Any(d =>
                 d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider)))
         {
@@ -771,9 +636,8 @@ public static class DependencyInjection
         var lexicon = new Resumes.Parsing.CvParsingLexiconProvider(lexiconData);
         services.AddSingleton<Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon>(lexicon);
 
-        // Asset A (8b.4a) — consumed by the GetCvSectionSuggestions read-slice (ADR 0107), never by
-        // the engine. Asset B (8b.4b) — consumed by SectionReorderTransform IN the engine (ADR 0108).
-        // Both refuse to construct if they name a section the lexicon does not own.
+        // Branschgrupp feeds the section suggestions (ADR 0107); cv-conventions feeds the section
+        // order (ADR 0108). Both refuse to construct if they name a section the lexicon lacks.
         services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider>(
             new KnowledgeBank.BranschgruppProvider(lexicon));
         services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider>(
@@ -782,23 +646,14 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 7/9 (F4-7/F4-9, ADR 0071/0074) — the versioned CV knowledge bank (rubric +
-    /// cliché lexicon + weak→strong verb mapping, three ISP ports over embedded VERSIONED
-    /// DATA, §5) and the deterministic CV-review engine that scores a ParsedResume against
-    /// them. All stateless singletons (bounded immutable data, parity ITaxonomyReadModel).
-    /// The engine consumes the NLP-tier <c>ITextAnalyzer</c> + <c>ISpellChecker</c> (Fas 4b
-    /// PR-6, C7 spelling), so the caller must also call <see cref="AddTextAnalysis"/>.
-    /// Standalone module (parity AddTextAnalysis) so every host AND the Worker test fixture
-    /// register it without the job-source HTTP wiring. NO AI/LLM.
+    /// The versioned CV knowledge bank (rubric, cliché lexicon, verb mapping, spelling allow-list,
+    /// all embedded versioned data) and the deterministic review engine that assesses a CV
+    /// against it. The engine uses <c>ITextAnalyzer</c> and <c>ISpellChecker</c>, so the caller
+    /// must also call <see cref="AddTextAnalysis"/>.
     /// </summary>
     public static IServiceCollection AddCvReview(this IServiceCollection services)
     {
-        // Fas 4b 8b.4b (ADR 0108) — B1 now assesses the section ORDER, so the review engine reads
-        // the parsing lexicon (heading recognition) and cv-conventions (the recommended order),
-        // exactly as the improvement engine does. AddCvLexicon() is idempotent, so a host that also
-        // calls AddCvParsing()/AddCvImprovement() still gets exactly ONE lexicon instance — and the
-        // Worker, which registers this module without AddCvParsing(), is no longer left with an
-        // unresolvable singleton. A module that owns its own dependency cannot rot that way.
+        // The section-order criterion reads the lexicon and cv-conventions (ADR 0108).
         services.AddCvLexicon();
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
@@ -809,43 +664,30 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
             Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
-        // IFrameProvider moved to AddCvImprovement (CV-pivot 2026-07-16, ADR 0112): the review
-        // engine never consumed it — its only consumers are the improve layer's Preview/Apply
-        // handlers, so the registration follows its consumers into the mothballed module (SRP).
-        // Fas 4b PR-6 (ADR 0093 §D4): the C7 spelling criterion's proper-noun/tech-term
-        // allowlist — versioned KB DATA (§5), loaded + validated once at construction.
+        // The spelling criterion's allow-list of proper nouns and technical terms (ADR 0093 §D4).
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist,
             Jobbliggaren.Infrastructure.KnowledgeBank.SpellingAllowlistProvider>();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
-        // Fas 4b PR-8 (ADR 0093 §D5(b), CTO-bind PR-8 Q1): the one engine-driven ledger
-        // write path — an Application-layer composition over the engine (MatchProfileBuilder
-        // registration precedent). Stateless → singleton, parity with the engine it wraps.
+        // The only path by which the engine writes review findings (ADR 0093 §D5(b)).
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.IResumeReviewReconciler,
             Jobbliggaren.Application.Resumes.Review.ResumeReviewReconciler>();
 
-        // #692 (ADR 0093 §D2(e), security-auditor Fas 4b PR-4 Q4) — the keyed HMAC that fingerprints
-        // a finding at rest. DUAL-HOST, like every AddJobSources registration: this module
-        // (AddCvReview) is reached by AddJobSources (line ~400), which BOTH hosts pass — Api via
-        // AddInfrastructure, Worker directly (Worker/Program.cs) — so BOTH boot this pepper section and
-        // BOTH must provision the pepper in prod (parity the watch pepper #544). Only the Api actually
-        // COMPUTES a fingerprint, but AddCvReview also registers the dual-host IResumeReviewReconciler,
-        // which now depends on IFindingFingerprinter, so the hasher must live wherever the reconciler
-        // does (an Api-only seam would leave the Worker's reconciler with an unresolvable dep). This is
-        // exactly the host-drift the AddJobSources placement is designed to prevent (see the #754
-        // options comment above). BindConfiguration (not .Bind(config.GetSection())) because AddCvReview
-        // takes no IConfiguration. ValidateOnStart hard-fails a missing/weak pepper in every environment
-        // and BOTH hosts, parity the audit (#842) and watch (#544) peppers.
+        // The keyed HMAC that fingerprints a stored finding (ADR 0093 §D2(e)). AddJobSources calls
+        // this module, and both hosts call AddJobSources, so both must be given the pepper: only
+        // the API computes fingerprints, but the reconciler registered above depends on the
+        // fingerprinter in both hosts. BindConfiguration, because this method takes no
+        // IConfiguration. ValidateOnStart refuses a missing or weak pepper in every environment.
         services.AddOptions<Security.CvReviewFingerprintPseudonymizationOptions>()
             .BindConfiguration(Security.CvReviewFingerprintPseudonymizationOptions.SectionName)
             .ValidateOnStart();
         services.AddSingleton<
             Microsoft.Extensions.Options.IValidateOptions<Security.CvReviewFingerprintPseudonymizationOptions>,
             Security.CvReviewFingerprintPseudonymizationOptionsValidator>();
-        // Stateless after reading the pepper once → singleton, parity HmacProtectedIdentityTokenizer.
+        // Stateless once the pepper is read.
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.IFindingFingerprinter,
             Security.HmacFindingFingerprinter>();
@@ -853,13 +695,10 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// The deterministic matching engine: the Fast/Full match scorer (F4-5/F4-6, ADR 0076 —
-    /// <c>internal</c> in Infrastructure, so it can only be registered from this assembly) and
-    /// the SSOT preference→profile mapper (ADR 0076; ADR 0079 STEG 3 PR-D — DEK-free). Own module
-    /// (parity <see cref="AddCvReview"/>) so every host AND the Worker (HTTP-free, ADR 0023) +
-    /// its test fixture register the matching ports independently of the job-source HTTP wiring.
-    /// The <c>BackgroundMatchingJob</c> (ADR 0080 Vag 4 PR-3) consumes both ports in the Worker.
-    /// Scoped (both touch <c>AppDbContext</c>). NO AI/LLM.
+    /// The deterministic matching engine (ADR 0076): the match scorer, internal to this assembly,
+    /// and the builder that turns preferences into a match profile. Its own module so the Worker
+    /// and its test fixture can register it without the job-source wiring. Scoped, since both use
+    /// <c>AppDbContext</c>.
     /// </summary>
     public static IServiceCollection AddMatchingEngine(this IServiceCollection services)
     {
@@ -869,12 +708,9 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder,
             Jobbliggaren.Application.Matching.Profiles.MatchProfileBuilder>();
-        // #300 PR-3: MatchProfileBuilder now depends on ITaxonomyReadModel (the related-occupation
-        // ACL). The API/Worker register it via AddJobSources, but the HTTP-free Worker test fixture
-        // calls only AddMatchingEngine() — so make the matching engine self-contained re: its own
-        // dependency closure. TryAdd is idempotent: a no-op where AddJobSources already registered
-        // it (AddJobSources runs first in every dual-caller), and the sole registrar elsewhere.
-        // TaxonomyReadModel needs only IServiceScopeFactory (always present) → resolves in any SP.
+        // MatchProfileBuilder needs ITaxonomyReadModel. AddJobSources registers it in both hosts,
+        // but the Worker test fixture calls only this method, so TryAdd keeps the module
+        // self-contained without registering it twice.
         services.TryAddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel,
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
@@ -882,25 +718,15 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 10 (F4-10, ADR 0071/0074) — the deterministic CV-build/improve engine that
-    /// proposes propose-and-approve diffs over a ParsedResume against the knowledge bank
-    /// (cliché/verb/date/heading/strip transforms, never synthesised — CTO V-B compute-on-demand,
-    /// no persistence). Stateless singleton (parity AddCvReview). Consumes the knowledge-bank
-    /// ports (<see cref="AddCvReview"/>) + the NLP-tier <c>ITextAnalyzer</c>
-    /// (<see cref="AddTextAnalysis"/>), so the caller must also register those. Standalone module
-    /// so every host AND the Worker test fixture register it without the job-source HTTP wiring.
-    /// NO AI/LLM. (The QuestPDF renderer is a separate Phase B module, AddCvRendering.)
+    /// The deterministic CV improvement engine, which proposes changes for the user to approve
+    /// and never invents content. Deferred: no endpoint sends its commands (ADR 0112), but it
+    /// stays registered; see <see cref="AddJobSources"/>. It uses the knowledge-bank ports
+    /// (<see cref="AddCvReview"/>) and <c>ITextAnalyzer</c> (<see cref="AddTextAnalysis"/>).
     /// </summary>
     public static IServiceCollection AddCvImprovement(this IServiceCollection services)
     {
-        // Fas 4b 8b.4b — the engine's D6 transform recognises headings through the parsing lexicon
-        // and its B1 transform orders them against cv-conventions, so this module now OWNS that
-        // dependency instead of assuming a sibling registered it. AddCvLexicon() is idempotent, so
-        // a host that also calls AddCvParsing() still gets exactly ONE lexicon instance.
         services.AddCvLexicon();
-        // IFrameProvider lives HERE, not in AddCvReview (CV-pivot 2026-07-16, ADR 0112, SRP):
-        // its only consumers are the improve layer's Preview/Apply handlers
-        // (frameProvider.GetFrameCatalog()) — the review engine never takes it.
+        // Only the improvement handlers use IFrameProvider, so it is registered here.
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider,
             Jobbliggaren.Infrastructure.KnowledgeBank.FrameProvider>();
@@ -911,12 +737,9 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Fas 4 STEG 10 (F4-10, ADR 0071/0074, BUILD §3.1) — the deterministic CV renderer
-    /// (QuestPDF: ATS-plain + visual PDF from the same JSON source). Sets the QuestPDF Community
-    /// licence ONCE (fail-fast at registration, parity <see cref="EnsureDssoDictionaryPresent"/>)
-    /// before any render. Stateless singleton (parity AddCvReview). Standalone module so every
-    /// host AND the Worker test fixture register it. The QuestPDF SDK stays confined to
-    /// Infrastructure (the port <c>ICvRenderer</c> is BCL-only). NO AI/LLM.
+    /// The CV renderer: an ATS-friendly and a visual PDF from the same structured data, with
+    /// QuestPDF. The QuestPDF licence is set once here, before any render. QuestPDF stays in this
+    /// assembly; the <c>ICvRenderer</c> port depends on nothing outside the base library.
     /// </summary>
     public static IServiceCollection AddCvRendering(this IServiceCollection services)
     {
@@ -924,10 +747,6 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
-        // ICvAccentSwatchProvider + CvAccentSwatchProvider (the template-catalog's hex egress,
-        // 8b.3) were removed WITH their single consumer, the catalog handler (CV-pivot
-        // 2026-07-16, ADR 0112) — a one-consumer port dies with its consumer in the same
-        // commit. CvPalette itself stays: the composer renders every persisted CV through it.
         return services;
     }
 
@@ -953,23 +772,13 @@ public static class DependencyInjection
         }
     }
 
-    // Process-wide rate-limiter för JobStream (1 req/min). FixedWindow är rätt val
-    // per dotnet-architect 2026-05-12. QueueLimit=2 (motiverat vid fältet nedan)
-    // serialiserar stream/snapshot-krock mot 1/min istället för hård rejection.
-    //
-    // TESTBARHETSNOT (code-reviewer 2026-05-12 Min-3): static-livscykel betyder att
-    // alla tester som använder hela DI-stacken delar samma limiter över hela test-
-    // körningen. Resilience-tester (JobTechStreamResilienceTests) bygger därför
-    // egen DI-container UTAN denna limiter — de testar bara retry/CB-pipelinen.
-    // P8c-Hangfire-jobben kommer dela samma limiter i prod, vilket är den
-    // önskade semantiken. IDisposable-warning vid host-shutdown är accepterad
-    // bagatell — limitern lever app-lifetime.
-    // QueueLimit=2 (var 0): stream(*/10) + snapshot(0 2) krockar på JobTechs
-    // 1-req/min-gräns kl 02:00. Med QueueLimit=0 fick förloraren hård
-    // RateLimiterRejected → 3 retries inom samma fönster → jobb-fail. Nu
-    // serialiseras de mot 1/min istället (root-cause-fix 2026-05-16 del (b),
-    // senior-cto-advisor + dotnet-architect). Worst-case väntan QueueLimit×Window
-    // = 2 min; CancellationToken bryter väntan. OldestFirst = FIFO-rättvisa.
+    // A process-wide limiter for JobStream's one request per minute, shared by the stream and
+    // snapshot jobs. The stream (every ten minutes) and the nightly snapshot collide at 02:00;
+    // with a queue of two, the later call waits for the next window instead of being rejected
+    // and failing its retries inside the same minute. The longest wait is two minutes, and the
+    // job's cancellation token ends it. Because the limiter is static, every test that builds
+    // the full DI stack shares it; JobTechStreamResilienceTests builds its own container
+    // without it.
     private static readonly FixedWindowRateLimiter _streamRateLimiter = new(
         new FixedWindowRateLimiterOptions
         {
@@ -980,20 +789,12 @@ public static class DependencyInjection
             AutoReplenishment = true,
         });
 
-    // #560 (ADR 0091, senior-cto-advisor Fork 7) — process-wide SCB upstream limiter. SCB caps each
-    // API-Id at 10 calls / 10 s; a per-endpoint policy cannot protect a per-credential budget, and a
-    // breach risks an API-Id ban (a §12 STOPP condition). A SLIDING window (10 × 1 s segments)
-    // guarantees the rolling-10 s permit sum never exceeds PermitLimit — unlike a FIXED window, which
-    // can emit up to 2×PermitLimit across a boundary (code-reviewer 2026-07-04 Major: 2×8 > 10). The
-    // planner issues many small kodtabell/raknaforetag calls, so that burst is not hypothetical.
-    // PermitLimit=6 (60% of SCB's 10) keeps a deliberate 4-call safety margin — far beyond any clock
-    // skew / SCB-side window edge (≤1-2 calls) — because exceeding the cap risks an API-Id BAN
-    // (catastrophic, §12) whereas running slower costs only ~10-30 min extra on a night run Klas
-    // explicitly accepted (senior-cto-advisor 2026-07-05: ban-risk-minimization > tempo; supersedes the
-    // 1-call margin at 9, honouring Fork 7's "rate budget is code, not config" ruling). The refresh
-    // streams sequentially (at most one waiter), but QueueLimit is generous so a throttled call ALWAYS
-    // waits rather than being rejected+retried. App-lifetime static (parity _streamRateLimiter); the
-    // IDisposable-at-shutdown warning is an accepted bagatelle.
+    // A process-wide limiter for SCB (ADR 0091). SCB allows each API id 10 calls per 10 seconds,
+    // and exceeding that risks a ban. A sliding window keeps any rolling 10 seconds within the
+    // limit, which a fixed window does not across its boundary. Six permits leave a deliberate
+    // margin below SCB's ten: running slower only lengthens a night run, while a ban would stop
+    // the register. The budget is code, not configuration. The queue is generous, so a throttled
+    // call always waits instead of being rejected and retried.
     private static readonly SlidingWindowRateLimiter _scbRegisterRateLimiter = new(
         new SlidingWindowRateLimiterOptions
         {
@@ -1007,12 +808,9 @@ public static class DependencyInjection
 
     private static void ApplyApiKey(HttpClient client, JobTechOptions options)
     {
-        // SECURITY-NOTE (security-auditor 2026-05-12 Min-2): api-key skickas via
-        // DefaultRequestHeaders.TryAddWithoutValidation. Microsoft.Extensions.Http
-        // EventSource-tracing kan teoretiskt logga request-headers vid aktiverad
-        // diagnostik — vi aktiverar den inte i prod (Microsoft.Extensions.Http
-        // EventSource är default av). JobTech-api-key ger högre rate-limit på publikt
-        // data — låg blast-radius om läckt.
+        // SECURITY: Microsoft.Extensions.Http's EventSource tracing could log request headers,
+        // the key included, if it were enabled; it is off by default and not enabled in
+        // production. The key only raises the rate limit on public data.
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
             client.DefaultRequestHeaders.TryAddWithoutValidation("api-key", options.ApiKey);
 
@@ -1020,25 +818,20 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Email provider-switch (ADR 0080 Vag 4 PR-4b; provider bytt i ADR 0124). Called by BOTH the
-    /// Api (<see cref="AddInfrastructure"/>) AND the HTTP-free Worker (ADR 0023) so both register
-    /// the SAME dev=Console, non-dev=Null gating without drift. The Worker needs
-    /// <see cref="IEmailSender"/> for the Vag 4 match-notification jobs (Top-direct scan hook +
-    /// <c>DigestDispatchJob</c>). Binds <see cref="EmailOptions"/> and selects the sender per
-    /// <c>Email:Provider</c>.
+    /// Selects the <see cref="IEmailSender"/> by <c>Email:Provider</c> and binds
+    /// <see cref="EmailOptions"/> (ADR 0124). Both hosts call it, so their gating cannot drift;
+    /// the Worker sends match notices and digests.
     /// <para>
-    /// Transaktionell mejlväg via Scaleway Transactional Email i fr-par (#183) — HTTPS-API, aldrig
-    /// SMTP. <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
-    /// för en RFC 2606/6761-reserverad mottagare (#1208) — registreras BARA i Development/Test
-    /// (TD-104/STEG 6 security-auditor Major #1: en PERSISTENT logg-sink gör den raden durabel
-    /// PII-lagring). I andra miljöer
-    /// faller "Console" tillbaka på <see cref="NullEmailSender"/> (no-op) tills en riktig provider
-    /// wiras. Okänt provider-värde fail-stoppas.
+    /// <c>Scaleway</c> sends through Scaleway Transactional Email in fr-par, over its HTTPS API,
+    /// never SMTP. <c>Console</c>, the default, registers <see cref="ConsoleEmailSender"/> only
+    /// in Development and Test: it writes the body, sign-in codes included, to the log for a
+    /// recipient at a reserved domain, and a persistent log sink would make that durable personal
+    /// data. Elsewhere <c>Console</c> falls back to <see cref="NullEmailSender"/>. Any other value
+    /// stops startup.
     /// </para>
     /// <para>
-    /// <b>Defaulten är oförändrad och det är avsiktligt.</b> <c>Email:Provider</c> är osatt i varje
-    /// committad <c>appsettings*.json</c>, så <c>?? "Console"</c> gäller: Console i Dev/Test, Null
-    /// överallt annars. Att Scaleway-armen finns ändrar ingenting förrän någon sätter nyckeln.
+    /// No committed appsettings file sets <c>Email:Provider</c>, so the default applies until a
+    /// deployment sets it.
     /// </para>
     /// </summary>
     public static IServiceCollection AddEmailSender(
@@ -1052,7 +845,7 @@ public static class DependencyInjection
         var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
         if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))
         {
-            // Dev/Test allow-list speglar Hangfire-schema-grindens mönster (Worker/Program.cs).
+            // An allow-list of Development and Test, like the Worker's Hangfire schema gate.
             if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
             {
                 services.AddSingleton<IEmailSender, ConsoleEmailSender>();
@@ -1064,11 +857,10 @@ public static class DependencyInjection
         }
         else if (string.Equals(emailProvider, "Scaleway", StringComparison.OrdinalIgnoreCase))
         {
-            // Läses RÅTT ur IConfiguration, inte via IOptions, så att en felkonfiguration fäller
-            // REGISTRERINGEN och inte första utskicket. Det är vad AddEmailSenderGateTests kan
-            // asserta mot en naken ServiceCollection utan att boota en host — och det är därför
-            // kontrollen inte kan bo i ScalewayEmailSenders konstruktor: AddSingleton<T,TImpl> är
-            // LAT, så prod hade bootat rent och fallit först på första mejlet.
+            // Read straight from IConfiguration, not through IOptions, so a misconfiguration fails
+            // the registration rather than the first email. The check cannot live in the sender's
+            // constructor: a type registration is lazy, so the host would start cleanly and fail on
+            // the first email.
             var region = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.Region)}"];
             var secretKey = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.SecretKey)}"];
             var projectId = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.ProjectId)}"];
@@ -1081,10 +873,8 @@ public static class DependencyInjection
                     + "dessutom vilken jurisdiktion e-post lämnar ifrån (#1169).");
             }
 
-            // TVÅ hemligheter, inte två halvor av samma: nyckeln autentiserar anroparen, project-id
-            // väljer projektet utskicket debiteras och attribueras till. Var och en krävs för sig,
-            // och felet namnger vilken som saknas — annars kostar en tom rad i secrets-filen en
-            // felsökningsrunda på fel värde.
+            // Two separate secrets: the key authenticates the caller, the project id selects the
+            // project that is billed. Each is checked on its own, so the error names the missing one.
             if (string.IsNullOrWhiteSpace(secretKey))
             {
                 throw new InvalidOperationException(
@@ -1101,10 +891,9 @@ public static class DependencyInjection
                     + "egen livscykel, inte en del av SecretKey.");
             }
 
-            // FromAddress grindas här och inte bara av EmailOptions default (security-auditor Minor 3).
-            // Konsekvensen är inte kosmetisk: _dmarc.jobbliggaren.se publicerar redan p=reject UTAN
-            // rua= (mätt 2026-08-08, ADR 0124), så en avsändaradress utanför den DKIM-verifierade
-            // identiteten ger totalt leveransbortfall — tyst, och utan en enda rapport som avslöjar det.
+            // The sender address is checked here, not left to the EmailOptions default. The
+            // domain's DMARC policy rejects mail outside the verified identity without sending
+            // reports (ADR 0124), so a wrong address would lose every email silently.
             var fromAddress = configuration[$"{EmailOptions.SectionName}:{nameof(EmailOptions.FromAddress)}"]
                 ?? new EmailOptions().FromAddress;
             if (string.IsNullOrWhiteSpace(fromAddress) || !fromAddress.Contains('@', StringComparison.Ordinal))
@@ -1116,26 +905,20 @@ public static class DependencyInjection
                     + "syns inte som ett fel utan som tystnad.");
             }
 
-            // Backstop för de SEMANTISKA kontroller den råa läsningen inte uttrycker. Registreras
-            // ENBART i den här armen. EmailOptions självt får medvetet INTE ValidateOnStart: det
-            // bär noll data-annotations (mätt), så det hade asserterat ingenting — och ett senare
-            // [Required] hade gjort hela Email-sektionen till ett boot-villkor på DEFAULT-vägen,
-            // som appsettings.Local.json.example och local-dev-setup.md §7 lovar mot.
+            // A backstop for the checks the raw reads above do not express, registered only for
+            // this provider. EmailOptions itself deliberately has no ValidateOnStart: a future
+            // [Required] on it would make the Email section a startup condition for the default
+            // path too, which the local setup does not provide.
             services.AddOptions<ScalewayEmailOptions>()
                 .Bind(configuration.GetSection(ScalewayEmailOptions.SectionName))
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-            // Klient-registreringen + regionvakten bor i Email/ScalewayClientRegistration så att den
-            // här filen — en §6.5-hotspot många sessioner redigerar — bara bär switchen.
+            // The client registration and the region guard live in Email/ScalewayClientRegistration.
             services.AddScalewayEmailClient(region);
 
-            // Singleton, och registrerad som AddSingleton<TService, TImplementation> — INTE via en
-            // factory-lambda och INTE som typad HttpClient (som är transient bakom en lambda).
-            // SKÄLET bor i ScalewayClientRegistration.HttpClientName och står medvetet inte här:
-            // det är captive dependency + livstids-konsistens, inte att gate-testerna assertar på
-            // ImplementationType. En test-assertion får inte forma en composition root, och att
-            // upprepa den som skäl PÅ composition root:en var precis den inversionen (#1339).
+            // A singleton type registration, not a factory or a typed HttpClient; the reason is
+            // documented at ScalewayClientRegistration.HttpClientName.
             services.AddSingleton<IEmailSender, ScalewayEmailSender>();
         }
         else
@@ -1148,9 +931,9 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Persistence-modul: <see cref="AppDbContext"/>, <see cref="IAppDbContext"/>,
-    /// <see cref="IDateTimeProvider"/>, <see cref="ISwedishCalendar"/>. Ingen HTTP-bagage, ingen Identity, ingen Redis.
-    /// Worker registrerar denna modul + egna audit-port-stubs.
+    /// Persistence: <see cref="AppDbContext"/>, <see cref="IAppDbContext"/>,
+    /// <see cref="IDateTimeProvider"/> and <see cref="ISwedishCalendar"/>, with no HTTP services,
+    /// Identity or Redis. Both hosts call it.
     /// </summary>
     public static IServiceCollection AddPersistence(
         this IServiceCollection services,
@@ -1160,30 +943,18 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Postgres saknas i konfiguration.");
 
-        // TD-13 C3 (ADR 0049 Mekanik-not 5c, architect+Microsoft Learn
-        // 2026-05-18): EF Core auto-discoverar INTE app-DI-interceptorer.
-        // Kanonisk mekanik = SINGLETON-interceptorer (ISingletonInterceptor) +
-        // (sp,options).AddInterceptors(sp.GetRequiredService<...>()). Singleton
-        // → samma instans varje resolution → identisk options-cache-nyckel →
-        // EN intern EF-provider (ingen ManyServiceProvidersCreatedWarning,
-        // prod-reell läcka annars). Scoped state (cache/owner/encryptor) nås
-        // via eventData.Context.GetService<T>() vid invocation, ej ctor.
-        // #1633 — EF Core's default level for these two events describes a failed statement, not
-        // this system's semantics. A UNIQUE violation is an EXPECTED outcome here: six catch sites
-        // in five files absorb 23505 by design (ADR 0032 §5's race-safe upsert and its four
-        // siblings). EF cannot know that — it logs before the catch runs — so the correction
-        // belongs at the only seam that can speak for EF's events. The MECHANISM is untouched;
-        // only the level is.
+        // EF Core does not discover interceptors from the application's container, so they are
+        // added from it explicitly (ADR 0049). The field-encryption interceptors are singletons:
+        // the same instance on every resolution keeps the options cache key identical, so EF
+        // builds one internal service provider instead of one per context. They reach scoped
+        // state through eventData.Context.GetService<T>() when they run.
         //
-        // Information, not Debug: Debug asserts "no long-term value", which is false of a GENUINE
-        // save failure. Information is true of both, and the volume is taken by the category rules
-        // in both hosts' appsettings.json (Database.Command already at Warning per #752;
-        // EntityFrameworkCore.Update joins it here) — one silencing mechanism in the house, pinned
-        // by EfCoreLoggingConfigurationTests and re-armed by
-        // docs/runbooks/performance-measurement.md §D, rather than a second code-baked axis.
-        //
-        // What carries a genuine failure instead: LoggingBehavior.LogFailed (Error, with the
-        // exception) on every Mediator path.
+        // EF logs a failed statement and a failed save before any catch runs, but a UNIQUE
+        // violation is an expected outcome here: several upserts absorb 23505 by design
+        // (ADR 0032 §5). These two events are therefore logged at Information, not Error, and
+        // their volume is set by the category rules in both hosts' appsettings.json
+        // (EfCoreLoggingConfigurationTests). A genuine failure is still logged at Error by
+        // LoggingBehavior on every Mediator path.
         services.TryAddScoped<ProtectedAccountTransaction>();
         services.TryAddScoped<ProtectedAccountTransactionInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
@@ -1202,86 +973,49 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
-        // Klas-direktiv 2026-07-28: a day boundary a user reads is the SWEDISH
-        // one, not UTC.
-        //
-        // It lives HERE because this module already owns the clock, and the
-        // calendar is the clock's sibling — NOT because both hosts need it.
-        // That criterion is one this very file rejects: AddTextAnalysis is a
-        // standalone module precisely because "called by BOTH hosts" does not
-        // imply persistence coupling. Splitting the two time adapters across two
-        // modules would cost more cohesion than it buys.
-        //
-        // Stateless singleton; the zone id resolves once in a static field, and
-        // the gate against a runtime that cannot resolve it is
-        // SwedishCalendarTests, not this line — type registration is lazy, so a
-        // throw here would surface on first use rather than at boot.
-        //
-        // Three consumers, across both hosts: RefreshLandingStatsJob (Worker) for
-        // the "nya idag" day boundary, and — since the ADR 0064 amendment's
-        // follow-up landed — GetActivityReportQueryHandler and
-        // GetApplicationStatsQueryHandler (Api) for the month windows. The Api
-        // side resolves it through AddInfrastructure → AddPersistence.
+        // Day and month boundaries a user sees are Swedish ones, not UTC. The calendar sits next
+        // to the clock it extends. SwedishCalendarTests guards against a runtime that cannot
+        // resolve the time zone, since this lazy registration would only fail on first use.
         services.AddSingleton<ISwedishCalendar, Time.SwedishCalendar>();
 
-        // Provider-specifik DbUpdateException-analys (ADR 0032 §5). Singleton —
-        // stateless. Konsumeras av UpsertExternalJobAdCommandHandler för
-        // Postgres 23505-detection utan att Application får Npgsql-beroende.
+        // Recognises provider-specific database errors such as 23505, so Application can react
+        // to them without depending on Npgsql (ADR 0032 §5).
         services.AddSingleton<IDbExceptionInspector, DbExceptionInspector>();
 
-        // Audit-bypass-portar (ADR 0024 D1+D3). Båda anropas från Worker
-        // (AuditLogRetentionJob + HardDeleteAccountsJob) — registreras därför här
-        // i AddPersistence, inte i HTTP-only-extensionerna. Lifetime Scoped:
-        // följer IAppDbContext-livscykeln.
+        // Audit-log maintenance and erasure (ADR 0024 D1, D3), used by Worker jobs, so registered
+        // here rather than with the HTTP-only services.
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
 
-        // ISystemEventAuditor (ADR 0035) — bypass-port för audit-rader från
-        // system-jobben (SyncPlatsbankenStreamJob/SnapshotJob/PurgeStaleRawPayloadsJob).
-        // Scoped följer IAppDbContext-livscykeln; per Hangfire-scope ger varje
-        // job-execution fresh DbContext + auditor-instans.
+        // Audit rows written by system jobs, outside the Mediator pipeline (ADR 0035).
         services.AddScoped<ISystemEventAuditor, SystemEventAuditor>();
 
-        // IP-anonymisering (ADR 0024 D7). Stateless BCL-baserad helper —
-        // singleton. Konsumeras av RequestContextProvider (audit-pipeline) och
-        // AuthAuditLogger (app-logg) så samma /24+/48-maskning gäller överallt.
-        // Registrerad i AddPersistence eftersom Worker-stub:ar inte använder
-        // den men ingen kostnad finns att ha den tillgänglig.
+        // IP truncation (ADR 0024 D7), shared by the audit pipeline and the auth log so the same
+        // /24 and /48 masking applies everywhere.
         services.AddSingleton<IIpAnonymizer, IpAnonymizer>();
 
-        // Failed-access-logger (ADR 0031 / TD-67). Strukturerad ILogger-wrapper —
-        // stateless, singleton. Konsumeras av Application-handlers vid
-        // ownership-mismatch för CloudWatch-baserad anomaly-detection (TD-68).
+        // Structured logging of ownership mismatches, for failed-access anomaly detection
+        // (ADR 0031).
         services.AddSingleton<IFailedAccessLogger, FailedAccessLogger>();
 
-        // ADR 0060 — RecentJobSearches auto-capture-port. Scoped (delar
-        // IAppDbContext-livstid; egen SaveChangesAsync per capture per CTO-dom).
-        // Konsumeras av RecentJobSearchCaptureBehavior i pipeline.
+        // Saves a deliberate search as a recent search (ADR 0060), from the pipeline behavior.
         services.AddScoped<
             Jobbliggaren.Application.RecentJobSearches.Abstractions.IRecentJobSearchCapturer,
             RecentJobSearches.RecentJobSearchCapturer>();
 
-        // ADR 0062 — IJobAdSearchQuery: hela sök-kompositionen (FTS-hybrid +
-        // ts_rank-relevans) flyttad Application→Infrastructure eftersom
-        // PostgreSQL FTS-LINQ ligger i Npgsql-assemblyn (arch-test-förbjuden i
-        // Application). Scoped — delar request-scopets AppDbContext, paritet med
-        // hur handlers konsumerar IAppDbContext (till skillnad från
-        // ITaxonomyReadModel som är singleton pga snapshot-cache). DI i samma
-        // commit som port-impl (feedback_di_with_handlers_same_commit).
+        // Job-ad search (ADR 0062). Full-text search and ts_rank relevance live in the Npgsql
+        // assembly, which Application may not reference, so the query is implemented here.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdSearchQuery,
             JobAds.JobAdSearchQuery>();
 
-        // #842 / ADR 0106 Tier B — the matching behind the Art. 17 erasure command (the channels are
-        // documented on the port; do not restate them here). Infrastructure for the same reason as
-        // IJobAdSearchQuery above: FTS, jsonb_path_query and the ARE regex are Npgsql concerns,
-        // arch-test-forbidden in Application.
+        // The matching behind the Art. 17 recruiter erasure (ADR 0106 Tier B; the channels are
+        // documented on the port). Implemented here for the same reason as the search above.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IRecruiterErasureMatchQuery,
             JobAds.RecruiterErasureMatchQuery>();
 
-        // #842 — HMAC-SHA256(server pepper) for the Art. 17 audit payload (ADR 0090 D5).
-        // Singleton: the pepper is read once and the instance is stateless.
+        // HMAC-SHA256 under a server pepper, for the Art. 17 audit payload (ADR 0090 D5).
         //
         // Fail-closed startup: a missing or short pepper aborts boot in EVERY environment (mirrors
         // FieldEncryptionOptions). An HMAC under a weak or absent key looks protected while being
@@ -1296,16 +1030,12 @@ public static class DependencyInjection
             Jobbliggaren.Application.Common.Security.IIdentifierPseudonymizer,
             Security.HmacIdentifierPseudonymizer>();
 
-        // #544 (ADR 0090 D5) — SEPARATE watch pepper for the enskild-firma org.nr at-rest token
-        // (security-auditor B1: one key = one purpose; R1 — unlike the rotation-tolerant audit
-        // pepper). Same fail-closed ValidateOnStart posture.
+        // A separate pepper for the stored token of a sole trader's organisation number (ADR 0090
+        // D5): one key, one purpose. Same fail-closed startup check.
         //
-        // "Non-rotatable" is precise only with its condition attached (#198): NON-ROTATABLE ONCE
-        // ANY ROW EXISTS. BackfillCompanyWatchOrgNrTokenJob destroyed the plaintext organisation
-        // number in place, so an existing token cannot be recomputed under a new pepper — not
-        // expensively, but mathematically. While company_watches is empty the pepper is simply a
-        // value, and replacing it costs nothing. The window closes at the FIRST row, which is why
-        // #198's cutover replaces it rather than carrying the exposed value forward.
+        // It cannot be rotated once any row exists: the plaintext number is not kept, so an
+        // existing token cannot be recomputed under a new pepper. While company_watches is empty,
+        // replacing it costs nothing.
         services.AddOptions<Security.CompanyWatchPseudonymizationOptions>()
             .Bind(configuration.GetSection(Security.CompanyWatchPseudonymizationOptions.SectionName))
             .ValidateOnStart();
@@ -1316,69 +1046,43 @@ public static class DependencyInjection
             Jobbliggaren.Application.Common.Security.IProtectedIdentityTokenizer,
             Security.HmacProtectedIdentityTokenizer>();
 
-        // F4-14 (ADR 0076 Decision 4/5) — IPerUserJobAdSearchQuery: den
-        // per-användar-match-sorten ("Sortera efter matchning"). SEPARAT port från
-        // IJobAdSearchQuery (som förblir match-ren/cachebar) men delar filter-SPOT:en
-        // (JobAdSearchComposition) + den rena port-counten. Scoped paritet
-        // IJobAdSearchQuery; DI i samma commit som port-impl
-        // (feedback_di_with_handlers_same_commit).
+        // Sorting by match for one user (ADR 0076). A separate port, so the general search stays
+        // free of per-user data; both share the filters in JobAdSearchComposition.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery,
             JobAds.PerUserJobAdSearchQuery>();
 
-        // ADR 0087 D6/D7 (#311 PR-2b C2) — IEmployerDisambiguationQuery: the org.nr disambiguation
-        // projection (DISTINCT org.nr + company_name + COUNT via ILIKE + GROUP BY). A SEPARATE read
-        // concern from IJobAdSearchQuery (D6 — never folded into the filter/facet port); lives in
-        // Infrastructure because ILIKE/GROUP BY are Npgsql-assembly LINQ (arch-test-forbidden in
-        // Application, parity IJobAdSearchQuery). Scoped (shares the request AppDbContext). DI in the
-        // same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // Tells employers with similar names apart by organisation number (ADR 0087 D6, D7). ILIKE
+        // needs the Npgsql assembly, so it is implemented here.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IEmployerDisambiguationQuery,
             JobAds.EmployerDisambiguationQuery>();
 
-        // #311 #455 (ADR 0087 D2/D8(c)) — IJobAdEmployerReader: resolves the STORED organization_number
-        // shadow column for a set of ads (id = ANY raw SQL + EF.Property, Npgsql-assembly concerns
-        // arch-forbidden in Application, parity IJobAdSearchQuery). Server-side org.nr resolution for the
-        // #455 follow-from-card command + follow-state batch (raw org.nr never surfaced, D8(c)). Scoped
-        // (shares the request AppDbContext). DI in the same commit as the port-impl
-        // (feedback_di_with_handlers_same_commit).
+        // Reads the stored organisation number for a set of ads on the server, so following a
+        // company from a job card never sends the raw number to the client (ADR 0087 D8(c)).
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdEmployerReader,
             JobAds.JobAdEmployerReader>();
 
-        // #560 kriterie-vågen PR-2 (CTO Fork A1/B1) — ICompanyWatchBrowseQuery: the criteria browse
-        // over the local SCB company_register. Registered HERE and not in AddScbCompanyRegister: that
-        // module is the POPULATION channel, is Worker-only, and is gated on ScbRegister:Enabled — but
-        // browsing rows that are already in the table is an Api read concern and must not depend on
-        // whether the nightly SCB sync is switched on. Lives in Infrastructure because the predicate is
-        // raw Npgsql (`sni_codes && @sni` — the ONLY shape the GIN index can serve; LINQ compiles it to
-        // an unnest subquery that silently cannot use the index) and because the register replica is
-        // deliberately NOT a DbSet on IAppDbContext (DPIA C-D4 / M-C5 firewall). Scoped — shares the
-        // request AppDbContext, parity IJobAdSearchQuery. DI in the same commit as the port-impl
-        // (feedback_di_with_handlers_same_commit).
+        // Browsing the local SCB register by watch criteria. Registered here, not in
+        // AddScbCompanyRegister: that module populates the register, runs only in the Worker and
+        // depends on ScbRegister:Enabled, while reading rows already in the table must not. The
+        // predicate is raw SQL (`sni_codes && @sni`), the only shape the GIN index can serve; LINQ
+        // would compile it to a subquery that cannot use the index. The register is deliberately
+        // not a DbSet on IAppDbContext (DPIA C-D4, M-C5).
         services.AddScoped<
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchBrowseQuery,
             CompanyRegister.CompanyWatchBrowseQuery>();
 
-        // #1681 (ADR 0139) — the criterion-membership materialisation. Registered HERE and not in
-        // AddScbCompanyRegister for the same reason the browse above is, and one more:
+        // Materialises which companies match each industry watch (ADR 0139). Registered here, not in
+        // AddScbCompanyRegister, for the same reason as the browse above and one more: the
+        // materialiser is the enforcement point that keeps de-registered companies from being
+        // counted (replacing DPIA M-D6), and an enforcement point must not depend on a flag that
+        // defaults to false.
         //
-        //  * AddScbCompanyRegister is the POPULATION channel and is gated on ScbRegister:Enabled.
-        //    Registering the materialiser there would make the job's very EXISTENCE depend on a flag
-        //    that defaults false, which is exactly the coupling security-auditor Major 3 (2026-09-06)
-        //    told us to break: a de-registered company would otherwise be counted indefinitely in the
-        //    default posture, with DPIA M-D6's structural mitigation already removed from the read
-        //    path by materialisation itself.
-        //  * The materialiser is the ENFORCEMENT POINT that replaces M-D6. An enforcement point must
-        //    not be conditionally absent.
-        //
-        // Its own options section, bound and validated here with the same ValidateOnStart discipline
-        // as ScbRegisterOptions. Be exact about what that buys, because an earlier version of this
-        // comment was not: [Required] on CadenceCron rejects null/empty only, so a SYNTACTICALLY
-        // BROKEN cron passes validation. What actually rejects it is Hangfire's AddOrUpdate in
-        // RecurringJobRegistrar.StartAsync, i.e. at Worker boot — and not on the Api, which binds the
-        // same options and validates them green. Scoped — it holds the request/job AppDbContext,
-        // parity the sibling ports.
+        // [Required] on CadenceCron rejects only an empty value; a malformed cron is rejected by
+        // Hangfire when RecurringJobRegistrar starts in the Worker, not by the API, which binds the
+        // same options.
         services.AddOptions<CompanyRegister.CompanyWatchMaterialisationOptions>()
             .Bind(configuration.GetSection(CompanyRegister.CompanyWatchMaterialisationOptions.SectionName))
             .ValidateDataAnnotations()
@@ -1389,12 +1093,9 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyWatchCriterionMaterialiser,
             CompanyRegister.CompanyWatchCriterionMaterialiser>();
 
-        // #1682 — the occupation × SNI-division profile: its own options section (Enabled default
-        // true, the same inversion the block above argues), the store on the concrete AppDbContext,
-        // and the two ports — one writes, one reads, and they change for different reasons. Here in
-        // the general module, deliberately NOT in AddScbCompanyRegister: that module is gated on
-        // ScbRegister:Enabled (default false), and a profile job that vanished with it would leave the
-        // picker's occupation block permanently "not profiled" in the default configuration.
+        // The occupation-by-industry profile, with a writer and a reader port. Also here rather
+        // than in AddScbCompanyRegister, so the profile does not disappear when the SCB sync is
+        // off and leave the picker's occupation block unprofiled.
         services.AddOptions<CompanyRegister.OccupationDivisionProfileOptions>()
             .Bind(configuration.GetSection(CompanyRegister.OccupationDivisionProfileOptions.SectionName))
             .ValidateDataAnnotations()
@@ -1408,54 +1109,36 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyRegister.Abstractions.IOccupationDivisionProfileQuery,
             CompanyRegister.OccupationDivisionProfileQuery>();
 
-        // #560 company-search wave (CTO F1) — ICompanyRegisterSearchQuery: the GENERAL register
-        // search (/foretag/sok; every axis optional, browse-all legal). A SEPARATE port from the
-        // criterion browse above — opposite absent-axis semantics (omitted clause vs fail-loud),
-        // bound as two ports by senior-cto-advisor 2026-07-18. Same placement rationale as the
-        // sibling: Api read concern (never gated on ScbRegister:Enabled), raw Npgsql (GIN `&&` +
-        // functional lower()-prefix are the only index-servable shapes), register off
-        // IAppDbContext (DPIA C-D4/M-C5). Scoped — shares the request AppDbContext. DI in the
-        // same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // The general company search on /foretag/sok, where every filter is optional. A separate
+        // port from the criteria browse, which refuses a missing filter instead. Same placement
+        // and raw-SQL reasons as the browse.
         services.AddScoped<
             Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyRegisterSearchQuery,
             CompanyRegister.CompanyRegisterSearchQuery>();
 
-        // #994 — ICompanyRegisterNameReader: resolves company_name by org.nr from the local SCB
-        // register replica, the SECOND read-model the company-watch list falls back to when the
-        // job_ads name projection is empty (a followed 0-ad company; ADR 0087 D3 keeps it a READ
-        // projection — no snapshot). Plain EF LINQ over the concrete AppDbContext.Set<>() (PK
-        // `= ANY`, no index-shape need for raw SQL, unlike the search sibling above); the register
-        // stays off IAppDbContext (DPIA C-D4/M-C5). An Api read concern, never gated on
-        // ScbRegister:Enabled (parity the browse ports). Scoped — shares the request AppDbContext.
-        // DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        // Company names from the register, for a followed company with no ads to take the name
+        // from (ADR 0087 D3).
         services.AddScoped<
             Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyRegisterNameReader,
             CompanyRegister.CompanyRegisterNameReader>();
 
-        // #560 PR-3 (CTO Fork G2) — the SCB reference data (SNI 2025 + län/kommun) behind
-        // ICriterionReferenceProvider: ONE authority for the Application existence-validator and the
-        // FE picker tree. INSTANCE registration, deliberately: the loaders run HERE, at host build,
-        // so a malformed embedded asset fails the host loudly instead of 500-ing the first create
-        // (AddSingleton<IPort, Impl>() is lazy — the BranschgruppProvider precedent). Immutable +
-        // thread-safe, so a singleton instance is correct.
+        // SCB reference data (SNI 2025, regions and municipalities): one source for validating
+        // watch criteria and for the picker tree. Registered as a constructed instance, so a
+        // malformed embedded file stops the host at startup rather than failing a request.
         services.AddSingleton<Jobbliggaren.Application.CompanyWatches.Abstractions.ICriterionReferenceProvider>(
             new CompanyRegister.Reference.CriterionReferenceProvider(
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadSni(),
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadKommuner(),
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadAliases()));
 
-        // #311 PR-5 (ADR 0087 D4) — the curated brand-group catalogue behind IBrandGroupProvider. Same
-        // eager-INSTANCE fail-loud posture as the reference provider above: BrandGroupLoader runs HERE,
-        // at host build, so a malformed (or personnummer-shaped-member) catalogue kills the host loudly
-        // instead of surfacing on the first group follow. Immutable + thread-safe → singleton instance.
+        // The curated brand-group catalogue (ADR 0087 D4), loaded at startup in the same way, so a
+        // malformed catalogue, or one with a member shaped like a personal identity number, stops
+        // the host.
         services.AddSingleton<Jobbliggaren.Application.CompanyWatches.Abstractions.IBrandGroupProvider>(
             new CompanyWatches.BrandGroupProvider(CompanyWatches.BrandGroupLoader.Load()));
 
-        // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
-        // recall-lift på terms som "systemutvecklare". IOptions-binding från
-        // appsettings.json SearchSynonyms-sektion. DI i samma commit som
-        // port-impl (feedback_di_with_handlers_same_commit). Scoped paritet
-        // IJobAdSearchQuery (samma livscykel).
+        // Expands free-text terms such as "systemutvecklare" to SSYK codes for better recall,
+        // from the SearchSynonyms section.
         services.AddOptions<Jobbliggaren.Application.JobAds.Abstractions.SearchSynonymsOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.JobAds.Abstractions.SearchSynonymsOptions.SectionName));
@@ -1463,27 +1146,19 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationSynonymExpander,
             JobAds.OccupationSynonymExpander>();
 
-        // #630 PR 4 (design §11, superseding ADR 0085 §3) — /ansokningar
-        // attention-prioritisation thresholds. Application owns the contract; bound
-        // here (ApplicationAttention section) with data-annotation + start-time
-        // validation (parity with the digest/backfill options). The per-aggregate
-        // Application.GhostedThresholdDays is intentionally NOT bound and no longer
-        // feeds any signal — ghost-suggest keys on the GhostSuggestDays option.
+        // Thresholds for which applications need attention on /ansokningar. The suggestion to
+        // mark an application as ghosted uses GhostSuggestDays; Application.GhostedThresholdDays
+        // is deliberately not bound and feeds no signal.
         services.AddOptions<Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // TD-13 (ADR 0049) / ADR 0066 — lokal envelope-fält-kryptering.
-        // Registrerad i AddPersistence: per-användare-DEK + interceptor-paret
-        // (C3) lever på AppDbContext-livscykeln; måste vara tillgänglig i både
-        // Api och Worker (HardDeleteAccountsJob crypto-erasure, C6).
-        // AesGcmFieldEncryptor + LocalDataKeyProvider är stateless/trådsäkra →
-        // singleton. Fail-closed startup via IValidateOptions
-        // (.ValidateOnStart()): en tom/ogiltig lokal master-nyckel hård-failar
-        // i ALLA miljöer (FieldEncryptionOptionsValidator) — provider-agnostiskt
-        // sedan KMS-grenen togs bort (#802).
+        // Envelope field encryption (ADR 0049, ADR 0066). Registered with persistence because the
+        // per-user data keys and the interceptors follow the AppDbContext's lifetime, and both
+        // hosts need them (the hard-delete job erases keys). An empty or invalid master key stops
+        // startup in every environment.
         services.AddOptions<Security.FieldEncryptionOptions>()
             .Bind(configuration.GetSection(Security.FieldEncryptionOptions.SectionName))
             .ValidateOnStart();
@@ -1491,20 +1166,13 @@ public static class DependencyInjection
             Microsoft.Extensions.Options.IValidateOptions<Security.FieldEncryptionOptions>,
             Security.FieldEncryptionOptionsValidator>();
 
-        // IFieldEncryptor (AES-256-GCM-primitiv) är AWS-fri och oberoende av
-        // DEK-wrap-mekanismen — registreras ovillkorligt.
+        // The AES-256-GCM primitive, independent of how data keys are wrapped.
         services.AddSingleton<Jobbliggaren.Application.Common.Security.IFieldEncryptor,
             Security.AesGcmFieldEncryptor>();
 
-        // ADR 0066 (AWS-exit klar, #802) — Local är enda DEK-providern. En
-        // utelämnad Provider defaultar Local; ett explicit icke-Local-värde
-        // (t.ex. en kvarlämnad "Kms" i stale config) MÅSTE dö loud vid boot —
-        // aldrig tyst falla till Local (det skulle maskera en felkonfiguration;
-        // #802-footgunklassen). Den AWS-KMS-baserade providern + klienten är
-        // borttagna; ingen Amazon-SDK-instans registreras PÅ KRYPTERINGSVÄGEN. (Sedan #183 finns
-        // INGEN Amazon-klient alls i lösningen — e-postarmen flyttade till Scaleway och tog
-        // AWSSDK-paketet med sig, så parentesens tidigare undantag för SES-avsändaren har inget
-        // kvar att undanta. NoAmazonReferenceTests pinnar det.)
+        // Local is the only data-key provider (ADR 0066). An omitted Provider means Local; any
+        // other value, such as a stale "Kms", stops startup instead of silently falling back,
+        // which would hide a misconfiguration.
         var fieldEncryptionProvider = configuration[
             $"{Security.FieldEncryptionOptions.SectionName}:Provider"];
         if (!string.IsNullOrWhiteSpace(fieldEncryptionProvider)
@@ -1519,46 +1187,37 @@ public static class DependencyInjection
         services.AddSingleton<Jobbliggaren.Application.Common.Security.IDataKeyProvider,
             Security.LocalDataKeyProvider>();
 
-        // TD-13 C2 (ADR 0049 Beslut 1, CTO FRÅGA 2). Scoped: delar scopets
-        // AppDbContext (DeleteDataKeysAsync deltar i hard-delete-transaktionen
-        // C6) + cachen nollar nyckelmaterial vid scope-dispose. UserDataKey
-        // exponeras aldrig via IAppDbContext (arch-test-spärr).
-        // C3-justering: registrera konkreta ScopedUserDataKeyCache + låt
-        // IUserDataKeyCache forwarda till SAMMA scoped-instans, så
-        // FieldDecryptionMaterializationInterceptor (injicerar konkreta typen
-        // för synkron internal TryPeekCachedDek, Seam 3) och store delar
-        // cache-instans per scope.
+        // Per-user data keys (ADR 0049 Beslut 1). Scoped: the store shares the scope's
+        // AppDbContext, so key deletion joins the hard-delete transaction, and the cache wipes key
+        // material when the scope ends. UserDataKey is never exposed through IAppDbContext (an
+        // architecture test enforces it). The concrete cache and IUserDataKeyCache resolve to the
+        // same scoped instance, because the decryption interceptor peeks the concrete type
+        // synchronously.
         services.AddScoped<Security.ScopedUserDataKeyCache>();
         services.AddScoped<Jobbliggaren.Application.Common.Security.IUserDataKeyCache>(
             sp => sp.GetRequiredService<Security.ScopedUserDataKeyCache>());
         services.AddScoped<Jobbliggaren.Application.Common.Security.IUserDataKeyStore,
             Security.UserDataKeyStore>();
 
-        // TD-13 C5 (ADR 0049 Beslut 4, architect-låst 2026-05-19). Backfill-
-        // porten äger per-owner fresh DI-scope via IServiceScopeFactory
-        // (cross-user-DEK-isolering, §5.1) → Scoped. DI i samma commit som
-        // port/job-impl (feedback_di_with_handlers_same_commit).
+        // The encryption backfill opens a fresh scope per data owner, so one user's key never
+        // shares a scope with another's (ADR 0049 Beslut 4).
         services.AddScoped<
             Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption.IFieldEncryptionBackfiller,
             Security.FieldEncryptionBackfiller>();
 
-        // TD-13 C3 (Mekanik-not 5c). Interceptor-paret SINGLETON (stateless,
-        // ISingletonInterceptor; scoped state via Context.GetService vid
-        // invocation). ICurrentDataOwner förblir Scoped (request/job-bunden).
+        // The interceptors are singletons (see AddDbContext above); the current data owner is
+        // scoped to the request or job.
         services.AddSingleton<Security.FieldEncryptionSaveChangesInterceptor>();
         services.AddSingleton<Security.FieldDecryptionMaterializationInterceptor>();
         services.AddScoped<Jobbliggaren.Application.Common.Security.ICurrentDataOwner,
             Security.CurrentDataOwner>();
 
-        // Fas 4b PR-9a (ADR 0093 §D5 / ADR 0100) — Form C: binärcipher stateless →
-        // singleton (paritet IFieldEncryptor); write-path-sealern Scoped (peekar
-        // scopets ScopedUserDataKeyCache via ICurrentDataOwner, CTO Q2 explicit seal).
+        // Encryption of uploaded files (ADR 0100): the cipher is stateless; the sealer and the
+        // opener are scoped because they read the scope's key cache.
         services.AddSingleton<Jobbliggaren.Application.Common.Security.IBinaryFieldEncryptor,
             Security.BinaryFieldEncryptor>();
         services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldSealer,
             Security.BinaryFieldSealer>();
-        // Fas 4b PR-9b (ADR 0100 §D3 read-path) — the read-side opener, Scoped for the same reason
-        // as the sealer (peeks the scope's ScopedUserDataKeyCache via ICurrentDataOwner).
         services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldOpener,
             Security.BinaryFieldOpener>();
 
@@ -1664,9 +1323,8 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Identity, sessions, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
-    /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
-    /// (#827: "JWT-rester" stod här tills de resterna faktiskt raderades.)
+    /// Identity, sessions, Redis, the HTTP-based <see cref="ICurrentUser"/> and the auth audit
+    /// logger. API only; the Worker does not load this module.
     /// </summary>
     public static IServiceCollection AddIdentityAndSessions(
         this IServiceCollection services,
@@ -1810,8 +1468,8 @@ public static class DependencyInjection
         services.AddScoped<ExternalLoginLinker>();
         services.AddExternalIdentityProviders(configuration);
 
-        // Admin-bootstrap: idempotent seeder kör vid app-startup.
-        // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).
+        // At startup, ensures the Admin role exists and grants it to the configured account if that
+        // account exists. Idempotent.
         services.Configure<AdminBootstrapOptions>(configuration.GetSection(AdminBootstrapOptions.SectionName));
         services.AddHostedService<IdempotentAdminRoleSeeder>();
 
@@ -1856,10 +1514,10 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// HTTP-only audit-portar: <see cref="ICorrelationIdProvider"/> +
-    /// <see cref="IRequestContextProvider"/>. Implementationerna beror på
-    /// <see cref="Microsoft.AspNetCore.Http.IHttpContextAccessor"/> och får aldrig
-    /// laddas i Worker — Worker registrerar egna stubs (per ADR 0022 + ADR 0023 / STEG 9).
+    /// The HTTP-based audit ports, <see cref="ICorrelationIdProvider"/> and
+    /// <see cref="IRequestContextProvider"/>. They depend on
+    /// <see cref="Microsoft.AspNetCore.Http.IHttpContextAccessor"/> and must never be loaded in the
+    /// Worker, which registers its own (ADR 0022, ADR 0023).
     /// </summary>
     public static IServiceCollection AddHttpAuditing(this IServiceCollection services)
     {
@@ -1876,18 +1534,11 @@ public static class DependencyInjection
         user.AllowedUserNameCharacters = string.Empty;
 
     /// <summary>
-    /// HTTP-fri Identity-modul för Worker. Registrerar
-    /// <see cref="AppIdentityDbContext"/>, AspNet IdentityCore (UserManager +
-    /// UserStore — utan cookies/sessions/JWT/SignInManager), och de portar
-    /// som <see cref="HardDeleteAccountsJob"/> behöver för att radera
-    /// Identity-rader vid GDPR Art. 17-cascade (ADR 0024 D6).
-    ///
-    /// Skiljer sig från <see cref="AddIdentityAndSessions"/> genom att INTE
-    /// dra in HTTP-bagage (cookies, AuthenticationScheme, JWT, IHttpContextAccessor).
-    /// Får anropas EXKLUSIVT av Worker-composition-roten — Api laddar
-    /// AddIdentityAndSessions istället, som täcker fullt Identity-stack
-    /// inklusive HTTP. Att anropa båda i samma DI-container ger duplicerade
-    /// registreringar.
+    /// An HTTP-free Identity module for the Worker: <see cref="AppIdentityDbContext"/>, the Identity
+    /// core (UserManager and UserStore, without cookies, sessions or SignInManager) and the ports
+    /// <see cref="HardDeleteAccountsJob"/> needs to delete Identity rows in the Art. 17 cascade
+    /// (ADR 0024 D6). Called only by the Worker; the API calls
+    /// <see cref="AddIdentityAndSessions"/>, and calling both registers services twice.
     /// </summary>
     public static IServiceCollection AddCoreIdentityForWorker(
         this IServiceCollection services,
@@ -1907,12 +1558,8 @@ public static class DependencyInjection
                 .UseSnakeCaseNamingConvention()
                 .AddInterceptors(sp.GetRequiredService<ProtectedAccountTransactionInterceptor>()));
 
-        // AddIdentityCore<TUser>() registrerar UserManager + UserStore utan
-        // AuthenticationScheme/Cookies/SignInManager — HTTP-fritt.
-        // AddDefaultTokenProviders() utelämnas medvetet — token-providers
-        // (change-email) kräver IDataProtectionProvider
-        // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
-        // DeleteAsync vilka inte använder token-providers.
+        // No token providers: they need the API's Data Protection keyring, and the Worker's use
+        // of UserManager (create, find, delete) needs none.
         services.AddIdentityCore<ApplicationUser>(opts => TheUserNameIsTheAddress(opts.User))
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();

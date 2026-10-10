@@ -194,7 +194,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
 
         {/* Neutral, display-only preamble affordance (#844, ADR 0109). CV-PII rendered
             server-side only — parsed.content.preamble is already pnr-redacted at the mapper
-            egress and never crosses to a client island (page invariant, lines above). */}
+            egress. */}
         <CvPreamble preamble={parsed.content.preamble} />
 
         <CvReviewPanel

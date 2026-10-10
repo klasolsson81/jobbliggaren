@@ -276,7 +276,8 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
             {
                 (await db.FeedbackSubmissions.AnyAsync(s => s.Id == saved.SubmissionId, ct)).ShouldBeTrue();
                 (await db.FeedbackNotifications.AnyAsync(n => n.Id == saved.NoticeId, ct)).ShouldBeTrue();
-                var detail = await new GetFeedbackDetailQueryHandler(db, accounts)
+                var detail = await new GetFeedbackDetailQueryHandler(
+                        db, accounts, scope.ServiceProvider.GetRequiredService<IDateTimeProvider>())
                     .Handle(new GetFeedbackDetailQuery(saved.SubmissionId.Value), ct);
                 detail.ShouldNotBeNull().Screenshot.ShouldBeNull();
                 detail.Notification.ShouldNotBeNull();

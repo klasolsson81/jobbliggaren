@@ -117,6 +117,8 @@ internal sealed class ActivationEmailSender(IEmailSender inner, EmailChangeActiv
         inner.SendEmailChangedNotificationAsync(toEmail, ct);
     public Task SendFeedbackReceivedNotificationAsync(string toEmail, FeedbackReceivedNotificationEmail content,
         CancellationToken ct) => inner.SendFeedbackReceivedNotificationAsync(toEmail, content, ct);
+    public Task SendFeedbackReplyAsync(string toEmail, FeedbackReplyEmail content, CancellationToken ct) =>
+        inner.SendFeedbackReplyAsync(toEmail, content, ct);
 
     public async Task SendAccountEmailChangeRequestedNotificationAsync(string toEmail,
         DateTimeOffset completableFrom, DateTimeOffset expiresAt, CancellationToken ct)

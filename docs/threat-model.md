@@ -198,6 +198,13 @@ return path carries a feedback id, so the edge deletes `next` from its log.
 Review recipients, the gate that keeps feedback closed without a recipient or a
 delivering transport, and the admin reads of reporters' addresses.
 
+An administrator can mail a reply to the reporter (#2069, ADR 0156 reply amendment),
+so a compromised admin session can mail any reporter from the service's domain, at
+most ten times per submission. The admin policy, the `admin-write` rate limit and
+one audit row per reply (no text, no address) bound it; the text is HTML-encoded
+into the mail, and the reply is sent from the configured sender with Reply-To set
+to the contact address, never to an address a request names.
+
 Feedback screenshots are untrusted personal data, potentially a plaintext copy of a CV or a recruiter's details (ADR 0156 PR2 amendment, 2026-10-08). Review the PNG/JPEG/WebP-only magic-byte and codec restrictions, strict single-frame identification, pixel/input/output bounds, allocator and concurrency budgets, and memory-only multipart buffering. PNG metadata preflight validates chunk boundaries/CRCs and caps cumulative zlib expansion and legacy EXIF/IPTC profiles at 5 MiB before library allocation. Normalization removes metadata and writes fixed 8-bit RGBA-PNG without resizing. Replay cannot replace an image; image, submission and notice share the save. Admin-only binary reads and their dedicated same-origin/session BFF bound bytes and return no-store/nosniff, with image/png only on success. Metadata reads do not fetch bytes. Logs/errors must not carry pixels, filenames, client MIME or build licence secrets. Retention/account erasure delete the image before its submission; recruiter erasure discloses unsearchable pixels and requires human review without OCR. Logical backup excludes only screenshot data, preserving schema and feedback; the installed backup script is read back before the feature is opened (`vps-deploy-stack.md` §3g). Deleting a CV does not erase its separate feedback screenshot, and the privacy policy says so. The browser redraws a screenshot before upload, so its metadata never leaves the device.
 
 Dispatch reads metadata only and rechecks a live reporter before claim and

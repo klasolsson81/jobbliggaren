@@ -178,6 +178,22 @@ export function PreviewFeedback({
     return null;
   }
 
+  // A reply is accepted at once, as the provider answers on a working day; the list shows it like a sent one.
+  async function onReply(id: string, replyKey: string, text: string) {
+    await latency();
+    setSubmissions((previous) =>
+      previous.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              replies: [...item.replies, { id: replyKey, text, state: "accepted", createdAt: now, completedAt: now }],
+            }
+          : item,
+      ),
+    );
+    return { kind: "recorded", state: "accepted" } as const;
+  }
+
   const open = query.id === null ? undefined : submissions.find((item) => item.id === query.id);
   const opened = query.id !== null;
 
@@ -195,6 +211,7 @@ export function PreviewFeedback({
           summary={loaded ? listRegion(summaries[query.window]) : { kind: "empty" }}
           onStatus={onStatus}
           onRequeue={onRequeue}
+          onReply={onReply}
         />
       );
     }
@@ -209,6 +226,7 @@ export function PreviewFeedback({
           summary={{ kind }}
           onStatus={onStatus}
           onRequeue={onRequeue}
+          onReply={onReply}
         />
       );
   }

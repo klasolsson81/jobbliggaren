@@ -12,7 +12,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Feedback;
 /// <summary>
 /// #1979 — every feedback route carries its bucket, read from the built endpoint graph (the
 /// <c>AdminAccountsRateLimitWiringTests</c> form): a dropped <c>RequireRateLimiting</c> would leave every options test
-/// green. The six admin routes also carry the Admin policy.
+/// green. The admin routes also carry the Admin policy.
 /// </summary>
 [Collection("Api")]
 public sealed class FeedbackRateLimitWiringTests(ApiFactory factory)
@@ -28,6 +28,7 @@ public sealed class FeedbackRateLimitWiringTests(ApiFactory factory)
     [InlineData("GET", Admin + "/{id:guid}", RateLimitingExtensions.AdminReadPolicy)]
     [InlineData("POST", Admin + "/{id:guid}/status", RateLimitingExtensions.AdminWritePolicy)]
     [InlineData("POST", Admin + "/{id:guid}/notification/requeue", RateLimitingExtensions.AdminWritePolicy)]
+    [InlineData("POST", Admin + "/{id:guid}/replies", RateLimitingExtensions.AdminWritePolicy)]
     public void The_route_carries_its_bucket(string method, string pattern, string policy)
     {
         // The policy nearest the endpoint is the one the rate limiter applies.
@@ -43,6 +44,7 @@ public sealed class FeedbackRateLimitWiringTests(ApiFactory factory)
     [InlineData("GET", Admin + "/{id:guid}")]
     [InlineData("POST", Admin + "/{id:guid}/status")]
     [InlineData("POST", Admin + "/{id:guid}/notification/requeue")]
+    [InlineData("POST", Admin + "/{id:guid}/replies")]
     public void The_admin_route_requires_the_admin_policy(string method, string pattern) =>
         Endpoint(method, pattern).Metadata.GetOrderedMetadata<IAuthorizeData>()
             .ShouldContain(data => data.Policy == AuthorizationPolicies.Admin);

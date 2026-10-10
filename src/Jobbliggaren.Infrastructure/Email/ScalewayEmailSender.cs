@@ -142,6 +142,10 @@ public sealed partial class ScalewayEmailSender(
             "feedback-received-notification",
             cancellationToken);
 
+    public Task SendFeedbackReplyAsync(
+        string toEmail, FeedbackReplyEmail content, CancellationToken cancellationToken) =>
+        SendAsync(toEmail, EmailTemplates.FeedbackReply(content), "feedback-reply", cancellationToken);
+
     private async Task SendAsync(
         string toEmail,
         EmailTemplates.EmailContent body,

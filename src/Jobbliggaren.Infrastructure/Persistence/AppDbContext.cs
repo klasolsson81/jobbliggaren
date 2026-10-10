@@ -42,6 +42,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
     public DbSet<FeedbackScreenshot> FeedbackScreenshots => Set<FeedbackScreenshot>();
     public DbSet<FeedbackNotification> FeedbackNotifications => Set<FeedbackNotification>();
+    public DbSet<FeedbackReply> FeedbackReplies => Set<FeedbackReply>();
     public DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions => Set<FeedbackPromptSuppression>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;

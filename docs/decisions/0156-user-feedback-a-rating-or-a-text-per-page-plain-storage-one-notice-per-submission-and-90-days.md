@@ -135,6 +135,9 @@ the notice is not sent a second time.
   endpoint. A requeue starts a new round of five attempts and is audited.
 - The user's receipt will say that the feedback was saved, never that it was delivered (PR3).
 - *(2026-10-09, PR3 amendment: the 24-hour budget, `FeedbackNotificationDispatchJob.DailyBudget`.)*
+- *(2026-10-10, #2069 amendment: a reply to the reporter is outside this machinery, with no notice row, no claim and no
+  `DailyBudget`. Its mail carries the administrator's text and never the reporter's, so "nothing a user wrote leaves"
+  still holds for what the reporter wrote.)*
 
 ### D6 — Amends ADR 0124: `EmailDeliveryException` gains `Disposition`
 
@@ -147,6 +150,10 @@ it: any 4xx is `NotAccepted`, and so is a failure with no response that happened
 timeout, a 5xx and a response that ended early may follow an accepted message, and stay `Unknown`. Only the dispatch
 job reads the field. Every other caller ignores it and the arm still registers no resilience handler, so no other
 mail flow changes its retry behaviour.
+*(2026-10-10, #2069 amendment: "Only the dispatch job reads the field" is no longer true.
+`SendFeedbackReplyCommandHandler` reads `Disposition` once per reply to record its outcome, `NotAccepted` as `Failed`
+and anything else as `Unknown`, and never retries. Every other caller still ignores it, and the arm still registers
+no resilience handler.)*
 
 ### D7 — Retention: 90 days from submission, suppressions for the life of the account
 
@@ -161,6 +168,7 @@ An account hard delete removes all three tables in the transaction of the rest o
 `AccountHardDeleteCascadeFitnessTests` holds the build to it. A soft-deleted account is
 not special-cased (2c): its rows go at hard delete, as other per-user aggregates do, and the admin detail reads the
 owner with `IgnoreQueryFilters`, so an account inside its 30-day restore window still shows.
+*(2026-10-10, #2069 amendment: a submission's replies go with it, at 90 days and at account hard delete.)*
 
 ### D8 — The admin surface and the statistics
 
@@ -182,7 +190,7 @@ and `admin-write` buckets.
   feature, so it sits behind the Application port `IFeedbackRatingSummaryReader`, implemented by
   `SqlFeedbackRatingSummaryReader` in Infrastructure (M5; AGENTS.md §2.1).
 - **Replies to the reporter** are not built. They are a later issue, and the reply area stays an honest unbuilt
-  action (ADR 0150 D2).
+  action (ADR 0150 D2). *(2026-10-10, #2069 amendment: now built, and this bullet no longer holds.)*
 
 ADR 0150's D8 register gains the rows this makes true, as a dated amendment with no row rewritten.
 
@@ -291,6 +299,57 @@ The footer's link is no longer about a page (*"länken i footern borde inte ha n
 feedback"*): it reads "Lämna feedback" on every `(app)` route and submits under a 20th key, `general`, which no route
 maps to and which therefore never hides a page's row. It is stored by name like the others, so no migration.
 
+## #2069 amendment — 2026-10-10: replies to the reporter
+
+[#2069](https://github.com/klasolsson81/jobbliggaren/issues/2069) builds the reply area that D8's last bullet left
+unbuilt, and replaces that bullet. D9's three PRs are unchanged: this is a separate issue in one PR after them.
+Klas: "GDPR etc är inte så viktigt här. Det handlar enbart att jag skall enkelt i admin-sidan kunna svara. 'Tack för
+din feeback' etc, det har inget med en massa GDPR osv att svara. Jag svarar, de får ett mail. OM de vill svara
+tillbaka så blir det per auto till kontakt@jobbliggaren.se" His planning answers the same day, each the recommended
+option: store the reply's text ("Ja, spara texten", which is grant 3); several replies per submission, at most 10; a
+mail that never quotes the reporter's comment, only the page and the date; and the `mvp` label on #2069. The CTO's
+plan review (`docs/reviews/2026-10-10-2069-plan-cto.md`, local) ruled the shape below, this amendment instead of a new
+ADR, and one PR.
+
+- **A reply is its own aggregate with no foreign key** (D1): `FeedbackReply`, table `feedback_replies`, migration
+  `20261010163145_AddFeedbackReplies`. It holds the submission and the reporter by id, a client `ReplyKey` unique per
+  submission, and the text (`FeedbackReplyText`, trimmed, at most 4 000 characters) in a plain `body` column (D3,
+  grant 3). `MaxPerSubmission` is 10.
+- **One send per row, and each outcome is recorded once.** `Sending` becomes `Accepted`, `Failed` or `Unknown` and is
+  never resent. Writing again is a new reply and a new send is free, so there is no duplicate-risk dialog; the
+  `Unknown` row says the risk. A row still `Sending` after `StaleSendingAfter` (10 minutes) is read as `Unknown`
+  (`FeedbackReply.Effective`), as D5 reads a stale notice. No `xmin`, no requeue and no domain event, as
+  `FeedbackNotification`.
+- **The send is synchronous in the admin request** (ADR 0153's precedent). `SendFeedbackReplyCommandHandler` is
+  `IOwnsAccountTransaction`, split like `RequestAccountEmailChangeCommandHandler`: scope 1 locks, re-checks the admin
+  proof, replays a known key, checks the reporter and the cap, saves the `Sending` row and the audit row
+  `Admin.FeedbackReplied` (no text, no address), and commits. The send and scope 2, which records the outcome, run on
+  `CancellationToken.None`, so an administrator closing the tab cannot leave a sent mail recorded as `Sending`. The
+  outcome follows D6: `NotAccepted` is `Failed`, anything else `Unknown`.
+- **The gate is `IEmailSender.CanDeliver` alone**, not `FeedbackGate`, so an administrator can answer old feedback
+  after `Feedback:Enabled` is off. A reply is human-triggered and bounded by `admin-write` and the cap, so it sits
+  outside `FeedbackNotificationDispatchJob.DailyBudget`.
+- **`POST /api/v1/admin/feedback/{id}/replies`** (`AdminFeedbackEndpoints`) takes `{replyKey, text}` and answers 200
+  `{replyId, state, replayed}` for any recorded outcome: an outcome is data. A refusal before the save is a problem,
+  `Feedback.ReplyEmpty`, `ReplyTooLong`, `ReplyUnavailable` (no sender can deliver), `NotFound`, `ReplyLimitReached`,
+  `ReporterUnavailable` (no live profile, unconfirmed inbox or unusable address).
+- **The mail** (`IEmailSender.SendFeedbackReplyAsync`, kind `feedback-reply`, `EmailTemplates.FeedbackReply`) is the
+  administrator's text, then the page and the date of the submission, and never the reporter's comment. It leaves from
+  `Email:FromAddress` (no-reply@jobbliggaren.se) with Reply-To kontakt@jobbliggaren.se, which `ScalewayEmailSender`
+  already sets on every mail: that is Klas's "per auto till kontakt@", and no inbound handling is built. D5's "nothing
+  a user wrote leaves for the mail provider" holds for the reporter's text; the administrator's own text leaves
+  through Scaleway to the reporter's address.
+- **Retention and erasure follow the submission** (D7): `FeedbackRetentionJob` deletes replies by the submission's
+  time before the submissions, `AccountHardDeleter` deletes them in its cascade, and
+  `AccountHardDeleteCascadeFitnessTests` holds the build to it. In the recruiter erasure `feedback_replies.body` is
+  `MatchedHumanErases` in the `FeedbackComments` channel (grant 2; `CountFeedbackCommentsAsync` counts comments and
+  reply bodies) and `feedback_replies.state` is `NotRecruiterData`.
+- **The admin page** lists the sent replies, oldest first, each with its outcome, "Mottaget av e-posttjänsten",
+  "Misslyckades" or "Utfall okänt" with a duplicate-risk line, and never "levererat" (D5). Its form holds the
+  key: a new one after every recorded outcome, the same one after a request that got no
+  answer, so a retry replays instead of mailing twice.
+- **The disclosure is in the privacy policy**, not a notice of its own (the CTO's ruling).
+
 ## Klas beviljanden (2026-10-07)
 
 Klas's grants, in the form of ADR 0139's section of the same name. The exposure registry's comment points here by
@@ -320,6 +379,16 @@ this name.
    matched submission, with its notice, inside the Art. 12(3) month; the 90 days remove it regardless. The other
    columns are closed domains (`NotRecruiterData`). The runbook `docs/runbooks/recruiter-pii-erasure.md` carries the
    channel in its surface list, its disposition table and reply template B2 (ADR 0106).
+   *(2026-10-10, #2069 amendment: `feedback_replies.body` is a searched surface of the same channel.)*
+3. **Grant 3 (2026-10-10): the reply table, on the same ground as grant 1.** Klas on the reply feature: "GDPR etc är
+   inte så viktigt här. Det handlar enbart att jag skall enkelt i admin-sidan kunna svara." Asked whether the reply's
+   text is stored, he answered "Ja, spara texten (Rek.)". `feedback_replies` is plaintext and person-grained through
+   `job_seeker_id`, entered in `MappedPlaintextExposureRegistry.PersonGrainedTables`, and joins the accepted
+   restore-exposure list (ADR 0125 Case 2), bounded by the 30-day backups.
+   *Magnitude at the grant:* at most 10 replies per submission, each at most 4 000 characters an administrator wrote,
+   kept 90 days from the submission. A change in what a reply holds, or in these bounds, is outside this grant. As
+   with grant 1 it is the controller's decision, not the session's, and not a CLAUDE.md §9.6 (3) acceptance;
+   `security-auditor` reviews the entry in the PR.
 
 ## Alternatives considered
 

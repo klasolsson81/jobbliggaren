@@ -154,6 +154,13 @@ public class EmailHtmlNoRemoteResourceTests
             new FeedbackReceivedNotificationEmail(
                 Jobbliggaren.Domain.Feedback.FeedbackPage.JobAd, 4, SampleCompletableFrom,
                 Guid.Parse("7d1c2a3b-0000-4000-8000-000000001979")))),
+
+        // #2069: an administrator's reply to the person who sent the feedback.
+        ("FeedbackReply", EmailTemplates.FeedbackReply(
+            new FeedbackReplyEmail(
+                Jobbliggaren.Domain.Feedback.FeedbackPage.Jobs, SampleCompletableFrom,
+                Jobbliggaren.Domain.Feedback.FeedbackReplyText.Create(
+                    "Tack för din feedback.\n\nVi tittar på det.").Value))),
     ];
 
     private static readonly DateTimeOffset SampleCompletableFrom = new(2026, 10, 8, 12, 30, 0, TimeSpan.Zero);

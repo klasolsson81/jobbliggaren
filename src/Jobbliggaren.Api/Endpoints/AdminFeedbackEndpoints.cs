@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.Feedback.Commands.ChangeFeedbackStatus;
 using Jobbliggaren.Application.Admin.Feedback.Commands.RequeueFeedbackNotification;
+using Jobbliggaren.Application.Admin.Feedback.Commands.SendFeedbackReply;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackAvailability;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackDetail;
 using Jobbliggaren.Application.Admin.Feedback.Queries.GetFeedbackScreenshot;
@@ -16,8 +17,9 @@ namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
 /// #1979 — feedback triage for administrators: the list, one item, the per-page summary, why the
-/// feature is open or closed, a status change and a notice requeue. The list's filters are a status
-/// and a page key, neither of which names a person, so they travel in the query string.
+/// feature is open or closed, a status change, a notice requeue and a reply to the reporter (#2069).
+/// The list's filters are a status and a page key, neither of which names a person, so they travel
+/// in the query string.
 /// </summary>
 public static class AdminFeedbackEndpoints
 {
@@ -26,6 +28,11 @@ public static class AdminFeedbackEndpoints
     public sealed record FeedbackRequeueRequest(bool AcknowledgeDuplicateRisk = false);
 
     public sealed record FeedbackAvailabilityResponse(FeedbackAvailability Availability);
+
+    public sealed record FeedbackReplyRequest(Guid ReplyKey, string? Text)
+    {
+        public override string ToString() => $"FeedbackReplyRequest({ReplyKey}, text redacted)";
+    }
 
     public static void MapAdminFeedbackEndpoints(this IEndpointRouteBuilder app)
     {
@@ -85,6 +92,16 @@ public static class AdminFeedbackEndpoints
             var result = await mediator.Send(
                 new RequeueFeedbackNotificationCommand(id, body.AcknowledgeDuplicateRisk), ct);
             return result.IsFailure ? result.Error.ToProblemResult() : Results.NoContent();
+        }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
+
+        // A recorded outcome, Failed and Unknown included, is a 200: the reply was saved and audited,
+        // and a repeat with the same key answers the same.
+        group.MapPost("/{id:guid}/replies", async (
+            Guid id, FeedbackReplyRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new SendFeedbackReplyCommand(id, body.ReplyKey, body.Text), ct);
+            return result.IsFailure ? result.Error.ToProblemResult() : Results.Ok(result.Value);
         }).RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
     }
 }

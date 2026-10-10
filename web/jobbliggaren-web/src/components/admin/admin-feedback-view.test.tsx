@@ -58,6 +58,7 @@ const ITEM: AdminFeedbackItem = {
   },
   appVersion: "4f2a91c",
   notice: { state: "accepted", attempts: 1, nextAttemptAt: "2026-10-04T05:12:00Z" },
+  replies: [],
 };
 
 const SUMMARY: ReadonlyArray<AdminFeedbackPageSummary> = [
@@ -66,6 +67,7 @@ const SUMMARY: ReadonlyArray<AdminFeedbackPageSummary> = [
 ];
 
 const noCommand = async () => null;
+const noReply = async () => ({ kind: "recorded", state: "accepted" }) as const;
 
 /** The element at the index, which the test has just rendered. */
 function nth<T>(items: ReadonlyArray<T>, index: number): T {
@@ -89,6 +91,7 @@ function renderView(overrides: Partial<AdminFeedbackViewProps> = {}) {
     summary: { kind: "loaded", data: SUMMARY },
     onStatus: noCommand,
     onRequeue: noCommand,
+    onReply: noReply,
     ...overrides,
   };
   return render(<AdminFeedbackView {...props} />);
@@ -427,16 +430,12 @@ describe("AdminFeedbackView — the open submission (#1979)", () => {
     expect(within(listRegion()).getAllByRole("link")).toHaveLength(2);
   });
 
-  it("keeps replies an unbuilt action: disabled, described by its Kommer snart line, never a primary", () => {
+  it("offers a reply as a built action (#2069): an enabled field and a send button, with no Kommer snart line", () => {
     renderView({ query: { ...DEFAULT_FEEDBACK_QUERY, id: FIRST }, detail: { kind: "loaded", data: ITEM } });
 
-    const reply = within(detail()).getByRole("textbox", { name: "Svar" });
-    expect(reply).toBeDisabled();
-    expect(reply).toHaveAccessibleDescription("Kommer snart");
-    const send = within(detail()).getByRole("button", { name: "Skicka svar" });
-    expect(send).toBeDisabled();
-    expect(send).toHaveAccessibleDescription("Kommer snart");
-    expect(send).not.toHaveClass("jp-btn--primary");
+    expect(within(detail()).getByRole("textbox", { name: "Ditt svar" })).toBeEnabled();
+    expect(within(detail()).getByRole("button", { name: "Skicka svar" })).toBeEnabled();
+    expect(within(detail()).queryByText("Kommer snart")).toBeNull();
   });
 });
 
@@ -453,6 +452,7 @@ describe("AdminFeedbackView — every region in the preview's states (ADR 0150 D
         summary: region,
         onStatus: vi.fn(),
         onRequeue: vi.fn(),
+        onReply: vi.fn(),
       });
 
       expect(within(listRegion()).queryAllByRole("link")).toEqual([]);

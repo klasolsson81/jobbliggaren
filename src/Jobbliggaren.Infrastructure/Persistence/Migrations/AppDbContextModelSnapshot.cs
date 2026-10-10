@@ -525,6 +525,61 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("feedback_prompt_suppressions", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackReply", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<Guid>("ReplyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_key");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("body");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feedback_replies");
+
+                    b.HasIndex("JobSeekerId")
+                        .HasDatabaseName("ix_feedback_replies_job_seeker_id");
+
+                    b.HasIndex("SubmissionId", "ReplyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_feedback_replies_submission_id_reply_key");
+
+                    b.ToTable("feedback_replies", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackScreenshot", b =>
                 {
                     b.Property<Guid>("Id")

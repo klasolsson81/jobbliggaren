@@ -63,6 +63,7 @@ public sealed class LoginChallengeDispatchServiceShutdownTests
             string t, DateTimeOffset f, DateTimeOffset x, CancellationToken ct) => Task.CompletedTask;
         public Task SendFeedbackReceivedNotificationAsync(
             string t, FeedbackReceivedNotificationEmail c, CancellationToken ct) => Task.CompletedTask;
+        public Task SendFeedbackReplyAsync(string t, FeedbackReplyEmail c, CancellationToken ct) => Task.CompletedTask;
     }
 
     private static LoginChallengeDispatch Item(string email) =>

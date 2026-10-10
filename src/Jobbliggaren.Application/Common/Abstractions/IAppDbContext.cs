@@ -49,6 +49,7 @@ public interface IAppDbContext
     DbSet<FeedbackSubmission> FeedbackSubmissions { get; }
     DbSet<FeedbackScreenshot> FeedbackScreenshots { get; }
     DbSet<FeedbackNotification> FeedbackNotifications { get; }
+    DbSet<FeedbackReply> FeedbackReplies { get; }
     DbSet<FeedbackPromptSuppression> FeedbackPromptSuppressions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

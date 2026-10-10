@@ -80,23 +80,37 @@ internal sealed class RecordingEmailSender : IEmailSender
     /// <summary>
     /// #1975 — the provider refuses every send of one kind for the duration of the scope, the way the transactional
     /// arm fails: an <see cref="Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException"/> carrying the
-    /// kind, and nothing recorded. A scope for the reason <see cref="Incapable"/> gives.
+    /// kind, and nothing recorded. A scope for the reason <see cref="Incapable"/> gives. The disposition is one the
+    /// arm itself sets (#2069): a 4xx is <c>NotAccepted</c>, a timeout or a 5xx stays <c>Unknown</c>.
     /// </summary>
-    internal IDisposable Refusing(RecordedEmailKind kind)
+    internal IDisposable Refusing(
+        RecordedEmailKind kind,
+        Jobbliggaren.Application.Common.Exceptions.EmailDeliveryDisposition disposition =
+            Jobbliggaren.Application.Common.Exceptions.EmailDeliveryDisposition.Unknown)
     {
+        _refusedDisposition = disposition;
         _refused = kind;
         return new RefusalScope(this);
     }
 
+    private volatile object? _refusedDisposition;
+
     private void ThrowIfRefused(RecordedEmailKind kind)
     {
         if (_refused is RecordedEmailKind refused && refused == kind)
-            throw new Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException(kind.ToString(), "HttpRequestException");
+            throw new Jobbliggaren.Application.Common.Exceptions.EmailDeliveryException(
+                kind.ToString(), "HttpRequestException",
+                _refusedDisposition as Jobbliggaren.Application.Common.Exceptions.EmailDeliveryDisposition?
+                    ?? Jobbliggaren.Application.Common.Exceptions.EmailDeliveryDisposition.Unknown);
     }
 
     private sealed class RefusalScope(RecordingEmailSender owner) : IDisposable
     {
-        public void Dispose() => owner._refused = null;
+        public void Dispose()
+        {
+            owner._refused = null;
+            owner._refusedDisposition = null;
+        }
     }
 
     public Task SendMatchNotificationEmailAsync(
@@ -157,6 +171,16 @@ internal sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.FeedbackReceivedNotification, toEmail));
         return Task.CompletedTask;
     }
+
+    public Task SendFeedbackReplyAsync(
+        string toEmail,
+        FeedbackReplyEmail content,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfRefused(RecordedEmailKind.FeedbackReply);
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.FeedbackReply, toEmail));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
@@ -168,6 +192,7 @@ internal enum RecordedEmailKind
     AccountEmailChangeRequestedNotification,
     LoginChallenge,
     FeedbackReceivedNotification,
+    FeedbackReply,
 }
 
 /// <summary>A single email queued through <see cref="RecordingEmailSender"/> (kind + recipient only).</summary>

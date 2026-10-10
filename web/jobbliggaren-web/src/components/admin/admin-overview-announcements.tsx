@@ -6,16 +6,27 @@ import { formatStaleLimit } from "@/lib/admin/host-observation";
 import { OVERVIEW_STALE_MS, type AwaitingObservation } from "@/lib/admin/overview";
 import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
-const SOURCES = ["accounts", "audit", "jobs", "backup", "host"] as const;
+const SOURCES = ["accounts", "audit", "jobs", "backup", "host", "services"] as const;
+type Source = (typeof SOURCES)[number];
 type Health = "current" | "retained" | "stale" | "retainedStale" | "failed" | "loading" | "awaiting";
 
 /**
- * How old a source's own sample may be before it is old. Most sources are read from the database and share the
- * overview's five minutes; the Server card's readings are sampled every 30 s and the API names its own limit.
+ * The limit a source names for itself, with its card's sentence for an old sample: the Server and Tjänster cards are
+ * sampled every 30 s and the API states their limit. Null for a source that shares the overview's five minutes.
  */
-function staleLimit(source: (typeof SOURCES)[number], observations: AdminOverviewSnapshot): number {
-  const host = observations.host;
-  return source === "host" && host.kind === "loaded" ? host.data.staleAfterSeconds * 1000 : OVERVIEW_STALE_MS;
+function ownLimit(source: Source, observations: AdminOverviewSnapshot):
+  { readonly seconds: number; readonly sentence: "overview.server.stale" | "overview.services.stale" } | null {
+  const { host, services } = observations;
+  if (source === "host" && host.kind === "loaded") return { seconds: host.data.staleAfterSeconds, sentence: "overview.server.stale" };
+  if (source === "services" && services.kind === "loaded") {
+    return { seconds: services.data.staleAfterSeconds, sentence: "overview.services.stale" };
+  }
+  return null;
+}
+
+function staleLimit(source: Source, observations: AdminOverviewSnapshot): number {
+  const own = ownLimit(source, observations);
+  return own === null ? OVERVIEW_STALE_MS : own.seconds * 1000;
 }
 
 function health(observation: AwaitingObservation<unknown>, now: number, limit: number): Health {
@@ -39,10 +50,11 @@ export function AdminOverviewAnnouncements({ observations, now }: {
     const message = SOURCES.flatMap((source, index) => {
       const state = health(observations[source], now, staleLimit(source, observations));
       if (state === previous.health[index]) return [];
-      // The Server card words its own limit (the API names it), so the live region says the same sentence.
-      const stale = source === "host" && observations.host.kind === "loaded"
-        ? t("overview.server.stale", { limit: formatStaleLimit(format, observations.host.data.staleAfterSeconds) })
-        : t("overview.observation.stale");
+      // A card that words its own limit (the API names it) is announced in the same sentence.
+      const own = ownLimit(source, observations);
+      const stale = own === null
+        ? t("overview.observation.stale")
+        : t(own.sentence, { limit: formatStaleLimit(format, own.seconds) });
       const text = state === "failed" || state === "loading" || state === "awaiting" ? t(`regions.${state}`)
         : state === "retainedStale"
           ? `${t("overview.observation.refreshFailed")} ${stale}`

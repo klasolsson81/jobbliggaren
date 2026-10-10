@@ -11,7 +11,7 @@ import { AdminOverview } from "./admin-overview";
 
 const ALL_FAILED: AdminOverviewSnapshot = {
   accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" },
-  host: { kind: "failed" },
+  host: { kind: "failed" }, services: { kind: "failed" },
 };
 
 type State =

@@ -110,4 +110,43 @@ describe("admin overview observed data", () => {
       expect(card("Backup")).toHaveTextContent("2026-10-08 02:19");
     });
   });
+
+  describe("the Tjänster card from the services observation (#1982)", () => {
+    const services = () => card("Tjänster");
+
+    it("shows the three rows with their own times and ages, and the time the sources were sampled", () => {
+      render(<AdminOverview observations={overviewSnapshotFixture()} now={NOW} />);
+
+      expect(services()).toHaveTextContent("WorkerSenaste livstecken 2026-10-08 11:59 (för 40 sekunder sedan)");
+      expect(services()).toHaveTextContent("Tillfälligt lagerSvarar");
+      expect(services()).toHaveTextContent("AnnonsimportSenaste körning 2026-10-08 11:50 (för 10 minuter sedan)");
+      expect(services()).toHaveTextContent("Uppgift från 2026-10-08 11:59");
+      expect(services().querySelector("time")).toHaveAttribute("datetime", "2026-10-08T09:59:30Z");
+      expect(services()).not.toHaveTextContent(/Kommer snart|Fungerar|0 fel/);
+      expect(within(services()).getByRole("link", { name: "Loggar" })).toHaveAttribute("href", "/admin/loggar");
+    });
+
+    it("keeps the last rows when a refresh failed, marks it at once, and ages them by the API's own limit", () => {
+      const snapshot = overviewSnapshotFixture();
+      if (snapshot.services.kind !== "loaded") throw new Error("Expected observed services");
+      render(<AdminOverview observations={{ ...snapshot, services: { ...snapshot.services, refreshFailed: true } }} now={NOW + 150_000} />);
+
+      expect(services()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+      expect(services()).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
+      expect(services()).toHaveTextContent("WorkerSenaste livstecken 2026-10-08 11:59Tillfälligt lager");
+      expect(services()).not.toHaveTextContent("sedan)");
+    });
+
+    it("says a failed source failed without a row value, and a source still loading as loading", () => {
+      const { unmount } = render(<AdminOverview observations={{ ...overviewSnapshotFixture(), services: { kind: "failed" } }} now={NOW} />);
+      expect(services()).toHaveTextContent("Uppgifterna kunde inte hämtas");
+      expect(within(services()).getAllByText("–")).toHaveLength(3);
+      expect(within(card("Användare totalt")).getByRole("link", { name: "12" })).toBeInTheDocument();
+      expect(card("Server")).toHaveTextContent("5,0 %");
+      unmount();
+
+      render(<AdminOverview observations={{ ...overviewSnapshotFixture(), services: { kind: "loading" } }} now={0} />);
+      expect(services()).toHaveTextContent("Hämtar uppgifter");
+    });
+  });
 });

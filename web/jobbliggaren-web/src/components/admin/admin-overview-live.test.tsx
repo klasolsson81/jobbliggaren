@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, cleanup } from "@testing-library/react";
 import { overviewSnapshotFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
+import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import { AdminOverviewLive } from "./admin-overview-live";
 
 const NOW = Date.parse(OVERVIEW_TIME);
@@ -22,20 +23,27 @@ async function visibility(value: boolean) {
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
 }
 /**
- * The fixture with the host sampled just now. The sampler takes a new sample every 30 s, so in a test that advances
- * the clock a reply carrying the fixture's fixed sample time would be a sampler that has stopped.
+ * The fixture with the host and the services sampled just now. Both samplers take a new sample every 30 s, so in a
+ * test that advances the clock a reply carrying the fixture's fixed sample time would be a sampler that has stopped.
  */
 function sampledNow(snapshot: ReturnType<typeof overviewSnapshotFixture>) {
   const sampledAt = new Date(Date.now()).toISOString();
   const host = snapshot.host.kind === "loaded" ? snapshot.host : null;
-  if (!host) return snapshot;
+  const services = snapshot.services.kind === "loaded" ? snapshot.services : null;
+  if (!host || !services) return snapshot;
   const data: HostObservationDto = {
     ...host.data,
     cpu: { ...host.data.cpu, sampledAt },
     memory: { ...host.data.memory, sampledAt },
     disk: { ...host.data.disk, sampledAt },
   };
-  return { ...snapshot, host: { ...host, data, sampledAt } };
+  const rows: ServicesObservationDto = {
+    ...services.data,
+    backgroundJobs: { ...services.data.backgroundJobs, sampledAt },
+    volatileStore: { ...services.data.volatileStore, sampledAt },
+    jobImport: { ...services.data.jobImport, sampledAt },
+  };
+  return { ...snapshot, host: { ...host, data, sampledAt }, services: { ...services, data: rows, sampledAt } };
 }
 function show() { return render(<AdminOverviewLive initial={overviewSnapshotFixture()} initialNow={NOW} />); }
 
@@ -181,10 +189,40 @@ describe("admin overview visible refresh", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
 
     const status = screen.getByRole("status");
-    // Only the Server crossed a limit in the second refresh: the other sources keep their five minutes.
+    // Only the Server and Tjänster crossed a limit in the second refresh, each its own; the other sources keep their
+    // five minutes.
     expect(status).toHaveTextContent("Serverns mätvärden: Uppdateringen misslyckades. Senaste uppgiften visas. Mätningen är äldre än 2 minuter.");
+    expect(status).toHaveTextContent("Tjänster: Uppdateringen misslyckades. Senaste uppgiften visas. Uppgiften är äldre än 2 minuter.");
     expect(status).not.toHaveTextContent("Kontostatistik");
     expect(status).not.toHaveTextContent("fem minuter");
     expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
+    expect(screen.getByRole("region", { name: "Tjänster" })).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
+  });
+  it("keeps the last services rows when a refresh fails, marks the failure at once and announces it (#1982)", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...sampledNow(overviewSnapshotFixture()), services: { kind: "failed" } })));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Tjänster" });
+    expect(card).toHaveTextContent("Senaste livstecken 2026-10-08 11:59");
+    expect(card).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+    expect(card).not.toHaveTextContent("äldre än");
+    expect(screen.getByRole("status")).toHaveTextContent("Tjänster: Uppdateringen misslyckades. Senaste uppgiften visas.");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Serverns mätvärden");
+  });
+  it("replaces kept services rows with the API's own news once it answers again (#1982)", async () => {
+    const quiet = sampledNow(overviewSnapshotFixture());
+    if (quiet.services.kind !== "loaded") throw new Error("Expected loaded services");
+    const silent = { ...quiet, services: { ...quiet.services, data: {
+      ...quiet.services.data,
+      backgroundJobs: { state: "Silent" as const, sampledAt: quiet.services.sampledAt, heartbeatAt: "2026-10-08T09:55:00Z" },
+    } } };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(silent)));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Tjänster" });
+    expect(card).toHaveTextContent("Inget livstecken sedan 2026-10-08 11:55");
+    expect(card).not.toHaveTextContent("Senaste livstecken");
   });
 });

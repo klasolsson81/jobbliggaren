@@ -377,20 +377,136 @@ test("a refresh that finds the host source refused clears every privileged value
   await verify(page, "server-refused");
 });
 
+/** The value of one of the Tjänster card's rows. */
+const serviceRow = (page: Page, label: string) =>
+  card(page, "Tjänster").locator("dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
+
+for (const width of [1280, 1920, 3440, 390]) {
+  test(`the Tjänster card states what it observed, without a health claim, at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    await page.goto("/admin");
+    const services = card(page, "Tjänster");
+    await expect(services.getByRole("term")).toHaveText(["Worker", "Tillfälligt lager", "Annonsimport"]);
+    await expect(serviceRow(page, "Worker")).toContainText(/^Senaste livstecken \d{4}-\d\d-\d\d \d\d:\d\d \(för \d+ sekunder sedan\)$/);
+    await expect(serviceRow(page, "Tillfälligt lager")).toHaveText("Svarar");
+    await expect(serviceRow(page, "Annonsimport")).toContainText(/^Senaste körning \d{4}-\d\d-\d\d \d\d:\d\d \(för \d+ minuter sedan\)$/);
+    await expect(services).toContainText("Uppgift från");
+    await expect(services.locator(".jp-admin-warning")).toHaveCount(0);
+    await expect(services).not.toContainText(/Fungerar|Kommer snart|0 fel|Platsbanken|JobTech/);
+    await expect(services.getByRole("link", { name: "Loggar" })).toBeVisible();
+    await verify(page, "services-observed");
+  });
+}
+
+for (const [scenario, label, words] of [
+  ["silent", "Worker", /^Inget livstecken sedan \d{4}-\d\d-\d\d \d\d:\d\d$/],
+  ["noServer", "Worker", "Inget livstecken registrerat"],
+  ["unreachable", "Tillfälligt lager", "Svarar inte"],
+  ["overdue", "Annonsimport", /^Senaste körning \d{4}-\d\d-\d\d \d\d:\d\d, äldre än 25 minuter$/],
+  ["noneRecorded", "Annonsimport", "Ingen körning registrerad"],
+  ["errors", "Annonsimport", "3 fel i körningen"],
+] as const) for (const width of [1280, 390]) {
+  test(`the Tjänster card says ${scenario} in the warning form, with no alarm, at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    harness.overviewServices = scenario;
+    await page.goto("/admin");
+    await expect(serviceRow(page, label).locator(".jp-admin-warning")).toHaveText(words);
+    await expect(card(page, "Tjänster").locator(".jp-admin-warning")).toHaveCount(1);
+    await expect(alerts(page)).toHaveCount(0);
+    await verify(page, `services-${scenario}`);
+  });
+}
+
+test("the Tjänster card with every row in need of attention, in both themes", async ({ page }) => {
+  harness.overviewServices = "warnings";
+  await page.goto("/admin");
+  await expect(card(page, "Tjänster").locator(".jp-admin-warning")).toHaveText([
+    /^Inget livstecken sedan /, "Svarar inte", /, äldre än 25 minuter$/, "2 fel i körningen",
+  ]);
+  await verify(page, "services-warnings");
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await verify(page, "services-warnings-dark");
+});
+
+for (const width of [1280, 390]) {
+  test(`a sampler that could judge nothing leaves three undetermined rows and no sample time at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    harness.overviewServices = "unknown";
+    await page.goto("/admin");
+    for (const label of ["Worker", "Tillfälligt lager", "Annonsimport"])
+      await expect(serviceRow(page, label)).toHaveText("–Uppgift saknas Kunde inte avgöras");
+    await expect(card(page, "Tjänster")).not.toContainText("Uppgift från");
+    await expect(card(page, "Tjänster").locator(".jp-admin-warning")).toHaveCount(0);
+    await verify(page, "services-unknown");
+  });
+}
+
+for (const width of [1280, 390]) {
+  test(`a failing services read is a failure of the Tjänster card only at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    harness.overviewReads.services = "error";
+    await page.goto("/admin");
+    await expect(card(page, "Tjänster")).toContainText("Uppgifterna kunde inte hämtas");
+    await expect(card(page, "Tjänster").getByText("–", { exact: true })).toHaveCount(3);
+    await expect(card(page, "Server")).toContainText("23,4 %");
+    await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+    await verify(page, "services-failed");
+  });
+}
+
+test("a refresh keeps the last services rows, marks the failure at once, then marks them old and drops their ages", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  const services = card(page, "Tjänster");
+  await expect(serviceRow(page, "Worker")).toContainText("sedan)");
+  // Hydrated: the refresh timer exists only once the script of the page has run.
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.services = "error";
+  const first = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  await first;
+  await expect(services).toContainText("Uppdateringen misslyckades. Senaste uppgiften visas.");
+  await expect(page.getByRole("status").filter({ hasText: "Tjänster:" })).toContainText("Uppdateringen misslyckades");
+  await verify(page, "services-retained-after-failure");
+  const second = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(60_000);
+  await second;
+  await expect(services).toContainText("Uppgiften är äldre än 2 minuter.");
+  await expect(serviceRow(page, "Worker")).toContainText(/^Senaste livstecken \d{4}-\d\d-\d\d \d\d:\d\d$/);
+  await expect(page.getByRole("status").filter({ hasText: "Tjänster:" })).toContainText("Uppgiften är äldre än 2 minuter.");
+  await verify(page, "services-retained-old");
+});
+
+test("a refresh that finds the services source refused clears every privileged value", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.services = "forbidden";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  expect((await response).status()).toBe(403);
+  await expect(page.getByRole("region", { name: "Tjänster", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Användare totalt", exact: true })).toHaveCount(0);
+});
+
 test("the hosts are asked only once an admin read has succeeded, and not at all when every first read refuses", async ({ page }) => {
   await page.goto("/admin");
   const overview = harness.requests.filter(route => route.includes("/overview/") || route.includes("/audit-log") || route.includes("/jobs/failed"));
-  // Backup and Server are asked beside the slower reads, not after them: the order among the first five requests
-  // is not the contract, only that neither of them was the first and that all five were made.
+  // Backup, Server and Tjänster are asked beside the slower reads, not after them: the order among the first six
+  // requests is not the contract, only that none of them was the first and that all six were made.
   expect(overview.indexOf("GET /api/v1/admin/overview/backup")).toBeGreaterThanOrEqual(1);
   expect(overview.indexOf("GET /api/v1/admin/overview/host")).toBeGreaterThanOrEqual(1);
-  expect(overview).toHaveLength(5);
+  expect(overview.indexOf("GET /api/v1/admin/overview/services")).toBeGreaterThanOrEqual(1);
+  expect(overview).toHaveLength(6);
 
   harness.requests.length = 0;
   harness.mode = "unauthorized";
   await page.goto("/admin");
   expect(harness.requests).not.toContain("GET /api/v1/admin/overview/backup");
   expect(harness.requests).not.toContain("GET /api/v1/admin/overview/host");
+  expect(harness.requests).not.toContain("GET /api/v1/admin/overview/services");
 });
 
 test("a refresh keeps the last Backup value, marks the failure at once and announces it", async ({ page }) => {

@@ -300,7 +300,7 @@
   color: var(--jp-ink-1);
 }
 
-/* Label/value rows: the server meters and the backup facts. */
+/* Label/value rows: the server meters, the services and the backup facts. */
 .jp-admindl {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -928,35 +928,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Overview lists: services, top email types, attention and recent events ─────────────── */
-.jp-adminservices,
+/* ── Overview lists: top email types, attention and recent events ───────────────────────── */
 .jp-admintoplist,
 .jp-adminattention,
 .jp-adminevents {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.jp-adminservices li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--jp-border-soft);
-  font-size: var(--text-ui);
-}
-.jp-adminservices li:last-child { border-bottom: 0; }
-.jp-adminservices__state {
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  text-align: end;
-}
-.jp-adminservices__state[data-state="ok"] { color: var(--jp-success-700); }
-.jp-adminservices__state[data-state="warning"] { color: var(--jp-warning-700); }
-.jp-adminservices__detail {
-  grid-column: 1 / -1;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
 }
 .jp-admintoplist {
   display: flex;

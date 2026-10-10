@@ -12,7 +12,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
+import type { StatusTone } from "@/components/ui/status-dot";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   ADMIN_OVERVIEW_UNAVAILABLE,
@@ -23,7 +23,6 @@ import {
   type AdminOverviewRegions,
   type AdminRecentEvent,
   type AdminRegion,
-  type AdminServiceStatus,
   type AdminValueRegion,
 } from "@/lib/admin/view-models";
 import { accountsHref, OVERVIEW_STALE_MS, type AdminOverviewSnapshot, type AwaitingObservation } from "@/lib/admin/overview";
@@ -33,6 +32,7 @@ import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminObservedServer, AdminServerBody } from "./admin-server-body";
+import { AdminObservedServices, AdminServicesBody } from "./admin-services-body";
 import { AdminTrendCard } from "./admin-trend-card";
 import { AdminUnknown } from "./admin-unknown";
 
@@ -159,7 +159,8 @@ export function AdminOverview({
           list
           aside={<AdminCardLink href={`${basePath}/loggar`} label={t("services.link")} />}
         >
-          <ServicesBody region={regions.services} />
+          {observations ? <AdminObservedServices observation={observations.services} now={now} />
+            : <AdminServicesBody region={regions.services} />}
         </AdminCard>
 
         <AdminCard id="admin-overview-server" title={t("server.title")} icon={Server} span={4}>
@@ -291,25 +292,6 @@ function ValueCard<T>({
       {shown.extra}
       {note}
     </AdminCard>
-  );
-}
-
-function ServicesBody({ region }: { readonly region: AdminRegion<ReadonlyArray<AdminServiceStatus>> }) {
-  const t = useTranslations("admin.overview.services");
-  if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
-  if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
-  return (
-    <ul className="jp-adminservices">
-      {region.data.map((service) => (
-        <li key={service.id}>
-          <StatusDot tone={service.state === "ok" ? "success" : "warning"}>{service.label}</StatusDot>
-          <span className="jp-adminservices__state" data-state={service.state}>
-            {t(`state.${service.state}`)}
-          </span>
-          <span className="jp-adminservices__detail">{service.detail}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

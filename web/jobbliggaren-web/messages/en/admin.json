@@ -66,11 +66,26 @@
     "services": {
       "title": "Services",
       "link": "Logs",
-      "empty": "No services to show.",
-      "state": {
-        "ok": "Working",
-        "warning": "Warning"
-      }
+      "backgroundJobs": "Worker",
+      "volatileStore": "Temporary store",
+      "jobImport": "Job ad import",
+      "unknown": "Could not be determined",
+      "worker": {
+        "alive": "Last sign of life {time}",
+        "silent": "No sign of life since {time}",
+        "noServer": "No sign of life recorded"
+      },
+      "store": {
+        "reachable": "Answers",
+        "unreachable": "Does not answer"
+      },
+      "import": {
+        "recorded": "Last run {time}",
+        "overdue": "Last run {time}, older than {limit}",
+        "noneRecorded": "No run recorded",
+        "errors": "{count, plural, one {# error} other {# errors}} in the run"
+      },
+      "stale": "The observation is older than {limit}."
     },
     "server": {
       "title": "Server",
@@ -150,7 +165,8 @@
         "audit": "Audit events",
         "jobs": "Failed background jobs",
         "backup": "Backup",
-        "host": "Server readings"
+        "host": "Server readings",
+        "services": "Services"
       }
     },
     "registrationPeriods": {

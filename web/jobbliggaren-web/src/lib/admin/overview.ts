@@ -35,6 +35,7 @@ export function retainOverview(
     jobs: retainObservation(previous.jobs, next.jobs),
     backup: retainObservation(previous.backup, next.backup),
     host: retainObservation(previous.host, next.host),
+    services: retainObservation(previous.services, next.services),
   };
 }
 

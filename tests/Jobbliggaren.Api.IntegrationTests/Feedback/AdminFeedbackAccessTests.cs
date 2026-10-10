@@ -23,7 +23,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
 
     private sealed record Answer(string Route, HttpStatusCode Status, CacheControlHeaderValue? CacheControl);
 
-    /// <summary>The reads, then a status change and an acknowledged requeue of <paramref name="id"/>.</summary>
+    /// <summary>The reads, then a status change, an acknowledged requeue and a reply to <paramref name="id"/>.</summary>
     private static async Task<IReadOnlyList<Answer>> EveryRouteAsync(HttpClient client, Guid id)
     {
         string[] reads = [AdminPath, DetailPath(id), SummaryPath(30), $"{AdminPath}/availability", $"{DetailPath(id)}/screenshot"];
@@ -38,6 +38,9 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
             answers.Add(new Answer("POST status", status.StatusCode, status.Headers.CacheControl));
         using (var requeue = await client.PostAsJsonAsync(RequeuePath(id), new { acknowledgeDuplicateRisk = true }, Ct))
             answers.Add(new Answer("POST requeue", requeue.StatusCode, requeue.Headers.CacheControl));
+        using (var reply = await client.PostAsJsonAsync(
+                   RepliesPath(id), new { replyKey = Guid.NewGuid(), text = "Tack för din feedback." }, Ct))
+            answers.Add(new Answer("POST reply", reply.StatusCode, reply.Headers.CacheControl));
         return answers;
     }
 
@@ -65,7 +68,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
     {
         var answers = await EveryRouteAsync(factory.CreateClient(), Guid.NewGuid());
 
-        answers.Count.ShouldBe(7);
+        answers.Count.ShouldBe(8);
         answers.ShouldAllBe(answer => answer.Status == HttpStatusCode.Unauthorized);
     }
 
@@ -76,9 +79,10 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
 
         var answers = await EveryRouteAsync(reporter.Client, id);
 
-        answers.Count.ShouldBe(7);
+        answers.Count.ShouldBe(8);
         answers.ShouldAllBe(answer => answer.Status == HttpStatusCode.Forbidden);
         (await StoredAsync(id)).ShouldBe((FeedbackStatus.New, FeedbackNotificationState.Unknown));
+        (await RepliesAsync(id)).ShouldBe(0);
     }
 
     [Fact]
@@ -94,6 +98,7 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
             HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK,
             HttpStatusCode.NotFound,
             HttpStatusCode.NoContent, HttpStatusCode.NoContent,
+            HttpStatusCode.OK,
         ]);
         foreach (var answer in answers)
         {
@@ -102,5 +107,14 @@ public sealed class AdminFeedbackAccessTests(ApiFactory factory)
         }
 
         (await StoredAsync(id)).ShouldBe((FeedbackStatus.InProgress, FeedbackNotificationState.Queued));
+        (await RepliesAsync(id)).ShouldBe(1);
+    }
+
+    private async Task<int> RepliesAsync(Guid id)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var submissionId = new FeedbackSubmissionId(id);
+        return await scope.ServiceProvider.GetRequiredService<IAppDbContext>().FeedbackReplies
+            .CountAsync(r => r.SubmissionId == submissionId, Ct);
     }
 }

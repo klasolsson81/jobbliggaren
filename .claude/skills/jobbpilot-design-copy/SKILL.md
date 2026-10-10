@@ -243,7 +243,7 @@ anti-pattern, arkitekturtestad).
   Toppskikt**.
 
 Ett CV-fynd har **tre skeppade former** — auktoriteten är `citedEvidenceDtoSchema`
-(`src/lib/dto/parsed-resume.ts`) och `cv-criterion-verdict.tsx`; `content-cv-granskning.json`
+(`src/lib/dto/parsed-resume.ts`) och `cv-criterion-row.tsx`; `content-cv-granskning.json`
 visar dem:
 
 1. `kind: "TextSpan"` — `quote` ur CV:t, renderad som blockquote. `note` med åtgärden

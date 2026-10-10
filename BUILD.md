@@ -677,6 +677,7 @@ Admin deletion shares the owner lifecycle without impersonation or a target data
 - `GET /api/v1/admin/feedback/summary?days=7|30|90` — per page: raters (latest rating per user), the 1–5 distribution, the mean and the submission count (#1979, ADR 0156)
 - `GET /api/v1/admin/feedback/availability` — why feedback is open or closed (#1979, ADR 0156)
 - `POST /api/v1/admin/feedback/{id}/status` and `POST /api/v1/admin/feedback/{id}/notification/requeue` — triage and notice requeue, audited; a requeue from Unknown needs the duplicate risk acknowledged (#1979, ADR 0156)
+- `POST /api/v1/admin/feedback/{id}/replies` — mails a reply to the reporter and answers its recorded outcome (Accepted, Failed or Unknown) as 200; idempotent on `replyKey`, at most 10 per submission, audited without the text (#2069, ADR 0156 reply amendment)
 
 **Health & meta**
 - `GET /api/health`

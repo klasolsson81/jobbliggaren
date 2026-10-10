@@ -951,6 +951,53 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             "the submission survives the automated run. Report-only: a human deletes it.");
     }
 
+    [Fact]
+    public async Task A_feedback_reply_naming_her_is_MATCHED_and_SURVIVES_the_erasure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var submissionId = await SeedFeedbackSubmissionAsync("Annonsen saknar lön.", ct);
+        var replyId = await SeedFeedbackReplyAsync(submissionId, $"Vi har frågat {RecruiterName} om lönen.", ct);
+
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        probe.Matched.FeedbackComments.ShouldBe(1,
+            "feedback_replies.body is scanned in the same channel as the comment.");
+
+        var response = await EraseAsync(RecruiterName, ct);
+
+        response.Matched.FeedbackComments.ShouldBe(1);
+        response.Erased.FeedbackComments.ShouldBe(0);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await db.FeedbackReplies.AnyAsync(r => r.Id == replyId, ct)).ShouldBeTrue(
+            "the reply survives the automated run. Report-only: a human deletes it.");
+    }
+
+    /// <summary>
+    /// A reply as <c>SendFeedbackReplyCommandHandler</c> saves and records it: <see cref="FeedbackReply.Start"/>, then
+    /// the provider's acceptance.
+    /// </summary>
+    private async Task<FeedbackReplyId> SeedFeedbackReplyAsync(
+        FeedbackSubmissionId submissionId, string text, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+        var submission = await db.FeedbackSubmissions.AsNoTracking().SingleAsync(s => s.Id == submissionId, ct);
+
+        var reply = FeedbackReply.Start(submission, 0, Guid.NewGuid(), FeedbackReplyText.Create(text).Value, clock.UtcNow).Value;
+        db.FeedbackReplies.Add(reply);
+        await db.SaveChangesAsync(ct);
+        reply.RecordAccepted(clock.UtcNow).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        return reply.Id;
+    }
+
     /// <summary>
     /// Feedback whose comment names the recruiter, created through <see cref="FeedbackSubmission.Submit"/>
     /// exactly as the submit command creates it. The owner id is unresolved, as in

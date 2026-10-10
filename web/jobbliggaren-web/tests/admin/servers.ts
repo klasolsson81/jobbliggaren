@@ -170,8 +170,14 @@ export type Harness = {
   feedbackAvailability: FeedbackAvailability;
   /** Every feedback read's path and query string, as the backend received them. */
   readonly feedbackQueries: string[];
-  /** Every status change's and requeue's body, as the backend received them. */
-  readonly feedbackCommands: { readonly id: string; readonly command: "status" | "requeue"; readonly body: string }[];
+  /** Every status change's, requeue's and reply's body, as the backend received them. */
+  readonly feedbackCommands: {
+    readonly id: string;
+    readonly command: "status" | "requeue" | "reply";
+    readonly body: string;
+  }[];
+  /** The outcome the provider records for the next replies (#2069). */
+  feedbackReplyOutcome: "Accepted" | "Failed" | "Unknown";
   reset(): void;
   stop(): Promise<void>;
 };
@@ -271,6 +277,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     feedbackAvailability: "Open",
     feedbackQueries,
     feedbackCommands,
+    feedbackReplyOutcome: "Accepted",
     reset() {
       harness.releaseCodeRequests();
       harness.releaseAccessWrites();
@@ -312,6 +319,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.feedbackScreenshotAnswers.length = 0;
       for (const read of FEEDBACK_READS) harness.feedbackReads[read] = "ok";
       harness.feedbackAvailability = "Open";
+      harness.feedbackReplyOutcome = "Accepted";
       feedbackQueries.length = 0;
       feedbackCommands.length = 0;
     },
@@ -582,10 +590,12 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       // The real endpoint answers an id it does not know with a bare 404.
       return feedbackRead("detail", () => (found === undefined ? { status: 404 } : { status: 200, value: feedbackDetail(found) }));
     }
-    const feedbackCommand = /^POST \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})\/(status|notification\/requeue)$/.exec(route);
+    const feedbackCommand = /^POST \/api\/v1\/admin\/feedback\/([0-9a-f-]{36})\/(status|notification\/requeue|replies)$/.exec(
+      route,
+    );
     if (feedbackCommand !== null) {
       const feedbackId = feedbackCommand[1] ?? "";
-      const command = feedbackCommand[2] === "status" ? "status" : "requeue";
+      const command = feedbackCommand[2] === "status" ? "status" : feedbackCommand[2] === "replies" ? "reply" : "requeue";
       let body = "";
       request.setEncoding("utf8");
       request.on("data", (chunk: string) => (body += chunk));
@@ -603,6 +613,29 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           if (status === found.status) return problem(400, "Feedback.StatusUnchanged");
           harness.feedback.set(feedbackId, { ...found, status, statusChangedAt: FEEDBACK_NOW });
           return bare(204);
+        }
+        // SendFeedbackReplyCommandHandler's rules (#2069): a known key replays its outcome, an empty text is refused,
+        // ten replies are the most, and every other send is recorded with the provider's outcome.
+        if (command === "reply") {
+          const { replyKey, text } = JSON.parse(body) as { replyKey?: unknown; text?: unknown };
+          const replies = found.replies ?? [];
+          const earlier = replies.find((reply) => reply.key === replyKey);
+          const outcome = (reply: { id: string; state: string }, replayed: boolean) =>
+            json(200, { replyId: reply.id, state: reply.state, replayed }, { "Cache-Control": "private, no-store" });
+          if (earlier !== undefined) return outcome(earlier, true);
+          if (typeof replyKey !== "string" || typeof text !== "string" || text.trim() === "")
+            return problem(400, "Feedback.ReplyEmpty");
+          if (replies.length >= 10) return problem(409, "Feedback.ReplyLimitReached");
+          const reply = {
+            id: `00000000-0000-4000-8000-${String(800 + replies.length).padStart(12, "0")}`,
+            key: replyKey,
+            text: text.trim(),
+            state: harness.feedbackReplyOutcome,
+            createdAt: FEEDBACK_NOW,
+            completedAt: FEEDBACK_NOW,
+          };
+          harness.feedback.set(feedbackId, { ...found, replies: [...replies, reply] });
+          return outcome(reply, false);
         }
         // The domain's rule (`FeedbackNotification.Requeue`): only a failed notice, or one whose outcome is
         // unknown and whose risk of a duplicate is acknowledged, is sent again.

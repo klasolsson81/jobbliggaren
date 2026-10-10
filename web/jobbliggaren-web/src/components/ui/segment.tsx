@@ -22,6 +22,8 @@ export interface SegmentOption<T extends string> {
   value: T;
   label: string;
   icon?: ReactNode;
+  /** A count beside the label, set apart by weight (the CV review's outcome filter, #2083). */
+  count?: number;
   disabled?: boolean;
 }
 
@@ -119,6 +121,14 @@ export function Segment<T extends string>({
               </span>
             )}
             <span>{opt.label}</span>
+            {/* The space separates the two in the option's accessible name; a flex container
+                does not render it. */}
+            {opt.count !== undefined && (
+              <>
+                {" "}
+                <span className="jp-segment__count">{opt.count}</span>
+              </>
+            )}
           </button>
         );
       })}

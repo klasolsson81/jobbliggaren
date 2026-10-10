@@ -279,9 +279,13 @@ public sealed partial class AccountHardDeleter(
                 .ExecuteDeleteAsync(cancellationToken);
 
             // GDPR Art. 17 (#1979) — the feedback the user sent, the operator notices about it (queued
-            // ones included, so no pending send outlives the account) and the per-page prompt
-            // suppressions. FK-less by-JobSeekerId aggregates (ADR 0011) stored in plaintext (Klas
-            // 2026-10-07), so the rows themselves must go. Same transaction, idempotent.
+            // ones included, so no pending send outlives the account), the replies an administrator
+            // sent to the user (#2069) and the per-page prompt suppressions. FK-less by-JobSeekerId
+            // aggregates (ADR 0011) stored in plaintext (Klas 2026-10-07), so the rows themselves must go.
+            // Same transaction, idempotent.
+            await db.FeedbackReplies
+                .Where(r => r.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
             await db.FeedbackScreenshots
                 .Where(s => s.JobSeekerId == jsId)
                 .ExecuteDeleteAsync(cancellationToken);

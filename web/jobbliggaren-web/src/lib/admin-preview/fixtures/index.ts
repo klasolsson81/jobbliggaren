@@ -308,6 +308,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 1440, viewportHeight: 789, screenWidth: 1440, screenHeight: 900, pixelRatio: 1, theme: "light" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "firefox" as const },
     appVersion: "4f2a91c",
     notice: { state: "queued" as const, attempts: 2, nextAttemptAt: daysAgo(0, 8, 1) },
+    replies: [],
   }),
   marked({
     id: id(502),
@@ -322,6 +323,9 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 390, viewportHeight: 664, screenWidth: 390, screenHeight: 844, pixelRatio: 3, theme: "dark" as const, deviceClass: "mobile" as const, os: "ios" as const, browser: "safari" as const },
     appVersion: "4f2a91c",
     notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(1, 18, 40) },
+    replies: [
+      { id: id(602), text: "Tack för förslaget. Vi tittar på sortering efter sista ansökningsdag.", state: "accepted" as const, createdAt: daysAgo(0, 7, 58), completedAt: daysAgo(0, 7, 58) },
+    ],
   }),
   marked({
     id: id(503),
@@ -336,6 +340,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 1280, viewportHeight: 720, screenWidth: 1280, screenHeight: 800, pixelRatio: 2, theme: "light" as const, deviceClass: "desktop" as const, os: "macOs" as const, browser: "chrome" as const },
     appVersion: "9c03e7b",
     notice: { state: "failed" as const, attempts: 5, nextAttemptAt: daysAgo(2, 12, 24) },
+    replies: [],
   }),
   marked({
     id: id(504),
@@ -350,6 +355,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 412, viewportHeight: 839, screenWidth: 412, screenHeight: 915, pixelRatio: 2.63, theme: "light" as const, deviceClass: "mobile" as const, os: "android" as const, browser: "samsungInternet" as const },
     appVersion: "9c03e7b",
     notice: { state: "unknown" as const, attempts: 1, nextAttemptAt: daysAgo(5, 9, 27) },
+    replies: [],
   }),
   marked({
     id: id(505),
@@ -364,6 +370,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 1920, viewportHeight: 969, screenWidth: 1920, screenHeight: 1080, pixelRatio: 1, theme: "dark" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "edge" as const },
     appVersion: "1b7d0e4",
     notice: { state: "accepted" as const, attempts: 2, nextAttemptAt: daysAgo(8, 20, 16) },
+    replies: [],
   }),
   marked({
     id: id(506),
@@ -378,6 +385,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: NOTHING_REPORTED,
     appVersion: null,
     notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(12, 14, 30) },
+    replies: [],
   }),
   marked({
     id: id(507),
@@ -392,6 +400,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 820, viewportHeight: 1106, screenWidth: 820, screenHeight: 1180, pixelRatio: 2, theme: "light" as const, deviceClass: "tablet" as const, os: "ios" as const, browser: "safari" as const },
     appVersion: "1b7d0e4",
     notice: { state: "sending" as const, attempts: 1, nextAttemptAt: daysAgo(20, 8, 5) },
+    replies: [],
   }),
   marked({
     id: id(508),
@@ -406,6 +415,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 1366, viewportHeight: 657, screenWidth: 1366, screenHeight: 768, pixelRatio: 1, theme: "light" as const, deviceClass: "desktop" as const, os: "linux" as const, browser: "firefox" as const },
     appVersion: "e05c2aa",
     notice: { state: "accepted" as const, attempts: 1, nextAttemptAt: daysAgo(45, 10, 0) },
+    replies: [],
   }),
   marked({
     id: id(509),
@@ -420,6 +430,7 @@ export const PREVIEW_FEEDBACK: ReadonlyArray<AdminFeedbackItem> = [
     client: { ...NOTHING_REPORTED, viewportWidth: 1536, viewportHeight: 730, screenWidth: 1536, screenHeight: 864, pixelRatio: 1.25, theme: "light" as const, deviceClass: "desktop" as const, os: "windows" as const, browser: "chrome" as const },
     appVersion: "e05c2aa",
     notice: null,
+    replies: [],
   }),
 ];
 

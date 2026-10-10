@@ -10,6 +10,7 @@ import type {
   AdminFeedbackNoticeState,
   AdminFeedbackOs,
   AdminFeedbackPageSummary,
+  AdminFeedbackReplyState,
   AdminFeedbackStatus,
   AdminFeedbackTheme,
 } from "@/lib/admin/view-models";
@@ -29,6 +30,7 @@ export type FeedbackWireStatus = (typeof FEEDBACK_WIRE_STATUSES)[number];
 
 const statusSchema = z.enum(FEEDBACK_WIRE_STATUSES);
 const noticeStateSchema = z.enum(["Queued", "Sending", "Accepted", "Failed", "Unknown"]);
+const replyStateSchema = z.enum(["Sending", "Accepted", "Failed", "Unknown"]);
 const count = z.number().int().nonnegative();
 const rating = z.number().int().min(1).max(5);
 const pixels = z.number().int().positive();
@@ -97,6 +99,24 @@ export const feedbackDetailSchema = z.object({
       nextAttemptAt: instant,
     })
     .nullable(),
+  replies: z
+    .array(
+      z.object({
+        id: z.guid(),
+        text: z.string(),
+        state: replyStateSchema,
+        createdAt: instant,
+        completedAt: instant.nullable(),
+      }),
+    )
+    .default([]),
+});
+
+/** `POST /api/v1/admin/feedback/{id}/replies` → 200: the reply's recorded outcome (#2069). */
+export const feedbackReplyOutcomeSchema = z.object({
+  replyId: z.guid(),
+  state: replyStateSchema,
+  replayed: z.boolean(),
 });
 
 /** `GET /api/v1/admin/feedback/summary?days=` → 200. */
@@ -161,6 +181,18 @@ const NOTICE_STATE: Readonly<Record<z.infer<typeof noticeStateSchema>, AdminFeed
   Failed: "failed",
   Unknown: "unknown",
 };
+
+const REPLY_STATE: Readonly<Record<z.infer<typeof replyStateSchema>, AdminFeedbackReplyState>> = {
+  Sending: "sending",
+  Accepted: "accepted",
+  Failed: "failed",
+  Unknown: "unknown",
+};
+
+/** A reply's state as the view model names it. */
+export function toFeedbackReplyState(state: z.infer<typeof replyStateSchema>): AdminFeedbackReplyState {
+  return REPLY_STATE[state];
+}
 
 const THEME: Readonly<Record<"Light" | "Dark", AdminFeedbackTheme>> = { Light: "light", Dark: "dark" };
 
@@ -254,6 +286,13 @@ export function toFeedbackItem(dto: FeedbackDetailDto): AdminFeedbackItem {
             attempts: dto.notification.attempts,
             nextAttemptAt: dto.notification.nextAttemptAt,
           },
+    replies: dto.replies.map((reply) => ({
+      id: reply.id,
+      text: reply.text,
+      state: REPLY_STATE[reply.state],
+      createdAt: reply.createdAt,
+      completedAt: reply.completedAt,
+    })),
   };
 }
 

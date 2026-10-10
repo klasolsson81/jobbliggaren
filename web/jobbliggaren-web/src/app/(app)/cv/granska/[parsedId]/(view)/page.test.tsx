@@ -65,7 +65,13 @@ vi.mock("@/components/resumes/cv-preview", () => ({
     return null;
   },
 }));
-vi.mock("@/components/resumes/cv-review-panel", () => ({ CvReviewPanel: () => null }));
+const panelProps = vi.fn();
+vi.mock("@/components/resumes/cv-review-panel", () => ({
+  CvReviewPanel: (props: Record<string, unknown>) => {
+    panelProps(props);
+    return null;
+  },
+}));
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -134,6 +140,20 @@ describe("/cv/granska/[parsedId] — the original file reaches CvPreview", () =>
     expect(props.atsTextUrl).toBeUndefined();
     // The file name the page already renders, so the download is identifiable.
     expect(props.fileName).toBe("cv.pdf");
+  });
+});
+
+describe("/cv/granska/[parsedId] — what the page hands the review panel", () => {
+  it("the parsed target, so the ledger has no action column, and no second file name", async () => {
+    panelProps.mockClear();
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    render(await invoke());
+
+    const props = panelProps.mock.calls[0]![0] as Record<string, unknown>;
+    expect(props.target).toEqual({ kind: "parsed", parsedId: PARSED_ID });
+    // The file name already stands in the page's own meta line.
+    expect(props.documentName).toBeUndefined();
   });
 });
 

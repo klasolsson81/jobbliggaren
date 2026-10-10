@@ -98,6 +98,43 @@ public sealed class FeedbackRetentionJobIntegrationTests(WorkerTestFixture fixtu
                 "the prompt suppressions outlive the feedback, so the prompt never returns on its own");
     }
 
+    /// <summary>
+    /// #2069 — a reply as SendFeedbackReplyCommandHandler saves and records it, written <paramref name="at"/> by the
+    /// clock the handler reads. Retention reads the submission's own time the reply carries, never when it was written.
+    /// </summary>
+    private async Task<FeedbackReplyId> ReplyAsync(Seeded seeded, DateTimeOffset at)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var submission = await db.FeedbackSubmissions.AsNoTracking().SingleAsync(s => s.Id == seeded.SubmissionId, Ct);
+        var existing = await db.FeedbackReplies.CountAsync(r => r.SubmissionId == seeded.SubmissionId, Ct);
+        var reply = FeedbackReply.Start(
+            submission, existing, Guid.NewGuid(), FeedbackReplyText.Create("Tack för din feedback.").Value, at).Value;
+        db.FeedbackReplies.Add(reply);
+        await db.SaveChangesAsync(Ct);
+        reply.RecordAccepted(at).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(Ct);
+        return reply.Id;
+    }
+
+    [Fact]
+    public async Task RunAsync_DeletesTheRepliesWithTheirSubmission_EvenOneWrittenOnTheLastDay()
+    {
+        var owner = new JobSeekerId(Guid.NewGuid());
+        var old = await SubmitAsync(owner, FeedbackPage.Jobs, FixedNow.AddDays(-91));
+        var fresh = await SubmitAsync(owner, FeedbackPage.Matches, FixedNow.AddDays(-10));
+        await ReplyAsync(old, FixedNow.AddDays(-91).AddHours(1));
+        await ReplyAsync(old, FixedNow.AddMinutes(-5));
+        var kept = await ReplyAsync(fresh, FixedNow.AddDays(-9));
+
+        await RunAsync(FixedNow);
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.FeedbackReplies.AsNoTracking().Where(r => r.JobSeekerId == owner).Select(r => r.Id).ToListAsync(Ct))
+            .ShouldBe([kept], "a reply goes with its submission, however recently it was written");
+    }
+
     [Fact]
     public async Task RunAsync_ASecondRun_DeletesNothingMore()
     {

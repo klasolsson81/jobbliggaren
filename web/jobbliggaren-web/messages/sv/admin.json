@@ -482,8 +482,28 @@
           "other": "Annan"
         }
       },
-      "reply": "Svar",
-      "send": "Skicka svar"
+      "reply": {
+        "heading": "Svar",
+        "listLabel": "Skickade svar",
+        "label": "Ditt svar",
+        "hint": "Svaret mejlas till {email} och börjar med ”Hej,”. Personens svar kommer till kontakt@jobbliggaren.se.",
+        "send": "Skicka svar",
+        "sending": "Skickar…",
+        "sent": "Svaret är mottaget av e-posttjänsten.",
+        "failed": "E-posttjänsten tog inte emot svaret, så inget skickades. Du kan skicka igen.",
+        "unknown": "Det gick inte att bekräfta om svaret kom fram. Skickar du igen kan personen få det två gånger.",
+        "unknownEntry": "Kan ha kommit fram. Ett nytt svar kan ge en dubblett.",
+        "noAddress": "Det finns ingen adress att svara till.",
+        "limit": "Inskicket har fått {max} svar, det högsta antalet. Fortsätt i mejlet från kontakt@jobbliggaren.se.",
+        "empty": "Skriv ett svar.",
+        "tooLong": "Svaret får vara högst {max} tecken.",
+        "states": {
+          "sending": "Skickas",
+          "accepted": "Mottaget av e-posttjänsten",
+          "failed": "Misslyckades",
+          "unknown": "Utfall okänt"
+        }
+      }
     },
     "summary": {
       "heading": "Betyg per sida",
@@ -511,7 +531,12 @@
       "noticeRefused": "Aviseringen köades inte. Ladda om sidan och försök igen.",
       "noticeAlreadyQueued": "Aviseringen är redan köad eller skickad.",
       "noticeChanged": "Aviseringens läge har ändrats. Kontrollera det innan du skickar den igen.",
-      "noticeUnknown": "Det gick inte att bekräfta att aviseringen köades. Ladda om sidan för att se dess läge."
+      "noticeUnknown": "Det gick inte att bekräfta att aviseringen köades. Ladda om sidan för att se dess läge.",
+      "replyRefused": "Svaret skickades inte. Ladda om sidan och försök igen.",
+      "replyUnknown": "Det gick inte att bekräfta om svaret sparades. Ladda om sidan och se svaren innan du skickar igen.",
+      "replyUnavailable": "E-post kan inte skickas härifrån. Svaret skickades inte.",
+      "replyLimit": "Inskicket har redan fått det högsta antalet svar.",
+      "replyReporterGone": "Kontoägaren saknar en aktiv profil eller en adress att svara till. Svaret skickades inte."
     }
   },
   "logs": {

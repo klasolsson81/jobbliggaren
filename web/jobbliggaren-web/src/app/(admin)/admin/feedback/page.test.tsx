@@ -29,6 +29,7 @@ vi.mock("@/lib/api/admin-feedback", () => api);
 const actions = vi.hoisted(() => ({
   changeFeedbackStatusAction: vi.fn(async () => null),
   requeueFeedbackNotificationAction: vi.fn(async () => null),
+  sendFeedbackReplyAction: vi.fn(async () => ({ kind: "recorded", state: "accepted" })),
 }));
 vi.mock("@/lib/actions/admin-feedback", () => actions);
 
@@ -88,6 +89,7 @@ const DETAIL: FeedbackDetailDto = {
   },
   appVersion: "4f2a91c",
   notification: { state: "Accepted", attempts: 1, nextAttemptAt: "2026-10-04T05:12:00+00:00" },
+  replies: [],
 };
 
 const SUMMARY: FeedbackSummaryDto = {

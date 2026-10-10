@@ -305,6 +305,19 @@ export interface AdminFeedbackClient {
   readonly browser: AdminFeedbackBrowser | null;
 }
 
+/** A reply's recorded outcome (#2069). `accepted` is the provider's acceptance, never a claim of arrival. */
+export type AdminFeedbackReplyState = "sending" | "accepted" | "failed" | "unknown";
+
+/** One reply an administrator mailed to the reporter, oldest first in the detail. */
+export interface AdminFeedbackReply {
+  readonly id: string;
+  readonly text: string;
+  readonly state: AdminFeedbackReplyState;
+  readonly createdAt: string;
+  /** When the outcome was recorded; null while it is not. */
+  readonly completedAt: string | null;
+}
+
 export interface AdminFeedbackNotice {
   readonly state: AdminFeedbackNoticeState;
   readonly attempts: number;
@@ -331,6 +344,8 @@ export interface AdminFeedbackItem {
   /** Null when the submission has no notice. */
   readonly notice: AdminFeedbackNotice | null;
   readonly screenshot: { readonly width: number; readonly height: number } | null;
+  /** The replies sent to the reporter, oldest first. */
+  readonly replies: ReadonlyArray<AdminFeedbackReply>;
 }
 
 /** One page's ratings over the window: each user's latest rating counts once. */

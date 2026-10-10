@@ -25,7 +25,11 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
 
-import { changeFeedbackStatusAction, requeueFeedbackNotificationAction } from "./admin-feedback";
+import {
+  changeFeedbackStatusAction,
+  requeueFeedbackNotificationAction,
+  sendFeedbackReplyAction,
+} from "./admin-feedback";
 import type { AdminFeedbackStatus } from "@/lib/admin/view-models";
 
 const ID = "00000000-0000-4000-8000-000000000501";
@@ -177,5 +181,81 @@ describe("requeueFeedbackNotificationAction", () => {
     expect(await requeueFeedbackNotificationAction(ID, true)).toEqual(command("admin.feedback.errors.noticeRefused"));
     expect(authedFetchMock).toHaveBeenCalledTimes(1);
     expect(revalidatePathMock).toHaveBeenCalledWith(ROUTE);
+  });
+});
+
+describe("sendFeedbackReplyAction (#2069)", () => {
+  const KEY = "00000000-0000-4000-8000-000000000601";
+  const REPLIES_PATH = `/api/v1/admin/feedback/${ID}/replies`;
+  const send = (text = "Tack för din feedback.") => sendFeedbackReplyAction(ID, KEY, text);
+  const refused = (text: string, about: "value" | "command" = "command") => ({ kind: "refused", refusal: { text, about } });
+  const unanswered = { kind: "unanswered", text: "admin.feedback.errors.replyUnknown" };
+  const outcome = (state: string, replayed = false) =>
+    json(200, { replyId: "00000000-0000-4000-8000-000000000701", state, replayed });
+
+  it.each([
+    ["Accepted", "accepted"],
+    ["Failed", "failed"],
+    ["Unknown", "unknown"],
+  ])("posts the key and the text, and answers a recorded %s as that outcome after revalidating", async (wire, state) => {
+    authedFetchMock.mockResolvedValue(outcome(wire));
+
+    expect(await send()).toEqual({ kind: "recorded", state });
+    expect(authedFetchMock).toHaveBeenCalledWith("session-under-test", REPLIES_PATH, {
+      method: "POST",
+      body: JSON.stringify({ replyKey: KEY, text: "Tack för din feedback." }),
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith(ROUTE);
+  });
+
+  it("refuses an empty or too long text at the field, and a malformed id or key, before anything is sent", async () => {
+    expect(await send("  ")).toEqual(refused("admin.feedback.detail.reply.empty", "value"));
+    expect(await send("a".repeat(4001))).toEqual(refused('admin.feedback.detail.reply.tooLong {"max":4000}', "value"));
+    expect(await sendFeedbackReplyAction("../x", KEY, "Tack.")).toEqual(refused("admin.feedback.errors.gone"));
+    // Declared unreachable for a typed caller: a direct Server Action POST can send anything.
+    expect(await sendFeedbackReplyAction(ID, "not-a-key", "Tack.")).toEqual(refused("admin.feedback.errors.replyRefused"));
+    expect(await sendFeedbackReplyAction(ID, KEY, 7 as unknown as string)).toEqual(refused("admin.feedback.errors.replyRefused"));
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing without an Admin session", async () => {
+    getServerSessionMock.mockResolvedValue({ userId: "u", email: "medlem@example.test", roles: [] });
+
+    expect(await send()).toEqual(refused("admin.feedback.errors.forbidden"));
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an empty text", () => problem(400, "Feedback.ReplyEmpty"), refused("admin.feedback.detail.reply.empty", "value")],
+    ["a host that cannot deliver", () => problem(400, "Feedback.ReplyUnavailable"), refused("admin.feedback.errors.replyUnavailable")],
+    ["a reporter who is gone", () => problem(410, "Feedback.ReporterUnavailable"), refused("admin.feedback.errors.replyReporterGone")],
+    ["a rate limit", () => json(429, {}, { "Retry-After": "3" }), refused('admin.feedback.errors.rateLimited {"seconds":3}')],
+  ])("answers %s as a refusal that saved nothing", async (_label, answer, expected) => {
+    authedFetchMock.mockImplementation(async () => answer());
+
+    expect(await send()).toEqual(expected);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a submission that is gone", () => problem(404, "Feedback.NotFound"), refused("admin.feedback.errors.gone")],
+    ["the most replies it can have", () => problem(409, "Feedback.ReplyLimitReached"), refused("admin.feedback.errors.replyLimit")],
+    ["a reply removed while it was sent", () => problem(410, "Feedback.ReplyRemoved"), refused("admin.feedback.errors.gone")],
+  ])("answers %s as a refusal and revalidates so the page shows where it is", async (_label, answer, expected) => {
+    authedFetchMock.mockImplementation(async () => answer());
+
+    expect(await send()).toEqual(expected);
+    expect(revalidatePathMock).toHaveBeenCalledWith(ROUTE);
+  });
+
+  it.each([
+    ["a 500", () => json(500, {})],
+    ["a 409 nobody named", () => json(409, {})],
+    ["a 200 with a body it cannot read", () => json(200, { state: "Delivered" })],
+    ["a lost response", () => Promise.reject(new Error("socket hang up"))],
+  ])("answers %s as unanswered, so the caller keeps the key", async (_label, answer) => {
+    authedFetchMock.mockImplementation(async () => answer());
+
+    expect(await send()).toEqual(unanswered);
   });
 });

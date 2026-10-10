@@ -165,4 +165,15 @@ public interface IEmailSender
         string toEmail,
         FeedbackReceivedNotificationEmail content,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #2069 — an administrator's reply to the person who sent a feedback submission.
+    /// <b>Delivery-dependent:</b> <c>SendFeedbackReplyCommandHandler</c> consults <see cref="CanDeliver"/>
+    /// before it saves anything. Its row records exactly one outcome per call, read from
+    /// <see cref="Exceptions.EmailDeliveryException.Disposition"/>, and nothing resends it.
+    /// </summary>
+    Task SendFeedbackReplyAsync(
+        string toEmail,
+        FeedbackReplyEmail content,
+        CancellationToken cancellationToken);
 }

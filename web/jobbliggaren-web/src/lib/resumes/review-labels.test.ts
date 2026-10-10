@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTranslator } from "next-intl";
 import {
-  verdictLabel,
   bandLabel,
   categoryLabel,
   overallConfidenceLabel,
@@ -27,16 +26,6 @@ const t = createTranslator({
 });
 
 describe("review-labels", () => {
-  it("mappar verdict → svensk etikett + ton (NotAssessed är neutral, aldrig fail)", () => {
-    expect(verdictLabel(t, "Pass")).toEqual({ label: "Godkänt", tone: "success" });
-    expect(verdictLabel(t, "Warn")).toEqual({ label: "Delvis", tone: "warning" });
-    expect(verdictLabel(t, "Fail")).toEqual({ label: "Underkänt", tone: "danger" });
-    expect(verdictLabel(t, "NotAssessed")).toEqual({
-      label: "Ej bedömt",
-      tone: "neutral",
-    });
-  });
-
   it("mappar band → svensk etikett + ton", () => {
     expect(bandLabel(t, "NotReady").label).toBe("Ej redo");
     expect(bandLabel(t, "NeedsRework").label).toBe("Behöver omarbetning");

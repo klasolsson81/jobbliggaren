@@ -793,12 +793,13 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
 
         var patterns = WrittenFormPatterns(identifier);
 
-        // Feedback is deleted hard (90-day retention, account deletion), so the physical table is
-        // every row we hold.
+        // Feedback and its replies are deleted hard (90-day retention, account deletion), so the
+        // physical tables are every row we hold.
         return await CountAsync($"""
-            SELECT count(*)::int AS "Value"
-            FROM feedback_submissions
-            WHERE lower(coalesce(comment, '')) LIKE ANY({patterns})
+            SELECT ((SELECT count(*) FROM feedback_submissions
+                     WHERE lower(coalesce(comment, '')) LIKE ANY({patterns}))
+                  + (SELECT count(*) FROM feedback_replies
+                     WHERE lower(body) LIKE ANY({patterns})))::int AS "Value"
             """, cancellationToken);
     }
 

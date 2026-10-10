@@ -482,8 +482,28 @@
           "other": "Other"
         }
       },
-      "reply": "Reply",
-      "send": "Send reply"
+      "reply": {
+        "heading": "Reply",
+        "listLabel": "Sent replies",
+        "label": "Your reply",
+        "hint": "The reply is emailed to {email} and begins with “Hej,”. Their answer comes to kontakt@jobbliggaren.se.",
+        "send": "Send reply",
+        "sending": "Sending…",
+        "sent": "The reply was accepted by the email service.",
+        "failed": "The email service did not accept the reply, so nothing was sent. You can send it again.",
+        "unknown": "We could not confirm whether the reply arrived. If you send it again, they may get it twice.",
+        "unknownEntry": "May have arrived. A new reply may arrive twice.",
+        "noAddress": "There is no address to reply to.",
+        "limit": "The submission has {max} replies, the most it can have. Continue in the email from kontakt@jobbliggaren.se.",
+        "empty": "Write a reply.",
+        "tooLong": "The reply can be at most {max} characters.",
+        "states": {
+          "sending": "Sending",
+          "accepted": "Accepted by the email service",
+          "failed": "Failed",
+          "unknown": "Outcome unknown"
+        }
+      }
     },
     "summary": {
       "heading": "Ratings per page",
@@ -511,7 +531,12 @@
       "noticeRefused": "The notice was not queued. Reload the page and try again.",
       "noticeAlreadyQueued": "The notice is already queued or sent.",
       "noticeChanged": "The notice's state has changed. Check it before you send it again.",
-      "noticeUnknown": "We could not confirm that the notice was queued. Reload the page to see its state."
+      "noticeUnknown": "We could not confirm that the notice was queued. Reload the page to see its state.",
+      "replyRefused": "The reply was not sent. Reload the page and try again.",
+      "replyUnknown": "We could not confirm whether the reply was saved. Reload the page and check the replies before you send again.",
+      "replyUnavailable": "Email cannot be sent from here. The reply was not sent.",
+      "replyLimit": "The submission already has the most replies it can have.",
+      "replyReporterGone": "The account owner has no active profile or no address to reply to. The reply was not sent."
     }
   },
   "logs": {

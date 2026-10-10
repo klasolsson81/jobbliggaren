@@ -512,6 +512,26 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         LoggedSurface().ShouldNotContain(Code);
     }
 
+    /// <summary>#2069's reply to the person behind a feedback submission.</summary>
+    [Fact]
+    public async Task ScalewayEmailSender_SendsAFeedbackReply_SelectsTheFeedbackReplyTemplate()
+    {
+        var sut = CreateSut();
+
+        await sut.SendFeedbackReplyAsync(
+            Recipient,
+            new FeedbackReplyEmail(
+                Jobbliggaren.Domain.Feedback.FeedbackPage.Jobs,
+                new DateTimeOffset(2026, 10, 8, 12, 30, 0, TimeSpan.Zero),
+                Jobbliggaren.Domain.Feedback.FeedbackReplyText.Create("Tack för din feedback.").Value),
+            CancellationToken.None);
+
+        SubjectSent().ShouldBe("Svar på din feedback");
+        TextSent().ShouldContain("Tack för din feedback.");
+        LoggedSurface().ShouldContain("EmailKind=feedback-reply");
+        LoggedSurface().ShouldNotContain("Tack för din feedback.");
+    }
+
     // ---------- CancellationToken propagation ----------
 
     /// <summary>

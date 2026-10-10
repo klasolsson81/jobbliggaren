@@ -80,11 +80,22 @@
     },
     "backup": {
       "title": "Backup",
-      "latest": "Latest",
+      "latest": "Last successful run",
       "offsite": "Off-site copy",
-      "next": "Next",
+      "next": "Next scheduled run",
       "retention": "Kept",
-      "retentionDays": "{days} days"
+      "noVerifiedSource": "No verified data source",
+      "lastSuccess": {
+        "missing": "No successful run recorded",
+        "unreadable": "The record could not be read",
+        "invalid": "The record is invalid",
+        "overdue": "Older than 26 hours"
+      },
+      "nextRun": {
+        "inactive": "No run scheduled",
+        "notInstalled": "The schedule is not installed on the host"
+      },
+      "notProof": "Shows when the run last finished, not that a restore works."
     },
     "email": {
       "title": "Email",
@@ -129,7 +140,8 @@
       "sources": {
         "accounts": "Account statistics",
         "audit": "Audit events",
-        "jobs": "Failed background jobs"
+        "jobs": "Failed background jobs",
+        "backup": "Backup"
       }
     },
     "registrationPeriods": {
@@ -726,6 +738,7 @@
   },
   "regions": {
     "failed": "The data could not be fetched. Try again in a moment.",
-    "loading": "Fetching data…"
+    "loading": "Fetching data…",
+    "awaiting": "The host has not reported an observation yet."
   }
 }

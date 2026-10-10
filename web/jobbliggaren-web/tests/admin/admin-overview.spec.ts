@@ -17,6 +17,8 @@ test.beforeEach(async ({ context, page }) => {
 test.afterEach(() => expect(harness.misses).toEqual([]));
 
 const card = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
+/** Alerts with content: Next's route announcer is an empty role=alert that is always there. */
+const alerts = (page: Page) => page.getByRole("alert").filter({ hasText: /\S/ });
 const cliRequire = createRequire(require.resolve("@lhci/cli/package.json"));
 const axePath = createRequire(cliRequire.resolve("lighthouse")).resolve("axe-core/axe.min.js");
 async function verify(page: Page, state: string, nativeZoom?: number) {
@@ -184,6 +186,116 @@ test("old observations are marked", async ({ page }) => {
   await page.goto("/admin");
   await expect(card(page, "Användare totalt")).toContainText("äldre än fem minuter");
   await verify(page, "old-observation");
+});
+
+for (const width of [1280, 1920, 3440]) {
+  test(`the Backup card shows the host's observation at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    await page.goto("/admin");
+    const backup = card(page, "Backup");
+    await expect(backup).toContainText("Senaste lyckade körning");
+    await expect(backup).toContainText("för 10 timmar sedan");
+    await expect(backup).toContainText("Nästa planerade körning");
+    await expect(backup).toContainText("Uppgift från");
+    await expect(backup.getByText("Saknar verifierad datakälla")).toHaveCount(2);
+    await expect(backup).toContainText("inte att en återställning fungerar");
+    await verify(page, "backup-observed");
+  });
+}
+
+test("the Backup card tells the state the box is in until the backup is switched on, without an alarm", async ({ page }) => {
+  harness.overviewBackup = "switchedOff";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Ingen lyckad körning registrerad");
+  await expect(backup).toContainText("Ingen körning planerad");
+  await expect(alerts(page)).toHaveCount(0);
+  await verify(page, "backup-switched-off");
+});
+
+test("the Backup card says that the host has not reported, which is neither a failure nor 'Kommer snart'", async ({ page }) => {
+  harness.overviewBackup = "notObserved";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Värden har inte rapporterat någon observation ännu.");
+  await expect(backup).not.toContainText("Kommer snart");
+  await expect(backup).not.toContainText("kunde inte hämtas");
+  await expect(alerts(page)).toHaveCount(0);
+  await verify(page, "backup-awaiting");
+});
+
+test("a refused or unreadable host file is a failure of the Backup source only", async ({ page }) => {
+  harness.overviewBackup = "failed";
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Uppgifterna kunde inte hämtas");
+  await expect(card(page, "Användare totalt").getByRole("link", { name: "5", exact: true })).toBeVisible();
+  await verify(page, "backup-failed");
+});
+
+test("an old host sample keeps its own time and loses its age", async ({ page }) => {
+  harness.overviewBackup = "old";
+  await page.goto("/admin");
+  const backup = card(page, "Backup");
+  await expect(backup).toContainText("Uppgiften är äldre än fem minuter.");
+  await expect(backup).not.toContainText("sedan");
+  await verify(page, "backup-old");
+});
+
+test("a run older than twenty-six hours is marked, with its time", async ({ page }) => {
+  harness.overviewBackup = "overdue";
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Äldre än 26 timmar");
+  await verify(page, "backup-overdue");
+});
+
+test("an unknown timer is an unknown value, never a date", async ({ page }) => {
+  harness.overviewBackup = "timerUnknown";
+  await page.goto("/admin");
+  await expect(page.getByText("Nästa planerade körning").locator("xpath=following-sibling::dd[1]")).toContainText("Uppgift saknas");
+  await verify(page, "backup-timer-unknown");
+});
+
+test("the host is asked only once an admin read has succeeded, and not at all when every first read refuses", async ({ page }) => {
+  await page.goto("/admin");
+  const overview = harness.requests.filter(route => route.includes("/overview/") || route.includes("/audit-log") || route.includes("/jobs/failed"));
+  expect(overview.at(-1)).toBe("GET /api/v1/admin/overview/backup");
+  expect(overview).toHaveLength(4);
+
+  harness.requests.length = 0;
+  harness.mode = "unauthorized";
+  await page.goto("/admin");
+  expect(harness.requests).not.toContain("GET /api/v1/admin/overview/backup");
+});
+
+test("a refresh keeps the last Backup value, marks the failure at once and announces it", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await expect(card(page, "Backup")).toContainText("Senaste lyckade körning");
+  // Hydrated: the refresh timer exists only once the page's script has run.
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.backup = "error";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  await response;
+  await expect(card(page, "Backup")).toContainText("Uppdateringen misslyckades");
+  await expect(card(page, "Backup")).toContainText("Nästa planerade körning");
+  await expect(page.getByRole("status").filter({ hasText: "Backup:" })).toContainText("Uppdateringen misslyckades");
+  await verify(page, "backup-retained-after-failure");
+});
+
+test("a refresh that finds the Backup source refused clears every privileged value", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/admin");
+  await page.getByRole("radio", { name: "7 dagar", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toHaveAttribute("aria-checked", "true");
+  harness.overviewReads.backup = "forbidden";
+  const response = page.waitForResponse(answer => answer.url().endsWith("/api/admin/oversikt"));
+  await page.clock.runFor(61_000);
+  expect((await response).status()).toBe(403);
+  await expect(page.getByRole("region", { name: "Backup", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Användare totalt", exact: true })).toHaveCount(0);
+  await verify(page, "backup-refused");
 });
 
 test("refresh retains good values on ordinary failure and projects data before the browser", async ({ page }) => {

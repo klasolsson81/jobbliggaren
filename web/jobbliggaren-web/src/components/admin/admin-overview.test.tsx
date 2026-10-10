@@ -31,10 +31,9 @@ const LOADED: AdminOverviewRegions = {
   backup: {
     kind: "loaded",
     data: {
-      latestAt: "2026-10-04T01:30:00Z",
-      offsiteAt: "2026-10-04T01:45:00Z",
-      nextAt: "2026-10-05T01:30:00Z",
-      retentionDays: 30,
+      lastSuccess: { state: "recorded", completedAt: "2026-10-04T01:30:00Z", overdue: false },
+      timer: { state: "scheduled", nextRunAt: "2026-10-05T01:30:00Z" },
+      stale: false,
     },
   },
   email: {
@@ -71,7 +70,9 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     const server = card("Server");
     expect(within(server).getByText("CPU").nextElementSibling).toHaveTextContent("23 %");
     expect(within(server).queryByText("Kommer snart")).toBeNull();
-    expect(card("Backup")).toHaveTextContent("Behålls30 dygn");
+    expect(card("Backup")).toHaveTextContent("Senaste lyckade körning2026-10-04 03:30");
+    expect(card("Backup")).toHaveTextContent("Nästa planerade körning2026-10-05 03:30");
+    expect(within(card("Backup")).getAllByText("Saknar verifierad datakälla")).toHaveLength(2);
   });
 
   it("degrades a loaded services region with no rows, which listRegion never builds, to its empty line", () => {

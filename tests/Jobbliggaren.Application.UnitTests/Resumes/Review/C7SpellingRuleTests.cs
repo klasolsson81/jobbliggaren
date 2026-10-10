@@ -106,7 +106,11 @@ public class C7SpellingRuleTests
         var c7 = await C7Async(checker, resume);
 
         c7.Verdict.ShouldBe(CriterionVerdict.Pass, "1 misspelling < 2 → Pass (below the warn-threshold).");
-        c7.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>();
+        // Below the threshold is not none: the Pass cites what it found, never the sentence that
+        // there was no suspected misspelling (#2083, CTO F7).
+        var span = c7.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>();
+        span.Span.Quote.ShouldBe("stavfle");
+        span.Note.ShouldBe("1 möjligt stavfel, gränsen är 2.");
     }
 
     [Fact]

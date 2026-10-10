@@ -285,6 +285,15 @@ internal sealed partial class C7SpellingRule : ICriterionRule
                     $"{misspelled.Count} möjliga stavfel. Kontrollera stavningen mot ordlistan.")));
         }
 
+        // Under the threshold is not none: cite what was found, so the Pass never states that
+        // there was no suspected misspelling (A7's below-threshold Pass form).
+        if (misspelled.Count > 0)
+        {
+            var found = misspelled.Count == 1 ? "1 möjligt stavfel" : $"{misspelled.Count} möjliga stavfel";
+            return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Span(prose, misspelled[0], $"{found}, gränsen är {warnFrom:0}.")));
+        }
+
         return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural("Inga misstänkta stavfel mot ordlistan.")));
     }

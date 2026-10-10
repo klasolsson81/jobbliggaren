@@ -1,0 +1,44 @@
+[Unit]
+# #1982 / ADR 0157 — samples what the API container cannot see for itself (today the backup
+# stamp and the backup timer) and publishes it for the admin overview's Backup card.
+#
+# The reader is the card, and the card already shows a sampler that stopped as an old observation.
+# Nothing pages from this unit: it is not in the heartbeat's floor timers (jobbliggaren-heartbeat.sh),
+# and the collector exits 0 on every path so that a cosmetic unit never lights `systemctl --failed`.
+Description=Jobbliggaren: sample host facts for the admin overview
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-observations.md
+
+[Service]
+Type=oneshot
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-observe-backup.sh
+# Well above the collector's own 5 s bound on `systemctl`, so a hung bus is reported as "unknown"
+# by the collector and is never the unit's death.
+TimeoutStartSec=20
+RemainAfterExit=no
+
+# WHO IT RUNS AS, AND WHY THAT IS THE CONTROL. It publishes into a directory the API container
+# mounts read-only, so what it can read is what an API compromise could eventually be handed if a
+# collector ever had a bug. A user with no shell, no home and no group membership cannot read
+# /run/jobbliggaren/host-secrets or /run/jobbliggaren/secrets (both root-only), and the paths are
+# also made inaccessible below so that a later change of user cannot quietly undo it.
+# Created by jobbliggaren-observe-sysusers.conf; the directory it writes by jobbliggaren-observe-tmpfiles.conf.
+User=jbl-observe
+Group=jbl-observe
+
+# SANDBOX. `-` on the two path lists: a path that does not exist yet must not fail the unit while
+# the namespace is being set up (measured on logprune, 2026-08-28).
+# RestrictAddressFamilies=AF_UNIX and PrivateNetwork=yes leave `systemctl show` its bus socket
+# and nothing else. The set is measured on the box with systemd-run before the timer is enabled
+# (docs/runbooks/host-observations.md), not assumed.
+ReadWritePaths=-/run/jobbliggaren/observations
+InaccessiblePaths=-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren
+ProtectSystem=strict
+ProtectHome=yes
+ProtectProc=invisible
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+
+# NO [Install] SECTION — the timer carries the only one, like every other unit in this directory.

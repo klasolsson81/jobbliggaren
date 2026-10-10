@@ -213,7 +213,7 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
 ännu. Vid prod-deploy: dagliga databas-snapshots. RDS är borta sedan ADR 0066 (dess
 automated-backup-default var 7 dagars retention). **Backup-modellen på VPS är beslutad
-sedan 2026-08-09 (ADR 0125, #197): nattlig age-krypterad `pg_dump` 02:15 UTC, splittad i
+sedan 2026-08-09 (ADR 0125, #197): nattlig age-krypterad `pg_dump` 02:15 lokal tid (Europe/Berlin), splittad i
 en huvudartefakt och en DEK-artefakt, retention 30 dagar.** Procedur och restore:
 [`backup-restore.md`](backup-restore.md). Fönstret är Klas eget tal — **K4 = 30 dagar**,
 beslutat 2026-08-04 — vilket besvarar **STOPP-4**, som ADR 0024 rad 636 och ADR 0032

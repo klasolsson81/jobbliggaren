@@ -1,5 +1,6 @@
 /** The admin surface's view models (ADR 0150). */
 import type { AdminDeletionTiming } from "./account-deletion";
+import type { BackupObservationData } from "@/lib/dto/admin-overview";
 
 /**
  * A data region is exactly one of these (ADR 0150 D2). `unavailable` means no source exists yet,
@@ -154,12 +155,12 @@ export interface AdminServerReading {
   readonly disk: number;
 }
 
-export interface AdminBackupStatus {
-  readonly latestAt: string;
-  readonly offsiteAt: string;
-  readonly nextAt: string;
-  readonly retentionDays: number;
-}
+/**
+ * What the Backup card holds (#1982, ADR 0157): when the last run succeeded and when the timer next fires,
+ * each with a state of its own. There is no offsite time and no retention here because nothing observes
+ * them; the card keeps those two rows and says so.
+ */
+export type AdminBackupStatus = BackupObservationData;
 
 export interface AdminEmailTotals {
   readonly sent: number;

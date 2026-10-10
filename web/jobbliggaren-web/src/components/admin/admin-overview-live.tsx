@@ -9,6 +9,10 @@ import { OVERVIEW_REFRESH_MS, retainOverview } from "@/lib/admin/overview";
 import { AdminOverviewAnnouncements } from "./admin-overview-announcements";
 import { AdminOverview } from "./admin-overview";
 
+const ALL_FAILED: AdminOverviewSnapshot = {
+  accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" },
+};
+
 type State =
   | { readonly kind: "loaded"; readonly data: AdminOverviewSnapshot }
   | { readonly kind: "unauthorized" | "forbidden" };
@@ -41,19 +45,15 @@ export function AdminOverviewLive({ initial, initialNow }: {
         }
         const parsed = response.ok ? overviewSnapshotSchema.safeParse(await response.json()) : null;
         if (controller.signal.aborted || stopped) return;
-        const next: AdminOverviewSnapshot = parsed?.success ? parsed.data : {
-          accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" },
-        };
+        const next: AdminOverviewSnapshot = parsed?.success ? parsed.data : ALL_FAILED;
         setState((current) => current.kind === "loaded"
           ? { kind: "loaded", data: retainOverview(current.data, next) }
           : current);
       } catch {
         if (!controller.signal.aborted && !stopped) {
-          setState((current) => current.kind === "loaded" ? {
-            kind: "loaded", data: retainOverview(current.data, {
-              accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" },
-            }),
-          } : current);
+          setState((current) => current.kind === "loaded"
+            ? { kind: "loaded", data: retainOverview(current.data, ALL_FAILED) }
+            : current);
         }
       } finally {
         if (active === controller) active = null;

@@ -1,0 +1,20 @@
+[Unit]
+# #1982 / ADR 0157 — drives the host sampler (see jobbliggaren-observe.service).
+Description=Jobbliggaren: periodic sample of host facts for the admin overview
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-observations.md
+
+[Timer]
+# Thirty seconds after boot, then every minute on the wall clock. The overview polls every 60 s and
+# marks a source old after five minutes, so five missed samples are what the card shows as stale.
+#
+# OnCalendar, NOT OnUnitActiveSec: a Type=oneshot unit never becomes active, so OnUnitActiveSec
+# would neither re-fire nor clear (systemd#21600 — a defect this repo has repaired before).
+OnBootSec=30s
+OnCalendar=minutely
+AccuracySec=10s
+
+# Deliberately NOT Persistent=true. A sample describes now; a catch-up run after downtime would
+# publish a sample taken later than the interval it stands for.
+
+[Install]
+WantedBy=timers.target

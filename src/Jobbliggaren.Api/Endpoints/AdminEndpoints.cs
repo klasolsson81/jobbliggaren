@@ -1,6 +1,7 @@
 using System.Globalization;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountOverview;
+using Jobbliggaren.Application.Admin.Backup.Queries.GetBackupStatus;
 using Jobbliggaren.Application.Admin.Queries.GetAuditLogEntries;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.Common;
@@ -23,6 +24,17 @@ public static class AdminEndpoints
             response.Headers.CacheControl = "private, no-store";
             var result = await mediator.Send(new GetAccountOverviewQuery(), ct);
             response.Headers[SampledAtHeader] = result.SampledAt.ToString("O", CultureInfo.InvariantCulture);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+
+        // The header is the moment of this response, as on the audit-log read. The observation's own time is
+        // BackupStatusDto.ObservedAt: the host's clock when it sampled, which an old sample keeps.
+        group.MapGet("/overview/backup", async (
+            IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
+        {
+            response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new GetBackupStatusQuery(), ct);
+            response.Headers[SampledAtHeader] = clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
 

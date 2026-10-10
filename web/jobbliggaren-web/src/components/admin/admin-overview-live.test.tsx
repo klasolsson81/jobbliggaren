@@ -93,6 +93,39 @@ describe("admin overview visible refresh", () => {
     expect(mutations.length).toBeGreaterThan(0);
     observer.disconnect();
   });
+  it("shows a host that has not reported, then announces the Backup source once it does (#1982)", async () => {
+    const waiting = { ...overviewSnapshotFixture(), backup: { kind: "awaiting" } };
+    render(<AdminOverviewLive initial={waiting as ReturnType<typeof overviewSnapshotFixture>} initialNow={NOW} />);
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("Servern har inte rapporterat ännu.");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(overviewSnapshotFixture())));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Uppgifterna är aktuella.");
+    expect(screen.getByRole("region", { name: "Backup" })).toHaveTextContent("2026-10-08 02:19");
+  });
+  it("keeps the last Backup value when a refresh fails, marks it at once, and announces it", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("2026-10-08 02:19");
+    expect(card).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Uppdateringen misslyckades.");
+  });
+  it("replaces a Backup value with the host's own news that it has gone quiet, rather than keeping it as if refreshed", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...overviewSnapshotFixture(), backup: { kind: "awaiting" } })));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    const card = screen.getByRole("region", { name: "Backup" });
+    expect(card).toHaveTextContent("Servern har inte rapporterat ännu.");
+    expect(card).not.toHaveTextContent("2026-10-08 02:19");
+    expect(screen.getByRole("status")).toHaveTextContent("Backup: Servern har inte rapporterat ännu.");
+  });
   it("announces the five-minute age transition without duplicating the account-card notices", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
     show();

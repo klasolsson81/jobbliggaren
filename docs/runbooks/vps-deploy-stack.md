@@ -519,7 +519,9 @@ sudo systemctl start jobbliggaren-reconcile.service && journalctl -u jobbliggare
 
 The advance also delivers the systemd scripts and units at that commit, as a pull always did;
 refresh an installed unit file whose source changed with the install block's `cp`, `chmod` and
-`daemon-reload` lines, under the same standing GO. **Never advance past the release:**
+`daemon-reload` lines, under the same standing GO. The units of the host sampler for the admin Backup card
+(`jobbliggaren-observe*`, #1982) have their own install block in [`host-observations.md`](host-observations.md) §5:
+its account, directory and `enable` are one-off writes and need Klas's GO. **Never advance past the release:**
 `merge --ff-only` cannot move the clone back, and a checkout ahead of `dev` with a different
 configuration refuses every release until `dev` catches up with it.
 

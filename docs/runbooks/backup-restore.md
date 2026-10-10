@@ -35,7 +35,7 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 
 ## 1. The model, in one paragraph
 
-Every night at 02:15 UTC a systemd timer runs `pg_dump` inside the running Postgres container,
+Every night at 02:15 local time (the box's zone is Europe/Berlin, so 00:15 or 01:15 UTC) a systemd timer runs `pg_dump` inside the running Postgres container,
 pipes it through `age` on the host, and streams the ciphertext to an offsite target. **Plaintext
 never touches a disk** — it exists only inside a pipe. **The box holds no private key**, only the
 public recipient, so there is nothing here to steal that would read a backup; that is how ADR
@@ -111,7 +111,7 @@ alternative is a runbook that reads as if it did.
 | Path | What |
 |---|---|
 | `deploy/systemd/jobbliggaren-backup.sh` | the mechanism, and the `--check` freshness probe |
-| `deploy/systemd/jobbliggaren-backup.{service,timer}` | nightly at 02:15 UTC, `Persistent=true` |
+| `deploy/systemd/jobbliggaren-backup.{service,timer}` | nightly at 02:15 local time (Europe/Berlin), `Persistent=true` |
 | `deploy/systemd/jobbliggaren-backup-fresh.{service,timer}` | hourly staleness probe |
 | `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | upload credential, tmpfs, `0400 root:root` |
 | `/opt/jobbliggaren/deploy/backup/age.recipient` | the **public** recipient, `0444 root:root` |
@@ -431,6 +431,10 @@ sudo systemctl start jobbliggaren-backup.service     # a run by hand, e.g. befor
 journalctl -u jobbliggaren-backup.service -n 50
 systemctl list-timers 'jobbliggaren-backup*'
 ```
+
+The admin overview's Backup card reads this box's stamp and timer through a host sampler, not through
+anything in this runbook: [`host-observations.md`](host-observations.md) says what the card shows and what it
+does not prove (it is not evidence of an offsite copy or a restore).
 
 **The alarm surface is `systemctl --failed`, and there are two units on it for two different
 failures.** `jobbliggaren-backup.service` failing means last night's run broke.

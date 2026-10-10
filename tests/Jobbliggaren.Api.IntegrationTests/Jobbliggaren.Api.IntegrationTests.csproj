@@ -9,6 +9,8 @@
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../deploy/redis/*" Link="RedisPolicy/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1982 - the golden files the host sampler publishes; the Backup status endpoint is exercised against them. -->
+    <Content Include="../../deploy/systemd/fixtures/observations/*.json" Link="HostBridgeFixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

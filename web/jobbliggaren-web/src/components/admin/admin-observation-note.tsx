@@ -1,9 +1,9 @@
 import { useFormatter, useTranslations } from "next-intl";
 import { formatDateTime } from "@/lib/i18n/format";
-import { OVERVIEW_STALE_MS, type OverviewObservation } from "@/lib/admin/overview";
+import { OVERVIEW_STALE_MS, type AwaitingObservation } from "@/lib/admin/overview";
 
 export function AdminObservationNote({ observation, now }: {
-  readonly observation: OverviewObservation<unknown>;
+  readonly observation: AwaitingObservation<unknown>;
   readonly now: number;
 }) {
   const t = useTranslations("admin.overview.observation");

@@ -76,6 +76,10 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # THE PRUNE TIMER JOINED 2026-09-03, the day it was enabled on the box (#1170), on the same
 # trigger and not on its install — here the two happened in one visit, so this entry names the
 # `enable` deliberately.
+#
+# jobbliggaren-observe.timer (#1982, the admin Backup card's sampler) IS NOT ON THE LIST, on purpose.
+# Its reader is the card, which shows a stopped sampler as an old observation after five minutes; a
+# page for it would light the one alarm surface for a unit whose only effect is that card.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer jobbliggaren-logprune.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding

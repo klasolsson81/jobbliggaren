@@ -4,8 +4,9 @@ Description=Jobbliggaren: nightly encrypted offsite database backup
 Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/backup-restore.md
 
 [Timer]
-# 02:15 UTC. Deliberately clear of the two jobs already on this box's clock: the hourly reconcile
-# at :47, and HardDeleteAccountsJob at 04:00 UTC. The second is not a scheduling nicety — a dump
+# 02:15 in the box's own time zone, which is Europe/Berlin (measured 2026-10-10), so 00:15 or 01:15 UTC;
+# Sweden shares the offset and the clock changes. Deliberately clear of the two jobs already on this box's
+# clock: the hourly reconcile at :47, and HardDeleteAccountsJob at 04:00 UTC. The second is not a scheduling nicety — a dump
 # taken WHILE the hard-delete transaction runs is still consistent (pg_dump takes one snapshot),
 # but keeping them apart means the nightly artefact reflects a settled state rather than one an
 # operator has to reason about after an incident.

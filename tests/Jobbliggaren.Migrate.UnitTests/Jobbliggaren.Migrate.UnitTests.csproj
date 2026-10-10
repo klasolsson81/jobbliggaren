@@ -39,6 +39,13 @@
          the failure lands on the first token mint, so nothing else in the repo would catch it. -->
     <Content Include="..\..\src\Jobbliggaren.Api\Dockerfile"
              Link="src\Jobbliggaren.Api\Dockerfile" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1982 - DeployComposeHostBridgeTests joins the api mount's source to the directory the sampler
+         writes (its tmpfiles line and its library constant): the two halves are only one fact if the
+         same path is on both sides. -->
+    <Content Include="..\..\deploy\systemd\jobbliggaren-observe-tmpfiles.conf"
+             Link="deploy\systemd\jobbliggaren-observe-tmpfiles.conf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\deploy\systemd\jobbliggaren-observe-lib.sh"
+             Link="deploy\systemd\jobbliggaren-observe-lib.sh" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

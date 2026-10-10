@@ -1251,7 +1251,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-drawer__foot .jp-drawer__item {
   width: 100%;
-  background: transparent;
   border-top: 0;
   border-right: 0;
   border-bottom: 0;

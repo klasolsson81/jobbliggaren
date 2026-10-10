@@ -20,6 +20,10 @@ public class FeedbackPageTests
         => FeedbackPage.List.Select(p => p.Name).Order(StringComparer.Ordinal)
             .ShouldBe(ExpectedKeys.Order(StringComparer.Ordinal));
 
+    [Fact]
+    public void AsksOnAPage_EveryKeyButGeneral()
+        => FeedbackPage.List.Where(p => !p.AsksOnAPage).ShouldBe([FeedbackPage.General]);
+
     [Theory]
     [InlineData("job-ad")]
     [InlineData("my-pages")]

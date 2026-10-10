@@ -4,8 +4,8 @@ using Ardalis.SmartEnum;
 namespace Jobbliggaren.Domain.Feedback;
 
 /// <summary>
-/// The fixed set of pages feedback is collected for (#1979). The name is the wire key the web's
-/// route map sends and the value persisted, so a rating category can never come from a URL, a
+/// The fixed set of pages feedback is collected for (#1979). The name is the wire key and the
+/// value persisted, so a rating category can never come from a URL, a
 /// filter or an ad/CV id — only from this list.
 /// </summary>
 public sealed class FeedbackPage : SmartEnum<FeedbackPage>
@@ -32,6 +32,9 @@ public sealed class FeedbackPage : SmartEnum<FeedbackPage>
 
     /// <summary>The footer's feedback on the service as a whole, bound to no page.</summary>
     public static readonly FeedbackPage General = new("general", 20);
+
+    /// <summary>Whether the page carries an in-page question that a saved answer hides.</summary>
+    public bool AsksOnAPage => this != General;
 
     private FeedbackPage(string name, int value) : base(name, value) { }
 

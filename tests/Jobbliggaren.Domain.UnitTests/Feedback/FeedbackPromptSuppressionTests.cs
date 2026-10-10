@@ -18,6 +18,11 @@ public class FeedbackPromptSuppressionTests
     }
 
     [Fact]
+    public void Record_ForGeneralFeedback_Throws()
+        => Should.Throw<ArgumentException>(() =>
+            FeedbackPromptSuppression.Record(new JobSeekerId(Guid.NewGuid()), FeedbackPage.General));
+
+    [Fact]
     public void Record_WithoutAnOwner_Throws()
         => Should.Throw<ArgumentException>(() =>
             FeedbackPromptSuppression.Record(default, FeedbackPage.Matches));

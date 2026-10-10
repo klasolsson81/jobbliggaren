@@ -18,6 +18,7 @@ import {
   type AdminFeedbackReplyOutcome,
 } from "@/lib/admin/feedback";
 import { showAdminToast } from "@/lib/admin/toast-store";
+import { newSubmissionKey } from "@/lib/feedback/submission-key";
 import type {
   AdminFeedbackClient,
   AdminFeedbackItem,
@@ -441,6 +442,7 @@ type ReplyFocusTarget = "field" | "line";
 interface ReplyLine {
   readonly text: string;
   readonly about: "value" | "command";
+  readonly tone?: "warning";
 }
 
 /**
@@ -464,7 +466,8 @@ function FeedbackReplyArea({
   const lineId = useId();
 
   const [text, setText] = useState("");
-  const [replyKey, setReplyKey] = useState(() => crypto.randomUUID());
+  const [replyKey, setReplyKey] = useState(newSubmissionKey);
+  const [held, setHeld] = useState(false);
   const [line, setLine] = useState<ReplyLine | null>(null);
   const [sending, startSending] = useTransition();
   const fieldRef = useRef<HTMLTextAreaElement>(null);
@@ -486,20 +489,24 @@ function FeedbackReplyArea({
   }
 
   function settle(outcome: AdminFeedbackReplyOutcome) {
+    if (outcome.kind === "unanswered") {
+      setHeld(true);
+      show({ text: outcome.text, about: "command", tone: "warning" });
+      return;
+    }
+    setHeld(false);
     if (outcome.kind === "refused") {
       show(outcome.refusal);
       return;
     }
-    if (outcome.kind === "unanswered") {
-      show({ text: outcome.text, about: "command" });
-      return;
-    }
-    setReplyKey(crypto.randomUUID());
+    setReplyKey(newSubmissionKey());
     if (outcome.state === "accepted") {
       setText("");
       showAdminToast(t("sent"));
+    } else if (outcome.state === "failed") {
+      show({ text: t("failed"), about: "command" });
     } else {
-      show({ text: outcome.state === "failed" ? t("failed") : t("unknown"), about: "command" });
+      show({ text: t("unknown"), about: "command", tone: "warning" });
     }
   }
 
@@ -534,9 +541,9 @@ function FeedbackReplyArea({
               <p className="jp-adminfeedback__replymeta">
                 <span>{formatDateTime(format, reply.createdAt) ?? <AdminUnknown />}</span>
                 <FeedbackReplyState state={reply.state} />
+                {reply.state === "unknown" ? <span>{t("unknownEntry")}</span> : null}
               </p>
               <p className="jp-adminfeedback__text">{reply.text}</p>
-              {reply.state === "unknown" ? <p className="jp-adminfeedback__none">{t("unknownEntry")}</p> : null}
             </li>
           ))}
         </ol>
@@ -558,7 +565,7 @@ function FeedbackReplyArea({
             rows={5}
             value={text}
             maxLength={FEEDBACK_REPLY_MAX}
-            readOnly={sending}
+            readOnly={sending || held}
             aria-invalid={line?.about === "value" ? true : undefined}
             aria-describedby={describedBy}
             onChange={(event) => setText(event.target.value)}
@@ -570,7 +577,14 @@ function FeedbackReplyArea({
             </button>
           </div>
           {line === null ? null : (
-            <p ref={lineRef} id={lineId} tabIndex={-1} role="alert" className="jp-adminfeedback__refusal">
+            <p
+              ref={lineRef}
+              id={lineId}
+              tabIndex={-1}
+              role="alert"
+              className="jp-adminfeedback__refusal"
+              data-tone={line.tone}
+            >
               {line.text}
             </p>
           )}

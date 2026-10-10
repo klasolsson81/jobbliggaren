@@ -159,9 +159,9 @@ export async function requeueFeedbackNotificationAction(
 
 /**
  * #2069 — mails a reply to the person behind a submission. A 200 is the reply's recorded outcome, whatever it was:
- * the reply was saved, so the page is revalidated to list it and the next reply takes a new key. A refusal the
- * backend documents saved nothing. Anything else, a lost response included, may sit over a saved reply; the
- * caller keeps the key, so sending again replays it instead of mailing twice.
+ * the reply was saved, so the page is revalidated to list it and the next reply takes a new key. Anything else, a
+ * lost response included, may sit over a saved reply; the caller keeps the key, so sending again replays it instead
+ * of mailing twice.
  */
 export async function sendFeedbackReplyAction(
   id: string,

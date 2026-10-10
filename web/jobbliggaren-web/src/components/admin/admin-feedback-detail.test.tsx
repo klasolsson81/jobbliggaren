@@ -350,7 +350,7 @@ describe("AdminFeedbackDetail — the reply (#2069)", () => {
     render(<Revalidating item={ITEM} onReply={onReply} />);
 
     expect(field()).toHaveAccessibleDescription(
-      "Svaret mejlas till konto.b@example.test och börjar med ”Hej,”. Svarar personen hamnar det i kontakt@jobbliggaren.se.",
+      "Svaret mejlas till konto.b@example.test och börjar med ”Hej,”. Personens svar kommer till kontakt@jobbliggaren.se.",
     );
     await userEvent.type(field(), "Tack för din feedback.");
     await userEvent.click(sendButton());
@@ -388,14 +388,16 @@ describe("AdminFeedbackDetail — the reply (#2069)", () => {
     const line = await within(detail()).findByRole("alert");
     expect(line).toHaveTextContent("Det gick inte att bekräfta om svaret sparades.");
     expect(line).toHaveFocus();
+    expect(line).toHaveAttribute("data-tone", "warning");
     expect(field()).toHaveValue("Tack.");
+    expect(field()).toHaveAttribute("readonly");
     await userEvent.click(sendButton());
 
     await waitFor(() => expect(onReply).toHaveBeenCalledTimes(2));
     expect(onReply.mock.calls[1]?.[1]).toBe(onReply.mock.calls[0]?.[1]);
   });
 
-  it("keeps the text after a refused send and takes a new key for the next one", async () => {
+  it("keeps the text after a failed send and takes a new key for the next one", async () => {
     const onReply = vi
       .fn<Commands["onReply"]>()
       .mockResolvedValueOnce({ kind: "recorded", state: "failed" })
@@ -420,9 +422,9 @@ describe("AdminFeedbackDetail — the reply (#2069)", () => {
     await userEvent.type(field(), "Tack.");
     await userEvent.click(sendButton());
 
-    expect(await within(detail()).findByRole("alert")).toHaveTextContent(
-      "Det gick inte att bekräfta om svaret skickades. Det kan ha kommit fram.",
-    );
+    const line = await within(detail()).findByRole("alert");
+    expect(line).toHaveTextContent("Det gick inte att bekräfta om svaret kom fram. Skickar du igen kan personen få det två gånger.");
+    expect(line).toHaveAttribute("data-tone", "warning");
     expect(within(detail()).getByText("Kan ha kommit fram. Ett nytt svar kan ge en dubblett.")).toBeInTheDocument();
     expect(getAdminToastSnapshot()).toBeNull();
   });

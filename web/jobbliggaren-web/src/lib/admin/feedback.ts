@@ -78,7 +78,7 @@ export const FEEDBACK_REPLIES_MAX = 10;
 
 /**
  * What sending a reply came to (#2069). `recorded`: the reply was saved and its outcome is the state, so the
- * next reply is a new one. `refused`: nothing was saved. `unanswered`: the request got no answer, so it may or
+ * next reply is a new one. `unanswered`: the request got no answer, so it may or
  * may not have been saved, and a retry must carry the same key to replay it rather than send again.
  */
 export type AdminFeedbackReplyOutcome =

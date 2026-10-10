@@ -413,7 +413,7 @@ test("a reply goes through its Server Action with its own key, confirms with a r
 
 for (const [outcome, line, listed] of [
   ["Failed", "E-posttjänsten tog inte emot svaret, så inget skickades. Du kan skicka igen.", "Misslyckades"],
-  ["Unknown", "Det gick inte att bekräfta om svaret skickades. Det kan ha kommit fram.", "Utfall okänt"],
+  ["Unknown", "Det gick inte att bekräfta om svaret kom fram. Skickar du igen kan personen få det två gånger.", "Utfall okänt"],
 ] as const) {
   test(`a reply the provider recorded as ${outcome} says so beside the button and keeps the text (#2069)`, async ({ page }) => {
     harness.feedbackReplyOutcome = outcome;
@@ -430,6 +430,20 @@ for (const [outcome, line, listed] of [
     await atBothWidths(page, `reply-${outcome.toLowerCase()}`);
   });
 }
+
+test("a long reporter address wraps in the reply's hint instead of scrolling the page sideways (#2069)", async ({ page }) => {
+  const record = harness.feedback.get(ids.queued);
+  if (record === undefined) throw new Error("fixture missing");
+  harness.feedback.set(ids.queued, { ...record, reporterEmail: "annakarinlindqvistjohansson@kommunforbundetexempel.example" });
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  await expect(replyField(page)).toBeVisible();
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `the page scrolls sideways at ${width}px`).toBeLessThanOrEqual(0);
+  }
+});
 
 test("an empty reply is refused on the field and sends nothing (#2069)", async ({ page }) => {
   await page.goto(`${PAGE}?id=${ids.queued}`);

@@ -114,16 +114,37 @@ public class CvCriterionVerdictTests
     // ===============================================================
 
     [Fact]
-    public void NotAssessed_ShouldHaveEmptyEvidenceAndTheReason_WhenCalled()
+    public void NotAssessed_ShouldHaveEmptyEvidenceTheReasonAndItsKind_WhenCalled()
     {
-        const string reason = "Kräver annonskontext (A3 är annonsberoende, ej v1).";
+        const string reason = "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen.";
 
-        var verdict = CvCriterionVerdict.NotAssessed("A3", RubricCategory.Content, reason);
+        var verdict = CvCriterionVerdict.NotAssessed(
+            "A3", RubricCategory.Content, NotAssessedKind.RequiresJobAd, reason);
 
         verdict.CriterionId.ShouldBe("A3");
         verdict.Category.ShouldBe(RubricCategory.Content);
         verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         verdict.Evidence.ShouldBeEmpty();
         verdict.NotAssessedReason.ShouldBe(reason);
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.RequiresJobAd);
+    }
+
+    [Fact]
+    public void NotAssessed_ShouldThrow_WhenTheKindIsUndefined()
+    {
+        // A cast integer is the only way to reach an undefined member; `default` would silently
+        // mean the first one, which is why the factory checks rather than trusting the type.
+        Should.Throw<ArgumentOutOfRangeException>(() => CvCriterionVerdict.NotAssessed(
+            "A3", RubricCategory.Content, (NotAssessedKind)99, "Ett skäl."));
+    }
+
+    [Fact]
+    public void Assessed_ShouldCarryNoNotAssessedKind_WhenCalled()
+    {
+        var verdict = CvCriterionVerdict.Assessed("A1", RubricCategory.Content, CriterionVerdict.Pass,
+            [new StructuralEvidence("En iakttagelse.")]);
+
+        verdict.NotAssessedKind.ShouldBeNull();
+        verdict.NotAssessedReason.ShouldBeNull();
     }
 }

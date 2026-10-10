@@ -352,9 +352,8 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         // Never Pass: a single/no marker does not prove the full B5 (typsnitt, rubriknivåer)
         // is consistent — that needs PDF geometry (deferred, honest ceiling). Reason is
         // versioned rubric DATA (ADR 0071 reasons-as-data); N-1 fallback stays civic.
-        return CvCriterionVerdict.NotAssessed("B5", category,
-            context.Criterion.NotAssessedReason
-            ?? "Formateringens konsekvens bedöms inte i den här versionen.");
+        return context.NotAssessedFromRubric(
+            NotAssessedKind.NotInVersion, "Formateringens konsekvens bedöms inte i den här versionen.");
     }
 
     // The leading bullet glyph of a trimmed line, or null when the line does not start with a
@@ -400,8 +399,7 @@ internal sealed class B6DateFormatRule : ICriterionRule
 
         if (formats.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B6", category, "Perioderna kunde inte tolkas. Datumformat-konsekvens bedöms ej v1.");
+            return ReviewText.UnparsedPeriods(context);
         }
 
         // The distinct-format ceiling is rubric v1.2 DATA (thresholds.maxDistinctDateFormats),
@@ -426,8 +424,7 @@ internal sealed class B7ChronologyRule : ICriterionRule
 
         if (dated.Count == 0)
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B7", category, "Perioderna kunde inte tolkas. Kronologi bedöms ej v1.");
+            return ReviewText.UnparsedPeriods(context);
         }
 
         if (dated.Count == 1)
@@ -466,8 +463,8 @@ internal sealed partial class B8FileNameRule : ICriterionRule
 
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            return CvCriterionVerdict.NotAssessed(
-                "B8", category, "Källfilens namn saknas. Filnamnsrekommendationen bedöms ej.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "Filnamnet kunde inte läsas ur källfilen.");
         }
 
         if (RecommendedRegex().IsMatch(fileName))
@@ -508,8 +505,8 @@ internal sealed class B2PageCountRule : ICriterionRule
 
         if (context.Layout?.PageCount is not { } pages)
         {
-            return CvCriterionVerdict.NotAssessed("B2", category,
-                context.Criterion.NotAssessedReason ?? "CV-längden kunde inte läsas ur källfilen.");
+            return context.NotAssessedFromRubric(
+                NotAssessedKind.TextOnly, "CV-längden kunde inte läsas ur källfilen.");
         }
 
         // The recommended page ceiling is rubric v2.1 DATA (thresholds.maxPages), read fail-loud.

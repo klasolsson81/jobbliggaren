@@ -75,6 +75,16 @@ internal sealed record CriterionEvaluationContext(
     /// <summary>The detected/known section kinds (D6) — parse-confidence-derived for
     /// staging, known-by-construction from the linearizer for canonical.</summary>
     public IReadOnlyList<ParsedSectionKind> DetectedSections => Review.DetectedSections;
+
+    /// <summary>
+    /// A NotAssessed verdict for this criterion carrying the rubric's (kind, reason) pair when the
+    /// asset authors both, otherwise the given code fallback pair (#2083). The pair is taken whole
+    /// or not at all, so a rubric reason is never shown beside a kind it was not authored with.
+    /// </summary>
+    public CvCriterionVerdict NotAssessedFromRubric(NotAssessedKind fallbackKind, string fallbackReason) =>
+        Criterion is { NotAssessedKind: { } kind, NotAssessedReason: { } reason }
+            ? CvCriterionVerdict.NotAssessed(Criterion.Id, Criterion.Category, kind, reason)
+            : CvCriterionVerdict.NotAssessed(Criterion.Id, Criterion.Category, fallbackKind, fallbackReason);
 }
 
 /// <summary>

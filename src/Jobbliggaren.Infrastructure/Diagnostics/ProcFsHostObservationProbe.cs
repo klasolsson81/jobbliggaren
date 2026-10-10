@@ -62,7 +62,7 @@ public sealed class ProcFsHostObservationProbe : IHostObservationProbe
         var at = Stopwatch.GetElapsedTime(0);
         if (!text.IsOk)
         {
-            return ProbeResult.Fail<CpuCounters>(text.Failure!.Value);
+            return ProbeResult.Fail<CpuCounters>(text.Failure ?? HostMetricReason.ReadFailed);
         }
 
         return ProcStatParser.TryParse(text.Value, out var busy, out var idle)
@@ -80,7 +80,7 @@ public sealed class ProcFsHostObservationProbe : IHostObservationProbe
         var text = ReadBounded(Path.Combine(_procRoot, "meminfo"));
         if (!text.IsOk)
         {
-            return ProbeResult.Fail<MemoryReading>(text.Failure!.Value);
+            return ProbeResult.Fail<MemoryReading>(text.Failure ?? HostMetricReason.ReadFailed);
         }
 
         return ProcMeminfoParser.TryParse(text.Value, out var total, out var available)

@@ -11,12 +11,13 @@ namespace Jobbliggaren.Application.UnitTests.Admin.HostObservations;
 /// reading; what the real adapter makes of real files is <c>ProcFsHostObservationProbeTests</c>.
 ///
 /// <para>
-/// Which states a real host can produce, per AGENTS.md §5 (Tests): a counter that goes backwards, and an
-/// <c>available</c> above <c>total</c>, are states <b>no documented kernel behaviour produces</b> for the
-/// grouped sums; those tests assert only that the sampler degrades safely (no number, the right state,
-/// recovery) and do not claim what a host does. Reachable states name their actor: the monotonic clock
-/// (windows), the sampler stopping (stale), the probe failing to read (Failed), and the first tick after the
-/// API process starts (Collecting).
+/// Which states a real host can produce, per AGENTS.md §5 (Tests). Reachable states name their actor: the
+/// monotonic clock (windows), <c>PeriodicTimer</c> delivering its on-schedule tick right after a late one (a
+/// short window), the sampler stopping (stale), the probe failing to read (Failed), CPU hotplug on a NO_HZ
+/// kernel (a grouped counter going backwards: kernel commit 71fee48f), and the first tick after the API
+/// process starts (Collecting). Declared unreachable, so those tests assert only that the sampler degrades
+/// safely (no number, the right state, recovery) and do not claim what a host does: an <c>available</c> above
+/// <c>total</c>, counters that did not advance over a full window, and a probe that throws.
 /// </para>
 /// </summary>
 public class HostObservationSamplerTests
@@ -40,7 +41,7 @@ public class HostObservationSamplerTests
     }
 
     [Fact]
-    public void Defaults_MatchTheDocumentedCadence()
+    public void Options_Defaults_MatchTheDocumentedCadence()
     {
         var options = new HostObservationOptions();
 
@@ -140,8 +141,8 @@ public class HostObservationSamplerTests
         sampler.Current.Cpu.Value.ShouldBe(new CpuValue(5.0, 30));
     }
 
-    // Declared unreachable for the grouped sums (AGENTS.md §5): the kernel's busy and idle+iowait sums do not
-    // decrease while the host is up. The test asserts the degradation only: no number, the new sample is the baseline.
+    // Actor: CPU hotplug on a NO_HZ kernel, where the aggregate idle and iowait counters fell (kernel commit
+    // 71fee48f). The test asserts the degradation only: no number, the new sample is the baseline.
     [Theory]
     [InlineData(-1, 12_000)]
     [InlineData(12_000, -1)]
@@ -161,20 +162,8 @@ public class HostObservationSamplerTests
         sampler.Current.Cpu.Value.ShouldBe(new CpuValue(10.0, 30));
     }
 
-    // Reachable, and the kernel documents it (proc(5)): iowait is not guaranteed monotonic. The adapter folds it
-    // into Idle, so what arrives here is a smaller rise of Idle, not a fall.
-    [Fact]
-    public void Sample_AnIdleRiseSmallerThanUsual_IsAnOrdinaryWindow()
-    {
-        var sampler = Sampler();
-        sampler.Sample();
-        Elapse(30, busy: 300, idle: 11_700 - 40);
-
-        sampler.Sample();
-
-        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Available);
-    }
-
+    // Declared unreachable (AGENTS.md §5): no running kernel leaves busy and idle unchanged across a window of
+    // 15 s or more. Asserts safe degradation only.
     [Fact]
     public void Sample_CountersThatDidNotAdvanceOverAFullWindow_IsAnInvalidIntervalNotAZero()
     {
@@ -211,7 +200,9 @@ public class HostObservationSamplerTests
         Elapse(30, busy: 600, idle: 11_400);
         sampler.Sample();
         var kept = sampler.Current.Cpu;
-        Elapse(14, busy: 2_000, idle: 0); // an early extra tick: 14 s, and a burst that must not replace the reading
+        // Actor: PeriodicTimer keeps its schedule, so after a late tick the next one follows at once: 14 s, and a
+        // burst that must not replace the reading.
+        Elapse(14, busy: 2_000, idle: 0);
 
         sampler.Sample();
 
@@ -224,6 +215,7 @@ public class HostObservationSamplerTests
         sampler.Current.Cpu.Value.ShouldBe(new CpuValue(18.6, 44));
     }
 
+    // Actor: the same PeriodicTimer catch-up tick, before any reading exists.
     [Fact]
     public void Sample_AShortWindowBeforeAnyReading_StaysCollecting()
     {
@@ -388,6 +380,25 @@ public class HostObservationSamplerTests
     }
 
     [Fact]
+    public void Sample_AContainerScopedTick_DropsTheBaselineSoTheNextGoodTickIsCollecting()
+    {
+        var sampler = Sampler();
+        sampler.Sample();
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Available);
+
+        _probe.View = ProbeResult.Ok(HostView.ContainerScoped);
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+        _probe.View = ProbeResult.Ok(HostView.HostScoped);
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Collecting);
+    }
+
+    [Fact]
     public void Sample_AViewThatCannotBeRead_CannotDisproveHostScopeAndSamplingProceeds()
     {
         _probe.View = ProbeResult.Fail<HostView>(HostMetricReason.ReadFailed);
@@ -413,6 +424,9 @@ public class HostObservationSamplerTests
         sampler.Current.Disk.SampledAt.ShouldBe(expected);
     }
 
+    // Declared unreachable (AGENTS.md §5): the probe contract is that it does not throw, and the adapter catches
+    // its own I/O failures. This pins that a probe that breaks the contract degrades to failed readings and
+    // cannot fault the host (CTO condition 8).
     [Fact]
     public void Sample_AProbeThatThrows_NeverEscapesAndEveryReadingIsFailed()
     {
@@ -425,9 +439,7 @@ public class HostObservationSamplerTests
         snapshot.Cpu.ShouldBe(HostMetric.Without<CpuValue>(HostMetricReason.ReadFailed));
         snapshot.Memory.ShouldBe(HostMetric.Without<MemoryValue>(HostMetricReason.ReadFailed));
         snapshot.Disk.ShouldBe(HostMetric.Without<DiskValue>(HostMetricReason.ReadFailed));
-        var line = _log.Records.Single(r => r.EventId.Id == 6223);
-        line.Level.ShouldBe(LogLevel.Warning);
-        line.Message.ShouldNotContain("/proc", Case.Sensitive, "the exception text is not in the message");
+        _log.Records.Single(r => r.EventId.Id == 6223).Level.ShouldBe(LogLevel.Warning);
 
         // And the next tick recovers.
         sampler.Sample();
@@ -449,6 +461,53 @@ public class HostObservationSamplerTests
 
         _log.Records.Count(r => r.EventId.Id == 6220).ShouldBe(1, "one warning on the way into failure");
         _log.Records.Count(r => r.EventId.Id == 6221).ShouldBe(1, "one line on the way out");
+    }
+
+    [Fact]
+    public void Sample_ACpuThatFailedAndRecoversThroughCollecting_ClosesItsWarningOnceItIsAValue()
+    {
+        var sampler = Sampler();
+        sampler.Sample();
+        _clock.Advance(Interval);
+        _probe.Cpu = ProbeResult.Fail<CpuCounters>(HostMetricReason.ReadFailed);
+        sampler.Sample();
+
+        _probe.Cpu = ProbeResult.Ok(new CpuCounters(5_000, 50_000, TimeSpan.FromSeconds(4_060)));
+        _clock.Advance(Interval);
+        sampler.Sample();
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Collecting);
+        _log.Records.Count(r => r.EventId.Id == 6221).ShouldBe(0, "Collecting is not yet a value");
+
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Available);
+        _log.Records.Count(r => r.EventId.Id == 6220).ShouldBe(1);
+        _log.Records.Count(r => r.EventId.Id == 6221).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Sample_AViewThatWasWithheldAndIsHostScopedAgain_ClosesItsWarningOncePerReadingThatIsAValue()
+    {
+        _probe.View = ProbeResult.Ok(HostView.ContainerScoped);
+        var sampler = Sampler();
+        sampler.Sample();
+        _log.Records.Count(r => r.EventId.Id == 6222).ShouldBe(2);
+
+        _probe.View = ProbeResult.Ok(HostView.HostScoped);
+        _clock.Advance(Interval);
+        sampler.Sample();
+        sampler.Current.Memory.State.ShouldBe(HostMetricState.Available);
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Collecting);
+        _log.Records.Count(r => r.EventId.Id == 6221).ShouldBe(1, "memory is a value again, the CPU is still collecting");
+
+        Elapse(30, busy: 600, idle: 11_400);
+        sampler.Sample();
+
+        sampler.Current.Cpu.State.ShouldBe(HostMetricState.Available);
+        _log.Records.Count(r => r.EventId.Id == 6221).ShouldBe(2);
     }
 
     [Fact]

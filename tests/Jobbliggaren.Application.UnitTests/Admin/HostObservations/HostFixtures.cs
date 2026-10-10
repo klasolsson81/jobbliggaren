@@ -4,12 +4,12 @@ namespace Jobbliggaren.Application.UnitTests.Admin.HostObservations;
 /// Real kernel and runtime output, captured read-only on the production box (CLAUDE.md §9.2), so the parsers
 /// are tested against what a producer emits and not against a shape imagined here (AGENTS.md §5, Tests).
 /// Numbers and mount names only: no personal data, no secret. Container ids in the mountinfo are replaced
-/// by zeros; nothing else is edited.
+/// by zeros and the boot time of /proc/stat is zeroed; nothing else is edited.
 /// </summary>
 internal static class HostFixtures
 {
     /// <summary>
-    /// Producer: Linux 6.12.101+deb13-amd64, 4 vCPU KVM guest (AMD EPYC), <c>cat /proc/stat</c> over SSH,
+    /// Producer: Linux 6.12 (Debian 13), 4 vCPU KVM guest (AMD EPYC), <c>cat /proc/stat</c> over SSH,
     /// 2026-10-10T13:52:20Z. The aggregate line is the 10-column form: user 20067891, nice 69831,
     /// system 9369748, idle 1889627981, iowait 820642, irq 0, softirq 1674696, steal 4422, guest 0, guest_nice 0.
     /// </summary>
@@ -21,7 +21,7 @@ cpu2 5062904 18471 2357588 472276089 209878 0 124050 910 0 0
 cpu3 5026520 17334 2341603 472401442 212376 0 188150 1178 0 0
 intr 5179868424 0 9 0 0 0 0 3 0 0 0 714633 32 15 0 4781549 0 0 0 0 0 0 0 0 0 0 148 0 2743001 1612995 3376952 1650290 3021749 1721275 4290248 1696457 0 16089802 17630895 17707992 17524069 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 ctxt 19351420004
-btime 1786820656
+btime 0
 processes 61654546
 procs_running 1
 procs_blocked 0
@@ -93,7 +93,7 @@ DirectMap1G:     3145728 kB
 """;
 
     /// <summary>
-    /// Producer: Docker 29.7.1 with runc on Debian 13, cgroup v2, no lxcfs; <c>/proc/self/mountinfo</c> read
+    /// Producer: Docker 29 with runc on Debian 13, cgroup v2, no lxcfs; <c>/proc/self/mountinfo</c> read
     /// inside the production API container, 2026-10-10. No mount stands behind <c>/proc/stat</c> or
     /// <c>/proc/meminfo</c>; <c>/proc</c> is <c>proc</c>. The container's <c>memory.max</c> on that day was
     /// 1073741824 (1 GiB).

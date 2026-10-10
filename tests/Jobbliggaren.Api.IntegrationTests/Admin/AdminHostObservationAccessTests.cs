@@ -147,16 +147,19 @@ public sealed class AdminHostObservationAccessTests(ApiFactory factory)
         response.Headers.GetValues(SampledAtHeader).ShouldHaveSingleItem()
             .ShouldBe(clock.UtcNow.ToString("O", CultureInfo.InvariantCulture), "the header is the API read instant");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
-        Names(body).ShouldBe(["readAt", "staleAfterSeconds", "cpu", "memory", "disk"]);
+        Names(body).ShouldBe(["staleAfterSeconds", "cpu", "memory", "disk"]);
         body.GetProperty("staleAfterSeconds").GetInt32().ShouldBe(120);
         body.GetProperty("cpu").GetProperty("state").GetString().ShouldBe("Available");
         Names(body.GetProperty("cpu")).ShouldBe(["state", "sampledAt", "value"]);
+        Names(body.GetProperty("cpu").GetProperty("value")).ShouldBe(["percent", "windowSeconds"]);
+        Names(body.GetProperty("memory").GetProperty("value")).ShouldBe(["percent", "usedBytes", "totalBytes"]);
+        Names(body.GetProperty("disk").GetProperty("value")).ShouldBe(["percent", "freeBytes", "totalBytes"]);
         body.GetProperty("cpu").GetProperty("value").GetProperty("percent").GetDouble().ShouldBe(5.0);
         body.GetProperty("memory").GetProperty("value").GetProperty("totalBytes").GetInt64().ShouldBe(8_135_992L * 1024);
         body.GetProperty("disk").GetProperty("value").GetProperty("freeBytes").GetInt64().ShouldBe(242_287_181_824);
-        // The reading is 5 s old and its own time is not the read time.
+        // The reading is 5 s old and its own time is not the read time, which is the header's.
         DateTimeOffset.Parse(body.GetProperty("cpu").GetProperty("sampledAt").GetString()!, CultureInfo.InvariantCulture)
-            .ShouldBeLessThan(DateTimeOffset.Parse(body.GetProperty("readAt").GetString()!, CultureInfo.InvariantCulture));
+            .ShouldBeLessThan(clock.UtcNow);
     }
 
     [Fact]
@@ -188,6 +191,8 @@ public sealed class AdminHostObservationAccessTests(ApiFactory factory)
         text.ShouldNotContain("PlatformUnsupported");
     }
 
+    // Actor: a failing log sink in the Mediator pipeline throws inside mediator.Send. The stubbed reader is only
+    // the seam that makes an exception escape the handler; what is asserted is the privacy of the route's 5xx.
     [Fact]
     public async Task Host_ShouldReturnPrivateFailure_WhenTheReaderThrows()
     {

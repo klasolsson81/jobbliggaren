@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Jobbliggaren.Application.Admin.HostObservations;
 using Jobbliggaren.Infrastructure.Diagnostics;
 using Shouldly;
@@ -59,6 +60,19 @@ public sealed class ProcFsHostObservationProbeTests : IDisposable
         first.IsOk.ShouldBeTrue();
         (first.Value.Busy, first.Value.Idle).ShouldBe((HostFixtures.ProcStatBusy, HostFixtures.ProcStatIdle));
         second.Value.At.ShouldBeGreaterThanOrEqualTo(first.Value.At, "the stamp is taken from a monotonic clock");
+    }
+
+    [Fact]
+    public void ReadCpu_StampsTheMonotonicClockAtTheRead()
+    {
+        HealthyHost();
+        var probe = Probe();
+
+        var before = Stopwatch.GetElapsedTime(0);
+        var read = probe.ReadCpu();
+        var after = Stopwatch.GetElapsedTime(0);
+
+        read.Value.At.ShouldBeInRange(before, after);
     }
 
     [Fact]
@@ -137,6 +151,22 @@ public sealed class ProcFsHostObservationProbeTests : IDisposable
     }
 
     [Fact]
+    public void Read_OfAFileExactlyAtTheBound_IsAccepted()
+    {
+        Write(Proc("stat"), HostFixtures.ProcStat + new string('\n', 64 * 1024 - HostFixtures.ProcStat.Length));
+
+        Probe().ReadCpu().IsOk.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Read_OfAFileOneByteOverTheBound_IsRefused()
+    {
+        Write(Proc("stat"), HostFixtures.ProcStat + new string('\n', 64 * 1024 + 1 - HostFixtures.ProcStat.Length));
+
+        Probe().ReadCpu().Failure.ShouldBe(HostMetricReason.Implausible);
+    }
+
+    [Fact]
     public void ReadHostView_TheProductionContainer_IsHostScoped()
     {
         HealthyHost(); // memory.max 1 GiB, far below the 8 GiB the host reports
@@ -155,7 +185,7 @@ public sealed class ProcFsHostObservationProbeTests : IDisposable
     [Fact]
     public void ReadHostView_ALimitJustBelowMemTotal_IsStillTheHost()
     {
-        HealthyHost("8331255807\n");
+        HealthyHost("8331251712\n");
 
         Probe().ReadHostView().ShouldBe(ProbeResult.Ok(HostView.HostScoped));
     }
@@ -165,7 +195,7 @@ public sealed class ProcFsHostObservationProbeTests : IDisposable
     [Fact]
     public void ReadHostView_ALimitAboveMemTotal_FailsSafeAsContainerScoped()
     {
-        HealthyHost("99999999999999\n");
+        HealthyHost("100000000000000\n");
 
         Probe().ReadHostView().ShouldBe(ProbeResult.Ok(HostView.ContainerScoped));
     }
@@ -189,10 +219,10 @@ public sealed class ProcFsHostObservationProbeTests : IDisposable
     }
 
     [Fact]
-    public void ReadHostView_WhenTheMountTableIsMissingTheLimitStillSpeaks()
+    public void ReadHostView_WhenTheMountTableIsOverTheBound_TheLimitStillSpeaks()
     {
         HealthyHost("8331255808\n");
-        File.Delete(Proc("mountinfo"));
+        Write(Proc("mountinfo"), HostFixtures.ContainerMountInfo + new string('\n', 70 * 1024));
 
         Probe().ReadHostView().ShouldBe(ProbeResult.Ok(HostView.ContainerScoped));
     }

@@ -36,10 +36,7 @@ public sealed partial class HostObservationSampler(
 
     public HostObservationSnapshot Current => Volatile.Read(ref _current);
 
-    /// <summary>
-    /// Reads the host once and publishes the result. Never throws: a telemetry component must not be able
-    /// to fault the process it runs in (the same rule as the Worker's memory sampler).
-    /// </summary>
+    /// <summary>Reads the host once and publishes the result.</summary>
     public void Sample()
     {
         lock (_gate)
@@ -99,7 +96,7 @@ public sealed partial class HostObservationSampler(
         if (!read.IsOk)
         {
             _baseline = null;
-            return HostMetric.Without<CpuValue>(read.Failure!.Value);
+            return HostMetric.Without<CpuValue>(read.Failure ?? HostMetricReason.ReadFailed);
         }
 
         var current = read.Value;
@@ -157,7 +154,7 @@ public sealed partial class HostObservationSampler(
 
         if (!read.IsOk)
         {
-            return HostMetric.Without<MemoryValue>(read.Failure!.Value);
+            return HostMetric.Without<MemoryValue>(read.Failure ?? HostMetricReason.ReadFailed);
         }
 
         var (total, available) = (read.Value.TotalBytes, read.Value.AvailableBytes);
@@ -174,7 +171,7 @@ public sealed partial class HostObservationSampler(
     {
         if (!read.IsOk)
         {
-            return HostMetric.Without<DiskValue>(read.Failure!.Value);
+            return HostMetric.Without<DiskValue>(read.Failure ?? HostMetricReason.ReadFailed);
         }
 
         var (size, free, totalFree) = (read.Value.TotalBytes, read.Value.FreeBytes, read.Value.TotalFreeBytes);
@@ -196,27 +193,41 @@ public sealed partial class HostObservationSampler(
         Math.Round(100.0 * part / whole, 1, MidpointRounding.AwayFromZero);
 
     // Logged on the edge of a state, never per tick: a host that stays unreadable is one line, not 2 880 a day.
+    // A failed or withheld reading is recovered once it is a value again, Collecting on the way included.
+    private bool _cpuAwaitingRecovery;
+    private bool _memoryAwaitingRecovery;
+    private bool _diskAwaitingRecovery;
+
     private void LogEdges(HostObservationSnapshot previous, HostObservationSnapshot next)
     {
-        LogEdge("cpu", previous.Cpu, next.Cpu);
-        LogEdge("memory", previous.Memory, next.Memory);
-        LogEdge("disk", previous.Disk, next.Disk);
+        LogEdge("cpu", previous.Cpu, next.Cpu, ref _cpuAwaitingRecovery);
+        LogEdge("memory", previous.Memory, next.Memory, ref _memoryAwaitingRecovery);
+        LogEdge("disk", previous.Disk, next.Disk, ref _diskAwaitingRecovery);
     }
 
-    private void LogEdge<T>(string metric, HostMetric<T> previous, HostMetric<T> next)
+    private void LogEdge<T>(string metric, HostMetric<T> previous, HostMetric<T> next, ref bool awaitingRecovery)
         where T : class
     {
         if (next.State == HostMetricState.Failed && previous.State != HostMetricState.Failed)
         {
-            LogMetricFailed(logger, metric, next.Reason!.Value);
+            LogMetricFailed(logger, metric, next.Reason ?? HostMetricReason.ReadFailed);
         }
         else if (next.Reason == HostMetricReason.HostViewUnverified && previous.Reason != HostMetricReason.HostViewUnverified)
         {
             LogHostViewUnverified(logger, metric);
         }
-        else if (previous.State == HostMetricState.Failed && next.State == HostMetricState.Available)
+        else if (awaitingRecovery && next.State == HostMetricState.Available)
         {
             LogMetricRecovered(logger, metric);
+        }
+
+        if (next.State == HostMetricState.Failed || next.Reason == HostMetricReason.HostViewUnverified)
+        {
+            awaitingRecovery = true;
+        }
+        else if (next.State == HostMetricState.Available)
+        {
+            awaitingRecovery = false;
         }
     }
 

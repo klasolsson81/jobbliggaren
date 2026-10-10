@@ -6,7 +6,7 @@ namespace Jobbliggaren.Api.Hosting;
 /// <summary>
 /// Calls the host sampler on a timer for the lifetime of the API (#1982): once at once, so memory and disk
 /// are known within the first second of a release, then every <c>SampleIntervalSeconds</c>. A
-/// <c>PeriodicTimer</c> on the wall-clock, not a Hangfire job: the sampler must not wait for a worker slot.
+/// <c>PeriodicTimer</c>, not a Hangfire job: the sampler must not wait for a worker slot.
 ///
 /// <para>
 /// <b>It must never be able to stop the host.</b> <c>BackgroundServiceExceptionBehavior</c> defaults to
@@ -52,7 +52,6 @@ public sealed partial class HostObservationService(
         }
         catch (Exception ex)
         {
-            // The sampler contract says it does not throw; this is the last line should that ever change.
             // Nested: the realistic way to reach it is a failing log sink, which would throw here as well.
             try
             {

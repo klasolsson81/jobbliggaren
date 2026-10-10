@@ -43,7 +43,7 @@ public class ProcParsersTests
 
     [Theory]
     [InlineData("cpu 10 0 0 90 0 0 0 0\n")] // eight columns: Linux 2.6.11 and later, through steal
-    [InlineData("cpu  10 0 0 90 0 0 0 0 0 0\r\n")] // CRLF
+    [InlineData("cpu  10 0 0 90 0 0 0 0 0 0\r\n")] // CRLF: not the kernel's; this repository's core.autocrlf checkout of the fixtures
     [InlineData("cpu\t10 0 0 90 0 0 0 0 0 0\n")] // a tab after the name
     [InlineData("cpu  10 0 0 90 0 0 0 0 0 0 5 5\n")] // columns a future kernel adds are ignored
     public void ProcStat_AcceptsTheDocumentedShapes(string text)
@@ -123,6 +123,8 @@ public class ProcParsersTests
         ProcMountInfo.IsContainerScoped(HostFixtures.LxcfsMountInfo).ShouldBeTrue();
     }
 
+    // The "/proc is not procfs" row is declared unreachable (AGENTS.md §5): no runtime this stack runs on emits
+    // it. It asserts only that the guard fails safe, as container-scoped.
     [Theory]
     [InlineData("612 415 0:140 /proc/meminfo /proc/meminfo rw - fuse.lxcfs lxcfs rw")]
     [InlineData("613 415 0:140 /proc/stat /proc/stat rw,nosuid master:3 - fuse.lxcfs lxcfs rw")] // an optional field before the dash

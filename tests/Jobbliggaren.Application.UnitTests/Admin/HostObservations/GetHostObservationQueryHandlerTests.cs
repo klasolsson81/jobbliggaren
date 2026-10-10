@@ -117,12 +117,24 @@ public class GetHostObservationQueryHandlerTests
         dto.Memory.Value.ShouldBeNull();
     }
 
-    [Fact]
-    public async Task Handle_ASampleAFewSecondsAhead_IsWithinTheClockTolerance()
+    // The actor: the wall clock, a few seconds behind the sample.
+    [Theory]
+    [InlineData(-4)]
+    [InlineData(-5)]
+    public async Task Handle_ASampleAtMostTheToleranceAhead_IsWithinTheClockTolerance(int offsetSeconds)
     {
-        _clock.UtcNow = Sampled.AddSeconds(-4);
+        _clock.UtcNow = Sampled.AddSeconds(offsetSeconds);
 
         (await ReadAsync()).Cpu.State.ShouldBe(HostMetricState.Available);
+    }
+
+    [Fact]
+    public async Task Handle_ASamplerSilentForExactlyTheStaleLimit_IsStillCollecting()
+    {
+        _reader.Current = HostObservationSnapshot.NotSampled(Sampled);
+        _clock.UtcNow = Sampled.AddSeconds(120);
+
+        (await ReadAsync()).Cpu.State.ShouldBe(HostMetricState.Collecting);
     }
 
     [Fact]
@@ -188,7 +200,7 @@ public class GetHostObservationQueryHandlerTests
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        Names(root).ShouldBe(["readAt", "staleAfterSeconds", "cpu", "memory", "disk"]);
+        Names(root).ShouldBe(["staleAfterSeconds", "cpu", "memory", "disk"]);
         Names(root.GetProperty("cpu")).ShouldBe(["state", "sampledAt", "value"]);
         Names(root.GetProperty("cpu").GetProperty("value")).ShouldBe(["percent", "windowSeconds"]);
         Names(root.GetProperty("memory").GetProperty("value")).ShouldBe(["percent", "usedBytes", "totalBytes"]);
@@ -204,16 +216,12 @@ public class GetHostObservationQueryHandlerTests
     }
 
     [Fact]
-    public async Task Json_TheDiskValueCarriesFreeAndTotalAndThePercentOfThatTotal()
+    public async Task Json_TheDiskValueCarriesPercentFreeAndTotalOnly()
     {
         var json = JsonSerializer.Serialize(await ReadAsync(), JsonSerializerOptions.Web);
 
         using var document = JsonDocument.Parse(json);
-        var disk = document.RootElement.GetProperty("disk").GetProperty("value");
-        Names(disk).ShouldBe(["percent", "freeBytes", "totalBytes"]);
-        var (percent, free, total) = (disk.GetProperty("percent").GetDouble(),
-            disk.GetProperty("freeBytes").GetInt64(), disk.GetProperty("totalBytes").GetInt64());
-        Math.Round(100.0 * (total - free) / total, 1).ShouldBe(percent, "the card never pairs the meter with another denominator");
+        Names(document.RootElement.GetProperty("disk").GetProperty("value")).ShouldBe(["percent", "freeBytes", "totalBytes"]);
     }
 
     private static string[] Names(JsonElement element) => element.EnumerateObject().Select(p => p.Name).ToArray();

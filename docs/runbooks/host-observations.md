@@ -196,7 +196,7 @@ box to look at the card (§9.2 (d)); the signed-in check is Klas's.
 ```bash
 sudo cat /run/jobbliggaren/observations/backup.json
 stat -c '%y %s %a %U:%G' /run/jobbliggaren/observations/backup.json      # modified within the last minute
-docker inspect --format '{{range .Mounts}}{{.Source}} -> {{.Destination}} rw={{.RW}}{{"\n"}}{{end}}' jobbliggaren-prod-api-1 | grep observations   # rw=false
+docker inspect --format '{{range .Mounts}}{{.Source}} -> {{.Destination}} rw={{.RW}}{{"\n"}}{{end}}' jobbliggaren-api | grep observations   # rw=false
 ```
 
 Expected today, while the backup is not switched on (#197): `lastSuccess` `missing`, `timer` `inactive`. That

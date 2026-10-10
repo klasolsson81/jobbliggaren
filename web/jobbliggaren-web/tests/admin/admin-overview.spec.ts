@@ -131,6 +131,10 @@ for (const width of [1280, 640]) {
     for (const empty of [false, true]) {
       harness.overviewEmpty = empty;
       await page.goto("/admin");
+      // `evaluateAll` does not wait, and the cards stream in after the load event (#2067).
+      for (const name of ["Nya användare", "Användare totalt"])
+        await expect(card(page, name).getByRole("link").first()).toBeVisible();
+      await expect(card(page, "Kräver uppmärksamhet")).toContainText(empty ? "Inga misslyckade bakgrundsjobb." : "bakgrundsjobb har misslyckats");
       const targets = await card(page, "Nya användare").getByRole("link")
         .or(card(page, "Användare totalt").getByRole("link"))
         .or(card(page, "Kräver uppmärksamhet").getByRole("link")).evaluateAll(links => links.map(link => {

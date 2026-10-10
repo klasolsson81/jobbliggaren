@@ -71,8 +71,10 @@ Each file is `{"schema":1,"source":…,"sampledAt":…}` plus exactly one of `da
 is strict, and every rule is a typed refusal:
 
 - the directory is never listed: each source has one fixed file name;
-- the file is regular, not a symlink, at most 16 KiB, and the cap is enforced on the bytes read from the open handle;
-- valid UTF-8 and JSON, depth-capped, with no comment, no trailing comma and no repeated name;
+- the file is regular, not a symlink, not empty (a FIFO or a device reports no length and is refused before it is opened),
+  at most 16 KiB, and the cap is enforced on the bytes read from the open handle;
+- valid UTF-8 and JSON, depth-capped, with no backslash byte (the sampler never writes one, so no escape can alias a key or
+  a token), no comment, no trailing comma and no repeated name;
 - exactly the contract's keys, and every instant exactly `yyyy-MM-ddTHH:mm:ssZ`;
 - wire tokens mapped by an explicit switch, never `Enum.TryParse`;
 - nothing of the file, and no exception message, reaches a log or a response.
@@ -116,8 +118,10 @@ run's age are two facts: measuring the run against the sample would leave "not o
 
 The sampler runs every 60 s (`OnBootSec=30s`, `OnCalendar=minutely`, `AccuracySec=10s`, not `Persistent`: a sample describes
 now, and a catch-up run would publish one taken later than the interval it stands for). The overview's existing 60 s
-visibility-aware poll and its 5-min staleness are reused. The Backup read is one request, made **after** the three existing
-reads have passed their 401/403 check, so the work an unauthenticated caller can start stays at three requests (#2064). An
+visibility-aware poll and its 5-min staleness are reused. The Backup read is one request, made only once one of the three
+existing reads has succeeded and then beside the slower ones; when none has, it is not made and the card reads as failed. The
+work an unauthenticated caller can start therefore stays at three requests (#2064), and a later source goes through the same
+gate. The loader's worst case is the first success (at most the 10 s source deadline) plus the Backup read's own 10 s. An
 ordinary refresh failure keeps the last value and marks it at once; a 401 or 403 from the new source clears everything.
 Per sample the host runs one `systemctl show`, two file reads and one rename; per poll the API reads one file of at most
 16 KiB. The runbook (§3) gives the commands that regenerate the cost; this ADR holds no live figure.
@@ -129,10 +133,12 @@ admin already sees as stale, and the order of the reads keeps the pre-authorisat
 
 The card distinguishes available, loading, **awaiting**, failed and old. Awaiting is a host that has not reported (no
 directory configured, or no file in it yet): a quiet status line, not an alarm and not "Kommer snart", because the source
-is built. The rows are *Senaste lyckade körning*, *Extern kopia*, *Nästa planerade körning* and *Behålls*. *Extern kopia*
-and *Behålls* keep saying "Saknar verifierad datakälla" in every state. A recorded run is never shown as proof of a working
-restore: the card says it shows when the run last finished, and the restore drill owns the other claim
-(`backup-restore.md` §6).
+is built. The rows are *Senaste lyckade körning*, *Nästa planerade körning*, *Extern kopia* and *Behålls*: the two questions
+an admin asks of a backup sit side by side, before the two nothing observes. *Extern kopia* and *Behålls* keep saying "Saknar
+verifierad datakälla" in every state. A state that needs attention (no run recorded, an overdue run, a timer that is off or
+not installed) reads in one warning form, bold in the warning ink, and the words carry the meaning; an unknown timer stays an
+en-dash. A recorded run is never shown as proof of a working restore: nothing on the card claims it, and the restore drill
+owns the other claim (`backup-restore.md` §6).
 
 *Why.* ADR 0150 D2 says "Kommer snart" only of a capability that is not built. A source whose host has not reported is
 built, and until the sampler is enabled that is the expected state, not an error. The box holds no private key by design,
@@ -144,7 +150,9 @@ The sampler is not one of the heartbeat's floor timers: its only reader is the c
 observation, and the collector exits 0 on every path so that a cosmetic unit never lights `systemctl --failed`, the alarm
 surface the heartbeat pages from. The install is the runbook's §5 block. Under ADR 0154 §4 (A2) the merging session may
 advance the box's checkout and refresh a changed unit file (`install`, `daemon-reload`); **creating the account, the
-tmpfiles entry and enabling the new timer are one-off writes that need Klas's GO for exactly those lines.** Compose is
+tmpfiles entry (runbook §5 step 2), the transient measurement run of the sampler as that account (step 4) and enabling the
+new timer with its first `start` (step 6) are one-off writes that need Klas's GO for exactly those lines;** steps 1, 3 and
+5 are A2. Compose is
 release-bound, so this release's compose change freezes delivery until the checkout is advanced: every reconcile refuses
 and prints the command. An agent may read `backup.json` on the box (timestamps and tokens, CLAUDE.md §9.2 (a)); a
 signed-in look at the card is Klas's (§9.2 (d)).
@@ -155,8 +163,7 @@ the clearest case of the second kind.
 ### D7 — Scope boundary: this bridge is for what only the host can see
 
 Facts the container can observe for itself (the host's CPU, memory and disk through procfs and `statfs`) do not use this
-bridge. The Server card samples them in the API process, under its own record (ADR 0158, in preparation at the time of
-writing). The bridge carries what only the host can see: systemd and host files. A further source follows the runbook's §7
+bridge. The Server card samples them in the API process, under its own record. The bridge carries what only the host can see: systemd and host files. A further source follows the runbook's §7
 and, if it exceeds the content rule, a contract version.
 
 *Why.* Every source added widens what the mount can carry. A fact the API can read itself gains nothing from a writer
@@ -197,7 +204,8 @@ on the host.
 - This release's compose change freezes delivery until the box's checkout is advanced (D6, ADR 0154 Consequences).
 - `/run` is tmpfs, so a reboot empties the directory and the card reads "awaiting" until the first sample (`OnBootSec=30s`).
 - **Residuals, stated and not closed.** A file swapped between the reader's check and its open can be swapped only by the
-  sampler or root, and a FIFO at the file's name would block the read. Both need a writer the model already trusts.
+  sampler or root, and so can a FIFO put in its place after the length check, which would block the read. Both need a writer
+  the model already trusts.
 - **What is not claimed.** No offsite copy, no retention and no restore. A scheduled timer says when it fires, not that the
   credential its upload needs is present.
 

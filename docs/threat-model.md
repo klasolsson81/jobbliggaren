@@ -294,7 +294,7 @@ security review. The API treats the file as untrusted input: a regular file unde
 JSON, exact keys and tokens, a refusal with a typed reason and no echo of its content. The browser receives a
 closed union with no path, no run start and no message, and never causes the host to do anything.
 Residual, and stated as such: the account that writes the file, and root, can swap it between the API's
-check and its open or put a FIFO at its name; both are writers the model already trusts. The sampler is
+check and its open or put a FIFO in its place after the length check; both are writers the model already trusts. The sampler is
 not a heartbeat floor timer, because its only reader is the card, which shows a stopped sampler as an old
 observation.
 

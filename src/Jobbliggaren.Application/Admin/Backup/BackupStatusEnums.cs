@@ -36,7 +36,7 @@ public enum BackupStatusReason
     /// <summary>The sampler ran and said it could not establish the facts.</summary>
     SamplerError,
 
-    /// <summary>The sample is dated after now: a broken clock or a tampered file.</summary>
+    /// <summary>The sample is dated more than a minute after now: a broken clock or a tampered file.</summary>
     FutureSample,
 }
 

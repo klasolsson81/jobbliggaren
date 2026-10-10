@@ -30,7 +30,7 @@ public sealed record BackupStatusDto
 
     /// <summary>
     /// The host's own clock reading when it sampled: never the time of this API call, so an old
-    /// observation stays old. Absent when there is no sample, and when the sample is dated after now.
+    /// observation stays old. Absent when there is no sample, and when the sample is dated more than a minute after now.
     /// </summary>
     public DateTimeOffset? ObservedAt { get; }
 
@@ -52,14 +52,56 @@ public sealed record BackupStatusDto
         new(BackupStatus.Failed, reason, observedAt, null, null, null);
 }
 
-/// <param name="State">What the stamp says.</param>
-/// <param name="CompletedAt">The end of the last successful run. Present only when <paramref name="State"/> is Recorded.</param>
-/// <param name="Overdue">
-/// The last known success is older than the backup's own 26 h threshold, measured against the API's clock
-/// and not against the sample: a sampler that stopped must not leave the answer at "not overdue" for ever.
-/// </param>
-public sealed record BackupLastSuccessDto(BackupLastSuccessState State, DateTimeOffset? CompletedAt, bool? Overdue);
+/// <summary>The last successful run, as a closed union: a state with a time carries it, a state without one carries none.</summary>
+public sealed record BackupLastSuccessDto
+{
+    private BackupLastSuccessDto(BackupLastSuccessState state, DateTimeOffset? completedAt, bool? overdue)
+    {
+        State = state;
+        CompletedAt = completedAt;
+        Overdue = overdue;
+    }
 
-/// <param name="State">What systemd holds for the timer.</param>
-/// <param name="NextRunAt">The instant the timer is armed for. Present only when <paramref name="State"/> is Scheduled.</param>
-public sealed record BackupTimerDto(BackupTimerState State, DateTimeOffset? NextRunAt);
+    /// <summary>What the stamp says.</summary>
+    public BackupLastSuccessState State { get; }
+
+    /// <summary>The end of the last successful run. Present only when <see cref="State"/> is Recorded.</summary>
+    public DateTimeOffset? CompletedAt { get; }
+
+    /// <summary>
+    /// The last known success is older than the backup's own 26 h threshold, measured against the API's clock
+    /// and not against the sample: a sampler that stopped must not leave the answer at "not overdue" for ever.
+    /// </summary>
+    public bool? Overdue { get; }
+
+    public static BackupLastSuccessDto Recorded(DateTimeOffset completedAt, bool overdue) =>
+        new(BackupLastSuccessState.Recorded, completedAt, overdue);
+
+    public static BackupLastSuccessDto NotRecorded(BackupLastSuccessState state) =>
+        state == BackupLastSuccessState.Recorded
+            ? throw new ArgumentException("A recorded run has its time.", nameof(state))
+            : new(state, null, null);
+}
+
+/// <summary>The backup timer, as a closed union: a scheduled timer carries its next instant, any other state carries none.</summary>
+public sealed record BackupTimerDto
+{
+    private BackupTimerDto(BackupTimerState state, DateTimeOffset? nextRunAt)
+    {
+        State = state;
+        NextRunAt = nextRunAt;
+    }
+
+    /// <summary>What systemd holds for the timer.</summary>
+    public BackupTimerState State { get; }
+
+    /// <summary>The instant the timer is armed for. Present only when <see cref="State"/> is Scheduled.</summary>
+    public DateTimeOffset? NextRunAt { get; }
+
+    public static BackupTimerDto Scheduled(DateTimeOffset nextRunAt) => new(BackupTimerState.Scheduled, nextRunAt);
+
+    public static BackupTimerDto NotScheduled(BackupTimerState state) =>
+        state == BackupTimerState.Scheduled
+            ? throw new ArgumentException("A scheduled timer has its next instant.", nameof(state))
+            : new(state, null);
+}

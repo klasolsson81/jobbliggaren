@@ -420,7 +420,7 @@ services:
       # share this keyring.
       DataProtection__KeyPath: /keys
       # #1982, ADR 0157 — where the host sampler's files appear, matched by the read-only bind below.
-      # The Api reads the key name from HostBridgeOptions.DirectoryConfigKey and
+      # The key is HostBridgeOptions.DirectoryConfigKey, built from the options property's own name, and
       # DeployComposeHostBridgeTests pins that this value and the mount target stay the same path.
       # NOT passed to `worker`: it reads nothing from the host bridge.
       HostBridge__Directory: /run/observations

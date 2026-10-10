@@ -26,8 +26,8 @@ public class GetBackupStatusQueryHandlerTests
 
     private static BackupSample AnySample() => new(
         Sampled,
-        new BackupStampSample(BackupLastSuccessState.Missing),
-        new BackupTimerSample(BackupTimerState.Inactive));
+        new BackupStampSample.NotRecorded(BackupLastSuccessState.Missing),
+        new BackupTimerSample.NotScheduled(BackupTimerState.Inactive));
 
     private sealed class FakeSource(Func<CancellationToken, ValueTask<BackupSampleRead>> read) : IBackupSampleSource
     {
@@ -125,8 +125,8 @@ public class GetBackupStatusQueryHandlerTests
     {
         var observed = BackupStatusDto.Observed(
             Sampled, false,
-            new BackupLastSuccessDto(BackupLastSuccessState.Recorded, Sampled.AddHours(-11), false),
-            new BackupTimerDto(BackupTimerState.Scheduled, Sampled.AddHours(12)));
+            BackupLastSuccessDto.Recorded(Sampled.AddHours(-11), false),
+            BackupTimerDto.Scheduled(Sampled.AddHours(12)));
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(observed, JsonSerializerOptions.Web));
         var root = document.RootElement;

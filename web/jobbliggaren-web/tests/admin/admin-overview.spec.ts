@@ -131,6 +131,10 @@ for (const width of [1280, 640]) {
     for (const empty of [false, true]) {
       harness.overviewEmpty = empty;
       await page.goto("/admin");
+      // `evaluateAll` does not wait, and the cards stream in after the load event (#2067).
+      for (const name of ["Nya användare", "Användare totalt"])
+        await expect(card(page, name).getByRole("link").first()).toBeVisible();
+      await expect(card(page, "Kräver uppmärksamhet")).toContainText(empty ? "Inga misslyckade bakgrundsjobb." : "bakgrundsjobb har misslyckats");
       const targets = await card(page, "Nya användare").getByRole("link")
         .or(card(page, "Användare totalt").getByRole("link"))
         .or(card(page, "Kräver uppmärksamhet").getByRole("link")).evaluateAll(links => links.map(link => {
@@ -198,26 +202,28 @@ for (const width of [1280, 1920, 3440]) {
     await expect(backup).toContainText("Nästa planerade körning");
     await expect(backup).toContainText("Uppgift från");
     await expect(backup.getByText("Saknar verifierad datakälla")).toHaveCount(2);
-    await expect(backup).toContainText("inte att en återställning fungerar");
+    await expect(backup.getByRole("term")).toHaveText(["Senaste lyckade körning", "Nästa planerade körning", "Extern kopia", "Behålls"]);
     await verify(page, "backup-observed");
   });
 }
 
-test("the Backup card tells the state the box is in until the backup is switched on, without an alarm", async ({ page }) => {
+test("the Backup card tells the state the box is in until the backup is switched on, in the warning form and without an alarm", async ({ page }) => {
   harness.overviewBackup = "switchedOff";
   await page.goto("/admin");
   const backup = card(page, "Backup");
-  await expect(backup).toContainText("Ingen lyckad körning registrerad");
-  await expect(backup).toContainText("Ingen körning planerad");
+  await expect(backup.getByText("Ingen lyckad körning registrerad")).toHaveClass(/jp-admin-warning/);
+  await expect(backup.getByText("Ingen körning planerad")).toHaveClass(/jp-admin-warning/);
   await expect(alerts(page)).toHaveCount(0);
   await verify(page, "backup-switched-off");
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await verify(page, "backup-switched-off-dark");
 });
 
 test("the Backup card says that the host has not reported, which is neither a failure nor 'Kommer snart'", async ({ page }) => {
   harness.overviewBackup = "notObserved";
   await page.goto("/admin");
   const backup = card(page, "Backup");
-  await expect(backup).toContainText("Värden har inte rapporterat någon observation ännu.");
+  await expect(backup).toContainText("Servern har inte rapporterat ännu.");
   await expect(backup).not.toContainText("Kommer snart");
   await expect(backup).not.toContainText("kunde inte hämtas");
   await expect(alerts(page)).toHaveCount(0);
@@ -244,8 +250,10 @@ test("an old host sample keeps its own time and loses its age", async ({ page })
 test("a run older than twenty-six hours is marked, with its time", async ({ page }) => {
   harness.overviewBackup = "overdue";
   await page.goto("/admin");
-  await expect(card(page, "Backup")).toContainText("Äldre än 26 timmar");
+  await expect(card(page, "Backup").getByText("Äldre än 26 timmar")).toHaveClass(/jp-admin-warning/);
   await verify(page, "backup-overdue");
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await verify(page, "backup-overdue-dark");
 });
 
 test("an unknown timer is an unknown value, never a date", async ({ page }) => {
@@ -373,8 +381,10 @@ test("a refresh that finds the host source refused clears every privileged value
 test("the hosts are asked only once an admin read has succeeded, and not at all when every first read refuses", async ({ page }) => {
   await page.goto("/admin");
   const overview = harness.requests.filter(route => route.includes("/overview/") || route.includes("/audit-log") || route.includes("/jobs/failed"));
-  // Backup and Server share one gate: both start once an admin read has succeeded, beside the slower first reads.
-  expect(overview.slice(-2).sort()).toEqual(["GET /api/v1/admin/overview/backup", "GET /api/v1/admin/overview/host"]);
+  // Backup and Server are asked beside the slower reads, not after them: the order among the first five requests
+  // is not the contract, only that neither of them was the first and that all five were made.
+  expect(overview.indexOf("GET /api/v1/admin/overview/backup")).toBeGreaterThanOrEqual(1);
+  expect(overview.indexOf("GET /api/v1/admin/overview/host")).toBeGreaterThanOrEqual(1);
   expect(overview).toHaveLength(5);
 
   harness.requests.length = 0;
@@ -502,6 +512,8 @@ test("actual two-hundred-percent browser zoom keeps overview and drill-down usab
     await expect(page.getByRole("radio", { name: "7 dagar", exact: true })).toBeFocused();
     await page.getByRole("heading", { level: 1, name: "Översikt", exact: true }).scrollIntoViewIfNeeded();
     await verify(page, "actual-zoom-200-overview", zoom);
+    await card(page, "Backup").scrollIntoViewIfNeeded();
+    await verify(page, "actual-zoom-200-backup", zoom);
     await card(page, "Server").scrollIntoViewIfNeeded();
     await verify(page, "actual-zoom-200-server", zoom);
     await page.getByRole("radiogroup").scrollIntoViewIfNeeded();

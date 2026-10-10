@@ -28,8 +28,10 @@ readonly TIMER_UNIT=jobbliggaren-backup.timer
 # Well under the unit's TimeoutStartSec: a hung bus must end as "unknown", not as a killed unit.
 readonly SYSTEMCTL_TIMEOUT_SECONDS=5
 
+# A checkout advance replaces files by unlink and recreate, so the library can be absent for a moment.
 # shellcheck source=jobbliggaren-observe-lib.sh
-source "${BASH_SOURCE[0]%/*}/jobbliggaren-observe-lib.sh"
+source "${BASH_SOURCE[0]%/*}/jobbliggaren-observe-lib.sh" \
+  || { echo "the observation library could not be loaded; nothing was published" >&2; exit 0; }
 
 # Prints the lastSuccess fragment. Every branch prints; none relies on `set -e`.
 last_success() {

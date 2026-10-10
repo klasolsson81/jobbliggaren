@@ -11,6 +11,7 @@ using Jobbliggaren.Application.Admin.Backup.Queries.GetBackupStatus;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Admin.HostBridge;
 using Mediator;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -315,7 +316,7 @@ public sealed class AdminBackupStatusTests(ApiFactory factory) : IDisposable
         factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, config) =>
-                config.AddInMemoryCollection(new Dictionary<string, string?> { ["HostBridge:Directory"] = directory }));
+                config.AddInMemoryCollection(new Dictionary<string, string?> { [HostBridgeOptions.DirectoryConfigKey] = directory }));
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IDateTimeProvider>();

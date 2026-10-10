@@ -4,9 +4,9 @@ import { backupFixture, overviewSnapshotFixture } from "@/test/fixtures/admin-ov
 import type { AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
 import { AdminOverview } from "./admin-overview";
 
-// The fixture's run ended 2026-10-08 00:19:07Z, which is 02:19 in Stockholm; its timer is armed for the
+// The fixture's run ended 2026-10-08 00:19:07 UTC, which is 02:19 in Stockholm; its timer is armed for the
 // next night. "Now" is always passed in, so every age below is exact.
-const SAMPLED = "2026-10-08T09:58:02Z";
+const SAMPLED = "2026-10-08T09:58:02+00:00";
 const NOW = Date.parse(SAMPLED) + 28_000;
 const card = () => screen.getByRole("region", { name: "Backup" });
 
@@ -26,6 +26,15 @@ describe("the Backup card", () => {
     expect(card()).toHaveTextContent("Uppgift från 2026-10-08 11:58");
     expect(card()).not.toHaveTextContent("Äldre än 26 timmar");
     expect(card()).not.toHaveTextContent("äldre än fem minuter");
+    expect(within(card()).getByText("(för 10 timmar sedan)")).toHaveClass("jp-admindl__aside", "jp-admindl__age");
+  });
+
+  it("answers the two questions of the card in adjacent rows, before the two that nothing observes", () => {
+    show(observed());
+
+    expect(within(card()).getAllByRole("term").map((term) => term.textContent)).toEqual([
+      "Senaste lyckade körning", "Nästa planerade körning", "Extern kopia", "Behålls",
+    ]);
   });
 
   it("keeps Extern kopia and Behålls, and says plainly that nothing observes them", () => {
@@ -34,13 +43,13 @@ describe("the Backup card", () => {
     for (const label of ["Extern kopia", "Behålls"]) {
       const value = within(card()).getByText(label).nextElementSibling;
       expect(value).toHaveTextContent("Saknar verifierad datakälla");
+      expect(within(value as HTMLElement).getByText("Saknar verifierad datakälla")).toHaveClass("jp-admindl__aside");
     }
   });
 
-  it("does not present a successful run as proof that a restore works", () => {
+  it("does not present a successful run as a working restore", () => {
     show(observed());
 
-    expect(card()).toHaveTextContent("inte att en återställning fungerar");
     // The only place the word may appear is the line that says no verified source exists.
     expect((card().textContent ?? "").replaceAll("Saknar verifierad datakälla", "")).not.toMatch(/verifierad/i);
     expect(card().textContent).not.toMatch(/Fungerar|Frisk|OK\b/);
@@ -48,30 +57,36 @@ describe("the Backup card", () => {
   });
 
   it("marks a run older than twenty-six hours without hiding when it was", () => {
-    show(observed({ lastSuccess: { state: "recorded", completedAt: "2026-10-06T00:19:07Z", overdue: true } }));
+    show(observed({ lastSuccess: { state: "recorded", completedAt: "2026-10-06T00:19:07+00:00", overdue: true } }));
 
     expect(card()).toHaveTextContent("2026-10-06 02:19");
-    expect(within(card()).getByText("Äldre än 26 timmar")).toHaveClass("jp-pill--warning");
+    const overdue = within(card()).getByText("Äldre än 26 timmar");
+    expect(overdue).toHaveClass("jp-admin-warning");
+    expect(overdue).not.toHaveClass("jp-pill");
+    expect(overdue.previousElementSibling?.tagName).toBe("BR");
   });
 
   it.each([
     ["no stamp", { lastSuccess: { state: "missing" } }, "Ingen lyckad körning registrerad"],
-    ["an unreadable stamp", { lastSuccess: { state: "unreadable" } }, "Uppgiften kunde inte läsas"],
-    ["an invalid stamp", { lastSuccess: { state: "invalid" } }, "Uppgiften är ogiltig"],
-  ] as const)("says %s in words and invents no time", (_name, data, words) => {
+    ["an unreadable stamp", { lastSuccess: { state: "unreadable" } }, "Tidsstämpeln kunde inte läsas"],
+    ["an invalid stamp", { lastSuccess: { state: "invalid" } }, "Tidsstämpeln är ogiltig"],
+  ] as const)("says %s in words, in the warning form, and invents no time", (_name, data, words) => {
     show(observed(data));
 
-    expect(card()).toHaveTextContent(words);
+    expect(within(card()).getByText(words)).toHaveClass("jp-admin-warning");
     expect(card()).not.toHaveTextContent(/2026-10-0\d 0\d:\d\d \(/);
   });
 
   it.each([
     ["a disabled timer", { timer: { state: "inactive" } }, "Ingen körning planerad"],
-    ["a timer that is not installed", { timer: { state: "notInstalled" } }, "Schemat finns inte på värden"],
-  ] as const)("says %s in words and invents no date", (_name, data, words) => {
+    ["a timer that is not installed", { timer: { state: "notInstalled" } }, "Schemat finns inte på servern"],
+  ] as const)("says %s in words, in the warning form, and invents no date", (_name, data, words) => {
     show(observed(data));
 
-    expect(within(card()).getByText("Nästa planerade körning").nextElementSibling).toHaveTextContent(words);
+    const next = within(card()).getByText("Nästa planerade körning").nextElementSibling;
+    expect(next).toHaveTextContent(words);
+    expect(within(next as HTMLElement).getByText(words)).toHaveClass("jp-admin-warning");
+    expect(next?.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it("shows an unknown timer as an unknown value, never as a date or a zero", () => {
@@ -80,13 +95,14 @@ describe("the Backup card", () => {
     const next = within(card()).getByText("Nästa planerade körning").nextElementSibling;
     expect(next).toHaveTextContent("Uppgift saknas");
     expect(next?.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(next?.querySelector(".jp-admin-warning")).toBeNull();
   });
 
   it("shows the state the box is in until the backup is switched on, as plainly as any other", () => {
     show(observed({ lastSuccess: { state: "missing" }, timer: { state: "inactive" } }));
 
-    expect(card()).toHaveTextContent("Ingen lyckad körning registrerad");
-    expect(card()).toHaveTextContent("Ingen körning planerad");
+    expect(within(card()).getByText("Ingen lyckad körning registrerad")).toHaveClass("jp-admin-warning");
+    expect(within(card()).getByText("Ingen körning planerad")).toHaveClass("jp-admin-warning");
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -99,10 +115,15 @@ describe("the Backup card", () => {
     expect(card()).toHaveTextContent("Uppgiften är äldre än fem minuter.");
   });
 
-  it("trusts the API's own judgement that the sample is old even when the browser clock disagrees", () => {
-    show(observed({ stale: true }));
+  it("keeps the run's age at exactly five minutes and drops it a millisecond later", () => {
+    const { unmount } = show(observed(), Date.parse(SAMPLED) + 300_000);
+    expect(card().textContent).toMatch(/sedan/);
+    expect(card()).not.toHaveTextContent("äldre än fem minuter");
+    unmount();
 
+    show(observed(), Date.parse(SAMPLED) + 300_001);
     expect(card().textContent).not.toMatch(/sedan/);
+    expect(card()).toHaveTextContent("äldre än fem minuter");
   });
 
   it("keeps the last good value at once and says the refresh failed", () => {
@@ -115,7 +136,7 @@ describe("the Backup card", () => {
   it("tells a host that has not reported apart from a failure and from a capability that is not built", () => {
     show({ kind: "awaiting" });
 
-    expect(card()).toHaveTextContent("Värden har inte rapporterat någon observation ännu.");
+    expect(card()).toHaveTextContent("Servern har inte rapporterat ännu.");
     expect(card()).not.toHaveTextContent("Kommer snart");
     expect(card()).not.toHaveTextContent("kunde inte hämtas");
     expect(within(card()).getByText("Nästa planerade körning").nextElementSibling).toHaveTextContent("Uppgift saknas");

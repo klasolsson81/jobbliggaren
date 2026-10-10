@@ -63,48 +63,39 @@ public static class BackupStatusEvaluator
             EvaluateTimer(sample));
     }
 
-    // An instant the sampler reported about itself while failing is shown only when it is not dated after now.
+    // An instant the sampler reported about itself while failing is shown only when it is not dated more than a minute after now.
     private static DateTimeOffset? ReasonableInstant(DateTimeOffset? instant, DateTimeOffset now) =>
         instant is { } value && value <= now + ClockSkewTolerance ? value : null;
 
     private static BackupLastSuccessDto EvaluateLastSuccess(BackupSample sample, DateTimeOffset now)
     {
-        var stamp = sample.LastSuccess;
-        if (stamp.State != BackupLastSuccessState.Recorded)
+        if (sample.LastSuccess is not BackupStampSample.Recorded recorded)
         {
-            return new BackupLastSuccessDto(stamp.State, null, null);
-        }
-
-        var invalid = new BackupLastSuccessDto(BackupLastSuccessState.Invalid, null, null);
-        if (stamp.CompletedAt is not { } completed || stamp.StartedAt is not { } started)
-        {
-            return invalid;
+            return BackupLastSuccessDto.NotRecorded(sample.LastSuccess.State);
         }
 
         var plausible =
-            completed >= EarliestPlausibleInstant
-            && completed <= sample.SampledAt + ClockSkewTolerance
-            && started <= completed
-            && completed - started <= MaxRunSpan;
+            recorded.CompletedAt >= EarliestPlausibleInstant
+            && recorded.CompletedAt <= sample.SampledAt + ClockSkewTolerance
+            && recorded.StartedAt <= recorded.CompletedAt
+            && recorded.CompletedAt - recorded.StartedAt <= MaxRunSpan;
         return plausible
-            ? new BackupLastSuccessDto(BackupLastSuccessState.Recorded, completed, now - completed > BackupOverdueAfter)
-            : invalid;
+            ? BackupLastSuccessDto.Recorded(recorded.CompletedAt, now - recorded.CompletedAt > BackupOverdueAfter)
+            : BackupLastSuccessDto.NotRecorded(BackupLastSuccessState.Invalid);
     }
 
     private static BackupTimerDto EvaluateTimer(BackupSample sample)
     {
-        var timer = sample.Timer;
-        if (timer.State != BackupTimerState.Scheduled)
+        if (sample.Timer is not BackupTimerSample.Scheduled scheduled)
         {
-            return new BackupTimerDto(timer.State, null);
+            return BackupTimerDto.NotScheduled(sample.Timer.State);
         }
 
         var plausible =
-            timer.NextRunAt is { } next
-            && next >= sample.SampledAt - NextRunPastTolerance
-            && next <= sample.SampledAt + NextRunHorizon;
+            scheduled.NextRunAt >= sample.SampledAt - NextRunPastTolerance
+            && scheduled.NextRunAt <= sample.SampledAt + NextRunHorizon;
         return plausible
-            ? new BackupTimerDto(BackupTimerState.Scheduled, timer.NextRunAt)
-            : new BackupTimerDto(BackupTimerState.Unknown, null);
+            ? BackupTimerDto.Scheduled(scheduled.NextRunAt)
+            : BackupTimerDto.NotScheduled(BackupTimerState.Unknown);
     }
 }

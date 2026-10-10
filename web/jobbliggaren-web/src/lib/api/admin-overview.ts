@@ -53,6 +53,9 @@ function observed<T>(result: ApiResult<Observed<T>>, empty = false): OverviewObs
     : { kind: "failed" };
 }
 
+const LAST_SUCCESS_STATES = { Missing: "missing", Unreadable: "unreadable", Invalid: "invalid" } as const;
+const TIMER_STATES = { Inactive: "inactive", NotInstalled: "notInstalled", Unknown: "unknown" } as const;
+
 /**
  * The Backup card's source. The observation's time is the host's own (`observedAt`), never the time of this
  * read: the generic header stamps the response, and an old sample must stay old however late it is read.
@@ -70,13 +73,12 @@ function backupObservation(result: ApiResult<Observed<BackupStatusResponse>>): A
     sampledAt: status.observedAt,
     refreshFailed: false,
     data: {
-      stale: status.stale,
       lastSuccess: lastSuccess.state === "Recorded"
         ? { state: "recorded", completedAt: lastSuccess.completedAt, overdue: lastSuccess.overdue }
-        : { state: lastSuccess.state === "Missing" ? "missing" : lastSuccess.state === "Unreadable" ? "unreadable" : "invalid" },
+        : { state: LAST_SUCCESS_STATES[lastSuccess.state] },
       timer: timer.state === "Scheduled"
         ? { state: "scheduled", nextRunAt: timer.nextRunAt }
-        : { state: timer.state === "Inactive" ? "inactive" : timer.state === "NotInstalled" ? "notInstalled" : "unknown" },
+        : { state: TIMER_STATES[timer.state] },
     },
   };
 }
@@ -117,17 +119,15 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
   const accountsRead = read(sessionId, "/api/v1/admin/overview/accounts", accountOverviewSchema, signal);
   const auditRead = read(sessionId, "/api/v1/admin/audit-log?page=1&pageSize=5", auditLogPagedResultSchema, signal);
   const jobsRead = read(sessionId, "/api/v1/admin/jobs/failed", failedJobsResponseSchema, signal);
-  // The host is asked only once an admin read has SUCCEEDED, so the authentication work a caller with a forged
-  // or an ordinary session can start stays at the three reads above (#2064); it then runs beside the slower of
-  // them instead of after them. If none succeeded there is nothing to prove the caller and nothing to wait for,
-  // and the card reads as failed without a request. Backup and Server share that one gate.
+  // A source beyond the first three is asked only once an admin read has SUCCEEDED, so the authentication work a
+  // caller with a forged or an ordinary session can start stays at the three reads above (#2064); it then runs
+  // beside the slower of them instead of after them. If none succeeded there is nothing to prove the caller and
+  // nothing to wait for, and the source reads as failed without a request. Every later source goes through `gated`.
   const authorized = anySucceeds([accountsRead, auditRead, jobsRead]);
-  const backupRead = authorized.then((ok) => ok
-    ? read(sessionId, "/api/v1/admin/overview/backup", backupStatusResponseSchema, signal)
-    : { kind: "error" as const });
-  const hostRead = authorized.then((ok) => ok
-    ? read(sessionId, "/api/v1/admin/overview/host", hostObservationSchema, signal)
-    : { kind: "error" as const });
+  const gated = <T>(path: string, schema: z.ZodType<T>): Promise<ApiResult<Observed<T>>> =>
+    authorized.then((proven) => (proven ? read(sessionId, path, schema, signal) : { kind: "error" as const }));
+  const backupRead = gated("/api/v1/admin/overview/backup", backupStatusResponseSchema);
+  const hostRead = gated("/api/v1/admin/overview/host", hostObservationSchema);
   const [accounts, audit, jobs, backup, host] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead]);
   for (const result of [accounts, audit, jobs, backup, host]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };

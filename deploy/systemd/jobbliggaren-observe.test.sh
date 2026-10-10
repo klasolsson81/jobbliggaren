@@ -47,6 +47,9 @@ readonly FAKE_NOW="2026-10-10T13:41:02Z"
 pass=0
 fail=0
 skipped=0
+# Every golden file this run compared, or skipped with its reason on the line above; a file in the fixture
+# directory that is in neither list was put there by hand, and the C# success paths would trust it unmeasured.
+ACCOUNTED=()
 
 # ---------------------------------------------------------------------------------------------
 # The sandboxed PATH: wrappers (not symlinks — Git Bash coreutils resolve their DLLs relative to
@@ -58,7 +61,7 @@ REAL_BASH=$(command -v bash)
 REAL_DATE=$(command -v date)
 readonly REAL_BASH REAL_DATE
 
-for util in bash env stat head mktemp mv chmod rm timeout; do
+for util in bash env stat head mktemp mv chmod rm timeout sleep; do
   path=$(command -v "$util" 2>/dev/null) || { echo "FIXTURE BROKEN: '$util' not found on this host" >&2; exit 1; }
   printf '#!/bin/sh\nexec %s "$@"\n' "'$path'" > "$BIN/$util"
   chmod +x "$BIN/$util"
@@ -92,7 +95,15 @@ case "${SYSTEMCTL_MODE:-active}" in
   zone)     printf 'NextElapseUSecRealtime=Sat 2026-10-10 15:49:41 CEST\nLoadState=loaded\nActiveState=active\n' ;;
   badstate) printf 'NextElapseUSecRealtime=\nLoadState=error\nActiveState=inactive\n' ;;
   injected) printf 'NextElapseUSecRealtime=Sat 2026-10-10 13:49:41 UTC","x":"y\nLoadState=loaded\nActiveState=active\n' ;;
-  hang)     sleep 30 ;;
+  # A real systemctl is one process; a TERM from `timeout` must end this stub the same way, so the
+  # sleep is a child it kills. Without that kill the stub answers `active` after 30 s, which would
+  # read as a scheduled timer instead of an unknown one.
+  hang)     trap 'kill "$pid" 2>/dev/null; exit 143' TERM
+            sleep 30 & pid=$!; wait "$pid"
+            printf 'NextElapseUSecRealtime=Sat 2026-10-10 13:49:41 UTC
+LoadState=loaded
+ActiveState=active
+' ;;
   fail)     echo "Failed to connect to bus" >&2; exit 1 ;;
   *) echo "systemctl stub: unknown mode" >&2; exit 64 ;;
 esac
@@ -170,6 +181,7 @@ check() {
 expect_fixture() {
   local desc="$1" fixture="$2" got=0
   shift 2
+  ACCOUNTED+=("$fixture")
   run_collector "$@" || got=$?
   guard_not_127 "$got" "$desc"
   check "$desc: exit 0" test "$got" -eq 0
@@ -233,6 +245,7 @@ reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; chmod 000 "$STAM
 if ! cat "$STAMP" >/dev/null 2>&1; then
   expect_fixture "an unreadable stamp is reported as unreadable" backup-unreadable-stamp.json
 else
+  ACCOUNTED+=("backup-unreadable-stamp.json")
   skipped=$((skipped + 1)); echo "  skip unreadable-stamp case: this user can read a mode-000 file (root or a mode-less filesystem)"
 fi
 
@@ -249,8 +262,12 @@ declare -A TIMER_CASES=(
 )
 for mode in masked nonext garbage zone badstate injected fail hang; do
   reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; SYSTEMCTL_MODE="$mode"
+  SECONDS=0
   expect_published "systemctl mode '$mode'" \
     "$(head_of)"'"data":{'"$RECORDED"',"timer":'"${TIMER_CASES[$mode]}"'}}'
+  if [ "$mode" = hang ]; then
+    check "a systemctl that hangs is ended by the collector's own timeout, far inside TimeoutStartSec" test "$SECONDS" -lt 20
+  fi
 done
 
 reset_world; write_stamp 20261010T021541Z 2026-10-10T02:19:07Z; SYSTEMCTL_MODE=notfound
@@ -316,12 +333,22 @@ echo "== the library alone =="
 lib_call() {
   env -i PATH="$TMPROOT/runbin" HOME="$TMPROOT" "$REAL_BASH" -c 'source "$1"; shift; "$@"' _ "$SUT_DIR/jobbliggaren-observe-lib.sh" "$@" >"$TMPROOT/out" 2>&1
 }
-run_collector --omit systemctl || true   # leaves $TMPROOT/runbin populated for lib_call
+run_collector --omit systemctl || true   # leaves $TMPROOT/runbin populated for lib_call and the case below
+
+reset_world
+mkdir -p "$TMPROOT/nolib"; cp "$SUT_DIR/jobbliggaren-observe-backup.sh" "$TMPROOT/nolib/"
+got=0
+env -i PATH="$TMPROOT/runbin" HOME="$TMPROOT" CALLS="$CALLS" "$REAL_BASH" "$TMPROOT/nolib/jobbliggaren-observe-backup.sh" >"$TMPROOT/out" 2>&1 || got=$?
+guard_not_127 "$got" "a collector without its library"
+check "a collector whose library is missing still exits 0: the unit stays off --failed" test "$got" -eq 0
+check "…says why in the journal" grep -q "library could not be loaded" "$TMPROOT/out"
+check "…and publishes nothing" test -z "$(ls -A "$OBS_DIR")"
 
 reset_world
 lib_call observe_publish_error backup collector-failed || true
 if [ -n "${JBL_OBSERVE_WRITE_FIXTURES:-}" ]; then cp "$OBS_DIR/backup.json" "$FIXTURES/backup-error.json"; echo "       wrote backup-error.json"; fi
 check "an error envelope is the golden backup-error.json: a token and no data" cmp -s "$OBS_DIR/backup.json" "$FIXTURES/backup-error.json"
+ACCOUNTED+=("backup-error.json")
 
 reset_world
 got=0; lib_call observe_publish_error backup "Bad Token" || got=$?
@@ -339,6 +366,11 @@ check "…and none of the three published anything" test -z "$(ls -A "$OBS_DIR")
 
 got=0; lib_call observe_publish "../backup" '"data":{}' || got=$?
 check "a source name that is not [a-z]+ is refused" test "$got" -ne 0
+
+echo "== the golden files =="
+listed() { printf '%s\n' "$@" | sort -u | tr '\n' ' '; }
+check "every file in fixtures/observations is one this suite produces" \
+  test "$(listed $(ls -A "$FIXTURES"))" = "$(listed "${ACCOUNTED[@]}")"
 
 echo ""
 echo "passed: $pass   failed: $fail   skipped: $skipped"

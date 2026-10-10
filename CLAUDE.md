@@ -537,10 +537,12 @@ command, the report-only prompt, the verdict-table format and the label checklis
   **preserved** `infra/terraform/`, which still carries the **old `Alb__HttpsEnabled`**
   injection — deliberately, as a **record of what ran**, not as live config. Do not
   "repair" it toward the current key. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
-  (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
-  owns the deploy stack and the `ForwardedHeaders:KnownNetworks` CIDR, which A1
-  deliberately left empty — no compose file in the repo declares a network, so the
-  fail-loud gate stays armed rather than holding a guess.
+  (BUILD.md §15). The `ForwardedHeaders:KnownNetworks` CIDR is injected by
+  `deploy/docker-compose.yml`: the api service gets the reviewed `web-api` bridge
+  subnet from the same `${JBL_WEB_API_SUBNET:?…}` variable that declares that network,
+  pinned equal by `.github/scripts/redis-compose-contract.test.py`. The committed
+  `appsettings.Production.json` keeps the list empty, so `ForwardedHeadersConfig`'s
+  fail-loud gate still stops any non-Development/Test host that boots without it.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

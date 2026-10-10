@@ -289,6 +289,17 @@ collection fixture initialises after it.
 hard-fails at startup), and names `src/JobbPilot.*` Dockerfile paths that do not exist.
 Renaming one string buys one-of-N consistency and makes a record read as maintained.
 
+**The `KnownNetworks` injection's history** (measured 2026-10-11 on `origin/main`
+`b7199bfb8`): the spec's earlier sentence — #196 owns the CIDR, no compose file declares a
+network, the gate stays armed rather than holding a guess — was written 2026-08-04 in
+PR #1203 and went stale the next day. PR #1221 (merged 2026-08-05, #196's deploy stack;
+#196 closed 2026-08-08) declared a `stack` bridge with a fixed `172.28.0.0/24` subnet and
+injected the same literal as `ForwardedHeaders__KnownNetworks__0`. PR #1775 (2026-09-24)
+replaced that bridge with per-pair networks and moved both the `web-api` subnet and the
+injection onto `${JBL_WEB_API_SUBNET:?…}`, which compose refuses to render without. The
+empty committed list is deliberate per the compose comment beside the injection: the
+value arrives from the stack, and the startup throw guards a host without it.
+
 **The dev-boot contract's incidents:** `#544` org.nr-HMAC + `#692` CV-fingerprint
 peppers both failed the next stack-owner's boot one crash at a time — measured
 2026-07-19.

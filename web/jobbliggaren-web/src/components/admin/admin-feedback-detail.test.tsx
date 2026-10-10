@@ -390,11 +390,38 @@ describe("AdminFeedbackDetail — the reply (#2069)", () => {
     expect(line).toHaveFocus();
     expect(line).toHaveAttribute("data-tone", "warning");
     expect(field()).toHaveValue("Tack.");
-    expect(field()).toHaveAttribute("readonly");
+    expect(field()).not.toHaveAttribute("readonly");
     await userEvent.click(sendButton());
 
     await waitFor(() => expect(onReply).toHaveBeenCalledTimes(2));
     expect(onReply.mock.calls[1]?.[1]).toBe(onReply.mock.calls[0]?.[1]);
+  });
+
+  it("takes a new key once the text of an unanswered request is edited, even after a refusal between", async () => {
+    const onReply = vi
+      .fn<Commands["onReply"]>()
+      .mockResolvedValueOnce({ kind: "unanswered", text: "Det gick inte att bekräfta om svaret sparades." })
+      .mockResolvedValueOnce({ kind: "refused", refusal: commandRefusal("För många förfrågningar.") })
+      .mockResolvedValueOnce({ kind: "refused", refusal: commandRefusal("För många förfrågningar.") })
+      .mockResolvedValueOnce({ kind: "recorded", state: "accepted" });
+    render(<Revalidating item={ITEM} onReply={onReply} />);
+
+    await userEvent.type(field(), "Tack.");
+    await userEvent.click(sendButton());
+    await within(detail()).findByText("Det gick inte att bekräfta om svaret sparades.");
+    await userEvent.click(sendButton());
+    await within(detail()).findByText("För många förfrågningar.");
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(onReply).toHaveBeenCalledTimes(3));
+    await userEvent.type(field(), " Rättat.");
+    await userEvent.click(sendButton());
+
+    await waitFor(() => expect(onReply).toHaveBeenCalledTimes(4));
+    const keys = onReply.mock.calls.map((call) => call[1]);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).toBe(keys[0]);
+    expect(keys[3]).not.toBe(keys[0]);
+    expect(onReply.mock.calls[3]?.[2]).toBe("Tack. Rättat.");
   });
 
   it("keeps the text after a failed send and takes a new key for the next one", async () => {

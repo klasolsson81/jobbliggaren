@@ -494,11 +494,11 @@ function FeedbackReplyArea({
       show({ text: outcome.text, about: "command", tone: "warning" });
       return;
     }
-    setHeld(false);
     if (outcome.kind === "refused") {
       show(outcome.refusal);
       return;
     }
+    setHeld(false);
     setReplyKey(newSubmissionKey());
     if (outcome.state === "accepted") {
       setText("");
@@ -565,10 +565,16 @@ function FeedbackReplyArea({
             rows={5}
             value={text}
             maxLength={FEEDBACK_REPLY_MAX}
-            readOnly={sending || held}
+            readOnly={sending}
             aria-invalid={line?.about === "value" ? true : undefined}
             aria-describedby={describedBy}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              if (held) {
+                setHeld(false);
+                setReplyKey(newSubmissionKey());
+              }
+              setText(event.target.value);
+            }}
           />
           <div>
             <button type="submit" className="jp-btn jp-btn--primary" aria-disabled={sending || undefined}>

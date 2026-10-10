@@ -445,6 +445,27 @@ test("a long reporter address wraps in the reply's hint instead of scrolling the
   }
 });
 
+test("after a send that got no answer the text can still be edited, and the edit goes with a new key (#2069)", async ({ page }) => {
+  await page.goto(`${PAGE}?id=${ids.queued}`);
+
+  const area = replyArea(page);
+  await replyField(page).fill("Tack.");
+  harness.mode = "error";
+  await area.getByRole("button", { name: "Skicka svar" }).click();
+  await expect(area.getByRole("alert")).toHaveAttribute("data-tone", "warning");
+  harness.mode = "ok";
+  await replyField(page).pressSequentially(" Rättat.");
+
+  await expect(replyField(page)).toHaveValue("Tack. Rättat.");
+  await area.getByRole("button", { name: "Skicka svar" }).click();
+  await expect(toast(page)).toContainText("Svaret är mottaget av e-posttjänsten.");
+  const sent = commands().filter((command) => command.command === "reply");
+  expect(sent).toHaveLength(2);
+  const [first, second] = sent.map((command) => command.body as { replyKey?: string; text?: string });
+  expect(second?.text).toBe("Tack. Rättat.");
+  expect(second?.replyKey).not.toBe(first?.replyKey);
+});
+
 test("an empty reply is refused on the field and sends nothing (#2069)", async ({ page }) => {
   await page.goto(`${PAGE}?id=${ids.queued}`);
 

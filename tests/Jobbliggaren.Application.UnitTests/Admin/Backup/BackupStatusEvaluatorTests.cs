@@ -18,8 +18,8 @@ public class BackupStatusEvaluatorTests
     private static BackupSample Sample(
         BackupStampSample? stamp = null, BackupTimerSample? timer = null, DateTimeOffset? sampledAt = null) =>
         new(sampledAt ?? Sampled,
-            stamp ?? new BackupStampSample(BackupLastSuccessState.Recorded, Completed, Started),
-            timer ?? new BackupTimerSample(BackupTimerState.Scheduled, Next));
+            stamp ?? new BackupStampSample.Recorded(Completed, Started),
+            timer ?? new BackupTimerSample.Scheduled(Next));
 
     private static BackupStatusDto Evaluate(BackupSample sample, DateTimeOffset? now = null) =>
         BackupStatusEvaluator.Evaluate(BackupSampleRead.Sampled(sample), now ?? Now);
@@ -126,7 +126,8 @@ public class BackupStatusEvaluatorTests
     {
         var notObserved = new[] { BackupStatusReason.NotConfigured, BackupStatusReason.NotSampledYet };
 
-        foreach (var reason in Enum.GetValues<BackupStatusReason>())
+        // FutureSample is the evaluator's own verdict on a sample that parsed, so no read carries it.
+        foreach (var reason in Enum.GetValues<BackupStatusReason>().Where(reason => reason != BackupStatusReason.FutureSample))
         {
             var read = notObserved.Contains(reason) ? BackupSampleRead.NotObserved(reason) : BackupSampleRead.Failed(reason);
             var dto = BackupStatusEvaluator.Evaluate(read, Now);
@@ -175,7 +176,7 @@ public class BackupStatusEvaluatorTests
     [InlineData(BackupLastSuccessState.Invalid)]
     public void Evaluate_ShouldPassThroughAStateWithNoRun_AndInventNoTime(BackupLastSuccessState state)
     {
-        var dto = Evaluate(Sample(stamp: new BackupStampSample(state)));
+        var dto = Evaluate(Sample(stamp: new BackupStampSample.NotRecorded(state)));
 
         dto.LastSuccess!.State.ShouldBe(state);
         dto.LastSuccess.CompletedAt.ShouldBeNull();
@@ -189,7 +190,7 @@ public class BackupStatusEvaluatorTests
     {
         var completed = Sampled.AddSeconds(secondsAfterSample);
 
-        var stamp = Evaluate(Sample(stamp: new BackupStampSample(BackupLastSuccessState.Recorded, completed, completed.AddMinutes(-4)))).LastSuccess!;
+        var stamp = Evaluate(Sample(stamp: new BackupStampSample.Recorded(completed, completed.AddMinutes(-4)))).LastSuccess!;
 
         stamp.State.ShouldBe(accepted ? BackupLastSuccessState.Recorded : BackupLastSuccessState.Invalid);
         if (!accepted)
@@ -205,8 +206,8 @@ public class BackupStatusEvaluatorTests
     [InlineData(-1, false)] // started after it completed
     public void Evaluate_ShouldRefuseAStamp_WhoseStartAndEndAreNotARun(int spanSeconds, bool accepted)
     {
-        var stamp = Evaluate(Sample(stamp: new BackupStampSample(
-            BackupLastSuccessState.Recorded, Completed, Completed.AddSeconds(-spanSeconds)))).LastSuccess!;
+        var stamp = Evaluate(Sample(stamp: new BackupStampSample.Recorded(
+            Completed, Completed.AddSeconds(-spanSeconds)))).LastSuccess!;
 
         stamp.State.ShouldBe(accepted ? BackupLastSuccessState.Recorded : BackupLastSuccessState.Invalid);
     }
@@ -219,18 +220,9 @@ public class BackupStatusEvaluatorTests
     {
         var completed = DateTimeOffset.Parse(completedAt, System.Globalization.CultureInfo.InvariantCulture);
 
-        var stamp = Evaluate(Sample(stamp: new BackupStampSample(BackupLastSuccessState.Recorded, completed, completed.AddMinutes(-4)))).LastSuccess!;
+        var stamp = Evaluate(Sample(stamp: new BackupStampSample.Recorded(completed, completed.AddMinutes(-4)))).LastSuccess!;
 
         stamp.State.ShouldBe(accepted ? BackupLastSuccessState.Recorded : BackupLastSuccessState.Invalid);
-    }
-
-    [Fact]
-    public void Evaluate_ShouldRefuseARecordedStamp_ThatLacksATime()
-    {
-        Evaluate(Sample(stamp: new BackupStampSample(BackupLastSuccessState.Recorded, Completed, null)))
-            .LastSuccess!.State.ShouldBe(BackupLastSuccessState.Invalid);
-        Evaluate(Sample(stamp: new BackupStampSample(BackupLastSuccessState.Recorded, null, Started)))
-            .LastSuccess!.State.ShouldBe(BackupLastSuccessState.Invalid);
     }
 
     // ---- the timer ----
@@ -244,16 +236,11 @@ public class BackupStatusEvaluatorTests
     {
         var next = Sampled.AddSeconds(secondsFromSample);
 
-        var timer = Evaluate(Sample(timer: new BackupTimerSample(BackupTimerState.Scheduled, next))).Timer!;
+        var timer = Evaluate(Sample(timer: new BackupTimerSample.Scheduled(next))).Timer!;
 
         timer.State.ShouldBe(accepted ? BackupTimerState.Scheduled : BackupTimerState.Unknown);
         timer.NextRunAt.ShouldBe(accepted ? next : null);
     }
-
-    [Fact]
-    public void Evaluate_ShouldNotTrustAScheduledTimer_ThatHasNoNextRun() =>
-        Evaluate(Sample(timer: new BackupTimerSample(BackupTimerState.Scheduled, null)))
-            .Timer!.State.ShouldBe(BackupTimerState.Unknown);
 
     [Theory]
     [InlineData(BackupTimerState.Inactive)]
@@ -261,7 +248,7 @@ public class BackupStatusEvaluatorTests
     [InlineData(BackupTimerState.Unknown)]
     public void Evaluate_ShouldPassThroughATimerWithNoNextRun_AndInventNoTime(BackupTimerState state)
     {
-        var timer = Evaluate(Sample(timer: new BackupTimerSample(state))).Timer!;
+        var timer = Evaluate(Sample(timer: new BackupTimerSample.NotScheduled(state))).Timer!;
 
         timer.State.ShouldBe(state);
         timer.NextRunAt.ShouldBeNull();
@@ -271,11 +258,36 @@ public class BackupStatusEvaluatorTests
     public void Evaluate_ShouldJudgeEachRowOnItsOwn_SoOneBadRowLeavesTheOtherStanding()
     {
         var dto = Evaluate(Sample(
-            stamp: new BackupStampSample(BackupLastSuccessState.Recorded, Completed, Completed.AddHours(5)),
-            timer: new BackupTimerSample(BackupTimerState.Scheduled, Next)));
+            stamp: new BackupStampSample.Recorded(Completed, Completed.AddHours(5)),
+            timer: new BackupTimerSample.Scheduled(Next)));
 
         dto.LastSuccess!.State.ShouldBe(BackupLastSuccessState.Invalid);
         dto.Timer!.State.ShouldBe(BackupTimerState.Scheduled);
         dto.Timer.NextRunAt.ShouldBe(Next);
+    }
+
+    // ---- the sampler's own time, when it fails ----
+
+    [Theory]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    public void Evaluate_ShouldShowASamplerErrorTime_OnlyUpToTheSkewToleranceAfterNow(int secondsAfterNow, bool shown)
+    {
+        var dto = BackupStatusEvaluator.Evaluate(
+            BackupSampleRead.Failed(BackupStatusReason.SamplerError, Now.AddSeconds(secondsAfterNow)), Now);
+
+        dto.ObservedAt.ShouldBe(shown ? Now.AddSeconds(secondsAfterNow) : null);
+    }
+
+    // ---- the unions cannot be built wrong ----
+
+    [Fact]
+    public void Factories_ShouldRefuseTheCombinationsNoSourceProduces()
+    {
+        Should.Throw<ArgumentException>(() => new BackupStampSample.NotRecorded(BackupLastSuccessState.Recorded));
+        Should.Throw<ArgumentException>(() => new BackupTimerSample.NotScheduled(BackupTimerState.Scheduled));
+        Should.Throw<ArgumentException>(() => BackupSampleRead.Failed(BackupStatusReason.FutureSample));
+        Should.Throw<ArgumentException>(() => BackupLastSuccessDto.NotRecorded(BackupLastSuccessState.Recorded));
+        Should.Throw<ArgumentException>(() => BackupTimerDto.NotScheduled(BackupTimerState.Scheduled));
     }
 }

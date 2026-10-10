@@ -10,8 +10,11 @@ public sealed class HostBridgeOptions
 {
     public const string SectionName = "HostBridge";
 
-    /// <summary>The configuration key; compose sets it as <c>HostBridge__Directory</c>.</summary>
-    public const string DirectoryConfigKey = SectionName + ":Directory";
+    /// <summary>
+    /// The configuration key; compose sets it as <c>HostBridge__Directory</c>. Built from the property's own name,
+    /// so a rename of the property moves the key that the compose pin and the tests read.
+    /// </summary>
+    public const string DirectoryConfigKey = SectionName + ":" + nameof(Directory);
 
     /// <summary>An absolute path. Anything else is treated as not configured.</summary>
     public string? Directory { get; set; }

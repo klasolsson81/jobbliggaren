@@ -49,11 +49,10 @@ public sealed class BackupSampleSourceTests : IDisposable
         read.Status.ShouldBe(BackupStatus.Observed);
         read.Sample.ShouldBe(new BackupSample(
             Sampled,
-            new BackupStampSample(
-                BackupLastSuccessState.Recorded,
+            new BackupStampSample.Recorded(
                 new DateTimeOffset(2026, 10, 10, 2, 19, 7, TimeSpan.Zero),
                 new DateTimeOffset(2026, 10, 10, 2, 15, 41, TimeSpan.Zero)),
-            new BackupTimerSample(BackupTimerState.Scheduled, new DateTimeOffset(2026, 10, 10, 13, 49, 41, TimeSpan.Zero))));
+            new BackupTimerSample.Scheduled(new DateTimeOffset(2026, 10, 10, 13, 49, 41, TimeSpan.Zero))));
     }
 
     [Fact]
@@ -65,8 +64,8 @@ public sealed class BackupSampleSourceTests : IDisposable
 
         read.Sample.ShouldBe(new BackupSample(
             Sampled,
-            new BackupStampSample(BackupLastSuccessState.Missing),
-            new BackupTimerSample(BackupTimerState.Inactive)));
+            new BackupStampSample.NotRecorded(BackupLastSuccessState.Missing),
+            new BackupTimerSample.NotScheduled(BackupTimerState.Inactive)));
     }
 
     [Theory]
@@ -152,7 +151,7 @@ public sealed class BackupSampleSourceTests : IDisposable
     [Fact]
     public async Task ReadAsync_ShouldNeverListTheDirectory_AndIgnoreEverythingButItsOneFile()
     {
-        File.WriteAllText(Path.Combine(_directory, ".backup.json.tmp"), "{not json");
+        File.WriteAllText(Path.Combine(_directory, ".backup.Ab12Cd"), "{not json");
         File.WriteAllText(Path.Combine(_directory, "host.json"), "{not json");
 
         var read = await ReadAsync();
@@ -213,8 +212,8 @@ public sealed class BackupSampleSourceTests : IDisposable
     // JSON is written with apostrophes here and converted, so no case needs an escape.
     private static string J(string singleQuoted) => singleQuoted.Replace('\'', '"');
 
-    private const string Head = "{'schema':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z',";
-    private const string Good = "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'}}}";
+    private const string Head = "{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z',";
+    private const string Good = "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'inactive'}}}";
 
     public static TheoryData<string, string> Refusals => new()
     {
@@ -223,40 +222,41 @@ public sealed class BackupSampleSourceTests : IDisposable
         { "truncated", J(Head + "'data':{'lastSuccess':{'state':'mis") },
         { "a list", "[]" },
         { "trailing garbage", J(Head + Good + " x") },
-        { "trailing comma", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'},}}") },
+        { "trailing comma", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'inactive'},}}") },
         { "a comment", J(Head + Good + " // note") },
-        { "duplicate key", J("{'schema':1,'schema':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "duplicate nested key", J(Head + "'data':{'lastSuccess':{'state':'missing','state':'missing'},'timer':{'state':'inactive'}}}") },
-        { "unknown top-level key", J("{'schema':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z','extra':1," + Good) },
-        { "unknown nested key", J(Head + "'data':{'lastSuccess':{'state':'missing','path':'/var/lib/x'},'timer':{'state':'inactive'}}}") },
+        { "duplicate key", J("{'sch\u0065ma':1,'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "duplicate nested key", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng','state':'miss\u0069ng'},'timer':{'state':'inactive'}}}") },
+        { "unknown top-level key", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z','extra':1," + Good) },
+        { "unknown nested key", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng','path':'/var/lib/x'},'timer':{'state':'inactive'}}}") },
         { "data and error", J(Head + "'error':'collector-failed'," + Good) },
         { "neither data nor error", J(Head.TrimEnd(',') + "}") },
-        { "schema 2", J("{'schema':2,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "schema as text", J("{'schema':'1','source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "schema 1.0", J("{'schema':1.0,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "schema true", J("{'schema':true,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "another source", J("{'schema':1,'source':'host','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "source in other case", J("{'schema':1,'source':'Backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
-        { "sampledAt with decimals", J("{'schema':1,'source':'backup','sampledAt':'2026-10-10T13:41:02.000Z'," + Good) },
-        { "sampledAt with an offset", J("{'schema':1,'source':'backup','sampledAt':'2026-10-10T15:41:02+02:00'," + Good) },
-        { "sampledAt with a plus-zero offset", J("{'schema':1,'source':'backup','sampledAt':'2026-10-10T13:41:02+00:00'," + Good) },
-        { "sampledAt with a space", J("{'schema':1,'source':'backup','sampledAt':'2026-10-10 13:41:02Z'," + Good) },
-        { "sampledAt padded", J("{'schema':1,'source':'backup','sampledAt':' 2026-10-10T13:41:02Z'," + Good) },
-        { "sampledAt not a date", J("{'schema':1,'source':'backup','sampledAt':'2026-13-40T25:61:61Z'," + Good) },
-        { "sampledAt a number", J("{'schema':1,'source':'backup','sampledAt':1760103662," + Good) },
+        { "schema 2", J("{'sch\u0065ma':2,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "schema as text", J("{'sch\u0065ma':'1','source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "schema 1.0", J("{'sch\u0065ma':1.0,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "schema true", J("{'sch\u0065ma':true,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "another source", J("{'sch\u0065ma':1,'source':'host','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "source in other case", J("{'sch\u0065ma':1,'source':'Backup','sampledAt':'2026-10-10T13:41:02Z'," + Good) },
+        { "sampledAt with decimals", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02.000Z'," + Good) },
+        { "sampledAt with an offset", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T15:41:02+02:00'," + Good) },
+        { "sampledAt with a plus-zero offset", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02+00:00'," + Good) },
+        { "sampledAt with a space", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-10-10 13:41:02Z'," + Good) },
+        { "sampledAt padded", J("{'sch\u0065ma':1,'source':'backup','sampledAt':' 2026-10-10T13:41:02Z'," + Good) },
+        { "sampledAt not a date", J("{'sch\u0065ma':1,'source':'backup','sampledAt':'2026-13-40T25:61:61Z'," + Good) },
+        { "sampledAt a number", J("{'sch\u0065ma':1,'source':'backup','sampledAt':1760103662," + Good) },
         { "state in the wrong case", J(Head + "'data':{'lastSuccess':{'state':'Missing'},'timer':{'state':'inactive'}}}") },
         { "state as a number", J(Head + "'data':{'lastSuccess':{'state':1},'timer':{'state':'inactive'}}}") },
         { "state as a list", J(Head + "'data':{'lastSuccess':{'state':'missing,recorded'},'timer':{'state':'inactive'}}}") },
-        { "unknown timer state", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'stopped'}}}") },
+        { "unknown timer state", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'stopped'}}}") },
         { "recorded without a start", J(Head + "'data':{'lastSuccess':{'state':'recorded','completedAt':'2026-10-10T02:19:07Z'},'timer':{'state':'inactive'}}}") },
         { "recorded with a bad time", J(Head + "'data':{'lastSuccess':{'state':'recorded','completedAt':'2026-10-10T02:19:07','startedAt':'2026-10-10T02:15:41Z'},'timer':{'state':'inactive'}}}") },
-        { "scheduled without a time", J(Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'scheduled'}}}") },
-        { "a time on a state that has none", J(Head + "'data':{'lastSuccess':{'state':'missing','completedAt':'2026-10-10T02:19:07Z'},'timer':{'state':'inactive'}}}") },
-        { "data missing the timer", J(Head + "'data':{'lastSuccess':{'state':'missing'}}}") },
-        { "data as text", J(Head + "'data':'missing'}") },
+        { "scheduled without a time", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'scheduled'}}}") },
+        { "a time on a state that has none", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng','completedAt':'2026-10-10T02:19:07Z'},'timer':{'state':'inactive'}}}") },
+        { "recorded with an extra key", J(Head + "'data':{'lastSuccess':{'state':'recorded','completedAt':'2026-10-10T02:19:07Z','startedAt':'2026-10-10T02:15:41Z','x':1},'timer':{'state':'inactive'}}}") },
+        { "scheduled with an extra key", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'},'timer':{'state':'scheduled','nextRunAt':'2026-10-10T13:49:41Z','x':1}}}") },
+        { "data missing the timer", J(Head + "'data':{'lastSuccess':{'state':'miss\u0069ng'}}}") },
+        { "data as text", J(Head + "'data':'miss\u0069ng'}") },
         { "error as an object", J(Head + "'error':{'code':'collector-failed'}}") },
         { "an unknown error token", J(Head + "'error':'disk on fire'}") },
-        { "nested deeper than allowed", J(Head + "'data':{'lastSuccess':{'state':'missing','x':[[[[[[[[[[1]]]]]]]]]]},'timer':{'state':'inactive'}}}") },
     };
 
     [Theory]
@@ -292,6 +292,78 @@ public sealed class BackupSampleSourceTests : IDisposable
         var read = await ReadAsync();
 
         read.Reason.ShouldBe(BackupStatusReason.InvalidFormat);
+    }
+
+    // ---- escapes: the sampler never writes a backslash, so the reader reads none ----
+
+    public static TheoryData<string, string> Escapes => new()
+    {
+        { "a lone escaped surrogate in a value", Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'}},'x':'\\ud800'}" },
+        { "a lone escaped surrogate in a name", Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'}},'\\udc00':1}" },
+        { "an escaped spelling of a key", "{'sch\\u0065ma':1,'source':'backup','sampledAt':'2026-10-10T13:41:02Z'," + Good },
+        { "an escaped spelling of a token", Head + "'data':{'lastSuccess':{'state':'miss\\u0069ng'},'timer':{'state':'inactive'}}}" },
+        { "a valid file with one harmless escape", Head + "'data':{'lastSuccess':{'state':'missing'},'timer':{'state':'inactive'}},'k':'\\n'}" },
+    };
+
+    [Theory]
+    [MemberData(nameof(Escapes))]
+    public async Task ReadAsync_ShouldRefuseAnyEscape_WithoutAnExceptionOrAMessageInTheLog(string why, string content)
+    {
+        Publish(J(content));
+
+        var read = await ReadAsync();
+
+        read.Status.ShouldBe(BackupStatus.Failed, why);
+        read.Reason.ShouldBe(BackupStatusReason.InvalidFormat, why);
+        _log.Records.ShouldAllBe(record => record.Level != LogLevel.Error && !record.Message.Contains("surrogate"), why);
+    }
+
+    // ---- what only a Unix filesystem can make ----
+
+    [Fact]
+    public async Task ReadAsync_ShouldRefuseAFifo_WithoutBlockingOnIt()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("A FIFO needs a Unix filesystem; the Linux CI run makes one.");
+        }
+
+        using var made = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mkfifo", $"\"{BackupFile}\"")
+        {
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        });
+        made!.WaitForExit();
+        if (made.ExitCode != 0)
+        {
+            Assert.Skip("mkfifo is not available on this host.");
+        }
+
+        var read = await ReadAsync().WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        read.Status.ShouldBe(BackupStatus.Failed);
+        read.Reason.ShouldBe(BackupStatusReason.InvalidFormat);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ShouldReportAFileItCannotOpenAsUnreadable_AndLogOnlyTheExceptionType()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+        {
+            Assert.Skip("Needs a Unix filesystem and a user a mode-000 file stops; the Linux CI runner is one.");
+        }
+
+        PublishGolden("backup-recorded-scheduled.json");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(BackupFile, UnixFileMode.None);
+        }
+
+        var read = await ReadAsync();
+
+        read.Status.ShouldBe(BackupStatus.Failed);
+        read.Reason.ShouldBe(BackupStatusReason.Unreadable);
+        _log.Records.ShouldHaveSingleItem().Message.ShouldBe($"Host bridge file {BackupSampleSource.FileName} could not be read (UnauthorizedAccessException)");
     }
 
     // ---- what the log may carry ----

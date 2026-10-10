@@ -46,6 +46,13 @@ internal sealed partial class HostBridgeFileReader(IOptions<HostBridgeOptions> o
                 return Failed(System.IO.Directory.Exists(path) ? HostBridgeFailure.NotARegularFile : HostBridgeFailure.NotSampledYet, fileName);
             }
 
+            // A FIFO and a device both report no length, and `open` on a FIFO blocks until a writer appears, which
+            // the token cannot cancel. An empty file is no envelope either, so none is opened.
+            if (info.Length == 0)
+            {
+                return Failed(HostBridgeFailure.InvalidFormat, fileName);
+            }
+
             using var handle = File.OpenHandle(
                 path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, FileOptions.Asynchronous);
             var bytes = await ReadBoundedAsync(handle, cancellationToken);
@@ -96,6 +103,14 @@ internal sealed partial class HostBridgeFileReader(IOptions<HostBridgeOptions> o
         // JsonDocument decodes names and strings lazily, so invalid UTF-8 would first surface as an
         // InvalidOperationException from deep inside a property access. Refused here, whole, instead.
         if (!Utf8.IsValid(bytes.Span))
+        {
+            return Failed(HostBridgeFailure.InvalidFormat, fileName);
+        }
+
+        // No escape sequence is ever written: the sampler's alphabet has no backslash. Refusing it here also closes
+        // what the lazy decoding would otherwise let through: a lone escaped surrogate throws only when a string is
+        // first read, and an escaped spelling of a key or a token (a "u0065" escape for the letter e, say) would read as the exact word.
+        if (bytes.Span.Contains((byte)'\\'))
         {
             return Failed(HostBridgeFailure.InvalidFormat, fileName);
         }
@@ -216,10 +231,10 @@ internal sealed partial class HostBridgeFileReader(IOptions<HostBridgeOptions> o
         return new HostBridgeFileRead(failure, null);
     }
 
-    [LoggerMessage(5101, LogLevel.Warning, "Host bridge file {File} could not be read ({ErrorType})")]
+    [LoggerMessage(7101, LogLevel.Warning, "Host bridge file {File} could not be read ({ErrorType})")]
     private static partial void LogReadFailed(ILogger logger, string file, string errorType);
 
-    [LoggerMessage(5102, LogLevel.Warning, "Host bridge file {File} was refused: {Reason}")]
+    [LoggerMessage(7102, LogLevel.Warning, "Host bridge file {File} was refused: {Reason}")]
     private static partial void LogRefused(ILogger logger, string file, string reason);
 }
 

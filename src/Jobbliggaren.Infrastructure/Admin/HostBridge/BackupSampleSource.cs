@@ -77,14 +77,14 @@ internal sealed class BackupSampleSource(HostBridgeFileReader reader) : IBackupS
                 return props.Count == 3
                     && props.TryGetValue("completedAt", out var completed) && HostBridgeFileReader.TryReadInstant(completed, out var completedAt)
                     && props.TryGetValue("startedAt", out var started) && HostBridgeFileReader.TryReadInstant(started, out var startedAt)
-                    ? new BackupStampSample(BackupLastSuccessState.Recorded, completedAt, startedAt)
+                    ? new BackupStampSample.Recorded(completedAt, startedAt)
                     : null;
             case "missing":
-                return props.Count == 1 ? new BackupStampSample(BackupLastSuccessState.Missing) : null;
+                return props.Count == 1 ? new BackupStampSample.NotRecorded(BackupLastSuccessState.Missing) : null;
             case "unreadable":
-                return props.Count == 1 ? new BackupStampSample(BackupLastSuccessState.Unreadable) : null;
+                return props.Count == 1 ? new BackupStampSample.NotRecorded(BackupLastSuccessState.Unreadable) : null;
             case "invalid":
-                return props.Count == 1 ? new BackupStampSample(BackupLastSuccessState.Invalid) : null;
+                return props.Count == 1 ? new BackupStampSample.NotRecorded(BackupLastSuccessState.Invalid) : null;
             default:
                 return null;
         }
@@ -102,14 +102,14 @@ internal sealed class BackupSampleSource(HostBridgeFileReader reader) : IBackupS
             case "scheduled":
                 return props.Count == 2
                     && props.TryGetValue("nextRunAt", out var next) && HostBridgeFileReader.TryReadInstant(next, out var nextRunAt)
-                    ? new BackupTimerSample(BackupTimerState.Scheduled, nextRunAt)
+                    ? new BackupTimerSample.Scheduled(nextRunAt)
                     : null;
             case "inactive":
-                return props.Count == 1 ? new BackupTimerSample(BackupTimerState.Inactive) : null;
+                return props.Count == 1 ? new BackupTimerSample.NotScheduled(BackupTimerState.Inactive) : null;
             case "notInstalled":
-                return props.Count == 1 ? new BackupTimerSample(BackupTimerState.NotInstalled) : null;
+                return props.Count == 1 ? new BackupTimerSample.NotScheduled(BackupTimerState.NotInstalled) : null;
             case "unknown":
-                return props.Count == 1 ? new BackupTimerSample(BackupTimerState.Unknown) : null;
+                return props.Count == 1 ? new BackupTimerSample.NotScheduled(BackupTimerState.Unknown) : null;
             default:
                 return null;
         }

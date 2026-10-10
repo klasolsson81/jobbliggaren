@@ -101,7 +101,7 @@ public class ReviewParsedResumeQueryHandlerTests
             "B3", RubricCategory.Structure, CriterionVerdict.Pass,
             [new StructuralEvidence("kontaktsektion komplett")]);
         var notAssessed = CvCriterionVerdict.NotAssessed(
-            "A5", RubricCategory.Content, NotAssessedKind.NotInVersion, "Vi bedömer inte karriärutveckling i den här versionen.");
+            "A5", RubricCategory.Content, NotAssessedKind.NotInVersion, "Vi bedömer inte karriärutveckling.");
 
         var verdicts = new[] { spanVerdict, structuralVerdict, notAssessed };
         var category = new CvCategoryResult(
@@ -141,7 +141,7 @@ public class ReviewParsedResumeQueryHandlerTests
         result.Verdicts.ShouldContain(v => v.Evidence.Any(e => e.Kind == "Structural"
             && e.Observation == "kontaktsektion komplett"));
         result.Verdicts.ShouldContain(v => v.Verdict == "NotAssessed"
-            && v.NotAssessedReason == "Vi bedömer inte karriärutveckling i den här versionen." && v.NotAssessedKind == "NotInVersion");
+            && v.NotAssessedReason == "Vi bedömer inte karriärutveckling." && v.NotAssessedKind == "NotInVersion");
         // Name (the human rubric heading) is surfaced from the rubric's single source of truth,
         // resolved by criterion id — the UI leads with this, not the cryptic "A1".
         result.Verdicts.ShouldContain(v => v.CriterionId == "A1" && v.Name == "Mätbara resultat");

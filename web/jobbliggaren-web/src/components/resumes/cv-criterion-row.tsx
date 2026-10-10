@@ -12,8 +12,7 @@ import type {
  * here, on the server, and reaches the ledger's client island only as a rendered node.
  *
  * Every Godkänt, Delvis and Underkänt shows the evidence the engine cited (ADR 0074), and Underkänt
- * and Delvis what the rule passes on. Ej bedömt shows its reason's kind and the reason, and nothing
- * that could read as a verdict.
+ * and Delvis what the rule passes on. Ej bedömt shows nothing that could read as a verdict.
  */
 
 /** The kinds whose reason is one shared sentence that only repeats the tag, so the row shows the

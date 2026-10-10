@@ -3205,7 +3205,6 @@ button.jp-cvstrip__cell:hover,
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 68ch;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -3221,7 +3220,6 @@ button.jp-cvstrip__cell:hover,
 .jp-cvledger__note,
 .jp-cvledger__reason {
   margin: 0;
-  max-width: 68ch;
   font-size: var(--text-ui);
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -3234,11 +3232,13 @@ button.jp-cvstrip__cell:hover,
   color: var(--jp-ink-2);
 }
 /* The evidence cell stacks its parts (#2083): the kind tag over the reason, the cited evidence
-   over the pass clause. */
+   over the pass clause. One measure for the whole cell, so the parts break at the same width. */
 .jp-cvledger__row > .jp-cvledger__evidence {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-width: 68ch;
+  font-size: var(--text-ui);
 }
 .jp-cvledger__kind {
   align-self: flex-start;
@@ -3252,7 +3252,6 @@ button.jp-cvstrip__cell:hover,
 }
 .jp-cvledger__pass {
   margin: 0;
-  max-width: 68ch;
   font-size: var(--text-body-sm);
   line-height: 1.5;
   color: var(--jp-ink-1);

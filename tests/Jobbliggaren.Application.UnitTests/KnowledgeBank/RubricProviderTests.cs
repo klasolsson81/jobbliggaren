@@ -164,7 +164,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "A5").NotAssessedReason
-            .ShouldBe("Vi bedömer inte karriärutveckling i den här versionen.");
+            .ShouldBe("Vi bedömer inte karriärutveckling.");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "C1").NotAssessedReason
-            .ShouldBe("Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+            .ShouldBe("Vi gör ingen djupare stavnings- och grammatikkontroll.");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class RubricProviderTests
         var rubric = LoadRubric();
 
         Criterion(rubric, "C5").NotAssessedReason
-            .ShouldBe("Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
+            .ShouldBe("Vi kontrollerar inte språkblandning mening för mening.");
     }
 
     // Test G (part 1) — the §10 DE-JARGON GUARD: no criterion's NotAssessedReason may
@@ -217,6 +217,8 @@ public class RubricProviderTests
 
         foreach (var criterion in withReason)
         {
+            RubricCopyGuard.VersionToken.IsMatch(criterion.NotAssessedReason!).ShouldBeFalse(
+                $"Kriterium {criterion.Id} nämner en motorversion: \"{criterion.NotAssessedReason}\".");
             foreach (var token in forbidden)
             {
                 criterion.NotAssessedReason!.Contains(token, StringComparison.OrdinalIgnoreCase)

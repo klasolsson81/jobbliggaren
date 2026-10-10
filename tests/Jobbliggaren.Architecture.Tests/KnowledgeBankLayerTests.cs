@@ -295,6 +295,25 @@ public class KnowledgeBankLayerTests
     // ===============================================================
 
     [Fact]
+    public void KnowledgeBank_should_not_depend_on_the_review()
+    {
+        // NotAssessedKind is shared by RubricCriterion and CvCriterionVerdict (#2083); it lives in
+        // the KnowledgeBank contract so the dependency stays Review -> KnowledgeBank (ADP). Two
+        // namespaces in one assembly compile in a cycle, so only this test keeps it one-way.
+        var result = Types.InAssembly(
+                typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.Rubric).Assembly)
+            .That()
+            .ResideInNamespace("Jobbliggaren.Application.KnowledgeBank")
+            .ShouldNot()
+            .HaveDependencyOn("Jobbliggaren.Application.Resumes.Review")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            "KnowledgeBank beror på Review: " +
+            $"{string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    [Fact]
     public void Domain_should_not_depend_on_KnowledgeBank_abstractions()
     {
         // The CV knowledge bank is an Application-/Infrastructure-concern (versioned

@@ -72,6 +72,25 @@ internal static class CvReviewFixtures
     internal static IRubricProvider RubricWithoutNotAssessedPairOn(params string[] criterionIds) =>
         ShippedRubricLoadedWithout(["notAssessedReason", "notAssessedKind"], criterionIds);
 
+    /// <summary>The shipped asset with one criterion's named threshold set to another value the
+    /// loader accepts, loaded through <see cref="RubricLoader.LoadFrom"/>.</summary>
+    internal static IRubricProvider RubricWithThreshold(string criterionId, string key, double value)
+    {
+        var root = JsonNode.Parse(
+            ShippedRubricJson(),
+            documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true })!.AsObject();
+        var criterion = root["criteria"]!.AsArray()
+            .Single(n => n!["id"]!.GetValue<string>() == criterionId)!.AsObject();
+        criterion["thresholds"]![key] = value;
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+        var rubric = RubricLoader.LoadFrom(stream);
+
+        var provider = Substitute.For<IRubricProvider>();
+        provider.GetRubric().Returns(rubric);
+        return provider;
+    }
+
     private static IRubricProvider ShippedRubricLoadedWithout(
         IReadOnlyCollection<string> fields, IReadOnlyCollection<string>? onlyCriterionIds)
     {

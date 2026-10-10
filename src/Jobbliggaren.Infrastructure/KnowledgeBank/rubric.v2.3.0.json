@@ -57,7 +57,7 @@
       "atsFailSignal": "0 siffror i hela arbetslivserfarenheten ELLER >50 % av punkterna saknar mätbarhet",
       "visualPassSignal": "Samma som ATS",
       "visualFailSignal": "Samma som ATS",
-      "passCriterion": "Varje punkt i arbetslivserfarenheten innehåller en siffra som inte är ett datum, till exempel ett antal, en procentsats eller en tid.",
+      "passCriterion": "Varje punkt i arbetslivserfarenheten innehåller en siffra som inte är ett datum eller årtal, till exempel ett antal, en procentsats eller en tid.",
       "thresholds": {
         "failRatio": 0.5
       }
@@ -73,7 +73,7 @@
       "atsFailSignal": "<50 % har action verb i början, eller börjar med \"Ansvarig för\", \"Arbetsuppgifter:\", \"Var med och\"",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Minst 80 % av punkterna i arbetslivserfarenheten börjar med ett starkt handlingsverb.",
+      "passCriterion": "Minst 80\u00a0% av punkterna i arbetslivserfarenheten börjar med ett starkt handlingsverb.",
       "thresholds": {
         "passRatio": 0.8,
         "failRatio": 0.5
@@ -104,7 +104,7 @@
       "atsFailSignal": "≥1 oförklarat gap >6 mån OCH inkonsekvent datering",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Det finns inga tidsluckor på mer än 6 månader mellan rollerna i arbetslivserfarenheten.",
+      "passCriterion": "Det finns inga tidsluckor på mer än 6\u00a0månader mellan rollerna i arbetslivserfarenheten.",
       "thresholds": {
         "maxGapMonths": 6
       }
@@ -120,7 +120,7 @@
       "atsFailSignal": "Stagnation utan kontext; titel-degradering utan förklaring",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "notAssessedReason": "Vi bedömer inte karriärutveckling i den här versionen.",
+      "notAssessedReason": "Vi bedömer inte karriärutveckling.",
       "notAssessedKind": "not_in_version"
     },
     {
@@ -134,7 +134,7 @@
       "atsFailSignal": ">50 % generiska punkter (\"ansvarade för dagliga arbetsuppgifter\")",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Minst 70 % av punkterna i arbetslivserfarenheten nämner något konkret, som en siffra eller ett namn på ett system, en kund eller ett projekt.",
+      "passCriterion": "Minst 70\u00a0% av punkterna i arbetslivserfarenheten nämner något konkret: ett namn på ett system, en kund eller ett projekt, eller en siffra som inte är ett datum eller årtal.",
       "thresholds": {
         "passRatio": 0.7,
         "failRatio": 0.5
@@ -151,7 +151,7 @@
       "atsFailSignal": "≥3 klyschor utan stöd; profiltext är >50 % personlighetsadjektiv",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Texten innehåller högst 1 av de vanliga tomma fraserna.",
+      "passCriterion": "Texten innehåller högst 1\u00a0av de vanliga tomma fraserna.",
       "thresholds": {
         "passBelowCount": 2,
         "failFromCount": 3
@@ -168,7 +168,7 @@
       "atsFailSignal": "Saknas helt ELLER >100 ord ELLER ren adjektivlista ELLER \"Objective: To obtain...\"",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Profiltexten finns, har högst 100 ord, börjar inte med ”Objective” och är mer än en uppräkning av egenskaper.",
+      "passCriterion": "Profiltexten finns, har högst 100\u00a0ord, börjar inte med ”Objective” och är mer än en uppräkning av egenskaper.",
       "notAssessedReason": "CV:t har text ovanför den första rubriken som inte kunde klassificeras. Därför går det inte att avgöra om profiltext saknas.",
       "notAssessedKind": "insufficient_data",
       "thresholds": {
@@ -186,7 +186,7 @@
       "atsFailSignal": "Adjektivlista utan exempel (\"kommunikativ, driven, social\")",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Varje personlig egenskap som texten nämner står i samma mening som en siffra.",
+      "passCriterion": "Varje personlig egenskap som texten nämner står i samma mening som en siffra som inte är ett datum eller årtal.",
       "thresholds": {
         "failFromCount": 2
       }
@@ -231,7 +231,7 @@
       "atsFailSignal": "<0,5 sida ELLER ≥3 sidor (icke-akademiskt). ATS: <1 sida tappar keyword-bredd",
       "visualPassSignal": "Samma längd, men whitespace räknas inte som \"tomt\"",
       "visualFailSignal": "Samma men 2,5 sidor accepteras om designen är skanbar",
-      "passCriterion": "CV:t är högst 2 sidor långt.",
+      "passCriterion": "CV:t är högst 2\u00a0sidor långt.",
       "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
@@ -335,7 +335,7 @@
       "atsFailSignal": "≥1 stavfel; ≥2 grammatikfel",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "notAssessedReason": "Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.",
+      "notAssessedReason": "Vi gör ingen djupare stavnings- och grammatikkontroll.",
       "notAssessedKind": "not_in_version"
     },
     {
@@ -349,7 +349,7 @@
       "atsFailSignal": "\"Rockstar\", \"ninja\", \"stellar track record\"; ELLER överdriven blygsamhet (\"har lite erfarenhet av\")",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Texten har inga långa ord i bara versaler och högst 1 utropstecken.",
+      "passCriterion": "Texten har inga långa ord i bara versaler och högst 1\u00a0utropstecken.",
       "thresholds": {
         "warnFromExclamationCount": 2
       }
@@ -394,7 +394,7 @@
       "atsFailSignal": "Blandning sv/en i bullets (\"Worked med kunder för att deliver...\")",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "notAssessedReason": "Vi kontrollerar inte språkblandning mening för mening i den här versionen.",
+      "notAssessedReason": "Vi kontrollerar inte språkblandning mening för mening.",
       "notAssessedKind": "not_in_version"
     },
     {
@@ -408,7 +408,7 @@
       "atsFailSignal": "Förkortningar utan kontext",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Texten har högst 2 förkortningar utan förklaring inom parentes.",
+      "passCriterion": "Texten har högst 2\u00a0förkortningar utan förklaring inom parentes.",
       "thresholds": {
         "maxUnexplainedAcronyms": 2
       }
@@ -424,7 +424,7 @@
       "atsFailSignal": "Flera ord saknas i ordlistan och är varken egennamn eller facktermer. Kontrollera stavningen",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "passCriterion": "Texten har högst 1 misstänkt stavfel, utöver egennamn och vedertagna facktermer.",
+      "passCriterion": "Texten har högst 1\u00a0misstänkt stavfel, utöver egennamn och vedertagna facktermer.",
       "thresholds": {
         "warnFromMisspellingCount": 2
       }
@@ -461,7 +461,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "Arial, Calibri, Helvetica, Roboto, Times New Roman, Georgia, Verdana. 10–12 pt brödtext",
       "atsFailSignal": "Custom-fonter; <9 pt; ikonfonter",
-      "passCriterion": "Brödtexten är satt i ett vanligt standardtypsnitt i minst 10 punkter.",
+      "passCriterion": "Brödtexten är satt i ett vanligt standardtypsnitt i minst 10\u00a0punkter.",
       "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
@@ -536,7 +536,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "<2 MB",
       "atsFailSignal": ">5 MB (komprimera bilder)",
-      "passCriterion": "Filstorleken ligger inom den rekommenderade gränsen.",
+      "passCriterion": "Filen är mindre än 2\u00a0MB.",
       "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {

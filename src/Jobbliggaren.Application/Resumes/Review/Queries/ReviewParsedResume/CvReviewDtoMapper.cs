@@ -54,7 +54,6 @@ internal static class CvReviewDtoMapper
             ? s
             : default((string Status, DateTimeOffset? StaleAt)?);
 
-        // Defensive: an N-1/synthetic asset may lack the criterion — never throw on it.
         var criterion = criterionById.GetValueOrDefault(verdict.CriterionId);
 
         return new(

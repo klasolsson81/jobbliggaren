@@ -152,7 +152,7 @@ internal sealed class A4GapsRule : ICriterionRule
 
         if (dated.Count == 0)
         {
-            return ReviewText.UnparsedPeriods(context);
+            return ReviewText.UnparsedPeriods(context, "tidsluckor");
         }
 
         if (dated.Count == 1)

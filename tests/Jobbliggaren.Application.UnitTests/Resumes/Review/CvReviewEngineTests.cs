@@ -1409,7 +1409,7 @@ public class CvReviewEngineTests
         a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         a5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         a5.NotAssessedReason.ShouldBe(
-            "Vi bedömer inte karriärutveckling i den här versionen.");
+            "Vi bedömer inte karriärutveckling.");
     }
 
     [Fact]
@@ -1421,7 +1421,7 @@ public class CvReviewEngineTests
         c1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         c1.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         c1.NotAssessedReason.ShouldBe(
-            "Djupare stavnings- och grammatikkontroll ingår inte i den här versionen.");
+            "Vi gör ingen djupare stavnings- och grammatikkontroll.");
     }
 
     [Fact]
@@ -1436,7 +1436,7 @@ public class CvReviewEngineTests
         c5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         c5.NotAssessedKind.ShouldBe(NotAssessedKind.NotInVersion);
         c5.NotAssessedReason.ShouldBe(
-            "Vi kontrollerar inte språkblandning mening för mening i den här versionen.");
+            "Vi kontrollerar inte språkblandning mening för mening.");
     }
 
     [Fact]
@@ -1614,11 +1614,26 @@ public class CvReviewEngineTests
             var verdict = Verdict(result, id);
             verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
                 $"{id} ska vara NotAssessed när Period inte kan parsas.");
-            // #2083 (CTO F4): the three share one cause, so one sentence, and the periods are in
-            // the text but do not settle the criterion → InsufficientData.
+            // #2083: the periods are in the text but do not settle the criterion → InsufficientData.
             verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData, id);
             verdict.NotAssessedReason.ShouldBe(ReviewText.UnparsedPeriodsReason, id);
         }
+    }
+
+    [Theory]
+    [InlineData("A4", "tidsluckor")]
+    [InlineData("B6", "datumformat")]
+    [InlineData("B7", "kronologi")]
+    public async Task ReviewAsync_ShouldSayThereIsNoExperience_WhenTheCvStatesNoExperienceEntry(
+        string criterionId, string subject)
+    {
+        // #2083 (code-reviewer M3): with no experience entry there are no periods to misread, so the
+        // reason is A1/A2/A6's no-experience sentence, not "Perioderna kunde inte tolkas".
+        var verdict = Verdict(await ReviewAsync(Resume(experience: [])), criterionId);
+
+        verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
+        verdict.NotAssessedReason.ShouldBe(ReviewText.NoExperienceReason(subject));
     }
 
     [Fact]

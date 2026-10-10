@@ -7,9 +7,7 @@ using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
-// Fas 4 STEG 9 (F4-9) — Structure-category (B) criterion rules. B2 (length, needs page
-// count) has no rule — it falls through to the engine's honest NotAssessed (the page-count
-// signal the text parse cannot see; PR-6b's ICvLayoutAnalyzer feeds it). B5 (formatting) is
+// Fas 4 STEG 9 (F4-9) — Structure-category (B) criterion rules. B5 (formatting) is
 // assessed GEOMETRY-FREE from Fas 4b PR-6 (mixed bullet markers in the linearized text) —
 // Warn or NotAssessed, never Pass (the font/heading half still needs PDF geometry, deferred).
 
@@ -25,9 +23,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// calls out. The evidence sentence was true; the verdict it was attached to was not.</para>
 ///
 /// <para><b>Why not NotAssessed.</b> That was the first fix attempted, and it is its own
-/// mis-report: every authored <c>notAssessedReason</c> in the asset means "we could not read this
-/// from a text-based interpretation of your CV", which is FALSE for a CV whose sections we read
-/// perfectly well — and <c>CvReviewEngine</c> counts <c>Verdict != NotAssessed</c> as the assessed
+/// mis-report: <c>CvReviewEngine</c> counts <c>Verdict != NotAssessed</c> as the assessed
 /// set, so every well-formed CV would silently lose a High-weight criterion. A criterion that CAN
 /// assess, must assess (senior-cto-advisor bind Round 2, 2026-07-14). B5 is not a precedent for it:
 /// B5's assessable half can only ever produce a NEGATIVE, while B1's produces a genuine positive.</para>
@@ -399,7 +395,7 @@ internal sealed class B6DateFormatRule : ICriterionRule
 
         if (formats.Count == 0)
         {
-            return ReviewText.UnparsedPeriods(context);
+            return ReviewText.UnparsedPeriods(context, "datumformat");
         }
 
         // The distinct-format ceiling is rubric v1.2 DATA (thresholds.maxDistinctDateFormats),
@@ -424,7 +420,7 @@ internal sealed class B7ChronologyRule : ICriterionRule
 
         if (dated.Count == 0)
         {
-            return ReviewText.UnparsedPeriods(context);
+            return ReviewText.UnparsedPeriods(context, "kronologi");
         }
 
         if (dated.Count == 1)

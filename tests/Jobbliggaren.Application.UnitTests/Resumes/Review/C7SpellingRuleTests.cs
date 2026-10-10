@@ -31,9 +31,9 @@ public class C7SpellingRuleTests
         RealRubric().Criteria.Single(c => c.Id == "C7")
             .RequiredThreshold(RubricThresholdKeys.WarnFromMisspellingCount);
 
-    private static CvReviewEngine EngineWith(ISpellChecker checker) =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(), checker, RealAllowlist(),
-            RealCvConventionsProvider(), RealParsingLexicon());
+    private static CvReviewEngine EngineWith(ISpellChecker checker, IRubricProvider? rubric = null) =>
+        new(rubric ?? RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(), checker,
+            RealAllowlist(), RealCvConventionsProvider(), RealParsingLexicon());
 
     // A stub that deems EVERY word correct except the named tokens (matched by NFC-identity for the
     // ASCII test vocabulary). C7 only ever hands it a lowercase-initial, non-allowlisted, checkable token.
@@ -49,9 +49,10 @@ public class C7SpellingRuleTests
         return checker;
     }
 
-    private static async Task<CvCriterionVerdict> C7Async(ISpellChecker checker, ParsedResume resume)
+    private static async Task<CvCriterionVerdict> C7Async(
+        ISpellChecker checker, ParsedResume resume, IRubricProvider? rubric = null)
     {
-        var result = await EngineWith(checker).ReviewAsync(
+        var result = await EngineWith(checker, rubric).ReviewAsync(
             CvReviewContext.FromParsed(resume), RenderProfile.Ats, TestContext.Current.CancellationToken);
         return Verdict(result, "C7");
     }
@@ -110,7 +111,22 @@ public class C7SpellingRuleTests
         // there was no suspected misspelling (#2083, CTO F7).
         var span = c7.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>();
         span.Span.Quote.ShouldBe("stavfle");
-        span.Note.ShouldBe("1 möjligt stavfel, gränsen är 2.");
+        span.Note.ShouldBe($"1 möjligt stavfel, gränsen är {WarnFrom():0}.");
+    }
+
+    [Fact]
+    public async Task C7_ShouldCountSeveralMisspellingsInThePass_WhenTheThresholdIsHigher()
+    {
+        // The plural form of the below-threshold note is reachable only on an asset whose threshold
+        // is above 2; RubricLoader accepts one (any finite non-negative value), so it is loaded here.
+        var rubric = RubricWithThreshold("C7", RubricThresholdKeys.WarnFromMisspellingCount, 3);
+        var resume = Resume(profile: "Jag har erfarenhet av stavfle och skrivfle i arbetet.");
+
+        var c7 = await C7Async(CheckerRejecting("stavfle", "skrivfle"), resume, rubric);
+
+        c7.Verdict.ShouldBe(CriterionVerdict.Pass);
+        c7.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>()
+            .Note.ShouldBe("2 möjliga stavfel, gränsen är 3.");
     }
 
     [Fact]

@@ -65,7 +65,11 @@ internal static class ReviewText
     public static string NoBulletsReason(CriterionEvaluationContext context, string subject) =>
         HasExperienceEntries(context)
             ? $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på."
-            : $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
+            : NoExperienceReason(subject);
+
+    /// <summary>The reason a criterion that reads experience carries when the CV states none.</summary>
+    public static string NoExperienceReason(string subject) =>
+        $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
 
     /// <summary>A1/A2/A6's NotAssessed verdict when there are no scorable bullets: the kind
     /// travels with <see cref="NoBulletsReason"/> (InsufficientData, #2083).</summary>
@@ -73,14 +77,17 @@ internal static class ReviewText
         CvCriterionVerdict.NotAssessed(context.Criterion.Id, context.Criterion.Category,
             NotAssessedKind.InsufficientData, NoBulletsReason(context, subject));
 
-    /// <summary>The one cause A4, B6 and B7 share when no experience period could be read as a
-    /// date. The periods are in the text; they do not settle the criterion (InsufficientData).</summary>
+    /// <summary>The reason A4, B6 and B7 share when experience entries exist but none of their
+    /// periods could be read as a date.</summary>
     public const string UnparsedPeriodsReason = "Perioderna kunde inte tolkas till datum.";
 
-    /// <summary>A4/B6/B7's NotAssessed verdict when no period parses (#2083).</summary>
-    public static CvCriterionVerdict UnparsedPeriods(CriterionEvaluationContext context) =>
+    /// <summary>A4/B6/B7's NotAssessed verdict when no period parses (#2083): the periods are
+    /// unreadable, or the CV states no experience at all, told apart as <see cref="NoBulletsReason"/>
+    /// does (#487). <paramref name="subject"/> is the criterion's aspect.</summary>
+    public static CvCriterionVerdict UnparsedPeriods(CriterionEvaluationContext context, string subject) =>
         CvCriterionVerdict.NotAssessed(context.Criterion.Id, context.Criterion.Category,
-            NotAssessedKind.InsufficientData, UnparsedPeriodsReason);
+            NotAssessedKind.InsufficientData,
+            HasExperienceEntries(context) ? UnparsedPeriodsReason : NoExperienceReason(subject));
 
     /// <summary>
     /// The description lines of one experience entry in the unified view (Fas 4b PR-4,

@@ -142,6 +142,7 @@ public class RubricPassCriterionAndNotAssessedKindTests
             var text = criterion.PassCriterion!;
 
             text.ShouldEndWith(".", Case.Sensitive, $"{criterion.Id}: \"{text}\"");
+            RubricCopyGuard.VersionToken.IsMatch(text).ShouldBeFalse($"{criterion.Id} nämner en motorversion: \"{text}\"");
             Regex.IsMatch(text, @"[.!?]\s").ShouldBeFalse($"{criterion.Id} är en mening: \"{text}\"");
             foreach (var token in acronyms)
             {
@@ -174,6 +175,8 @@ public class RubricPassCriterionAndNotAssessedKindTests
             ["C6"] = c => [Whole(c, RubricThresholdKeys.MaxUnexplainedAcronyms)],
             ["C7"] = c => [Whole(c, RubricThresholdKeys.WarnFromMisspellingCount) - 1],
             ["D3"] = c => [Whole(c, RubricThresholdKeys.FontBodyPtWarnBelow)],
+            // The row's evidence prints the size in MiB, so the clause states the threshold in MiB.
+            ["D9"] = c => [(int)(c.RequiredThreshold(RubricThresholdKeys.FileSizeWarnBytes) / (1024 * 1024))],
         };
 
         foreach (var criterion in LoadRubric().Criteria.Where(c => c.PassCriterion is not null))
@@ -186,6 +189,12 @@ public class RubricPassCriterionAndNotAssessedKindTests
             string.Join(", ", stated).ShouldBe(
                 string.Join(", ", want), $"{criterion.Id}: \"{criterion.PassCriterion}\"");
         }
+    }
+
+    [Fact]
+    public void D9PassCriterion_ShouldStateAStrictBound()
+    {
+        Criterion(LoadRubric(), "D9").PassCriterion!.ShouldContain("mindre än");
     }
 
     private static int Whole(RubricCriterion criterion, string key) =>
@@ -220,12 +229,14 @@ public class RubricPassCriterionAndNotAssessedKindTests
         act.ShouldThrow<InvalidOperationException>().Message.ShouldContain("notAssessedKind");
     }
 
-    [Fact]
-    public void Load_ShouldFailLoud_WhenAKindHasNoReason()
+    [Theory]
+    [InlineData("\"notAssessedKind\": \"text_only\",")]
+    [InlineData("\"notAssessedKind\": \"text_only\", \"notAssessedReason\": \"  \",")]
+    public void Load_ShouldFailLoud_WhenAKindHasNoReason(string fields)
     {
-        // A1 carries no notAssessedReason; a kind on it classifies nothing.
+        // A1 carries no notAssessedReason; a kind on it, or on a blank reason, classifies nothing.
         var json = ShippedRubricJson().Replace(
-            "\"id\": \"A1\",", "\"id\": \"A1\", \"notAssessedKind\": \"text_only\",", StringComparison.Ordinal);
+            "\"id\": \"A1\",", $"\"id\": \"A1\", {fields}", StringComparison.Ordinal);
 
         var act = () => LoadFrom(json);
 

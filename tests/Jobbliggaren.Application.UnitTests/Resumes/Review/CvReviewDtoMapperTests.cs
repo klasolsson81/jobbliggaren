@@ -10,8 +10,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// The per-criterion projections in <see cref="CvReviewDtoMapper"/>: the static facts of a
 /// criterion (its heading, <c>IsIgnorable</c> from the rubric's StyleOnly flag, its
 /// "Godkänns när" clause) are derived here from the rubric's criteria, which both review
-/// handlers pass from one <c>GetRubric()</c> call. The criteria are the REAL committed asset,
-/// so every flag and clause asserted below is one production carries.
+/// handlers pass from one <c>GetRubric()</c> call.
 ///
 /// The honesty invariants this backs (CLAUDE.md §5): the FE gates the "Ignorera regeln
 /// (stilfråga)" control on <c>IsIgnorable</c>, so an over-broad projection would offer a rule
@@ -45,37 +44,42 @@ public class CvReviewDtoMapperTests
     [Fact]
     public void ToDto_ShouldFlagOnlyStyleOnlyCriteria_AsIgnorable()
     {
-        // E3 is StyleOnly in the shipped rubric; A7 is not.
+        // B5 is StyleOnly in the shipped rubric; A7 is not.
         var result = ResultWith(
-            Fail("E3", RubricCategory.VisualQuality),
+            Assessed("B5", CriterionVerdict.Warn, RubricCategory.Structure),
             Fail("A7"));
 
         var dto = result.ToDto(Criteria);
 
-        dto.Verdicts.Single(v => v.CriterionId == "E3").IsIgnorable.ShouldBeTrue();
+        dto.Verdicts.Single(v => v.CriterionId == "B5").IsIgnorable.ShouldBeTrue();
         dto.Verdicts.Single(v => v.CriterionId == "A7").IsIgnorable.ShouldBeFalse();
     }
 
     [Fact]
-    public void ToDto_ShouldFlagCriticalFailsConsistently_WhenIgnorableIdInCriticalList()
+    public void ToDto_ShouldProjectACriticalFailAsItsVerdictsEntry()
     {
-        // CriticalFails is a PARALLEL per-verdict projection — an ignorable id surfaced there
-        // must carry the flag identically, or the two lists would disagree about the same finding.
-        var e3 = Fail("E3", RubricCategory.VisualQuality);
+        // CriticalFails is a PARALLEL per-verdict projection; the two lists must never disagree
+        // about the same finding. A1 is a critical-fail criterion whose rule fails.
+        var a1 = Fail("A1");
         var result = new CvReviewResult(
-            Version, RenderProfile.Ats, [], [e3], CriticalFails: [e3], AssessedCount: 1, TotalCount: 1);
+            Version, RenderProfile.Ats, [], [a1], CriticalFails: [a1], AssessedCount: 1, TotalCount: 1);
 
         var dto = result.ToDto(Criteria);
 
-        dto.Verdicts.Single().IsIgnorable.ShouldBeTrue();
-        dto.CriticalFails.Single().IsIgnorable.ShouldBeTrue();
+        var verdict = dto.Verdicts.Single();
+        var critical = dto.CriticalFails.Single();
+        critical.Name.ShouldBe(verdict.Name);
+        critical.IsIgnorable.ShouldBe(verdict.IsIgnorable);
+        critical.PassCriterion.ShouldBe(PassCriterionOf("A1"));
+        verdict.PassCriterion.ShouldBe(PassCriterionOf("A1"));
     }
 
     [Fact]
     public void ToDto_ShouldFallBackToTheIdAndNoRubricFacts_WhenTheRubricLacksTheCriterion()
     {
-        // An N-1/synthetic asset may lack a criterion the engine verdicts: the mapper never
-        // throws, names the row by its id, and claims nothing the rubric did not state.
+        // Declared unreachable: the engine and both handlers read the same rubric singleton, so a
+        // verdict always has its criterion. This pins only that the read side degrades safely if
+        // that invariant breaks: no throw, the id as the name, no rubric fact claimed.
         var result = ResultWith(Fail("A7"));
 
         var dto = result.ToDto([]);
@@ -93,11 +97,12 @@ public class CvReviewDtoMapperTests
     [InlineData(CriterionVerdict.Warn)]
     public void ToDto_ShouldCarryTheRubricPassCriterion_WhenTheVerdictFailedIt(CriterionVerdict outcome)
     {
-        var result = ResultWith(Assessed("A8", outcome));
+        // A2's rule returns both Fail and Warn.
+        var result = ResultWith(Assessed("A2", outcome));
 
         var dto = result.ToDto(Criteria);
 
-        dto.Verdicts.ShouldHaveSingleItem().PassCriterion.ShouldBe(PassCriterionOf("A8"));
+        dto.Verdicts.ShouldHaveSingleItem().PassCriterion.ShouldBe(PassCriterionOf("A2"));
     }
 
     [Fact]

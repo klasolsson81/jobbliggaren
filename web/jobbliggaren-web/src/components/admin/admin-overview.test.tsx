@@ -7,6 +7,7 @@ import {
   type AdminTrendDay,
 } from "@/lib/admin/view-models";
 import { serverRegion, toServerReading } from "@/lib/admin/host-observation";
+import { servicesRegion, toServicesReading } from "@/lib/admin/service-observation";
 import { AdminOverview } from "./admin-overview";
 
 const TREND: ReadonlyArray<AdminTrendDay> = Array.from({ length: 90 }, (_, index) => ({
@@ -21,13 +22,14 @@ const LOADED: AdminOverviewRegions = {
   active: { kind: "loaded", data: { last30Days: 9, today: 4, last7Days: 7 } },
   logins: { kind: "loaded", data: { today: 8, yesterday: 7, failed: 2, locked: 0 } },
   trend: { kind: "loaded", data: TREND },
-  services: {
-    kind: "loaded",
-    data: [
-      { id: "database", label: "Databas", state: "ok", detail: "4 ms" },
-      { id: "platsbanken", label: "Platsbanken", state: "warning", detail: "Senaste hämtningen misslyckades" },
-    ],
-  },
+  services: servicesRegion(toServicesReading({
+    staleAfterSeconds: 120,
+    workerAliveWithinSeconds: 120,
+    importOverdueAfterSeconds: 1500,
+    backgroundJobs: { state: "Alive", sampledAt: "2026-10-04T05:00:00Z", heartbeatAt: "2026-10-04T04:59:50Z" },
+    volatileStore: { state: "Unreachable", sampledAt: "2026-10-04T05:00:00Z" },
+    jobImport: { state: "Recorded", sampledAt: "2026-10-04T05:00:00Z", lastRunAt: "2026-10-04T04:50:00Z", errors: 0 },
+  })),
   server: serverRegion(toServerReading({
     staleAfterSeconds: 120,
     cpu: { state: "Available", sampledAt: "2026-10-04T05:00:00Z", value: { percent: 23.4, windowSeconds: 30 } },
@@ -64,26 +66,24 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     expect(card("Inloggningar")).toHaveTextContent("8idag7 igår · 2 misslyckade försök · 0 låsta konton");
   });
 
-  it("lists the services with their state, and reads each server reading as text", () => {
+  it("shows the services as observations in rows, and reads each server reading as text", () => {
     render(<AdminOverview regions={LOADED} />);
 
-    const services = within(card("Tjänster")).getAllByRole("listitem");
-    expect(services.map((item) => item.textContent)).toEqual([
-      "DatabasFungerar4 ms",
-      "PlatsbankenVarningSenaste hämtningen misslyckades",
+    const services = card("Tjänster");
+    expect(within(services).getAllByRole("term").map((term) => term.textContent)).toEqual([
+      "Worker", "Tillfälligt lager", "Annonsimport",
     ]);
+    expect(services).toHaveTextContent("WorkerSenaste livstecken 2026-10-04 06:59");
+    expect(within(services).getByText("Svarar inte")).toHaveClass("jp-admin-warning");
+    expect(services).toHaveTextContent("AnnonsimportSenaste körning 2026-10-04 06:50");
+    expect(within(services).queryByRole("listitem")).toBeNull();
+    expect(within(services).getByRole("link", { name: "Loggar" })).toHaveAttribute("href", "/admin/loggar");
     const server = card("Server");
     expect(within(server).getByText("CPU").nextElementSibling).toHaveTextContent("23,4 %");
     expect(within(server).queryByText("Kommer snart")).toBeNull();
     expect(card("Backup")).toHaveTextContent("Senaste lyckade körning2026-10-04 03:30");
     expect(card("Backup")).toHaveTextContent("Nästa planerade körning2026-10-05 03:30");
     expect(within(card("Backup")).getAllByText("Saknar verifierad datakälla")).toHaveLength(2);
-  });
-
-  it("degrades a loaded services region with no rows, which listRegion never builds, to its empty line", () => {
-    render(<AdminOverview regions={{ ...LOADED, services: { kind: "loaded", data: [] } }} />);
-    expect(within(card("Tjänster")).queryAllByRole("listitem")).toEqual([]);
-    expect(card("Tjänster")).toHaveTextContent("Inga tjänster att visa.");
   });
 
   it("marks a failed email in the danger colour and lists the most sent types", () => {

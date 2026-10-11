@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountStatusCountsSchema } from "./admin-accounts";
 import { hostObservationSchema } from "./admin-host";
+import { servicesObservationSchema } from "./admin-services";
 
 const instant = z.iso.datetime({ offset: true });
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -111,5 +112,6 @@ export const overviewSnapshotSchema = z.object({
   jobs: observation(overviewJobsSchema),
   backup: awaitingObservation(backupDataSchema),
   host: observation(hostObservationSchema),
+  services: observation(servicesObservationSchema),
 });
 export type AdminOverviewSnapshot = z.infer<typeof overviewSnapshotSchema>;

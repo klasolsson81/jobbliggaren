@@ -12,7 +12,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { StatusDot, type StatusTone } from "@/components/ui/status-dot";
+import type { StatusTone } from "@/components/ui/status-dot";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   ADMIN_OVERVIEW_UNAVAILABLE,
@@ -23,16 +23,18 @@ import {
   type AdminOverviewRegions,
   type AdminRecentEvent,
   type AdminRegion,
-  type AdminServiceStatus,
   type AdminValueRegion,
 } from "@/lib/admin/view-models";
 import { accountsHref, OVERVIEW_STALE_MS, type AdminOverviewSnapshot, type AwaitingObservation } from "@/lib/admin/overview";
 import type { RegistrationPeriod } from "@/lib/dto/admin-overview";
+import { backupOrServicesRaised } from "@/lib/admin/attention";
 import { AdminObservationNote } from "./admin-observation-note";
+import { BackupAttentionLines, ServicesAttentionLines } from "./admin-attention-sources";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminObservedServer, AdminServerBody } from "./admin-server-body";
+import { AdminObservedServices, AdminServicesBody } from "./admin-services-body";
 import { AdminTrendCard } from "./admin-trend-card";
 import { AdminUnknown } from "./admin-unknown";
 
@@ -159,7 +161,8 @@ export function AdminOverview({
           list
           aside={<AdminCardLink href={`${basePath}/loggar`} label={t("services.link")} />}
         >
-          <ServicesBody region={regions.services} />
+          {observations ? <AdminObservedServices observation={observations.services} now={now} />
+            : <AdminServicesBody region={regions.services} />}
         </AdminCard>
 
         <AdminCard id="admin-overview-server" title={t("server.title")} icon={Server} span={4}>
@@ -212,7 +215,7 @@ export function AdminOverview({
           title={t("attention.title")}
           span={5}
           list
-          attention={observations ? overviewAttentionState(observations) : attentionState(regions.attention)}
+          attention={observations ? overviewAttentionState(observations, now) : attentionState(regions.attention)}
         >
           {observations ? <ObservedAttention observations={observations} now={now} basePath={basePath} />
             : <AttentionBody region={regions.attention} basePath={basePath} />}
@@ -291,25 +294,6 @@ function ValueCard<T>({
       {shown.extra}
       {note}
     </AdminCard>
-  );
-}
-
-function ServicesBody({ region }: { readonly region: AdminRegion<ReadonlyArray<AdminServiceStatus>> }) {
-  const t = useTranslations("admin.overview.services");
-  if (region.kind !== "loaded") return <AdminRegionLine quiet kind={region.kind} empty={t("empty")} region />;
-  if (region.data.length === 0) return <AdminRegionLine quiet kind="empty" empty={t("empty")} region />;
-  return (
-    <ul className="jp-adminservices">
-      {region.data.map((service) => (
-        <li key={service.id}>
-          <StatusDot tone={service.state === "ok" ? "success" : "warning"}>{service.label}</StatusDot>
-          <span className="jp-adminservices__state" data-state={service.state}>
-            {t(`state.${service.state}`)}
-          </span>
-          <span className="jp-adminservices__detail">{service.detail}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -475,10 +459,10 @@ function AccountStatusLinks({ basePath, counts }: {
     <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, undefined, statuses[key])} className="jp-adminoverview__link">{t(key, { count: counts[key] })}</Link></span>)}</>;
 }
 
-function overviewAttentionState(snapshot: AdminOverviewSnapshot): "unknown" | "raised" {
+function overviewAttentionState(snapshot: AdminOverviewSnapshot, now: number): "unknown" | "raised" {
   const pending = snapshot.accounts.kind === "loaded" && snapshot.accounts.data.counts.pendingDeletion > 0;
   const failed = snapshot.jobs.kind === "loaded" && snapshot.jobs.data.totalCount > 0;
-  return pending || failed ? "raised" : "unknown";
+  return pending || failed || backupOrServicesRaised(snapshot.backup, snapshot.services, now) ? "raised" : "unknown";
 }
 
 function ObservedAttention({ observations, now, basePath }: {
@@ -487,7 +471,7 @@ function ObservedAttention({ observations, now, basePath }: {
   readonly basePath: string;
 }) {
   const t = useTranslations("admin.overview.attention");
-  const { accounts, jobs } = observations;
+  const { accounts, jobs, backup, services } = observations;
   return <div className="jp-admincard__body">
     {jobs.kind === "loaded" || jobs.kind === "empty" ? <p>{jobs.data.totalCount > 0
       ? <Link href={`${basePath}/jobb#failed-jobs`} className="jp-adminoverview__link">{t("failedJobs", { count: jobs.data.totalCount })}</Link>
@@ -497,6 +481,8 @@ function ObservedAttention({ observations, now, basePath }: {
       ? <Link href={accountsHref(basePath, undefined, "PendingDeletion")} className="jp-adminoverview__link">{t("pendingDeletions", { count: accounts.data.counts.pendingDeletion })}</Link>
       : t("noPendingDeletions")}</p> : <div><p>{t("deletionsSource")}</p><AdminRegionLine kind={accounts.kind} quiet /></div>}
     <AdminObservationNote observation={accounts} now={now} />
+    <BackupAttentionLines observation={backup} />
+    <ServicesAttentionLines observation={services} now={now} />
     <p>{t("emailUnknown")}</p>
   </div>;
 }

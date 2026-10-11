@@ -50,7 +50,7 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
 {
     // Ett namn, ett ställe (§5 magic strings). Audit-raden och throughput-eventet MÅSTE bära
     // samma jobType — runbook §B korrelerar dem mot varandra i Seq.
-    private const string JobTypeName = "snapshot";
+    private const string JobTypeName = JobAdsSynced.SnapshotJobType;
 
     public async Task<SyncCounts> RunAsync(CancellationToken cancellationToken)
     {

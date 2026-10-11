@@ -28,4 +28,11 @@ describe("overview drilldown and observations", () => {
     expect(refreshed.accounts).toEqual({ ...previous.accounts, refreshFailed: true });
     expect(refreshed.jobs).toEqual(previous.jobs);
   });
+  it("retains the last services observation with its own sample time when only that source fails (#1982)", () => {
+    const previous = overviewSnapshotFixture();
+    const refreshed = retainOverview(previous, { ...previous, services: { kind: "failed" } });
+    expect(refreshed.services).toEqual({ ...previous.services, refreshFailed: true });
+    expect(refreshed.host).toEqual(previous.host);
+    expect(retainOverview(refreshed, previous).services).toEqual(previous.services);
+  });
 });

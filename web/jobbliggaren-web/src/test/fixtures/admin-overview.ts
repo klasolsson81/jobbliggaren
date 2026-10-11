@@ -1,5 +1,6 @@
 import type { AccountOverviewDto, AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
+import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 
 export const OVERVIEW_TIME = "2026-10-08T10:00:00Z";
 
@@ -39,6 +40,22 @@ export function hostFixture(): HostObservationDto {
   };
 }
 
+/**
+ * The three service rows as the API sends them, sampled 30 s before `OVERVIEW_TIME`: a Worker heartbeat 10 s before
+ * the sample, a store that answers, and an import run at 11:50 Stockholm time without errors.
+ */
+export function servicesFixture(): ServicesObservationDto {
+  const sampledAt = "2026-10-08T09:59:30Z";
+  return {
+    staleAfterSeconds: 120,
+    workerAliveWithinSeconds: 120,
+    importOverdueAfterSeconds: 1500,
+    backgroundJobs: { state: "Alive", sampledAt, heartbeatAt: "2026-10-08T09:59:20Z" },
+    volatileStore: { state: "Reachable", sampledAt },
+    jobImport: { state: "Recorded", sampledAt, lastRunAt: "2026-10-08T09:50:00Z", errors: 0 },
+  };
+}
+
 export function overviewSnapshotFixture(): AdminOverviewSnapshot {
   return {
     accounts: { kind: "loaded", data: accountOverviewFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
@@ -49,5 +66,6 @@ export function overviewSnapshotFixture(): AdminOverviewSnapshot {
     jobs: { kind: "loaded", data: { totalCount: 3 }, sampledAt: OVERVIEW_TIME, refreshFailed: false },
     backup: { kind: "loaded", data: backupFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
     host: { kind: "loaded", data: hostFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
+    services: { kind: "loaded", data: servicesFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
   };
 }

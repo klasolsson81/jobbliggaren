@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { accountOverviewFixture, hostFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
+import { accountOverviewFixture, hostFixture, OVERVIEW_TIME, servicesFixture } from "@/test/fixtures/admin-overview";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
@@ -16,6 +16,7 @@ const jobs = { totalCount: 3, returned: 50, items: [{ jobId: "1", jobType: "Matc
 
 const BACKUP = "/api/v1/admin/overview/backup";
 const HOST = "/api/v1/admin/overview/host";
+const SERVICES = "/api/v1/admin/overview/services";
 // The wire form of System.Text.Json for a DateTimeOffset in UTC: an offset, never a Z.
 const HOST_TIME = "2026-10-08T09:58:02+00:00";
 const backupObserved = {
@@ -32,6 +33,7 @@ function success(_session: string, path: string) {
   return Promise.resolve(response(
     path === BACKUP ? backupObserved
       : path === HOST ? hostFixture()
+      : path === SERVICES ? servicesFixture()
       : path.includes("overview") ? accountOverviewFixture() : path.includes("audit") ? audit : jobs));
 }
 beforeEach(() => { vi.clearAllMocks(); session.mockResolvedValue("synthetic-session"); transport.mockImplementation(success); });
@@ -42,7 +44,7 @@ describe("admin overview source reads", () => {
     const result = await loadAdminOverview();
     expect(result.kind).toBe("ok");
     expect(transport.mock.calls.map((call) => call[1])).toEqual([
-      "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP, HOST,
+      "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP, HOST, SERVICES,
     ]);
     expect(JSON.stringify(result)).not.toMatch(/ipAddress|userAgent|synthetic-agent|192.0.2.1|correlationId|userId|jobType|errorCategory/);
     if (result.kind !== "ok") throw new Error("Expected observed sources");
@@ -90,7 +92,10 @@ describe("admin overview source reads", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(await pending).toMatchObject({
       kind: "ok",
-      data: { accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" }, host: { kind: "failed" } },
+      data: {
+        accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" }, host: { kind: "failed" },
+        services: { kind: "failed" },
+      },
     });
     expect(deadlines).toEqual([10_000, 10_000, 10_000]);
   });
@@ -154,6 +159,7 @@ describe("admin overview Backup source (#1982)", () => {
     expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(BACKUP);
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(HOST);
+    expect(transport.mock.calls.map((call) => call[1])).not.toContain(SERVICES);
   });
   it("never asks the host for anything when no first-step source succeeded, and reads the card as failed", async () => {
     transport.mockImplementation(() => Promise.resolve(new Response(null, { status: 502 })));
@@ -161,8 +167,10 @@ describe("admin overview Backup source (#1982)", () => {
     if (result.kind !== "ok") throw new Error("Expected partial observation");
     expect(result.data.backup).toEqual({ kind: "failed" });
     expect(result.data.host).toEqual({ kind: "failed" });
+    expect(result.data.services).toEqual({ kind: "failed" });
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(BACKUP);
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(HOST);
+    expect(transport.mock.calls.map((call) => call[1])).not.toContain(SERVICES);
   });
   it.each([401, 403])("answers %i when one first-step source does, wherever the host read stands (a role revoked in flight)", async (status) => {
     transport.mockImplementation((_session: string, path: string) => path.includes("audit") ? new Response(null, { status }) : success(_session, path));
@@ -347,5 +355,109 @@ describe("admin overview Server source (#1982)", () => {
     expect(JSON.stringify(host)).not.toMatch(/mount|vda4|reason|ReadFailed|"\/"/);
     if (host.kind !== "loaded") throw new Error("Expected a loaded host");
     expect(Object.keys(host.data).sort()).toEqual(["cpu", "disk", "memory", "staleAfterSeconds"]);
+  });
+});
+
+describe("admin overview Services source (#1982)", () => {
+  const servicesAnswer = (body: unknown, stamp: string | null = OVERVIEW_TIME) =>
+    (_session: string, path: string) => path === SERVICES ? Promise.resolve(response(body, stamp)) : success(_session, path);
+  const loaded = async () => {
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    return result.data;
+  };
+
+  it("asks for the services only after an admin read has succeeded, beside the slower reads (#2064)", async () => {
+    let succeeded = 0;
+    let servicesAsked = false;
+    let releaseAudit: () => void = () => undefined;
+    transport.mockImplementation(async (_session: string, path: string) => {
+      if (path === SERVICES) {
+        expect(succeeded).toBeGreaterThanOrEqual(1);
+        servicesAsked = true;
+        return success(_session, path);
+      }
+      if (path.includes("audit")) return new Promise<Response>((resolve) => { releaseAudit = () => resolve(response(audit)); });
+      const result = await success(_session, path);
+      succeeded++;
+      return result;
+    });
+    const pending = loadAdminOverview();
+    await vi.waitFor(() => expect(servicesAsked).toBe(true));
+    releaseAudit();
+    expect((await pending).kind).toBe("ok");
+  });
+  it("dates the observation by the newest row's own sample, not by the time of the read", async () => {
+    const fixture = servicesFixture();
+    transport.mockImplementation(servicesAnswer({
+      ...fixture,
+      backgroundJobs: { ...fixture.backgroundJobs, sampledAt: "2026-10-08T09:40:00Z" },
+      volatileStore: { ...fixture.volatileStore, sampledAt: "2026-10-08T09:41:00Z" },
+      jobImport: { ...fixture.jobImport, sampledAt: "2026-10-08T09:39:00Z" },
+    }));
+
+    expect((await loaded()).services).toMatchObject({ kind: "loaded", sampledAt: "2026-10-08T09:41:00Z", refreshFailed: false });
+  });
+  it("dates it by the API read instant when every row is unknown, since there is no sample to age", async () => {
+    transport.mockImplementation(servicesAnswer({
+      ...servicesFixture(),
+      backgroundJobs: { state: "Unknown", sampledAt: null, heartbeatAt: null },
+      volatileStore: { state: "Unknown", sampledAt: null },
+      jobImport: { state: "Unknown", sampledAt: null, lastRunAt: null, errors: null },
+    }));
+
+    expect((await loaded()).services).toMatchObject({ kind: "loaded", sampledAt: OVERVIEW_TIME });
+  });
+  it("keeps an undetermined row as a state of the loaded source and not as a failed source", async () => {
+    transport.mockImplementation(servicesAnswer({ ...servicesFixture(), volatileStore: { state: "Unknown", sampledAt: null } }));
+
+    const services = (await loaded()).services;
+
+    if (services.kind !== "loaded") throw new Error("Expected loaded services");
+    expect(services.data.volatileStore.state).toBe("Unknown");
+    expect(services.data.backgroundJobs.state).toBe("Alive");
+  });
+  it.each([
+    ["a row whose fields break its state", { ...servicesFixture(), backgroundJobs: { state: "NoServer", sampledAt: OVERVIEW_TIME, heartbeatAt: OVERVIEW_TIME } }],
+    ["a state outside the contract", { ...servicesFixture(), volatileStore: { state: "Healthy", sampledAt: OVERVIEW_TIME } }],
+    ["an extra property", { ...servicesFixture(), serverName: "worker-1" }],
+    ["a limit that is not a whole second", { ...servicesFixture(), staleAfterSeconds: 0.5 }],
+  ])("fails only the Services source for %s", async (_name, body) => {
+    transport.mockImplementation(servicesAnswer(body));
+
+    const data = await loaded();
+
+    expect(data.services).toEqual({ kind: "failed" });
+    expect(data.accounts.kind).toBe("loaded");
+    expect(data.backup.kind).toBe("loaded");
+    expect(data.host.kind).toBe("loaded");
+  });
+  it.each([500, 502, 503])("reads the card as failed, and nothing else, when the services read answers %i", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === SERVICES ? new Response(null, { status }) : success(_session, path));
+
+    const data = await loaded();
+
+    expect(data.services).toEqual({ kind: "failed" });
+    expect(data.jobs.kind).toBe("loaded");
+    expect(data.host.kind).toBe("loaded");
+  });
+  it.each([null, "invalid"])("fails the Services source when its observation header is %s", async (stamp) => {
+    transport.mockImplementation(servicesAnswer(servicesFixture(), stamp));
+
+    expect((await loaded()).services.kind).toBe("failed");
+  });
+  it.each([401, 403])("answers %i when the services read does, wherever the other reads stand", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === SERVICES ? new Response(null, { status }) : success(_session, path));
+
+    expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
+  });
+  it("lets the states, instants, error count and limits cross to the browser and nothing else", async () => {
+    const services = (await loaded()).services;
+
+    if (services.kind !== "loaded") throw new Error("Expected loaded services");
+    expect(Object.keys(services.data).sort()).toEqual([
+      "backgroundJobs", "importOverdueAfterSeconds", "jobImport", "staleAfterSeconds", "volatileStore", "workerAliveWithinSeconds",
+    ]);
+    expect(services.data).toEqual(servicesFixture());
   });
 });

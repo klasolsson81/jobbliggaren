@@ -14,11 +14,11 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// app-restart efter deploy (Variant A — samma livscykel som seedern).
 /// Statiskt + identiskt för alla användare → ingen per-request-DB-träff,
 /// ingen eviction-policy (ej IMemoryCache — bounded oföränderlig
-/// referensdata; undviker nytt paketberoende). ACL lever UTANFÖR
-/// sök-/filter-vägen (ADR 0043 Beslut E).
+/// referensdata; undviker nytt paketberoende). The ACL reaches the search path at exactly one
+/// point, <see cref="ITaxonomyLabelMatcher"/> behind the job-ad search port (#2143, ADR 0167).
 /// </summary>
 internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
-    : ITaxonomyReadModel
+    : ITaxonomyReadModel, ITaxonomyLabelMatcher
 {
     private sealed record CacheState(
         TaxonomyTreeDto Tree,
@@ -32,7 +32,12 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         // förälder-yrkesområde-concept-id (1:1 via ParentConceptId). groupsByField läst
         // BAKLÄNGES; exakt samma form som RegionByMunicipality ovan. Nyckeln branschgrupp-
         // assetet slår upp på (ADR 0107).
-        IReadOnlyDictionary<string, string> FieldByOccupationGroup);
+        IReadOnlyDictionary<string, string> FieldByOccupationGroup,
+        // #2143 — normalised label → the concepts it names, for the minus-word exclusion.
+        IReadOnlyDictionary<string, IReadOnlyList<ExactLabelHit>> ExactLabels);
+
+    /// <summary>One concept a label names, in the kind of the job-ad column it is compared against.</summary>
+    internal readonly record struct ExactLabelHit(TaxonomyConceptKind Kind, string ConceptId);
 
     // Cachen fylls en gång och delas av alla läsare. Medvetet INTE
     // Lazy<Task> (security-auditor 2026-05-17 Minor): en faulted Lazy<Task>
@@ -161,6 +166,39 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         return fields
             .OrderBy(id => id, StringComparer.Ordinal)
             .ToList();
+    }
+
+    // #2143 (ADR 0167) — exact label match for the minus-words. Pure dictionary lookups against the
+    // cached index; no per-request DB hit (ADR 0043 §1.4).
+    public async ValueTask<TaxonomyLabelMatchDto> MatchExactLabelsAsync(
+        IReadOnlyList<string> terms, CancellationToken cancellationToken)
+    {
+        if (terms.Count == 0)
+            return TaxonomyLabelMatchDto.Empty;
+
+        var state = await GetStateAsync(cancellationToken);
+        var byKind = new Dictionary<TaxonomyConceptKind, SortedSet<string>>();
+        foreach (var term in terms)
+        {
+            if (!state.ExactLabels.TryGetValue(NormalizeLabel(term), out var hits))
+                continue;
+            foreach (var hit in hits)
+            {
+                if (!byKind.TryGetValue(hit.Kind, out var ids))
+                    byKind[hit.Kind] = ids = new SortedSet<string>(StringComparer.Ordinal);
+                ids.Add(hit.ConceptId);
+            }
+        }
+
+        IReadOnlyList<string> Ids(TaxonomyConceptKind kind) =>
+            byKind.TryGetValue(kind, out var ids) ? [.. ids] : [];
+
+        return new TaxonomyLabelMatchDto(
+            Municipality: Ids(TaxonomyConceptKind.Municipality),
+            OccupationGroup: Ids(TaxonomyConceptKind.OccupationGroup),
+            Occupation: Ids(TaxonomyConceptKind.Occupation),
+            EmploymentType: Ids(TaxonomyConceptKind.EmploymentType),
+            WorktimeExtent: Ids(TaxonomyConceptKind.WorktimeExtent));
     }
 
     private async ValueTask<CacheState> GetStateAsync(CancellationToken ct)
@@ -326,8 +364,56 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             suggestable,
             relatedBySource,
             regionByMunicipality,
-            fieldByOccupationGroup);
+            fieldByOccupationGroup,
+            BuildExactLabelIndex(concepts));
     }
+
+    // #2143 (ADR 0167) — normalised label → the concepts it names. Region is left out: no single word
+    // can name a län (the label always ends in " län"). A yrkesområde is indexed as its yrkesgrupper,
+    // because job_ads has no field column and the hero field turns a typed field into its groups.
+    // internal static so the index is unit-testable without a DB, like BuildLabelByConceptId.
+    internal static Dictionary<string, IReadOnlyList<ExactLabelHit>> BuildExactLabelIndex(
+        IReadOnlyList<TaxonomyConcept> concepts)
+    {
+        var groupsByField = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.OccupationGroup && c.ParentConceptId is not null)
+            .ToLookup(c => c.ParentConceptId!, c => c.ConceptId, StringComparer.Ordinal);
+
+        var hits = new List<(string Key, ExactLabelHit Hit)>();
+        foreach (var concept in concepts)
+        {
+            var key = NormalizeLabel(concept.Label);
+            switch (concept.Kind)
+            {
+                case TaxonomyConceptKind.Municipality:
+                case TaxonomyConceptKind.OccupationGroup:
+                case TaxonomyConceptKind.Occupation:
+                case TaxonomyConceptKind.EmploymentType:
+                case TaxonomyConceptKind.WorktimeExtent:
+                    hits.Add((key, new ExactLabelHit(concept.Kind, concept.ConceptId)));
+                    break;
+                case TaxonomyConceptKind.OccupationField:
+                    foreach (var group in groupsByField[concept.ConceptId])
+                        hits.Add((key, new ExactLabelHit(TaxonomyConceptKind.OccupationGroup, group)));
+                    break;
+                case TaxonomyConceptKind.Region:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(concepts), concept.Kind, "Unclassified TaxonomyConceptKind in the exact-label index.");
+            }
+        }
+
+        return hits
+            .GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<ExactLabelHit>)g.Select(h => h.Hit).Distinct().ToList(),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeLabel(string label) =>
+        string.Join(' ', label.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     // #268 audit / #471 (parity with OccupationCodeDeriver's no-silent-First tie-break):
     // reverse-lookup the display label per concept-id. GroupBy(ConceptId) then the

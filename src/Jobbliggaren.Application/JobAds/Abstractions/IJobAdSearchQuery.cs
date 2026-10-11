@@ -74,7 +74,7 @@ public interface IJobAdSearchQuery
     /// (geo-union, CTO VAL 4 E2b 2026-06-11 / ADR 0067 impl-notat E2b).
     /// </para>
     /// <para>
-    /// Rå concept-id (namn-omedveten, ADR 0043 Beslut E — label-resolution är
+    /// Rå concept-id som nycklar (ADR 0043 Beslut E — label-resolution av resultatet är
     /// <see cref="ITaxonomyReadModel"/>/FE-ansvar). NULL-shadow-värden (annons
     /// utan värde på dimensionen) exkluderas → ingen null-nyckel i resultatet.
     /// Ny omätt hot-path mot ~44k rader → NBomber-gate mot ADR 0045 (300 ms p95)

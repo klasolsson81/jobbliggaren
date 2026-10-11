@@ -110,7 +110,10 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // the honest outcome, since a nulled q is what the search ran on. That class was never
         // unreachable: raw length 2 passed the old MinimumLength too, which is the same leak
         // that justifies removing the minimum in the first place.
-        var effectiveQ = parser.Parse(capt.Q).ResidualQ is null ? null : capt.Q;
+        //
+        // #2143 — a q of only minus-words is kept: it filtered the search the user ran.
+        var parsed = parser.Parse(capt.Q);
+        var effectiveQ = parsed.HasTerms ? capt.Q : null;
 
         // #831 review round 2 — `Create` has THREE q-dependent invariants, not two. Beyond the
         // Empty guard and the min-length rule there is the `SearchCriteria.RelevanceRequiresQ`
@@ -124,8 +127,9 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // user got. This is not a new convention — `ListJobAdsSortExtensions.ToDomainSort`
         // already maps MatchDesc to PublishedAtDesc for this exact seam, and documents it as
         // "den honesta fallbacken ... det värde som recent-search-hashen lagrar" for a sort
-        // with no anonymous persistable meaning. Relevance-without-residual is that same case.
-        var effectiveSortBy = capt.SortBy == JobAdSortBy.Relevance && effectiveQ is null
+        // with no anonymous persistable meaning. Relevance-without-residual is that same case,
+        // and so is a q of only minus-words (#2143): relevance ranks the positive residual.
+        var effectiveSortBy = capt.SortBy == JobAdSortBy.Relevance && parsed.ResidualQ is null
             ? JobAdSortBy.PublishedAtDesc
             : capt.SortBy;
 

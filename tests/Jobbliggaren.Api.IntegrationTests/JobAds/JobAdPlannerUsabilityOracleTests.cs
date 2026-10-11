@@ -91,9 +91,21 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     // production (same operators, same form) and isolating it proves exactly the #821 property this file
     // owns — keeping the orthogonal conjunct would only let the oracle go green via a different index.
     private const string QSearchSql =
-        "SELECT id FROM job_ads WHERE (search_vector @@ websearch_to_tsquery('swedish', 'lärare') " +
-        "OR lower(title) LIKE '%lärare%' " +
-        "OR lower(company_name) LIKE '%lärare%')";
+        "SELECT id FROM job_ads WHERE (lower(title) LIKE '%lärare%' " +
+        "OR lower(company_name) LIKE '%lärare%' " +
+        "OR search_vector @@ websearch_to_tsquery('swedish', 'lärare'))";
+
+    // #2143 (ADR 0167) — a minus-word is a correlated NOT EXISTS whose inner side is the q disjunction
+    // above, over the unfiltered table. The outer side keeps production's status conjunct; the inner side
+    // carries none, so it is the GINs or nothing. Mirrors JobAdSearchComposition.ApplyFilter's exclusion
+    // loop; ListJobAdsExcludedTermsTests.TheExclusion_IsANotExistsOverTheUnfilteredTable reads the SQL EF
+    // generates from production's own expression tree, and the pair is what makes this mirror safe.
+    private const string QExclusionSql =
+        "SELECT j.id FROM job_ads AS j WHERE j.status = 'Active' AND NOT EXISTS (" +
+        "SELECT 1 FROM job_ads AS x WHERE x.id = j.id AND " +
+        "(lower(x.title) LIKE '%deltid%' " +
+        "OR lower(x.company_name) LIKE '%deltid%' " +
+        "OR x.search_vector @@ websearch_to_tsquery('swedish', 'deltid')))";
 
     // SuggestJobAdTermsQueryHandler's title branch — left-anchored LIKE with an explicit ESCAPE. WITHOUT
     // the production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would
@@ -152,6 +164,32 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
             "the employer-name arm of q-search did not use its GIN trigram index. Without it that " +
             "arm scans inside the BitmapOr, which is the #821 failure mode wearing a third hat. " +
             $"Plan:\n{plan}");
+    }
+
+    // #2143 — the count of a query of only minus-words. Inline, NOT(search_vector @@ …) would read
+    // search_vector for every active row (TD-94); as an anti join the inner side is a BitmapOr over the
+    // three GINs, built once. Nested loop, merge join and plain index scans are prohibited as well: on this
+    // near-empty table a full scan of pk_job_ads under a Filter is otherwise the cheaper inner side, which
+    // would say nothing about the GINs. With only bitmap paths left, a plan without the three index names
+    // proves the inner side cannot be index-served, not that it was merely not chosen.
+    [Fact]
+    public async Task QExclusion_TheAntiJoinsInnerSideIsServedByEveryArm()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var plan = await ExplainWithScanAndSortDisabledAsync(
+            QExclusionSql, ct,
+            "SET LOCAL enable_nestloop = off; SET LOCAL enable_mergejoin = off; SET LOCAL enable_indexscan = off;");
+
+        plan.ShouldContain("Anti Join", Case.Insensitive,
+            $"the minus-word exclusion is not planned as an anti join. Plan:\n{plan}");
+        plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
+            $"the minus-word exclusion fell back to a sequential scan with seqscan prohibited. Plan:\n{plan}");
+        plan.ShouldContain("ix_job_ads_search_vector", Case.Insensitive,
+            $"the exclusion's FTS arm did not use its GIN index. Plan:\n{plan}");
+        plan.ShouldContain("ix_job_ads_title_lower_trgm", Case.Insensitive,
+            $"the exclusion's title arm did not use its trigram index. Plan:\n{plan}");
+        plan.ShouldContain("ix_job_ads_company_name_lower_trgm", Case.Insensitive,
+            $"the exclusion's employer arm did not use its trigram index. Plan:\n{plan}");
     }
 
     [Fact]
@@ -254,7 +292,8 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
             $"the default browse was not served by the #743 browse-sort index. Plan:\n{plan}");
     }
 
-    private async Task<string> ExplainWithScanAndSortDisabledAsync(string sql, CancellationToken ct)
+    private async Task<string> ExplainWithScanAndSortDisabledAsync(
+        string sql, CancellationToken ct, string additionalSetLocal = "")
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -280,7 +319,7 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         await using (var set = connection.CreateCommand())
         {
             set.Transaction = tx;
-            set.CommandText = "SET LOCAL enable_seqscan = off; SET LOCAL enable_sort = off;";
+            set.CommandText = "SET LOCAL enable_seqscan = off; SET LOCAL enable_sort = off;" + additionalSetLocal;
             await set.ExecuteNonQueryAsync(ct);
         }
 

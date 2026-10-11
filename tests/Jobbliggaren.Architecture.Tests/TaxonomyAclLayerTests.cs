@@ -190,4 +190,30 @@ public class TaxonomyAclLayerTests
             nameof(Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms.SuggestJobAdTermsQueryHandler),
         ]);
     }
+
+    // #2143 (ADR 0167, ADR 0043 Amendment 2026-10-11) — the taxonomy ACL reaches the search path at
+    // exactly one point: the search port's text resolver. A second consumer would be a second place
+    // where a name turns into a filter.
+    [Fact]
+    public void Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher()
+    {
+        var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyLabelMatcher);
+        var assemblies = new[]
+        {
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
+            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
+        };
+
+        var consumers = assemblies
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .Where(t => t.GetConstructors(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Instance)
+                .Any(c => c.GetParameters().Any(p => p.ParameterType == port)))
+            .Select(t => t.Name)
+            .ToList();
+
+        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+    }
 }

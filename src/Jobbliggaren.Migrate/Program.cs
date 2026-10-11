@@ -449,8 +449,8 @@ static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken c
 // snabb referens).
 //
 // ADR 0062 (+ amendment 2026-08-30, #1546) — speglar FTS-hybrid-filtret, nu
-// TREAXLAT: search_vector @@ websearch_to_tsquery('swedish', term)
-// OR lower(title) LIKE '%term%' OR lower(company_name) LIKE '%term%'.
+// TREAXLAT: lower(title) LIKE '%term%' OR lower(company_name) LIKE '%term%'
+// OR search_vector @@ websearch_to_tsquery('swedish', term), in production's order (#2143).
 // Substrängsarmarna gatas på term.Length >= 3, exakt som produktionen gatar dem
 // (JobAdSearchComposition: includeSubstringLike) — ett trigram-index kan inte
 // serva en kortare LIKE, så ett verktyg som emitterade dem ändå hade förklarat
@@ -484,25 +484,56 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
         // BETRYGGANDE riktningen (en billigare plan än den verkliga).
         // Se (2): ett EXPLAIN-verktyg som inte kör produktionens fråga ljuger. Samma krav
         // gäller grinden, inte bara armarna.
+        // #2143 — the substring arms come first, as JobAdSearchComposition.MatchesText orders them.
         var substringArms = term.Length >= 3
-            ? "OR lower(title) LIKE @p OR lower(company_name) LIKE @p"
+            ? "lower(title) LIKE @p OR lower(company_name) LIKE @p OR "
             : string.Empty;
 
         var countSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads "
             + "WHERE status = 'Active' "
-            + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
-            + substringArms + ");";
+            + "AND (" + substringArms
+            + "search_vector @@ websearch_to_tsquery('swedish', @term));";
         await ExplainAndLogAsync(conn, countSql, term, "COUNT", log, ct);
 
         // Items-vägen — filter + ORDER BY published_at DESC (default-sort) + LIMIT.
         var itemsSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT id FROM job_ads "
             + "WHERE status = 'Active' "
-            + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
-            + substringArms + ") "
+            + "AND (" + substringArms
+            + "search_vector @@ websearch_to_tsquery('swedish', @term)) "
             + "ORDER BY published_at DESC, id LIMIT 5;";
         await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS", log, ct);
+    }
+
+    // #2143 (ADR 0167) — a minus-word: a correlated NOT EXISTS over the unfiltered table whose inner
+    // side is the same disjunction, the Active filter on the outer side only (JobAdSearchComposition.
+    // ApplyFilter's exclusion loop). The worst case is a search of only minus-words, so that is what
+    // is explained. The COUNT runs under the GUCs BitmapPlanCount sets for a search with minus-words. The label arm (concept ids the word names exactly) is a filter on the
+    // outer row's own columns and is not mirrored. Terms via EXPLAIN_SEARCH_EXCLUDE (comma-separated).
+    var excludedTerms = (Environment.GetEnvironmentVariable("EXPLAIN_SEARCH_EXCLUDE") ?? "deltid")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    foreach (var term in excludedTerms)
+    {
+        var substringArms = term.Length >= 3
+            ? "lower(x.title) LIKE @p OR lower(x.company_name) LIKE @p OR "
+            : string.Empty;
+        var notExists =
+            "NOT EXISTS (SELECT 1 FROM job_ads x WHERE x.id = j.id "
+            + "AND (" + substringArms
+            + "x.search_vector @@ websearch_to_tsquery('swedish', @term)))";
+
+        var countSql =
+            "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads j "
+            + "WHERE j.status = 'Active' AND " + notExists + ";";
+        await ExplainAndLogAsync(conn, countSql, term, "COUNT-EXCL", log, ct, bitmapPlanHygiene: true);
+
+        var itemsSql =
+            "EXPLAIN (ANALYZE, BUFFERS) SELECT j.id FROM job_ads j "
+            + "WHERE j.status = 'Active' AND " + notExists + " "
+            + "ORDER BY j.published_at DESC, j.id LIMIT 20;";
+        await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS-EXCL", log, ct);
     }
 
     return 0;
@@ -510,15 +541,31 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 
 static async Task ExplainAndLogAsync(
     NpgsqlConnection conn, string explainSql, string term, string variant,
-    ILogger log, CancellationToken ct)
+    ILogger log, CancellationToken ct, bool bitmapPlanHygiene = false)
 {
-    await using var cmd = new NpgsqlCommand(explainSql, conn);
+    // The GUC is transaction-scoped and the transaction is rolled back, so it never outlives the
+    // statement it was set for.
+    await using var tx = bitmapPlanHygiene ? await conn.BeginTransactionAsync(ct) : null;
+    if (tx is not null)
+    {
+        await using var set = new NpgsqlCommand(
+            "SET LOCAL enable_seqscan = off; SET LOCAL enable_nestloop = off", conn, tx);
+        await set.ExecuteNonQueryAsync(ct);
+    }
+
+    await using var cmd = new NpgsqlCommand(explainSql, conn, tx);
     // @term: rå sökterm till websearch_to_tsquery (sköter egen normalisering).
     // @p: lowercased %term%-pattern till substrängs-fallbackarna (title + company_name,
     // ADR 0062 + amendment 2026-08-30). Oanvänd när term.Length < 3 — Npgsql skickar bara
     // parametrar som faktiskt förekommer i den omskrivna SQL:en.
     cmd.Parameters.Add(new NpgsqlParameter("term", term));
-    cmd.Parameters.Add(new NpgsqlParameter("p", "%" + term.ToLowerInvariant() + "%"));
+    // Escaped as LikePatterns.Contains escapes it (#2143), so a term with % or _ explains the
+    // pattern production runs.
+    var escaped = term.ToLowerInvariant()
+        .Replace("\\", "\\\\", StringComparison.Ordinal)
+        .Replace("%", "\\%", StringComparison.Ordinal)
+        .Replace("_", "\\_", StringComparison.Ordinal);
+    cmd.Parameters.Add(new NpgsqlParameter("p", "%" + escaped + "%"));
     var plan = new StringBuilder();
     await using (var reader = await cmd.ExecuteReaderAsync(ct))
     {
@@ -530,6 +577,9 @@ static async Task ExplainAndLogAsync(
 #pragma warning disable CA1873
     MigrateLog.ExplainSearchResult(log, term, variant, plan.ToString());
 #pragma warning restore CA1873
+
+    if (tx is not null)
+        await tx.RollbackAsync(ct);
 }
 
 static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbName, ILogger log, CancellationToken ct)

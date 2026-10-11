@@ -16,13 +16,9 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// impl:en bakom porten — ADR 0039 Beslut 1 SPOT delas med
 /// <c>RunSavedSearchQueryHandler</c>.
 /// <para>
-/// <b>ADR 0067 Fas D2 (Beslut 5c):</b> live-fritexten (<c>query.Q</c>) är
-/// residual-input — den körs genom <see cref="ISearchQueryParser"/> innan den
-/// når filter-SPOT:en. <c>ResidualQ</c> matar <c>JobAdFilterCriteria.Q</c> →
-/// FTS-hybridens OR-additiva gren (kraschsäker: residual blir aldrig hårt
-/// AND-villkor; dimensionerna är separata AND-listor). RunSavedSearch parsar
-/// INTE om sitt Q — det är ett persisterat, redan-normaliserat
-/// <c>SearchCriteria</c>-värde (validerat vid spar-tid), inte rå residual.
+/// <b>ADR 0067 Fas D2 (Beslut 5c), #2143:</b> live-fritexten (<c>query.Q</c>) passes to the
+/// port raw; the port parses it (<see cref="ISearchQueryParser"/>) for every consumer, the
+/// replays of a stored search included, so list and replay compose the same text.
 /// </para>
 /// <para>
 /// <b>F4-14 (ADR 0076 Decision 4/5/7):</b> "Sortera efter matchning"
@@ -39,7 +35,6 @@ public sealed class ListJobAdsQueryHandler(
     IJobAdSearchQuery search,
     IPerUserJobAdSearchQuery perUserSearch,
     IMatchProfileBuilder profileBuilder,
-    ISearchQueryParser parser,
     IAppDbContext db,
     ICurrentUser currentUser)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
@@ -50,8 +45,7 @@ public sealed class ListJobAdsQueryHandler(
         // null → tom lista: "inget filter" (ADR 0042 Beslut B).
         // ADR 0067 Fas C2 (CTO-dom (e)): Ssyk-dimensionen borttagen ur SPOT:en —
         // q-vägens synonym-expansion mot SsykConceptId drivs separat av Q.
-        // ADR 0067 Fas D2 — residual-normalisering före FTS-hybriden. Parsas EN
-        // gång; samma filter används av båda grenarna (samma träff-mängd, SPOT).
+        // Samma filter används av båda grenarna (samma träff-mängd, SPOT).
         var filter = new JobAdFilterCriteria(
             OccupationGroup: query.OccupationGroup ?? [],
             Municipality: query.Municipality ?? [],
@@ -64,7 +58,7 @@ public sealed class ListJobAdsQueryHandler(
             // #551 PR-B D5 — den boolska distans-facetten (?remote=on) unionas med
             // kommun/län i ApplyFilter. Persistensen deferrad (se ListJobAdsQuery.Remote).
             Remote: query.Remote,
-            Q: parser.Parse(query.Q).ResidualQ);
+            Q: query.Q);
 
         // #383 — resolvera seekern EN gång, ENDAST när status-filtret är aktivt (status
         // är den enda per-användar-nycklade predikaten i list-vägen; match-profilen

@@ -27,13 +27,13 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </summary>
 internal sealed class JobAdSearchQuery(
     AppDbContext db,
-    IOccupationSynonymExpander synonymExpander) : IJobAdSearchQuery
+    JobAdSearchTextResolver textResolver) : IJobAdSearchQuery
 {
     public async ValueTask<PagedResult<JobAdDto>> SearchAsync(
         JobAdSearchCriteria criteria, CancellationToken cancellationToken)
     {
-        var baseQuery = JobAdSearchComposition.ApplyFilter(
-            db.JobAds.AsNoTracking(), criteria.Filter, synonymExpander);
+        var filter = await textResolver.ResolveAsync(criteria.Filter, cancellationToken);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), filter);
 
         // Separat count-query (CLAUDE.md §3.6). Filter appliceras före count så
         // totalen reflekterar filtrerad mängd, inte hela korpusen. TD-94 —
@@ -44,12 +44,12 @@ internal sealed class JobAdSearchQuery(
         // queryn (ts_rank-ordering + paginering) körs UTANFÖR transaktionen och
         // är medvetet orörd (enable_seqscan=off vore fel för ts_rank-vägen).
         var totalCount = await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Filter.Q),
+            db, filter.Text,
             baseQuery.CountAsync, cancellationToken);
 
         // ADR 0079 STEG 5 — sorten bor nu i den delade JobAdSearchComposition (SPOT),
         // så den per-användar-vägen kan återbruka samma rena sort under grad-filter.
-        var ordered = JobAdSearchComposition.ApplySort(baseQuery, criteria.SortBy, criteria.Filter.Q);
+        var ordered = JobAdSearchComposition.ApplySort(baseQuery, criteria.SortBy, filter.Text);
 
         var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
@@ -66,9 +66,10 @@ internal sealed class JobAdSearchQuery(
         // Ren count — ingen sortering, paginering eller projektion. Samma
         // ApplyCriteria-väg som SearchAsync (SPOT). ADR 0060 Beslut 4 N+1
         // capped vid 20.
-        var query = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander);
+        var filter = await textResolver.ResolveAsync(criteria, cancellationToken);
+        var query = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), filter);
         return await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Q),
+            db, filter.Text,
             query.CountAsync, cancellationToken);
     }
 
@@ -84,11 +85,12 @@ internal sealed class JobAdSearchQuery(
     public async ValueTask<int> CountNewSinceAsync(
         JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
     {
+        var filter = await textResolver.ResolveAsync(criteria, cancellationToken);
         var query = JobAdSearchComposition
-            .ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander)
+            .ApplyFilter(db.JobAds.AsNoTracking(), filter)
             .Where(j => j.CreatedAt > since);
         return await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Q),
+            db, filter.Text,
             query.CountAsync, cancellationToken);
     }
 
@@ -103,10 +105,10 @@ internal sealed class JobAdSearchQuery(
         // siffror vs Platsbanken. SPOT bevarad: ApplyCriteria är fortsatt enda
         // filter-vägen (ingen ApplyCriteriaExcept-duplikat, ADR 0039 Beslut 1 /
         // ADR 0067 Beslut 4).
-        var faceted = ExcludeDimension(criteria, dimension);
+        var faceted = await textResolver.ResolveAsync(ExcludeDimension(criteria, dimension), cancellationToken);
         var column = ShadowColumn(dimension);
 
-        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), faceted, synonymExpander);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), faceted);
 
         // GROUP BY shadow-column → concept-id-count. GROUP BY-translation ligger i
         // Npgsql-assemblyn ⊂ Infrastructure (ADR 0062 Beslut 4 provider-assembly-
@@ -122,7 +124,7 @@ internal sealed class JobAdSearchQuery(
         // fritext. Samma bitmap-plan-tvång som CountAsync. #744 — gatad på q
         // (faceted bevarar Q; ExcludeDimension tömmer bara dimensions-listor).
         var grouped = await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, JobAdSearchComposition.HasFreeTextQuery(faceted.Q),
+            db, faceted.Text,
             ct => groupedQuery.ToListAsync(ct), cancellationToken);
 
         return grouped.ToDictionary(x => x.ConceptId, x => x.Count, StringComparer.Ordinal);

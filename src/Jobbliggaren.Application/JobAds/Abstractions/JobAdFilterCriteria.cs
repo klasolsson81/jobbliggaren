@@ -19,8 +19,9 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// </para>
 /// <para>
 /// Alla listor är aldrig null — en tom lista betyder "inget filter" (handlern
-/// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är
-/// null/whitespace = ingen fritextsökning. <b>Named arguments obligatoriskt</b>
+/// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är användarens
+/// råa söktext, minus-ord inräknade; sökporten parsar den (#2143), och null/whitespace =
+/// ingen fritextsökning. <b>Named arguments obligatoriskt</b>
 /// vid konstruktion (sex listor i rad = tyst-fel-fälla vid positionell mappning).
 /// </para>
 /// <para>

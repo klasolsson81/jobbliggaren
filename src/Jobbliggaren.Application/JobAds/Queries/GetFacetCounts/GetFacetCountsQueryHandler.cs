@@ -5,18 +5,16 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 
 /// <summary>
 /// Tunn adapter (ADR 0062-mönstret, spegelbild av <c>ListJobAdsQueryHandler</c>):
-/// null → tom lista, residual-normalisering av Q, delegera till porten.
+/// null → tom lista, delegera till porten.
 /// <para>
 /// <b>Residual-konsistens (E2c-architect §2 — korrekthetskrav, inte stilval):</b>
 /// facett-counts svarar på "vad får jag om jag väljer X givet mitt nuvarande
-/// sök". Samma live-input ⇒ samma normalisering som list-vägen
-/// (<see cref="ISearchQueryParser"/>, ADR 0067 Fas D2) — annars räknar
-/// facetten mot en annan WHERE än listan för samma användar-input
-/// ("Solna (12)" men listan visar 14). SPOT (Hunt/Thomas).
+/// sök". Samma live-input ⇒ samma WHERE som list-vägen: the raw Q goes to the port, which parses
+/// it for every consumer (#2143) — annars räknar facetten mot en annan WHERE än listan för samma
+/// användar-input ("Solna (12)" men listan visar 14). SPOT (Hunt/Thomas).
 /// </para>
 /// </summary>
-public sealed class GetFacetCountsQueryHandler(
-    IJobAdSearchQuery search, ISearchQueryParser parser)
+public sealed class GetFacetCountsQueryHandler(IJobAdSearchQuery search)
     : IQueryHandler<GetFacetCountsQuery, IReadOnlyDictionary<string, int>>
 {
     public ValueTask<IReadOnlyDictionary<string, int>> Handle(
@@ -39,7 +37,7 @@ public sealed class GetFacetCountsQueryHandler(
                 // #551 PR-B D5/D7 — remote-filterkontexten (aktivt Distans-val) trådas in
                 // så en facett-count för en annan dimension räknar mot samma WHERE som listan.
                 Remote: query.Remote,
-                Q: parser.Parse(query.Q).ResidualQ),
+                Q: query.Q),
             query.Dimension,
             cancellationToken);
 }

@@ -70,9 +70,10 @@ internal static class FreeTextCountScenarios
     /// </summary>
     public const int Class_A_P99_ObserveMs = LandingStatsScenarios.Class_A_P99_ObserveMs;
 
-    // Termer som täcker de tre relevanta exekveringsplanerna (TD-94 C1/C3).
-    // Rotera i fast ordning → jämna samples per plan.
-    private static readonly string[] SearchTerms = ["ai", "utvecklare", "lärare"];
+    // Termer som täcker de tre relevanta exekveringsplanerna (TD-94 C1/C3), plus the two minus-word
+    // shapes (#2143): a positive word with an exclusion, and a search of only an exclusion — the
+    // anti join over every active row. Rotera i fast ordning → jämna samples per plan.
+    private static readonly string[] SearchTerms = ["ai", "utvecklare", "lärare", "lärare -deltid", "-stockholm"];
 
     // Rounda round-robin index (ej thread-safe — NBomber kör scenariot
     // single-threaded per Simulation.Inject-worker; index är scenario-scoped).
@@ -105,7 +106,7 @@ internal static class FreeTextCountScenarios
     {
         var scenario = Scenario.Create("free_text_q_count", async _ =>
             {
-                // Round-robin term: ai → utvecklare → lärare → ai → ...
+                // Round-robin term: ai → utvecklare → lärare → lärare -deltid → -stockholm → ai → ...
                 // Interlocked säkrar mot potentiell framtida NBomber-parallellism,
                 // men primärt kalibrerat för Inject-baserad single-worker.
                 var idx = Interlocked.Increment(ref _termIndex);

@@ -77,8 +77,8 @@ public sealed class GetFacetCountsQueryValidator : AbstractValidator<GetFacetCou
         // Samma Q-gräns som list-vägen (Domain-konstant, single source) —
         // residual-konsistensen kräver att även valideringen är symmetrisk. #831 flyttade
         // MINIMUM-halvan av den symmetrin till parsern på alla tre parser-backade vägarna
-        // (list/facet/remote-count) samtidigt: den här handlern kör `parser.Parse(query.Q)
-        // .ResidualQ`, som nollar en residual under QMinLength, så ett 400 här hade varit
+        // (list/facet/remote-count) samtidigt: sökporten kör parsern (#2143), som nollar en
+        // residual under QMinLength, så ett 400 här hade varit
         // den andra av två regler för samma input. Symmetrin är alltså bevarad — vid ett
         // annat läge: MAX valideras, MIN nollas nedströms.
         RuleFor(q => q.Q)

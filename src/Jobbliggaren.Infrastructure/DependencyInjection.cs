@@ -375,8 +375,7 @@ public static class DependencyInjection
         // lazy in-memory cache of the immutable snapshot table, refreshed on restart. The seeder
         // fills taxonomy_concepts from the embedded taxonomy-snapshot.json at startup,
         // idempotently and aware of the snapshot version.
-        services.AddSingleton<ITaxonomyReadModel,
-            Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
+        AddTaxonomyReadModel(services);
         services.AddHostedService<
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
 
@@ -706,9 +705,7 @@ public static class DependencyInjection
         // MatchProfileBuilder needs ITaxonomyReadModel. AddJobSources registers it in both hosts,
         // but the Worker test fixture calls only this method, so TryAdd keeps the module
         // self-contained.
-        services.TryAddSingleton<
-            Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyReadModel,
-            Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
+        AddTaxonomyReadModel(services);
         return services;
     }
 
@@ -743,6 +740,18 @@ public static class DependencyInjection
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
         return services;
+    }
+
+    // One cache instance behind both taxonomy ports (#2143): the read model and the label matcher read
+    // the same snapshot. TryAdd everywhere, because three modules need it and each must stay
+    // self-contained (AddJobSources, AddMatchingEngine, AddPersistence).
+    private static void AddTaxonomyReadModel(IServiceCollection services)
+    {
+        services.TryAddSingleton<Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>();
+        services.TryAddSingleton<ITaxonomyReadModel>(sp =>
+            sp.GetRequiredService<Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>());
+        services.TryAddSingleton<ITaxonomyLabelMatcher>(sp =>
+            sp.GetRequiredService<Jobbliggaren.Infrastructure.Taxonomy.TaxonomyReadModel>());
     }
 
     private static void EnsureDssoDictionaryPresent()
@@ -1001,6 +1010,10 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdSearchQuery,
             JobAds.JobAdSearchQuery>();
+        // #2143 — the search port resolves the raw search text (minus-words and their exact
+        // taxonomy labels) once per call, for every consumer of the shared filter.
+        services.AddScoped<JobAds.JobAdSearchTextResolver>();
+        AddTaxonomyReadModel(services);
 
         // The matching behind the Art. 17 recruiter erasure (ADR 0106 Tier B; the channels are
         // documented on the port). Implemented here for the same reason as the search above.

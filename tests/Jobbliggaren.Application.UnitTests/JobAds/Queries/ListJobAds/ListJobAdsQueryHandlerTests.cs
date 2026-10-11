@@ -1,7 +1,6 @@
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
-using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -27,8 +26,8 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.ListJobAds;
 // query→criteria och att port-resultatet returneras oförändrat. Porten mockas
 // med NSubstitute — ingen DB.
 //
-// Fas D2 (ADR 0067 Beslut 5c) — ctor:n tar en RIKTIG SearchQueryParser (ren CPU,
-// deterministisk, InternalsVisibleTo) — äkta parser→filter-SPOT-integration utan DB.
+// #2143 — the handler passes the raw Q; the port parses it for every consumer, so the
+// parser→filter integration is pinned against Postgres (ListJobAdsExcludedTermsTests), not here.
 //
 // F4-14 → F4-15 (ADR 0076 Decision 4/5/6/7) — match-sort-grenen bygger nu en FULL
 // profil ur de plaintext TopSkills (BuildFullForSortAsync, SORT-vägen — ingen
@@ -42,7 +41,6 @@ public class ListJobAdsQueryHandlerTests
         Substitute.For<IPerUserJobAdSearchQuery>();
     private readonly IMatchProfileBuilder _profileBuilder =
         Substitute.For<IMatchProfileBuilder>();
-    private readonly ISearchQueryParser _parser = new SearchQueryParser();
     // #383 — db + currentUser drive the seeker-resolution branch; only touched when the
     // status filter is active (these adapter tests never activate it → unused stubs).
     private readonly IAppDbContext _db = Substitute.For<IAppDbContext>();
@@ -78,7 +76,7 @@ public class ListJobAdsQueryHandlerTests
             cvSkills ?? []);
 
     private ListJobAdsQueryHandler NewHandler() =>
-        new(_search, _matchSearch, _profileBuilder, _parser, _db, _currentUser);
+        new(_search, _matchSearch, _profileBuilder, _db, _currentUser);
 
     private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
         new([], 0, page, pageSize);
@@ -274,40 +272,26 @@ public class ListJobAdsQueryHandlerTests
             Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>());
     }
 
-    // --- Fas D2 (ADR 0067 5c): parser-inkoppling ----------------------------
+    // --- #2143: the raw Q reaches the port --------------------------------------
 
     [Fact]
-    public async Task Handle_QWithSurroundingWhitespace_NormalizesBeforeFilter()
+    public async Task Handle_PassesTheRawQToThePort()
     {
+        // A handler that parsed first would drop the minus-words before the port saw them.
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
             .Returns(EmptyPage());
         var handler = NewHandler();
 
         await handler.Handle(
-            new ListJobAdsQuery(Q: "  utvecklare  "), TestContext.Current.CancellationToken);
+            new ListJobAdsQuery(Q: "  utvecklare   -deltid  "), TestContext.Current.CancellationToken);
 
         captured.ShouldNotBeNull();
-        captured!.Filter.Q.ShouldBe("utvecklare");
+        captured!.Filter.Q.ShouldBe("  utvecklare   -deltid  ");
     }
 
     [Fact]
-    public async Task Handle_QWithInternalWhitespaceRun_CollapsesBeforeFilter()
-    {
-        JobAdSearchCriteria? captured = null;
-        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
-            .Returns(EmptyPage());
-        var handler = NewHandler();
-
-        await handler.Handle(
-            new ListJobAdsQuery(Q: "system   utvecklare"), TestContext.Current.CancellationToken);
-
-        captured.ShouldNotBeNull();
-        captured!.Filter.Q.ShouldBe("system utvecklare");
-    }
-
-    [Fact]
-    public async Task Handle_QIsNull_StaysNullAfterParser()
+    public async Task Handle_QIsNull_StaysNull()
     {
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
@@ -321,21 +305,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_QNormalizesToSubMinLength_BecomesNull()
-    {
-        JobAdSearchCriteria? captured = null;
-        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
-            .Returns(EmptyPage());
-        var handler = NewHandler();
-
-        await handler.Handle(new ListJobAdsQuery(Q: " a "), TestContext.Current.CancellationToken);
-
-        captured.ShouldNotBeNull();
-        captured!.Filter.Q.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task Handle_DimensionsUnaffectedByParser_PassThroughUnchanged()
+    public async Task Handle_DimensionsPassThroughUnchanged()
     {
         JobAdSearchCriteria? captured = null;
         _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
@@ -344,7 +314,7 @@ public class ListJobAdsQueryHandlerTests
 
         await handler.Handle(
             new ListJobAdsQuery(
-                Q: "  utvecklare  ",
+                Q: "utvecklare",
                 OccupationGroup: ["grp-1", "grp-2"],
                 Municipality: ["sthlm_kn"],
                 Region: ["stockholm"]),
@@ -426,7 +396,7 @@ public class ListJobAdsQueryHandlerTests
         capturedFilter.ShouldNotBeNull();
         capturedFilter!.OccupationGroup.ShouldBe(["grp-1"]);
         capturedFilter.Region.ShouldBe(["stockholm"]);
-        capturedFilter.Q.ShouldBe("utvecklare"); // parsad EN gång, samma som default-vägen
+        capturedFilter.Q.ShouldBe("  utvecklare  "); // rå, samma som default-vägen; porten parsar (#2143)
         capturedProfile.ShouldBeSameAs(builtProfile);
         capturedPage.ShouldBe(2);
         capturedPageSize.ShouldBe(10);
@@ -882,7 +852,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     private ListJobAdsQueryHandler NewHandlerWith(IAppDbContext db) =>
-        new(_search, _matchSearch, _profileBuilder, _parser, db, _currentUser);
+        new(_search, _matchSearch, _profileBuilder, db, _currentUser);
 
     // Seeds a JobSeeker for userId into a fresh InMemory context and returns it + the seeker id.
     private static async Task<(AppDbContext Db, JobSeekerId SeekerId)> SeededDbAsync(

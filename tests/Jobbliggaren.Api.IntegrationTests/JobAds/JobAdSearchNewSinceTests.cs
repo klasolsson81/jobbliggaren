@@ -39,7 +39,7 @@ public class JobAdSearchNewSinceTests(ApiFactory factory)
     private static JobAdSearchQuery CreateSut(IServiceScope scope) =>
         new(
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<IOccupationSynonymExpander>());
+            SearchTextResolvers.For(scope, Substitute.For<IOccupationSynonymExpander>()));
 
     private static JobAdFilterCriteria CriteriaFor(string occupationGroup) => new(
         OccupationGroup: [occupationGroup],

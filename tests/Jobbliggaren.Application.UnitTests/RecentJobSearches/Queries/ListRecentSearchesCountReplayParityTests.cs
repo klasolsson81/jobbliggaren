@@ -154,7 +154,8 @@ public class ListRecentSearchesCountReplayParityTests
             worktimeExtent: ["heltid"],
             employer: employer,
             remote: true,
-            q: "backend",
+            // #2143 — a minus-word rides the raw q to both sides; the port parses it for each.
+            q: "backend -deltid",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     private static void AssertCountAndReplayAgree(JobAdFilterCriteria counted, RecentJobSearchDto dto)

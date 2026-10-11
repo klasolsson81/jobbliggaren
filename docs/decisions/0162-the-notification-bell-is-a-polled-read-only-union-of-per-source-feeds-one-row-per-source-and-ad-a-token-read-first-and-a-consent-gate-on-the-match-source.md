@@ -283,7 +283,7 @@ tokens. No dark render is made and `DARK_MODE_ENABLED` is not flipped. This is a
 - **It does not deliver ADR 0140's deferred event log.** The bell is a view over existing rows with a watermark; it has no event store,
   no status changes and no company events. Epic #1662 remains that log's home, and Översikt's "Senaste händelser" is unchanged.
 - **Web Push is out of scope.** It is a new processing operation with a new recipient, a new category of personal data and its own
-  consent, and Web Push is tracked in its own issue.
+  consent, and Web Push is tracked in its own issue (#2124).
 - **No migration.** The Q8 index is deferred with a trigger (Consequences).
 
 ## Alternatives considered

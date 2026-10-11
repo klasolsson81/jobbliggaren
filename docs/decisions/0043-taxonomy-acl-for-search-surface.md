@@ -374,3 +374,19 @@ beskrivande bevis-cell.
 
 - [#1598](https://github.com/klasolsson81/jobbliggaren/issues/1598), [#1540](https://github.com/klasolsson81/jobbliggaren/issues/1540)
 - Evans 2003 kap. 14 (ACL); Martin, *Clean Architecture* (2017) kap. 7 (SRP)
+
+---
+
+## Amendment 2026-10-11 — the ACL enters the query path at exactly one point (#2143, ADR 0167)
+
+**Status:** Accepted 2026-10-11. **Source:** [ADR 0167](./0167-a-minus-before-a-word-excludes-it-the-search-port-parses-the-raw-text-and-a-minus-word-hides-what-the-word-finds-and-what-a-label-equal-to-it-names.md) D2–D4. Additive: Beslut A–E and the earlier amendments are untouched in their text.
+
+Beslut C's last point says "ACL:n lever utanför query-vägen". Since #2143 that is no longer the whole picture.
+
+- **What changes.** The ACL enters the query path at exactly one point. `JobAdSearchTextResolver` (Infrastructure), through the new port
+  `ITaxonomyLabelMatcher`, translates a minus-word into the concept ids whose label equals it exactly (kommun, yrkesområde as its yrkesgrupper,
+  yrkesgrupp, yrke, anställningsform, omfattning), so that `-deltid` also hides an ad whose omfattning is Deltid.
+- **What does not.** `ApplyFilter` still works on raw concept ids only and stays name-unaware. `ITaxonomyReadModel` is unchanged: the matcher is a
+  separate narrow port (ISP), implemented by the same cached `TaxonomyReadModel` instance, so it is a dictionary lookup against the cached snapshot
+  with no per-request database hit and no external hop (Beslut D). Exactly one class injects it, and an architecture test pins that
+  (`TaxonomyAclLayerTests.Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher`).

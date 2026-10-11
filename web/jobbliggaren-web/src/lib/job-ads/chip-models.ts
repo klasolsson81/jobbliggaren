@@ -1,5 +1,6 @@
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { JobbUrlState } from "./search-params";
+import { excludedTermOf } from "./search-text-grammar";
 
 /**
  * Delad chip-modell + borttagnings-helpers (Fas E2h, architect F6 +
@@ -31,6 +32,8 @@ export interface SearchChip {
   /** conceptId för dimension-chips; själva ordet för q-chips. */
   value: string;
   label: string;
+  /** #2143 — the bare term of an excluded q-word (`-deltid` → `deltid`); absent otherwise. */
+  excludedTerm?: string;
 }
 
 export type ConceptLabelResolver = (
@@ -40,7 +43,7 @@ export type ConceptLabelResolver = (
 
 /** q → ord-lista (whitespace-separerad; tomma segment bort). */
 export function splitQWords(q: string): string[] {
-  return q.split(/\s+/).filter((w) => w.length > 0);
+  return q.split(/[\s,]+/).filter((w) => w.length > 0);
 }
 
 /**
@@ -91,7 +94,12 @@ export function buildChipModels(
       const key = word.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      chips.push({ axis: "q", value: word, label: word });
+      const excludedTerm = excludedTermOf(word);
+      chips.push(
+        excludedTerm === null
+          ? { axis: "q", value: word, label: word }
+          : { axis: "q", value: word, label: word, excludedTerm },
+      );
     }
   }
   return chips;

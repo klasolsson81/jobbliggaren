@@ -339,7 +339,7 @@ public class FilterToMatchingQueryPlanTests(JobAdBrowsePlanFixture fixture, ITes
     private static PerUserJobAdSearchQuery NewSut(IServiceScope scope, AppDbContext db)
     {
         var expander = scope.ServiceProvider.GetRequiredService<IOccupationSynonymExpander>();
-        return new PerUserJobAdSearchQuery(db, expander, new JobAdSearchQuery(db, expander));
+        return new PerUserJobAdSearchQuery(db, SearchTextResolvers.For(scope, expander), new JobAdSearchQuery(db, SearchTextResolvers.For(scope, expander)));
     }
 
     /// <summary>

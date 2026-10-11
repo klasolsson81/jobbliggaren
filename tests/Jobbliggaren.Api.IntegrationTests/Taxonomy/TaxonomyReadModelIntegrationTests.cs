@@ -95,6 +95,36 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
             .ShouldAllBe(o => !string.IsNullOrWhiteSpace(o.ConceptId));
     }
 
+    // #2143 (ADR 0167) — the label matcher against the real snapshot: the two words the issue
+    // names are matched exactly, and a compound of one of them is not.
+    [Fact]
+    public async Task MatchExactLabelsAsync_NamesDeltidAndAKommunExactly_WhenSeeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var named = await sut.MatchExactLabelsAsync(["deltid", "stockholm", "deltidsjobb"], ct);
+
+        named.WorktimeExtent.ShouldBe(["947z_JGS_Uk2"]);
+        named.Municipality.ShouldBe(["AvNB_uwa_6n6"]);
+        named.EmploymentType.ShouldBeEmpty();
+    }
+
+    // The premise TaxonomyLabelMatchDto rests on: no single word can name a län.
+    [Fact]
+    public async Task EveryRegionLabel_EndsInLän_WhenSeeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var tree = await sut.GetTreeAsync(ct);
+
+        tree.Regions.ShouldNotBeEmpty();
+        tree.Regions.ShouldAllBe(r => r.Label.EndsWith(" län", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task GetTreeAsync_ShouldSortRegionsAndOccupationsByLabelOrdinal_WhenSeeded()
     {

@@ -122,6 +122,23 @@ test.describe("/jobb — auth-gated rendering", () => {
     await page.waitForURL(/\/jobb\?q=backend/);
   });
 
+  // #2143 — ett minus-ord utesluter: det når URL:en som "-ord", gör aldrig anspråk på en ort,
+  // och syns i filterraden som en uteslutning med eget borttagningsnamn.
+  test("ett minus-ord utesluter och gör aldrig anspråk på orten (#2143)", async ({ page }) => {
+    await page.goto("/jobb");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("Skriv minus före ett ord för att utesluta det")).toBeVisible();
+
+    await page.getByLabel(SEARCH_FIELD_LABEL).fill("backend -göteborg");
+    await page.getByRole("button", { name: "Sök", exact: true }).click();
+    await page.waitForURL(/\/jobb\?q=backend\+-g%C3%B6teborg/);
+
+    expect(page.url()).not.toContain("municipality=");
+    await expect(
+      page.getByRole("button", { name: "Ta bort det uteslutna ordet göteborg" }),
+    ).toBeVisible();
+  });
+
   test("Rensa sökord och filter returnerar till /jobb", async ({ page }) => {
     await page.goto("/jobb?q=backend");
     await page

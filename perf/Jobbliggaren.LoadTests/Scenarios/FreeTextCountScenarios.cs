@@ -40,8 +40,8 @@
 //   Termer roteras round-robin i scenariot — jämnt fördelade samples per plan.
 //
 // LAST-KALIBRERING (CTO-disciplin: kalibrera mot fakta, ej gissning):
-//   ListReadPolicy 60/min per UserId. En total-rate på 1 RPS (cycling över de
-//   3 termerna) = 60 req/min = exakt i takets överkant. VALT: 0,5 RPS total
+//   ListReadPolicy 60/min per UserId. En total-rate på 1 RPS
+//   = 60 req/min = exakt i takets överkant. VALT: 0,5 RPS total
 //   (1 request var 2:a sekund) = 30 req/min = 50 % av taket → headroom mot
 //   rate-limit-kollision när scenariot körs parallellt med andra scenarier
 //   inom samma "all"-selector (delar user-bucket med samma token).
@@ -70,9 +70,10 @@ internal static class FreeTextCountScenarios
     /// </summary>
     public const int Class_A_P99_ObserveMs = LandingStatsScenarios.Class_A_P99_ObserveMs;
 
-    // Termer som täcker de tre relevanta exekveringsplanerna (TD-94 C1/C3).
-    // Rotera i fast ordning → jämna samples per plan.
-    private static readonly string[] SearchTerms = ["ai", "utvecklare", "lärare"];
+    // Termer som täcker de tre relevanta exekveringsplanerna (TD-94 C1/C3), plus the two minus-word
+    // shapes (#2143): a positive word with an exclusion, and a search of only an exclusion — the
+    // anti join over every active row. Rotera i fast ordning → jämna samples per plan.
+    private static readonly string[] SearchTerms = ["ai", "utvecklare", "lärare", "lärare -deltid", "-stockholm"];
 
     // Rounda round-robin index (ej thread-safe — NBomber kör scenariot
     // single-threaded per Simulation.Inject-worker; index är scenario-scoped).
@@ -105,7 +106,7 @@ internal static class FreeTextCountScenarios
     {
         var scenario = Scenario.Create("free_text_q_count", async _ =>
             {
-                // Round-robin term: ai → utvecklare → lärare → ai → ...
+                // Round-robin term: ai → utvecklare → lärare → lärare -deltid → -stockholm → ai → ...
                 // Interlocked säkrar mot potentiell framtida NBomber-parallellism,
                 // men primärt kalibrerat för Inject-baserad single-worker.
                 var idx = Interlocked.Increment(ref _termIndex);

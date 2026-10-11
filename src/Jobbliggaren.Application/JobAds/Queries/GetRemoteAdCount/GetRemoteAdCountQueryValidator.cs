@@ -55,11 +55,8 @@ public sealed class GetRemoteAdCountQueryValidator : AbstractValidator<GetRemote
         // Samma Q-gräns som list-/facet-vägen (Domain-konstant, single source) —
         // residual-konsistensen kräver symmetrisk validering. #831 flyttade MINIMUM-halvan
         // till parsern på alla tre parser-backade vägarna samtidigt (list/facet/remote-count);
-        // den här handlern kör `parser.Parse(query.Q).ResidualQ`, som nollar en residual under
-        // QMinLength. Symmetrin är bevarad vid ett annat läge: MAX valideras, MIN nollas
-        // nedströms. Nollnings-grenen är täckt av
-        // `GetRemoteAdCountQueryHandlerTests.Handle_SubMinLengthQ_NormalizesToNull` — den
-        // skrevs i #831 just för att parsern blev ENDA vakten på den här vägen.
+        // sökporten kör parsern (#2143), som nollar en residual under QMinLength. Symmetrin är
+        // bevarad vid ett annat läge: MAX valideras, MIN nollas nedströms.
         RuleFor(q => q.Q)
             .MaximumLength(SearchCriteria.QMaxLength)
             .WithMessage($"Söktext får vara högst {SearchCriteria.QMaxLength} tecken.");

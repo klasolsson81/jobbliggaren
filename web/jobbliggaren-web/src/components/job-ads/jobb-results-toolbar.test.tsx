@@ -264,6 +264,25 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(opt.disabled).toBe(false);
   });
 
+  it("#2143: Relevance är disablat när söktexten bara utesluter ord — inget att rangordna på", () => {
+    renderToolbar({ q: "-deltid -stockholm" });
+    const opt = screen.getByRole("option", {
+      name: "Relevans",
+    }) as HTMLOptionElement;
+    expect(opt.disabled).toBe(true);
+  });
+
+  it("#2143: ett uteslutet ord visas som det skrevs och × tar bort uteslutningen", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ totalCount: 3, q: "volvo -deltid" });
+    expect(screen.getByText("-deltid")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort det uteslutna ordet deltid" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=true");
+  });
+
   it("sort-byte commit:ar sortBy och bevarar q + filter", async () => {
     const user = userEvent.setup();
     renderToolbar({

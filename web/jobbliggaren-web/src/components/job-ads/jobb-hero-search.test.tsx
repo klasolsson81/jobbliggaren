@@ -907,3 +907,88 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
     expect(field).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+describe("JobbHeroSearch — minus-ord (#2143)", () => {
+  it("ett minus-ord blir ett uteslutet q-ord och gör aldrig anspråk på orten", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "volvo -göteborg ");
+    const [href] = replaceMock.mock.calls.at(-1) ?? [];
+    expect(String(href)).toBe("/jobb?q=volvo+-g%C3%B6teborg");
+    expect(String(href)).not.toContain("municipality=");
+  });
+
+  it("hjälpraden säger hur man utesluter ett ord", () => {
+    setup();
+    expect(helpLine()).toMatch(/Skriv minus före ett ord för att utesluta det/);
+  });
+
+  it("ett sjätte uteslutet ord vägras med en notis och står kvar i fältet", async () => {
+    const user = userEvent.setup();
+    setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "-aa -bb -cc -dd -ee -ff ");
+    const [href] = replaceMock.mock.calls.at(-1) ?? [];
+    expect(String(href)).toBe("/jobb?q=-aa+-bb+-cc+-dd+-ee");
+    expect(noticeLine()).toMatch(/Du kan utesluta högst 5 ord/);
+    expect(input).toHaveValue("-aa -bb -cc -dd -ee -ff ");
+  });
+
+  it("ett ord som utesluts frågar inte efter förslag", async () => {
+    stubSuggest([{ kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg" }]);
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "-göte");
+    // Longer than the 300 ms debounce, so a request would have gone out.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
+  it("efter vägran: tas en uteslutning bort i filterraden, läggs det vägrade ordet in vid nästa sökning", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "-aa -bb -cc -dd -ee -ff ");
+    expect(noticeLine()).toMatch(/Du kan utesluta högst 5 ord/);
+
+    const at = (q: string) => (
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q={q}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />
+    );
+    // The own commit lands, then the toolbar's × removes "-aa" (an external change).
+    rerender(at("-aa -bb -cc -dd -ee"));
+    rerender(at("-bb -cc -dd -ee"));
+    expect(input).toHaveValue("-bb -cc -dd -ee -ff");
+
+    await user.keyboard("{Enter}");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      "/jobb?q=-bb+-cc+-dd+-ee+-ff&commit=true",
+      { scroll: false },
+    );
+  });
+
+  it("ett uteslutet ord annonseras med sitt rena ord", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "-deltid ");
+    expect(screen.getByText("Uteslöt deltid")).toBeInTheDocument();
+  });
+
+  it("ett uteslutet ord i URL:en speglas tillbaka i fältet", () => {
+    setup({ q: "volvo -deltid" });
+    expect(screen.getByRole("combobox")).toHaveValue("volvo -deltid");
+  });
+});

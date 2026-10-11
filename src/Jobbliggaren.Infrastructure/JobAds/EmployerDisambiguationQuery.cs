@@ -19,10 +19,6 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </summary>
 internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDisambiguationQuery
 {
-    // The LIKE escape character (Postgres default is '\'); passed to ILIKE so the escaped %/_ in the
-    // user term are treated literally.
-    private const string LikeEscape = "\\";
-
     public async ValueTask<IReadOnlyList<EmployerAdGroup>> SearchAsync(
         string nameQuery, int limit, CancellationToken cancellationToken)
     {
@@ -34,12 +30,12 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         // legal entity = one registered name), so GROUP BY (org.nr, name) yields one row per entity.
         // Order by ad count desc (most-prolific = most-likely-intended first), name + org.nr tiebreak
         // for a deterministic order, then cap.
-        var pattern = $"%{EscapeLike(nameQuery)}%";
+        var pattern = $"%{LikePatterns.Escape(nameQuery)}%";
 
         var groups = await db.JobAds
             .AsNoTracking()
             .Where(j => j.OrganizationNumber != null
-                        && EF.Functions.ILike(j.Company.Name, pattern, LikeEscape))
+                        && EF.Functions.ILike(j.Company.Name, pattern, LikePatterns.EscapeCharacter))
             .GroupBy(j => new
             {
                 OrganizationNumber = j.OrganizationNumber!,
@@ -87,10 +83,6 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         // keep them identical. Named by SYMBOL, never by line number, which rots.
         // On a per-keystroke surface the difference is a sequential scan of job_ads per keystroke.
         //
-        // No explicit ESCAPE argument: '\' is PostgreSQL's default LIKE escape, so the C#-side
-        // EscapeLike() plus the two-arg overload is semantically identical to SearchAsync's three-arg
-        // ILIKE and produces the operator shape proven index-served.
-        //
         // Status == Active is the whole reason this method exists beside SearchAsync — see the port's
         // docblock. It is the same predicate JobAdSearchComposition.ApplyFilter applies to `?employer=`.
         //
@@ -105,13 +97,13 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         // The inherited premise on SearchAsync ("company_name is stable per org.nr") is written in two
         // places and pinned in none; this method does not rely on it.
 #pragma warning disable CA1304, CA1311
-        var pattern = $"%{EscapeLike(nameTerm).ToLowerInvariant()}%";
+        var pattern = $"%{LikePatterns.Escape(nameTerm).ToLowerInvariant()}%";
 
         return db.JobAds
             .AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active
                         && j.OrganizationNumber != null
-                        && EF.Functions.Like(j.Company.Name.ToLower(), pattern))
+                        && EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter))
             .GroupBy(j => j.OrganizationNumber!)
             .OrderByDescending(g => g.Count())
             .ThenBy(g => g.Min(x => x.Company.Name))
@@ -121,10 +113,4 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
 #pragma warning restore CA1304, CA1311
     }
 
-    // Escape the LIKE metacharacters (%, _, and the escape char itself) so a user term like "50%"
-    // matches literally rather than as a wildcard.
-    private static string EscapeLike(string value) => value
-        .Replace("\\", "\\\\", StringComparison.Ordinal)
-        .Replace("%", "\\%", StringComparison.Ordinal)
-        .Replace("_", "\\_", StringComparison.Ordinal);
 }

@@ -7,6 +7,14 @@ import {
   type ConceptLabelResolver,
 } from "./chip-models";
 import type { JobbUrlState } from "./search-params";
+import {
+  Q_MAX_EXCLUDED_TERMS,
+  classifyWord,
+  excludedQWord,
+  excludedTermOf,
+  isExcludedTermTooShort,
+  positiveQ,
+} from "./search-text-grammar";
 
 /**
  * Spegel-sökfältets parse/serialize-kärna (Fas E2i, CTO VAL 1 = Variant C′ —
@@ -26,9 +34,9 @@ import type { JobbUrlState } from "./search-params";
  * ambiguitet på längd 1 → fritext (gissa aldrig, D2-principen). n-gram
  * spänner ALDRIG över komma eller caret-segmentet.
  *
- * Operator-strip: ledande `+` (Klas-spec) och `-` (NOT-neutralisering —
- * `websearch_to_tsquery` tolkar ledande `-` som NOT redan idag; minus-
- * operatorn är Klas-pending egen fas) strippas per ord.
+ * Operatorer: ledande `+` strippas (Klas-spec). Ett ord som börjar med minus
+ * är ett uteslutet ord (#2143, ADR 0167, `search-text-grammar.ts`): det blir
+ * q-ordet `-term`, matchas aldrig mot taxonomin och bryter n-gram-runnen.
  *
  * Caret-segment-exkludering (CTO VAL 3): ordet som innehåller caret är
  * PÅGÅENDE och parsas inte — radering mitt i "Göteborg" släpper inte
@@ -86,19 +94,20 @@ function normalizeLabel(label: string): string {
 export interface ParsedClaims {
   /** Dimension-anspråk i textordning. */
   matches: LabelMatch[];
-  /** Fritext-ord (operator-strippade), textordning, ci-dedupade. */
+  /** Fritext-ord i textordning, ci-dedupade; uteslutna ord i formen `-term`. */
   qWords: string[];
 }
 
 export const EMPTY_CLAIMS: ParsedClaims = { matches: [], qWords: [] };
 
 interface Token {
-  /** Operator-strippad ordform. */
+  /** Operator-strippad ordform; ett uteslutet ord i formen `-term`. */
   word: string;
   start: number;
   end: number;
   /** true = ny run börjar här (komma före, eller caret-grannskap). */
   boundaryBefore: boolean;
+  excluded: boolean;
 }
 
 /** Ordet (token-spannet) som innehåller caret — null om caret står i
@@ -107,7 +116,7 @@ export function getTokenRange(
   text: string,
   caretIndex: number,
 ): { start: number; end: number } | null {
-  const re = /[^ ,]+/g;
+  const re = /[^\s,]+/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const start = m.index;
@@ -132,7 +141,7 @@ export function parseSearchText(
 
   // Tokenisera med run-gränser.
   const tokens: Token[] = [];
-  const re = /[^ ,]+/g;
+  const re = /[^\s,]+/g;
   let m: RegExpExecArray | null;
   let prevEnd = 0;
   let pendingBoundary = false;
@@ -148,23 +157,56 @@ export function parseSearchText(
       pendingBoundary = true;
       continue;
     }
-    const word = m[0].replace(/^[+-]+/, "");
-    if (word.length === 0) {
+    const cls = classifyWord(m[0]);
+    if (cls.kind === "operator") {
       // Bar operator-token ("+"/"-" ensamt) skippas men dess boundary får
       // inte sväljas — n-gram skulle annars kunna spänna över komma
       // (code-reviewer Minor 1 E2i).
       pendingBoundary = boundary;
       continue;
     }
-    tokens.push({ word, start, end, boundaryBefore: boundary });
+    if (cls.kind === "excluded") {
+      // A run of its own: "-stockholms län" must not claim the region, and the
+      // word after it must not be glued to the word before it.
+      tokens.push({
+        word: excludedQWord(cls.term),
+        start,
+        end,
+        boundaryBefore: true,
+        excluded: true,
+      });
+      pendingBoundary = true;
+      continue;
+    }
+    tokens.push({
+      word: cls.word,
+      start,
+      end,
+      boundaryBefore: boundary,
+      excluded: false,
+    });
   }
 
   const matches: LabelMatch[] = [];
   const qWords: string[] = [];
   const seenQ = new Set<string>();
 
+  const pushQ = (word: string) => {
+    const k = word.toLowerCase();
+    if (!seenQ.has(k)) {
+      seenQ.add(k);
+      qWords.push(word);
+    }
+  };
+
   let i = 0;
   while (i < tokens.length) {
+    if (tokens[i]!.excluded) {
+      pushQ(tokens[i]!.word);
+      i += 1;
+      continue;
+    }
+
     // Run-längd från i (bryts av nästa boundaryBefore).
     let runEnd = i + 1;
     while (runEnd < tokens.length && !tokens[runEnd]!.boundaryBefore)
@@ -188,12 +230,7 @@ export function parseSearchText(
       // Ambiguöst n-gram → prova kortare (gissa aldrig).
     }
     if (!consumed) {
-      const word = tokens[i]!.word;
-      const k = word.toLowerCase();
-      if (!seenQ.has(k)) {
-        seenQ.add(k);
-        qWords.push(word);
-      }
+      pushQ(tokens[i]!.word);
       i += 1;
     }
   }
@@ -207,6 +244,8 @@ export interface ClaimsDeltaResult {
   removedLabels: string[];
   /** q-ord vägrade av Q_MAX_LENGTH-guarden (står kvar i texten). */
   rejectedQ: string[];
+  /** #2143 — uteslutna ord vägrade av Q_MAX_EXCLUDED_TERMS (står kvar i texten). */
+  rejectedExcluded: string[];
   /**
    * #823 — q-ord som föll bort för att den SAMMANSATTA söktexten hamnade under
    * Q_MIN_LENGTH (står kvar i texten, precis som `rejectedQ`). Speglar backendens
@@ -238,6 +277,8 @@ export function applyClaimsDelta(
   const addedLabels: string[] = [];
   const removedLabels: string[] = [];
   const rejectedQ: string[] = [];
+  const rejectedExcluded: string[] = [];
+  const tooShortExcluded: string[] = [];
 
   const prevKeys = new Set(prev.matches.map(matchKey));
   const nextKeys = new Set(next.matches.map(matchKey));
@@ -290,6 +331,20 @@ export function applyClaimsDelta(
       appliedQ.push(w);
       continue;
     }
+    // #2143 — the server drops an excluded term under Q_MIN_LENGTH and keeps at most
+    // Q_MAX_EXCLUDED_TERMS; the field says so instead of sending a word that does nothing.
+    const excludedTerm = excludedTermOf(w);
+    if (excludedTerm !== null) {
+      if (isExcludedTermTooShort(excludedTerm)) {
+        tooShortExcluded.push(excludedTerm);
+        continue;
+      }
+      const excludedCount = words.filter((x) => excludedTermOf(x) !== null).length;
+      if (excludedCount >= Q_MAX_EXCLUDED_TERMS) {
+        rejectedExcluded.push(w);
+        continue;
+      }
+    }
     const nextQ = [...words, w].join(" ");
     if (nextQ.length > Q_MAX_LENGTH) {
       rejectedQ.push(w);
@@ -313,7 +368,7 @@ export function applyClaimsDelta(
   // klienten hade uppfunnit en strängare regel än den som faktiskt gäller. (En sammansatt
   // q under 2 tecken kan bara vara ETT enteckensord: två ord med mellanslag är redan ≥ 3.)
   //
-  // `appliedQ` nollas MED droppen: prevClaims får aldrig göra anspråk på något staten
+  // `appliedQ` tappar de droppade orden MED droppen: prevClaims får aldrig göra anspråk på något staten
   // saknar. Annars ser nästa delta ordet i prevQKeys, tar add-loopens "finns redan"-genväg,
   // och ordet återförs ALDRIG till q — tyst förlorat även när texten blivit lång nog
   // ("i" → "i java" hade gett q="java"). Vaktat av tokenize.test.ts.
@@ -322,12 +377,19 @@ export function applyClaimsDelta(
   // enforceClaims itererar bara `claims.matches` och rör aldrig q-ord. En tidigare
   // kommentar påstod att ordningen var nödvändig för att ordet annars skulle läggas
   // tillbaka — det var fiktion. code-reviewer fångade det.)
-  const tooShortQ: string[] = [];
-  const assembledQ = state.q.trim();
+  //
+  // #2143 — the minimum is measured on the POSITIVE words only, as the server's parser does;
+  // excluded words are kept and checked one by one above.
+  const tooShortQ: string[] = [...tooShortExcluded];
+  const assembledQ = positiveQ(state.q);
   if (assembledQ.length > 0 && assembledQ.length < Q_MIN_LENGTH) {
-    tooShortQ.push(...splitQWords(state.q));
-    state = { ...state, q: "" };
+    const isPositive = (w: string) => classifyWord(w).kind === "positive";
+    const words = splitQWords(state.q);
+    tooShortQ.push(...words.filter(isPositive));
+    state = { ...state, q: words.filter((w) => !isPositive(w)).join(" ") };
+    const kept = appliedQ.filter((w) => !isPositive(w));
     appliedQ.length = 0;
+    appliedQ.push(...kept);
     // Ordet APPLICERADES aldrig — då får det inte heller annonseras som tillagt. Utan
     // detta hörde skärmläsaren "Lade till i. Sökordet ”i” är kortare än 2 tecken och
     // används inte i sökningen." — första halvan osann (CLAUDE.md §10).
@@ -349,11 +411,30 @@ export function applyClaimsDelta(
     addedLabels,
     removedLabels,
     rejectedQ,
+    rejectedExcluded,
     tooShortQ,
     // Vägrade q-ord (Q_MAX) och för korta q-ord (Q_MIN) ingår INTE — de står kvar i
     // texten och får nytt add-försök vid nästa commit-punkt (efter att utrymme frigjorts
     // respektive efter att texten blivit lång nog).
     appliedClaims: { matches: next.matches, qWords: appliedQ },
+  };
+}
+
+/**
+ * #2143 — the claims of `claims` that `state` actually carries, for the delta bookkeeping after an
+ * external change. A q-word a guard refused (Q_MAX_LENGTH, Q_MAX_EXCLUDED_TERMS, the minimum) is still
+ * in the text but not in q; left out here, the next commit point retries it — so freeing room with a
+ * chip's × lets the refused word in, or brings its notice back. Matches are kept as parsed: no guard
+ * refuses one, and re-adding one would re-run the per-län normalisation the user never asked for.
+ */
+export function claimsCarriedBy(
+  claims: ParsedClaims,
+  state: JobbUrlState,
+): ParsedClaims {
+  const carried = new Set(splitQWords(state.q).map((w) => w.toLowerCase()));
+  return {
+    matches: claims.matches,
+    qWords: claims.qWords.filter((w) => carried.has(w.toLowerCase())),
   };
 }
 
@@ -468,7 +549,8 @@ function removeMatch(
 /**
  * Representabilitets-gate (C′ regel 4): en label får emitteras som text
  * ENDAST om parse bevisligen återfinner exakt den dimensionen (ambiguösa
- * labels, komma-labels och operator-prefixade ord faller). q-ord faller om
+ * labels, komma-labels och ord vars parse ändrar formen faller — `+ord`,
+ * `−ord`; ett uteslutet ord i kanonisk form `-ord` består). q-ord faller om
  * de råkar unikt matcha en taxonomi-label (skulle re-claimas som dimension).
  */
 export function isTextRepresentable(

@@ -105,9 +105,8 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
 
         // #831 — the q MinLength rule is GONE. The parser, not the validator, owns the
         // minimum: `SearchQueryParser` nulls a residual below QMinLength and runs on the
-        // dimensions instead (its `sb.Length < QMinLength` branch — referenced by symbol, not
-        // line: the line moved once already), and this handler feeds it every
-        // q (`parser.Parse(query.Q).ResidualQ`). Two rules for one input meant a bookmarked
+        // dimensions instead, and the search port feeds it every
+        // q (#2143). Two rules for one input meant a bookmarked
         // `/jobb?q=a` 400'd on one path and degraded on the other; the parser wins because a
         // GET list query should degrade, not refuse.
         //
@@ -139,13 +138,13 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
         //
         // #831 — SCOPE, exakt: den här regeln mäter RÅ q och fångar bara den TOMMA
         // söktexten. Den garanterar INTE en non-null residual, vilket är vad sorten
-        // faktiskt behöver. `?q=a&sort=relevans` passerar alltså här, nollas i handlern
+        // faktiskt behöver. `?q=a&sort=relevans` passerar alltså här, nollas i sökporten
         // och degraderar medvetet till PublishedAt desc i `ApplyRelevanceSort` — ett
         // nåbart tillstånd sedan q-minimum flyttade till parsern, pinnat av
         // `Validate_RelevanceSort_WithSubMinimumQ_Passes_ParserDecidesTheOrder`.
         //
         // Att i stället köra parsern här vore CTO:ns avvisade Cut E (validatorn skulle
-        // få ett Application-beroende och duplicera handlerns normalisering). Och att
+        // få ett Application-beroende). Och att
         // 400:a vore att återinföra precis den vägran #831 tar bort. Degradering är
         // rätt beteende; meddelandet nedan är därför formulerat om så det inte längre
         // påstår mer än regeln kontrollerar.

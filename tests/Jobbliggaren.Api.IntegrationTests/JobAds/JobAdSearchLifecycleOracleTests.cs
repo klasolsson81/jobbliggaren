@@ -52,7 +52,7 @@ public class JobAdSearchLifecycleOracleTests(ApiFactory factory)
     private static JobAdSearchQuery CreateSut(IServiceScope scope) =>
         new(
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<IOccupationSynonymExpander>());
+            SearchTextResolvers.For(scope, Substitute.For<IOccupationSynonymExpander>()));
 
     // Seeds an imported ad tagged with the run's unique occupation-group (isolation key in the
     // shared [Collection("Api")] Postgres). Lifecycle transitions run through the REAL domain

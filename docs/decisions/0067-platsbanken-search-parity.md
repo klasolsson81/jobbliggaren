@@ -428,4 +428,25 @@ eller ADR 0067.
 
 ---
 
+## Amendment 2026-10-11 — Beslut 5's "never a hard exclusion" gets an exception for a word marked with a minus; the port, not the handler, parses q; the E2h dash strip is closed (#2143, ADR 0167)
+
+**Status:** Accepted 2026-10-11. **Source:** [ADR 0167](./0167-a-minus-before-a-word-excludes-it-the-search-port-parses-the-raw-text-and-a-minus-word-hides-what-the-word-finds-and-what-a-label-equal-to-it-names.md) D1–D3, D9, D10. Additive: Beslut 5 and 6 and the implementation notes are untouched in
+their text.
+
+- **Beslut 5 ("Kraschsäkerhet": "aldrig som hård AND-exkludering") and the D2 note ("Residual blir ALDRIG eget AND-villkor")** describe the
+  positive residual and stay true of it: an unmarked word only adds recall. A word marked with a leading minus is a hard exclusion of its own, by
+  design (ADR 0167 D1, D2). `ParsedSearchQuery` is still text only: it now carries `ExcludedTerms` beside `ResidualQ`, and the parser still
+  extracts no dimension.
+- **Rationale (a) of the D2 note** (dimension disambiguation is the frontend chip's job, not a guessing backend's) now meets an exact-label lookup
+  in the search port. The port does not guess: it compares a minus-word the user marked to a label for exact equality, never a prefix, and uses
+  the result only to exclude (ADR 0167 D2, D4).
+- **The D2 note's sentences that `ListJobAdsQueryHandler` runs the live q through the parser and that `RunSavedSearch` does not re-parse its q
+  are superseded.** The search port parses the raw text for every consumer, the replays included, and the handlers pass q raw (ADR 0167 D3).
+- **The E2h note's leading-dash strip is closed.** It kept the minus operator open as "egen fas" for Klas's GO, and that phase is #2143. The
+  tokenizer now keeps `-term` as an excluded q-word instead of stripping the dash (ADR 0167 D10). The leading-`+` strip stands.
+- **Beslut 6 is unchanged:** the raw q is stored and parsed per run, which is what lets minus-words work in saved searches, recent searches and
+  the new-results count with no migration.
+
+---
+
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

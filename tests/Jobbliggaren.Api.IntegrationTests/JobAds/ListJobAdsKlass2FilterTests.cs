@@ -95,10 +95,9 @@ public class ListJobAdsKlass2FilterTests(ApiFactory factory)
         new(
             new JobAdSearchQuery(
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-                Substitute.For<IOccupationSynonymExpander>()),
+                SearchTextResolvers.For(scope, Substitute.For<IOccupationSynonymExpander>())),
             Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery>(),
             Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
-            new SearchQueryParser(),
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
 

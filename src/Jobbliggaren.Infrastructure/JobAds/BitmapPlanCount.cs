@@ -19,31 +19,66 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </para>
 ///
 /// <para>
-/// #744 — the hygiene is worth its BEGIN/SET LOCAL/COMMIT roundtrips ONLY when the q-FTS predicate is
-/// present (<see cref="JobAdSearchComposition.HasFreeTextQuery"/>): that is the sole TOAST-detoast source.
-/// <paramref name="useBitmapPlanHygiene"/> gates it — a no-q count runs bare (no transaction), a q-count
-/// runs under the GUC. Shared by <see cref="JobAdSearchQuery"/> and <see cref="PerUserJobAdSearchQuery"/>
-/// so both count families gate on q identically (DRY — one hygiene implementation, one q-gate).
+/// #744 — the hygiene is worth its BEGIN/SET LOCAL/COMMIT roundtrips ONLY when a q-FTS predicate is
+/// present (<see cref="ResolvedSearchText.HasFreeTextPredicate"/>): that is the sole TOAST-detoast source.
+/// A no-q count runs bare (no transaction), a q-count runs under the GUC. Shared by
+/// <see cref="JobAdSearchQuery"/> and <see cref="PerUserJobAdSearchQuery"/> so both count families gate on
+/// q identically (DRY — one hygiene implementation, one q-gate).
+/// </para>
+///
+/// <para>
+/// #2143 (ADR 0167) — a count with minus-words also runs under <c>SET LOCAL enable_nestloop = off</c>. Each
+/// minus-word is a NOT EXISTS; for a word the planner expects to match little it otherwise picks a nested
+/// loop anti join that probes the primary key once per counted row and detoasts search_vector at every
+/// probe — the same cost the model cannot see, in a different node. Prohibited, each one is a hash anti
+/// join over the GIN bitmap, built once.
 /// </para>
 /// </summary>
 internal static class BitmapPlanCount
 {
+    private const string SeqScanOff = "SET LOCAL enable_seqscan = off";
+    private const string SeqScanAndNestLoopOff = SeqScanOff + "; SET LOCAL enable_nestloop = off";
+
     public static async Task<TResult> CountWithBitmapPlanAsync<TResult>(
         AppDbContext db,
-        bool useBitmapPlanHygiene,
+        ResolvedSearchText text,
         Func<CancellationToken, Task<TResult>> count,
         CancellationToken cancellationToken)
     {
         // No q-FTS predicate → no TOAST-detoast risk → skip the transaction entirely (#744): a no-q browse
         // count no longer pays BEGIN + SET LOCAL + COMMIT for a planner hint it does not need.
-        if (!useBitmapPlanHygiene)
+        if (!text.HasFreeTextPredicate)
             return await count(cancellationToken);
 
+        return await RunUnderAsync(
+            db, text.Excluded.Count > 0 ? SeqScanAndNestLoopOff : SeqScanOff, count, cancellationToken);
+    }
+
+    /// <summary>
+    /// #2143 (ADR 0167 D6) — an item read with minus-words runs under the same pair as their count. Under
+    /// its LIMIT the planner picks the nested loop anti join, expecting survivors early; a minus-word that
+    /// hides nearly every ad makes it probe, and detoast, every row. Without minus-words the read runs
+    /// bare, as before.
+    /// </summary>
+    public static async Task<TResult> ReadWithExclusionPlanAsync<TResult>(
+        AppDbContext db,
+        ResolvedSearchText text,
+        Func<CancellationToken, Task<TResult>> read,
+        CancellationToken cancellationToken) =>
+        text.Excluded.Count == 0
+            ? await read(cancellationToken)
+            : await RunUnderAsync(db, SeqScanAndNestLoopOff, read, cancellationToken);
+
+    private static async Task<TResult> RunUnderAsync<TResult>(
+        AppDbContext db,
+        string setLocal,
+        Func<CancellationToken, Task<TResult>> run,
+        CancellationToken cancellationToken)
+    {
         await using var transaction =
             await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlRawAsync(
-            "SET LOCAL enable_seqscan = off", cancellationToken);
-        var result = await count(cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(setLocal, cancellationToken);
+        var result = await run(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
     }

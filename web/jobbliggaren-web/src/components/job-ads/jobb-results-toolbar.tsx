@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { JobAdSortBy } from "@/lib/dto/job-ads";
+import { Q_MIN_LENGTH, type JobAdSortBy } from "@/lib/dto/job-ads";
 import {
   isListMatchGrade,
   type ListMatchGrade,
@@ -41,6 +41,7 @@ import {
 import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
+import { positiveQ } from "@/lib/job-ads/search-text-grammar";
 import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 
 /**
@@ -236,8 +237,9 @@ export function JobbResultsToolbar({
   const [, startTransition] = useTransition();
 
   // q ägs av hero-fältet; toolbaren härleder bara Relevance-gaten
-  // ur searchParam-propen (ADR 0042 Beslut D).
-  const qReady = q.trim().length >= 2;
+  // ur searchParam-propen (ADR 0042 Beslut D). #2143 — relevance ranks on the
+  // positive words only, so a search of only minus-words has nothing to rank by.
+  const qReady = positiveQ(q).length >= Q_MIN_LENGTH;
 
   // E2c (CTO VAL 2) — publicera list-svarets totalCount till hero-öns
   // "Visa N annonser"-knapp (total-count-store; SPOT — talet ägs av
@@ -550,9 +552,13 @@ export function JobbResultsToolbar({
                 className="jp-filterchip__rm"
                 onClick={() => removeChip(chip)}
                 aria-label={
-                  chip.axis === "q"
-                    ? t("toolbar.removeSearchTerm", { label: chip.label })
-                    : t("toolbar.removeFilter", { label: chip.label })
+                  chip.excludedTerm !== undefined
+                    ? t("toolbar.removeExcludedTerm", {
+                        label: chip.excludedTerm,
+                      })
+                    : chip.axis === "q"
+                      ? t("toolbar.removeSearchTerm", { label: chip.label })
+                      : t("toolbar.removeFilter", { label: chip.label })
                 }
               >
                 <X size={12} aria-hidden="true" />

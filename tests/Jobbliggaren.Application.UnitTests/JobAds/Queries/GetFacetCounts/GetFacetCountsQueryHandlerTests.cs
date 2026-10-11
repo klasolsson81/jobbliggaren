@@ -1,5 +1,4 @@
 using Jobbliggaren.Application.JobAds.Abstractions;
-using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 using NSubstitute;
 using Shouldly;
@@ -7,17 +6,13 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetFacetCounts;
 
 // Fas E2c (ADR 0067 Beslut 4) — GetFacetCountsQueryHandler är en TUNN ADAPTER
-// (spegelbild av ListJobAdsQueryHandler): mappar query → JobAdFilterCriteria,
-// kör Q genom ISearchQueryParser (residual-konsistens med list-vägen — E2c-
-// architect §2) och delegerar till IJobAdSearchQuery.FacetCountsAsync.
+// (spegelbild av ListJobAdsQueryHandler): mappar query → JobAdFilterCriteria och
+// delegerar till IJobAdSearchQuery.FacetCountsAsync med rå Q — porten parsar den för
+// varje konsument (#2143, residual-konsistens med list-vägen — E2c-architect §2).
 // GROUP BY-kompositionen testas mot riktig Postgres i JobAdFacetCountsTests.
-//
-// Riktig SearchQueryParser injiceras (ren CPU, deterministisk,
-// InternalsVisibleTo) — samma val som ListJobAdsQueryHandlerTests (D2).
 public class GetFacetCountsQueryHandlerTests
 {
     private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
-    private readonly ISearchQueryParser _parser = new SearchQueryParser();
 
     private static Dictionary<string, int> EmptyCounts() => [];
 
@@ -30,7 +25,7 @@ public class GetFacetCountsQueryHandlerTests
                 Arg.Any<FacetDimension>(),
                 Arg.Any<CancellationToken>())
             .Returns(EmptyCounts());
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+        var handler = new GetFacetCountsQueryHandler(_search);
 
         await handler.Handle(
             new GetFacetCountsQuery(FacetDimension.Municipality),
@@ -53,7 +48,7 @@ public class GetFacetCountsQueryHandlerTests
                 Arg.Do<FacetDimension>(d => capturedDim = d),
                 Arg.Any<CancellationToken>())
             .Returns(EmptyCounts());
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+        var handler = new GetFacetCountsQueryHandler(_search);
 
         await handler.Handle(
             new GetFacetCountsQuery(
@@ -81,7 +76,7 @@ public class GetFacetCountsQueryHandlerTests
                 Arg.Any<FacetDimension>(),
                 Arg.Any<CancellationToken>())
             .Returns(EmptyCounts());
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+        var handler = new GetFacetCountsQueryHandler(_search);
 
         await handler.Handle(
             new GetFacetCountsQuery(FacetDimension.OccupationGroup, Remote: true),
@@ -91,46 +86,25 @@ public class GetFacetCountsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RunsQThroughParser_ResidualReachesFilterNotRawInput()
+    public async Task Handle_PassesTheRawQToThePort()
     {
-        // Residual-konsistens (E2c-architect §2): kontrolltecken strippas och
-        // whitespace kollapsar — exakt som list-vägen. Rå input får ALDRIG nå
-        // filter-SPOT:en (annars räknar facetten mot annan WHERE än listan).
+        // #2143 — the port parses Q, minus-words included, for every consumer; a handler that
+        // parsed first would drop the excluded terms before they reached it.
         JobAdFilterCriteria? captured = null;
         _search.FacetCountsAsync(
                 Arg.Do<JobAdFilterCriteria>(c => captured = c),
                 Arg.Any<FacetDimension>(),
                 Arg.Any<CancellationToken>())
             .Returns(EmptyCounts());
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+        var handler = new GetFacetCountsQueryHandler(_search);
 
         await handler.Handle(
             new GetFacetCountsQuery(
                 FacetDimension.Municipality,
-                Q: "  lärare   stockholm  "),
+                Q: "  lärare   -deltid  "),
             TestContext.Current.CancellationToken);
 
-        captured!.Q.ShouldBe("lärare stockholm");
-    }
-
-    [Fact]
-    public async Task Handle_SubMinLengthQ_NormalizesToNull()
-    {
-        // Parser-kontraktet (D2): sub-QMinLength → null (near-full-scan-skydd)
-        // — samma normalisering som list-vägen.
-        JobAdFilterCriteria? captured = null;
-        _search.FacetCountsAsync(
-                Arg.Do<JobAdFilterCriteria>(c => captured = c),
-                Arg.Any<FacetDimension>(),
-                Arg.Any<CancellationToken>())
-            .Returns(EmptyCounts());
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
-
-        await handler.Handle(
-            new GetFacetCountsQuery(FacetDimension.Region, Q: "a"),
-            TestContext.Current.CancellationToken);
-
-        captured!.Q.ShouldBeNull();
+        captured!.Q.ShouldBe("  lärare   -deltid  ");
     }
 
     [Fact]
@@ -142,7 +116,7 @@ public class GetFacetCountsQueryHandlerTests
                 Arg.Any<FacetDimension>(),
                 Arg.Any<CancellationToken>())
             .Returns(counts);
-        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+        var handler = new GetFacetCountsQueryHandler(_search);
 
         var result = await handler.Handle(
             new GetFacetCountsQuery(FacetDimension.OccupationGroup),

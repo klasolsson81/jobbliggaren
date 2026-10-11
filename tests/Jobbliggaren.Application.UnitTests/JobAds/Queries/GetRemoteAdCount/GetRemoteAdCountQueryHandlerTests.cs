@@ -1,6 +1,5 @@
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.JobAds.Abstractions;
-using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 using Shouldly;
@@ -11,13 +10,12 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetRemoteAdCount;
 /// #551 PR-B D7 — the "Distans (N)" facet-hint count handler. Thin adapter (parity
 /// <see cref="GetMatchCountPreview.GetMatchCountPreviewQueryHandlerTests"/>): a hand-rolled
 /// ValueTask fake for the <see cref="IJobAdSearchQuery"/> port (NSubstitute trips CA2012 at the
-/// ValueTask call-setup) plus the real <see cref="ISearchQueryParser"/> (pure CPU, deterministic).
-/// The handler's contract — the D7 count predicate:
+/// ValueTask call-setup). The handler's contract — the D7 count predicate:
 /// <list type="bullet">
 /// <item>FORCES <c>Remote=true</c> and EMPTIES the location dimension (Municipality/Region) — the
 /// facet-excluded "how many remote ads match the rest" predicate; counting remote ∧ muni would be ≈0;</item>
 /// <item>threads the orthogonal non-location filters (yrke/anställningsform/omfattning) and the
-/// parser-normalized residual Q; counts via <see cref="IJobAdSearchQuery.CountAsync"/> and returns
+/// raw Q, which the port parses (#2143); counts via <see cref="IJobAdSearchQuery.CountAsync"/> and returns
 /// the port's count wrapped, unchanged.</item>
 /// </list>
 /// </summary>
@@ -50,7 +48,7 @@ public class GetRemoteAdCountQueryHandlerTests
     }
 
     private static GetRemoteAdCountQueryHandler CreateSut(FakeJobAdSearchQuery search) =>
-        new(search, new SearchQueryParser());
+        new(search);
 
     [Fact]
     public async Task Handle_ForcesRemoteTrueAndExcludesLocationDimension()
@@ -93,44 +91,17 @@ public class GetRemoteAdCountQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RunsQThroughParser_ResidualReachesFilterNotRawInput()
+    public async Task Handle_PassesTheRawQToThePort()
     {
-        // Residual-konsistens (parity GetFacetCounts): control chars stripped + whitespace
-        // collapsed exactly like the list path, so the hint counts against the same WHERE.
+        // #2143 — the port parses Q, minus-words included, for every consumer (parity
+        // GetFacetCounts), so the hint counts against the same WHERE as the list.
         var ct = TestContext.Current.CancellationToken;
         var search = new FakeJobAdSearchQuery(countToReturn: 3);
         var sut = CreateSut(search);
 
-        await sut.Handle(new GetRemoteAdCountQuery(Q: "  utvecklare   distans  "), ct);
+        await sut.Handle(new GetRemoteAdCountQuery(Q: "  utvecklare   -deltid  "), ct);
 
-        search.LastFilter!.Q.ShouldBe("utvecklare distans");
-    }
-
-    [Fact]
-    public async Task Handle_SubMinLengthQ_NormalizesToNull()
-    {
-        // #831 — the parser is now the SOLE guard on the minimum here: the validator's
-        // MinimumLength rule was removed on all three parser-backed paths, so a sub-minimum
-        // q reaches this handler instead of being rejected wire-side.
-        //
-        // This branch was UNTESTED on the remote-count path before #831. The sibling paths
-        // both covered it (ListJobAds Handle_QNormalizesToSubMinLength_BecomesNull,
-        // GetFacetCounts Handle_SubMinLengthQ_NormalizesToNull); this file only asserted the
-        // whitespace-collapse branch above. Deleting a guard while its replacement has zero
-        // coverage on the path is what this test exists to prevent — a fix for an untested
-        // guarantee must itself be tested.
-        //
-        // Null, not "a": a nulled residual makes the count the unfiltered remote count, which
-        // is the cheap indexed predicate. Asserting ShouldBeNull rather than ShouldNotBe("a")
-        // pins the actual contract — an empty string would also satisfy the weaker form and
-        // would reach SQL as a filter.
-        var ct = TestContext.Current.CancellationToken;
-        var search = new FakeJobAdSearchQuery(countToReturn: 3);
-        var sut = CreateSut(search);
-
-        await sut.Handle(new GetRemoteAdCountQuery(Q: "a"), ct);
-
-        search.LastFilter!.Q.ShouldBeNull();
+        search.LastFilter!.Q.ShouldBe("  utvecklare   -deltid  ");
     }
 
     [Fact]

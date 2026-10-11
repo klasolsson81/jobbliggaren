@@ -13,13 +13,12 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 /// <para>
 /// <c>Municipality</c>/<c>Region</c> are <c>[]</c> unconditionally (the query does not even
 /// carry them — location is the excluded facet, D7). <c>Employer: []</c> parity
-/// <c>GetFacetCounts</c> (no employer facet). <c>Q</c> runs the SAME residual normalization
-/// as the list/facet paths (<see cref="ISearchQueryParser"/>) so the hint counts against the
-/// same WHERE the list would (residual consistency, ADR 0067 Fas D2).
+/// <c>GetFacetCounts</c> (no employer facet). <c>Q</c> is the raw text, parsed by the port as
+/// on the list/facet paths, so the hint counts against the same WHERE the list would (residual
+/// consistency, ADR 0067 Fas D2; #2143).
 /// </para>
 /// </summary>
-public sealed class GetRemoteAdCountQueryHandler(
-    IJobAdSearchQuery search, ISearchQueryParser parser)
+public sealed class GetRemoteAdCountQueryHandler(IJobAdSearchQuery search)
     : IQueryHandler<GetRemoteAdCountQuery, RemoteAdCountDto>
 {
     public async ValueTask<RemoteAdCountDto> Handle(
@@ -36,7 +35,7 @@ public sealed class GetRemoteAdCountQueryHandler(
             Employer: [],
             // The count predicate: "how many REMOTE ads match the rest".
             Remote: true,
-            Q: parser.Parse(query.Q).ResidualQ);
+            Q: query.Q);
 
         var count = await search.CountAsync(filter, cancellationToken);
         return new RemoteAdCountDto(count);

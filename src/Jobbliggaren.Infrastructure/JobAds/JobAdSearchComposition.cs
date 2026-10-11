@@ -1,9 +1,9 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using NpgsqlTypes;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
@@ -29,16 +29,6 @@ internal static class JobAdSearchComposition
     // den config som search_vector-kolumnen genererades med (JobAdConfiguration
     // — to_tsvector('swedish', …)); annars matchar @@ inte GIN-indexet.
     internal const string TextSearchConfig = "swedish";
-
-    /// <summary>
-    /// The single definition of "does this search carry a free-text q?" — the q-FTS predicate below
-    /// (<c>search_vector @@ websearch_to_tsquery</c>) and the ts_rank relevance sort are gated on it, and
-    /// so is the bitmap-plan count hygiene (<see cref="BitmapPlanCount"/>, #744): the SET LOCAL is worth
-    /// its extra roundtrips ONLY when this q-predicate is what would otherwise TOAST-detoast-seqscan the
-    /// STORED search_vector. Kept here as SPOT so the hygiene gate can never drift from the predicate it
-    /// tracks — a second copy of <c>!IsNullOrWhiteSpace</c> would be a second rule.
-    /// </summary>
-    internal static bool HasFreeTextQuery([NotNullWhen(true)] string? q) => !string.IsNullOrWhiteSpace(q);
 
     // F2-P9 (TD-70). Filter via de mappade Postgres-kolumnerna (B-tree-
     // indexerade, equality-lookup). De sju taxonomi-/org.nr-kolumnerna är sedan
@@ -69,17 +59,22 @@ internal static class JobAdSearchComposition
     // synas i sök-vägen. SPOT-filter här gör att alla konsumenter
     // (ListJobAds, RunSavedSearch, ListRecentSearches CountAsync, F4-14 match-sort)
     // ärver Status=Active-disciplinen automatiskt (ADR 0039 Beslut 1).
-    internal static IQueryable<JobAd> ApplyFilter(
-        IQueryable<JobAd> source, JobAdFilterCriteria criteria,
-        IOccupationSynonymExpander synonymExpander)
+    //
+    // #2143 (ADR 0167) — `root` must be the unfiltered job_ads set: each minus-word is a correlated
+    // NOT EXISTS over it, kept free of the Active filter so the planner serves the inner side from the
+    // GIN indexes rather than from the status index.
+    internal static IQueryable<JobAd> ApplyFilter(IQueryable<JobAd> root, ResolvedJobAdFilter filter)
     {
+        var criteria = filter.Criteria;
+        var text = filter.Text;
+
         // ADR 0032-amendment 2026-05-23 — slutanvändar-vyer ser bara Active.
         // ALLOW-LIST (`== Active`), never `!= Archived` (#864 D4): a deny-list silently admits
         // every status added later — the `Erased` Art. 17 tombstone (#842) first, whose empty
         // title and "[raderad]" company name would render in the public /jobb list. Every carrier
         // of this SPOT inherits that choice. Pinned by JobAdSearchLifecycleOracleTests (a real
         // Erased seed — the row where the two forms disagree, reachable since #886).
-        source = source.Where(j => j.Status == JobAdStatus.Active);
+        var source = root.Where(j => j.Status == JobAdStatus.Active);
 
         if (criteria.OccupationGroup.Count > 0)
         {
@@ -186,73 +181,136 @@ internal static class JobAdSearchComposition
                 employerValues.Contains(j.OrganizationNumber));
         }
 
-        if (HasFreeTextQuery(criteria.Q))
-        {
-            var q = criteria.Q;
-            // title-LIKE-fallbacken lower:as redan invariant-side (C#); EF/Npgsql
-            // translaterar .ToLower() (utan culture-arg) till SQL LOWER(col).
-            // CA1304/CA1311-suppress: LINQ-translation till SQL, inte runtime-
-            // string-op — culture är irrelevant. websearch_to_tsquery sköter
-            // sin egen normalisering (lexem-tokenisering, robust mot user-input,
-            // kastar aldrig på dålig syntax).
-            //
-            // STEG 6 Approach B (2026-05-24) — SSYK-expansion ovanpå FTS+title-LIKE.
-            // synonymExpander översätter fritext ("systemutvecklare") till JobTech
-            // occupation-concept_ids via konfigurerad mapping. OR-additiv: ökar
-            // recall utan att sänka precision för existing FTS-träffar. Q-fältet
-            // består — vi ENBART utvidgar matchnings-ytan med SSYK-träffar för
-            // annonser som har ssyk_concept_id satt. Backfill från Approach A ger
-            // ~88% av korpus med populerad ssyk_concept_id (CTO-rond Plan C-design,
-            // architect-rond 2026-05-24).
-            var pattern = $"%{q.ToLowerInvariant()}%";
-            var expandedSsyks = synonymExpander.Expand(q);
+        if (text.Positive is { } positive)
+            source = source.Where(MatchesText(positive));
 
-            // TD-94 (perf-ratchet, ADR 0045) / ADR 0062-amendment 2026-06-13 —
-            // title-LIKE-grenen körs ENDAST för q ≥ 3 tecken. GIN-trigram kan
-            // fysiskt inte serva en <3-teckens LIKE '%q%' (trigram = 3-grams) →
-            // för korta q tvingas en btree-prefix-/seq-scan över hela korpusen
-            // (42 873 rader, ~346 ms) trots att FTS-grenen ensam är selektiv.
-            // FTS-lexem-matchningen täcker korta vanliga termer ändå (search_vector
-            // spänner title+description). Grinden bor i delade ApplyFilter → den
-            // gäller list + count + facets + match-sort samtidigt (ADR 0039 Beslut 1
-            // SPOT — ingen list↔count-divergens). Marginell trade-off: <3-teckens
-            // mitt-i-ord-substring i titel matchas inte längre; UI-kontraktet
-            // (`systemut` → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och
-            // opåverkat.
-            //
-            // #1546 - the same gate now carries the company-name branch below, for the same
-            // reason: ix_job_ads_company_name_lower_trgm is a trigram index and cannot serve a
-            // <3-character LIKE either. That branch exists because the hero field promises
-            // "Sök efter yrke, arbetsgivare eller ort" while search_vector spans title +
-            // description only, so an employer name reached nothing at all.
-            // search_vector is deliberately NOT widened: it is a STORED generated column, so
-            // redefining it rewrites the whole table under ACCESS EXCLUSIVE on a continuously
-            // ingested table, where this branch costs one CONCURRENTLY-built index.
-            var includeSubstringLike = q.Length >= 3;
+        // A correlated NOT EXISTS, never an inline NOT: inline, the full-text arm would detoast
+        // search_vector for every row the outer scan reaches (TD-94), and NOT over a NULL ssyk arm is
+        // NULL, which would drop the row. Inside EXISTS the predicate stays positive and GIN-served.
+        foreach (var term in text.Excluded)
+        {
+            var excludedAds = root.Where(MatchesText(term));
+            source = source.Where(j => !excludedAds.Any(x => x.Id == j.Id));
+        }
+
+        return ExcludeNamedConcepts(source, text.ExcludedLabels);
+    }
+
+    // The q match, one term at a time, shared by the positive residual and every minus-word.
+    //
+    // title-LIKE-fallbacken lower:as redan invariant-side (C#); EF/Npgsql
+    // translaterar .ToLower() (utan culture-arg) till SQL LOWER(col).
+    // CA1304/CA1311-suppress: LINQ-translation till SQL, inte runtime-
+    // string-op — culture är irrelevant. websearch_to_tsquery sköter
+    // sin egen normalisering (lexem-tokenisering, robust mot user-input,
+    // kastar aldrig på dålig syntax).
+    //
+    // STEG 6 Approach B (2026-05-24) — SSYK-expansion ovanpå FTS+title-LIKE.
+    // IOccupationSynonymExpander översätter fritext ("systemutvecklare") till JobTech
+    // occupation-concept_ids via konfigurerad mapping. OR-additiv: ökar
+    // recall utan att sänka precision för existing FTS-träffar. Q-fältet
+    // består — vi ENBART utvidgar matchnings-ytan med SSYK-träffar för
+    // annonser som har ssyk_concept_id satt. Backfill från Approach A ger
+    // ~88% av korpus med populerad ssyk_concept_id (CTO-rond Plan C-design,
+    // architect-rond 2026-05-24).
+    //
+    // TD-94 (perf-ratchet, ADR 0045) / ADR 0062-amendment 2026-06-13 —
+    // title-LIKE-grenen körs ENDAST för en term med en följd av ≥ 3 bokstäver/siffror
+    // (TextTerm.ContainsPattern är null annars, #2143). GIN-trigram kan fysiskt inte serva
+    // en LIKE '%q%' utan ett helt trigram → hela indexet läses och rechecken detoastar
+    // varje rad, trots att FTS-grenen ensam är selektiv. FTS-lexem-matchningen täcker
+    // korta vanliga termer ändå (search_vector spänner title+description). Marginell
+    // trade-off: <3-teckens mitt-i-ord-substring i titel matchas inte längre; UI-
+    // kontraktet (`systemut` → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och
+    // opåverkat.
+    //
+    // #1546 - the same gate now carries the company-name branch below, for the same
+    // reason: ix_job_ads_company_name_lower_trgm is a trigram index and cannot serve a
+    // <3-character LIKE either. That branch exists because the hero field promises
+    // "Sök efter yrke, arbetsgivare eller ort" while search_vector spans title +
+    // description only, so an employer name reached nothing at all.
+    // search_vector is deliberately NOT widened: it is a STORED generated column, so
+    // redefining it rewrites the whole table under ACCESS EXCLUSIVE on a continuously
+    // ingested table, where this branch costs one CONCURRENTLY-built index.
+    //
+    // #2143 — the full-text arm comes LAST, and the order is load-bearing: PostgreSQL 18's executor
+    // evaluates the arms as written and stops at the first true (measured, not guaranteed: docs
+    // §4.2.14), so a row whose title, employer or SSYK already matches never has its search_vector
+    // detoasted in a recheck or a filter. Measured by ExcludedTermLatencyMeasurement.
+    private static Expression<Func<JobAd, bool>> MatchesText(TextTerm term)
+    {
+        var q = term.Term;
+        var expandedSsyks = term.Ssyks;
+        var arms = new List<Expression<Func<JobAd, bool>>>(4);
 
 #pragma warning disable CA1304, CA1311
-            source = (includeSubstringLike, hasSsyks: expandedSsyks.Count > 0) switch
-            {
-                (true, true) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern)
-                    || EF.Functions.Like(j.Company.Name.ToLower(), pattern)
-                    || expandedSsyks.Contains(j.SsykConceptId)),
-                (true, false) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern)
-                    || EF.Functions.Like(j.Company.Name.ToLower(), pattern)),
-                (false, true) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || expandedSsyks.Contains(j.SsykConceptId)),
-                (false, false) => source.Where(j =>
-                    EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                        .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))),
-            };
+        if (term.ContainsPattern is { } pattern)
+        {
+            arms.Add(j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter));
+            arms.Add(j => EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter));
+        }
 #pragma warning restore CA1304, CA1311
+
+        if (expandedSsyks.Count > 0)
+            arms.Add(j => expandedSsyks.Contains(j.SsykConceptId));
+
+        if (term.Role == TextTermRole.Excluded)
+        {
+            arms.Add(j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                .Matches(EF.Functions.PlainToTsQuery(TextSearchConfig, q)));
+        }
+        else
+        {
+            arms.Add(j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)));
+        }
+
+        return arms.Aggregate(OrElse);
+    }
+
+    private static Expression<Func<JobAd, bool>> OrElse(
+        Expression<Func<JobAd, bool>> left, Expression<Func<JobAd, bool>> right) =>
+        Expression.Lambda<Func<JobAd, bool>>(
+            Expression.OrElse(
+                left.Body,
+                ReplacingExpressionVisitor.Replace(right.Parameters[0], left.Parameters[0], right.Body)),
+            left.Parameters);
+
+    // #2143 (ADR 0167) — the concepts a minus-word names exactly (ITaxonomyLabelMatcher). Inline, unlike
+    // the text arm: these are B-tree columns with no detoast cost. Each column is nullable, and an ad
+    // with no value names nothing, so it survives — written out as `== null ||` rather than left to
+    // EF's null compensation.
+    private static IQueryable<JobAd> ExcludeNamedConcepts(
+        IQueryable<JobAd> source, TaxonomyLabelMatchDto labels)
+    {
+        if (labels.Municipality.Count > 0)
+        {
+            var ids = labels.Municipality;
+            source = source.Where(j => j.MunicipalityConceptId == null || !ids.Contains(j.MunicipalityConceptId));
+        }
+
+        if (labels.OccupationGroup.Count > 0)
+        {
+            var ids = labels.OccupationGroup;
+            source = source.Where(j => j.OccupationGroupConceptId == null || !ids.Contains(j.OccupationGroupConceptId));
+        }
+
+        if (labels.Occupation.Count > 0)
+        {
+            var ids = labels.Occupation;
+            source = source.Where(j => j.SsykConceptId == null || !ids.Contains(j.SsykConceptId));
+        }
+
+        if (labels.EmploymentType.Count > 0)
+        {
+            var ids = labels.EmploymentType;
+            source = source.Where(j => j.EmploymentTypeConceptId == null || !ids.Contains(j.EmploymentTypeConceptId));
+        }
+
+        if (labels.WorktimeExtent.Count > 0)
+        {
+            var ids = labels.WorktimeExtent;
+            source = source.Where(j => j.WorktimeExtentConceptId == null || !ids.Contains(j.WorktimeExtentConceptId));
         }
 
         return source;
@@ -274,7 +332,7 @@ internal static class JobAdSearchComposition
     // explicit + throw på unnamed (validators skyddar; throw = fail-fast vid framtida
     // JobAdSortBy-tillägg).
     internal static IQueryable<JobAd> ApplySort(
-        IQueryable<JobAd> source, JobAdSortBy sortBy, string? q) =>
+        IQueryable<JobAd> source, JobAdSortBy sortBy, ResolvedSearchText text) =>
         sortBy switch
         {
             JobAdSortBy.PublishedAtDesc => source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id),
@@ -290,7 +348,7 @@ internal static class JobAdSearchComposition
                       .ThenBy(j => j.Id),
             // ADR 0062 — ts_rank ersätter den tidigare ILIKE-3-2-1-heuristiken
             // (ADR 0042 Beslut D2). Relevans-rankning av FTS-träffar.
-            JobAdSortBy.Relevance => ApplyRelevanceSort(source, q),
+            JobAdSortBy.Relevance => ApplyRelevanceSort(source, text.Positive?.Term),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(sortBy), sortBy, "Unknown JobAdSortBy — validator should reject."),
         };
@@ -301,14 +359,14 @@ internal static class JobAdSearchComposition
     // ListJobAdsQueryValidator som upprätthållare. Den är nu PRIMÄRVÄG för ordinär input.
     // Validatorns `NotEmpty` mäter RÅ q; sorten behöver en non-null RESIDUAL, och sedan
     // q-minimum flyttade till ISearchQueryParser passerar `?q=a&sort=relevans` validatorn,
-    // nollas i handlern och landar här med q = null. Fallbacken (PublishedAt desc, kastar
+    // nollas av parsern och landar här med q = null. Fallbacken (PublishedAt desc, kastar
     // ej) är alltså det avsedda beteendet för det fallet, inte en osannolik skyddsnät-gren.
     // Create-invarianten står kvar och gäller SPARADE sökningar, inte den här läsvägen.
     // Rader som matchade enbart via substrängs-fallbackarna (title eller company_name, ej FTS)
     // får ts_rank 0 → de sorteras efter FTS-träffarna, sedan PublishedAt desc, sedan Id.
     private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
     {
-        if (!HasFreeTextQuery(q))
+        if (q is null)
             return source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id);
 
         var query = q;

@@ -943,4 +943,89 @@ public class RecentJobSearchCaptureBehaviorTests
             "guard — neither of which fails on its own when a dimension is merely missing. " +
             "Update this list in the same commit as the guard, never before it.");
     }
+
+    // ---- #2143: minus-words ----
+
+    [Fact]
+    public async Task Handle_QOfOnlyMinusWords_CapturesTheRawQ()
+    {
+        // A q of only minus-words filtered the search the user ran, so it is what the recent
+        // search replays; the parser's ResidualQ is null for it, which used to drop the q.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "-deltid", OccupationGroup: ["grp1"], Municipality: null, Region: null));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBe("-deltid");
+        captured.OccupationGroup.ShouldBe(["grp1"]);
+    }
+
+    [Fact]
+    public async Task Handle_QOfOnlyMinusWordsWithRelevanceSort_CapturesTheSortThatActuallyRan()
+    {
+        // Relevance ranks the positive residual; with none, ApplyRelevanceSort falls back to
+        // PublishedAt desc, so that is what is captured.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "-deltid", OccupationGroup: null, Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBe("-deltid");
+        captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerAsAMinusWord_CapturesNothing()
+    {
+        // The scan runs on the raw q, so a personnummer is caught in an excluded term too.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend -811218-9876", OccupationGroup: null, Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_QOfOnlyDroppedMinusWords_CapturesTheDimensionsWithoutTheQ()
+    {
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "-d", OccupationGroup: ["grp1"], Municipality: null, Region: null));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBeNull();
+        captured.OccupationGroup.ShouldBe(["grp1"]);
+    }
+
+    [Fact]
+    public async Task Handle_PositiveWordBesideAMinusWord_KeepsTheRelevanceSort()
+    {
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "lärare -deltid", OccupationGroup: null, Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBe("lärare -deltid");
+        captured.SortBy.ShouldBe(JobAdSortBy.Relevance);
+    }
 }

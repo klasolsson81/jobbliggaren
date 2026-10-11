@@ -15,18 +15,17 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// Disambiguering till strukturerade filter sker vid input (FE typeahead-chip,
 /// ADR 0067 Beslut 5b/Fas E) — "snarare än via gissande backend" (Beslut 5c).
 /// Att extrahera dimensioner här vore Speculative Generality (Fowler 2018) och
-/// dubblerar ett ansvar ADR:n redan lagt på FE. Kontraktet bär därför bara
-/// <see cref="ParsedSearchQuery.ResidualQ"/>.
+/// dubblerar ett ansvar ADR:n redan lagt på FE. Kontraktet bär därför bara text:
+/// <see cref="ParsedSearchQuery.ResidualQ"/> och minus-orden
+/// (<see cref="ParsedSearchQuery.ExcludedTerms"/>, #2143).
 /// </para>
 ///
 /// <para>
 /// <b>Kraschsäkerhet by design (ADR 0067 Beslut 5 + ADR 0062):</b>
 /// <see cref="Parse"/> kastar ALDRIG och producerar en ResidualQ som antingen är
 /// <c>null</c> (ingen FTS-term) eller en sträng på 2–100 tecken
-/// (<c>SearchCriteria.QMinLength</c>..<c>QMaxLength</c>). ResidualQ matar
-/// <c>JobAdFilterCriteria.Q</c> → q-FTS-hybridens OR-additiva gren; den blir
-/// aldrig ett hårt AND-villkor. En residual som inte matchar något ger noll
-/// träffar men kraschar/tomfiltrerar aldrig sökningen.
+/// (<c>SearchCriteria.QMinLength</c>..<c>QMaxLength</c>). En residual som inte
+/// matchar något ger noll träffar men kraschar/tomfiltrerar aldrig sökningen.
 /// </para>
 /// </summary>
 public interface ISearchQueryParser

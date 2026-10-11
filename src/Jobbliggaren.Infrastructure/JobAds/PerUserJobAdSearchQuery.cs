@@ -53,7 +53,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </summary>
 internal sealed class PerUserJobAdSearchQuery(
     AppDbContext db,
-    IOccupationSynonymExpander synonymExpander,
+    JobAdSearchTextResolver textResolver,
     IJobAdSearchQuery searchQuery) : IPerUserJobAdSearchQuery
 {
     // facett-kolumner (EF.Property-nycklar) — parity MatchScorer; kolumn-
@@ -132,8 +132,8 @@ internal sealed class PerUserJobAdSearchQuery(
         var cvSkillIds = profile.CvSkillConceptIds.ToArray();
         var skillStated = cvSkillIds.Length > 0;
 
-        var baseQuery = JobAdSearchComposition.ApplyFilter(
-            db.JobAds.AsNoTracking(), filter, synonymExpander);
+        var resolved = await textResolver.ResolveAsync(filter, cancellationToken);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved);
 
         // #383 — den per-användar-status-predikaten (sparade/ansökta/dölj ansökta)
         // EXISTS-stackas ovanpå filter-SPOT:en FÖRE grad-WHERE/count (count-korrekthet —
@@ -171,7 +171,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // andra grenen delegerar till den delade port-counten, som self-gatar efter #744.
         var totalCount = grades.Count > 0 || status.IsActive
             ? await BitmapPlanCount.CountWithBitmapPlanAsync(
-                db, JobAdSearchComposition.HasFreeTextQuery(filter.Q),
+                db, resolved.Text,
                 graded.CountAsync, cancellationToken)
             : await searchQuery.CountAsync(filter, cancellationToken);
 
@@ -207,13 +207,14 @@ internal sealed class PerUserJobAdSearchQuery(
                 .ThenByDescending(rankExpr)
                 .ThenByDescending(j => j.PublishedAt)
                 .ThenBy(j => j.Id)
-            : JobAdSearchComposition.ApplySort(graded, sort, filter.Q);
+            : JobAdSearchComposition.ApplySort(graded, sort, resolved.Text);
 
-        var items = await ordered
+        var pageQuery = ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(JobAdSearchComposition.ToDto())
-            .ToListAsync(cancellationToken);
+            .Select(JobAdSearchComposition.ToDto());
+        var items = await BitmapPlanCount.ReadWithExclusionPlanAsync(
+            db, resolved.Text, pageQuery.ToListAsync, cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }
@@ -248,26 +249,25 @@ internal sealed class PerUserJobAdSearchQuery(
         // grad-WHERE → counten är per konstruktion lika med list-vägens TotalCount för
         // samma profil + grad-set (siffra↔landning-koherens, oracle-pinnad). Separat
         // count-query (CLAUDE §3.6): ingen sort, paginering eller projektion.
-        var baseQuery = JobAdSearchComposition.ApplyFilter(
-            db.JobAds.AsNoTracking(), filter, synonymExpander);
+        var resolved = await textResolver.ResolveAsync(filter, cancellationToken);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved);
 
         // #744 — routas genom den gatade bitmap-plan-hygienen som list-vägen. Notis-vägen
-        // (STEG 6) skickar alltid NoFilter med Q==null → HasFreeTextQuery false → bare
+        // (STEG 6) skickar alltid NoFilter med Q==null → HasFreeTextPredicate false → bare
         // count, byte-for-byte som förr. Att routa ändå (i st.f. ett medvetet "skippar
         // hygien"-special-case) tar bort asymmetrin och gör en framtida q-bärande anropare
         // automatiskt korrekt i st.f. att tyst åter-exponera TD-94:s detoast-seqscan.
-        var useHygiene = JobAdSearchComposition.HasFreeTextQuery(filter.Q);
 
         if (grades.Count == 0)
             return await BitmapPlanCount.CountWithBitmapPlanAsync(
-                db, useHygiene, baseQuery.CountAsync, cancellationToken);
+                db, resolved.Text, baseQuery.CountAsync, cancellationToken);
 
         var rankExpr = GradeRankExpression(
             ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
         var gradedQuery = baseQuery.Where(RankInSet(rankExpr, selectedRanks));
         return await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, useHygiene, gradedQuery.CountAsync, cancellationToken);
+            db, resolved.Text, gradedQuery.CountAsync, cancellationToken);
     }
 
     public async ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
@@ -413,8 +413,8 @@ internal sealed class PerUserJobAdSearchQuery(
         // Status-only (#383): återanvänder EXAKT samma filter-SPOT + rena sort som
         // default-vägen — ingen profil, ingen grad-rank, ingen match-ordning (frikopplad
         // från SSYK-match-gaten, SRP). Bara status-EXISTS:en läggs på.
-        var baseQuery = JobAdSearchComposition.ApplyFilter(
-            db.JobAds.AsNoTracking(), filter, synonymExpander);
+        var resolved = await textResolver.ResolveAsync(filter, cancellationToken);
+        var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved);
         var filtered = ApplyStatusFilter(baseQuery, status, seekerId);
 
         // Count-korrekthet: över den status-filtrerade mängden, aldrig den anonyma
@@ -423,14 +423,15 @@ internal sealed class PerUserJobAdSearchQuery(
         // med fritext) → samma detoast-hål som den grad-filtrerade counten. Samma gatade
         // bitmap-plan-hygien (no-op utan fritext).
         var totalCount = await BitmapPlanCount.CountWithBitmapPlanAsync(
-            db, JobAdSearchComposition.HasFreeTextQuery(filter.Q),
+            db, resolved.Text,
             filtered.CountAsync, cancellationToken);
 
-        var items = await JobAdSearchComposition.ApplySort(filtered, sort, filter.Q)
+        var pageQuery = JobAdSearchComposition.ApplySort(filtered, sort, resolved.Text)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(JobAdSearchComposition.ToDto())
-            .ToListAsync(cancellationToken);
+            .Select(JobAdSearchComposition.ToDto());
+        var items = await BitmapPlanCount.ReadWithExclusionPlanAsync(
+            db, resolved.Text, pageQuery.ToListAsync, cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }

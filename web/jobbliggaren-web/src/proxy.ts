@@ -20,6 +20,11 @@ import {
 } from "@/lib/company-search/search-params";
 import { isPrefetch } from "@/lib/http/fetch-metadata";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
+import {
+  NONCE_REQUEST_HEADER,
+  buildContentSecurityPolicy,
+  generateNonce,
+} from "@/lib/security/security-headers";
 
 // Defense-in-depth (ADR 0017): this proxy (Next 16's renamed middleware; runs on
 // the nodejs runtime) blocks unauthenticated noise before it reaches the BE; the
@@ -36,6 +41,11 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 // forward to the downstream render; a Session-scoped one only slides. The refresh
 // is best-effort: a failure other than a GET's 401 is swallowed so navigation never
 // breaks.
+//
+// It is ALSO the one writer of the page Content-Security-Policy (ADR 0163): a fresh nonce per
+// request goes into the CSP and into an `x-nonce` request header, on the REQUEST so Next stamps the
+// nonce on its inline scripts while rendering, and on the RESPONSE so the browser enforces it.
+// `proxy()` below does that around `route()`, so no branch of the routing logic can forget it.
 
 // Throttle: drive a refresh at most once per 15 min. Chosen well below the backend's
 // 24h rotation interval (so a rotation window is never missed) and well above
@@ -70,6 +80,34 @@ interface RefreshResult {
 }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const nonce = generateNonce();
+  const csp = buildContentSecurityPolicy(
+    process.env.NODE_ENV === "development",
+    nonce
+  );
+
+  // `set`, never `append`: a Content-Security-Policy or x-nonce the CLIENT sent must not survive
+  // into the render, where Next would read its nonce back out of it.
+  const forwarded = new Headers(request.headers);
+  forwarded.set(NONCE_REQUEST_HEADER, nonce);
+  forwarded.set("Content-Security-Policy", csp);
+
+  const response = await route(request, forwarded);
+  // Every response, redirects included: one writer, one place. The cookie-bounce document (#2094)
+  // is the 200 that needs it; a 3xx simply carries a header nothing reads.
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+/** Pass the request on to the render, carrying the nonce headers `proxy()` prepared. */
+function next(forwarded: Headers): NextResponse {
+  return NextResponse.next({ request: { headers: forwarded } });
+}
+
+async function route(
+  request: NextRequest,
+  forwarded: Headers
+): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   const sessionId = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
@@ -83,15 +121,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // so a value a client sent never reaches the layout.
   const adminReturn = adminReturnPath(request.nextUrl);
   if (adminReturn !== null) {
-    const requestHeaders = new Headers(request.headers);
+    const requestHeaders = new Headers(forwarded);
     requestHeaders.set(ADMIN_RETURN_HEADER, adminReturn);
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return next(requestHeaders);
   }
 
   // Gated: the refresh driver only runs on protected paths. Public/non-protected
   // paths pass straight through, never touching the backend.
   if (!isProtectedPath(pathname)) {
-    return NextResponse.next();
+    return next(forwarded);
   }
 
   // Cheap cookie-presence check — actual session validation happens in the Server
@@ -148,7 +186,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Never rotate on a speculative prefetch: it is not a real navigation, and
   // rotating the id for a page the user may never open would churn the session.
   if (isPrefetch(request.headers)) {
-    return NextResponse.next();
+    return next(forwarded);
   }
 
   // Throttle via the non-secret companion cookie (epoch seconds after which the next
@@ -160,7 +198,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     : Number.NaN;
   const refreshDue = !Number.isFinite(refreshAfter) || nowSeconds >= refreshAfter;
   if (!refreshDue) {
-    return NextResponse.next();
+    return next(forwarded);
   }
 
   // Best-effort refresh/rotation. A GET answered 401 goes to the login page with its
@@ -196,7 +234,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // Refresh failed (timeout / network error / non-OK / malformed body). Advance the
     // throttle by a short backoff so a degraded backend is not re-hit on every navigation,
     // while recovery stays prompt. The session cookie is left untouched.
-    const response = NextResponse.next();
+    const response = next(forwarded);
     setThrottleCookie(
       response,
       nowSeconds + REFRESH_ERROR_BACKOFF_SECONDS,
@@ -217,12 +255,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // NextResponse.next({ request: { headers } }) or the SC sees a stale value.
     // (The backend keeps the old id valid for a 60s grace window, so this is
     // belt-and-suspenders — but it must be correct.)
-    const requestHeaders = new Headers(request.headers);
+    const requestHeaders = new Headers(forwarded);
     requestHeaders.set(
       "cookie",
       rewriteCookieHeader(request.headers.get("cookie"), SESSION_COOKIE_NAME, newId)
     );
-    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    const response = next(requestHeaders);
 
     // rotated ⟹ the session was Persistent ⟹ always a persistent cookie.
     response.cookies.set(SESSION_COOKIE_NAME, newId, {
@@ -237,7 +275,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   // rotated:false — the session only slid (or was Session-scoped). Advance the
   // throttle and leave the session cookie untouched.
-  const response = NextResponse.next();
+  const response = next(forwarded);
   setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
   response.headers.set("Cache-Control", "no-store");
   return response;
@@ -325,8 +363,12 @@ function rewriteCookieHeader(
   return rewritten.join("; ");
 }
 
+// Static assets and images are excluded (nothing to attach a nonce to), and so is `/api/`, whose
+// policy is the static one in next.config.ts (ADR 0163). NOT excluded: Next's `missing:` prefetch
+// filter — the refresh driver above has its own prefetch rule, and skipping the proxy for a prefetch
+// would also skip the auth gate.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

@@ -1,25 +1,30 @@
 // Browser security headers for the Jobbliggaren frontend — issue #591 (epic #485).
 //
-// Approach A (non-nonce enforcing CSP) bound by senior-cto-advisor 2026-07-04.
-// The resource surface is verified same-origin-only: 0 external scripts, 0
-// analytics, 0 external image domains, no external fonts (next/font self-hosts
-// Source Sans 3 + JetBrains Mono), and every client-side fetch hits a same-origin
-// /api/* route handler (BACKEND_URL is a server-only env getter — the browser
-// never connects to the backend origin). So default-src/connect-src stay 'self'.
+// Nonce-based CSP (ADR 0163, Klas-direktiv 2026-10-11) — supersedes "Approach A" (non-nonce,
+// senior-cto-advisor 2026-07-04). The resource surface is verified same-origin-only: 0 external
+// scripts, 0 analytics, 0 external image domains, no external fonts (next/font self-hosts
+// Source Sans 3 + JetBrains Mono), and every client-side fetch hits a same-origin /api/* route
+// handler (BACKEND_URL is a server-only env getter — the browser never connects to the backend
+// origin). So default-src/connect-src stay 'self'.
 //
-// Next.js App Router emits inline bootstrap scripts and next/font injects inline
-// <style>, so script-src/style-src carry 'unsafe-inline'. A nonce would force
-// all pages to dynamic rendering (Next.js CSP doc) — regressing ADR 0045 on a
-// no-CDN VPS and colliding with the middleware.ts hotspot — for a marginal XSS
-// gain the boxed exfil channels (connect/img/form-action/base-uri) already deny.
+// `script-src` carries a per-request nonce + 'strict-dynamic' and NO 'unsafe-inline'. The page
+// policy is built by `proxy.ts` (it needs a fresh nonce per request, so it cannot live in
+// next.config.ts `headers()`); Next reads the nonce back out of the request's CSP header and
+// stamps it on its own inline bootstrap/RSC scripts. The cost the 2026-07-04 bind priced —
+// forcing dynamic rendering — was measured 2026-10-11 to be nil: every page route was already
+// `ƒ` (the root layout reads the NEXT_LOCALE cookie), only the metadata files are `○`.
 //
-// ⚠ That trade-off was priced before this origin could hold a blob: document built from
-// user-uploaded bytes. It is not false, but it is weaker than when it was written, and
-// security-auditor re-priced it 2026-09-07: a blob: document inherits its creator's origin AND
-// its CSP, so 'unsafe-inline' above is the amplifier that turns "active content" into full XSS
-// if lapse-trigger 1 or 2 ever fires (DPIA #659 §11/§12). Exfil is boxed but not closed —
-// there is no navigate-to directive. The nonce cost against ADR 0045 stands, so this is a
-// re-pricing and not yet a decision to change it.
+// `style-src` keeps 'unsafe-inline': next/font and Radix inject <style> at runtime (BUILD.md
+// §3.1, input-otp), and style injection is not script execution.
+//
+// The nonce is also what hardens the `blob:` document below. A `blob:` document inherits its
+// creator's origin AND its CSP, so under the old 'unsafe-inline' a blob of type text/html would
+// have run inline script in the app's origin; under a nonce policy it cannot (measured
+// 2026-10-11, ADR 0163). The CV-preview blob type is additionally pinned in cv-preview.tsx.
+//
+// `/api/*` is outside the proxy matcher, so it keeps a STATIC policy (no nonce, no inline
+// script): the OAuth callback answers with a small HTML document (inline <style> only) and the
+// CV routes stream user bytes. Exactly one CSP header per response either way.
 //
 // frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the user's own
 // uploaded PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl =
@@ -52,18 +57,23 @@ export const PERMISSIONS_POLICY = [
   "browsing-topics=()",
 ].join(", ");
 
+/** The request header the proxy writes the nonce into, for Server Components that need it. */
+export const NONCE_REQUEST_HEADER = "x-nonce";
+
 /**
- * Builds the Content-Security-Policy header value.
- *
- * Dev relaxations NEVER weaken the production policy — they are additive to the
- * dev branch only: `'unsafe-eval'` (React's dev error overlay reconstructs
- * server stacks via eval) and `ws:` (HMR websocket). `upgrade-insecure-requests`
- * is production-only because dev serves http on localhost.
+ * 128 random bits, base64 (a CSP `base64-value`). Per request, never reused: a nonce that repeats
+ * is a constant an attacker can learn. Web Crypto only — the proxy and the tests share it.
  */
-export function buildContentSecurityPolicy(isDev: boolean): string {
-  const directives = [
+export function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function directives(isDev: boolean, scriptSrc: string): string {
+  const list = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
@@ -76,10 +86,33 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
   ];
 
   if (!isDev) {
-    directives.push("upgrade-insecure-requests");
+    list.push("upgrade-insecure-requests");
   }
 
-  return directives.join("; ");
+  return list.join("; ");
+}
+
+/**
+ * Builds the page Content-Security-Policy for one request (`proxy.ts` is the only caller).
+ *
+ * Dev relaxations NEVER weaken the production policy — they are additive to the
+ * dev branch only: `'unsafe-eval'` (React's dev error overlay reconstructs
+ * server stacks via eval) and `ws:` (HMR websocket). `upgrade-insecure-requests`
+ * is production-only because dev serves http on localhost.
+ */
+export function buildContentSecurityPolicy(isDev: boolean, nonce: string): string {
+  return directives(
+    isDev,
+    `'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`
+  );
+}
+
+/**
+ * The static policy for `/api/*`, where the proxy does not run. No inline script, no nonce: a
+ * route handler that answers with a document has none to run.
+ */
+export function buildApiContentSecurityPolicy(isDev: boolean): string {
+  return directives(isDev, "'self'");
 }
 
 /**
@@ -100,14 +133,15 @@ export interface HttpHeader {
 }
 
 /**
- * The full browser-security header set served on every response (source
- * `/(.*)` in next.config.ts). `X-Frame-Options: DENY` duplicates
+ * The static browser-security header set served on every response (source `/(.*)` in
+ * next.config.ts). It carries NO Content-Security-Policy: the page policy is per-request
+ * (`proxy.ts`) and `/api/*` has its own entry (`API_ROUTE_HEADERS`) — a second CSP here would
+ * be enforced alongside the nonce one. `X-Frame-Options: DENY` duplicates
  * `frame-ancestors 'none'` on purpose — belt-and-suspenders for legacy UAs that
  * predate CSP2 (OWASP Secure Headers).
  */
 export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
   return [
-    { key: "Content-Security-Policy", value: buildContentSecurityPolicy(isDev) },
     { key: "X-Frame-Options", value: "DENY" },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -120,6 +154,18 @@ export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
             value: STRICT_TRANSPORT_SECURITY,
           },
         ]),
+  ];
+}
+
+/**
+ * `/api/*` is excluded from the proxy matcher, so its CSP is the static one. Set as its own route
+ * entry in next.config.ts, which the proxy never overlaps: one CSP per response.
+ */
+export const API_ROUTE = "/api/:path*";
+
+export function buildApiRouteHeaders(isDev: boolean): readonly HttpHeader[] {
+  return [
+    { key: "Content-Security-Policy", value: buildApiContentSecurityPolicy(isDev) },
   ];
 }
 

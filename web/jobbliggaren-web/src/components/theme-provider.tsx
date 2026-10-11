@@ -100,17 +100,19 @@ function subscribe(onChange: () => void): () => void {
 }
 
 /**
- * Inline blocking-script. Renderas som första barn i `<body>` så att
+ * Inline blocking-script. Bär requestens CSP-nonce (se nedan). Renderas som första barn i `<body>` så att
  * `data-theme` är satt FÖRE first paint. Statisk string-literal utan
  * user input — XSS-ytan är noll (jfr AGENTS.md §5: DOM-mutation-undantag
  * dokumenterat, samma kompromiss som next-themes / Tailwind-docs gör).
  */
-export function ThemeScript() {
+export function ThemeScript({ nonce }: { nonce?: string }) {
   // Dark släckt i MVP → ingen pre-paint dark-applicering (light är default utan
   // attribut). Behålls för trivial re-enable när DARK_MODE_ENABLED sätts true.
   if (!DARK_MODE_ENABLED) return null;
   const script = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`;
-  return <script dangerouslySetInnerHTML={{ __html: script }} />;
+  // Under the nonce CSP (ADR 0163) an inline script without the request's nonce does not run, and
+  // `strict-dynamic` gives it nothing to inherit from: the layout passes `x-nonce` in.
+  return <script nonce={nonce} dangerouslySetInnerHTML={{ __html: script }} />;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

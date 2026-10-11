@@ -15,7 +15,7 @@ vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://backend.test" } }));
 
 // isProtectedPath is exercised for real (pure string logic) — /oversikt is protected,
 // /cv-granskning is a public sibling.
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -111,9 +111,11 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    // No Set-Cookie for the session, no request-cookie rewrite.
+    // No Set-Cookie for the session, no request-cookie rewrite: the cookie Next forwards is the one
+    // the browser sent. (Every response now overrides request headers to carry the CSP nonce, so
+    // "no override list" can no longer stand for "not rewritten".)
     expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
-    expect(res.headers.get("x-middleware-override-headers")).toBeNull();
+    expect(res.headers.get("x-middleware-request-cookie")).toBe(`${SESSION_COOKIE_NAME}=OLDID`);
     // Throttle advanced, response uncacheable.
     expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)?.value).toBeDefined();
     expect(res.headers.get("cache-control")).toBe("no-store");
@@ -245,7 +247,7 @@ describe("proxy refresh driver (PR2b-3b)", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
-    expect(res.headers.get("x-middleware-override-headers")).toBeNull();
+    expect(res.headers.get("x-middleware-request-cookie")).toBe(`${SESSION_COOKIE_NAME}=OLDID`);
     // Full-window throttle (a successful, non-rotating refresh), not the error backoff.
     const throttle = res.cookies.get(REFRESH_AFTER_COOKIE_NAME);
     expect(Number(throttle!.value) - nowSeconds()).toBeGreaterThan(60);
@@ -519,7 +521,8 @@ describe("proxy — the admin return path (#1979)", () => {
   it("writes nothing on a sibling path that only begins with the same letters", async () => {
     const res = await proxy(makeRequest("/administration"));
 
-    expect(res.headers.get("x-middleware-override-headers")).toBeNull();
+    expect(res.headers.get("x-middleware-override-headers")).not.toContain(ADMIN_RETURN_HEADER);
+    expect(forwarded(res)).toBeNull();
   });
 
   it("puts only next on the login redirect, so no other key reaches the request line", async () => {
@@ -690,4 +693,145 @@ describe("proxy — the Strict-cookie bounce (#2094)", () => {
       expect(res.headers.get("cache-control")).toBe("no-store");
     }
   );
+});
+
+/**
+ * ADR 0163 — the page Content-Security-Policy is written HERE, per request. Next reads the nonce back out of the
+ * CSP header on the REQUEST while rendering, so the pair that matters is: the same nonce in the request's CSP, in
+ * `x-nonce`, and in the response's CSP. Measured through the same `x-middleware-request-*` envelope Next reads.
+ */
+describe("proxy — the nonce CSP (ADR 0163)", () => {
+  const ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  const requestCsp = (res: Response) => res.headers.get("x-middleware-request-content-security-policy");
+  const requestNonce = (res: Response) => res.headers.get("x-middleware-request-x-nonce");
+  const nonceIn = (csp: string | null) => /'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+
+  function expectCspPair(res: Response): string {
+    const nonce = requestNonce(res);
+    expect(nonce, "x-nonce is forwarded to the render").toBeTruthy();
+    const csp = res.headers.get("content-security-policy");
+    expect(nonceIn(csp), "the response CSP carries that nonce").toBe(nonce);
+    expect(requestCsp(res), "the request CSP is byte-identical to the response CSP").toBe(csp);
+    expect(res.headers.get("x-middleware-override-headers")).toContain("x-nonce");
+    expect(res.headers.get("x-middleware-override-headers")).toContain("content-security-policy");
+    return nonce!;
+  }
+
+  it("a public page gets the pair, with no 'unsafe-inline' in script-src", async () => {
+    const res = await proxy(makeRequest("/vanliga-fragor"));
+
+    expectCspPair(res);
+    const scriptSrc = /script-src ([^;]*)/.exec(res.headers.get("content-security-policy")!)![1];
+    expect(scriptSrc).toContain("'strict-dynamic'");
+    expect(scriptSrc).not.toContain("unsafe-inline");
+  });
+
+  it("every request gets its own nonce", async () => {
+    const nonces = new Set<string>();
+    for (let i = 0; i < 20; i++) nonces.add(expectCspPair(await proxy(makeRequest("/om"))));
+    expect(nonces.size).toBe(20);
+  });
+
+  it("overwrites a nonce and a CSP the CLIENT sent — they never reach the render", async () => {
+    const res = await proxy(
+      makeRequest("/om", {
+        headers: {
+          "x-nonce": "attacker-chosen",
+          "content-security-policy": "script-src 'nonce-attacker-chosen'",
+        },
+      })
+    );
+
+    const nonce = expectCspPair(res);
+    expect(nonce).not.toBe("attacker-chosen");
+    expect(requestCsp(res)).not.toContain("attacker-chosen");
+  });
+
+  it("the admin branch carries it too, beside its own return-path header", async () => {
+    const res = await proxy(makeRequest("/admin/anvandare"));
+
+    expectCspPair(res);
+    expect(res.headers.get(`x-middleware-request-${ADMIN_RETURN_HEADER}`)).toBe("/admin/anvandare");
+  });
+
+  it("an authenticated protected page carries it on the slide, prefetch and throttled branches", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null }));
+    const slide = await proxy(makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "S" } }));
+    expectCspPair(slide);
+
+    const prefetch = await proxy(
+      makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "S" }, headers: { "sec-purpose": "prefetch" } })
+    );
+    expectCspPair(prefetch);
+
+    const throttled = await proxy(
+      makeRequest("/oversikt", {
+        cookies: { [SESSION_COOKIE_NAME]: "S", [REFRESH_AFTER_COOKIE_NAME]: String(nowSeconds() + 600) },
+      })
+    );
+    expectCspPair(throttled);
+  });
+
+  it("a failed refresh (the backoff branch) carries it", async () => {
+    fetchMock.mockRejectedValue(new Error("down"));
+    const res = await proxy(makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "S" } }));
+
+    expectCspPair(res);
+  });
+
+  it("a rotated session carries it AND the rewritten cookie", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: true, sessionId: "NEWID" }));
+    const res = await proxy(makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "OLD" } }));
+
+    expectCspPair(res);
+    expect(res.headers.get("x-middleware-request-cookie")).toContain(`${SESSION_COOKIE_NAME}=NEWID`);
+  });
+
+  it("the cookie-bounce document (#2094) is a 200 and carries the policy", async () => {
+    const res = await proxy(
+      makeRequest(`/jobb/${ID}`, {
+        headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const csp = res.headers.get("content-security-policy")!;
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'"); // the document's one inline <style>
+  });
+
+  it("a redirect carries exactly one CSP header (set, never appended)", async () => {
+    const res = await proxy(makeRequest("/oversikt")); // unauthenticated -> login
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("content-security-policy")).not.toContain(",");
+  });
+});
+
+describe("proxy — the matcher", () => {
+  // Next compiles each matcher source as a path pattern whose parenthesised group is a raw regex.
+  const [source] = config.matcher as string[];
+  const matches = (path: string) => new RegExp(`^${source}$`).test(path);
+
+  it.each(["/", "/logga-in", "/oversikt", "/jobb/abc", "/admin/anvandare", "/robots.txt", "/sitemap.xml"])(
+    "runs on the page or metadata route %s",
+    (path) => expect(matches(path)).toBe(true)
+  );
+
+  it.each([
+    "/_next/static/chunks/a.js",
+    "/_next/image",
+    "/favicon.ico",
+    "/icon.svg",
+    "/provider-marks/google.svg",
+    "/pic.png",
+    "/a/b.webp",
+    "/api/auth/oauth/google/callback",
+    "/api/cv/import",
+  ])("does not run on %s", (path) => expect(matches(path)).toBe(false));
+
+  it("does not mistake a page whose name merely ends in an image word for an image", () => {
+    expect(matches("/svg")).toBe(true);
+    expect(matches("/ansokningar/png")).toBe(true);
+  });
 });

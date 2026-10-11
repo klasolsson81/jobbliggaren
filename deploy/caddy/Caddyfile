@@ -192,13 +192,26 @@
 # web is down) and strips the upstream's own with `header_down` below, so a response never carries
 # the field twice. Next sets COOP itself on the cookie-bounce document (#2094), with this value.
 #
-# `same-origin` for both is safe because the app is a single origin: login is a redirect flow
-# (ADR 0018), never a popup that needs `window.opener`, and nothing here is embedded cross-origin.
-# CORP does not stop a social crawler fetching `og:image` — that is a server-side request, not a
-# no-cors subresource load from another page.
+# `same-origin` is the value for every response but the image and manifest routes below: login is a
+# redirect flow (ADR 0018), never a popup that needs `window.opener`, and no page, API response or
+# document is embedded cross-origin.
+#
+# The image and manifest routes are `cross-origin`: they exist to be shown on other sites. CORP does
+# not stop a social crawler fetching `og:image` (server-side), but it does stop a browser rendering
+# the image for another origin, which is what link-preview tools do. ADR 0163 Amendment 2026-10-11.
+#
+# One `map` picks the value and one `header` writes it (a default plus an exception was measured to
+# leave Caddy's own 401 and 503 with no field). The map reads the path without its query. Covered:
+# `/opengraph-image`, `/twitter-image`, `/apple-icon`, `/icon.svg`, `/favicon.ico`,
+# `/manifest.webmanifest`, at the root only. `header_down` below still drops the upstream's field.
 (isolation) {
+	map {path} {corp_policy} {
+		~^/(opengraph-image|twitter-image|apple-icon|icon\.svg|favicon\.ico|manifest\.webmanifest)$ cross-origin
+		default same-origin
+	}
+
 	header Cross-Origin-Opener-Policy "same-origin"
-	header Cross-Origin-Resource-Policy "same-origin"
+	header Cross-Origin-Resource-Policy "{corp_policy}"
 }
 
 {$SITE_HOST} {

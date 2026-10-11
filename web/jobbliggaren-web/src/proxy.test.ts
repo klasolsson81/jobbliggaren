@@ -954,6 +954,27 @@ describe("proxy: the public job page", () => {
     }
   );
 
+  it.each([200, 410, 404, 429, 500])(
+    "carries the nonce pair on the answer for an upstream %i, so the framed page renders under the CSP (ADR 0163)",
+    async (status) => {
+      fetchMock.mockResolvedValue(new Response(null, { status }));
+      const res = await proxy(makeRequest(`/jobb/${ID}`));
+
+      const nonce = res.headers.get("x-middleware-request-x-nonce");
+      expect(nonce, "x-nonce reaches the internal page").toBeTruthy();
+      const csp = res.headers.get("content-security-policy");
+      expect(csp).toContain(`'nonce-${nonce}'`);
+      expect(res.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
+    }
+  );
+
+  it("carries it on the refusal of a direct request for the internal prefix too", async () => {
+    const res = await proxy(makeRequest("/publik/borttagen"));
+
+    expect(res.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
+    expect(res.headers.get("content-security-policy")).toContain("'nonce-");
+  });
+
   it("answers an upstream 410 with the one 410 page and a 503 for the budget, both uncacheable", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 410 }));
     const gone = await proxy(makeRequest(`/jobb/${ID}`));

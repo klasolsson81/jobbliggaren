@@ -119,7 +119,7 @@ async function route(
 
   // ADR 0165: the anonymous twin of `/jobb/<uuid>`. After the bounce, so a cross-site arrival is still handed to the
   // cookie first; before the login redirect below, which a cookieless request to it would otherwise meet.
-  const publicJobAd = await publicJobAdRoute(request, request.headers, Boolean(sessionId));
+  const publicJobAd = await publicJobAdRoute(request, forwarded, Boolean(sessionId));
   if (publicJobAd !== null) return publicJobAd;
 
   // #1979: the (admin) layout has no URL of its own, so the path its login redirect returns to travels in a

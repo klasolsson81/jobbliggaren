@@ -4600,7 +4600,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    glyph's shoulder, so a two- or three-character count leaves the bell recognisable; it grows left. */
 .jp-notif-badge {
   position: absolute;
-  top: -6px;
+  top: -7px;
   right: -2px;
   box-sizing: border-box;
   min-width: 20px;

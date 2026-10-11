@@ -342,6 +342,8 @@ function PartDialog({
   const errorId = useId();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Rendering a throw is how a save that rejects reaches the nearest error boundary (#1996).
+  const [, throwToBoundary] = useState<never>();
 
   // A pending save disables its button, and Chromium then drops focus to <body>. A refused save
   // hands it back once the button is enabled again (WCAG 2.4.3).
@@ -355,15 +357,25 @@ function PartDialog({
   function onSave() {
     setSaveError(null);
     setSaving(true);
-    void save().then((result) => {
-      setSaving(false);
-      if (result.success) {
-        onOpenChange(false);
-      } else {
-        refocusSave.current = true;
-        setSaveError(result.error);
+    void save().then(
+      (result) => {
+        setSaving(false);
+        if (result.success) {
+          onOpenChange(false);
+        } else {
+          refocusSave.current = true;
+          setSaveError(result.error);
+        }
+      },
+      (error: unknown) => {
+        // Not useTransition: its pending state is tied to every other async transition on the
+        // card, so the lock would follow another part's write instead of this save.
+        setSaving(false);
+        throwToBoundary(() => {
+          throw error;
+        });
       }
-    });
+    );
   }
 
   return (

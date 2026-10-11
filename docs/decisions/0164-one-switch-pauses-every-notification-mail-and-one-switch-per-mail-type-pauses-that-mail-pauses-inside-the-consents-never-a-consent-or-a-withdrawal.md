@@ -364,7 +364,6 @@ CTO's "In-block-fixar" lists them; the reports hold their wording.
   alternative is a consent switch behind a convenience switch.
 - **Three commands and three writes** where one object would be less code. That is the price of a replay that cannot re-grant a
   withdrawal (D5).
-- **The PR may wait up to one calendar day for its policy version** (D8).
 
 ## Implementation
 

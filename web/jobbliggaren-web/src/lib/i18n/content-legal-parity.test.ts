@@ -40,38 +40,14 @@ function matchingLeaves(catalogue: unknown, term: RegExp): [string, string][] {
 }
 
 /**
- * Rubriken på den `sections`-post ett löv ligger i, eller `""` för ett löv utanför `sections`.
- *
- * Finns för att markör-polariteten sedan 2026-08-16 avgörs av vilken RÄTTSLIG GRUND avsnittet
- * anger, och rubriken är det enda stället copyn skriver ut den. Alternativen förkastades båda:
- * ett sektionsINDEX går sönder vid nästa styckeflytt (§2.6 punkt 1 mätte en ändring som flyttade
- * rader åt två håll samtidigt), och en innehållsmatchning mot styckets egen text hade avgjort
- * polariteten ur samma sträng den ska pröva.
- *
- * `""` för ett löv utanför `sections` är rätt default och inte en genväg: det faller då i den
- * NEGATIVA grenen, alltså den som förbjuder markören. Ett framtida leverantörsomnämnande i
- * `terms`/`cookies` som bär "ännu inte i drift" fälls därför i stället för att tyst undantas.
- */
-function sectionHeadingOf(catalogue: unknown, path: string): string {
-  const [root, sections, index] = path.split(".");
-  if (root === undefined || sections !== "sections" || index === undefined) return "";
-
-  const heading = [root, sections, index, "heading"].reduce<unknown>(
-    (node, key) => (node as Record<string, unknown> | undefined)?.[key],
-    catalogue
-  );
-
-  return typeof heading === "string" ? heading : "";
-}
-
-/**
  * DE RATIFIERADE MARKÖRFORMERNA — ETT HEM, TVÅ POLARITETER (#1199, code-reviewer Major 2).
  *
  * Formerna är ratificerade av senior-cto-advisor (#186/TD-116) och binder hela MENINGEN, inte
  * ett token — resonemanget bor i e-post-tripwirens doc-kommentar nedan och upprepas inte här.
  *
- * The consent-gated email disclosure requires these sentences; live recipient disclosures forbid
- * them. Both polarities use the same expressions.
+ * The consent-gated email disclosure required these sentences until the notification flip
+ * (2026-10-11, #2106 PR A); since then the positive reader is the SCB test, and every live
+ * disclosure forbids them. Both polarities use the same expressions.
  * Två textkopior av samma mönster hade gett "ETT HEM PER TAL" applicerat på ett regex — och
  * felmoden är inte symmetrisk: bara den POSITIVA assertionen körs mot text som faktiskt bär
  * markören, så en felstavning i en separat negativ kopia hade varit **osynlig för hela sviten**
@@ -86,7 +62,7 @@ const EN_STATUS_MARKER = /not yet in operation/i;
 
 /**
  * E-postleverantörens UNION-form (bolag ELLER tjänst) — invariant 2:s term i e-post-spärren
- * nedan, och samma term i värd-spärrens fail-fast-kontroll. Ett hem, två läsare: skulle de
+ * nedan, och samma term i värd-spärrens fail-fast-kontroll. Ett hem, flera läsare: skulle de
  * divergera skulle kollisionskontrollen vakta en annan mängd än den som faktiskt kolliderar.
  * **Golvet i e-post-spärren använder AVSIKTLIGT inte den här** utan den snävare part-bärande
  * formen — resonemanget, och mätningen bakom det, står i den spärrens doc-kommentar.
@@ -167,32 +143,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *    OSYNLIG för varje token-grep: leverantörstoken hade noll träffar i hela katalogen, och tre
    *    nollträffs-scopingar i rad missade därför att stycket alls fanns. Ett räknat golv är
    *    det enda som fäller en tystnad.
-   * 2. **Markören bärs av precis de omnämnanden vars behandling ännu inte kör** — och sedan
-   *    2026-08-16 är det inte längre alla. ⚠ **INVARIANTEN ÄR OMRIKTAD, INTE FÖRSVAGAD** (#183
-   *    FU-2b, Klas väg-A-beslut). Den löd tidigare *"varje omnämnande bär status-markören tills
-   *    `Email:Provider` flippas"*, och den formen var sann exakt så länge EN flipp styrde ALLA
-   *    omnämnanden. Det upphörde när armen aktiverades 2026-08-16 (CC1:s registreringsbesök) medan
-   *    bevakningsnotiserna förblev mörka: de är samtyckesgrindade med opt-in default OFF, och ingen
-   *    notis har skickats. **Samma leverantör, två behandlingar, två olika sanningar.** En
-   *    invariant som kräver markören överallt hade tvingat fram ett presens-påstående om notiserna
-   *    — den ansökningshistorik-fälla systertestet ovan finns för — och en som förbjuder den
-   *    överallt hade släppt igenom förnekelsen av en levande behandling. Därför **en polaritet per
-   *    SEKTION**, avgjord av avsnittets RÄTTSLIGA GRUND: ett omnämnande i samtyckesavsnittet MÅSTE
-   *    bära markören, varje annat får INTE göra det.
-   *    ⚠ **Mekanismen är per SEKTION, inte per behandling, och skillnaden ska inte suddas**
-   *    (`security-auditor` Minor 7, 2026-08-16). Avsnitt 6 (`Mottagare av uppgifter`, levande
-   *    grenen) innehåller presensbeskrivningar av den MÖRKA bevakningsnotisen — *"Det gäller både
-   *    de notiser du själv slår på …"* och *"som för en bevakningsnotis innehåller …"*. Sakligt
-   *    håller det, eftersom båda är villkorssatser och notisens egen statusmening står en sektion
-   *    upp — men spärren kan inte det finare den skulle kunna påstås kunna, och en sektion som
-   *    någon gång blandar en mörk och en levande behandling får bara EN polaritet.
-   *    ⚠ **Diskriminatorn är avsiktligt EGENSKAPSBASERAD.** Ett radnummer eller ett sektionsindex
-   *    hade gått sönder vid nästa styckeflytt — §2.6 punkt 1 mätte att en enda ändring flyttade
-   *    rader åt två håll — medan rubrikens egen grundangivelse är det som faktiskt avgör vilken
-   *    polaritet som gäller. Flyttas stycket, följer regeln med det.
-   *    Flippen är grindad av `release-checklist.md` §2.5 punkt 1 (uppräkningen av led bor där,
-   *    aldrig här), aldrig av en copy-ändring; **vilka rader som är sanna respektive falska har
-   *    sitt hem i §2.6 punkt 1**, som också äger talen.
+   * 2. **Inget omnämnande bär markören.** Till notisflippen 2026-10-11 bar samtyckesavsnittets
+   *    omnämnande den, och polariteten avgjordes per sektion.
    *
    * **Markören måste bindas till STATUS-MENINGEN, inte till stycket** (code-reviewer Major 2,
    * mätt: den första formen passerade VACUÖST i två av tre leaves i BÅDA språken). Orsaken är att
@@ -218,17 +170,14 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * behandlingar, eftersom mottagaravsnittets två stycken beskriver samma utlämnande.
    * `code-reviewer` Major 3.)* Instruktionen förutsatte en total flipp, och den förutsättningen höll inte.
    *
-   * **Nästa flipp är notisernas**, och då faller det här testet igen — på samtyckesgrenen. Det är
-   * avsiktligt: §2.6 punkt 1 kräver att rad 87 ommäts mot lådan före varje flipp, och en grön svit
-   * hade tagit ifrån den mätningen dess enda mekaniska läsare. Ta då bort samtyckesgrenen, behåll
-   * golvet, och lämna den negativa grenen som den enda kvarvarande — samma sluttillstånd som
-   * värd-spärren nedan redan står i.
+   * ⚠ **NOTISFLIPPEN ÄR VERKSTÄLLD 2026-10-11 (#2106 PR A, Klas GO).** Samtyckesgrenen är borttagen,
+   * golvet och path-pariteten står kvar, och den negativa grenen gäller varje omnämnande — samma
+   * sluttillstånd som värd-spärren nedan. Raden ommättes mot lådan samma dag, före flippen.
    */
-  it("e-postleverantören Scaleway är namngiven i policyn, och markören bärs av precis de omnämnanden vars behandling inte kör (#186/#1169/#183)", () => {
-    // WHOLE catalogue, not just `privacy`: measured 0 mentions outside `privacy` today (3 of 3 leaves
-    // per språk ligger i `privacy`), so the widening is free and strictly increases coverage. A future
-    // mention in `terms`/`cookies`/`recruiterNotice` would otherwise escape both the floor and the
-    // marker requirement.
+  it("e-postleverantören Scaleway är namngiven i policyn, och inget omnämnande bär status-markören (#186/#1169/#183/#2106)", () => {
+    // WHOLE catalogue, not just `privacy`: measured 0 mentions outside `privacy`, so the widening is
+    // free and strictly increases coverage. A future mention in `terms`/`cookies`/`recruiterNotice`
+    // would otherwise escape both the floor and the marker ban.
     //
     // Termen är den PART-BÄRANDE strängen `Scaleway SAS`, inte enbart `Scaleway` (för brett —
     // #1237 mätte att ett leverantörsnamn med en avslutande punkt gav 10/10 grönt medan spärren
@@ -270,9 +219,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     const sv = matchingLeaves(svLegal, EMAIL_PROVIDER_ANY);
     const en = matchingLeaves(enLegal, EMAIL_PROVIDER_ANY);
 
-    // Vacuity guard, and simultaneously invariant 1: THREE known sites today — samtyckesavsnittet
-    // och TVÅ i "Mottagare av uppgifter". A rename or deletion that drops the disclosure fails here
-    // instead of shipping silently.
+    // Vacuity guard, and simultaneously invariant 1: a rename or deletion that drops the disclosure
+    // fails here instead of shipping silently.
     // **Golvet var 4 till 2026-08-15 och är 3 sedan dess, HÄRLETT ur uppräkningen ovan** (#183,
     // ADR 0131, senior-cto-advisor bindande): det fjärde stycket låg i "Överföring till tredje
     // land" och är struket MED SIN GRUND — Scaleway SAS är franskt och fransk-ägt, ingen
@@ -297,48 +245,30 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // (den part-bärande formen). Det här är ett tredje påstående med ren vakuositetsroll, samma
     // funktion som `sv.length >= 1` har i värd-spärren.
     //
-    // **Gränsen, utskriven:** unionsmängden är i dag IDENTISK med part-mängden (3 = 3, samma
-    // paths), så golvet bevisar att regexet lever — **inte** att union-formen fångar ett stycke
+    // **Gränsen, utskriven:** unionsmängden är i dag IDENTISK med part-mängden (samma paths), så
+    // golvet bevisar att regexet lever — **inte** att union-formen fångar ett stycke
     // som bara bär tjänstenamnet. Ett strikt superset-påstående vore starkare; golvet är husets
     // form och räcker mot den mätta felmoden.
     expect(sv.length).toBeGreaterThanOrEqual(3);
     expect(en.length).toBeGreaterThanOrEqual(3);
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
 
-    // POLARITET PER BEHANDLING (se invariant 2 ovan). Grenen väljs på avsnittets egen
-    // grundangivelse, inte på ett index: samtyckesavsnittet bär mörka notiser, allt annat bär den
-    // levande armen.
-    const consentGated =
-      (catalogue: unknown) =>
-      ([path]: [string, string]) =>
-        /samtycke|consent/i.test(sectionHeadingOf(catalogue, path));
-    const svGated = consentGated(svLegal);
-    const enGated = consentGated(enLegal);
-    const [svDark, svLive] = [sv.filter(svGated), sv.filter((e) => !svGated(e))];
-    const [enDark, enLive] = [en.filter(enGated), en.filter((e) => !enGated(e))];
+    // Every mention is live since the notification flip (2026-10-11, #2106 PR A): a marker on any of
+    // them denies a running processing (ADR 0090 D3). Non-vacuous by the floors above.
+    for (const [path, paragraph] of sv) expect(paragraph, path).not.toMatch(SV_STATUS_MARKER);
+    for (const [path, paragraph] of en) expect(paragraph, path).not.toMatch(EN_STATUS_MARKER);
+  });
 
-    // VAKUOSITETSGOLV PÅ BÅDA GRENARNA, och den negativa behöver det mest: en negerad assertion
-    // passerar på tom mängd, så utan golvet vore en copy som tappade båda mottagarstyckena grön i
-    // exakt den spärr som finns för att fälla den. Talen är MÄTTA 2026-08-16, inte valda: ett löv i
-    // samtyckesavsnittet (bevakningsnotiserna) och två i mottagaravsnittet (leverantörsstycket och
-    // uppgiftsstycket). Golv, inte likhet — ett tillagt omnämnande ska inte röda CI, det ska bara
-    // tvingas välja polaritet.
-    expect(svDark.length, "mörk gren (samtycke)").toBeGreaterThanOrEqual(1);
-    expect(svLive.length, "levande gren (mottagare)").toBeGreaterThanOrEqual(2);
-    expect(enDark.map(([p]) => p)).toEqual(svDark.map(([p]) => p));
-    expect(enLive.map(([p]) => p)).toEqual(svLive.map(([p]) => p));
+  // The positive reader of the shared marker home, since the email tripwire lost its dark branch: a
+  // negated assertion can never fail its own pattern, so the negative pins in this file are live only
+  // while this matches. Today it matches the SCB leaves, which describe a processing that does not run. When
+  // they flip, delete this test with them — never keep a marker to satisfy it.
+  it("the status-marker patterns still match the not-yet-running SCB sentences, at the same paths in both locales", () => {
+    const sv = matchingLeaves(svLegal, SV_STATUS_MARKER);
+    const en = matchingLeaves(enLegal, EN_STATUS_MARKER);
 
-    // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
-    // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while
-    // the en pattern accepts no such truncation. That asymmetry let a Swedish-only thinning pass CI.
-    // Both sides now bind the sentence, which also closes the "planerat for an unrelated reason" hole.
-    for (const [path, paragraph] of svDark) expect(paragraph, path).toMatch(SV_STATUS_MARKER);
-    for (const [path, paragraph] of enDark) expect(paragraph, path).toMatch(EN_STATUS_MARKER);
-
-    // Den levande grenen, negativ pin: armen levererar sedan 2026-08-16, så en markör här förnekar
-    // en pågående behandling (ADR 0090 D3). Samma form och samma skäl som värd-spärren nedan, och
-    // den är icke-vakuös av golvet ovan — inte av att någon råkar ha läst den.
-    for (const [path, paragraph] of svLive) expect(paragraph, path).not.toMatch(SV_STATUS_MARKER);
-    for (const [path, paragraph] of enLive) expect(paragraph, path).not.toMatch(EN_STATUS_MARKER);
+    expect(sv.length).toBeGreaterThanOrEqual(1);
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
   });
 
   /**
@@ -349,20 +279,18 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * fäller en ENSIDIG radering via array-längder, men två språk raderade i takt passerar det. Ett
    * räknat golv är det enda som fäller en tystnad."*
    *
-   * ⚠ **TERMEN FÅR ALDRIG VIKAS IN I `EMAIL_PROVIDER_ANY`.** Den unionen driver den LEVANDE
-   * grenens negativa pinne. Behandlingen var genuint mörk när spärren skrevs — apex-MX
+   * ⚠ **TERMEN FÅR ALDRIG VIKAS IN I `EMAIL_PROVIDER_ANY`.** Den unionen driver e-post-spärrens
+   * negativa pinne. Behandlingen var genuint mörk när spärren skrevs — apex-MX
    * `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8 2026-08-28), så STRATO tog inte emot något för
    * domänen, och en invikning hade då gjort sviten **osatisfierbar**. ⚠ **Det skälet upphör med
    * MX-flytten, som den här ändringen åtföljer. Förbudet står kvar på sitt andra ben:** varje spärr
    * här är term-scopad, och en union gör den termen till ett delat hem som ingen läsare har krävt.
    * Samma skäl förbjuder invikning i värdspärrens negativa loop.
    *
-   * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE, och e-postspärrens docblock förutsåg fallet**
-   * (*"en sektion som någon gång blandar en mörk och en levande behandling får bara EN
-   * polaritet"*). `Mottagare av uppgifter` rymmer netcup (levande), Scaleway ×2 (levande), SCB
+   * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE.** `Mottagare av uppgifter` rymmer netcup (levande), Scaleway (levande), SCB
    * (mörk) och STRATO (mörk när spärren skrevs; **levande från MX-flytten, som den här ändringen
-   * åtföljer**), medan `consentGated` klassar hela sektionen som levande på
-   * rubriken. Det är ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt
+   * åtföljer**), medan e-postspärren till notisflippen 2026-10-11 klassade hela sektionen som levande
+   * på rubriken. Det var ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt
    * sedan 2026-08-28 och är därmed inte längre en hypotes i en kommentar (code-reviewer Minor 7).
    *
    * ✅ **Instruktionen är UTFÖRD I DEN HÄR ÄNDRINGEN:** golvet och path-pariteten är behållna.
@@ -399,21 +327,14 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // FAIL-FAST mot SAMNÄMNING, samma form och samma skäl som värdspärrens snittassertion.
     // Docblocket ovan förbjuder att TERMEN viks in i en annan spärr; det här fäller det andra
     // fallet, som förbudet inte täcker: ett LÖV som namnger både `STRATO GmbH` och en part vars
-    // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` i den levande grenen.
-    // `consentGated` bor inne i e-post-spärrens block; predikatet återskapas här ur samma
-    // modulnivå-hjälpare (`sectionHeadingOf`) i stället för att hissas — en hissning hade gjort
-    // e-post-spärrens diskriminator till ett delat hem utan att någon läsare krävde det.
-    const marks = (catalogue: unknown, leaves: [string, string][]) =>
-      leaves
-        .filter(([path]) => !/samtycke|consent/i.test(sectionHeadingOf(catalogue, path)))
-        .map(([path]) => path);
+    // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` (e-postspärren).
     const forbidsMarkerSv = new Set([
       ...matchingLeaves(svLegal, /netcup GmbH/).map(([path]) => path),
-      ...marks(svLegal, matchingLeaves(svLegal, EMAIL_PROVIDER_ANY)),
+      ...matchingLeaves(svLegal, EMAIL_PROVIDER_ANY).map(([path]) => path),
     ]);
     const forbidsMarkerEn = new Set([
       ...matchingLeaves(enLegal, /netcup GmbH/).map(([path]) => path),
-      ...marks(enLegal, matchingLeaves(enLegal, EMAIL_PROVIDER_ANY)),
+      ...matchingLeaves(enLegal, EMAIL_PROVIDER_ANY).map(([path]) => path),
     ]);
     expect(sv.map(([path]) => path).filter((path) => forbidsMarkerSv.has(path))).toEqual([]);
     expect(en.map(([path]) => path).filter((path) => forbidsMarkerEn.has(path))).toEqual([]);
@@ -432,8 +353,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * KÖR sedan 2026-08-05. `release-checklist.md` §2.6 punkt 2 klassade själv värdraden som
    * "deploy-aktiverad: aktiveras av att stacken körs hos dem" — alltså har aktiveringshändelsen
    * redan inträffat, och en markör hade sagt "ännu inte i drift" om en drift som pågår. Det är
-   * ADR 0090 D3:s defekt i spegelvänd form. Systrarna ovan får därför INTE läsas som prejudikat
-   * för den här raden; de vaktar behandlingar som bevisligen är mörka.
+   * ADR 0090 D3:s defekt i spegelvänd form.
    *
    * Två invarianter, EN term (`netcup GmbH`) — ingen union, av exakt de skäl e-post-spärren
    * skriver ut ovan:
@@ -488,14 +408,6 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *    beviset som gör konstanterna värda något: en negerad assertion kan aldrig fälla sitt eget
    *    mönster, så livness måste komma från den positiva systern.
    *
-   * ⚠ **En fälla den negativa loopen bygger in** (code-reviewer Minor 5, inte ett fel i dag):
-   * loopen går över HELA katalogen. Namnger ett löv någon gång **både** `netcup GmbH` och
-   * e-postleverantörens namn (`EMAIL_PROVIDER_ANY`, unionen — kollisionen binds till
-   * KONSTANTEN och inte till en literal, eftersom koden nedan gör det och de två annars kan
-   * divergera) blir sviten osatisfierbar — e-post-spärren kräver markören på det
-   * lövet, den här förbjuder den — och enda utvägen vore att försvaga en av dem. Skopa i så fall
-   * den här loopen till mottagarsektionen; försvaga aldrig någon av spärrarna.
-   *
    * Testet ska INTE falla vid någon lansering, till skillnad från systrarna ovan. Raden är
    * formulerad för att aldrig behöva en flip: den påstår drift, inte planer, och äger därför
    * ingen aktiveringshändelse. Faller den är det för att disclosuren försvann eller för att en
@@ -516,12 +428,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // Parity by LOCATION, not count — see `matchingLeaves`.
     expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
 
-    // FAIL-FAST mot den latenta konflikten ovan, i stället för en varning ingen läser i tid:
-    // namnger ett löv BÅDA parterna kräver e-post-spärren markören på det lövet medan den här
-    // förbjuder den, och sviten blir osatisfierbar — varvid den "uppenbara" utvägen är att
-    // försvaga en av spärrarna. Den här assertionen fäller i stället vid den commit som skriver
-    // lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är en mottagare per
-    // stycke. Skopa INTE bort täckning för att lösa det.
+    // FAIL-FAST mot samnämning: sektionens egen praxis är en mottagare per stycke, så ett löv som
+    // namnger båda parterna delas i två. Skopa INTE bort täckning för att lösa det.
     const emailSv = new Set(matchingLeaves(svLegal, EMAIL_PROVIDER_ANY).map(([path]) => path));
     const emailEn = new Set(matchingLeaves(enLegal, EMAIL_PROVIDER_ANY).map(([path]) => path));
     expect(sv.map(([path]) => path).filter((path) => emailSv.has(path))).toEqual([]);

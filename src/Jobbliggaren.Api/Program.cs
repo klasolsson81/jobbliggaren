@@ -338,6 +338,16 @@ app.Use(async (ctx, next) =>
             return Task.CompletedTask;
         }, ctx);
     }
+    // The anonymous public reads (ADR 0160): no answer may be cached, so an erased ad is never
+    // served after its erasure — including a 404, 410 or 429 the framework writes.
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/public"))
+    {
+        ctx.Response.OnStarting(static state =>
+        {
+            ((HttpContext)state).Response.Headers.CacheControl = "no-store";
+            return Task.CompletedTask;
+        }, ctx);
+    }
     if (ctx.Request.Path.Value is { } imagePath
         && ((ctx.Request.Path.StartsWithSegments("/api/v1/resumes")
                 && imagePath.TrimEnd('/').EndsWith("/original", StringComparison.OrdinalIgnoreCase))
@@ -405,6 +415,7 @@ app.MapMeJobAdMatchEndpoints();
 app.MapMeFollowedCompanyAdsEndpoints();
 app.MapMeJobsEndpoints();
 app.MapLandingEndpoints();
+app.MapPublicJobAdsEndpoints();
 
 // DEV-ONLY — remove before launch (Klas), with everything they gate
 // (docs/runbooks/release-checklist.md). TWO gates, deliberately not one.

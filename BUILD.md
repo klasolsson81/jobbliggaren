@@ -558,6 +558,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `POST /api/v1/job-ads/{id}/save` (bookmark)
 - `POST /api/v1/job-ads/{id}/compute-match` (beräkna deterministisk "Fast mode"-match)
 - `GET /api/v1/job-ads/{id}/salary-stats` (SCB-data för SSYK)
+- `GET /api/v1/public/job-ads/{id}` (anonym läsning av en listad annons utanför den inloggade gruppen; avslutad och raderad annons ger samma 410, egen IP-partitionerad rate limit, `no-store` — ADR 0160)
 
 **Saved searches**
 - `GET /api/v1/saved-searches`

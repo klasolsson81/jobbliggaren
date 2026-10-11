@@ -231,6 +231,21 @@ public static class JobAdLifecycleReadRegistry
                     + "explanation of why it matched, so it must NOT gate on Active. It projects Status.Value so "
                     + "the surface can label the lifecycle; an Erased ad is turned into a 410 by this same "
                     + "handler AFTER the read (the read itself stays status-agnostic).")),
+            ["Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd.GetPublicJobAdQueryHandler.Handle"] =
+            [
+                Any(
+                    ".Where(j.Id == id).Select(j.Status, j.ExpiresAt, External?.Source) — the anonymous detail's publication facts.",
+                    "The public detail (ADR 0160) must SEE every status to answer it truthfully: an Archived, "
+                    + "past-deadline or Erased ad gets the shared neutral 410 and a never-imported one the unknown-id "
+                    + "404. Gating the read on Active would turn all of those into a 404 that says we never held the "
+                    + "ad. Publication itself is decided after the read by JobAdPublication.Classify."),
+                Any(
+                    ".Where(j.Id == id).Select(... content ...) — the anonymous detail's content, read only for a Listed ad.",
+                    "Read only after the facts classified the ad Listed, and classified again from this row, since "
+                    + "the two reads share no transaction: an ad archived or erased in between gets the same 410 as "
+                    + "if it had been so at the first read. Gating this read on Active would still miss the deadline "
+                    + "and the provenance, which only JobAdPublication.Classify decides."),
+            ],
             ["Jobbliggaren.Application.SavedJobAds.Queries.ListSavedJobAds.ListSavedJobAdsQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching saved (bookmarked) ads.",

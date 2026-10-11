@@ -422,7 +422,7 @@ it, both derived from the code and not measured on the box.
 ### Decision
 
 **The panel holds notifications and nothing else.** D4 and D11 are changed below; D3 gets a dated correction and D6 a dated row. D1, D5, D7,
-D8, D9, D10, D12 and D13 are unchanged.
+D8, D9, D12 and D13 are unchanged.
 
 #### D3 — dated correction of the lock citation
 
@@ -452,7 +452,7 @@ items  = ByTime(unread.Concat(read))
 - **The follow source's grade path lists the unread ads its window did not reach.** When the count is on the grade path and the window
   yields fewer distinct unread included ads than `min(unreadCount, MaxItems)` (for example because an "endast matchade" watch excludes the
   window's newest hits), the source takes the rows from the counted hits. It applies the inclusion rule to `countInput.GradeHits` with
-  `resolution.Matching`, which already covers those candidates (`FollowedCompanyAdFeedSource.cs:96-102`), so there is still **one grading
+  `resolution.Matching`, which already covers those candidates, so there is still **one grading
   call per poll**; it keeps each ad's newest included hit, orders the ads newest first and takes `MaxItems`. It then reads title and company
   name for the ads not already in the window, in one more statement that runs only in this case. That statement composes `NewHits` (which
   carries the `Status == Active` gate, D8) onto a join against `JobAds` for the display columns, bounded by time (from the oldest wanted
@@ -460,7 +460,7 @@ items  = ByTime(unread.Concat(read))
   leave the source as unread rows, one per ad. The common path and the refused state are unchanged, and D10's nine-statement pin, taken
   without an "endast matchade" watch, is unaffected. The read stays inside `ReadBoundedAsync`, where `JobAdLifecycleReadRegistry` declares a
   second site for it (the registry owes one decision per `get_JobAds` call). It ships in PR 1 because it has the same change reason as removing the footer: without it, once the footer is gone, an unread ad
-  that is counted but not listed would be a dead end. What is left for the not-in-list line is the surplus over the cap and a transient race.
+  that is counted but not listed would be a dead end.
 - **The number of unread notifications not in the list is exact or absent.** It is the sum of the sources' counts minus the unread rows
   shown, it is never negative, and it is rendered only when every source count is a number (ADR 0120 clauses 3 and 5). The line reads
   "N olästa visas inte i listan." and never says "older": the list shows the newest unread rows among those the sources returned, not the
@@ -508,8 +508,7 @@ D11 is changed as follows. Grounds: AC1, `design-reviewer`'s Blocker 1 and A1, A
   the not-in-list line stands alone.
 - **The bell is named "Notiser"** (it was "Aviseringar") in the heading, the button's accessible name, the live region and the load and
   error texts, as the rest of the product names them (`design-reviewer`'s Major 3).
-- **The not-in-list line exists** (D4): after the last row, inside the list's scroll area, with no link and no `role="status"`. It is shown
-  when the total is a number and the total minus the unread rows shown is above 0, and never when the total is `null`.
+- **The not-in-list line exists** (D4): after the last row, inside the list's scroll area, with no link and no `role="status"`.
 
 ### Decided for PR 2, not built
 

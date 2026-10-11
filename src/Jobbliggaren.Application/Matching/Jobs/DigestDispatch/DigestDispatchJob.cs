@@ -43,20 +43,6 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// ads the body can never list and the recipient can never open.
 /// </para>
 /// <para>
-/// <b>The row's two ends, and the predicate that governs both (#864).</b> A pending row is partitioned
-/// by ONE question — <i>is this ad still presentable?</i>
-/// <list type="bullet">
-/// <item><b>claim</b> = presentable ∧ grade passes → claimed, emailed, drained (Sent).</item>
-/// <item><b>stayPending</b> = presentable ∧ grade fails → left UNTOUCHED. Grade is a function of
-/// (profile, ad) and the profile is MUTABLE, so the hit may legitimately re-surface later (8C).</item>
-/// <item><b>drain</b> = NOT presentable → drained unconditionally, never shown. Lifecycle is a function
-/// of the AD ALONE and is MONOTONE: nothing un-archives an ad, so waiting is not deferral — it is a
-/// leak, and nothing reaps it (the stranded reaper takes QUEUED rows; a row never claimed is never
-/// queued).</item>
-/// </list>
-/// <b>Lifecycle is a DRAIN reason; grade is a FILTER-OUT reason. Never the other way round.</b>
-/// </para>
-/// <para>
 /// <b>Per-user failure is isolated</b> (one user's exception does not abort the run — TD-25),
 /// parity <see cref="BackgroundMatching.BackgroundMatchingJob"/>.
 /// </para>
@@ -462,8 +448,6 @@ public sealed partial class DigestDispatchJob(
         //     legitimately re-surface later — that is precisely what 8C's "leave it Pending" is FOR.
         //   • LIFECYCLE is a function of the AD ALONE, and it is MONOTONE. Nothing un-archives an ad.
         //     Waiting for one is not deferral; it is a leak.
-        //   • An ENDED FOLLOW is monotone too: CompanyWatch.Refollow opens a new active period, it never
-        //     reopens the one that recorded the hit.
         //
         // Before #864, lifecycle acted as a filter-out reason BY ACCIDENT: an archived hit under an
         // OnlyMatched watch fell out of `FilterToMatchingAsync` — that port carries its own

@@ -394,7 +394,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         var profileBuilder = sp.GetRequiredService<IMatchProfileBuilder>();
         var perUserSearch = sp.GetRequiredService<IPerUserJobAdSearchQuery>();
 
-#pragma warning disable CA2012 // ValueTask-stub konsumeras av NSubstitute (jfr SuggestJobAdTermsUnionTests)
+#pragma warning disable CA2012
         if (belowGoodFor is { } userId)
         {
             var (realBuilder, realSearch) = (profileBuilder, perUserSearch);

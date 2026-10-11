@@ -528,7 +528,7 @@ D11 is changed as follows. Grounds: AC1, `design-reviewer`'s Blocker 1 and A1, A
 - #2130 (this change) · #2138 (the open GDPR Blocker, D6) · #1662 (the notification epic) · #1663 (the next source, and the "Visa alla"
   trigger)
 - ADR 0161 (the matching worker's lock, D3) · ADR 0120 (clauses 3 and 5: the hidden count is exact or absent, D4) · ADR 0080 (Beslut 5, the
-  consent and the settings-only invitation, D11; Beslut 6, the watermark the bell stops moving in PR 2) · ADR 0164 (draft, #2107: its D1 has
+  consent and the settings-only invitation, D11; Beslut 6, the watermark the bell stops moving in PR 2) · ADR 0164 (#2107, merged 2026-10-11 as `b52994c32`: its D1 has
   the bell read neither the e-mail master switch nor the per-type pauses) · ADR 0047 (point 2, D11)
 - Local reports: `docs/reviews/2026-10-11-2130-form-cto.md` (the ruling) · `…-form-brief.md` · `…-form-brief-addendum.md` ·
   `…-form-dotnet-architect.md` · `…-form-security-auditor.md` · `…-form-design-reviewer.md` · `…-form-db-migration-writer.md`

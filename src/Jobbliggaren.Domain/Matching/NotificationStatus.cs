@@ -21,7 +21,10 @@ public enum NotificationStatus
     /// <summary>Picked up by the dispatch step; delivery in flight.</summary>
     Queued,
 
-    /// <summary>The notification (direct or digest) was delivered.</summary>
+    /// <summary>
+    /// Done with: the notification (direct or digest) was delivered, or the digest drained the row
+    /// without listing it because its ad is no longer Active.
+    /// </summary>
     Sent,
 
     /// <summary>

@@ -287,7 +287,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * här är term-scopad, och en union gör den termen till ett delat hem som ingen läsare har krävt.
    * Samma skäl förbjuder invikning i värdspärrens negativa loop.
    *
-   * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE.** `Mottagare av uppgifter` rymmer netcup (levande), Scaleway ×2 (levande), SCB
+   * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE.** `Mottagare av uppgifter` rymmer netcup (levande), Scaleway (levande), SCB
    * (mörk) och STRATO (mörk när spärren skrevs; **levande från MX-flytten, som den här ändringen
    * åtföljer**), medan e-postspärren till notisflippen 2026-10-11 klassade hela sektionen som levande
    * på rubriken. Det var ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt

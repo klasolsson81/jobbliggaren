@@ -46,10 +46,20 @@ public sealed record JobAdsSynced(
     DateTimeOffset CompletedAt,
     int? ParsedTotal = null)
     : SystemAuditEvent(
-        EventType: "System.JobAdsSynced",
+        EventType: EventTypeName,
         AggregateType: "System.JobAdSync",
         AggregateId,
-        OccurredAt);
+        OccurredAt)
+{
+    /// <summary>The event type the writers record and the readers filter on: one constant, so they cannot drift.</summary>
+    public const string EventTypeName = "System.JobAdsSynced";
+
+    /// <summary>The <c>JobType</c> of a stream run (<c>*/10 * * * *</c>).</summary>
+    public const string StreamJobType = "stream";
+
+    /// <summary>The <c>JobType</c> of the daily snapshot run.</summary>
+    public const string SnapshotJobType = "snapshot";
+}
 
 /// <summary>
 /// Audit-event för en raw_payload-purge-run (cron 30 4 * * *).

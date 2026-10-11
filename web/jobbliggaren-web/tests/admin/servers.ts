@@ -59,7 +59,7 @@ export type BackupScenario = "observed" | "switchedOff" | "notObserved" | "faile
 
 const HOUR = 3_600_000;
 function backupAnswer(scenario: BackupScenario): unknown {
-  // The API's wire form for a DateTimeOffset in UTC: whole seconds and an offset, never a Z.
+  // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
   const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const nothing = { stale: null, lastSuccess: null, timer: null };
   const recorded = (hoursAgo: number, overdue: boolean) =>
@@ -108,6 +108,37 @@ function hostAnswer(scenario: HostScenario): unknown {
   };
 }
 
+/**
+ * What the Tjänster card's services read answers (#1982), as the API states it: each row its own state, the instants
+ * it rests on and nothing else. `observed` is a live Worker, a store that answers and a clean import run; each other
+ * scenario turns one row, and `warnings` turns all three at once (a silent Worker, a store that does not answer and an
+ * overdue run with errors). `unknown` is a sampler that could judge nothing.
+ */
+export type ServicesScenario =
+  | "observed" | "silent" | "noServer" | "unreachable" | "overdue" | "noneRecorded" | "errors" | "unknown" | "warnings";
+
+function servicesAnswer(scenario: ServicesScenario): unknown {
+  // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
+  const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const sampledAt = at(-20_000);
+  const turns = (row: ServicesScenario) =>
+    scenario === row || (scenario === "warnings" && (row === "silent" || row === "unreachable" || row === "overdue"));
+  const backgroundJobs = scenario === "unknown" ? { state: "Unknown", sampledAt: null, heartbeatAt: null }
+    : turns("silent") ? { state: "Silent", sampledAt, heartbeatAt: at(-10 * 60_000) }
+    : turns("noServer") ? { state: "NoServer", sampledAt, heartbeatAt: null }
+    : { state: "Alive", sampledAt, heartbeatAt: at(-30_000) };
+  const volatileStore = scenario === "unknown" ? { state: "Unknown", sampledAt: null }
+    : turns("unreachable") ? { state: "Unreachable", sampledAt } : { state: "Reachable", sampledAt };
+  const jobImport = scenario === "unknown" ? { state: "Unknown", sampledAt: null, lastRunAt: null, errors: null }
+    : turns("overdue") ? { state: "Overdue", sampledAt, lastRunAt: at(-40 * 60_000), errors: scenario === "warnings" ? 2 : 0 }
+    : turns("noneRecorded") ? { state: "NoneRecorded", sampledAt, lastRunAt: null, errors: null }
+    : { state: "Recorded", sampledAt, lastRunAt: at(-5 * 60_000), errors: scenario === "errors" ? 3 : 0 };
+  return {
+    staleAfterSeconds: 120, workerAliveWithinSeconds: 120, importOverdueAfterSeconds: 1500,
+    backgroundJobs, volatileStore, jobImport,
+  };
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -119,9 +150,10 @@ export type Harness = {
   /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
   who: "admin" | "member" | "stale";
   mode: AdminMode;
-  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host", AdminMode>;
+  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host" | "services", AdminMode>;
   overviewBackup: BackupScenario;
   overviewHost: HostScenario;
+  overviewServices: ServicesScenario;
   overviewSampledAt: string | null;
   overviewEmpty: boolean;
   overviewDelayMs: number;
@@ -224,9 +256,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
-    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok" },
+    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok" },
     overviewBackup: "observed",
     overviewHost: "measured",
+    overviewServices: "observed",
     overviewSampledAt: new Date().toISOString(),
     overviewEmpty: false,
     overviewDelayMs: 0,
@@ -294,9 +327,10 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.who = "admin";
       harness.mode = "ok";
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
-      harness.overviewReads.host = "ok";
+      harness.overviewReads.host = harness.overviewReads.services = "ok";
       harness.overviewBackup = "observed";
       harness.overviewHost = "measured";
+      harness.overviewServices = "observed";
       harness.overviewSampledAt = new Date().toISOString();
       harness.overviewEmpty = false;
       harness.overviewDelayMs = 0;
@@ -369,6 +403,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/jobs/failed": () => harness.overviewEmpty ? { ...FAILED_JOBS, items: [], totalCount: 0 } : FAILED_JOBS,
       "GET /api/v1/admin/overview/backup": () => backupAnswer(harness.overviewBackup),
       "GET /api/v1/admin/overview/host": () => hostAnswer(harness.overviewHost),
+      "GET /api/v1/admin/overview/services": () => servicesAnswer(harness.overviewServices),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -675,7 +710,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       const source = route.endsWith("/overview/accounts") ? "accounts"
         : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs"
         : route.endsWith("/overview/backup") ? "backup"
-        : route.endsWith("/overview/host") ? "host" : null;
+        : route.endsWith("/overview/host") ? "host"
+        : route.endsWith("/overview/services") ? "services" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);

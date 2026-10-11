@@ -1,5 +1,6 @@
 import { FEEDBACK_PAGE_KEYS } from "@/lib/admin/feedback";
 import { toServerReading } from "@/lib/admin/host-observation";
+import { toServicesReading } from "@/lib/admin/service-observation";
 import type {
   AdminAccountDetail,
   AdminAccountTotals,
@@ -21,7 +22,7 @@ import type {
   AdminRecentEvent,
   AdminSecurityLogRow,
   AdminServerReading,
-  AdminServiceStatus,
+  AdminServicesReading,
   AdminSelf,
   AdminTrendDay,
 } from "@/lib/admin/view-models";
@@ -184,7 +185,7 @@ export interface PreviewOverviewData {
   readonly active: AdminActiveAccounts;
   readonly logins: AdminLogins;
   readonly trend: ReadonlyArray<AdminTrendDay>;
-  readonly services: ReadonlyArray<AdminServiceStatus>;
+  readonly services: AdminServicesReading;
   readonly server: AdminServerReading;
   readonly backup: AdminBackupStatus;
   readonly email: AdminEmailOverview;
@@ -207,12 +208,15 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
   active: marked({ last30Days: 9, today: 4, last7Days: 7 }),
   logins: marked({ today: loginsOn(0), yesterday: loginsOn(1), failed: 2, locked: 0 }),
   trend,
-  services: [
-    marked({ id: "database", label: "Databas", state: "ok" as const, detail: "4 ms" }),
-    marked({ id: "jobs", label: "Bakgrundsjobb", state: "ok" as const, detail: "4 återkommande" }),
-    marked({ id: "platsbanken", label: "Platsbanken", state: "warning" as const, detail: "Senaste hämtningen misslyckades" }),
-    marked({ id: "email", label: "E-postutskick", state: "ok" as const, detail: "212 ms" }),
-  ],
+  // A live Worker, a store that answers and an import run that recorded two errors, so the warning form is seen.
+  services: marked(toServicesReading({
+    staleAfterSeconds: 120,
+    workerAliveWithinSeconds: 120,
+    importOverdueAfterSeconds: 1500,
+    backgroundJobs: { state: "Alive", sampledAt: daysAgo(0, 7, 59), heartbeatAt: daysAgo(0, 7, 58) },
+    volatileStore: { state: "Reachable", sampledAt: daysAgo(0, 7, 59) },
+    jobImport: { state: "Recorded", sampledAt: daysAgo(0, 7, 59), lastRunAt: daysAgo(0, 7, 50), errors: 2 },
+  })),
   server: marked(toServerReading({
     staleAfterSeconds: 120,
     cpu: { state: "Available", sampledAt: daysAgo(0, 7, 59), value: { percent: 23.4, windowSeconds: 30 } },
@@ -250,7 +254,7 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
   ],
 });
 
-/** The overview's "Tom" state: every count zero, every list empty; readings and backup keep their values. */
+/** The overview's "Tom" state: every count zero, every list empty; backup keeps its values. */
 export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   ...PREVIEW_OVERVIEW,
   newAccounts: marked({ today: 0, yesterday: 0, last7Days: 0, last30Days: 0 }),
@@ -259,7 +263,16 @@ export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   logins: marked({ today: 0, yesterday: 0, failed: 0, locked: 0 }),
   trend: trend.map((day) => marked({ date: day.date, newAccounts: 0, logins: 0 })),
   email: marked({ sent: 0, failed: 0, noRecipient: 0, topTypes: [] }),
-  services: [],
+  // "Tom" shows the rows with nothing observed: no Worker has reported, the store could not be judged and no import
+  // run is recorded. None of them is a zero, and none of them is an all-clear (ADR 0150 D2).
+  services: marked(toServicesReading({
+    staleAfterSeconds: 120,
+    workerAliveWithinSeconds: 120,
+    importOverdueAfterSeconds: 1500,
+    backgroundJobs: { state: "NoServer", sampledAt: daysAgo(0, 7, 59), heartbeatAt: null },
+    volatileStore: { state: "Unknown", sampledAt: null },
+    jobImport: { state: "NoneRecorded", sampledAt: daysAgo(0, 7, 59), lastRunAt: null, errors: null },
+  })),
   attention: [],
   events: [],
   // "Tom" shows the three readings that are not values: the CPU's first window, a host that cannot be measured

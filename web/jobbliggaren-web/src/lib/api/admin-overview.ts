@@ -14,6 +14,7 @@ import {
   type BackupStatusResponse,
 } from "@/lib/dto/admin-overview";
 import { hostObservationSchema, type HostObservationDto } from "@/lib/dto/admin-host";
+import { servicesObservationSchema, type ServicesObservationDto } from "@/lib/dto/admin-services";
 import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
 
 const SOURCE_DEADLINE_MS = 10_000;
@@ -92,9 +93,26 @@ function backupObservation(result: ApiResult<Observed<BackupStatusResponse>>): A
 function hostObservation(result: ApiResult<Observed<HostObservationDto>>): OverviewObservation<HostObservationDto> {
   if (result.kind !== "ok") return { kind: "failed" };
   const host = result.data.data;
-  const times = [host.cpu, host.memory, host.disk].flatMap((reading) => (reading.sampledAt === null ? [] : [reading.sampledAt]));
-  const newest = times.length === 0 ? null : times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+  const newest = newestSample([host.cpu, host.memory, host.disk]);
   return { kind: "loaded", data: host, sampledAt: newest ?? result.data.sampledAt, refreshFailed: false };
+}
+
+/**
+ * The Tjänster card's source, dated as the host's is: by the newest row's own `sampledAt`, and by the API read
+ * instant only when every row is unknown and there is no sample to age. What crosses to the browser is the schema's
+ * output: states, instants, an error count and three limits.
+ */
+function servicesObservation(result: ApiResult<Observed<ServicesObservationDto>>): OverviewObservation<ServicesObservationDto> {
+  if (result.kind !== "ok") return { kind: "failed" };
+  const services = result.data.data;
+  const newest = newestSample([services.backgroundJobs, services.volatileStore, services.jobImport]);
+  return { kind: "loaded", data: services, sampledAt: newest ?? result.data.sampledAt, refreshFailed: false };
+}
+
+/** The newest of the parts' own sample times; null when none of them was sampled. */
+function newestSample(parts: ReadonlyArray<{ readonly sampledAt: string | null }>): string | null {
+  const times = parts.flatMap((part) => (part.sampledAt === null ? [] : [part.sampledAt]));
+  return times.length === 0 ? null : times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
 }
 
 /**
@@ -128,8 +146,10 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
     authorized.then((proven) => (proven ? read(sessionId, path, schema, signal) : { kind: "error" as const }));
   const backupRead = gated("/api/v1/admin/overview/backup", backupStatusResponseSchema);
   const hostRead = gated("/api/v1/admin/overview/host", hostObservationSchema);
-  const [accounts, audit, jobs, backup, host] = await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead]);
-  for (const result of [accounts, audit, jobs, backup, host]) {
+  const servicesRead = gated("/api/v1/admin/overview/services", servicesObservationSchema);
+  const [accounts, audit, jobs, backup, host, services] =
+    await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead, servicesRead]);
+  for (const result of [accounts, audit, jobs, backup, host, services]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };
   }
 
@@ -152,7 +172,10 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
 
   return {
     kind: "ok",
-    data: { accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup), host: hostObservation(host) },
+    data: {
+      accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup),
+      host: hostObservation(host), services: servicesObservation(services),
+    },
     loadedAt: Date.now(),
   };
 }

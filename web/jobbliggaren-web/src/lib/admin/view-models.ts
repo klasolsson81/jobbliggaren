@@ -2,6 +2,7 @@
 import type { AdminDeletionTiming } from "./account-deletion";
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
 import type { AdminServerReading } from "./host-observation";
+import type { AdminServicesReading } from "./service-observation";
 
 /**
  * A data region is exactly one of these (ADR 0150 D2). `unavailable` means no source exists yet,
@@ -148,15 +149,8 @@ export interface AdminTrendDay {
   readonly logins: number | null;
 }
 
-export interface AdminServiceStatus {
-  readonly id: string;
-  readonly label: string;
-  readonly state: "ok" | "warning";
-  /** What the check measured, such as a response time. */
-  readonly detail: string;
-}
-
 export type { AdminServerReading } from "./host-observation";
+export type { AdminServicesReading } from "./service-observation";
 
 /**
  * What the Backup card holds (#1982, ADR 0157): when the last run succeeded and when the timer next fires,
@@ -206,7 +200,8 @@ export interface AdminOverviewRegions {
   readonly logins: AdminValueRegion<AdminLogins>;
   /** Up to 90 days; the period shows its tail. */
   readonly trend: AdminValueRegion<ReadonlyArray<AdminTrendDay>>;
-  readonly services: AdminRegion<ReadonlyArray<AdminServiceStatus>>;
+  /** Three rows of their own (#1982): a value region, so a loaded card always holds all three. */
+  readonly services: AdminValueRegion<AdminServicesReading>;
   readonly server: AdminValueRegion<AdminServerReading>;
   readonly backup: AdminValueRegion<AdminBackupStatus>;
   readonly email: AdminValueRegion<AdminEmailOverview>;

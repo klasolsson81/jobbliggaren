@@ -22,7 +22,8 @@ match grade; untouched) · ADR 0038 (one primary per screen) · ADR 0052 (the tw
 **Amended:** 2026-10-04 by ADR 0151 (#1974): four D8 rows for the account list's states, filters, counts and actions;
 2026-10-05 by ADR 0153 (#1975): the receipt row's Ships cell rewritten, and one D8 row added for the edit form's primary;
 2026-10-07 by ADR 0156 (#1979): five D8 rows for feedback's rating, statuses, list, page and filters, and a dated note on the screenshot and reply rows;
-2026-10-10 by ADR 0158 (#1982): the Server card's host readings, whose surface contract the Amendment 2026-10-10 at the end of this file records, superseding the 2026-10-08 sentence on host for that card only.
+2026-10-10 by ADR 0158 (#1982): the Server card's host readings, whose surface contract the Amendment 2026-10-10 at the end of this file records, superseding the 2026-10-08 sentence on host for that card only;
+2026-10-10 by ADR 0159 (#1982): the services card, whose surface contract the second Amendment 2026-10-10 at the end of this file records, one D8 row for the handoff's six dotted rows, and D4's #1982 row flipped in full, superseding the 2026-10-08 sentence on services.
 
 > **Provenance.** Written by `adr-keeper` for the driving session, from its brief (CLAUDE.md §9.2, §13). Klas's own
 > words are the three sources above, and the substance of D1 (the latitude), D3 (the address as identity) and D5
@@ -195,6 +196,7 @@ The handoff is a design reference, not production code. What ships departs from 
 | Instruction lines such as "Klicka på en rad…" | Cut | DESIGN.md §8; ADR 0144 |
 | Deletion copy promising anonymisation in 30 days under Art. 17, and an undo until then | States the backend's earliest deletion date; no statutory claim and no undo claim | #1977 and the epic: the copy says only what the backend does; restore is #1983 (D4) |
 | Mail "via SMTP (Strato)", named hosts and services marked healthy, a Seq retention period, a "Verifierad" backup, a delivery percentage | None of them | Truth: mail leaves through Scaleway Transactional Email over HTTPS, never SMTP (ADR 0131), and nothing observes the rest (D2) |
+| The services card as six rows (the VPS, DNS and mail at Strato, PostgreSQL, the Hangfire worker, JobTech/Platsbanken, the mail send), each with a green or amber dot and a response time, the footnote "Kontrolleras var 60:e sekund från servern", and the header line "5 av 6 tjänster fungerar" | Three rows (the Worker's last sign of life, the volatile store, the newest recorded import run), each an observation with its time, no dot, no response time, no "fungerar", no footnote about a cadence and no count of working services | ADR 0159: a row for anything the request already depends on could only read positive; nothing observes the rest; a heartbeat, a PONG and a recorded run each prove less than "fungerar" says (D2) |
 | Information-bearing digits and times in mono | Sans with `tabular-nums`; mono only for code identifiers | DESIGN.md §4 |
 | Control heights of its own (32px period buttons, 34px icon buttons, 24–26px pills) | The two ratified systems: `.jp-icon-btn`, `.jp-pill` | DESIGN.md §6; ADR 0052 |
 | Hex and rgba literals | Tokens only | DESIGN.md §3; the handoff's own rule of no new hex values |
@@ -339,3 +341,23 @@ This Amendment owns only the surface contract of the Server card. The mechanism 
 - For the host source, `X-Admin-Sampled-At` is the API's read instant. Each reading's own `sampledAt` is in the body.
 - This supersedes, for the Server card only, the sentence of the 2026-10-08 Amendment that "host/services ... remain
   unavailable". Services and backup are untouched.
+
+## Amendment 2026-10-10 — The services card (#1982, ADR 0159)
+
+This Amendment owns only the surface contract of the services card. The mechanism, the sources and what a row means are ADR 0159's.
+
+- The services region is `loaded` as soon as the API answers. Its three rows (the Worker, the volatile store, the import run) are
+  each one state of a closed union inside that region, so one failing source never blanks the other two. A row whose sample is too
+  old to judge, or whose source could not be read, is Unknown and carries no time: an en-dash and a quiet line, never a stale
+  verdict (D2).
+- **No row is "ok".** A positive state is an observation with its time, in normal ink; a bad state is one warning form, bold in the
+  warning ink, and the words carry the meaning. The import row never prints "0 fel" and never names the health of Platsbanken or
+  JobTech.
+- A row the page has kept past the limit the API names is withdrawn as the API's would be: an en-dash and a quiet line, never an
+  old verdict. The region still carries the newest row's `sampledAt` and the old-data note, as D2 lets a loaded region do.
+  `X-Admin-Sampled-At` is the API's read instant.
+- The attention card names the services and backup states that need attention, an import run's failed events included, each linking to its own card, and an Unknown or failed
+  source never reads as clear (ADR 0159 D7; closes #2084).
+- D4's #1982 row is flipped in full: Backup (ADR 0157), Server (ADR 0158) and the services card (ADR 0159) are real. What stays
+  outside it has an owner: the offsite copy, retention and restore drill (#197), mail outcomes (#1981).
+- This supersedes, for the services card, the sentence of the 2026-10-08 Amendment that "host/services ... remain unavailable".

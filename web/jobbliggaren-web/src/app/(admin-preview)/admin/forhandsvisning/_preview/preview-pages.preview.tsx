@@ -23,6 +23,7 @@ import type {
 import { listRegion } from "@/lib/admin/view-models";
 import { commandRefusal, type AdminFeedbackQuery, type AdminFeedbackRefusal } from "@/lib/admin/feedback";
 import { serverRegion, type AdminServerReading } from "@/lib/admin/host-observation";
+import { servicesRegion, type AdminServicesReading } from "@/lib/admin/service-observation";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
@@ -59,6 +60,18 @@ function serverValue(kind: AdminRegionKind, loaded: AdminServerReading, zero: Ad
   }
 }
 
+/** The Tjänster region in the band's state: "Tom" shows the rows with nothing observed. */
+function servicesValue(kind: AdminRegionKind, loaded: AdminServicesReading, zero: AdminServicesReading): AdminValueRegion<AdminServicesReading> {
+  switch (kind) {
+    case "loaded":
+      return servicesRegion(loaded);
+    case "empty":
+      return servicesRegion(zero);
+    default:
+      return { kind };
+  }
+}
+
 /** A list region in the band's state. */
 function list<T>(kind: AdminRegionKind, loaded: ReadonlyArray<T>): AdminRegion<ReadonlyArray<T>> {
   return kind === "loaded" ? listRegion(loaded) : { kind };
@@ -83,7 +96,7 @@ export function PreviewOverview({
         active: value(kind, data.active, zero.active),
         logins: value(kind, data.logins, zero.logins),
         trend: value(kind, data.trend, zero.trend),
-        services: list(kind, data.services),
+        services: servicesValue(kind, data.services, zero.services),
         server: serverValue(kind, data.server, zero.server),
         backup: value(kind, data.backup, zero.backup),
         email: value(kind, data.email, zero.email),

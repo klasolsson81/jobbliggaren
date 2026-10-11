@@ -66,11 +66,26 @@
     "services": {
       "title": "Tjänster",
       "link": "Loggar",
-      "empty": "Inga tjänster att visa.",
-      "state": {
-        "ok": "Fungerar",
-        "warning": "Varning"
-      }
+      "backgroundJobs": "Worker",
+      "volatileStore": "Tillfälligt lager",
+      "jobImport": "Annonsimport",
+      "unknown": "Kunde inte avgöras",
+      "worker": {
+        "alive": "Senaste livstecken {time}",
+        "silent": "Inget livstecken sedan {time}",
+        "noServer": "Inget livstecken registrerat"
+      },
+      "store": {
+        "reachable": "Svarar",
+        "unreachable": "Svarar inte"
+      },
+      "import": {
+        "recorded": "Senaste körning {time}",
+        "overdue": "Senaste körning {time}, äldre än {limit}",
+        "noneRecorded": "Ingen körning registrerad",
+        "errors": "{count, plural, one {# fel} other {# fel}} i körningen"
+      },
+      "stale": "Uppgiften är äldre än {limit}."
     },
     "server": {
       "title": "Server",
@@ -123,7 +138,8 @@
       "noPendingDeletions": "Inga konton väntar på radering.",
       "emailUnknown": "E-postfel kan ännu inte bedömas.",
       "jobsSource": "Misslyckade bakgrundsjobb",
-      "deletionsSource": "Väntande raderingar"
+      "deletionsSource": "Väntande raderingar",
+      "sourceState": "{source}: {state}"
     },
     "events": {
       "title": "Senaste händelser",
@@ -150,7 +166,8 @@
         "audit": "Granskningshändelser",
         "jobs": "Misslyckade bakgrundsjobb",
         "backup": "Backup",
-        "host": "Serverns mätvärden"
+        "host": "Serverns mätvärden",
+        "services": "Tjänster"
       }
     },
     "registrationPeriods": {

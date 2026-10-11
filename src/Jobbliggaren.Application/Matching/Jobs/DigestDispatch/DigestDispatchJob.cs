@@ -19,8 +19,9 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// dispatches Daily users, a Weekly cron the Weekly users), it composes ONE email summarising the
 /// user's accumulated Pending <see cref="NotifiableMatchGrade.Strong"/> matches and marks them
 /// Sent. <see cref="NotifiableMatchGrade.Good"/> is in-app only (never emailed) and
-/// <see cref="NotifiableMatchGrade.Top"/> is direct-dispatched in the scan — so neither is digested
-/// here. Registered as two Hangfire RecurringJobs (~06:00 UTC, deliberately AFTER the 03:20 scan).
+/// <see cref="NotifiableMatchGrade.Top"/> is mailed by <see cref="BackgroundMatching.TopMatchMailDispatcher"/>
+/// in the five-minute matching run (ADR 0161) — so neither is digested here. Registered as two Hangfire
+/// RecurringJobs (~06:00 UTC).
 /// NO AI/LLM (ADR 0071).
 /// <para>
 /// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not

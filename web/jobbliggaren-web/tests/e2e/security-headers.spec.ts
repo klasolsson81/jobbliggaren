@@ -49,8 +49,13 @@ for (const path of ["/", "/logga-in"]) {
     ]) {
       expect(csp, `CSP contains: ${directive}`).toContain(directive);
     }
-    // script-src carries 'unsafe-inline' (dev may append 'unsafe-eval').
-    expect(csp).toMatch(/script-src 'self' 'unsafe-inline'/);
+    // script-src is the nonce + strict-dynamic form and NEVER carries 'unsafe-inline' (ADR 0163);
+    // dev appends 'unsafe-eval'.
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/]{22}==' 'strict-dynamic'( 'unsafe-eval')?;/);
+    expect(csp!.match(/script-src[^;]*/)![0]).not.toContain("unsafe-inline");
+    // Exactly ONE policy: Playwright joins a repeated field with ", ", which a CSP never contains.
+    // A second CSP (say, a static one left in next.config.ts) would be enforced alongside the nonce one.
+    expect(csp).not.toContain(",");
     // connect-src stays same-origin (dev appends ws: for HMR).
     expect(csp).toMatch(/connect-src 'self'/);
 
@@ -83,6 +88,63 @@ for (const path of ["/", "/logga-in"]) {
     }
   });
 }
+
+// ADR 0163 — the nonce is per request, and Next must actually stamp it on its own inline scripts. A
+// policy whose nonce no script carries would pass every header assertion above and blank the site.
+test("each request gets its own nonce", async ({ request }) => {
+  const nonceOf = async () => {
+    const csp = (await request.get("/logga-in")).headers()["content-security-policy"];
+    return /'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+  };
+  const [a, b] = [await nonceOf(), await nonceOf()];
+  expect(a).toBeTruthy();
+  expect(b).toBeTruthy();
+  expect(a).not.toBe(b);
+});
+
+for (const path of ["/", "/logga-in", "/vanliga-fragor"]) {
+  test(`every inline script on ${path} carries the request's nonce`, async ({ page }) => {
+    const h = await headersFor(page, path);
+    const nonce = /'nonce-([^']+)'/.exec(h["content-security-policy"] ?? "")?.[1];
+    expect(nonce, "the response CSP names a nonce").toBeTruthy();
+
+    const inline = await page.evaluate(() =>
+      // JSON-LD is a data block, not executable script: CSP does not apply to it.
+      [...document.scripts]
+        // Empty ones are `next dev` plumbing appended at runtime, not script that executes anything.
+        .filter((s) => !s.src && s.type !== "application/ld+json" && s.textContent.trim() !== "")
+        .map((s) => s.nonce)
+    );
+    // Next streams its RSC payload and bootstrap as inline scripts; zero would mean the nonce was
+    // never applied or the page is not server-rendered at all.
+    expect(inline.length, "the document has inline scripts").toBeGreaterThan(0);
+    for (const n of inline) expect(n, "inline script nonce").toBe(nonce);
+  });
+}
+
+// The matcher must not skip a page route because of its suffix or a look-alike prefix (#2128).
+for (const path of ["/finns-inte.png", "/finns-inte.svg", "/jobb/abc.png", "/favicon.icoX", "/_next/imageX"]) {
+  test(`${path} carries exactly one nonce CSP`, async ({ request }) => {
+    const res = await request.get(path, { maxRedirects: 0 });
+    const csp = res.headers()["content-security-policy"] ?? "";
+
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/]{22}==' 'strict-dynamic'/);
+    expect(csp).not.toContain(",");
+  });
+}
+
+test("/api/* is outside the proxy and keeps the static policy: self-only scripts, no nonce, one header", async ({
+  request,
+}) => {
+  const csp = (await request.get("/api/health")).headers()["content-security-policy"] ?? "";
+
+  expect(csp).toBeTruthy();
+  expect(csp).toMatch(/script-src 'self';/);
+  expect(csp).not.toContain("nonce-");
+  expect(csp.match(/script-src[^;]*/)![0]).not.toContain("unsafe-inline");
+  expect(csp).not.toContain(",");
+  expect(csp).toContain("frame-ancestors 'none'");
+});
 
 // #2094 — the proxy's Strict-cookie bounce sets its own headers on a Response it builds. A served response
 // proves they win over the global `/(.*)` block and that the global set still applies (security-auditor,

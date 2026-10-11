@@ -1,15 +1,22 @@
 import { describe, it, expect } from "vitest";
 import {
+  API_ROUTE,
   LOGIN_LINK_REFERRER_POLICY,
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
   OAUTH_CALLBACK_ROUTE,
   OAUTH_CALLBACK_ROUTE_HEADERS,
+  NONCE_REQUEST_HEADER,
   PERMISSIONS_POLICY,
   STRICT_TRANSPORT_SECURITY,
+  buildApiContentSecurityPolicy,
+  buildApiRouteHeaders,
   buildContentSecurityPolicy,
   buildSecurityHeaders,
+  generateNonce,
 } from "./security-headers";
+
+const NONCE = "dGVzdC1ub25jZS0xMjM0NQ==";
 
 // Freezes the browser-security header contract (issue #591 / epic #485). CSP is
 // invisible to jsdom at runtime, so this contract test + the rendered-verify
@@ -31,8 +38,23 @@ function parseCsp(csp: string): Record<string, string> {
   return map;
 }
 
+describe("generateNonce", () => {
+  it("is 128 random bits as base64, and differs on every call", () => {
+    const nonces = new Set(Array.from({ length: 50 }, () => generateNonce()));
+    expect(nonces.size).toBe(50);
+    for (const n of nonces) {
+      // 16 bytes -> 24 base64 chars, the last two being padding. A CSP `base64-value`.
+      expect(n).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+    }
+  });
+
+  it("names the request header the root layout reads", () => {
+    expect(NONCE_REQUEST_HEADER).toBe("x-nonce");
+  });
+});
+
 describe("buildContentSecurityPolicy — production", () => {
-  const csp = buildContentSecurityPolicy(false);
+  const csp = buildContentSecurityPolicy(false, NONCE);
   const d = parseCsp(csp);
 
   it("locks the same-origin baseline", () => {
@@ -48,10 +70,20 @@ describe("buildContentSecurityPolicy — production", () => {
     expect(csp).not.toContain("ws:");
   });
 
-  it("allows framework inline scripts/styles but NOT eval in prod", () => {
-    expect(d["script-src"]).toBe("'self' 'unsafe-inline'");
+  it("script-src is the nonce + strict-dynamic form — no 'unsafe-inline', no eval (ADR 0163)", () => {
+    expect(d["script-src"]).toBe(`'self' 'nonce-${NONCE}' 'strict-dynamic'`);
+    expect(d["script-src"]).not.toContain("'unsafe-inline'");
     expect(d["script-src"]).not.toContain("'unsafe-eval'");
+  });
+
+  it("keeps 'unsafe-inline' for styles only (next/font and Radix inject <style>)", () => {
     expect(d["style-src"]).toBe("'self' 'unsafe-inline'");
+  });
+
+  it("puts the request's nonce in the policy, so two requests never share a policy", () => {
+    expect(buildContentSecurityPolicy(false, "AAAA")).not.toBe(
+      buildContentSecurityPolicy(false, "BBBB")
+    );
   });
 
   it("allows the CV-preview iframe blob source (frame-src 'self' blob:)", () => {
@@ -75,11 +107,17 @@ describe("buildContentSecurityPolicy — production", () => {
 });
 
 describe("buildContentSecurityPolicy — development relaxations (additive only)", () => {
-  const dev = buildContentSecurityPolicy(true);
-  const prod = buildContentSecurityPolicy(false);
+  const dev = buildContentSecurityPolicy(true, NONCE);
+  const prod = buildContentSecurityPolicy(false, NONCE);
 
   it("adds 'unsafe-eval' for the React dev error overlay", () => {
-    expect(parseCsp(dev)["script-src"]).toContain("'unsafe-eval'");
+    expect(parseCsp(dev)["script-src"]).toBe(
+      `'self' 'nonce-${NONCE}' 'strict-dynamic' 'unsafe-eval'`
+    );
+  });
+
+  it("still carries no 'unsafe-inline' in script-src on the dev branch", () => {
+    expect(parseCsp(dev)["script-src"]).not.toContain("'unsafe-inline'");
   });
 
   it("adds ws: to connect-src for HMR", () => {
@@ -106,9 +144,9 @@ describe("buildSecurityHeaders", () => {
   const headers = buildSecurityHeaders(false);
   const byKey = Object.fromEntries(headers.map((h) => [h.key, h.value]));
 
-  it("serves exactly the six security headers in production", () => {
+  it("serves exactly the five static security headers in production — and NO CSP", () => {
+    // The page CSP is per-request (proxy.ts); a static one here would be enforced alongside it.
     expect(headers.map((h) => h.key)).toEqual([
-      "Content-Security-Policy",
       "X-Frame-Options",
       "X-Content-Type-Options",
       "Referrer-Policy",
@@ -124,19 +162,12 @@ describe("buildSecurityHeaders", () => {
     expect(byKey["Permissions-Policy"]).toBe(PERMISSIONS_POLICY);
   });
 
-  it("carries the production CSP verbatim", () => {
-    expect(byKey["Content-Security-Policy"]).toBe(
-      buildContentSecurityPolicy(false)
-    );
-  });
-
-  it("carries the development CSP verbatim on the dev branch", () => {
-    const devByKey = Object.fromEntries(
-      buildSecurityHeaders(true).map((h) => [h.key, h.value])
-    );
-    expect(devByKey["Content-Security-Policy"]).toBe(
-      buildContentSecurityPolicy(true)
-    );
+  it("carries no Content-Security-Policy on either branch", () => {
+    for (const isDev of [false, true]) {
+      expect(buildSecurityHeaders(isDev).map((h) => h.key)).not.toContain(
+        "Content-Security-Policy"
+      );
+    }
   });
 
   it("emits HSTS in production, host-only, with the max-age ADR 0050 prescribes", () => {
@@ -153,6 +184,32 @@ describe("buildSecurityHeaders", () => {
     expect(buildSecurityHeaders(true).map((h) => h.key)).not.toContain(
       "Strict-Transport-Security"
     );
+  });
+});
+
+describe("the /api/* policy (the proxy does not run there)", () => {
+  it("is static: self-only scripts, no nonce, no inline script", () => {
+    const d = parseCsp(buildApiContentSecurityPolicy(false));
+    expect(d["script-src"]).toBe("'self'");
+    expect(d["frame-ancestors"]).toBe("'none'");
+    expect(d["object-src"]).toBe("'none'");
+    expect(d["style-src"]).toBe("'self' 'unsafe-inline'"); // the OAuth callback document's <style>
+    expect(buildApiContentSecurityPolicy(false)).toContain("upgrade-insecure-requests");
+  });
+
+  it("differs from the page policy in script-src ONLY", () => {
+    const api = parseCsp(buildApiContentSecurityPolicy(false));
+    const page = parseCsp(buildContentSecurityPolicy(false, NONCE));
+    expect(Object.keys(api)).toEqual(Object.keys(page));
+    for (const key of Object.keys(page)) {
+      if (key === "script-src") continue;
+      expect(api[key]).toBe(page[key]);
+    }
+  });
+
+  it("is wired as one route entry carrying exactly one CSP header", () => {
+    expect(API_ROUTE).toBe("/api/:path*");
+    expect(buildApiRouteHeaders(false).map((h) => h.key)).toEqual(["Content-Security-Policy"]);
   });
 });
 

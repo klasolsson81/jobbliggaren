@@ -115,6 +115,8 @@ cat >"$scratch/upstream.Caddyfile" <<'STUB'
 :3000 {
   header X-Edge-Stub upstream
   header Strict-Transport-Security "max-age=31536000"
+  header Cross-Origin-Opener-Policy "same-origin"
+  header Cross-Origin-Resource-Policy "same-origin"
   redir /oversikt /logga-in 307
   respond upstream 200
 }
@@ -167,6 +169,19 @@ one_hsts() {
   echo "HSTS fields=$count, expected exactly 1 with host-only value" >&2
   return 1
 }
+# One COOP and one CORP, both same-origin, and no Via. The upstream stub also sends COOP and CORP, so
+# a response that kept both copies would show two fields here (ADR 0163).
+isolated() {
+  local coop corp via
+  coop=$(grep -ci '^cross-origin-opener-policy:' <<<"$1" || true)
+  corp=$(grep -ci '^cross-origin-resource-policy:' <<<"$1" || true)
+  via=$(grep -ci '^via:' <<<"$1" || true)
+  [ "$coop" = 1 ] && [ "$corp" = 1 ] && [ "$via" = 0 ] \
+    && grep -qx 'cross-origin-opener-policy: same-origin' <<<"$1" \
+    && grep -qx 'cross-origin-resource-policy: same-origin' <<<"$1" && return 0
+  echo "COOP fields=$coop CORP fields=$corp Via fields=$via, expected 1, 1 and 0 with same-origin" >&2
+  return 1
+}
 status_of() { head -1 <<<"$1" | awk '{print $2}'; }
 
 check_running() {
@@ -182,16 +197,16 @@ for value in UNSET basic_auth open Open OPEN ' open' 'open ' opne 'o*' '?pen' '*
   port=$PORT
   h=$(get "$port" "$SITE" /)
   if [ "$value" = open ]; then
-    [ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && one_hsts "$h" \
-      && pass "[$value] 200 from upstream, no credentials, HSTS" || fail "[$value] expected 200 from upstream: $(status_of "$h")"
+    [ "$(status_of "$h")" = 200 ] && grep -qx "$MARKER" <<<"$h" && one_hsts "$h" && isolated "$h" \
+      && pass "[$value] 200 from upstream, no credentials, HSTS, isolation, no Via" || fail "[$value] expected 200 from upstream: $(status_of "$h")"
   else
-    [ "$(status_of "$h")" = 401 ] && grep -qi '^www-authenticate: basic' <<<"$h" && one_hsts "$h" \
+    [ "$(status_of "$h")" = 401 ] && grep -qi '^www-authenticate: basic' <<<"$h" && one_hsts "$h" && isolated "$h" \
       && ! grep -qx "$MARKER" <<<"$h" \
       && pass "[$value] 401 Basic with HSTS, upstream not reached" || fail "[$value] expected the gate: $(status_of "$h")"
   fi
   h=$(get "$port" "$SITE" /.well-known/acme-challenge/x)
-  [ "$(status_of "$h")" = 404 ] && one_hsts "$h" && ! grep -qx "$MARKER" <<<"$h" \
-    && pass "[$value] ACME prefix answered at the edge: 404 with HSTS" || fail "[$value] ACME prefix: $(status_of "$h")"
+  [ "$(status_of "$h")" = 404 ] && one_hsts "$h" && isolated "$h" && ! grep -qx "$MARKER" <<<"$h" \
+    && pass "[$value] ACME prefix answered at the edge: 404 with HSTS and isolation" || fail "[$value] ACME prefix: $(status_of "$h")"
   check_running "$name"
   docker rm -f "$name" >/dev/null
 done
@@ -206,7 +221,7 @@ name="$id-hsts"; run_edge "$name" apex -e SITE_ADMISSION=open; port=$PORT
 for path in / /api/health /oversikt; do
   expected=200; [ "$path" != /oversikt ] || expected=307
   h=$(get "$port" "$SITE" "$path")
-  [ "$(status_of "$h")" = "$expected" ] && one_hsts "$h" && pass "open $path: $expected, exactly one HSTS" || fail "open $path: status=$(status_of "$h")"
+  [ "$(status_of "$h")" = "$expected" ] && one_hsts "$h" && isolated "$h" && pass "open $path: $expected, exactly one HSTS, isolation, no Via" || fail "open $path: status=$(status_of "$h")"
 done
 h=$(curl -s -D - -o "$scratch/body" --max-time 5 --connect-to "$SITE:80:127.0.0.1:$PORT_HTTP" "http://$SITE/p?q=1" | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/')
 count=$(grep -ci '^strict-transport-security:' <<<"$h" || true)
@@ -246,9 +261,9 @@ sleep 9
 h=$(get "$port_gated" "$SITE" /)
 [ "$(status_of "$h")" = 401 ] && one_hsts "$h" && pass "gated edge, web down, anonymous: 401 with HSTS" || fail "gated, web down: $(status_of "$h")"
 h=$(get "$port_gated" "$SITE" / -u "$USER_NAME:$PASSWORD")
-[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "gated edge, web down, past the gate: 503 with HSTS" || fail "gated past the gate, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && isolated "$h" && pass "gated edge, web down, past the gate: 503 with HSTS and isolation" || fail "gated past the gate, web down: $(status_of "$h")"
 h=$(get "$port_open" "$SITE" /)
-[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "open edge, web down: 503 with HSTS" || fail "open, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && isolated "$h" && pass "open edge, web down: 503 with HSTS and isolation" || fail "open, web down: $(status_of "$h")"
 
 # Gate N-1 on the same open edge: a 5xx writes `http.log.error` with the request, and every key the
 # global filter deletes must be gone from it, with the header map. `keep` is the control that proves

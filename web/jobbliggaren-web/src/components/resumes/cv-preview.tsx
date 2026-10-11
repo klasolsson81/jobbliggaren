@@ -276,7 +276,9 @@ export function CvPreview({
             return;
           }
 
-          const blob = await res.blob();
+          // Typen sätts HÄR och tas aldrig ur svaret: `res.blob()` ärver rubrikens värde, och en
+          // `blob:`-URL får ingen `nosniff`. `contentType` är redan en nyckel i allowlisten ovan.
+          const blob = new Blob([await res.arrayBuffer()], { type: contentType });
           createdUrl = URL.createObjectURL(blob);
           setOriginal({ url: createdUrl, kind });
           setStatus("ready");

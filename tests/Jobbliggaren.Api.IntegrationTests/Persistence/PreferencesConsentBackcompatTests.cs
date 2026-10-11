@@ -122,6 +122,47 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
     }
 
+    // ADR 0164 (#2107) — the actor is every row written before migration AddNotificationMailPauses: its
+    // writer's Preferences had no pause keys, so a consenting row carries none. All three stamps must read
+    // as null, which is "on", and the consents beside them must survive.
+    [Fact]
+    public async Task LegacyRow_WrittenBeforeAddNotificationMailPauses_ReadsEveryMailSwitchOn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(ct);
+
+        var beforePausesJson = """
+            {"Language":"sv","BackgroundMatchNotificationsEnabled":true,"DigestCadence":1,"NotificationConsentAt":"2026-09-01T08:00:00+00:00","NotificationConsentWithdrawnAt":null,"FollowedCompanyNotificationsEnabled":true,"FollowedCompanyNotificationConsentAt":"2026-09-02T08:00:00+00:00","FollowedCompanyNotificationConsentWithdrawnAt":null}
+            """;
+        await SetRawPreferencesAsync(seeker.Id.Value, beforePausesJson, ct);
+
+        var prefs = await ReloadPreferencesAsync(seeker.Id, ct);
+
+        prefs.NotificationMailOffAt.ShouldBeNull();
+        prefs.TopMatchMailOffAt.ShouldBeNull();
+        prefs.MatchSummaryMailOffAt.ShouldBeNull();
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        prefs.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
+        prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
+    }
+
+    // architect Nice-to-have 2 (#2107): a missing key reads as its type's CLR default, never as the
+    // record's parameter default. The actor is a row written before ADR 0080 added DigestCadence, the
+    // shape of LegacyRow_WithoutConsentKeys_DeserializesToConsentOff above.
+    [Fact]
+    public async Task LegacyRow_WithoutDigestCadenceKey_ReadsDaily_TheClrDefault_NotTheRecordDefaultWeekly()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(ct);
+        new Preferences().DigestCadence.ShouldBe(DigestCadence.Weekly);
+        default(DigestCadence).ShouldBe(DigestCadence.Daily);
+
+        await SetRawPreferencesAsync(
+            seeker.Id.Value, """{"Language":"sv","EmailNotifications":true,"WeeklySummary":false}""", ct);
+
+        (await ReloadPreferencesAsync(seeker.Id, ct)).DigestCadence.ShouldBe(DigestCadence.Daily);
+    }
+
     [Fact]
     public async Task EnabledConsent_RoundTripsThroughPreferencesJsonb()
     {

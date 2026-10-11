@@ -2079,9 +2079,15 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                             b1.Property<string>("Language")
                                 .IsRequired();
 
+                            b1.Property<DateTimeOffset?>("MatchSummaryMailOffAt");
+
                             b1.Property<DateTimeOffset?>("NotificationConsentAt");
 
                             b1.Property<DateTimeOffset?>("NotificationConsentWithdrawnAt");
+
+                            b1.Property<DateTimeOffset?>("NotificationMailOffAt");
+
+                            b1.Property<DateTimeOffset?>("TopMatchMailOffAt");
 
                             b1.HasKey("JobSeekerId");
 

@@ -1933,7 +1933,7 @@ inom 30 s består oavsett plattform.
 | `sync-platsbanken-snapshot` | 02:00 daglig | Full snapshot-backfill mot stream-drift |
 | `audit-log-retention` | 03:00 daglig | Atomisk partition-DDL, rullar 90-dagars audit-retention (ADR 0024) |
 | `retain-platsbanken-job-ads` | 03:15 daglig | Snapshot-miss-retention (ADR 0032-amend) |
-| `background-matching` | 03:20 daglig | Per-user matchnings-scan: JobAds → `UserJobAdMatch` (ADR 0080 Våg 4) |
+| `background-matching` | `2-59/5 * * * *` | Per-user matchnings-scan: JobAds → `UserJobAdMatch`, sedan Toppmatch-mejl i samma körning, inom 15 min från annonsens ankomst (ADR 0080 Våg 4, ADR 0161) |
 | `expire-job-ads` | 03:45 daglig | `ExpiresAt`-cron, defense-in-depth (ADR 0032-amend) |
 | `hard-delete-accounts` | 04:00 daglig | Due-account cleanup strictly after the 30-day product grace period; independent orphan sweep (ADR 0024) |
 | `purge-stale-raw-payloads` | 04:30 daglig | Rensa mognad `raw_payload`-jsonb (TD-73 p2) |

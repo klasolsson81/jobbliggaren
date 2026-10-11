@@ -222,9 +222,9 @@ public class PersonnummerScannerTests
     public void ScanWithGaps_ThreeVisibleColumnGap_NotBridged_NotFlagged()
     {
         // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged on
-        // the redaction path. Re-affirmed on measured ground in ADR 0134 (#1415) — every
-        // Redact call site is a CV/resume surface, so the wider SingleLineUserInput flag
-        // profile has nothing to be a superset of here.
+        // the redaction path. Re-affirmed on measured ground in ADR 0134 (#1415) — no
+        // Redact call site redacts single-line user input, so the wider SingleLineUserInput
+        // flag profile has nothing to be a superset of here.
         const string text = "Pnr 811218   9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();

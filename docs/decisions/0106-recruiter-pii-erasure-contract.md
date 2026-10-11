@@ -1311,3 +1311,25 @@ fields. The D9 table (Amendment 2026-07-14, with its rows corrected since) gains
   the runbook.
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-10-11 — D5: the detection surface gains personnummer (#2098)
+
+**D5 listed email and Swedish phone, and a personnummer is neither.** `RecruiterContactRedactor`'s phone pattern is
+anchored on a leading `0` or `+46`, so `800101-1234` / `19800101-1234` is not matched and was stored verbatim. A sole
+trader's org.nr written into an ad's text is the holder's personnummer, and the text reaches every surface that shows it
+(the signed-in detail, the modal and search snippets, and the public page ADR 0160 serves).
+
+- **What changes.** `JobAd.ApplyContactRedaction` (D4's one placement) runs `PersonnummerRedactor` over `Title` and
+  `Description` before the contact scrub: a personnummer born 2000-2009 starts with `0` and is phone-shaped, so run after it
+  would have been promoted into `contacts` instead of removed. It is the existing Luhn- and date-gated detector, so only a number that is a valid
+  date with a passing check digit is touched (a contiguous phone number that satisfies both is masked, not promoted); a match is replaced by its length-preserving mask (every digit `*`, separators kept), which
+  leaves the title clamp unaffected. It is not a contact: nothing is promoted into `contacts`.
+- **Same durability as Tier A.** `Import` and `UpdateFromSource` both reach it, so the nightly sync and the stream cannot
+  restore it. `extracted_terms` and the stored `search_vector` derive from the masked text.
+- **Same backfill.** `ApplyContactScrubBackfill` counts a personnummer as a detection, so the existing
+  `BackfillRecruiterContactScrubJob` strips it from ads imported earlier (its probe is the only change; no new job).
+- **Not changed.** `RawPayload` is still scrubbed for contacts only; it is not a read surface and
+  `PurgeStaleRawPayloadsJob` bounds its retention. The manual path is still never scrubbed (CLAUDE.md §5).
+- **ADR 0134 D7.** Its pin (`PersonnummerGapProfileCallSiteTests`) names `JobAd.cs` as the one `Redact` site outside
+  `Resumes/`.
+- **Not a read-time redaction on one surface.** D4 rejected a second normaliser on a read path, and this follows it.

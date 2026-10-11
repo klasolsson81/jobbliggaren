@@ -3,16 +3,17 @@ using Shouldly;
 namespace Jobbliggaren.Migrate.UnitTests;
 
 /// <summary>
-/// Pins that the deploy stack's registration gate defaults to CLOSED.
+/// Pins that the deploy stack's registration gate defaults to OPEN (Klas-direktiv 2026-10-11).
 ///
 /// <para>
 /// <c>AuthOptions</c>' own default is <c>false</c>, and
 /// <c>AuthOptionsValidatorTests</c> pins every combination the validator accepts and refuses.
 /// Neither of them sees the value the box actually feeds it: an interpolation default in
-/// <c>deploy/docker-compose.yml</c>. Flip <c>${AUTH_REGISTRATIONS_OPEN:-false}</c> to
-/// <c>:-true</c> and nothing goes red — the box boots LEGALLY, because an open gate with a
-/// delivering sender satisfies the validator, and registration is then open on a public IP
-/// with no operator having flipped anything.
+/// <c>deploy/docker-compose.yml</c>. Flip <c>${AUTH_REGISTRATIONS_OPEN:-true}</c> to
+/// <c>:-false</c> and nothing goes red — the box boots LEGALLY and closes registration with no
+/// operator having decided it, and the other way round nothing would notice the gate opening.
+/// So the posture is pinned, and it changes only by a visible edit of both this test and the
+/// compose file.
 /// </para>
 ///
 /// <para>
@@ -40,18 +41,17 @@ public class DeployComposeRegistrationGateTests
             "restructured, this pin must be rewritten rather than deleted.");
 
     [Fact]
-    public void RegistrationGate_DefaultsToFalse_WhenTheBoxSetsNothing()
+    public void RegistrationGate_DefaultsToTrue_WhenTheBoxSetsNothing()
     {
         // The whole line, so the assertion fails on a changed variable name as well as on a
         // changed default — a rename that leaves the .env template behind is the same defect
-        // as an open default, just slower to find.
+        // as a silently changed posture, just slower to find.
         LineContaining("Auth__RegistrationsOpen:").Trim().ShouldBe(
-            "Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}",
+            "Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-true}",
             customMessage:
-            "The gate must default CLOSED. An open default boots legally once the mail " +
-            "provider delivers, so nothing refuses it and no log line reads as wrong: the " +
-            "announcement says OPEN because it IS open. AuthOptions' code default and " +
-            "AuthOptionsValidator both sit downstream of this value and cannot see it.");
+            "The gate defaults OPEN (Klas-direktiv 2026-10-11); `AUTH_REGISTRATIONS_OPEN=false` " +
+            "closes it. AuthOptions' code default and AuthOptionsValidator both sit downstream " +
+            "of this value and cannot see it, so a change of posture is made here and pinned here.");
     }
 
     [Fact]

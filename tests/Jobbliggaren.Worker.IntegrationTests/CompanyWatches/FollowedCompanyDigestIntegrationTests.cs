@@ -1,3 +1,7 @@
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -10,6 +14,9 @@ using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
@@ -321,7 +328,145 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         }
     }
 
+    // --------------------------- An ended follow is a drain reason
+    // These run the job with a substitute sender: ConsoleEmailSender records no send, and a drained
+    // hit is Sent whether or not it was emailed. The unfollowed state comes from
+    // CompanyWatch.SoftDelete, the method UnfollowCompanyCommandHandler calls, after the hits exist.
+
+    [Fact]
+    public async Task RunAsync_AllWatchesUnfollowed_SendsNothing_AndDrainsEveryHit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await SeedConsentingWeeklyFollowUserAsync(ct);
+        var (adA, watchA) = await SeedAdAndWatchAsync(userId, ct);
+        var (adB, watchB) = await SeedAdAndWatchAsync(userId, ct);
+        await SeedPendingFollowHitAsync(userId, adA, watchA, ct);
+        await SeedPendingFollowHitAsync(userId, adB, watchB, ct);
+        await UnfollowAsync(watchA, ct);
+        await UnfollowAsync(watchB, ct);
+
+        var emailSender = Substitute.For<IEmailSender>();
+        await RunJobAsync(emailSender, ct);
+
+        await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
+            await EmailOfAsync(userId, ct), Arg.Any<FollowedCompanyNotificationEmail>(),
+            Arg.Any<CancellationToken>());
+        (await GetHitAsync(userId, adA, watchA, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "an ended follow's hit is drained, never left waiting");
+        (await GetHitAsync(userId, adB, watchB, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_AdViaUnfollowedWatchAndGradedOutActiveWatch_IsNotEmailed()
+    {
+        // Two org.nrs stand in for a direct and a brand-group follow of one employer; the dispatch pass
+        // keys on watch.Id. CompanyWatchScanJobIntegrationTests'
+        // RunAsync_MemberFollowedBothDirectlyAndViaGroup_CreatesTwoHits_MultimapOracle pins that the
+        // scan writes one hit per watch for such an ad.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await SeedConsentingWeeklyFollowUserAsync(ct);
+        var (adId, endedWatch) = await SeedAdAndWatchAsync(userId, ct);
+        var gradeWatch = await SeedOnlyMatchedWatchAsync(userId, ct);
+        await SeedPendingFollowHitAsync(userId, adId, endedWatch, ct);
+        await SeedPendingFollowHitAsync(userId, adId, gradeWatch, ct);
+        await UnfollowAsync(endedWatch, ct);
+
+        var emailSender = Substitute.For<IEmailSender>();
+        await RunJobAsync(emailSender, ct, belowGoodFor: userId);
+
+        await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
+            await EmailOfAsync(userId, ct), Arg.Any<FollowedCompanyNotificationEmail>(),
+            Arg.Any<CancellationToken>());
+        (await GetHitAsync(userId, adId, endedWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "drain: the follow has ended");
+        (await GetHitAsync(userId, adId, gradeWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending, "stayPending: the grade may change (8C)");
+    }
+
+    // belowGoodFor: that user gets an assessable profile under which every ad grades below Good, which
+    // is what the real adapter answers for an ad outside the user's occupation. Every other user due in
+    // the shared database reaches the real adapters.
+    private async Task RunJobAsync(IEmailSender emailSender, CancellationToken ct, Guid? belowGoodFor = null)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var profileBuilder = sp.GetRequiredService<IMatchProfileBuilder>();
+        var perUserSearch = sp.GetRequiredService<IPerUserJobAdSearchQuery>();
+
+#pragma warning disable CA2012
+        if (belowGoodFor is { } userId)
+        {
+            var (realBuilder, realSearch) = (profileBuilder, perUserSearch);
+            var assessable = new FullCandidateMatchProfile(
+                new CandidateMatchProfile("", ["ssyk-2512"], [], [], []), []);
+
+            profileBuilder = Substitute.For<IMatchProfileBuilder>();
+            profileBuilder.BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+                .Returns(ci => realBuilder.BuildFullForUserIdAsync(
+                    ci.ArgAt<Guid>(0), ci.ArgAt<CancellationToken>(1)));
+            profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+                .Returns(assessable);
+
+            perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
+            perUserSearch.FilterToMatchingAsync(
+                    Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(ci => realSearch.FilterToMatchingAsync(
+                    ci.ArgAt<FullCandidateMatchProfile>(0), ci.ArgAt<IReadOnlyCollection<JobAdId>>(1),
+                    ci.ArgAt<CancellationToken>(2)));
+            perUserSearch.FilterToMatchingAsync(
+                    assessable, Arg.Any<IReadOnlyCollection<JobAdId>>(), Arg.Any<CancellationToken>())
+                .Returns(new HashSet<JobAdId>());
+        }
+#pragma warning restore CA2012
+
+        var job = new DigestDispatchJob(
+            sp.GetRequiredService<IAppDbContext>(),
+            emailSender,
+            sp.GetRequiredService<IUserAccountService>(),
+            profileBuilder,
+            perUserSearch,
+            new FixedClock(Now),
+            sp.GetRequiredService<IOptions<DigestDispatchOptions>>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger<DigestDispatchJob>());
+
+        await job.RunAsync(DigestCadence.Weekly, ct);
+    }
+
+    private async Task<string> EmailOfAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var email = await scope.ServiceProvider.GetRequiredService<IUserAccountService>()
+            .GetEmailAsync(userId, ct);
+        email.ShouldNotBeNullOrWhiteSpace();
+        return email;
+    }
+
+    private async Task UnfollowAsync(CompanyWatchId watchId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var watch = await db.CompanyWatches.SingleAsync(w => w.Id == watchId, ct);
+        watch.SoftDelete(new FixedClock(Now));
+        await db.SaveChangesAsync(ct);
+    }
+
     // ─────────────────────────── Seeding
+
+    private async Task<CompanyWatchId> SeedOnlyMatchedWatchAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var orgNr = "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString(
+            "D8", System.Globalization.CultureInfo.InvariantCulture);
+        var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, new FixedClock(Now)).Value;
+        watch.SetFilter(WatchFilterSpec.Create(municipalities: null, regions: null, onlyMatched: true).Value)
+            .IsSuccess.ShouldBeTrue();
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
 
     private Task<Guid> SeedConsentingWeeklyFollowUserAsync(CancellationToken ct)
         => SeedFollowUserAsync(followConsent: true, DigestCadence.Weekly, ct);

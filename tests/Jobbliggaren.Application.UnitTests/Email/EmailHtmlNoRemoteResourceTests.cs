@@ -76,13 +76,14 @@ public class EmailHtmlNoRemoteResourceTests
 
     /// <summary>
     /// Every template rendered the way its production callers render it. The shapes are
-    /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s and <c>ChangeEmailCommandHandler</c>'s. Grade labels come from
+    /// <c>TopMatchMailDispatcher</c>'s, <c>DigestDispatchJob</c>'s and <c>ChangeEmailCommandHandler</c>'s. Grade labels come from
     /// <c>NotifiableMatchGradeLabels</c> verbatim — "Stark match", never "Stark matchning", which no
     /// production path emits.
     /// <para>
-    /// Two templates contribute a second case because they have a second rendering path: the digest
-    /// branch of <c>MatchNotification</c> (different subject, intro and the "och N till" tail) and the
-    /// filtered branch of <c>FollowedCompanyNotification</c> (the disclosure block).
+    /// Two templates contribute more than one case because they have more than one rendering path: the
+    /// bundled-direct and digest branches of <c>MatchNotification</c> (different subject, intro and list,
+    /// and for the digest the "och N till" tail) and the filtered branch of
+    /// <c>FollowedCompanyNotification</c> (the disclosure block).
     /// </para>
     /// </summary>
     private static List<(string Name, EmailTemplates.EmailContent Content)> RenderAll() =>
@@ -95,6 +96,19 @@ public class EmailHtmlNoRemoteResourceTests
                     Cadence: null,
                     Items: [new MatchNotificationItem(Guid.NewGuid(), "Backend-utvecklare", "Acme AB", "Toppmatch")],
                     TotalCount: 1))),
+
+        ("MatchNotification/direct-bundled",
+            EmailTemplates.MatchNotification(
+                BaseUrl,
+                new MatchNotificationEmail(
+                    MatchNotificationKind.Direct,
+                    Cadence: null,
+                    Items:
+                    [
+                        new MatchNotificationItem(Guid.NewGuid(), "Backend-utvecklare", "Acme AB", "Toppmatch"),
+                        new MatchNotificationItem(Guid.NewGuid(), "Frontend-utvecklare", "Beta AB", "Toppmatch"),
+                    ],
+                    TotalCount: 2))),
 
         ("MatchNotification/digest",
             EmailTemplates.MatchNotification(

@@ -26,7 +26,7 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     // på standardvägen inte tror att hen kvalificerar och väntar förgäves.
     // ADR 0080: konstatera villkoret, värva inte (ingen nudge/banner). #1891:
     // varje villkor länkar dit där det uppfylls.
-    const emptyBody = screen.getByText(/Matchningen körs varje natt/);
+    const emptyBody = screen.getByText(/Matchningen körs löpande när du har slagit på den/);
     expect(emptyBody).toHaveTextContent(/när du har slagit på den under Notiser/);
     expect(emptyBody).toHaveTextContent(/angett yrken under Matchning/);
     expect(within(emptyBody).getByRole("link", { name: "Notiser" })).toHaveAttribute(

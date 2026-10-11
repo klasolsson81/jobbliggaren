@@ -48,8 +48,9 @@ that cap allows, so the suite seeds and logs in through two **dev-only** seams:
   (`DependencyInjection.AddDevOnlyTestingSupport`). In any deployed environment the routes
   404 and the commands' dependencies cannot resolve (fail-closed).
 - Guardrail: `ProductionStartupSmokeTests` asserts the `/api/v1/dev/*` group 404s in
-  Production — a **hard merge gate** (CLAUDE.md §12). **REMOVE BEFORE LAUNCH** alongside
-  `reset-my-data`.
+  Production — a **hard merge gate** (CLAUDE.md §12). **REMOVE BEFORE LAUNCH.** The
+  `reset-my-data` tool that used to share the group was removed 2026-10-11, so the group
+  is now these two seams only.
 
 Helper wiring (`tests/e2e/helpers/auth.ts`): specs seed with `seedTestUser` / `seedAccount`
 and log in through the UI with `loginAs` (address, then the code from the seam), once per

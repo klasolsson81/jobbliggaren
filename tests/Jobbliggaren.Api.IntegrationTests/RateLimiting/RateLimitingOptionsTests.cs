@@ -127,6 +127,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_NotificationFeedRead_Is12Per60s_TokenBucket()
+    {
+        // #1666 (security-auditor, form round) — the bell's own bucket: burst 12, two tokens per
+        // 10 s. RateLimitingOptions.NotificationFeedRead carries the derivation.
+        var sut = new RateLimitingOptions();
+
+        sut.NotificationFeedRead.PermitLimit.ShouldBe(12);
+        sut.NotificationFeedRead.WindowSeconds.ShouldBe(60);
+        sut.NotificationFeedRead.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_ResumeImport_Is5Per60s()
     {
         var sut = new RateLimitingOptions();

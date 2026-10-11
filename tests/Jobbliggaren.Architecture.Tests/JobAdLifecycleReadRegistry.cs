@@ -72,8 +72,7 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 /// <c>...StatusGateTests</c> reads as "archived ads can never carry a grade" — a sign saying "no
 /// hole here" bolted over the holes it does not reach. This registry is the opposite: it does not
 /// assert any site is Active-only; it forces every site to STATE what it decided, and it is
-/// fail-closed because the Cecil scan enumerates the sites exhaustively (a new read cannot exist
-/// without a new <c>get_JobAds</c> instruction). It generalises the column-granular
+/// fail-closed because the Cecil scan enumerates the sites exhaustively. It generalises the column-granular
 /// <c>ErasureCascadeRegistry</c> precedent from persisted columns to read/write SITES.
 /// <para>
 /// <b>"From the EF model" was infeasible and is reinterpreted (ADR 0113).</b> The precedent sweeps
@@ -98,8 +97,13 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 /// <item><b>Read/write is indistinguishable, and a 1-for-1 swap is not detected.</b> The count-pin
 /// catches a NET-NEW read; it does not catch swapping one site for another within a method (count
 /// unchanged), nor does it prove a site's declared decision matches its actual predicate.</item>
-/// <item><b>The control pins SITES, not the TRUTH of each reason.</b> The machine guarantees "no
-/// unclassified read exists"; the written reason is prose a reviewer reads.</item>
+/// <item><b>The control pins SITES, not the TRUTH of each reason.</b> The written reason is prose a
+/// reviewer reads.</item>
+/// <item><b>A read reached only inside an expression tree.</b> <c>db.JobAds</c> inside an expression lambda
+/// (a correlated <c>.Any()</c>, a <c>from j in db.JobAds</c> in a <c>SelectMany</c>) compiles to <c>ldtoken</c> and
+/// <c>Expression.Property</c>, not a <c>get_JobAds</c> call, so the scan does not see it. Measured 2026-10-11 (#1666):
+/// a throwaway <c>Expression&lt;Func&lt;IAppDbContext, bool&gt;&gt;</c> reading <c>db.JobAds.Any(...)</c> in Application
+/// left the registry test green. Write a <c>JobAds</c> read at statement level.</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -150,6 +154,16 @@ public static class JobAdLifecycleReadRegistry
                     + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
+            ["Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource.ReadBoundedAsync"] =
+                One(Active("join JobAds for the ad columns of the notification bell's followed-company rows "
+                    + "(#1666). NO Status predicate at this site: the gate is INHERITED from "
+                    + "NewFollowedCompanyAdSet.NewHits, which the window composes onto — the same posture as "
+                    + "ListNewFollowedCompanyAdsQueryHandler.Handle, so the bell cannot show an ad the count "
+                    + "beside it did not count.")),
+            ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
+                One(Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
+                    + "Status predicate at this site: the gate is INHERITED from NewMatchSet.Matches, which "
+                    + "the list composes onto, so a row and the count beside it share one lifecycle decision.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
                 One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
                     + "(/foretag/branschbevakningar/[id]/annonser, #1559). NO Status predicate at this "
@@ -179,8 +193,11 @@ public static class JobAdLifecycleReadRegistry
                     + "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active, so an "
                     + "employer with only archived ads would be a chip with no target and an ad count the chip then "
                     + "contradicts.")),
-            ["Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount.GetMyNewMatchCountQueryHandler.Handle"] =
-                One(Active("join JobAds where j.Status == Active — the Översikt new-match badge (#913 B3 witness).")),
+            ["Jobbliggaren.Application.Matching.Queries.NewMatchSet.Matches"] =
+                One(Active("join JobAds where j.Status == Active — the single definition of the user's new "
+                    + "matches, shared by the uncapped new-match count (#913 B3 witness) and the notification "
+                    + "bell's match source (#1666). The count handler no longer holds this read; it composes "
+                    + "this one.")),
             ["Jobbliggaren.Application.Matching.Queries.GetMyMatches.GetMyMatchesQueryHandler.Handle"] =
                 One(Active("join JobAds where j.Status == Active — the /matchningar list (#864 PR-A gate).")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserDigestAsync"] =

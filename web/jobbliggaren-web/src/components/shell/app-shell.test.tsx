@@ -19,6 +19,13 @@ vi.mock("@/components/shell/header-stats", () => ({
   HeaderStats: () => <div data-testid="header-stats" />,
 }));
 
+// NotificationsBell polls its own feed on mount (#1666) — stubbed here as the trigger it renders, so
+// these tests prove where it is mounted without a fetch or a timer. Its behaviour is tested in
+// notifications-bell.test.tsx.
+vi.mock("@/components/shell/notifications-bell", () => ({
+  NotificationsBell: () => <button type="button" aria-label="Aviseringar" />,
+}));
+
 const STATS_FIXTURE: LandingStatsDto = {
   activeCount: 45_580,
   newToday: 312,

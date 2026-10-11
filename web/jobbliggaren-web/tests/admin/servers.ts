@@ -387,6 +387,15 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     if (route === "GET /api/v1/auth/oauth/providers") return json(200, []);
     // Every (app) page's layout reads it (#1979); closed, so the pages render without the feedback row.
     if (route === "GET /api/v1/me/feedback/prompt-state") return json(200, { open: false, answeredPages: [] });
+    // #1666 — the shell's bell polls its feed on every signed-in page, the admin pages included.
+    if (route === "GET /api/v1/me/notification-feed")
+      return json(200, {
+        items: [],
+        sources: [
+          { kind: "Match", unreadCount: 0, acknowledgedThrough: null },
+          { kind: "FollowedCompanyAd", unreadCount: 0, acknowledgedThrough: null },
+        ],
+      });
     // The start page an ordinary account is sent to reads the landing figures.
     if (route === "GET /api/v1/landing/stats")
       return json(200, { activeCount: 42000, newToday: 62, isStale: false, refreshedAt: "2026-10-03T19:00:00Z" });

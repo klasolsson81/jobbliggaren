@@ -123,6 +123,102 @@ internal static class NewFollowedCompanyAdSet
         select h;
 
     /// <summary>
+    /// What the count of new ADS needs from the database, read once so the caller can grade its
+    /// candidates together with any other ids it holds (the bell grades counted and displayed ids in
+    /// one call). Exactly one of three shapes:
+    /// <list type="bullet">
+    /// <item><see cref="Exact"/> — the common path (no OnlyMatched watch): a SQL
+    ///   <c>COUNT(DISTINCT job_ad_id)</c>, nothing loaded, nothing to grade;</item>
+    /// <item><see cref="GradeHits"/> — the grade path: the hits to collapse after grading;</item>
+    /// <item><see cref="Refused"/> — the grade path read more hits than the caller's bound, so no
+    ///   count may be formed (ADR 0120 clause 5: a count over truncated input is a floor, never a
+    ///   count).</item>
+    /// </list>
+    /// </summary>
+    internal sealed record CountInput(int? Exact, IReadOnlyList<Hit> GradeHits, bool Refused)
+    {
+        public static CountInput Common(int count) => new(count, [], Refused: false);
+
+        public static CountInput Graded(IReadOnlyList<Hit> hits) => new(null, hits, Refused: false);
+
+        public static CountInput TooMany { get; } = new(null, [], Refused: true);
+    }
+
+    /// <summary>
+    /// Reads the count input over <see cref="NewHits"/>. <paramref name="upperBound"/> limits the set
+    /// to hits stamped at or before an acknowledgement token, so a number and the token that
+    /// acknowledges it describe the same rows (#1666). <paramref name="maxGradeHits"/> bounds the
+    /// grade path's load; past it the input is <see cref="CountInput.TooMany"/>. The Översikt count
+    /// passes neither, and its SQL is the one it always ran.
+    /// </summary>
+    public static async Task<CountInput> LoadCountInputAsync(
+        IAppDbContext db,
+        Guid userId,
+        Scope scope,
+        DateTimeOffset? upperBound,
+        int? maxGradeHits,
+        CancellationToken cancellationToken)
+    {
+        var newHits = NewHits(db, userId, scope.LastSeen);
+        if (upperBound is { } bound)
+            newHits = newHits.Where(h => h.CreatedAt <= bound);
+
+        if (scope.GradeWatchIds.Count == 0)
+        {
+            // Common path (no OnlyMatched watch): DISTINCT on the ad id, because the user-facing
+            // unit is the AD (CollapseToAds carries the why), and with no OnlyMatched watch every
+            // hit is included, so distinct ad ids IS that collapse.
+            var count = await newHits
+                .Select(h => h.JobAdId)
+                .Distinct()
+                .CountAsync(cancellationToken);
+            return CountInput.Common(count);
+        }
+
+        if (maxGradeHits is not { } max)
+        {
+            var all = await newHits
+                .Select(h => new { h.JobAdId, h.CompanyWatchId, h.CreatedAt })
+                .ToListAsync(cancellationToken);
+            return CountInput.Graded(all.Select(h => new Hit(h.JobAdId, h.CompanyWatchId, h.CreatedAt)).ToList());
+        }
+
+        // One row past the bound tells "more than max" from "exactly max" without a second query.
+        // Which rows come back does not matter (past the bound nothing is counted), but an unordered
+        // Take is non-deterministic and EF warns on it, so order by the hit clock.
+        var probe = await newHits
+            .OrderBy(h => h.CreatedAt)
+            .Select(h => new { h.JobAdId, h.CompanyWatchId, h.CreatedAt })
+            .Take(max + 1)
+            .ToListAsync(cancellationToken);
+        if (probe.Count > max)
+            return CountInput.TooMany;
+
+        return CountInput.Graded(probe.Select(h => new Hit(h.JobAdId, h.CompanyWatchId, h.CreatedAt)).ToList());
+    }
+
+    /// <summary>The ads <see cref="Includes"/> needs graded: those reached through an OnlyMatched watch.</summary>
+    public static IReadOnlyList<JobAdId> GradeCandidates(
+        IEnumerable<Hit> hits, IReadOnlySet<CompanyWatchId> gradeWatchIds) =>
+        hits.Where(h => gradeWatchIds.Contains(h.CompanyWatchId))
+            .Select(h => h.JobAdId)
+            .Distinct()
+            .ToList();
+
+    /// <summary>
+    /// The count of new ADS from a <see cref="CountInput"/> and the grade answer; <c>null</c> when the
+    /// input was refused. On the grade path <paramref name="matching"/> must cover
+    /// <see cref="GradeCandidates"/> of the input's hits.
+    /// </summary>
+    public static int? CountAds(
+        CountInput input, IReadOnlySet<CompanyWatchId> gradeWatchIds, IReadOnlySet<JobAdId> matching)
+    {
+        if (input.Refused)
+            return null;
+        return input.Exact ?? CollapseToAds(input.GradeHits, gradeWatchIds, matching).Count;
+    }
+
+    /// <summary>
     /// Read-time at-least-Good membership via the shared SSOT. Api-side, so
     /// <c>BuildFullForSortAsync</c> (ICurrentUser-scoped), NOT the Worker's
     /// <c>BuildFullForUserIdAsync</c>. Branch on assessability BEFORE the call —

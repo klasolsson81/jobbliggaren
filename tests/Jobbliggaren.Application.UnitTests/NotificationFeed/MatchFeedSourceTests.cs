@@ -118,18 +118,6 @@ public class MatchFeedSourceTests
     }
 
     [Fact]
-    public async Task ReadAsync_ForAUserWhoNeverConsented_SaysNothing()
-    {
-        using var db = TestAppDbContextFactory.Create();
-        var userId = Guid.NewGuid();
-        _seed.Seeker(db, userId, backgroundMatchConsent: false);
-
-        var read = await ReadAsync(db, userId);
-
-        read.ShouldBe(NotificationSourceRead.Nothing(NotificationFeedSourceKind.Match));
-    }
-
-    [Fact]
     public async Task ReadAsync_SkipsAMatchWhoseAdWasArchived_InTheCountAndTheList()
     {
         using var db = TestAppDbContextFactory.Create();

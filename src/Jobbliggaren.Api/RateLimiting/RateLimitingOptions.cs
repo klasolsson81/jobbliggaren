@@ -259,8 +259,9 @@ public sealed class RateLimitingOptions
     /// (claim "sub"), anonymous → NoLimiter (RequireAuthorization answers 401 first). Its own bucket,
     /// not <see cref="MeListRead"/>: the bell fires on every page of the signed-in shell, in the
     /// background, and must neither starve /oversikt's fan-out nor be starved by it (bulkhead,
-    /// Nygard), and its per-request cost is two sources — about a dozen statements plus, with an
-    /// "endast matchade" watch, one grading round trip — outside MeListRead's class.
+    /// Nygard), and its per-request cost is two sources — the statement count without an "endast
+    /// matchade" watch is pinned by <c>NotificationFeedEndpointTests</c>, and such a watch adds the
+    /// profile build and one grading round trip — outside MeListRead's class.
     /// <para>
     /// The numbers (security-auditor, #1666 form round): a visible tab polls every 5 minutes and on
     /// open or visibility at most every 30 s, so one tab needs 0.2 calls a minute at rest and 2 at

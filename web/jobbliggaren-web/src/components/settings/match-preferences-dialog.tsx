@@ -340,6 +340,8 @@ function PartDialog({
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const saveRef = useRef<HTMLButtonElement | null>(null);
   const errorId = useId();
+  // Not useTransition: React ties every concurrent async transition together, so the lock would
+  // follow another part's write instead of this save.
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // Rendering a throw is how a save that rejects reaches the nearest error boundary (#1996).
@@ -368,8 +370,6 @@ function PartDialog({
         }
       },
       (error: unknown) => {
-        // Not useTransition: its pending state is tied to every other async transition on the
-        // card, so the lock would follow another part's write instead of this save.
         setSaving(false);
         throwToBoundary(() => {
           throw error;

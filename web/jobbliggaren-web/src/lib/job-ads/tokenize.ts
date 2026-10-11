@@ -621,9 +621,9 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     sameList(a.occupationGroup, b.occupationGroup) &&
     sameList(a.region, b.region) &&
     sameList(a.municipality, b.municipality) &&
-    // #2072 — Distans sätts i ort-popovern och är inte text-representabelt; utan den
-    // här raden klassas en extern Distans-ändring som no-op och nästa textcommit
-    // bygger på ett föråldrat `remote`.
+    // #2072 — Distans is set in the place popover and is not text-representable; without
+    // this line an external Distans change is classed as a no-op and the next text commit
+    // builds on a stale `remote`.
     a.remote === b.remote &&
     // Klass 2 (ADR 0067 B2) — panel-dimensionerna ingår i "samma filter-state".
     // Inte text-representabla i hero-fältet, men kanoniska komparatorn ska

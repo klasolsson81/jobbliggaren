@@ -338,7 +338,7 @@ describe("a refused save (#1918 Major 5)", () => {
     await waitFor(() => expect(save).toHaveFocus());
   });
 
-  it("hands a save that throws to the nearest error boundary instead of holding the dialog open (#1996)", async () => {
+  it("if onSave ever rejects (the card's send never does, so unreachable today), the dialog degrades to the nearest error boundary instead of staying locked (#1996)", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     const onSave = vi

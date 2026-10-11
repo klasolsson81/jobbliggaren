@@ -43,7 +43,7 @@ export type ConceptLabelResolver = (
 
 /** q → ord-lista (whitespace-separerad; tomma segment bort). */
 export function splitQWords(q: string): string[] {
-  return q.split(/\s+/).filter((w) => w.length > 0);
+  return q.split(/[\s,]+/).filter((w) => w.length > 0);
 }
 
 /**

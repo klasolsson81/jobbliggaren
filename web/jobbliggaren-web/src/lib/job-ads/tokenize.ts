@@ -116,7 +116,7 @@ export function getTokenRange(
   text: string,
   caretIndex: number,
 ): { start: number; end: number } | null {
-  const re = /[^ ,]+/g;
+  const re = /[^\s,]+/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const start = m.index;
@@ -141,7 +141,7 @@ export function parseSearchText(
 
   // Tokenisera med run-gränser.
   const tokens: Token[] = [];
-  const re = /[^ ,]+/g;
+  const re = /[^\s,]+/g;
   let m: RegExpExecArray | null;
   let prevEnd = 0;
   let pendingBoundary = false;
@@ -368,7 +368,7 @@ export function applyClaimsDelta(
   // klienten hade uppfunnit en strängare regel än den som faktiskt gäller. (En sammansatt
   // q under 2 tecken kan bara vara ETT enteckensord: två ord med mellanslag är redan ≥ 3.)
   //
-  // `appliedQ` nollas MED droppen: prevClaims får aldrig göra anspråk på något staten
+  // `appliedQ` tappar de droppade orden MED droppen: prevClaims får aldrig göra anspråk på något staten
   // saknar. Annars ser nästa delta ordet i prevQKeys, tar add-loopens "finns redan"-genväg,
   // och ordet återförs ALDRIG till q — tyst förlorat även när texten blivit lång nog
   // ("i" → "i java" hade gett q="java"). Vaktat av tokenize.test.ts.
@@ -417,6 +417,24 @@ export function applyClaimsDelta(
     // texten och får nytt add-försök vid nästa commit-punkt (efter att utrymme frigjorts
     // respektive efter att texten blivit lång nog).
     appliedClaims: { matches: next.matches, qWords: appliedQ },
+  };
+}
+
+/**
+ * #2143 — the claims of `claims` that `state` actually carries, for the delta bookkeeping after an
+ * external change. A q-word a guard refused (Q_MAX_LENGTH, Q_MAX_EXCLUDED_TERMS, the minimum) is still
+ * in the text but not in q; left out here, the next commit point retries it — so freeing room with a
+ * chip's × lets the refused word in, or brings its notice back. Matches are kept as parsed: no guard
+ * refuses one, and re-adding one would re-run the per-län normalisation the user never asked for.
+ */
+export function claimsCarriedBy(
+  claims: ParsedClaims,
+  state: JobbUrlState,
+): ParsedClaims {
+  const carried = new Set(splitQWords(state.q).map((w) => w.toLowerCase()));
+  return {
+    matches: claims.matches,
+    qWords: claims.qWords.filter((w) => carried.has(w.toLowerCase())),
   };
 }
 

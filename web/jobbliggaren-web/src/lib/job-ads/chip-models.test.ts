@@ -146,6 +146,18 @@ describe("removeChipFromState (E2h SPOT — fält-× = toolbar-×)", () => {
     ]);
   });
 
+  it("#2143: ett komma-limmat minus-ord i en URL-q blir en uteslutning, som servern läser det", () => {
+    const chips = buildChipModels(
+      { ...state, q: "systemutvecklare,-deltid" },
+      resolve,
+      { includeQ: true },
+    ).filter((c) => c.axis === "q");
+    expect(chips).toEqual([
+      { axis: "q", value: "systemutvecklare", label: "systemutvecklare" },
+      { axis: "q", value: "-deltid", label: "-deltid", excludedTerm: "deltid" },
+    ]);
+  });
+
   it("q-chip: tar bort ordet (case-insensitivt) och joinar om", () => {
     const next = removeChipFromState(state, {
       axis: "q",

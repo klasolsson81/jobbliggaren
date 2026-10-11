@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyClaimsDelta,
   buildLabelIndex,
+  claimsCarriedBy,
   EMPTY_CLAIMS,
   getTokenRange,
   isTextRepresentable,
@@ -144,6 +145,11 @@ describe("parseSearchText (E2i C′)", () => {
   it("#2143: bindestreck inne i ett ord utesluter inte", () => {
     const r = parseSearchText("e-handel Absolut-fjolljobb", index, null);
     expect(r.qWords).toEqual(["e-handel", "Absolut-fjolljobb"]);
+  });
+
+  it("#2143: all whitespace avgränsar, som på servern — inklistrat NBSP också", () => {
+    const r = parseSearchText("lärare\u00a0-deltid", index, null);
+    expect(r.qWords).toEqual(["lärare", "-deltid"]);
   });
 
   it("#2143: ett ensamt minus är en operator och skippas", () => {
@@ -417,6 +423,16 @@ describe("serializeSearchText + rundtripps-teoremet (C′ regel 4)", () => {
       for (const w of parsed.qWords)
         expect(qWords).toContain(w.toLowerCase());
     }
+  });
+});
+
+describe("claimsCarriedBy (#2143)", () => {
+  it("släpper q-ord som staten inte bär — ett vägrat ord prövas igen vid nästa commit-punkt", () => {
+    const claims = parseSearchText("göteborg -aa -ff", index, null);
+    const carried = claimsCarriedBy(claims, { ...empty, municipality: ["PVZL_BQT_XtL"], q: "-aa" });
+    expect(carried.qWords).toEqual(["-aa"]);
+    // Matchningar vägras aldrig av en vakt och behålls som de parsades.
+    expect(carried.matches.map((m) => m.conceptId)).toEqual(["PVZL_BQT_XtL"]);
   });
 });
 

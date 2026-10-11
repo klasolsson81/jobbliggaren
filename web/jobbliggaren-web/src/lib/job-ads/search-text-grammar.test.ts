@@ -23,6 +23,15 @@ describe("classifyWord", () => {
     ["‐deltid", "deltid"], // U+2010 hyphen
     ["−deltid", "deltid"], // U+2212 minus sign
     ["－deltid", "deltid"], // U+FF0D fullwidth hyphen-minus
+    // websearch_to_tsquery skips ! & | ( ) < while it waits for an operand and reads a "-" right
+    // after them as NOT; inside the server's EXISTS that inverts the set (ADR 0167 D1).
+    ["-(-deltid", "deltid"],
+    ["-!-deltid", "deltid"],
+    ["-&-deltid", "deltid"],
+    ["-|-deltid", "deltid"],
+    ["-<-deltid", "deltid"],
+    ["-)-deltid", "deltid"],
+    ['-"(-deltid"', "deltid"],
   ])("%s excludes %s", (token, term) => {
     expect(classifyWord(token)).toEqual({ kind: "excluded", term });
   });
@@ -36,7 +45,12 @@ describe("classifyWord", () => {
     expect(classifyWord(token)).toEqual({ kind: "positive", word });
   });
 
-  it.each(["-", "--", "+", "+-", '-""'])("%s is a bare operator", (token) => {
+  it("ignores control and format characters, as the server strips them before it splits", () => {
+    expect(classifyWord("\u200B-deltid")).toEqual({ kind: "excluded", term: "deltid" });
+    expect(classifyWord("lä\u200Brare")).toEqual({ kind: "positive", word: "lärare" });
+  });
+
+  it.each(["-", "--", "+", "+-", '-""', "-!!!", "-&*"])("%s is a bare operator", (token) => {
     expect(classifyWord(token)).toEqual({ kind: "operator" });
   });
 });
@@ -52,6 +66,10 @@ describe("positiveQ", () => {
   it("keeps only the positive words", () => {
     expect(positiveQ("lärare -deltid volvo -stockholm")).toBe("lärare volvo");
     expect(positiveQ("-deltid")).toBe("");
+  });
+
+  it("splits on commas as the server's parser does once a minus-word is present", () => {
+    expect(positiveQ("systemutvecklare,-deltid")).toBe("systemutvecklare");
   });
 });
 

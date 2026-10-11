@@ -945,6 +945,48 @@ describe("JobbHeroSearch — minus-ord (#2143)", () => {
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
   });
 
+  it("efter vägran: tas en uteslutning bort i filterraden, läggs det vägrade ordet in vid nästa sökning", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "-aa -bb -cc -dd -ee -ff ");
+    expect(noticeLine()).toMatch(/Du kan utesluta högst 5 ord/);
+
+    const at = (q: string) => (
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q={q}
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />
+    );
+    // The own commit lands, then the toolbar's × removes "-aa" (an external change).
+    rerender(at("-aa -bb -cc -dd -ee"));
+    rerender(at("-bb -cc -dd -ee"));
+    expect(input).toHaveValue("-bb -cc -dd -ee -ff");
+
+    await user.keyboard("{Enter}");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      "/jobb?q=-bb+-cc+-dd+-ee+-ff&commit=true",
+      { scroll: false },
+    );
+  });
+
+  it("ett uteslutet ord annonseras med sitt rena ord", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "-deltid ");
+    expect(screen.getByText("Uteslöt deltid")).toBeInTheDocument();
+  });
+
   it("ett uteslutet ord i URL:en speglas tillbaka i fältet", () => {
     setup({ q: "volvo -deltid" });
     expect(screen.getByRole("combobox")).toHaveValue("volvo -deltid");

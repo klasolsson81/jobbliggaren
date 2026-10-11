@@ -30,12 +30,14 @@ import { composeSuggestionChip } from "@/lib/job-ads/chip-composition";
 import { buildTaxonomyLabelResolver } from "@/lib/job-ads/chip-models";
 import {
   classifyWord,
+  excludedTermOf,
   Q_MAX_EXCLUDED_TERMS,
 } from "@/lib/job-ads/search-text-grammar";
 import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import {
   applyClaimsDelta,
   buildLabelIndex,
+  claimsCarriedBy,
   EMPTY_CLAIMS,
   enforceClaims,
   getTokenRange,
@@ -258,7 +260,9 @@ export function JobbHeroSearch({
         labelIndex,
       );
       setText(nextText);
-      setPrevClaims(parseSearchText(nextText, labelIndex, null));
+      setPrevClaims(
+        claimsCarriedBy(parseSearchText(nextText, labelIndex, null), base),
+      );
       setNotice(null);
       setCaret(null);
       setAnnouncement("");
@@ -320,6 +324,15 @@ export function JobbHeroSearch({
     return text ? [text] : [];
   }
 
+  // #2143 — an excluded word is announced by its bare term: a screen reader at its default
+  // punctuation level would read "-deltid" as "deltid", the same as adding the word.
+  function announceAdded(label: string): string {
+    const excludedTerm = excludedTermOf(label);
+    return excludedTerm === null
+      ? t("heroSearch.announceAdded", { label })
+      : t("heroSearch.announceExcluded", { label: excludedTerm });
+  }
+
   // Parse the text, diff it against the previous claims, and apply the difference.
   function runDelta(nextText: string, caretIndex: number | null) {
     const claims = parseSearchText(nextText, labelIndex, caretIndex);
@@ -328,9 +341,7 @@ export function JobbHeroSearch({
     const nextNotice = noticeFor(result);
     setNotice(nextNotice);
     const announce = [
-      ...result.addedLabels.map((l) =>
-        t("heroSearch.announceAdded", { label: l }),
-      ),
+      ...result.addedLabels.map(announceAdded),
       ...result.removedLabels.map((l) =>
         t("heroSearch.announceRemoved", { label: l }),
       ),
@@ -460,9 +471,7 @@ export function JobbHeroSearch({
     commit(
       result.next,
       [
-        ...result.addedLabels.map((l) =>
-          t("heroSearch.announceAdded", { label: l }),
-        ),
+        ...result.addedLabels.map(announceAdded),
         ...result.removedLabels.map((l) =>
           t("heroSearch.announceRemoved", { label: l }),
         ),

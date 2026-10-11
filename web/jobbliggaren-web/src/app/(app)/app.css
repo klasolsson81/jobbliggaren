@@ -2226,6 +2226,22 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   align-items: center;
   gap: 12px;
 }
+/* "Markera alla som lästa" i kortets rubrikrad: höger, på rubrikens rad. Kvittot är en
+   live-region och förblir monterad men visuellt dold — knappen försvinner själv när
+   inget avfärdbart återstår. */
+.jp-ov-card__head .jp-notice-bulk {
+  margin: 0 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+}
+.jp-ov-card__head .jp-notice-bulk__receipt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .jp-ov-card__icon {
   flex: 0 0 auto;
   width: 40px;

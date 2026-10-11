@@ -400,11 +400,11 @@ export function OversiktPage({
             span={siblingSpan}
           />
           <CriteriaCard criteria={criteria} reference={criterionReference} />
-          <RecentEventsCard notices={infoNotices} />
+          <RecentEventsCard
+            notices={infoNotices}
+            headAction={<MarkAllReadRow notices={infoNotices} />}
+          />
         </div>
-
-        {/* Last on the page, after the notices it acts on. */}
-        <MarkAllReadRow notices={allNotices} />
       </div>
     </>
   );

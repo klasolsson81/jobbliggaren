@@ -83,20 +83,17 @@ describe("GuestOversiktPage — komposition (#1572)", () => {
 });
 
 describe("GuestOversiktPage — den okvalificerade knappen (#1572)", () => {
-  it("hinten är kopplad till knappen och gör INGET dygnspåstående", () => {
+  it("hinten är knappens title och gör INGET dygnspåstående", () => {
     // Hela issuet: appens hint säger "till i morgon", vilket är sant där för att
     // notis-id:na bär en datum-slug. Gästens id är statiska literaler som aldrig
     // roterar. Testet faller om sidan slutar skicka `noticeIdsRotate={false}`.
-    const { container } = render(<GuestOversiktPage />);
+    render(<GuestOversiktPage />);
 
-    const button = screen.getByRole("button", { name: /Markera alla som lästa/ });
-    const hintId = button.getAttribute("aria-describedby");
-    expect(hintId).not.toBeNull();
-
-    const hint = container.querySelector(`#${hintId}`);
-    expect(hint).not.toBeNull();
-    expect(hint).toHaveTextContent(/Notiserna döljs/);
-    expect(hint).not.toHaveTextContent(/till i morgon/);
+    const title = screen
+      .getByRole("button", { name: /Markera alla som lästa/ })
+      .getAttribute("title");
+    expect(title).toMatch(/Notiserna döljs/);
+    expect(title).not.toMatch(/till i morgon/);
   });
 
   it("namnger antalet i live-regionen efter klicket (WCAG 4.1.3)", async () => {

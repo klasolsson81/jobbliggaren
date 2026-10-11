@@ -13,6 +13,8 @@ interface NoticeListCardProps {
   /** The single row rendered when nothing is unread — the card never disappears. */
   readonly emptyText: string;
   readonly leadingContent?: ReactNode;
+  /** A control right-aligned in the card head, e.g. the page's bulk "mark all read". */
+  readonly headAction?: ReactNode;
   /** Column span in the 12-column grid. */
   readonly span: 8 | 12;
   /** Extra class on the section: `jp-ov-card--requires` for the warning-barred card. */
@@ -44,6 +46,7 @@ export function NoticeListCard({
   notices,
   emptyText,
   leadingContent,
+  headAction,
   span,
   modifier,
   listAs: List,
@@ -80,6 +83,7 @@ export function NoticeListCard({
         <span className="jp-ov-card__count">
           {t("notices.unreadCount", { count: unread.length })}
         </span>
+        {headAction}
       </div>
 
       {leadingContent}

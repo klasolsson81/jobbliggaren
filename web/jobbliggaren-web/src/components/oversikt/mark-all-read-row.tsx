@@ -22,8 +22,6 @@ interface MarkAllReadRowProps {
   readonly noticeIdsRotate?: boolean;
 }
 
-const HINT_ID = "jp-markall-hint";
-
 /**
  * "Markera alla som lästa" som en egen rad sist på sidan (#1557). Låg ur
  * `notice-toolbar.tsx` fram till dess.
@@ -104,7 +102,11 @@ export function MarkAllReadRow({
           <button
             type="button"
             className="jp-btn jp-btn--ghost jp-btn--sm jp-btn--flush"
-            aria-describedby={HINT_ID}
+            title={t(
+              noticeIdsRotate
+                ? "notices.markAllReadHint"
+                : "notices.markAllReadHintStatic",
+            )}
             onClick={() => {
               moveFocusRef.current = true;
               setJustRead(dismissibleVisible.length);
@@ -113,13 +115,6 @@ export function MarkAllReadRow({
           >
             <Check size={14} aria-hidden="true" /> {t("notices.markAllRead")}
           </button>
-          <span id={HINT_ID} className="jp-notice-bulk__hint">
-            {t(
-              noticeIdsRotate
-                ? "notices.markAllReadHint"
-                : "notices.markAllReadHintStatic",
-            )}
-          </span>
         </>
       )}
       <span

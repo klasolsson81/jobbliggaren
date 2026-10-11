@@ -417,6 +417,18 @@ describe("updateTextForStateChange (C′ regel 2/3)", () => {
   });
 });
 
+describe("sameUrlState #2072 (remote i komparatorn)", () => {
+  it("olika remote ⇒ INTE samma filter-state", () => {
+    expect(sameUrlState({ ...empty, remote: true }, { ...empty })).toBe(false);
+  });
+
+  it("samma remote ⇒ samma filter-state", () => {
+    expect(
+      sameUrlState({ ...empty, remote: true }, { ...empty, remote: true }),
+    ).toBe(true);
+  });
+});
+
 describe("sameUrlState #454 PR-0 (employer i komparatorn)", () => {
   it("olika employer ⇒ INTE samma filter-state (extern divergens-detektorn)", () => {
     expect(

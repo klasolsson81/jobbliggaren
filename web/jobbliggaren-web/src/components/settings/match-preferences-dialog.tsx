@@ -340,8 +340,12 @@ function PartDialog({
   const titleRef = useRef<HTMLHeadingElement | null>(null);
   const saveRef = useRef<HTMLButtonElement | null>(null);
   const errorId = useId();
+  // Not useTransition: React ties every concurrent async transition together, so the lock would
+  // follow another part's write instead of this save.
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Rendering a throw is how a save that rejects reaches the nearest error boundary (#1996).
+  const [, throwToBoundary] = useState<never>();
 
   // A pending save disables its button, and Chromium then drops focus to <body>. A refused save
   // hands it back once the button is enabled again (WCAG 2.4.3).
@@ -355,15 +359,23 @@ function PartDialog({
   function onSave() {
     setSaveError(null);
     setSaving(true);
-    void save().then((result) => {
-      setSaving(false);
-      if (result.success) {
-        onOpenChange(false);
-      } else {
-        refocusSave.current = true;
-        setSaveError(result.error);
+    void save().then(
+      (result) => {
+        setSaving(false);
+        if (result.success) {
+          onOpenChange(false);
+        } else {
+          refocusSave.current = true;
+          setSaveError(result.error);
+        }
+      },
+      (error: unknown) => {
+        setSaving(false);
+        throwToBoundary(() => {
+          throw error;
+        });
       }
-    });
+    );
   }
 
   return (

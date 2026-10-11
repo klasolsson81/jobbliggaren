@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Component, type ReactNode } from "react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { render as rawRender } from "@testing-library/react/pure";
 import { NextIntlClientProvider } from "next-intl";
@@ -95,6 +96,20 @@ function renderDialog(value: PartValue) {
   );
   return { onSave, onOpenChange };
 }
+
+class Boundary extends Component<{ readonly children: ReactNode }, { readonly failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <p>Något gick fel.</p> : this.props.children;
+  }
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   cvSuggestMock.mockReset().mockResolvedValue({ kind: "noCv" });
@@ -321,6 +336,35 @@ describe("a refused save (#1918 Major 5)", () => {
       "true"
     );
     await waitFor(() => expect(save).toHaveFocus());
+  });
+
+  it("if onSave ever rejects (the card's send never does, so unreachable today), the dialog degrades to the nearest error boundary instead of staying locked (#1996)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const onSave = vi
+      .fn<(value: PartValue) => Promise<ActionResult>>()
+      .mockRejectedValue(new Error("network"));
+    render(
+      <Boundary>
+        <MatchPreferencesDialog
+          open
+          onOpenChange={vi.fn()}
+          value={FILLED.experience}
+          occupationFields={occupationFields}
+          regions={regions}
+          employmentTypes={employmentTypes}
+          importCvHref="/cv/importera"
+          onSave={onSave}
+          onCloseAutoFocus={vi.fn()}
+        />
+      </Boundary>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Spara erfarenhet" }));
+
+    expect(await screen.findByText("Något gick fel.")).toBeInTheDocument();
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows Sparar… and disables both buttons while the write is out", async () => {

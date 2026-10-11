@@ -358,9 +358,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // actually reachable. "Missing" = the row does not exist OR it is not Active; allow-list, not
         // `!= Archived` (D4).
         //
-        // BackgroundMatchingJob.ScanUserAsync's windowed candidate query gates Status == Active
-        // (the `newAds` projection; line-number anchors dropped after the #751 scope refactor
-        // shifted them), and that gate MASKED the gap there (no UserJobAdMatch row was ever
+        // BackgroundMatchingJob.ReadCandidatesAsync's candidate read gates Status == Active, and that
+        // gate MASKED the gap there (no UserJobAdMatch row was ever
         // persisted for an archived ad). It is now FULLY SUBSUMED by this one — every id the job
         // scores comes from that gated query, so deleting the job's gate changes no persisted
         // outcome: this gate omits the archived rows anyway. Its

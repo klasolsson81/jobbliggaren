@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 /// TD-114 (ADR 0080 Vag 4) — scheduled reaper for stranded notification rows on BOTH rails: skill
 /// <see cref="UserJobAdMatch"/> rows AND (#453 audit #26) company-follow
 /// <see cref="Domain.CompanyWatches.FollowedCompanyAdHit"/> rows. The Top-direct
-/// (<c>BackgroundMatchingJob</c>), match-digest and follow-digest (<c>DigestDispatchJob</c>) dispatch
+/// (<c>TopMatchMailDispatcher</c>), match-digest and follow-digest (<c>DigestDispatchJob</c>) dispatch
 /// paths all use the same claim-then-send spine (<c>Pending → MarkQueued</c> + commit → send →
 /// <c>MarkSent</c> + commit). If the send never completes (a send failure, or the account had
 /// no email) the row stays permanently Queued with no recovery — the deliberate "never double-email
@@ -78,14 +78,13 @@ public sealed partial class StrandedMatchReaperJob(
 {
     /// <summary>
     /// A row must sit Queued at least this long before the reaper fails it. Generous on purpose: a
-    /// DAILY-cadence row is legitimately Queued only within a single dispatch window (the scan at
-    /// ~03:20 UTC → dispatch at 06:00 UTC, sub-day), so 48h clears any same-/next-day legitimate
-    /// in-flight state with margin. (Audit #37 truth-note: a WEEKLY-cadence row can sit Pending for
-    /// days before its send, so — because aging is by <c>CreatedAt</c>, see the class doc — a weekly
-    /// row whose send fails may be reaped after &lt; 48h of actual Queued time. That is still correct:
-    /// the row was genuinely stranded and reaping never resends. The reaper does not race a
-    /// slow-but-succeeding send in practice — the shipped dispatch crons commit MarkSent before this
-    /// 04:45 run and a Queued row is only produced by a FAILED send, which does not later succeed.)
+    /// row is legitimately Queued only between its claim and its MarkSent inside one dispatch run, so
+    /// 48h clears any legitimate in-flight state with margin. (Audit #37 truth-note: a WEEKLY-cadence
+    /// row can sit Pending for days before its send, so — because aging is by <c>CreatedAt</c>, see the
+    /// class doc — a weekly row whose send fails may be reaped after &lt; 48h of actual Queued time. That
+    /// is still correct: the row was genuinely stranded and reaping never resends.) The Top-match
+    /// dispatcher, which now runs every five minutes, claims only rows younger than its 24-hour window
+    /// (<c>TopMatchMailDispatcher.DirectMailWindow</c>), so its set and this one cannot meet.
     /// Hardcoded in this phase — flip to IOptions if policy changes (HardDeleteAccountsJob precedent).
     /// </summary>
     private const int StrandedThresholdHours = 48;

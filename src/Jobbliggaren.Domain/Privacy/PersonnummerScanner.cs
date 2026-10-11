@@ -69,9 +69,9 @@ public static partial class PersonnummerScanner
     //     bounded {0,2} in lockstep with the ExtractedDocumentText profile of
     //     PersonnummerTextNormalizer — NOT with that type as a whole, which since #1415 also
     //     carries a wider SingleLineUserInput profile that this path deliberately has no
-    //     counterpart for. Every Redact call site is a CV/resume surface and none redacts a
-    //     search query, so there is nothing here for the wider flag profile to be a superset
-    //     of (ADR 0134 D7, pinned by PersonnummerGapProfileCallSiteTests). A 3+ visible-column
+    //     counterpart for. No Redact call site redacts a search query or any other
+    //     single-line user input, so there is nothing here for the wider flag profile to be a
+    //     superset of (ADR 0134 D7, pinned by PersonnummerGapProfileCallSiteTests). A 3+ visible-column
     //     gap therefore stays unbridged on this path — the accepted residual #427 V3), and/or
     //   * at most ONE separator per side, ADJACENT to the space run on either side
     //     ((?:[SEP]\p{Cf}*)? before AND after) where SEP is ASCII '-'/'+', any Unicode dash

@@ -15,8 +15,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 /// company-follow scan. For every user with at least one ACTIVE follow, it finds the ads published
 /// since that user's <see cref="Domain.JobSeekers.JobSeeker.LastCompanyWatchScanAt"/> watermark
 /// whose <c>organization_number</c> is one of the user's ACTIVE watched org.nrs, and persists a
-/// <see cref="FollowedCompanyAdHit"/> for each. Registered as a Hangfire RecurringJob in the same
-/// nightly window as <c>BackgroundMatchingJob</c>, with its OWN watermark. NO AI/LLM, NO skill
+/// <see cref="FollowedCompanyAdHit"/> for each. Registered as a Hangfire RecurringJob in the nightly
+/// window (03:25 UTC), with its OWN watermark. NO AI/LLM, NO skill
 /// scorer (a company hit requires only org.nr membership — ADR 0087 D5).
 /// <para>
 /// <b>7C consent split (bevakning-reconcile RF-7, 2026-07-12 — Klas-ratified; supersedes ADR 0087

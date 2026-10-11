@@ -11,7 +11,7 @@
   },
   "backgroundMatch": {
     "toggleLabel": "Match new job ads for me",
-    "toggleDescription": "Turning this on means you consent to us matching new job ads against your profile every night and emailing you top matches right away and strong ones in a summary. Good matches appear only in your match list. You can turn this off at any time.",
+    "toggleDescription": "Turning this on means you consent to us matching new job ads against your profile and emailing you top matches right away and strong ones in a summary. Good matches appear only in your match list. You can turn this off at any time.",
     "cadenceLabel": "Email summary",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",

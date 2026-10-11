@@ -315,7 +315,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         var detections =
             RecruiterContactRedactor.Redact(Title).Found.Count
             + RecruiterContactRedactor.Redact(Description).Found.Count
-            + RecruiterContactRedactor.Redact(RawPayload).Found.Count;
+            + RecruiterContactRedactor.Redact(RawPayload).Found.Count
+            + PersonnummerScanner.ScanWithGaps(Title).Count
+            + PersonnummerScanner.ScanWithGaps(Description).Count;
         if (detections == 0)
             return Result.Success(false);
 
@@ -523,8 +525,12 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// </remarks>
     private void ApplyContactRedaction(IReadOnlyList<AdContact> declaredContacts)
     {
-        var title = RecruiterContactRedactor.Redact(Title);
-        var description = RecruiterContactRedactor.Redact(Description);
+        // #2098 — a sole trader's org.nr written into the ad text is the holder's personnummer. It
+        // runs FIRST: the phone pattern is anchored on a leading 0, so a personnummer born 2000-2009
+        // is phone-shaped and would otherwise be promoted into Contacts instead of removed.
+        // Length-preserving (every digit → '*'), so the Title clamp below is unaffected.
+        var title = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Title));
+        var description = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Description));
         var payload = RecruiterContactRedactor.Redact(RawPayload);
 
         Title = title.Scrubbed.Length <= 300 ? title.Scrubbed : title.Scrubbed[..300];

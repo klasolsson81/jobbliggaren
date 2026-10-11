@@ -915,8 +915,8 @@ public class DigestDispatchJobTests
 
     // ═══════════════════════ #864 — an ARCHIVED ad must never be emailed
     //
-    // The scan gates Status == Active (BackgroundMatchingJob.ScanUserAsync's windowed candidate
-    // query, CompanyWatchScanJob:156), so a match
+    // The scan gates Status == Active (BackgroundMatchingJob's and CompanyWatchScanJob's candidate
+    // reads), so a match
     // is only ever RECORDED for a live ad. But that gate proves the ad was Active AT SCAN TIME — and
     // this digest runs days or weeks later. Archiving is every ad's normal end of life
     // (ExpireJobAdsJob). Before #864 neither display join carried a Status predicate, so the digest
@@ -1381,6 +1381,135 @@ public class DigestDispatchJobTests
             (await ReloadHitByWatchAsync(db, userId, adId, watchId, ct))!.NotificationStatus
                 .ShouldBe(FollowedCompanyAdHitStatus.Sent,
                     "hela fönstret dräneras, inte bara de visade: annars åter-ytas resten nästa körning");
+    }
+
+    // ═══ An ENDED FOLLOW is a drain reason. A hit recorded while the user followed the company is
+    // never emailed once the follow has ended: it is consumed (Sent) without a send, like a hit whose
+    // ad was archived. The unfollowed state is produced by CompanyWatch.SoftDelete, the method
+    // UnfollowCompanyCommandHandler calls; the hits are seeded while the watch is still active, which
+    // is the order CompanyWatchScanJob produces them in.
+    // ═══
+
+    [Fact]
+    public async Task RunAsync_Follow_AllWatchesUnfollowed_SendsNothing_AndDrainsEveryHit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchA = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watchB = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var adA = await SeedActiveAdAsync(db, "Roll A", "Bolag A", ct);
+        var adB = await SeedActiveAdAsync(db, "Roll B", "Bolag B", ct);
+        await SeedFollowHitAsync(db, userId, adA, watchA, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, adB, watchB, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        await UnfollowAsync(db, watchA, ct);
+        await UnfollowAsync(db, watchB, ct);
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldBeNull("ingen bevakning finns kvar, så det finns inget att mejla om");
+        (await ReloadHitByWatchAsync(db, userId, adA, watchA, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "en avslutad bevakning dräneras, den väntar inte");
+        (await ReloadHitByWatchAsync(db, userId, adB, watchB, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_OneWatchUnfollowed_EmailsOnlyTheActiveWatchesAds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var activeWatch = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var endedWatch = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var activeAd = await SeedActiveAdAsync(db, "Följd roll", "Följt AB", ct);
+        var endedAd = await SeedActiveAdAsync(db, "Avföljd roll", "Avföljt AB", ct);
+        await SeedFollowHitAsync(db, userId, activeAd, activeWatch, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await SeedFollowHitAsync(db, userId, endedAd, endedWatch, ct, createdAt: NowClock.UtcNow);
+
+        await UnfollowAsync(db, endedWatch, ct);
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Select(i => i.CompanyName).ShouldBe(["Följt AB"]);
+        captured.TotalCount.ShouldBe(1, "talet räknar bara annonser från bevakningar som finns kvar");
+        (await ReloadHitByWatchAsync(db, userId, activeAd, activeWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        (await ReloadHitByWatchAsync(db, userId, endedAd, endedWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_AdViaUnfollowedWatchAndGradedOutActiveWatch_IsNotEmailed()
+    {
+        // Presentability is decided per HIT. The ad is presentable through the active "endast
+        // matchade" watch, where it grades below Good; keyed per AD, the unfollowed watch's hit would
+        // carry it into the email anyway. Two plain watches stand in for a direct and a brand-group
+        // follow of the same employer, as in the #1612 tests above.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var endedWatch = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var gradeWatch = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+
+        var adId = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, adId, endedWatch, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, adId, gradeWatch, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        await UnfollowAsync(db, endedWatch, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId>());
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldBeNull("den enda bevakningen som finns kvar filtrerar bort annonsen");
+        (await ReloadHitByWatchAsync(db, userId, adId, endedWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "drain: bevakningen är avslutad");
+        (await ReloadHitByWatchAsync(db, userId, adId, gradeWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending, "stayPending: graden kan ändras (8C)");
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_UnfollowedThenRefollowedBeforeTheRun_IsEmailed()
+    {
+        // The watch is followed again when the digest runs, so its hit is live, exactly as the in-app
+        // page (NewFollowedCompanyAdSet.NewHits) reads it.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var adId = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, adId, watchId, ct);
+
+        await UnfollowAsync(db, watchId, ct);
+        var watch = await db.CompanyWatches.IgnoreQueryFilters().FirstAsync(w => w.Id == watchId, ct);
+        watch.Refollow(NowClock);
+        await db.SaveChangesAsync(ct);
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(1);
+        (await ReloadHitByWatchAsync(db, userId, adId, watchId, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    private static async Task UnfollowAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CompanyWatchId watchId, CancellationToken ct)
+    {
+        var watch = await db.CompanyWatches.FirstAsync(w => w.Id == watchId, ct);
+        watch.SoftDelete(NowClock);
+        await db.SaveChangesAsync(ct);
     }
 
     // Reloads ONE hit row by its watch — ReloadHitAsync above keys on (user, ad) alone, which is

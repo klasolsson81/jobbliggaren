@@ -12,7 +12,6 @@ using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
-using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
@@ -1391,14 +1390,6 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(AuthOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
-
-        // DEV-ONLY throwaway tooling toggle — REMOVE BEFORE LAUNCH with everything it gates
-        // (docs/runbooks/release-checklist.md). Plain Bind, deliberately NOT ValidateOnStart:
-        // there is no unsafe COMBINATION to refuse here, and a validator that rejected the flag
-        // outside Development would forbid its only purpose. Fail-closed lives in the default
-        // (false) and in the two independent gates that read it — the map gate in Program.cs and
-        // the handler's own refusal.
-        services.Configure<DevToolsOptions>(configuration.GetSection(DevToolsOptions.SectionName));
 
         // #703 — the anti-email-bomb windows of the change-email and login-challenge requests. Api-only —
         // they run in the request path. ValidateOnStart + [Range] so a misconfigured window fails the host

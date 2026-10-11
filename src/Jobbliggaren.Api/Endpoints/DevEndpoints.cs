@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Jobbliggaren.Application.Dev.Commands.ResetMyData;
 using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
 using Mediator;
@@ -8,14 +7,11 @@ namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
 /// DEV-ONLY endpoints — remove before launch (Klas), together with everything they gate
-/// (<c>docs/runbooks/release-checklist.md</c>). These exist solely so onboarding flows can be
-/// re-tested.
+/// (<c>docs/runbooks/release-checklist.md</c>).
 ///
-/// <para><b>The routes are mapped by two different methods, and that is the point.</b> The methods
-/// have different change-reasons — one is gated on the ENVIRONMENT and can never be reachable
-/// outside Development, the other on CONFIGURATION so it can be turned on for a deployed test box.
-/// Kept in one call behind one condition, the unauthenticated <c>accounts</c> and <c>login-code</c> seams
-/// would sit one <c>||</c> away from being re-armed in Production by an edit aimed at <c>reset-my-data</c>.</para>
+/// <para><b>The routes are ENVIRONMENT-gated and nothing widens them.</b> Unauthenticated, the
+/// <c>accounts</c> and <c>login-code</c> seams open an account and hand out a login code for a reserved
+/// address, so they can never be reachable outside Development.</para>
 /// </summary>
 public static class DevEndpoints
 {
@@ -24,9 +20,7 @@ public static class DevEndpoints
     /// <summary>
     /// DEV-ONLY, ENVIRONMENT-gated and NOT configurable. The caller (<c>Program.cs</c>) MUST guard
     /// this with <c>app.Environment.IsDevelopment()</c> and nothing else — no flag may widen it.
-    /// <c>ProductionStartupSmokeTests</c> measures that in BOTH polarities of
-    /// <c>DevTools:EnableResetMyData</c>, because "no flag widens it" is exactly the kind of claim
-    /// that stays true only while someone is measuring it.
+    /// <c>ProductionStartupSmokeTests</c> measures that route table.
     /// </summary>
     public static void MapDevEnvironmentOnlyEndpoints(this IEndpointRouteBuilder app)
     {
@@ -68,33 +62,6 @@ public static class DevEndpoints
                 _ => throw new UnreachableException("A DevSeedAccountOutcome has no response."),
             };
         });
-    }
-
-    /// <summary>
-    /// DEV-ONLY, CONFIGURATION-gated: mapped in Development, and outside it only when
-    /// <c>DevTools:EnableResetMyData</c> is explicitly true (Klas-direktiv 2026-08-27 — the box
-    /// runs <c>ASPNETCORE_ENVIRONMENT=Production</c>, so the one environment that needed
-    /// re-testing was the one that could not). The flag defaults to false, and the handler
-    /// refuses independently of this gate. REMOVE BEFORE LAUNCH.
-    /// </summary>
-    public static void MapDevResetMyDataEndpoint(this IEndpointRouteBuilder app)
-    {
-        var group = app.MapGroup(GroupPrefix).WithTags("Dev");
-
-        // DEV-ONLY — clears the current user's CV data, saved/recent searches, graded
-        // matches and match preferences (re-triggers the welcome modal). Does NOT delete
-        // the account — the login keeps working. Owner-scoped inside the handler
-        // (ICurrentUser → JobSeeker). Returns 204. REMOVE BEFORE LAUNCH.
-        group.MapPost("/reset-my-data", async (IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new ResetMyDataCommand(), ct);
-            return result.IsSuccess
-                ? Results.NoContent()
-                : Results.Problem(
-                    detail: result.Error.Message,
-                    title: result.Error.Code,
-                    statusCode: 400);
-        }).RequireAuthorization();
     }
 
     /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/login-code</c> (#1735).</summary>

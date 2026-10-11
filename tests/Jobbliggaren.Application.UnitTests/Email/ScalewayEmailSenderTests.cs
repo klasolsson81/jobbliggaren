@@ -78,8 +78,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <para>
 /// <b>Fixture provenance (CLAUDE.md §5 "Tests:").</b> Every content record here is built the way a
 /// production caller builds it, not a shape invented for the test:
-/// <c>MatchNotificationEmail(Direct, null, [item], 1)</c> is <c>BackgroundMatchingJob</c>
-/// line-for-line (including the grade label, which comes from
+/// <c>MatchNotificationEmail(Direct, null, [item], 1)</c> is <c>TopMatchMailDispatcher</c>'s one-match
+/// mail line-for-line (including the grade label, which comes from
 /// <c>NotifiableMatchGrade.Top.ToSwedishLabel()</c> = "Toppmatch"); the digest/follow shapes are
 /// <c>DigestDispatchJob</c>'s; <c>LoginChallengeEmail.CodeAndLink</c> is
 /// <c>LoginChallengeIssuer</c>'s, with a six-digit code and a 43-character Base64Url link token
@@ -165,7 +165,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
     private static readonly Guid SampleJobAdId = Guid.Parse("0b7f3c1e-5a2d-4e8f-9c61-2d4a8e7b3f10");
 
-    /// <summary>BackgroundMatchingJob's top-direct shape: one Top item, TotalCount 1, no cadence.</summary>
+    /// <summary>TopMatchMailDispatcher's one-match shape: one Top item, TotalCount 1, no cadence.</summary>
     private static MatchNotificationEmail SampleMatchContent() =>
         new(
             MatchNotificationKind.Direct,

@@ -5,13 +5,11 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
-using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Mediator;
-using Microsoft.Extensions.Options;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Shouldly;
@@ -30,7 +28,7 @@ public class JobSeekerWriterReplayGuardTests
 {
     private const string JobSeekerTypeName = "Jobbliggaren.Domain.JobSeekers.JobSeeker";
 
-    // The nightly scans re-run a user's scan in a fresh scope themselves (ADR 0146 D5).
+    // Both per-user scans re-run a user's scan in a fresh scope themselves (ADR 0146 D5).
     private static readonly Type[] ScansWithTheirOwnRetry =
     [
         typeof(BackgroundMatchingJob),
@@ -45,7 +43,6 @@ public class JobSeekerWriterReplayGuardTests
         typeof(ICurrentUser),
         typeof(IDateTimeProvider),
         typeof(IFailedAccessLogger),
-        typeof(IOptions<DevToolsOptions>),
     ];
 
     private static readonly Assembly[] ScannedAssemblies =

@@ -115,7 +115,7 @@ public class JobAdLifecycleReadRegistryTests
     /// name from the innermost angle-bracketed segment, and the logical type from the first
     /// non-compiler-generated declaring type.
     /// </summary>
-    private static string LogicalOwnerKey(MethodDefinition method)
+    internal static string LogicalOwnerKey(MethodDefinition method)
     {
         var ownerFromMethod = ExtractAngleOwner(method.Name);
 

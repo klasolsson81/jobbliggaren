@@ -25,7 +25,7 @@ const SAVED = /^Sparat \d{2}:\d{2}$/;
 
 // The bound consent texts (ADR 0144 Decision 4, rows 7 and 8), as security-auditor signed them.
 const MATCH_CONSENT =
-  "Slår du på det samtycker du till att vi varje natt matchar nya annonser mot din profil och mejlar dig toppmatchningar direkt och starka i en sammanfattning. Bra matchningar visas bara i din matchningslista. Du kan stänga av det när som helst.";
+  "Slår du på det samtycker du till att vi matchar nya annonser mot din profil och mejlar dig toppmatchningar direkt och starka i en sammanfattning. Bra matchningar visas bara i din matchningslista. Du kan stänga av det när som helst.";
 const FOLLOW_CONSENT =
   "Nya annonser från företag du följer visas alltid i appen. Slår du på det samtycker du till att vi också mejlar dem till dig. Du kan dra tillbaka samtycket när som helst genom att stänga av det här.";
 

@@ -1,7 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Notifications;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
-using Jobbliggaren.Application.Matching.Notifications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
@@ -13,128 +13,173 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-3 (Beslut 2/3) — the scheduled background-matching scan. For every
-/// CONSENTING user (opt-in ON, not withdrawn — GDPR Art. 6/7), it scores the ads published
-/// since that user's <see cref="Domain.JobSeekers.JobSeeker.LastMatchScanAt"/> watermark
-/// against their DEK-free profile and persists a <see cref="UserJobAdMatch"/> for each
-/// notifiable grade (Good/Strong/Top — Basic / no-grade is the honest floor, never persisted).
-/// Registered as a Hangfire RecurringJob (~03:20 UTC, after the snapshot settles, before the
-/// hard-delete window), mirroring <c>HardDeleteAccountsJob</c>. NO AI/LLM (ADR 0071).
+/// ADR 0080 Vag 4, ADR 0161 (#2106) — the background-matching run, every five minutes. For every
+/// CONSENTING user (opt-in ON, not withdrawn — GDPR Art. 6/7), it scores the ads ingested since that
+/// user's <see cref="Domain.JobSeekers.JobSeeker.LastMatchScanAt"/> watermark against their DEK-free
+/// profile and persists a <see cref="UserJobAdMatch"/> for each notifiable grade (Good/Strong/Top —
+/// Basic / no-grade is the honest floor, never persisted). Then <see cref="TopMatchMailDispatcher"/>
+/// mails the due Top matches in the same run. NO AI/LLM (ADR 0071).
 /// <para>
-/// <b>DEK-free (the STEG 3 enabler):</b> the profile comes from
-/// <see cref="IMatchProfileBuilder.BuildFullForUserIdAsync"/> (plaintext PreferredSkills +
-/// LatestRole, no per-user KMS in the hot loop). The Worker is the FIRST place the FULL
-/// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> runs, so it is the first place
-/// <see cref="NotifiableMatchGrade.Top"/> is produced (the page-sort path is Fast-band only).
+/// <b>DEK-free:</b> the profile comes from <see cref="IMatchProfileBuilder.BuildFullForUserIdAsync"/>
+/// (plaintext PreferredSkills + LatestRole, no per-user KMS in the hot loop), and it is built only for a
+/// user who has a new candidate ad (security-auditor V6).
 /// </para>
 /// <para>
-/// <b>Top-direct email (PR-4b):</b> a new Top match is emailed directly in this run (Strong
-/// accumulates into the cadence digest; Good is in-app only). The send runs AFTER the atomic
-/// commit (the matches persist even if the email fails) with a claim-then-send spine
-/// (<c>Pending → MarkQueued</c> + commit → send → <c>MarkSent</c> + commit) so a retry never
-/// double-sends. A send failure leaves the row Queued (never re-sent): the deliberate "never
-/// double-email &gt; never miss" trade-off (the stranded-Queued reaper is TD-114). The body is
-/// PII-free (public title/company + named grade label, never a number — Goodhart).
+/// <b>One candidate read per run.</b> The run reads the Active ads ingested since the oldest due
+/// watermark once, and each user takes the part newer than their own watermark. A user with nothing
+/// new is skipped entirely: no profile build, no write.
 /// </para>
 /// <para>
-/// <b>Idempotent BY DESIGN:</b> the per-user <c>LastMatchScanAt</c> high-water-mark + the
-/// <c>UNIQUE(UserId, JobAdId)</c> dedup spine mean a re-run never re-notifies. The watermark
-/// advance and the match inserts commit in ONE <see cref="IAppDbContext.SaveChangesAsync"/>
-/// (a single transaction) — the HARD atomicity invariant: a crash mid-scan must never either
-/// re-notify (advance lost) or silently drop matches (advance committed, inserts rolled back).
+/// <b>The watermark trails the clock by <see cref="IngestSettleWindow"/>.</b> <c>JobAd.Import</c> stamps
+/// <c>CreatedAt</c> before the ad commits, so an ad stamped before a run's read can commit after it.
+/// Advancing to "now" would skip such an ad for good. Advancing to now minus the window re-reads the
+/// last two minutes of ads every run (the existing-pair check drops the ones already matched) and
+/// misses an ad only if its commit took longer than the window. Lapse: if an ingest path starts
+/// stamping in one transaction and committing in a later one, or the measured stamp-to-commit time
+/// approaches a tenth of the window, derive the window again.
 /// </para>
 /// <para>
-/// <b>Cold-start:</b> a never-scanned user seeds a 7-day ad floor (<see cref="ColdStartDays"/>)
-/// so the first run is bounded — no multi-hour scan and no first-digest spam burst. Per-user
-/// failure is isolated (one user's exception does not abort the batch — TD-25 pattern).
+/// <b>Idempotent:</b> the per-user watermark plus the <c>UNIQUE(UserId, JobAdId)</c> spine mean a re-run
+/// never creates a second row, and the dispatcher only sends Pending rows. The watermark advance and the
+/// match inserts commit in ONE <see cref="IAppDbContext.SaveChangesAsync"/>: a crash mid-scan never
+/// either drops matches or loses the advance.
 /// </para>
 /// <para>
-/// <b>Child scope per user (#751, audit w1-bgmatch-shared-context):</b> every user's scan runs
-/// against its own DI scope (<see cref="IServiceScopeFactory.CreateAsyncScope"/>) → its own
-/// <see cref="IAppDbContext"/>, so the change tracker lives and dies with ONE user. The loop
-/// previously shared one scoped context: a mid-user failure AFTER <c>Add</c>/<c>AdvanceMatchScan</c>
-/// left poisoned Added/Modified entities that the NEXT user's SaveChanges re-flushed or re-failed
-/// on — a persistent error cascaded to every subsequent user, silently breaking the TD-25
-/// isolation promise above (the snapshot job's 23505 pathology, fixed there the same way).
-/// The scope also resets tracker growth over long runs (ADR 0045 Worker memory).
+/// <b>Cold start and re-consent:</b> the scan never reaches further back than <see cref="ColdStartDays"/>,
+/// whether the user was never scanned or turned consent back on after a long pause. The existing
+/// active corpus stays reachable through the /jobb grade filter.
+/// </para>
+/// <para>
+/// <b>Child scope per user (#751):</b> every user's scan runs in its own DI scope, so a failed attempt's
+/// tracked entities die with it instead of riding into the next user's save. Per-user failure is
+/// isolated: one user's exception does not abort the run, and that user's watermark does not move.
 /// </para>
 /// </summary>
 public sealed partial class BackgroundMatchingJob(
     IServiceScopeFactory scopeFactory,
-    IEmailSender emailSender,
+    TopMatchMailDispatcher topMatchMail,
     IDateTimeProvider clock,
     ILogger<BackgroundMatchingJob> logger)
 {
-    // Cold-start ad floor: a user with no prior scan is matched only against ads published in
-    // the last week, not the whole corpus (avoids a multi-hour first run + a spam burst).
-    private const int ColdStartDays = 7;
-    private const int ProgressLogEvery = 50;
+    /// <summary>The furthest back a scan reaches: seven days of ingested ads.</summary>
+    public const int ColdStartDays = 7;
+
+    /// <summary>How far the watermark trails the run's clock. See the class docs.</summary>
+    public static readonly TimeSpan IngestSettleWindow = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How long the scan phase starts new users. A user already started finishes. Users left over keep
+    /// their watermark.
+    /// </summary>
+    public static readonly TimeSpan ScanBudget = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// How long after an ad's ingest its Top match is mailed at the latest, while a Worker slot is free,
+    /// no stale lock holds the job, the run that first reads the ad reaches the user in both phases (no
+    /// budget, cap or earlier send failure cuts it) and the provider accepts the mail.
+    /// </summary>
+    public static readonly TimeSpan TopMatchMailBound = TimeSpan.FromMinutes(15);
+
+    // A match row is created after its ad commits, so every existing match for an ad newer than a
+    // user's watermark is newer than that watermark too. The day of margin covers a clock step.
+    private static readonly TimeSpan ExistingMatchMargin = TimeSpan.FromDays(1);
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        // Read before the candidate read, so the advanced watermark is never later than what was read.
         var now = clock.UtcNow;
+        var floor = now.AddDays(-ColdStartDays);
 
-        // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. Default OFF → most rows
-        // are excluded; the set is small, so a per-user loop is fine for the $16-VPS MVP.
-        // Own short scope (#751): a one-shot projection — no context needs to outlive it, so
-        // the job class holds no DbContext at all.
-        List<Guid> optedInUserIds;
-        await using (var dueSetScope = scopeFactory.CreateAsyncScope())
+        // The CONSENTING set (GDPR Art. 6/7), steady users first and never-scanned users last: a
+        // cold-start user's matches are not "within minutes" by definition, so they wait if the budget
+        // runs out. The null test is explicit because providers order nulls differently.
+        List<DueUser> due;
+        List<CandidateAd> candidates;
+        await using (var readScope = scopeFactory.CreateAsyncScope())
         {
-            var dueSetDb = dueSetScope.ServiceProvider.GetRequiredService<IAppDbContext>();
-            optedInUserIds = await dueSetDb.JobSeekers
+            var db = readScope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            due = await db.JobSeekers
                 .Where(NotificationConsent.BackgroundMatch.Criteria)
-                .Select(js => js.UserId)
+                .OrderBy(seeker => seeker.LastMatchScanAt == null)
+                .ThenBy(seeker => seeker.LastMatchScanAt)
+                .Select(seeker => new DueUser(seeker.UserId, seeker.LastMatchScanAt))
                 .ToListAsync(cancellationToken);
+
+            candidates = due.Count == 0
+                ? []
+                : await ReadCandidatesAsync(db, due.Min(user => Since(user.LastMatchScanAt, floor)), cancellationToken);
         }
 
-        LogOptedIn(logger, optedInUserIds.Count);
-
-        var processedUsers = 0;
+        var scanned = 0;
         var totalMatches = 0;
-        foreach (var userId in optedInUserIds)
+        foreach (var user in due)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (clock.UtcNow - now >= ScanBudget)
+            {
+                LogScanBudgetSpent(logger, scanned, due.Count);
+                break;
+            }
+
+            var since = Since(user.LastMatchScanAt, floor);
+            if (!candidates.Exists(ad => ad.CreatedAt > since))
+                continue;
+
             try
             {
-                // ADR 0146 — the row carries an xmin token, so a write committed between this user's
-                // load and the scan's commit (a withdrawal, a settings save, the company-watch scan)
-                // fails the commit and rolls it back whole. One more attempt reads the row again and
-                // re-checks the consent on it before anything is added.
+                // ADR 0146 — the row carries an xmin token, so a write committed between this user's load
+                // and the scan's commit (a withdrawal, a settings save, a /jobb visit) rolls the commit back
+                // whole. One more attempt reads the row again and re-checks consent on it.
                 try
                 {
-                    totalMatches += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                    totalMatches += await ScanUserInOwnScopeAsync(user.UserId, candidates, now, cancellationToken);
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    LogUserRetried(logger, userId);
-                    totalMatches += await ScanUserInOwnScopeAsync(userId, now, cancellationToken);
+                    totalMatches += await ScanUserInOwnScopeAsync(user.UserId, candidates, now, cancellationToken);
                 }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Two conflicts in a row: the row is busy. The watermark did not move, so the next run
+                // picks the user up again.
+                LogUserDeferred(logger, user.UserId);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Per-user isolation (TD-25): one user's failure must not abort the batch. The
-                // watermark is NOT advanced on failure (one SaveChanges; a throw rolls back both
-                // the inserts and the advance) → the user is re-scanned cleanly next run. A
-                // cancellation (OperationCanceledException) is NOT swallowed — it propagates so
-                // the host shutdown / cron-timeout stops the scan promptly (not mis-logged as a
-                // user failure).
-                LogUserFailed(logger, ex, userId);
+                // Per-user isolation (TD-25): one user's failure must not abort the run. A cancellation is
+                // not swallowed, so a host shutdown stops the run promptly.
+                LogUserFailed(logger, ex, user.UserId);
             }
 
-            processedUsers++;
-            if (processedUsers % ProgressLogEvery == 0)
-                LogProgress(logger, processedUsers, optedInUserIds.Count);
+            scanned++;
         }
 
-        LogComplete(logger, processedUsers, totalMatches);
+        if (totalMatches > 0)
+            LogScanned(logger, scanned, due.Count, totalMatches);
+        else
+            LogScannedNothingNew(logger, scanned, due.Count);
+
+        await topMatchMail.DispatchAsync(MailPacingRule.TopMatch, cancellationToken);
     }
 
-    // Own DI scope per attempt (#751) → own IAppDbContext (and profile builder / scorer / account
-    // service over that same context) → the change tracker lives and dies with ONE attempt. The
-    // scope disposes before the caller's catch, so a failed attempt's poisoned Added/Modified
-    // entities die with it instead of riding into the next save (parity SyncPlatsbankenSnapshotJob).
-    private async Task<int> ScanUserInOwnScopeAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    private static DateTimeOffset Since(DateTimeOffset? lastScan, DateTimeOffset floor) =>
+        lastScan is { } last && last > floor ? last : floor;
+
+    // Filter by CreatedAt (INGEST time), not PublishedAt (ADR 0080 Beslut 2). PublishedAt is
+    // JobTech-supplied and can be backdated, so filtering on it would skip a late-ingested ad for good.
+    private static Task<List<CandidateAd>> ReadCandidatesAsync(
+        IAppDbContext db, DateTimeOffset since, CancellationToken ct) =>
+        db.JobAds
+            .AsNoTracking()
+            .Where(ad => ad.Status == JobAdStatus.Active && ad.CreatedAt > since)
+            .Select(ad => new CandidateAd(ad.Id, ad.CreatedAt))
+            .ToListAsync(ct);
+
+    // Own DI scope per attempt (#751) → own IAppDbContext (and profile builder / scorer over that same
+    // context), so a failed attempt's tracked entities die with it.
+    private async Task<int> ScanUserInOwnScopeAsync(
+        Guid userId, IReadOnlyList<CandidateAd> candidates, DateTimeOffset now, CancellationToken ct)
     {
         await using var userScope = scopeFactory.CreateAsyncScope();
         var sp = userScope.ServiceProvider;
@@ -142,215 +187,92 @@ public sealed partial class BackgroundMatchingJob(
             sp.GetRequiredService<IAppDbContext>(),
             sp.GetRequiredService<IMatchProfileBuilder>(),
             sp.GetRequiredService<IMatchScorer>(),
-            sp.GetRequiredService<IUserAccountService>(),
-            userId, now, ct);
+            userId, candidates, now, ct);
     }
 
-    // The per-user unit. Every context-holding collaborator (db + the profile builder / scorer /
-    // account service resolved over the SAME scoped context) arrives as a parameter from the
-    // caller's child scope (#751) — the method never touches job-lifetime state beyond the
-    // stateless emailSender/clock/logger fields.
+    // The per-user unit. The candidate set was read once for the run; this method takes the part newer
+    // than the user's own watermark, read again on the tracked row.
     private async Task<int> ScanUserAsync(
         IAppDbContext db,
         IMatchProfileBuilder profileBuilder,
         IMatchScorer scorer,
-        IUserAccountService userAccounts,
         Guid userId,
+        IReadOnlyList<CandidateAd> candidates,
         DateTimeOffset now,
         CancellationToken ct)
     {
-        // Tracked load — the watermark advance must persist in the SAME unit of work as the
-        // match inserts (atomicity).
+        // Tracked load — the watermark advance must persist in the SAME unit of work as the inserts.
         var jobSeeker = await db.JobSeekers
             .FirstOrDefaultAsync(js => js.UserId == userId, ct);
         if (jobSeeker is null)
-            return 0; // consent row without a JobSeeker (shouldn't happen) — nothing to scan.
+            return 0;
 
-        // ADR 0146 — the consent is decided on the row this attempt loaded, not on the run-start due
-        // set: a withdrawal committed since then ends the scan here with the watermark untouched, like
-        // the due-set exclusion. A withdrawal committed after this load fails the commit instead.
+        // ADR 0146 — consent is decided on the row this attempt loaded, not on the run's due set.
         if (!NotificationConsent.BackgroundMatch.IsSatisfiedBy(jobSeeker))
             return 0;
 
+        var since = Since(jobSeeker.LastMatchScanAt, now.AddDays(-ColdStartDays));
+        var newAdIds = candidates.Where(ad => ad.CreatedAt > since).Select(ad => ad.Id).ToList();
+        if (newAdIds.Count == 0)
+            return 0;
+
+        var scannedThrough = now - IngestSettleWindow;
         var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
 
-        // SSYK gate (parity the list/batch paths): without a stated occupation no ad can earn a
-        // grade. Advance the watermark (scanned through now, 0 matches) so we don't re-scan, and
-        // return — committed atomically (a single SaveChanges).
+        // SSYK gate: without a stated occupation no ad can earn a grade. Advance the watermark and
+        // return, committed in one SaveChanges.
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
         {
-            jobSeeker.AdvanceMatchScan(now, clock);
+            jobSeeker.AdvanceMatchScan(scannedThrough, clock);
             await db.SaveChangesAsync(ct);
             return 0;
         }
 
-        var since = jobSeeker.LastMatchScanAt ?? now.AddDays(-ColdStartDays);
+        var scores = await scorer.ScoreFullBatchAsync(newAdIds, profile, ct);
 
-        // Filter by CreatedAt (INGEST time), not PublishedAt (ADR 0080 Beslut 2 — "CreatedAt
-        // for ingest-time"). The watermark advances to clock-now, and CreatedAt is the monotonic
-        // ingest timestamp, so CreatedAt > since catches EVERY ad ingested since the last scan.
-        // PublishedAt is JobTech-supplied and can be backdated — filtering on it would
-        // permanently skip a late-ingested ad whose PublishedAt is older than the now-advanced
-        // watermark (security-auditor correctness flag 2026-06-24). Cold-start: a never-scanned
-        // user is matched only against ads ingested in the last 7 days (ColdStartDays) — bounded
-        // first run, no spam burst; the existing active corpus stays reachable via the /jobb
-        // grade-filter.
-        // Project the candidate ads' PUBLIC title/company alongside the id in the SAME windowed
-        // round-trip — they feed the Top-direct email body (PR-4b) with no extra query and no
-        // strongly-typed-VO Contains (the CreatedAt window is the filter, not an id set). Title +
-        // Company.Name are owned columns on job_ads (no join).
-        var newAds = await db.JobAds
-            .AsNoTracking()
-            .Where(j => j.Status == JobAdStatus.Active && j.CreatedAt > since)
-            .Select(j => new { j.Id, j.Title, Company = j.Company.Name })
-            .ToListAsync(ct);
-        var newAdIds = newAds.Select(a => a.Id).ToList();
-        var adPublicById = newAds.ToDictionary(a => a.Id, a => (a.Title, a.Company));
+        // Idempotency backstop: UNIQUE(UserId, JobAdId) prevents a second row, and this skip keeps the
+        // insert batch from throwing on the re-read window. Loaded client-side to avoid the
+        // strongly-typed-VO Contains translation trap (memory ef_strongly_typed_vo_contains).
+        var existingCutoff = since - ExistingMatchMargin;
+        var existingJobAdIds = (await db.UserJobAdMatches
+            .Where(m => m.UserId == userId && m.CreatedAt > existingCutoff)
+            .Select(m => m.JobAdId)
+            .ToListAsync(ct))
+            .ToHashSet();
 
         var matchCount = 0;
-        var topDispatch = new List<(UserJobAdMatch Match, MatchNotificationItem Item)>();
-        if (newAdIds.Count > 0)
+        foreach (var (jobAdId, scored) in scores)
         {
-            var scores = await scorer.ScoreFullBatchAsync(newAdIds, profile, ct);
+            if (existingJobAdIds.Contains(jobAdId))
+                continue;
 
-            // Idempotency backstop: UNIQUE(UserId, JobAdId) prevents re-notification, but skip
-            // already-persisted pairs so the insert batch never throws on a window overlap /
-            // re-run. Load the user's existing match ids (bounded by their accumulated matches)
-            // client-side — avoids the strongly-typed-VO Contains translation trap
-            // (memory ef_strongly_typed_vo_contains). No IgnoreQueryFilters: the aggregate has no
-            // soft-delete filter (#868 retired the writerless axis), so there is nothing to bypass.
-            var existingJobAdIds = (await db.UserJobAdMatches
-                .Where(m => m.UserId == userId)
-                .Select(m => m.JobAdId)
-                .ToListAsync(ct))
-                .ToHashSet();
+            // FULL grade. #300 PR-4 (ADR 0084 §F4): SsykIsRelated grades Related, which ToNotifiable maps
+            // to null; the scan builds with includeRelated=false, so it never fires here.
+            var grade = MatchGradeCalculator.Grade(scored.Score, scored.SsykIsRelated);
+            if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
+                continue;
 
-            foreach (var (jobAdId, scored) in scores)
+            // #477 Low 2 — persist the SkillOverlap evidence, truncated to the aggregate's cap so a
+            // pathological intersection never fails Create. The scorer already deduped and ordered it.
+            var evidence = scored.MatchedSkillConceptIds.Count > UserJobAdMatch.MaxMatchedSkills
+                ? scored.MatchedSkillConceptIds.Take(UserJobAdMatch.MaxMatchedSkills).ToList()
+                : scored.MatchedSkillConceptIds;
+            var created = UserJobAdMatch.Create(userId, jobAdId, notifiable, evidence, clock);
+            if (created.IsSuccess)
             {
-                if (existingJobAdIds.Contains(jobAdId))
-                    continue;
-
-                // FULL grade (can reach Top — the Worker is the first producer). Map to the
-                // notifiable subset; Basic / no-grade is the honest floor (never persisted).
-                // #300 PR-4 (ADR 0084 §F4 + question D — LIST-ONLY): pass SsykIsRelated so a
-                // related-only hit grades MatchGrade.Related — which ToNotifiable maps to null,
-                // so related matches never persist a UserJobAdMatch nor drive a notification. The
-                // background scan always builds with includeRelated=false, so the related set is
-                // empty here and SsykIsRelated never fires (related is an interactive-surface concept).
-                var grade = MatchGradeCalculator.Grade(scored.Score, scored.SsykIsRelated);
-                if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
-                    continue;
-
-                // #477 Low 2 — persist the SkillOverlap evidence (the covered-skill concept-ids the
-                // scorer now surfaces on the carrier), NOT an empty list. ADR 0080's "explainable by
-                // design" persisted evidence: before this the scan wrote [] so the evidence never
-                // existed, and the LastMatchScanAt + UNIQUE(UserId,JobAdId) spine prevent
-                // re-derivation (a re-run never re-scores an existing pair), so the evidence was
-                // unrecoverably lost per match. Truncate to the aggregate's cap so a pathological
-                // >Max intersection never fails Create (which would silently drop the match); the
-                // scorer already deduped + Ordinal-ordered, so Take is deterministic. Create dedups
-                // again defensively.
-                var evidence = scored.MatchedSkillConceptIds.Count > UserJobAdMatch.MaxMatchedSkills
-                    ? scored.MatchedSkillConceptIds.Take(UserJobAdMatch.MaxMatchedSkills).ToList()
-                    : scored.MatchedSkillConceptIds;
-                var created = UserJobAdMatch.Create(userId, jobAdId, notifiable, evidence, clock);
-                if (created.IsSuccess)
-                {
-                    db.UserJobAdMatches.Add(created.Value);
-                    matchCount++;
-
-                    // Top is the only directly-dispatched grade (Strong → digest, Good → in-app
-                    // only). Collect the row + its PII-free email item now (the entity is needed to
-                    // drive MarkQueued/MarkSent after the commit). adPublicById always has the ad
-                    // (the score came from this window); TryGetValue is defense-in-depth.
-                    if (notifiable == NotifiableMatchGrade.Top
-                        && adPublicById.TryGetValue(jobAdId, out var ad))
-                    {
-                        topDispatch.Add((created.Value, new MatchNotificationItem(
-                            jobAdId.Value, ad.Title, ad.Company, notifiable.ToSwedishLabel())));
-                    }
-                }
+                db.UserJobAdMatches.Add(created.Value);
+                matchCount++;
             }
         }
 
-        // HARD atomicity invariant: the new matches AND the watermark advance commit together in
-        // ONE SaveChanges (transaction). Never split them.
-        jobSeeker.AdvanceMatchScan(now, clock);
+        // HARD atomicity invariant: the new matches AND the watermark advance commit together.
+        jobSeeker.AdvanceMatchScan(scannedThrough, clock);
         await db.SaveChangesAsync(ct);
-
-        // Top-direct dispatch (PR-4b) runs AFTER the atomic commit so the persisted matches survive
-        // an email failure (the send is not transactional). It self-isolates internally (logs, does
-        // not rethrow ordinary failures), so a send error neither rolls back the matches nor aborts
-        // the user's scan — matchCount is still returned honestly.
-        if (topDispatch.Count > 0)
-            await DispatchTopDirectAsync(db, userAccounts, userId, topDispatch, ct);
-
         return matchCount;
     }
 
-    // One focused Direct email per new Top match (parity the singular template copy). The claim
-    // (Pending → Queued) commits BEFORE the send so a Hangfire retry / re-run never re-sends (the
-    // scan only re-touches Pending). Per-match isolation: a failure on one Top match neither blocks
-    // the others nor rolls back the persisted matches; the stranded Queued row is the deliberate
-    // "never double-email > never miss" trade-off (TD-114 reaper). ADR 0080 Vag 4 PR-4b.
-    // db MUST be the same child-scope context that tracked the created matches (#751) — the
-    // MarkQueued/MarkSent claim-then-send spine commits through the entities' own tracker.
-    private async Task DispatchTopDirectAsync(
-        IAppDbContext db,
-        IUserAccountService userAccounts,
-        Guid userId,
-        IReadOnlyList<(UserJobAdMatch Match, MatchNotificationItem Item)> topMatches,
-        CancellationToken ct)
-    {
-        var toEmail = await userAccounts.GetEmailAsync(userId, ct);
-        if (string.IsNullOrWhiteSpace(toEmail))
-        {
-            // Orphan consent row without an account email — skip (rows stay Pending; the next scan
-            // won't re-pick them, but a Top-email without a recipient is a no-op either way).
-            LogTopNoEmail(logger, userId);
-            return;
-        }
-
-        foreach (var (match, item) in topMatches)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                // Claim before the send (the idempotency spine). MarkQueued requires Pending; the
-                // row was just created Pending, so a Failure is structurally impossible — guard
-                // anyway and skip rather than send an unclaimed row.
-                if (match.MarkQueued().IsFailure)
-                    continue;
-                await db.SaveChangesAsync(ct);
-
-                var content = new MatchNotificationEmail(
-                    MatchNotificationKind.Direct, null, [item], 1);
-                // No idempotency key is passed, and that is the design (ADR 0124): dedupe across calls
-                // is the claim-then-send spine's job — this row is already Queued before the send, and
-                // StrandedMatchReaperJob moves a stranded row to Failed rather than re-sending. The
-                // provider key only ever covered a transport retry WITHIN this one send, and no such
-                // retry exists: the Scaleway arm registers no resilience handler (#183, and
-                // ScalewayClientRegistration says why none may be added).
-                if (!await db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria)
-                    .AnyAsync(seeker => seeker.UserId == userId, ct))
-                    return;
-                await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
-
-                match.MarkSent(clock);
-                await db.SaveChangesAsync(ct);
-                LogTopSent(logger, userId);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Send/commit failed after the claim → this row stays Queued (never re-sent). Other
-                // Top matches for this user still get their own attempt.
-                LogTopSendFailed(logger, ex, userId);
-            }
-        }
-    }
-
-    // Map the computed grade to the persisted notifiable subset. Basic → null (not notifiable —
-    // the honest floor, ADR 0080 Beslut 1); the calculator's null (no grade) is handled before.
+    // Map the computed grade to the persisted notifiable subset. Basic → null (the honest floor, ADR 0080
+    // Beslut 1).
     private static NotifiableMatchGrade? ToNotifiable(MatchGrade grade) => grade switch
     {
         MatchGrade.Good => NotifiableMatchGrade.Good,
@@ -359,35 +281,27 @@ public sealed partial class BackgroundMatchingJob(
         _ => null,
     };
 
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: {Count} consenting users to scan")]
-    private static partial void LogOptedIn(ILogger logger, int count);
+    private sealed record DueUser(Guid UserId, DateTimeOffset? LastMatchScanAt);
+
+    private sealed record CandidateAd(JobAdId Id, DateTimeOffset CreatedAt);
+
+    [LoggerMessage(Level = LogLevel.Debug,
+        Message = "BackgroundMatchingJob: {Scanned} of {Due} consenting users scanned, no new matches")]
+    private static partial void LogScannedNothingNew(ILogger logger, int scanned, int due);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: {Processed}/{Total} users scanned")]
-    private static partial void LogProgress(ILogger logger, int processed, int total);
+        Message = "BackgroundMatchingJob: {Scanned} of {Due} consenting users scanned, {TotalMatches} new matches persisted")]
+    private static partial void LogScanned(ILogger logger, int scanned, int due, int totalMatches);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "BackgroundMatchingJob: scan failed for user {UserId} — isolated, will retry next run")]
+        Message = "BackgroundMatchingJob: the scan budget is spent after {Scanned} of {Due} users; the rest wait for the next run")]
+    private static partial void LogScanBudgetSpent(ILogger logger, int scanned, int due);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "BackgroundMatchingJob: user {UserId}'s row changed twice during the scan; deferred to the next run")]
+    private static partial void LogUserDeferred(ILogger logger, Guid userId);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "BackgroundMatchingJob: scan failed for user {UserId}; isolated, retried next run")]
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: user {UserId}'s row changed during the scan — scanning it once more")]
-    private static partial void LogUserRetried(ILogger logger, Guid userId);
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: done — {Processed} users scanned, {TotalMatches} new matches persisted")]
-    private static partial void LogComplete(ILogger logger, int processed, int totalMatches);
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: Top-direct skipped for user {UserId} — no account email")]
-    private static partial void LogTopNoEmail(ILogger logger, Guid userId);
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "BackgroundMatchingJob: Top-direct email sent for user {UserId}")]
-    private static partial void LogTopSent(ILogger logger, Guid userId);
-
-    [LoggerMessage(Level = LogLevel.Warning,
-        Message = "BackgroundMatchingJob: Top-direct send failed for user {UserId} — match persisted, row left Queued")]
-    private static partial void LogTopSendFailed(ILogger logger, Exception ex, Guid userId);
 }

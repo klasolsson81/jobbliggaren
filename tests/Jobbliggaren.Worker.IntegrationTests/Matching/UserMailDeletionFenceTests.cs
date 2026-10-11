@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
@@ -61,7 +62,7 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
     public async Task RunAsync_ShouldLeaveTheClaimQueuedAndSendOnlyToLiveControl_WhenDeletionCommitsAfterTheClaim(MailArm arm)
     {
         var scenario = await SeedAsync(arm);
-        var deletion = new ScheduleDeletionAfterThePersistedClaim(scenario.Target.UserId, async ct =>
+        var deletion = new InterleaveAfterThePersistedClaim<AccountDeletionScheduled>(scenario.Target.UserId, async ct =>
         {
             var queued = await StatusAsync(scenario, scenario.Target, ct) == "Queued";
             var receipt = await ScheduleAsync(scenario.Target, ct);
@@ -73,7 +74,7 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         var transportTransactions = await RunAsync(scenario, sender, deletion);
         deletion.Fired.ShouldBe(1);
         deletion.SawPersistedQueued.ShouldBeTrue();
-        await AssertDeletionAsync(scenario, deletion.Receipt.ShouldNotBeNull());
+        await AssertDeletionAsync(scenario, deletion.Outcome.ShouldNotBeNull());
         SendsFor(sender, scenario.Target).ShouldBe(0);
         SendsFor(sender, scenario.Control).ShouldBe(1);
         (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
@@ -116,6 +117,36 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
                 .AsNoTracking().SingleAsync(value => value.Id == scenario.Target.ProfileId, Ct))
                 .LastMatchScanAt.ShouldBeNull();
         }
+    }
+
+    // security-auditor V1 (ADR 0161 D5): the dispatcher checks consent again on the live row after its
+    // claim has committed. The withdrawal is the real command's handler, committed in its own context.
+    [Fact]
+    public async Task RunAsync_ShouldLeaveTheTopClaimQueuedAndSendOnlyToLiveControl_WhenConsentIsWithdrawnAfterTheClaim()
+    {
+        var scenario = await SeedAsync(MailArm.TopDirect);
+        var withdrawal = new InterleaveAfterThePersistedClaim<bool>(scenario.Target.UserId, async ct =>
+        {
+            var queued = await StatusAsync(scenario, scenario.Target, ct) == "Queued";
+            return (queued, await WithdrawConsentAsync(scenario.Target, ct));
+        });
+        var sender = Substitute.For<IEmailSender>();
+
+        var transportTransactions = await RunAsync(scenario, sender, withdrawal);
+
+        withdrawal.Fired.ShouldBe(1);
+        withdrawal.SawPersistedQueued.ShouldBeTrue();
+        withdrawal.Outcome.ShouldBeTrue();
+        SendsFor(sender, scenario.Target).ShouldBe(0);
+        SendsFor(sender, scenario.Control).ShouldBe(1);
+        (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
+        (await StatusAsync(scenario, scenario.Control, Ct)).ShouldBe("Sent");
+        transportTransactions.ShouldAllBe(active => !active);
+
+        await RunAsync(scenario, sender, interceptor: null);
+
+        SendsFor(sender, scenario.Target).ShouldBe(0);
+        (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
     }
 
     private async Task<Scenario> SeedAsync(MailArm arm)
@@ -243,6 +274,23 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         MatchGradeCalculator.Grade(actual!.Score, actual.SsykIsRelated).ShouldBe(MatchGrade.Top);
     }
 
+    private async Task<bool> WithdrawConsentAsync(Seeker target, CancellationToken ct)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = Substitute.For<ICurrentUser>();
+        owner.UserId.Returns(target.UserId);
+        owner.IsAuthenticated.Returns(true);
+        var handled = await new UpdateNotificationConsentCommandHandler(db, owner, new FixedClock(Now))
+            .Handle(new UpdateNotificationConsentCommand(Enabled: false), ct);
+        handled.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        var stored = await db.JobSeekers.AsNoTracking().SingleAsync(value => value.UserId == target.UserId, ct);
+        return !stored.Preferences.BackgroundMatchNotificationsEnabled
+            && stored.Preferences.NotificationConsentWithdrawnAt == Now;
+    }
+
     private async Task<AccountDeletionScheduled> ScheduleAsync(Seeker target, CancellationToken ct)
     {
         using var scope = fixture.Services.CreateScope();
@@ -312,7 +360,10 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         {
             var scopes = new ClaimInterleavingScopeFactory(fixture.Services.GetRequiredService<IServiceScopeFactory>(), interceptor);
             RecordTransport(sender, () => scopes.HasActiveTransaction, transactionsAtTransport);
-            await new BackgroundMatchingJob(scopes, sender, new FixedClock(Now), NullLogger<BackgroundMatchingJob>.Instance)
+            var clock = new FixedClock(Now);
+            await new BackgroundMatchingJob(scopes,
+                    new TopMatchMailDispatcher(scopes, sender, clock, NullLogger<TopMatchMailDispatcher>.Instance),
+                    clock, NullLogger<BackgroundMatchingJob>.Instance)
                 .RunAsync(Ct);
         }
         else
@@ -356,13 +407,13 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         sp.GetRequiredService<IAccountAccessCoordinator>().HasActiveScope ||
         System.Transactions.Transaction.Current is not null;
 
-    private sealed class ScheduleDeletionAfterThePersistedClaim(
+    private sealed class InterleaveAfterThePersistedClaim<TOutcome>(
         Guid target,
-        Func<CancellationToken, Task<(bool Queued, AccountDeletionScheduled Receipt)>> interleave) : SaveChangesInterceptor
+        Func<CancellationToken, Task<(bool Queued, TOutcome Outcome)>> interleave) : SaveChangesInterceptor
     {
         public int Fired { get; private set; }
         public bool SawPersistedQueued { get; private set; }
-        public AccountDeletionScheduled? Receipt { get; private set; }
+        public TOutcome? Outcome { get; private set; }
 
         public override async ValueTask<int> SavedChangesAsync(
             SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
@@ -376,7 +427,7 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
             if (queued)
             {
                 Fired++;
-                (SawPersistedQueued, Receipt) = await interleave(cancellationToken);
+                (SawPersistedQueued, Outcome) = await interleave(cancellationToken);
             }
 
             return result;

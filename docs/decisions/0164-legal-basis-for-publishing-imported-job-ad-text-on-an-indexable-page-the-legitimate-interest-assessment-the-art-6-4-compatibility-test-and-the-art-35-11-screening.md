@@ -196,7 +196,7 @@ DPIA #456 (ADR 0090) holds the recruiter-PII risk register at §8-B (R-842-1 to 
 represents changes. Reading §8-B against the page, the screening finds:
 
 1. **No new data category and no new field.** The public DTO is a subset of what the signed-in detail already shows. What
-   changes is the audience.
+   changes is the audience. (Art. 9 in the free text was raised at review and is decided in the Amendment of 2026-10-11.)
 2. **A premise of the assessment stops being true.** B8 says there are "no external recipients at all: no external search
    index". From go-live search engines, link-preview fetchers and archives are recipients, each an independent controller for
    its own processing.
@@ -303,6 +303,38 @@ states his answer to D8 (an addendum or a full DPIA) and whether his approval al
 
 Until both lines read otherwise the Status stays Proposed, ADR 0160 D9.2 is not met, and the S2 PR is not set to merge. If Klas
 has not answered by the time the PR is otherwise ready, the PR carries the `blocked` label (CLAUDE.md §9.6).
+
+## Amendment 2026-10-11 — Art. 9 in the free text: the controller's decision (Klas)
+
+**The finding (kept, with its grade).** At the review of PR #2131 `security-auditor` raised a GDPR **Blocker**: ads for personal
+assistance can describe the person who is to receive the assistance (a first name, an age, a place, a diagnosis), which is health
+data about a third party; Art. 6(1)(f) is not a ground for it and she saw no Art. 9(2) ground (9(2)(e) needs the data subject to
+have made it manifestly public, and the advertiser is often an assistance provider or a municipality). Her recommendation was to
+exclude at least the occupation group Personliga assistenter from the single publication predicate (#2133).
+
+**What is known and what is not.** Nothing here is a count of named persons. The only reading is vocabulary, counts only
+(CLAUDE.md §9.2 (a)), box read 2026-10-11 about 11:50 UTC: 41 548 listed ads; Personliga assistenter `sq3e_WVv_Fjd` 2 048
+(887 with a title of the form "assistent till/åt", 1 385 with a health word in the text, 25 in the title); Elevassistenter
+`XW9L_tA9_WaX` 208 (52; 95); Behandlingsassistenter och socialpedagoger m.fl. `BWwk_fYX_S5B` 382 (23; 170); outside those groups
+246 such titles and 136 titles with a health word. These are upper bounds on vocabulary. **How many ads name a person, and how
+many of those carry health data about them, is not measured, by her or by the drafting session.**
+
+**The decision.** Klas, as controller, on 2026-10-11 (in the session's chat, in reply to the escalation): the ads are public at
+Arbetsförmedlingen, so **no occupation group is excluded**; the page shows every listed ad as published, and no further
+exclusion is built until someone asks for a change. #2133 is closed unbuilt. Its
+design stays the remedy if a trigger below fires: a named set of groups next to `PublishedSource` in `JobAdPublication`, so one
+predicate serves every consumer.
+
+**What this is, and is not.** It is the controller's override of a `security-auditor` GDPR Blocker (Art. 5(2) record). It is not
+an accepted-risk route under CLAUDE.md §9.6: the bearers are third parties, so the bound in route (3) does not hold. It
+**withdraws the remedy only**: the finding and its grade stand, `security-auditor` has not signed this part and does not by this
+amendment, and an accepted risk does not become measured by being accepted. D6(c) and D8 item 1 are read with this amendment.
+
+**Triggers that reopen it (home: this ADR and #2090; reader: Klas):** (1) any request or complaint, from a person or an
+authority, that names an ad in these groups or says it holds health data (the single ad leaves through Tier B and the 410, ADR
+0160 D9.3, and the exclusion in #2133 is built); (2) a counts-only measurement of named persons or ages in the text, if Klas
+asks for one, that finds a non-trivial number; (3) the public copy being served to a bearer of a kind none of the
+three bearer-absence readings covers (a new register of accounts, sends or readers).
 
 ## References
 

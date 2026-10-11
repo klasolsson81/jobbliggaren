@@ -351,6 +351,47 @@ describe("NotificationsBell (#1666)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps the throttle when the tab hides between finished reads", async () => {
+    fetchMock.mockReturnValue(ok(feed()));
+    await renderBell();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a read when the tab hides, and reads again when it comes back", async () => {
+    const signals: AbortSignal[] = [];
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+      signals.push(init.signal!);
+      return new Promise<Response>(() => {});
+    });
+    await renderBell();
+
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(signals[0]?.aborted).toBe(true);
+
+    fetchMock.mockReturnValue(ok(feed()));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(within(open()).getByText("1 oläst")).toBeInTheDocument();
+  });
+
   it("stops polling on 403 as on 401", async () => {
     fetchMock.mockReturnValue(status(403));
     await renderBell();

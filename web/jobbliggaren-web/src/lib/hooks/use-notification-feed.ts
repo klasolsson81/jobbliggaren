@@ -105,10 +105,12 @@ export function useNotificationFeed(): {
 
     function visibilityChanged() {
       if (document.hidden) {
-        inFlight?.abort();
-        inFlight = null;
-        // An abandoned read must not hold the throttle shut when the tab comes back.
-        lastStartedAt = 0;
+        if (inFlight !== null) {
+          inFlight.abort();
+          inFlight = null;
+          // An abandoned read must not hold the throttle shut when the tab comes back.
+          lastStartedAt = 0;
+        }
       } else {
         void refresh(false);
       }

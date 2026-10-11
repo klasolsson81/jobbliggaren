@@ -72,8 +72,7 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 /// <c>...StatusGateTests</c> reads as "archived ads can never carry a grade" — a sign saying "no
 /// hole here" bolted over the holes it does not reach. This registry is the opposite: it does not
 /// assert any site is Active-only; it forces every site to STATE what it decided, and it is
-/// fail-closed because the Cecil scan enumerates the sites exhaustively (a new read cannot exist
-/// without a new <c>get_JobAds</c> instruction). It generalises the column-granular
+/// fail-closed because the Cecil scan enumerates the sites exhaustively. It generalises the column-granular
 /// <c>ErasureCascadeRegistry</c> precedent from persisted columns to read/write SITES.
 /// <para>
 /// <b>"From the EF model" was infeasible and is reinterpreted (ADR 0113).</b> The precedent sweeps
@@ -98,8 +97,8 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 /// <item><b>Read/write is indistinguishable, and a 1-for-1 swap is not detected.</b> The count-pin
 /// catches a NET-NEW read; it does not catch swapping one site for another within a method (count
 /// unchanged), nor does it prove a site's declared decision matches its actual predicate.</item>
-/// <item><b>The control pins SITES, not the TRUTH of each reason.</b> The machine guarantees "no
-/// unclassified read exists"; the written reason is prose a reviewer reads.</item>
+/// <item><b>The control pins SITES, not the TRUTH of each reason.</b> The written reason is prose a
+/// reviewer reads.</item>
 /// <item><b>A read reached only inside an expression tree.</b> <c>db.JobAds</c> inside an expression lambda
 /// (a correlated <c>.Any()</c>, a <c>from j in db.JobAds</c> in a <c>SelectMany</c>) compiles to <c>ldtoken</c> and
 /// <c>Expression.Property</c>, not a <c>get_JobAds</c> call, so the scan does not see it. Measured 2026-10-11 (#1666):

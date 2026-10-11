@@ -150,6 +150,16 @@ public static class JobAdLifecycleReadRegistry
                     + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
+            ["Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource.ReadBoundedAsync"] =
+                One(Active("join JobAds for the ad columns of the notification bell's followed-company rows "
+                    + "(#1666). NO Status predicate at this site: the gate is INHERITED from "
+                    + "NewFollowedCompanyAdSet.NewHits, which the window composes onto — the same posture as "
+                    + "ListNewFollowedCompanyAdsQueryHandler.Handle, so the bell cannot show an ad the count "
+                    + "beside it did not count.")),
+            ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
+                One(Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
+                    + "Status predicate at this site: the gate is INHERITED from NewMatchSet.Matches, which "
+                    + "the list composes onto, so a row and the count beside it share one lifecycle decision.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
                 One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
                     + "(/foretag/branschbevakningar/[id]/annonser, #1559). NO Status predicate at this "

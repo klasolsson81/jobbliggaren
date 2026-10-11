@@ -335,3 +335,25 @@ it.
   https://www.scaleway.com/en/docs/transactional-email/reference-content/tem-capabilities-and-limits/
 - Martin, *Clean Architecture* (2017), ch. 7 and 13 · Fowler, *Patterns of Enterprise Application Architecture* (2002), Optimistic
   Offline Lock · Hunt and Thomas, *The Pragmatic Programmer* (1999), DRY
+
+## Amendment 2026-10-11 (#2107)
+
+ADR 0164 puts an all-mail pause and a pause per mail type on the notification mail, inside the consents. It changes how this ADR's senders
+read "consent" and nothing else in the pacing, the watermark or the bound.
+
+- **D4's "The rule decides when, never whether. Each sender keeps its own consent check" and the Consent section's V1 now read through
+  `NotificationMailGate`.** A sender's check is its gate: `NotificationMail.TopMatch` is `NotificationConsent.BackgroundMatch` ∧ no
+  all-mail pause ∧ the Toppmatch mail not paused. The consent is referenced and never copied, the pause is part of every gate, and
+  `MailPacingRule` still decides only when. #1664 and #1665 build their gate on `NotificationMailGate` (ADR 0164 D10); D4's "Other
+  senders" bullet (their own rule instance and their own last-mail read) is unchanged.
+- **`TopMatchMailDispatcher`'s due set (D5, D6) and its fence after the claim apply `NotificationMail.TopMatch`** in place of
+  `NotificationConsent.BackgroundMatch.Criteria`. A paused user's rows are not claimed and stay Pending. A pause that commits after the
+  claim leaves the rows Queued, as a withdrawal does (D5). The Consent section's V3 reading extends to a pause: not while the pause
+  holds. Lifting it mails a still-due Top row within W (D6) and never an older one. The scan keeps the plain consent, because it is not a
+  mail.
+- **The Toppmatch page copy carries no number.** D10's fifteen minutes is a promise about the sender, conditional on four things the code
+  does not control, so the settings page says "Direkt när en ny annons kommer in." and no page string binds to
+  `BackgroundMatchingJob.TopMatchMailBound` (ADR 0164 D6). D10 and its three pins are unchanged.
+- **Row 7 loses "i din matchningslista".** ADR 0144's Amendment 2026-10-11 (b) changes it to "i appen"; the "varje natt" change in the
+  Consent section stands.
+- **"Out of scope", the digest's two reads, is fixed** as #2118 in the same PR as ADR 0164 (D9), as its own commits.

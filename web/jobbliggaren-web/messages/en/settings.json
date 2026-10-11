@@ -9,13 +9,23 @@
     "languageSwedish": "Svenska",
     "languageEnglish": "English"
   },
+  "notices": {
+    "mailLabel": "Email notifications",
+    "mailPaused": "Not sent while email notifications are off.",
+    "matchesTitle": "Matches",
+    "followTitle": "Companies you follow"
+  },
   "backgroundMatch": {
     "toggleLabel": "Match new job ads for me",
-    "toggleDescription": "Turning this on means you consent to us matching new job ads against your profile and emailing you top matches right away and strong ones in a summary. Good matches appear only in your match list. You can turn this off at any time.",
-    "cadenceLabel": "Email summary",
+    "toggleDescription": "Turning this on means you consent to us matching new job ads against your profile and emailing you top matches right away and strong ones in a summary. Good matches appear only in the app. You can turn this off at any time.",
+    "topMatchLabel": "Top matches by email",
+    "topMatchDescription": "Right away when a new job ad arrives.",
+    "summaryLabel": "Summary by email",
+    "summaryDescription": "New strong matches gathered in one email.",
+    "cadenceLabel": "How often",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",
-    "cadenceHintDisabled": "Turn on either notification to choose.",
+    "cadenceHint": "Applies to the summary and the emails about companies you follow. They arrive in the morning, every day or on Mondays.",
     "errors": {
       "notLoggedIn": "You are not signed in.",
       "invalidInput": "Invalid input.",
@@ -24,7 +34,7 @@
     }
   },
   "followedCompanyNotifications": {
-    "toggleLabel": "Email me new ads from companies I follow",
+    "toggleLabel": "New job ads by email",
     "toggleDescription": "New ads from companies you follow always appear in the app. Turning this on means you consent to us also emailing them to you. You can withdraw your consent at any time by turning this off.",
     "errors": {
       "notLoggedIn": "You are not signed in.",

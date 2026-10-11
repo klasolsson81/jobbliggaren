@@ -4,6 +4,9 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
+using Jobbliggaren.Application.JobSeekers.Commands.SetMatchSummaryMail;
+using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationMail;
+using Jobbliggaren.Application.JobSeekers.Commands.SetTopMatchMail;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateFollowedCompanyNotificationConsent;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMatchPreferences;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
@@ -94,6 +97,39 @@ public static class MeEndpoints
         // /background-match-notification-consent).
         group.MapPut("/followed-company-notification-consent", async (
             UpdateFollowedCompanyNotificationConsentCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0164 (#2107) — the e-mail pauses: every notification mail, the Toppmatch mail, and the
+        // summary. One control, one write, each an idempotent set of {enabled} that writes no consent.
+        // READ via GET /profile. MeWritePolicy (user-owned mutation, parity the consent writes).
+        group.MapPut("/notification-mail", async (
+            SetNotificationMailCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        group.MapPut("/top-match-mail", async (
+            SetTopMatchMailCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        group.MapPut("/match-summary-mail", async (
+            SetMatchSummaryMailCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

@@ -24,7 +24,10 @@ import { boundChallengeSchema, reissuedSessionSchema } from "@/lib/dto/reauth";
 import {
   updateDigestCadence,
   updateFollowedCompanyNotificationConsent,
+  updateMatchSummaryMail,
   updateNotificationConsent,
+  updateNotificationMail,
+  updateTopMatchMail,
 } from "@/lib/api/me";
 import {
   codeProofSchema,
@@ -37,6 +40,12 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
   makeUpdateDigestCadenceSchema,
   type UpdateDigestCadenceInput,
+  makeUpdateNotificationMailSchema,
+  type UpdateNotificationMailInput,
+  makeUpdateTopMatchMailSchema,
+  type UpdateTopMatchMailInput,
+  makeUpdateMatchSummaryMailSchema,
+  type UpdateMatchSummaryMailInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -153,6 +162,55 @@ export async function updateDigestCadenceAction(
   }
 
   const result = await updateDigestCadence({ cadence: parsed.data.cadence });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+/**
+ * ADR 0164 (#2107) — pauses or resumes every notification mail. A pause, never a consent: neither
+ * direction writes or withdraws one (security V3). Carries only `{ enabled }`; its failures read as
+ * the background-match copy, which names no purpose.
+ */
+export async function updateNotificationMailAction(
+  input: UpdateNotificationMailInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateNotificationMailSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateNotificationMail({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+/** ADR 0164 (#2107) — the Toppmatch mail on or off. Carries only `{ enabled }`. */
+export async function updateTopMatchMailAction(
+  input: UpdateTopMatchMailInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateTopMatchMailSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateTopMatchMail({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+/** ADR 0164 (#2107) — the summary mail on or off. Carries only `{ enabled }`. */
+export async function updateMatchSummaryMailAction(
+  input: UpdateMatchSummaryMailInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateMatchSummaryMailSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateMatchSummaryMail({ enabled: parsed.data.enabled });
   return notificationSettingOutcome(result, ts, "backgroundMatch");
 }
 

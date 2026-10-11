@@ -52,6 +52,10 @@ describe("jobSeekerProfileSchema", () => {
     backgroundMatchNotificationsEnabled: false,
     digestCadence: "Weekly",
     followedCompanyNotificationsEnabled: false,
+    // ADR 0164 (#2107) — the e-mail pauses, `true` = on.
+    notificationMailEnabled: true,
+    topMatchMailEnabled: true,
+    matchSummaryMailEnabled: true,
     createdAt: "2026-05-11T10:00:00Z",
     // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
     hasStatedDesiredOccupation: false,
@@ -150,6 +154,17 @@ describe("jobSeekerProfileSchema", () => {
     delete without.followedCompanyNotificationsEnabled;
     expect(jobSeekerProfileSchema.safeParse(without).success).toBe(false);
   });
+
+  // A missing pause must not read as "off": the card would then hide the mail switches of a user
+  // whose mails are on.
+  it.each(["notificationMailEnabled", "topMatchMailEnabled", "matchSummaryMailEnabled"] as const)(
+    "rejects when %s is missing (contract drift, ADR 0164)",
+    (key) => {
+      const without: Partial<typeof valid> = { ...valid };
+      delete without[key];
+      expect(jobSeekerProfileSchema.safeParse(without).success).toBe(false);
+    }
+  );
 
   it("accepts digestCadence Daily and Weekly (wire enum-värden)", () => {
     expect(

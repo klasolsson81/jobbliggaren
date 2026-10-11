@@ -534,3 +534,59 @@ matching of new ads against the profile and e-mail; (c) top matches are mailed r
 never mailed; (d) it can be turned off at any time. No fresh consent is required: she ruled that the purpose, the data and the recipient
 are unchanged (EDPB Guidelines 05/2020, p. 57, 58, 64, 90). `legally-bound-copy.test.ts` pins row 7 whole, sv and en, and
 `notifications-section.test.tsx` pins the switch's accessible description to it, on and off.
+
+## Amendment 2026-10-11 (b) — #2107: row 7's variant and row 14 per mail type
+
+The e-mail pauses of ADR 0164 (a master switch and one switch per mail type, none of them a consent or a withdrawal) change two bound
+strings. `security-auditor` signed both in #2107's pre-code form round on 2026-10-11 and re-signed row 14 per mail type in a scoped,
+report-only continuation after the CTO's ruling; her report, `docs/reviews/2026-10-11-2107-form-security.md`, carries the element sets as
+she set them and is promoted with that PR. No fresh consent is required: the purpose, the data and the recipient are unchanged (EDPB
+Guidelines 05/2020 ¶58 is not triggered). This replaces the row-7 strings quoted in Amendment 2026-10-11 (#2106) and the "Du får detta för
+att …" paragraphs that Amendment 2026-09-27 (#1891 PR 2) left unchanged.
+
+**Row 7, variant 3.** `settings.backgroundMatch.toggleDescription`, sv "Slår du på det samtycker du till att vi matchar nya annonser mot din profil och mejlar dig toppmatchningar direkt och starka i en sammanfattning. Bra matchningar visas bara i appen. Du kan stänga av det när som helst.", en "Turning this on means you consent to us matching new job ads against your profile and emailing you top matches right away and strong ones in a summary. Good matches appear only in the app. You can turn this off at any time."
+
+The only change from Amendment 2026-10-11 (#2106) is "i din matchningslista" to "i appen" and "in your match list" to "in the app". The
+bell (ADR 0162) can show Good matches, so "only in your match list" would be false once it shows them, while "only in the app" is true
+before and after (security V8). The element set is unchanged: (a) the consent is given by the switch; (b) inside the consent sentence,
+matching of new ads against the profile and e-mail; (c) top matches are mailed right away, strong ones come in a summary, good ones are
+never mailed; (d) it can be turned off at any time. Element (c) is now carried by "visas bara i appen". A move of rows 7 and 8 on the
+page needs no new signature while their switches stay usable whatever the master switch says (V2) and the strings are unchanged or row 7
+is this variant.
+
+**Row 14, per mail type.** The mails exist in Swedish only. Each paragraph stands after the call to action, in the text part and in the
+HTML part, and the quotation marks are ” (U+201D) on both sides, identical in both parts. The first replaces her first-round signature for
+the Direct variant, which named "matchningsnotiser" and so steered the reader to no control on the page.
+
+1. `EmailTemplates.MatchNotification`, Kind = Direct (the Toppmatch mail)
+   - text: "Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. Du kan stänga av mejlen i dina inställningar:" followed by `{BaseUrl}/mina-sidor/notiser`
+   - html: `LinkParagraph("Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. Du kan stänga av mejlen:", settingsLink, "Ändra dina inställningar")`
+2. `EmailTemplates.MatchNotification`, Kind = Digest (the summary)
+   - text: "Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. Du kan ändra hur ofta du får den, eller stänga av den, i dina inställningar:" followed by the same link
+   - html: `LinkParagraph("Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. Du kan ändra hur ofta du får den, eller stänga av den:", settingsLink, "Ändra dina inställningar")`
+3. `EmailTemplates.FollowedCompanyNotification`
+   - text: "Du får detta för att du har slagit på ”Nya annonser via e-post” för företag du följer. Du kan ändra hur ofta du får dem, eller stänga av dem helt, i dina inställningar:" followed by the same link
+   - html: `LinkParagraph("Du får detta för att du har slagit på ”Nya annonser via e-post” för företag du följer. Du kan ändra hur ofta du får dem, eller stänga av dem helt:", settingsLink, "Ändra dina inställningar")`
+
+The element set per variant, replacing row 14's from the form round: (a) why the recipient gets the mail: the sentence names exactly what
+gives this mail. A consent switch is named as an act, "du har slagit på": row 7 as "matchningen" and row 8 by its label and its
+section. A type switch is named by the page's own label in state form, "… är på", and never as "du har slagit på", which is false for a
+recipient who has it on by default. Direct names the Toppmatch switch, Digest the summary switch, and the follow mail only row 8, its
+only control. (b) how the mail is turned off: the sentence says it can be turned off in the settings, and a clause about how often
+appears only in Digest and in the follow mail, never in Direct. (c) `{BaseUrl}/mina-sidor/notiser` stands in both parts. (d) the
+paragraph stands after the call to action and is never merged with the follow mail's filter disclosure.
+
+The label half of the change, that each sentence names the page's label, was signed with no fallback: she found it legally
+unobjectionable, so the CTO's fallback (if she had declined it on legal grounds, the first-round text would have governed) was not used.
+A later change of a switch label or section heading follows into the sentence word for word without a new signature, as long as the
+forms in (a) stand, and the same labels may be used in the privacy policy's pre-signed word swap. Anything else returns to her. Graded if
+broken: a Direct paragraph with a cadence clause, or a type switch named as "du har slagit på", is a Major (Art. 5(1)(a), in the
+paragraph Art. 7(3) requires); a missing word-for-word pin of any paragraph in either part is a Minor.
+
+The privacy policy's withdrawal sentences (her signature 2) are not a catalogue row; ADR 0164 D8 records them.
+
+**Pins.** `legally-bound-copy.test.ts` pins row 7 whole, sv and en, as variant 3 (it replaces the #2106 strings).
+`notifications-section.test.tsx` pins the switch's accessible description to it, on and off, and renders the master switch off to show
+that both consent switches (rows 7 and 8) stay active, each with its description (V2). `EmailTemplatesMatchNotificationTests` pins the
+Direct and the Digest paragraphs word for word in the text part and the HTML part, each kind in its own test, and
+`EmailTemplatesFollowedCompanyNotificationTests` pins the follow paragraph the same way (V6).

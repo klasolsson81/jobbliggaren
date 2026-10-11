@@ -40,7 +40,7 @@ export function MinaSidorShell({
 /** Skeleton rows per section, roughly the rows the loaded card renders. */
 const SKELETON_ROWS: Record<MinaSidorSection, number> = {
   matchning: 5,
-  notiser: 3,
+  notiser: 5,
   konto: 2,
   sekretess: 2,
 };

@@ -14,18 +14,19 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-4b (Beslut 4) — the Strong-match digest dispatch. For every CONSENTING user
-/// whose chosen <see cref="DigestCadence"/> matches the run (the cron IS the window: a Daily cron
+/// ADR 0080 Vag 4 PR-4b (Beslut 4) — the Strong-match digest dispatch. For every user
+/// <see cref="NotificationMail.MatchSummary"/> admits whose chosen <see cref="DigestCadence"/> matches the run (the cron IS the window: a Daily cron
 /// dispatches Daily users, a Weekly cron the Weekly users), it composes ONE email summarising the
 /// user's accumulated Pending <see cref="NotifiableMatchGrade.Strong"/> matches and marks them
 /// Sent. <see cref="NotifiableMatchGrade.Good"/> is in-app only (never emailed) and
-/// <see cref="NotifiableMatchGrade.Top"/> is direct-dispatched in the scan — so neither is digested
-/// here. Registered as two Hangfire RecurringJobs (~06:00 UTC, deliberately AFTER the 03:20 scan).
+/// <see cref="NotifiableMatchGrade.Top"/> is mailed by <see cref="BackgroundMatching.TopMatchMailDispatcher"/>
+/// in the five-minute matching run (ADR 0161) — so neither is digested here. Registered as two Hangfire
+/// RecurringJobs (~06:00 UTC).
 /// NO AI/LLM (ADR 0071).
 /// <para>
-/// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not
-/// withdrawn — identical to the background-match scan (NOT the company-follow scan, which under 7C
-/// creates hits for every active follower — see the follow-pass section below).
+/// <b>The mail gate is the query gate for the STRONG-match pass:</b>
+/// <see cref="NotificationMail.MatchSummary"/> — the background-match consent the scan also reads (GDPR
+/// Art. 6/7), with neither all notification mail nor the summary paused (ADR 0164).
 /// </para>
 /// <para>
 /// <b>Idempotent claim-then-send:</b> HTTP is not transactional, so per user the sequence is
@@ -49,8 +50,10 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>ADR 0087 D5 (#311 PR-4) — company-follow digest pass.</b> This job ALSO dispatches
 /// <c>FollowedCompanyAdHit</c> rows (new ads from employers a user follows) via the SEPARATE
-/// <see cref="IEmailSender.SendFollowedCompanyNotificationEmailAsync"/> contract, gated by the
-/// SEPARATE <c>FollowedCompanyNotificationsEnabled</c> consent flag on the SHARED cadence. The
+/// <see cref="IEmailSender.SendFollowedCompanyNotificationEmailAsync"/> contract, gated by
+/// <see cref="NotificationMail.FollowedCompany"/> (the SEPARATE follow consent, with all notification
+/// mail not paused) on the SHARED cadence. The company-follow scan itself creates hits for every active
+/// follower (7C); only this mail is gated. The
 /// follow pass is a fully INDEPENDENT second pass (its own due-set query, per-user loop, and failure
 /// isolation) — fetching/dispatching follow hits never shares state with the Strong-match pass (the
 /// SoC ADR 0087 D5 mandates). A user consenting to both at this cadence honestly gets two emails.
@@ -74,11 +77,10 @@ public sealed partial class DigestDispatchJob(
 
     public async Task RunAsync(DigestCadence cadence, CancellationToken cancellationToken)
     {
-        // The DUE set: consenting users whose chosen cadence is the one this run dispatches (the
-        // cron IS the window). Consent filter parity the scan — enabled AND not withdrawn. Default
-        // OFF → the set is small; a per-user loop is fine for the $16-VPS MVP.
-        var dueUserIds = await db.JobSeekers
-            .Where(NotificationConsent.BackgroundMatch.Criteria)
+        // The DUE set: users the summary's mail gate admits, whose chosen cadence is the one this run
+        // dispatches (the cron IS the window). The consent defaults OFF → the set is small; a per-user
+        // loop is fine for the $16-VPS MVP.
+        var dueUserIds = await NotificationMail.MatchSummary.Apply(db.JobSeekers)
             .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
@@ -115,7 +117,7 @@ public sealed partial class DigestDispatchJob(
         LogComplete(logger, cadence, processed, sent);
 
         // ─── Company-follow digest pass (ADR 0087 D5) — INDEPENDENT of the Strong-match pass above.
-        // A SEPARATE consent flag (FollowedCompanyNotificationsEnabled) gates a SEPARATE source
+        // A SEPARATE consent (FollowedCompanyNotificationsEnabled) gates a SEPARATE source
         // aggregate (FollowedCompanyAdHit) sent via a SEPARATE email contract. Its own due-set query
         // + per-user loop + failure isolation → the two sources never share fetch/dispatch state (the
         // SoC ADR 0087 D5 mandates). The digest CADENCE is shared (ADR 0087 D2), so a user consenting
@@ -126,8 +128,7 @@ public sealed partial class DigestDispatchJob(
     private async Task DispatchFollowedCompanyDigestsAsync(
         DigestCadence cadence, CancellationToken cancellationToken)
     {
-        var dueUserIds = await db.JobSeekers
-            .Where(NotificationConsent.FollowedCompany.Criteria)
+        var dueUserIds = await NotificationMail.FollowedCompany.Apply(db.JobSeekers)
             .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
@@ -164,78 +165,60 @@ public sealed partial class DigestDispatchJob(
     private async Task<bool> DispatchUserDigestAsync(
         Guid userId, DigestCadence cadence, CancellationToken ct)
     {
-        // The user's Pending STRONG rows (tracked — MarkQueued/MarkSent mutate them). Order by
-        // recency (Goodhart: grade + CreatedAt, NEVER a score). Good is in-app only; Top is
-        // direct-dispatched in the scan — the Grade filter excludes both.
-        var pending = await db.UserJobAdMatches
-            .Where(m => m.UserId == userId
-                        && m.Grade == NotifiableMatchGrade.Strong
-                        && m.NotificationStatus == NotificationStatus.Pending)
-            .OrderByDescending(m => m.CreatedAt)
-            .ThenBy(m => m.Id)
+        // The user's Pending STRONG rows, each with its ad's PUBLIC title and company (no CV data), in
+        // ONE read (#2118). The matching run writes Strong rows every five minutes and is not serialised
+        // against this job, so a claim set and a display set read in two statements can disagree: a row
+        // committed between them was listed, left Pending, and mailed again next digest. One read is the
+        // claim set and the display set at once, so the mail lists only rows this run claims. The rows
+        // are tracked (MarkQueued/MarkSent mutate them); only scalars come from the ad, so no JobAd is
+        // tracked — and no AsNoTracking may appear anywhere in this query, or the claim writes nothing.
+        // Order by recency (Goodhart: grade + CreatedAt, NEVER a score). Good is in-app only and Top is
+        // mailed by TopMatchMailDispatcher — the Grade filter excludes both.
+        //
+        // LIFECYCLE (#864) — a row is PRESENTABLE only while its ad is Active, decided per row in the
+        // projection. JobAd carries no query filter (#821), so an ARCHIVED ad still joins, and archiving
+        // is every ad's normal end of life (ExpireJobAdsJob): the matching run's gate only proves the ad
+        // was Active when the row was made. ALLOW-list, not `!= Archived`: a deny-list admits every status
+        // added later, and Erased (#842) is a tombstone whose company reads "[raderad]" — pushing that
+        // into an inbox would broadcast the very erasure it exists to conceal. The parity with
+        // /matchningar is a GATED parity (GetMyMatchesQueryHandler carries the same predicate).
+        //
+        // The gate is on the DISPLAY only. The CLAIM/DRAIN set is every row, on purpose: an archived row
+        // was a valid match when detected, so it must still be drained (Pending → Queued → Sent) or it
+        // re-processes on every digest run, forever. The LEFT join keeps that drain for a row whose ad
+        // row is missing; nothing in src/ deletes a job_ads row, so that case is defensive only.
+        var rows = await (
+                from m in db.UserJobAdMatches
+                where m.UserId == userId
+                      && m.Grade == NotifiableMatchGrade.Strong
+                      && m.NotificationStatus == NotificationStatus.Pending
+                join j in db.JobAds on m.JobAdId equals j.Id into ads
+                from j in ads.DefaultIfEmpty()
+                orderby m.CreatedAt descending, m.Id
+                select new PendingStrongRow(
+                    m,
+                    j != null && j.Status == JobAdStatus.Active
+                        ? new PresentableAd(m.JobAdId, j.Title, j.Company.Name)
+                        : null))
             .ToListAsync(ct);
 
-        if (pending.Count == 0)
+        if (rows.Count == 0)
             return false;
 
-        // Display items (capped) for the SAME Pending Strong rows, joined to each ad's PUBLIC
-        // title/company (no CV data). Read BEFORE the claim (rows still Pending), AsNoTracking,
-        // same ordering → the most recent N of the PRESENTABLE window.
-        //
-        // LIFECYCLE (#864) — `j.Status == JobAdStatus.Active` is an EXPLICIT predicate here. JobAd
-        // carries no query filter (#821 retired the dead soft-delete axis), so an ARCHIVED ad still
-        // JOINS; the old comment claimed the join dropped "an ad that is gone" and called the absence
-        // of a Status predicate "deliberate parity with /matchningar". Both were false: an archived ad
-        // is not gone, archiving is every ad's normal end of life (ExpireJobAdsJob), and the parity was
-        // parity with a defect. BackgroundMatchingJob's gate only proves the ad was Active AT SCAN
-        // TIME — weeks before this digest runs. Un-gated, this job EMAILED "Stark match" for ads
-        // nobody can apply to. The parity with /matchningar survives, but it is now a GATED parity
-        // (GetMyMatchesQueryHandler carries the same predicate). ALLOW-list, not `!= Archived`: a
-        // deny-list admits every status added later, and Erased (#842) is a tombstone whose company
-        // reads "[raderad]" — pushing that into an inbox would broadcast the very erasure it exists
-        // to conceal.
-        //
-        // The gate is on the DISPLAY set only. `pending` above is the CLAIM/DRAIN set and stays
-        // UNGATED ON PURPOSE: an archived row was a valid match when detected, so it must still be
-        // drained (Pending → Queued → Sent) or it re-processes on every digest run, forever.
-        // Joining (not filtering by an id set) sidesteps the strongly-typed-VO Contains trap.
-        var presentable =
-            from m in db.UserJobAdMatches.AsNoTracking()
-            where m.UserId == userId
-                  && m.Grade == NotifiableMatchGrade.Strong
-                  && m.NotificationStatus == NotificationStatus.Pending
-            join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
-            where j.Status == JobAdStatus.Active
-            orderby m.CreatedAt descending, m.Id
-            select new { j.Id, j.Title, Company = j.Company.Name };
+        var pending = rows.Select(r => r.Match).ToList();
 
-        // ONE materialisation, then count, THEN cap. The count and the displayed rows come from the SAME
-        // list, so `TotalCount >= Items.Count` holds BY CONSTRUCTION.
-        //
-        // The obvious shape — `.Take(cap)` for the body plus a separate `.CountAsync()` for the total —
-        // is wrong here, and not because of the round-trip. It is TWO statements with no enclosing
-        // transaction, and ExpireJobAdsJob is not serialised against this job: archive an ad between them
-        // and the total comes back SMALLER than the list, so the email says "har hittat 1 nya matchningar
-        // sedan sist:" above a body that lists two. That degrades a structural invariant into a TOCTOU
-        // race — trading the lie this PR removes for a rarer one. Materialising once cannot race with
-        // itself. (An invariant you assert is a test; an invariant you construct is a guarantee.)
-        //
-        // Unbounded is not a new risk: `pending` above already loads the same rows with no Take, as
-        // TRACKED entities. This is a strictly cheaper AsNoTracking projection of a subset of them.
-        var presentableRows = await presentable.ToListAsync(ct);
-
-        // The "och N till" remainder renders as TotalCount - Items.Count, so TotalCount must count what
-        // the user COULD have been shown — the PRESENTABLE window, never `pending` (the claim set), which
-        // would promise archived ads the body can never list. A count that promises more than its set can
-        // deliver is the #560 PR-2 defect, and it would have arrived here inside the fix for #864 — in an
-        // outbound email, under a field the DTO's own docstring calls the honest total.
+        // Count, THEN cap, over the same list: `TotalCount >= Items.Count` holds BY CONSTRUCTION. The
+        // "och N till" remainder renders as TotalCount - Items.Count, so TotalCount counts what the user
+        // COULD have been shown — the PRESENTABLE rows, never the claim set, which would promise archived
+        // ads the body can never list.
+        var presentableRows = rows.Select(r => r.Ad).OfType<PresentableAd>().ToList();
         var presentableTotal = presentableRows.Count;
         var displayRows = presentableRows
             .Take(_options.MaxItemsPerDigest)
             .ToList();
 
-        // The consent is read again before the claim, not taken from the due set (ADR 0146).
-        if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+        // The mail gate is read again before the claim, not taken from the due set (ADR 0146).
+        if (!await StillMailableAsync(NotificationMail.MatchSummary, userId, ct))
             return false;
 
         // Claim ALL pending Strong rows (Pending → Queued) and commit BEFORE the send — the
@@ -270,8 +253,8 @@ public sealed partial class DigestDispatchJob(
         // cap and renders "och N till" for the remainder, so the total must count only ads the body
         // could have listed.
         var items = displayRows
-            .Select(r => new MatchNotificationItem(
-                r.Id.Value, r.Title, r.Company, NotifiableMatchGrade.Strong.ToSwedishLabel()))
+            .Select(ad => new MatchNotificationItem(
+                ad.JobAdId.Value, ad.Title, ad.Company, NotifiableMatchGrade.Strong.ToSwedishLabel()))
             .ToList();
         var content = new MatchNotificationEmail(
             MatchNotificationKind.Digest, cadence, items, presentableTotal);
@@ -283,7 +266,7 @@ public sealed partial class DigestDispatchJob(
         // Scaleway arm registers no resilience handler (#183).
         try
         {
-            if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+            if (!await StillMailableAsync(NotificationMail.MatchSummary, userId, ct))
                 return false;
             await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
         }
@@ -304,6 +287,10 @@ public sealed partial class DigestDispatchJob(
         return true;
     }
 
+    private sealed record PendingStrongRow(UserJobAdMatch Match, PresentableAd? Ad);
+
+    private sealed record PresentableAd(JobAdId JobAdId, string Title, string Company);
+
     // Queued → Sent for the whole claimed batch. MarkSent's Result is structurally Success (the
     // rows were just claimed Queued).
     private void DrainSent(IReadOnlyList<UserJobAdMatch> matches)
@@ -312,13 +299,11 @@ public sealed partial class DigestDispatchJob(
             match.MarkSent(clock);
     }
 
-    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as not consenting,
-    // and nothing is tracked.
-    private Task<bool> ConsentStillGrantedAsync(
-        Specification<JobSeeker> consent, Guid userId, CancellationToken ct) =>
-        db.JobSeekers
+    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as shut out, and
+    // nothing is tracked.
+    private Task<bool> StillMailableAsync(NotificationMailGate gate, Guid userId, CancellationToken ct) =>
+        gate.Apply(db.JobSeekers)
             .Where(js => js.UserId == userId)
-            .Where(consent.Criteria)
             .AnyAsync(ct);
 
     // ─── Company-follow digest (ADR 0087 D5) — the SHAPE of DispatchUserDigestAsync above, but over
@@ -418,8 +403,8 @@ public sealed partial class DigestDispatchJob(
         FullCandidateMatchProfile? assessableProfile = null;
         if (filterByWatchId.Values.Any(f => f is { OnlyMatched: true }))
         {
-            // The profile is derived from the CV, so the consent is read again before it is built.
-            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            // The profile is derived from the CV, so the mail gate is read again before it is built.
+            if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
                 return false;
 
             var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
@@ -522,9 +507,9 @@ public sealed partial class DigestDispatchJob(
             .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
             .ToList();
 
-        // The consent is read again before the claim, not taken from the due set (parity the match
+        // The mail gate is read again before the claim, not taken from the due set (parity the match
         // pass).
-        if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+        if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
             return false;
 
         // Claim the EFFECTIVE follow rows (Pending → Queued) and commit BEFORE the send — the
@@ -564,7 +549,7 @@ public sealed partial class DigestDispatchJob(
         // dedupe, and a claimed hit set is never re-sent.
         try
         {
-            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
                 return false;
             await emailSender.SendFollowedCompanyNotificationEmailAsync(toEmail, content, ct);
         }
@@ -633,7 +618,7 @@ public sealed partial class DigestDispatchJob(
     }
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "DigestDispatchJob: {Cadence} — {Count} consenting users due")]
+        Message = "DigestDispatchJob: {Cadence} — {Count} users due")]
     private static partial void LogDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
@@ -670,7 +655,7 @@ public sealed partial class DigestDispatchJob(
     // ─── Company-follow digest pass log messages (ADR 0087 D5). NEVER carry an org.nr (D8/§5) —
     // only counts + opaque user ids (parity the match pass).
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "DigestDispatchJob (follow): {Cadence} — {Count} consenting users due")]
+        Message = "DigestDispatchJob (follow): {Cadence} — {Count} users due")]
     private static partial void LogFollowDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,

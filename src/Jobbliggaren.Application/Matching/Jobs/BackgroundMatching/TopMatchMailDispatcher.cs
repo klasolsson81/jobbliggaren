@@ -31,8 +31,9 @@ namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 /// disjoint from the stranded-match reaper's, which only touches rows older than 48 hours.
 /// </para>
 /// <para>
-/// <b>Per recipient:</b> claim the rows and commit, check consent again on the live row (a withdrawal or
-/// an account deletion committed after the claim stops the send: Art. 7(3), Art. 17, #533), read the
+/// <b>Per recipient:</b> claim the rows and commit, check the mail gate again on the live row (a
+/// withdrawal, a paused Toppmatch mail or all-mail pause, or an account deletion committed after the claim
+/// stops the send: Art. 7(3), Art. 17, #533, ADR 0164), read the
 /// address, send one mail, then mark the rows Sent and commit. A row whose send did not complete stays
 /// Queued and is never re-sent; the reaper fails it later. The first failure ends the phase, so a
 /// provider outage costs one recipient's rows per run, not every recipient's.
@@ -70,10 +71,10 @@ public sealed partial class TopMatchMailDispatcher(
         var userAccounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
 
         // The claim set and the display set are one query: every claimed row carries the title and
-        // company it is listed with, so the mail lists exactly the rows it claims (#864). Consent is
-        // applied here as well, so a row of a user who is not consenting is never claimed.
-        var consenting = db.JobSeekers
-            .Where(NotificationConsent.BackgroundMatch.Criteria)
+        // company it is listed with, so the mail lists exactly the rows it claims (#864). The mail gate
+        // (consent and pauses, ADR 0164) is applied here as well, so a row of a user it shuts out is
+        // never claimed.
+        var mailable = NotificationMail.TopMatch.Apply(db.JobSeekers)
             .Select(seeker => seeker.UserId);
         var due = await (
                 from match in db.UserJobAdMatches
@@ -83,7 +84,7 @@ public sealed partial class TopMatchMailDispatcher(
                       && match.CreatedAt >= cutoff
                       && ad.Status == JobAdStatus.Active
                       && ad.CreatedAt >= cutoff
-                      && consenting.Contains(match.UserId)
+                      && mailable.Contains(match.UserId)
                 orderby match.CreatedAt, match.Id
                 select new DueRow(match, ad.Title, ad.Company.Name))
             .ToListAsync(ct);
@@ -165,13 +166,12 @@ public sealed partial class TopMatchMailDispatcher(
             return false;
         await db.SaveChangesAsync(ct);
 
-        // The deletion and withdrawal fence: read on the live row through the JobSeeker query filter,
-        // after the claim has committed and before the send.
-        if (!await db.JobSeekers
-                .Where(NotificationConsent.BackgroundMatch.Criteria)
+        // The deletion, withdrawal and pause fence: read on the live row through the JobSeeker query
+        // filter, after the claim has committed and before the send.
+        if (!await NotificationMail.TopMatch.Apply(db.JobSeekers)
                 .AnyAsync(seeker => seeker.UserId == userId, ct))
         {
-            LogConsentGone(logger, userId);
+            LogMailClosed(logger, userId);
             return false;
         }
 
@@ -221,8 +221,8 @@ public sealed partial class TopMatchMailDispatcher(
     private static partial void LogBudgetSpent(ILogger logger, int mailed);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "TopMatchMailDispatcher: user {UserId} no longer consents after the claim; rows left Queued")]
-    private static partial void LogConsentGone(ILogger logger, Guid userId);
+        Message = "TopMatchMailDispatcher: the Toppmatch mail of user {UserId} closed after the claim; rows left Queued")]
+    private static partial void LogMailClosed(ILogger logger, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "TopMatchMailDispatcher: user {UserId} has no account email; rows left Queued")]

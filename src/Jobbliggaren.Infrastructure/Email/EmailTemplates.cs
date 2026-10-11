@@ -110,6 +110,23 @@ internal static partial class EmailTemplates
             : $"{content.TotalCount} nya matchningar sedan sist:";
         var lead = direct ? string.Empty : $"{intro}\n\n";
 
+        // Row 14 of ADR 0144 Decision 4, as security-auditor signed it per mail type (#2107): the reason
+        // names the page's switch for this mail, and only the summary mentions how often.
+        var reasonPlain = direct
+            ? """
+              Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. Du kan
+              stänga av mejlen i dina inställningar:
+              """
+            : """
+              Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. Du kan
+              ändra hur ofta du får den, eller stänga av den, i dina inställningar:
+              """;
+        var reasonHtml = direct
+            ? "Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. Du kan "
+              + "stänga av mejlen:"
+            : "Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. Du kan "
+              + "ändra hur ofta du får den, eller stänga av den:";
+
         return new EmailContent(
             Subject: subject,
             PlainTextBody: $"""
@@ -118,9 +135,7 @@ internal static partial class EmailTemplates
                 {actionLabel}:
                 {actionLink}
 
-                Du får detta för att du har slagit på matchningsnotiser. Du kan
-                ändra hur ofta du får dem, eller stänga av dem helt, i dina
-                inställningar:
+                {reasonPlain}
                 {settingsLink}
 
                 Vänliga hälsningar,
@@ -138,11 +153,7 @@ internal static partial class EmailTemplates
                             : EmailHtml.P(intro) + EmailHtml.List(htmlItems))
                     + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
                     + EmailHtml.Button(actionLink, actionLabel)
-                    + EmailHtml.LinkParagraph(
-                        "Du får detta för att du har slagit på matchningsnotiser. Du kan ändra hur "
-                        + "ofta du får dem, eller stänga av dem helt:",
-                        settingsLink,
-                        "Ändra dina inställningar")
+                    + EmailHtml.LinkParagraph(reasonHtml, settingsLink, "Ändra dina inställningar")
                     + EmailHtml.SignOff()));
     }
 
@@ -212,9 +223,9 @@ internal static partial class EmailTemplates
                 Öppna annonserna:
                 {newAdsLink}
 
-                Du får detta för att du har slagit på notiser för företag du följer.
-                Du kan ändra hur ofta du får dem, eller stänga av dem helt, i dina
-                inställningar:
+                Du får detta för att du har slagit på ”Nya annonser via e-post” för
+                företag du följer. Du kan ändra hur ofta du får dem, eller stänga av
+                dem helt, i dina inställningar:
                 {settingsLink}
 
                 Vänliga hälsningar,
@@ -232,8 +243,8 @@ internal static partial class EmailTemplates
                     + BuildFilterDisclosureHtml(content.FilterSummary, companiesLink)
                     + EmailHtml.Button(newAdsLink, "Öppna annonserna")
                     + EmailHtml.LinkParagraph(
-                        "Du får detta för att du har slagit på notiser för företag du följer. Du "
-                        + "kan ändra hur ofta du får dem, eller stänga av dem helt:",
+                        "Du får detta för att du har slagit på ”Nya annonser via e-post” för företag du "
+                        + "följer. Du kan ändra hur ofta du får dem, eller stänga av dem helt:",
                         settingsLink,
                         "Ändra dina inställningar")
                     + EmailHtml.SignOff()));

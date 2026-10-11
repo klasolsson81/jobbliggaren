@@ -70,6 +70,12 @@ export const jobSeekerProfileSchema = z.object({
   // regardless of this flag (Art. 6(1)(b)); the flag gates the EMAIL channel
   // only (Art. 6(1)(a), default OFF). Backend always projects it → required key.
   followedCompanyNotificationsEnabled: z.boolean(),
+  // ADR 0164 (#2107): the e-mail pauses, `true` = on (the default for every user). Not consents:
+  // each only stops mails the consents above already cover. The backend always projects them →
+  // required keys.
+  notificationMailEnabled: z.boolean(),
+  topMatchMailEnabled: z.boolean(),
+  matchSummaryMailEnabled: z.boolean(),
   createdAt: z.string(),
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),

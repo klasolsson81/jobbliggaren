@@ -103,7 +103,7 @@ describe("classifyPublicJobAdProbe", () => {
 });
 
 describe("answerForPublicJobAdAction", () => {
-  it("is the internal page, with no status and no noindex: an action reads no ad", () => {
+  it("is the internal page, with no status and no noindex", () => {
     expect(answerForPublicJobAdAction(ID)).toEqual({ path: `/publik/jobb/${ID}`, noindex: false });
   });
 });

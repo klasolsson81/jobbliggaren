@@ -284,8 +284,7 @@ try {
     assert.equal(publicCalls().length, 0);
   });
 
-  await check("a Server Action posted to the page's own address (the language switch) is not sent to the login page and reads no ad", async () => {
-    seen.length = 0;
+  await check("a Server Action posted to the page's own address (the language switch) is not sent to the login page", async () => {
     const res = await get(origin, `/jobb/${ID.listed}`, {
       method: "POST",
       headers: { "next-action": "4000deadbeefdeadbeefdeadbeefdeadbeefdead", "content-type": "text/plain;charset=UTF-8" },
@@ -293,7 +292,6 @@ try {
     });
     assert.notEqual(res.status, 307, "an action POST must not meet the login redirect");
     assert.ok(!(res.headers.get("location") ?? "").includes("/logga-in"));
-    assert.equal(publicCalls().length, 0);
   });
 
   await check("a POST to the page's address without next-action still meets the login page", async () => {

@@ -74,9 +74,11 @@ The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggare
 The page is live for everyone, and every successful view of it is a `job_ads` row. A check that prints a title, an `og:` value or an `<h1>` is
 a read of §9.2 (b) data, so the live check prints **none** of them.
 
-1. `curl -s -o /dev/null -D - https://jobbliggaren.se/jobb/<uuid>`, printing only: the status line, `Cache-Control`, `X-Robots-Tag` and, from
-   the body, the **canonical href** (`grep -o 'rel="canonical" href="[^"]*"'`, which holds only the uuid). Titles, descriptions and company
-   names are checked with `grep -c` (a count), never printed.
+1. Three pipelines, each printing only what the step allows (the canonical href holds only the uuid; titles, descriptions and company names are
+   counted with `grep -c`, never printed):
+   - `curl -s -o /dev/null -D - https://jobbliggaren.se/jobb/<uuid> | grep -iE '^(HTTP/|cache-control|x-robots-tag)'`
+   - `curl -s https://jobbliggaren.se/jobb/<uuid> | grep -o 'rel="canonical" href="[^"]*"'`
+   - `curl -s https://jobbliggaren.se/jobb/<uuid> | grep -c '<h1'`
 2. **The uuid is chosen by Klas** (copied from his own signed-in view, an ad he picks) or comes from a query that returns an id and nothing else.
    An agent never lists ads to find one.
 3. A random uuid must answer **404**, and `/robots.txt` must show the two training crawlers blocked and `/jobb/` not disallowed.

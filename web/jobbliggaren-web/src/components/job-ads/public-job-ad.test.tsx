@@ -87,6 +87,16 @@ describe("PublicJobAd", () => {
     expect(screen.queryByText(/hos Arbetsförmedlingen/)).toBeNull();
   });
 
+  // Declared unreachable: JobAd refuses an empty address on write and the import skips such a record, so this only
+  // pins that the read side degrades to no link at all (no button, no footer, no head row) if that ever breaks.
+  it("renders no link, no footer and no head row if an address ever arrives empty", () => {
+    const { container } = render(<PublicJobAd jobAd={{ ...AD, url: "" }} />);
+
+    expect(container.querySelector(".jp-btn")).toBeNull();
+    expect(container.querySelector(".jp-modal__foot")).toBeNull();
+    expect(container.querySelector("header p.mt-4")).toBeNull();
+  });
+
   it("links the recruiter notice after the description, without any contact block", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 

@@ -3850,6 +3850,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-modal__foot--split .jp-btn > svg {
     flex-shrink: 0;
   }
+  .jp-page > .jp-modal--public .jp-modal__head .jp-btn {
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding-block: 8px;
+    white-space: normal;
+    text-align: center;
+  }
   .jp-modal--sheet .jp-modal__head,
   .jp-modal--sheet .jp-modal__body,
   .jp-modal--sheet .jp-modal__foot,

@@ -63,7 +63,7 @@ endpoint once and maps the answer to a page and a status, so every outcome has t
 - **A Server Action posted to the page's own address** (amended 2026-10-11, CTO ruling, after the browser measurement below).
   The language switch in the shared header is a Server Action, and a browser posts it to the URL of the page it is on. A
   cookieless `POST` to exactly `/jobb/<uuid>` that carries `next-action` is rewritten to `/publik/jobb/<id>`, with no probe
-  (an action reads no ad) and the same forwarded headers. Before this, that POST met the login redirect, the browser
+  and the same forwarded headers. Before this, that POST met the login redirect, the browser
   re-posted it to `/logga-in`, and the page ended on its error surface with the language unchanged (measured 2026-10-11 against
   the production build). The safety property is not that the group holds only that action: Next forwards an action id it
   cannot find to a worker that has it. It is that every Server Action authorizes itself, and an anonymous action POST already
@@ -113,8 +113,7 @@ The proxy makes **one** `GET /api/v1/public/job-ads/{id}`, whatever the method o
   over HTTP: 200 with its text and a clean canonical; one 410 page for an ended and an erased ad with byte-identical `<main>`;
   503 with `Retry-After` for a stub 429 and for a stub 5xx; a 5xx (never a 404) when the probe says 200 and the render fails;
   a 404 (with `noindex`) when the ad ends in between; `/publik/**` and its encoded form a 404 with no API call; the cookie path
-  unchanged; a Server Action posted to the page's address not sent to the login page; and a `<main>` landmark in the body of
-  every state the proxy answers except that race 404. **The run on `next start -H 127.0.0.1` is not representative:** Next
+  unchanged; and a Server Action posted to the page's address not sent to the login page. **The run on `next start -H 127.0.0.1` is not representative:** Next
   compared the rewrite's origin with the one it derived for itself and treated a same-origin rewrite as external, so it hung.
 - **If a later Next stops carrying the status,** the build fails. The way out is not a quiet switch to an unframed document:
   that needs Klas's decision (see the 410 and 503 pages in D4).

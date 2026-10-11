@@ -16,8 +16,8 @@ import {
  *
  * A cookieless GET or HEAD is probed once for a status (a Server Component cannot set a 410 or a 503) and rewritten
  * to an internal page, with the status where the page cannot set it. A cookieless POST carrying `next-action` (the
- * language switch in the header, posted to the page's own URL) is rewritten to the same page with no probe, because an
- * action reads no ad. The rewrite carries exactly the request headers it is given, so the nonce and policy the proxy
+ * language switch in the header, posted to the page's own URL) is rewritten to the same page with no probe. The
+ * rewrite carries exactly the request headers it is given, so the nonce and policy the proxy
  * prepared (ADR 0163) reach the page. The branch never calls `next()`: a cookieless request must not reach the
  * signed-in route or its intercepting modal, not even as a prefetch.
  *

@@ -18,8 +18,8 @@ consent, Beslut 6 the watermark) · ADR 0087 D8 (the opaque watch join) · ADR 0
 ADR 0120 (a rendered count is true or absent, clauses 1–5) · ADR 0140 (the Översikt event log, deferred) · ADR 0144 (the self-evident is
 not explained) · ADR 0146 D3 (`IReplayOnConcurrencyConflict`) · ADR 0148 (the stale Server Action boundary) · ADR 0154 (every merge goes
 live) · ADR 0161 (#2106: the five-minute matching run, unmerged when this was written)
-**Measured against:** `origin/main` at `6292ee856`, the branch's base, on 2026-10-11, and the branch `feat/notifications-bell` (backend at
-`0bb2d4abe`). D1–D13 describe what that branch builds; nothing here is merged at the time of writing.
+**Measured against:** `origin/main` at `beac82b17`, 2026-10-11. D1–D13 describe what the branch `feat/notifications-bell` (PR #2125)
+builds; nothing here is merged at the time of writing.
 
 > **Provenance.** Written by `adr-keeper` for the driving session from the CTO's ruling and the delivered code (CLAUDE.md §9.2, §13). The
 > sources, the unit, the token protocol, the horizon, the acknowledgement rule, the consent gate, the count bound, the cadence and the
@@ -129,11 +129,10 @@ The panel shows the **20 newest rows, read ones included**, newest first, on **A
 descending, then `kind`, then `jobAdId`, and takes 20. Counts are never capped by the row limit.
 
 - **The match source** reads its exact top 20 by `CreatedAt` descending and filters nothing after reading, so it has **no horizon**.
-- **The follow source** reads the newest `WindowHits + 1` hits (`WindowHits = 60`, room for three hits per row before collapsing) and
+- **The follow source** reads the newest `HitsPerRow × MaxItems + 1` hits (`HitsPerRow = 3`) and
   filters them after reading: the inclusion rule, the grade filter, the collapse to ads. An ad whose included hits all lie beyond the
-  window can therefore be missing. When the 61st hit exists, its `CreatedAt` is the source's **horizon**.
-- **The merge cuts at the newest horizon any source reports.** The merged list is clipped to `occurredAt > max(horizons)` before the cap, so
-  the list never shows a row from one source while an older row of a windowed source may be missing from it.
+  window can therefore be missing. When the hit just past the window exists, its `CreatedAt` is the source's **horizon**.
+- **The merge cuts at the newest horizon any source reports.** The merged list is clipped to `occurredAt > max(horizons)` before the cap.
 - **One grading call per poll**, over the union of the counted and the displayed ad ids.
 
 ### D5 — Acknowledgement: an explicit "mark all" acknowledges the whole counted set (CTO Q3, Q3a)
@@ -217,7 +216,7 @@ file because "notification" already names the e-mail consents under `/api/v1/me`
   and a source is `{ kind, unreadCount: int?, acknowledgedThrough }`, with `kind` as the string enum `NotificationFeedSourceKind`
   (`Match`, `FollowedCompanyAd`). **Never in it:** an organisation number, a `CompanyWatchId`, a criterion, match evidence, a score or rank,
   `NotificationStatus` or `SeenAt`, the ad's external URL, or any consent flag. The row links to `/jobb/{jobAdId}`. Rows are sorted by time,
-  never by grade (`UserJobAdMatchGoodhartTests`). A match row carries its **stored** grade; a follow row carries none and no grade is
+  never by grade. A match row carries its **stored** grade; a follow row carries none and no grade is
   computed for display.
 - **Lifecycle (ADR 0113).** The gate is the allow-list `Status == Active`, never `!= Archived`; an Art. 17 tombstone gives neither a row
   nor a count. It is inherited from `NewMatchSet.Matches` and `NewFollowedCompanyAdSet.NewHits`; no source adds a `Status` predicate, and

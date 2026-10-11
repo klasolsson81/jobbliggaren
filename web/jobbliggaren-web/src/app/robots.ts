@@ -5,8 +5,8 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 /**
  * SEO foundation (#264) — `app/robots.ts` (Next.js App Router metadata route → /robots.txt).
  *
- * Allows crawling of the public marketing surface and points at the sitemap; DISALLOWS the
- * authenticated app, the API, the admin surface, and the demo sandbox.
+ * Allows crawling of the public marketing surface and the public job page and points at the sitemap; DISALLOWS the
+ * authenticated app, the API, the admin surface, and the demo sandbox, and blocks the two pure AI training crawlers.
  *
  * The authed `(app)` disallow entries are DERIVED from `PROTECTED_PREFIXES` — the single source of
  * truth, frozen to the `(app)` route group by `protected-routes.test.ts` (#513) — so this list can
@@ -32,16 +32,39 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
  */
 const ROBOTS_LOCAL_DISALLOW = ["/api/", "/gast/", "/admin$", "/admin/"] as const;
 
+/**
+ * Authed prefixes whose subtree is the public job page (ADR 0165, SEO epic #2090 S2): `/jobb/<uuid>` is answered
+ * for anyone, while `/jobb` itself, the private list, stays blocked, with its query URLs. `/jobb/` is therefore
+ * left out of the disallow list and the root `allow: "/"` covers it, since `(app)/jobb/` holds nothing but the
+ * `[id]` page. No `Disallow` for the query form of the detail: robots.txt is not a canonicalisation tool, and
+ * a shared or tracked link must keep its canonical readable (Google, "consolidate duplicate URLs").
+ *
+ * The internal route prefix of the page is deliberately not listed either: a blocked URL cannot show the 404 the
+ * proxy gives it, and the line would only name the path.
+ */
+const PUBLIC_DETAIL_PREFIXES: readonly string[] = ["/jobb"];
+
+/**
+ * Pure training crawlers (Klas 2026-10-10): they get their own group, because a crawler uses one group only and
+ * `*` is not merged into it. Google-Extended is a token that governs Gemini use and has no effect on Search;
+ * it is allowed by not being named, and so is every search crawler. Naming a further bot here is Klas's decision.
+ */
+const TRAINING_CRAWLERS = ["GPTBot", "CCBot"] as const;
+
+function disallowFor(prefix: string): string[] {
+  return PUBLIC_DETAIL_PREFIXES.includes(prefix) ? [`${prefix}$`, `${prefix}?`] : [`${prefix}$`, `${prefix}/`];
+}
+
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: [
-        ...ROBOTS_LOCAL_DISALLOW,
-        ...PROTECTED_PREFIXES.flatMap((prefix) => [`${prefix}$`, `${prefix}/`]),
-      ],
-    },
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: [...ROBOTS_LOCAL_DISALLOW, ...PROTECTED_PREFIXES.flatMap(disallowFor)],
+      },
+      { userAgent: [...TRAINING_CRAWLERS], disallow: "/" },
+    ],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

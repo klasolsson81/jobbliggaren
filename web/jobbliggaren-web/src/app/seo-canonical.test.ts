@@ -95,7 +95,8 @@ describe("/logga-in (#2092)", () => {
 
   it("is not disallowed in robots.txt, because a crawler must fetch it to read the noindex", () => {
     const { rules } = robots();
-    const disallow = Array.isArray(rules) ? [] : ([] as string[]).concat(rules.disallow ?? []);
+    const everyone = (Array.isArray(rules) ? rules : [rules]).find((group) => group.userAgent === "*");
+    const disallow = ([] as string[]).concat(everyone?.disallow ?? []);
     const blocks = (path: string): boolean =>
       disallow.some((entry) =>
         entry.endsWith("$") ? path === entry.slice(0, -1) : path.startsWith(entry)

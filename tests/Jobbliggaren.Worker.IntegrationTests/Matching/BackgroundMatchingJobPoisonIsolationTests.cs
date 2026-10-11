@@ -169,7 +169,7 @@ public class BackgroundMatchingJobPoisonIsolationTests(WorkerTestFixture fixture
                 "match (#751 child scope per user; på delad kontext golvas denna till 0 → RED)");
             (await HasMatchAsync(cleanUserId, realAdId, ct)).ShouldBeTrue(
                 "den rena userns enda match ska vara den riktiga annonsen");
-            (await GetLastMatchScanAtAsync(cleanUserId, ct)).ShouldBe(Now,
+            (await GetLastMatchScanAtAsync(cleanUserId, ct)).ShouldBe(Now - BackgroundMatchingJob.IngestSettleWindow,
                 "den rena userns watermark ska avanceras (dess egen atomiska commit lyckas)");
 
             // The poisoned user: never advanced, no rows (isolation on the FAILING user — the throw
@@ -209,12 +209,14 @@ public class BackgroundMatchingJobPoisonIsolationTests(WorkerTestFixture fixture
                 [typeof(IMatchProfileBuilder)] = profileBuilder,
                 [typeof(IMatchScorer)] = scorer,
             });
+        var clock = new FixedClock(Now);
+        var loggers = _fixture.Services.GetRequiredService<ILoggerFactory>();
         var job = new BackgroundMatchingJob(
             scopeFactory,
-            Substitute.For<IEmailSender>(),
-            new FixedClock(Now),
-            _fixture.Services.GetRequiredService<ILoggerFactory>()
-                .CreateLogger<BackgroundMatchingJob>());
+            new TopMatchMailDispatcher(
+                scopeFactory, Substitute.For<IEmailSender>(), clock, loggers.CreateLogger<TopMatchMailDispatcher>()),
+            clock,
+            loggers.CreateLogger<BackgroundMatchingJob>());
 
         await job.RunAsync(ct);
     }

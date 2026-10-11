@@ -66,13 +66,14 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenStreamWork
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RetainPlatsbankenJobAdsWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
-// The daily matching scan (ADR 0080). The job resolves the matching engine's ports in a
-// child scope per user.
+// The matching run every five minutes (ADR 0080, ADR 0161). The job resolves the matching engine's
+// ports in a child scope per user, then its dispatcher mails the due Top matches.
 builder.Services.AddMatchingEngine();
 // The email sender, through the same provider switch as the API: console in development, a
 // null sender elsewhere unless Scaleway is configured.
 builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();
+builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.TopMatchMailDispatcher>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>();
 // The nightly followed-company scan (ADR 0087 D5): its own watermark, matched on organisation
 // number, with no scorer.

@@ -187,8 +187,10 @@ public static class JobAdLifecycleReadRegistry
                 One(Active("join JobAds where j.Status == Active — the Strong-match digest EMAIL rows (#864 PR-A A2).")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserFollowedCompanyDigestAsync"] =
                 One(Active("join JobAds where j.Status == Active — the followed-company digest EMAIL rows (#864 PR-A A3).")),
-            ["Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob.ScanUserAsync"] =
-                One(Active(".Where(j.Status == Active && CreatedAt > since) — the matching candidate set (#864 D1/B8, measured subsumed by the port).")),
+            ["Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob.ReadCandidatesAsync"] =
+                One(Active(".Where(j.Status == Active && CreatedAt > since) — the run's one candidate read, sliced per user in memory (#864 D1/B8, ADR 0161 D3).")),
+            ["Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.TopMatchMailDispatcher.DispatchAsync"] =
+                One(Active("join JobAds where j.Status == Active — the Toppmatch mail's claim and display set in one query (ADR 0161 D5/D6, #864).")),
             ["Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats.RefreshLandingStatsJob.RunAsync"] =
             [
                 Active("activeCount: .Where(j.Status == Active).CountAsync — the public landing 'active ads' stat (#913 B6)."),

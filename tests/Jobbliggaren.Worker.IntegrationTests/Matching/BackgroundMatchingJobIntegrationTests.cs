@@ -35,7 +35,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 /// the job resolves db/builder/scorer/account-service from a child scope PER USER, so these tests
 /// exercise the production resolution path end-to-end). It does NOT depend on the Hangfire
 /// wrapper / DI registration. An injected <see cref="FixedClock"/> is the job's <c>now</c>, so
-/// the cold-start floor + watermark are deterministic.
+/// the cold-start floor + watermark (<c>now</c> minus the settle window) are deterministic.
 /// </para>
 ///
 /// <para>
@@ -78,6 +78,8 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
     private static readonly DateTimeOffset Now =
         new(2026, 6, 1, 3, 20, 0, TimeSpan.Zero);
 
+    private static readonly DateTimeOffset ScannedThrough = Now - BackgroundMatchingJob.IngestSettleWindow;
+
     // ────────────────────────────────────────────────────────────────
     // 1. Persists notifiable matches + advances the watermark.
     // ────────────────────────────────────────────────────────────────
@@ -110,10 +112,11 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         match.UserId.ShouldBe(userId);
         match.JobAdId.ShouldBe(jobAdId);
 
-        // The watermark advanced (scanned through `now`) — atomically with the insert.
+        // The watermark advanced — to `now` minus the settle window (ADR 0161 D2), atomically with
+        // the insert.
         var scanAt = await GetLastMatchScanAtAsync(userId, ct);
         scanAt.ShouldNotBeNull("LastMatchScanAt ska sättas (watermark) efter en scan");
-        scanAt.Value.ShouldBe(Now);
+        scanAt.Value.ShouldBe(ScannedThrough);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -189,9 +192,9 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         var match = await GetMatchAsync(userId, jobAdId, ct);
         match.ShouldBeNull("Basic/null ska ALDRIG persisteras (honest floor, D1)");
 
-        // The watermark still advances (we scanned through `now`, just produced 0 notifiable).
+        // The watermark still advances (the ad was scanned, it just produced 0 notifiable).
         var scanAt = await GetLastMatchScanAtAsync(userId, ct);
-        scanAt.ShouldBe(Now, "watermark ska avanceras även när 0 notifierbara matchningar skapas");
+        scanAt.ShouldBe(ScannedThrough, "watermark ska avanceras även när 0 notifierbara matchningar skapas");
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -272,13 +275,13 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         var countAfterFirst = await CountMatchesAsync(userId, ct);
         countAfterFirst.ShouldBe(1, "första körningen ska skapa exakt en match");
 
-        // Second run — the watermark advanced past the ad AND the dedup skip both protect it.
-        // Must not throw DbUpdateException (UNIQUE(UserId, JobAdId)).
+        // Second run — the ad is inside the settle window, so it is read again, and only the
+        // existing-pair check keeps the insert batch clear of UNIQUE(UserId, JobAdId).
         await RunJobAsync(ct);
         var countAfterSecond = await CountMatchesAsync(userId, ct);
 
         countAfterSecond.ShouldBe(countAfterFirst,
-            "andra körningen ska INTE skapa dubbletter (watermark + UNIQUE-dedup)");
+            "andra körningen ska INTE skapa dubbletter (befintligt-par-kontrollen + UNIQUE)");
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -389,7 +392,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         var scanAt = await GetLastMatchScanAtAsync(userId, ct);
 
         match.ShouldNotBeNull("match-raden ska finnas (committad)");
-        scanAt.ShouldBe(Now, "watermark ska vara avancerad (committad i SAMMA transaktion)");
+        scanAt.ShouldBe(ScannedThrough, "watermark ska vara avancerad (committad i SAMMA transaktion)");
     }
 
     // ─────────────────────────── SUT construction ───────────────────────────
@@ -400,19 +403,21 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
     // AddCoreIdentityForWorker, mirroring Worker/Program.cs — the pre-#751 comment claiming the
     // matching collaborators were unregistered was stale). This exercises the production resolution
     // path end-to-end: child scope → scoped context shared by db/builder/scorer within one user.
-    // The real scoped IUserAccountService resolves too; no Identity users are seeded, so GetEmailAsync
-    // returns null and any Top-row dispatch skips benignly — these grade-parity / watermark /
-    // cold-start tests assert PERSISTENCE, not delivery (the delivery seam is pinned by the unit
-    // tests + DigestDispatchJobIntegrationTests). The match rows persist before the send regardless.
-    // The clock is a FixedClock so `now` (cold-start floor + watermark) is deterministic.
+    // The real scoped IUserAccountService resolves too; no Identity users are seeded, so the
+    // dispatcher finds no address and leaves a claimed Top row Queued. These grade-parity /
+    // watermark / cold-start tests assert PERSISTENCE; delivery is pinned in
+    // BackgroundMatchingJobTopMatchMailTests. The clock is a FixedClock so `now` is deterministic.
     private async Task RunJobAsync(CancellationToken ct)
     {
+        var scopes = _fixture.Services.GetRequiredService<IServiceScopeFactory>();
+        var clock = new FixedClock(Now);
+        var loggers = _fixture.Services.GetRequiredService<ILoggerFactory>();
         var job = new BackgroundMatchingJob(
-            _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
-            Substitute.For<IEmailSender>(),
-            new FixedClock(Now),
-            _fixture.Services.GetRequiredService<ILoggerFactory>()
-                .CreateLogger<BackgroundMatchingJob>());
+            scopes,
+            new TopMatchMailDispatcher(
+                scopes, Substitute.For<IEmailSender>(), clock, loggers.CreateLogger<TopMatchMailDispatcher>()),
+            clock,
+            loggers.CreateLogger<BackgroundMatchingJob>());
 
         await job.RunAsync(ct);
     }

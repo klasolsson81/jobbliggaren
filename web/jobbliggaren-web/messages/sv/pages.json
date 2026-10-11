@@ -535,7 +535,7 @@
     "newBadgeAriaLabel": "matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Matchningen körs varje natt när du har slagit på den under <notiser>Notiser</notiser> och angett yrken under <matchning>Matchning</matchning>.",
+    "emptyBody": "Matchningen körs löpande när du har slagit på den under <notiser>Notiser</notiser> och angett yrken under <matchning>Matchning</matchning>.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar",

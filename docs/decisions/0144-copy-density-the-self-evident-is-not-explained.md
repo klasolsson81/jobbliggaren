@@ -520,3 +520,17 @@ browser"; `feedback.consentHint` sv "Frivilligt. Du kan ta tillbaka det genom at
 en "Optional. You can withdraw it by emailing us. <privacy>Read more</privacy>". The box shows only in the feedback
 dialog. The hint stays the box's accessible description and still says, before the tick, that the consent is optional
 and how it is withdrawn. `legally-bound-copy.test.ts` pins both rows.
+
+## Amendment 2026-10-11 — #2106: row 7 loses "every night"
+
+Matching now runs every five minutes (ADR 0161), so "varje natt" / "every night" in row 7 would be a false statement. `security-auditor`
+signed the changed text in #2106's pre-code form round on 2026-10-11; her report, `docs/reviews/2026-10-11-2106-form-security.md`, is
+promoted with that PR. This replaces the row-7 strings quoted in Amendment 2026-09-27 (#1891 PR 1):
+
+- Row 7: `settings.backgroundMatch.toggleDescription`, sv "Slår du på det samtycker du till att vi matchar nya annonser mot din profil och mejlar dig toppmatchningar direkt och starka i en sammanfattning. Bra matchningar visas bara i din matchningslista. Du kan stänga av det när som helst.", en "Turning this on means you consent to us matching new job ads against your profile and emailing you top matches right away and strong ones in a summary. Good matches appear only in your match list. You can turn this off at any time."
+
+The element set is unchanged except that (b) loses "nattlig": (a) the consent is given by the switch; (b) inside the consent sentence,
+matching of new ads against the profile and e-mail; (c) top matches are mailed right away, strong ones come in a summary, good ones are
+never mailed; (d) it can be turned off at any time. No fresh consent is required: she ruled that the purpose, the data and the recipient
+are unchanged (EDPB Guidelines 05/2020, p. 57, 58, 64, 90). `legally-bound-copy.test.ts` pins row 7 whole, sv and en, and
+`notifications-section.test.tsx` pins the switch's accessible description to it, on and off.

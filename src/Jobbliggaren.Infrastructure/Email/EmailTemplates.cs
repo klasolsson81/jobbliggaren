@@ -75,12 +75,12 @@ internal static partial class EmailTemplates
         var trimmed = baseUrl.TrimEnd('/');
         var settingsLink = $"{trimmed}/mina-sidor/notiser";
 
-        // A direct mail's one match is its first line; a digest leads with the count and lists the matches.
+        // A direct mail leads with its matches; a digest leads with the count and lists the matches.
         var direct = content.Kind == MatchNotificationKind.Direct;
+        var single = direct && content.Items.Count == 1;
 
-        // A direct mail opens its one ad (#2094); a digest opens the list, and so does a direct mail that
-        // somehow carries more than one item, rather than picking one of them.
-        var (actionLink, actionLabel) = direct && content.Items.Count == 1
+        // A single match opens its ad (#2094); a list opens the matches page.
+        var (actionLink, actionLabel) = single
             ? ($"{trimmed}/jobb/{content.Items[0].JobAdId:D}", "Öppna annonsen")
             : ($"{trimmed}/matchningar", "Öppna dina matchningar");
 
@@ -90,8 +90,11 @@ internal static partial class EmailTemplates
         {
             // Komma-separator (INTE em-dash) — em-dash är förbjudet i svensk UI-copy
             // (feedback_no_em_dash_in_ui_copy; e-postkroppen är användarvänd copy).
-            var line = $"{item.JobTitle}, {item.CompanyName} ({item.GradeLabel})";
-            items.AppendLine(direct ? line : "- " + line);
+            // A mail bundling several Top matches (ADR 0161) names the grade in its subject, not per line.
+            var line = direct && !single
+                ? $"{item.JobTitle}, {item.CompanyName}"
+                : $"{item.JobTitle}, {item.CompanyName} ({item.GradeLabel})";
+            items.AppendLine(single ? line : "- " + line);
             htmlItems.Add(line);
         }
         var remaining = content.TotalCount - content.Items.Count;
@@ -99,7 +102,9 @@ internal static partial class EmailTemplates
             ? $"\noch {remaining} till.\n"
             : string.Empty;
 
-        var subject = direct ? "Ny toppmatchning på Jobbliggaren" : "Din sammanfattning av nya matchningar";
+        var subject = !direct
+            ? "Din sammanfattning av nya matchningar"
+            : single ? "Ny toppmatchning på Jobbliggaren" : "Nya toppmatchningar på Jobbliggaren";
         var intro = content.TotalCount == 1
             ? "En ny matchning sedan sist:"
             : $"{content.TotalCount} nya matchningar sedan sist:";
@@ -123,12 +128,14 @@ internal static partial class EmailTemplates
                 """,
             HtmlBody: EmailHtml.Document(
                 title: subject,
-                // The body's first line is also the inbox preview: the match itself in a direct mail,
+                // The body's first line is also the inbox preview: the matches themselves in a direct mail,
                 // the count in a digest (Klas-krav "informationen först").
-                preheader: direct ? string.Join(" ", htmlItems) : intro,
-                body: (direct
-                        ? htmlItems.Aggregate(Markup.Empty, (markup, line) => markup + EmailHtml.P(line))
-                        : EmailHtml.P(intro) + EmailHtml.List(htmlItems))
+                preheader: direct ? string.Join("; ", htmlItems) : intro,
+                body: (single
+                        ? EmailHtml.P(htmlItems[0])
+                        : direct
+                            ? EmailHtml.List(htmlItems)
+                            : EmailHtml.P(intro) + EmailHtml.List(htmlItems))
                     + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
                     + EmailHtml.Button(actionLink, actionLabel)
                     + EmailHtml.LinkParagraph(

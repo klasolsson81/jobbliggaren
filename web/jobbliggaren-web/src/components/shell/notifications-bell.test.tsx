@@ -50,6 +50,10 @@ function counts(match: number | null, followed: number | null): NotificationFeed
   ];
 }
 
+function readMatchRows(): NotificationFeed["items"] {
+  return feed().items.map((item) => ({ ...item, kind: "Match" as const, grade: item.grade ?? "Good", isUnread: false }));
+}
+
 const ok = (body: NotificationFeed) => Promise.resolve(Response.json(body));
 const status = (code: number, headers: Record<string, string> = {}) =>
   Promise.resolve(new Response(null, { status: code, headers }));
@@ -181,7 +185,7 @@ describe("NotificationsBell (#1666)", () => {
     ["a refused count beside rows", () => ok(feed({ sources: counts(1, null) }))],
     [
       "a refused count beside read rows only",
-      () => ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, null) })),
+      () => ok(feed({ items: readMatchRows(), sources: counts(0, null) })),
     ],
     ["a refused count without rows", () => ok({ items: [], sources: counts(0, null) })],
     ["unread counted but not listed", () => ok({ items: [], sources: counts(0, 3) })],
@@ -437,6 +441,7 @@ describe("NotificationsBell (#1666)", () => {
     expect(within(dialog).getByText("3 olästa")).toBeInTheDocument();
     expect(within(dialog).getByText("3 olästa visas inte i listan.")).toBeInTheDocument();
     expect(within(dialog).getByText("3 olästa visas inte i listan.").closest(".jp-notif__message")).not.toBeNull();
+    expect(dialog.querySelector(".jp-notif__notinlist")).toBeNull();
     expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
     expect(within(dialog).queryAllByRole("link")).toHaveLength(0);
@@ -486,11 +491,8 @@ describe("NotificationsBell (#1666)", () => {
     expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");
   });
 
-  // With read rows only, the empty pill is the panel's only sign that unread notifications exist (ADR 0120).
   it("puts the number-less line after the rows when a refused count leaves only read rows in the list", async () => {
-    fetchMock.mockReturnValue(
-      ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, null) })),
-    );
+    fetchMock.mockReturnValue(ok(feed({ items: readMatchRows(), sources: counts(0, null) })));
     await renderBell();
 
     expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");

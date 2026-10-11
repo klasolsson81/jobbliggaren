@@ -29,7 +29,7 @@ public sealed record MailPacingRule
 
     /// <summary>
     /// A Toppmatch mail: no gap per recipient and at most 20 mails per run. Each recipient gets at most
-    /// one mail per run, which bundles every due Top match, so a burst is already one mail. A gap
+    /// one mail per run. A gap
     /// above zero would hold a Top match back, and the signed consent text (ADR 0144 row 7) says top
     /// matches are mailed "direkt" (security-auditor V4, 2026-10-11).
     /// </summary>

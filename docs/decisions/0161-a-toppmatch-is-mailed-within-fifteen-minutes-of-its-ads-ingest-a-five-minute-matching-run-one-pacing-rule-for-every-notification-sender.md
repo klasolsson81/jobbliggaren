@@ -112,7 +112,7 @@ transaction and committing in a later one, or the measured maximum approaches 12
 - **State is the sender's own committed `SentAt`.** No port, no Redis, no table. A sender reads the time of a recipient's last mail
   from its own rows.
 - **`TopMatch` is a gap of zero and 20 mails per run.** Each user's scan is atomic and each recipient gets at most one bundled mail
-  per run, so every burst (cold start, re-consent, the first tick after a deploy) lands in one tick and is already one mail. The
+  per run, so every burst (cold start, re-consent, the first tick after a deploy) lands in one tick and is one mail of up to 20 matches. The
   architect's 60-minute gap would therefore never bind in a burst. It would bind only on a second, separate Top match within the
   hour, which is exactly the case Klas asked to have mailed "direkt". It would falsify the bound in D10 and the signed text of
   row 7, and it would trigger security V4, which requires row 7 to say that mails can be held back. For Top the limit is thus one

@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Admin.ServiceObservations;
 using Jobbliggaren.Application.Admin.ServiceObservations.Queries.GetServiceObservation;
 using Jobbliggaren.Worker.Auditing;

@@ -60,6 +60,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_PublicJobAdRead_Is60Per60sIn6Segments()
+    {
+        // ADR 0160 — the anonymous job-ad detail, IP-partitioned TokenBucket. security-auditor
+        // approved these numbers (2026-10-10); a change is a recalibration, not a refactor.
+        var sut = new RateLimitingOptions();
+
+        sut.PublicJobAdRead.PermitLimit.ShouldBe(60);
+        sut.PublicJobAdRead.WindowSeconds.ShouldBe(60);
+        sut.PublicJobAdRead.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_AuthLoose_Is30Per60s()
     {
         var sut = new RateLimitingOptions();

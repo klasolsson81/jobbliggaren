@@ -255,6 +255,24 @@ Implementerad och committed i HEAD `e6b08fa` (F6 P5 Punkt 3 PR1, 2026-05-23):
 >
 > **Amendment provenance:** the substance is Klas-direktiv 2026-07-28 (the same directive that moved the day boundary) and a senior-cto-advisor bind the same day (CTO-bind 2026-07-28-B - the port-shape choice and the calculator's argument), structured, not constructed, by adr-keeper (Claude Code) and written against the diff (`1073d00b`, `f7891bb2`, `97b86f31`). ADR 0064 remains **Accepted** - an additive layer, NOT a supersession.
 
+## Amendment 2026-10-10 - the public anonymous per-record read (ADR 0160)
+
+> **Amendment 2026-10-10 (ADR 0160, #2091; senior-cto-advisor's ruling and security-auditor's pre-implementation read, both 2026-10-10; Klas accepted the outcome):**
+>
+> *(Section language: English per CLAUDE.md §1, matching the amendments above.)*
+>
+> **Why the Worker-precompute discipline does not transfer.** Beslut (a) and Variant A's rejection govern a recurring **aggregate**: a COUNT over the whole table, identical for every reader, which at cache expiry becomes a stampede. A per-record read is one primary-key lookup. Its cost does not grow with the number of readers and there is no shared hot key to stampede on, so there is nothing for the Worker to precompute and no COUNT for the handler to keep out of the request (Beslut (a) point 2).
+>
+> **Why the ban on in-handler cache-aside does not apply either.** The erasure rule is absolute, because any `max-age` is a window in which a stale answer can still say that an erased ad is listed. Beslut (c)'s `public, max-age=30` is for the aggregate and stands; the `no-store` prefix does not reach `/api/v1/landing`.
+>
+> **Beslut (b) carries over in kind, not in budget.** The surface gets its own IP-partitioned policy (`public-job-ad-read`, a TokenBucket), never a per-user policy, which would fall to `NoLimiter` for an anonymous caller, and never `LandingPublicReadPolicy`'s bucket. Its protection is availability, not confidentiality (ADR 0160 D5).
+>
+> A per-record read has no expensive work to move; what it must control is what an anonymous reader may be told about one record: the publication predicate, a structurally anonymous DTO and one answer for an ended and an erased ad. ADR 0160 owns those.
+>
+> **What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), and the four existing legs of (d). No supersession: ADR 0064 remains **Accepted**, and this is an additive layer.
+>
+> **Amendment provenance:** the substance is ADR 0160 and the rulings it cites, structured, not constructed, by adr-keeper (Claude Code).
+
 ## Referenser
 
 - CLAUDE.md §2.3 (CQRS — read-DTO ut, ingen Domain-objekt över gränsen), §3.3 (DTO = `record class`), §3.6 (`.AsNoTracking()` default + projektion), §5.4 (säkerhet — anonym DoS-yta), §8 punkt 9 (ADR = DoD vid arkitekturbeslut)

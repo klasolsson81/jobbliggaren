@@ -29,6 +29,7 @@ public static partial class RateLimitingExtensions
     public const string MatchCountPreviewPolicy = "match-count-preview";
     public const string LandingPublicReadPolicy = "landing-public-read";
     public const string HealthCheckPolicy = "health-check";
+    public const string PublicJobAdReadPolicy = "public-job-ad-read";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -337,6 +338,26 @@ public static partial class RateLimitingExtensions
                         PermitLimit = rateLimitOpts.HealthCheck.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.HealthCheck.WindowSeconds),
                         QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. The anonymous job-ad detail (ADR 0160). Its own budget, never a
+            // per-user policy's: those give an anonymous caller NoLimiter. The client IP is real only
+            // when the caller relays the trusted X-Forwarded-For; without it every call shares the
+            // web container's bucket. TokenBucket so a crawler that honours Retry-After recovers
+            // softly. The limit protects availability, not confidentiality.
+            options.AddPolicy(PublicJobAdReadPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.PublicJobAdRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.PublicJobAdRead.PermitLimit / rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.PublicJobAdRead.WindowSeconds / (double)rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
                     });
             });
 

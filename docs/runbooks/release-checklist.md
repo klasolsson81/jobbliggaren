@@ -1401,10 +1401,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       — se §2.5 punkt 1:s residual (i), som äger det ledet och är uppdaterad i samma ändring.
       ~~**Rad 87 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
       default OFF och ingen notis har skickats.~~ **FLIPPAD 2026-10-11 (#2106 PR A, Klas GO; raden
-      låg då på 89):** #2106 mejlar en Toppmatch inom minuter till den som har slagit på reglaget.
+      låg då på 89):**
       Ommätt på lådan samma dag före flippen, bara antal: 0 rader i `user_job_ad_matches`, och i
-      `followed_company_ad_hits` 379 `Pending` och inga i något annat tillstånd. Ingen notis hade
-      alltså skickats, och copyn blev ärlig före första utskicket (ADR 0090 D3). Samma ändring lade
+      `followed_company_ad_hits` 379 `Pending` och inga i något annat tillstånd. Samma ändring lade
       till följ-notisernas ändamål (ADR 0144 rad 8) i samtyckesavsnittet.
       ⚠ **RAD 82:s TEXT ÄR DÄREMOT RÄTTAD 2026-08-16 (#183 FU-1, `security-auditor` Major 3) — OCH
       ATT RÄTTA ÄR INTE ATT FLIPPA.** Raden sa *"behandlar e-posten i Paris inom EU"*, vilket är en
@@ -1413,13 +1412,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kornigheten** — en framtidsutsaga kan vara exakt lika över-precis som en presensutsaga, och
       mot båda står GTS Art. 10:s avtalsrangiga åtkomsträtt utan ortsklausul. Raden bär nu
       regionformen plus avtalets egen utfästelse, och **markörsatsen är ordagrant orörd**.
-      **Det skyddade i rad 87 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
-      mörka gren binder `/planerat och ännu inte i drift/i`, som satsen fortfarande matchar; raden
-      står kvar i mängden ovan, och flippdisciplinen är oberörd. *(Sessionen lämnade först raden
+      **Det skyddade i rad 87 var dess STATUSMARKÖR, inte varje ord i strängen.** *(Sessionen lämnade först raden
       orörd och läste den som en framtidsutsaga under sin markör. Graderingen föll åt andra hållet,
-      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 87 mot lådan före varje flipp** — dess
-      grind är en användarreglage, inte en operatörsgrind, så den kan bli falsk utan att någon gör
-      något på infrastruktursidan. ⚠ **Rad 87 hade 2026-08-16–2026-10-11 en MEKANISK läsare:**
+      och det var rätt: en fix på en delmängd av N är ingen fix.)* ⚠ **Rad 87 hade 2026-08-16–2026-10-11 en MEKANISK läsare:**
       `content-legal-parity.test.ts` krävde markören på samtyckesavsnittets omnämnanden och
       **förbjöd** den på mottagaravsnittets. Sviten föll vid notisflippen, som avsett; sedan dess
       förbjuder den markören på varje omnämnande, och markörmönstrens positiva läsare är SCB-testet.
@@ -1499,7 +1494,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         flipp ändrade den; talet bor i punkt 1, med sitt grep.)*
         ⚠ **LUCKAN ÄR MÄTT, INTE HYPOTETISK: den fyrade i FU-2b.** Flippen tog rad 47 därför att
         punkt 1:s grepp namnger den, inte därför att någon svit krävde det — sviten var grön med
-        rad 47 oflippad. Nästa flipp (notiserna) möter samma lucka.
+        rad 47 oflippad.
         **Aktiveras INTE av en
         release.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
@@ -1543,9 +1538,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         operatören står i det ögonblick handlingen utförs; den här bulleten **klassificerar,
         den bär inte proceduren**.
       - **Användar-aktiverad — NY KLASS 2026-08-28, i samma ändring som den tredje.** Notisernas
-        stycke, som bulleten om konfigurations-grindade ovan redan namnger och uttryckligen
-        utesluter (*"grindas av ett användarreglage, inte av den här punkten"*) utan att ge det
-        en klass. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
+        stycke. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
         **en användare slår på sitt eget reglage.** ⚠ **Klassen säger ingenting om styckets
         sanningsstatus** — den ägs av `security-auditor` och avgörs inte av en triage-etikett.
         Mekanisk läsare till notisflippen 2026-10-11: e-post-tripwirens mörka gren i

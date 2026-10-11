@@ -187,6 +187,20 @@
 	header Strict-Transport-Security "max-age=31536000"
 }
 
+# Cross-origin isolation headers (ADR 0163, Klas-direktiv 2026-10-11). Same shape as `hsts`: the
+# edge writes ONE field on every response it can answer itself (the 401, the ACME 404, a 503 while
+# web is down) and strips the upstream's own with `header_down` below, so a response never carries
+# the field twice. Next sets COOP itself on the cookie-bounce document (#2094), with this value.
+#
+# `same-origin` for both is safe because the app is a single origin: login is a redirect flow
+# (ADR 0018), never a popup that needs `window.opener`, and nothing here is embedded cross-origin.
+# CORP does not stop a social crawler fetching `og:image` — that is a server-side request, not a
+# no-cors subresource load from another page.
+(isolation) {
+	header Cross-Origin-Opener-Policy "same-origin"
+	header Cross-Origin-Resource-Policy "same-origin"
+}
+
 {$SITE_HOST} {
 	# SINGLE COLON, not `:-`. Caddy splits env substitution on the FIRST colon, so `:-both` makes
 	# the default the literal string `-both`. Compose uses `:-` for the same job one layer out, and
@@ -201,6 +215,14 @@
 	# ACME 404, a 503 while web is down, the alias sites' 308/302 — never reach Next, so a
 	# header set only by buildSecurityHeaders would be absent from them.
 	import hsts
+	import isolation
+
+	# Caddy announces itself on every proxied response (`Via: 1.1 Caddy`, measured on the live apex
+	# 2026-10-11). It names the software and the hop and serves no client. NOT `header_down -Via` in
+	# the proxy block: Caddy adds the field after the response-header operations have run, so that
+	# form leaves it in place (measured 2026-10-11 on 2.11.4, edge-modes.test.sh). Site-level
+	# deletes run when the response is written, which is after the proxy added it.
+	header -Via
 
 	request_body {
 		max_size 20MB
@@ -290,6 +312,10 @@
 		# otherwise. Do not add lb_retry_match without revisiting that.
 		reverse_proxy web:3000 {
 			header_down -Strict-Transport-Security
+			# The edge writes these two itself (`isolation`); the upstream's copy is dropped so the
+			# response carries one field each, exactly as for HSTS above.
+			header_down -Cross-Origin-Opener-Policy
+			header_down -Cross-Origin-Resource-Policy
 			# THE ONLY WRITER OF THIS HEADER IN THE STACK, and pinning that is the point.
 			# Since 2.5 Caddy already ignores an inbound X-Forwarded-For from an untrusted
 			# peer and sets it to the TCP client address, and no `trusted_proxies` is

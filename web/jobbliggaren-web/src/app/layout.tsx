@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
 import { documentFontClassName } from "./fonts";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
+import { NONCE_REQUEST_HEADER } from "@/lib/security/security-headers";
 import "./globals.css";
 import { InformationReturnProvider } from "@/components/information/InformationReturnProvider";
 
@@ -41,6 +43,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
+  // The CSP nonce the proxy wrote for THIS request (ADR 0163). Next stamps it on its own inline
+  // scripts; the one inline script we author (ThemeScript) takes it as a prop.
+  const nonce = (await headers()).get(NONCE_REQUEST_HEADER) ?? undefined;
   // #737 — the root boundary's own client subtree (ThemeScript/ThemeProvider)
   // reads NO messages, so this payload is EMPTY by measurement, not by choice:
   // the fitness function computes it from the import graph and fails if a
@@ -61,7 +66,7 @@ export default async function RootLayout({
       className={documentFontClassName}
     >
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
-        <ThemeScript />
+        <ThemeScript nonce={nonce} />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <InformationReturnProvider><ThemeProvider>{children}</ThemeProvider></InformationReturnProvider>
         </NextIntlClientProvider>

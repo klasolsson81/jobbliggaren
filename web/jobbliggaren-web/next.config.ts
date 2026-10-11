@@ -2,6 +2,8 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import {
+  API_ROUTE,
+  buildApiRouteHeaders,
   buildSecurityHeaders,
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
@@ -77,8 +79,9 @@ const nextConfig: NextConfig = {
   },
 
   // Browser security headers on every response — issue #591 (epic #485).
-  // Policy + rationale live in `src/lib/security/security-headers.ts`
-  // (senior-cto-advisor bind, Approach A). Env branch resolves once at config
+  // Policy + rationale live in `src/lib/security/security-headers.ts`. The page CSP is NOT here:
+  // it carries a per-request nonce and is written by `src/proxy.ts` (ADR 0163). `/api/*` is outside
+  // the proxy matcher and gets the static policy below. Env branch resolves once at config
   // load: `next dev` → development, `next build`/`next start` → production.
   async headers() {
     const isDev = process.env.NODE_ENV === "development";
@@ -86,6 +89,10 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: buildSecurityHeaders(isDev).map((h) => ({ ...h })),
+      },
+      {
+        source: API_ROUTE,
+        headers: buildApiRouteHeaders(isDev).map((h) => ({ ...h })),
       },
       // AFTER the global block on purpose: for a key two entries both set, the later entry is
       // the one served, and this route overrides `Referrer-Policy`. Measured, not assumed, in

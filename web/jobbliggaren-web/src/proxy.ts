@@ -363,12 +363,11 @@ function rewriteCookieHeader(
   return rewritten.join("; ");
 }
 
-// Static assets and images are excluded (nothing to attach a nonce to), and so is `/api/`, whose
-// policy is the static one in next.config.ts (ADR 0163). NOT excluded: Next's `missing:` prefetch
-// filter — the refresh driver above has its own prefetch rule, and skipping the proxy for a prefetch
-// would also skip the auth gate.
+// Only Next's own static assets are excluded, and `/api/` (its policy is the static one in
+// next.config.ts, ADR 0163). NOT excluded: any path by file extension — a dynamic route answers to
+// `/jobb/abc.png` too, and an HTML document on a path the visitor chose must carry the policy. Nor
+// Next's `missing:` prefetch filter: the refresh driver has its own prefetch rule and skipping the
+// proxy for a prefetch would skip the auth gate.
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
 };

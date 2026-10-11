@@ -151,9 +151,6 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
   });
 
   it("blob:en får typen ur allowlisten, aldrig ur svarets rubrik — en pdf kan inte bli ett HTML-dokument", async () => {
-    // `blob:`-URL:er får ingen `nosniff` (ADR 0101 Amendment 2026-09-06), och ett `blob:`-dokument
-    // ärver appens origin. Typen är därför det enda som hindrar en `text/html`-blob från att köra
-    // skript. Rubriken här bär en parameter: `res.blob()` hade gett `application/pdf; charset=…`.
     const user = userEvent.setup();
     global.fetch = vi
       .fn()

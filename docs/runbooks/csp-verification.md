@@ -44,7 +44,7 @@ By hand, in Chrome with DevTools open:
 | Flow | Do | Pass |
 |---|---|---|
 | Login | `/logga-in` → address → *Fortsätt* → code → *Bekräfta koden* | lands on `/oversikt`, console has no CSP line |
-| Login by link | open a login link from the dev mail sink | the bounce document appears, then the page; no CSP line |
+| Login by link | open a login link from the dev mail sink | the page opens; no CSP line |
 | Client navigation | click through the app-shell nav (`/ansokningar`, `/jobb`, `/foretag`) without reloading | each page renders, URL changes, no full reload (the tab does not flash), no CSP line |
 | Theme | dark mode is **off** (`DARK_MODE_ENABLED = false`); there is no toggle. Confirm the page stays light with `localStorage["jp-theme"] = "dark"` set and reloaded | stays light; no CSP line. Re-test with the toggle if dark mode is ever re-enabled: `ThemeScript` must then carry the nonce |
 | CV preview | `/cv/granska/<id>` → *Öppna CV-filen* | the PDF paints in the modal; *Ladda ner* downloads |

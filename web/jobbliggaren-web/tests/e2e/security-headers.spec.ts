@@ -122,6 +122,18 @@ for (const path of ["/", "/logga-in", "/vanliga-fragor"]) {
   });
 }
 
+// The matcher must not skip a page route because of its suffix: these paths render HTML (the not-found
+// page, and a dynamic route whose layout redirects), and the HTML must carry the policy (#2128).
+for (const path of ["/finns-inte.png", "/finns-inte.svg", `/jobb/abc.png`]) {
+  test(`${path} carries exactly one nonce CSP`, async ({ request }) => {
+    const res = await request.get(path, { maxRedirects: 0 });
+    const csp = res.headers()["content-security-policy"] ?? "";
+
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/]{22}==' 'strict-dynamic'/);
+    expect(csp).not.toContain(",");
+  });
+}
+
 test("/api/* is outside the proxy and keeps the static policy: self-only scripts, no nonce, one header", async ({
   request,
 }) => {

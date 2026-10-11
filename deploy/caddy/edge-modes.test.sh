@@ -221,7 +221,7 @@ name="$id-hsts"; run_edge "$name" apex -e SITE_ADMISSION=open; port=$PORT
 for path in / /api/health /oversikt; do
   expected=200; [ "$path" != /oversikt ] || expected=307
   h=$(get "$port" "$SITE" "$path")
-  [ "$(status_of "$h")" = "$expected" ] && one_hsts "$h" && pass "open $path: $expected, exactly one HSTS" || fail "open $path: status=$(status_of "$h")"
+  [ "$(status_of "$h")" = "$expected" ] && one_hsts "$h" && isolated "$h" && pass "open $path: $expected, exactly one HSTS, isolation, no Via" || fail "open $path: status=$(status_of "$h")"
 done
 h=$(curl -s -D - -o "$scratch/body" --max-time 5 --connect-to "$SITE:80:127.0.0.1:$PORT_HTTP" "http://$SITE/p?q=1" | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/')
 count=$(grep -ci '^strict-transport-security:' <<<"$h" || true)
@@ -261,9 +261,9 @@ sleep 9
 h=$(get "$port_gated" "$SITE" /)
 [ "$(status_of "$h")" = 401 ] && one_hsts "$h" && pass "gated edge, web down, anonymous: 401 with HSTS" || fail "gated, web down: $(status_of "$h")"
 h=$(get "$port_gated" "$SITE" / -u "$USER_NAME:$PASSWORD")
-[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "gated edge, web down, past the gate: 503 with HSTS" || fail "gated past the gate, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && isolated "$h" && pass "gated edge, web down, past the gate: 503 with HSTS and isolation" || fail "gated past the gate, web down: $(status_of "$h")"
 h=$(get "$port_open" "$SITE" /)
-[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && pass "open edge, web down: 503 with HSTS" || fail "open, web down: $(status_of "$h")"
+[ "$(status_of "$h")" = 503 ] && one_hsts "$h" && isolated "$h" && pass "open edge, web down: 503 with HSTS and isolation" || fail "open, web down: $(status_of "$h")"
 
 # Gate N-1 on the same open edge: a 5xx writes `http.log.error` with the request, and every key the
 # global filter deletes must be gone from it, with the header map. `keep` is the control that proves

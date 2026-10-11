@@ -15,6 +15,7 @@ vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://backend.test" } }));
 
 // isProtectedPath is exercised for real (pure string logic) — /oversikt is protected,
 // /cv-granskning is a public sibling.
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { config, proxy } from "./proxy";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -809,29 +810,35 @@ describe("proxy — the nonce CSP (ADR 0163)", () => {
 });
 
 describe("proxy — the matcher", () => {
-  // Next compiles each matcher source as a path pattern whose parenthesised group is a raw regex.
-  const [source] = config.matcher as string[];
-  const matches = (path: string) => new RegExp(`^${source}$`).test(path);
-
-  it.each(["/", "/logga-in", "/oversikt", "/jobb/abc", "/admin/anvandare", "/robots.txt", "/sitemap.xml"])(
-    "runs on the page or metadata route %s",
-    (path) => expect(matches(path)).toBe(true)
-  );
+  // Next's own matcher compiler, not a regex rebuilt here: what is measured is what Next runs.
+  const matches = (path: string) => unstable_doesMiddlewareMatch({ config, url: path });
 
   it.each([
-    "/_next/static/chunks/a.js",
-    "/_next/image",
-    "/favicon.ico",
+    "/",
+    "/logga-in",
+    "/oversikt",
+    "/jobb/abc",
+    "/admin/anvandare",
+    "/robots.txt",
+    "/sitemap.xml",
     "/icon.svg",
     "/provider-marks/google.svg",
-    "/pic.png",
-    "/a/b.webp",
-    "/api/auth/oauth/google/callback",
-    "/api/cv/import",
-  ])("does not run on %s", (path) => expect(matches(path)).toBe(false));
+  ])("runs on %s", (path) => expect(matches(path)).toBe(true));
 
-  it("does not mistake a page whose name merely ends in an image word for an image", () => {
-    expect(matches("/svg")).toBe(true);
-    expect(matches("/ansokningar/png")).toBe(true);
-  });
+  // A dynamic route and the not-found page answer to any suffix the visitor types, and the HTML they
+  // render must carry the policy (security-auditor + code-reviewer, #2128). Pinned with page routes,
+  // not with a file that exists.
+  it.each([
+    "/jobb/abc.png",
+    "/jobb/abc.svg",
+    "/ansokningar/3f2504e0-4f89-41d3-9a0c-0305e82c3301.png",
+    "/admin/x.svg",
+    "/finns-inte.png",
+    "/finns-inte.ico",
+  ])("runs on the page route %s, whatever its extension", (path) => expect(matches(path)).toBe(true));
+
+  it.each(["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico", "/api/auth/oauth/google/callback", "/api/cv/import"])(
+    "does not run on %s",
+    (path) => expect(matches(path)).toBe(false)
+  );
 });

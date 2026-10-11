@@ -48,8 +48,11 @@ Measured 2026-10-11:
 **D3. The static header set no longer carries a CSP.** `/api/*` is outside the proxy matcher and gets its own route entry with a static policy that
 differs from the page policy in `script-src` only (`'self'`). One CSP header per response, either way.
 
-**D4. The matcher** additionally skips image files (`svg|png|jpg|jpeg|gif|webp|ico`). It deliberately does **not** adopt Next's `missing:` prefetch filter:
-the refresh driver has its own prefetch rule and skipping the proxy for a prefetch would skip the auth gate.
+**D4. The matcher** excludes Next's static assets and `/api/` only. A first version also skipped image files by extension; it was withdrawn on
+review (#2128, security-auditor and code-reviewer): a dynamic route and the not-found page answer to any suffix, and `GET /finns-inte.png` or
+`/jobb/abc.png` rendered HTML with no CSP at all. Files under `public/` therefore pass through the proxy and carry the policy too. Next's `missing:`
+prefetch filter is deliberately not adopted either: the refresh driver has its own prefetch rule, and skipping the proxy for a prefetch would skip the
+auth gate. Pinned with Next's own matcher compiler (`unstable_doesMiddlewareMatch`) and with a served-response e2e on `/finns-inte.png`.
 
 **D5. The `blob:` document is an argument for the nonce, not an obstacle.** The 2026-07-04 bind predates the CV preview; the 2026-09-07 re-pricing
 (security-auditor) named `'unsafe-inline'` as the amplifier that would turn active content in a `blob:` document into XSS if lapse trigger 1 or 2 ever

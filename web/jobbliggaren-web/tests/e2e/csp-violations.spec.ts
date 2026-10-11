@@ -81,6 +81,11 @@ test.describe("public pages and client navigation raise no CSP violation", () =>
 // claim that the nonce hardens the CV preview: measured in Chromium 2026-10-11, an inline script in an
 // HTML blob RAN under 'unsafe-inline' and is BLOCKED under the nonce policy, while a PDF blob loads in
 // the browser's viewer without a single violation. The real preview is exercised in the signed-in spec.
+//
+// DECLARED UNREACHABLE (AGENTS.md §5 Tests): no path in src/ produces an HTML blob — the CV preview only
+// accepts the allowlisted PDF/DOCX types and fixes the blob's type itself (cv-preview.tsx, ADR 0163 D6).
+// The HTML blob here is a control the test builds on purpose, and it asserts only what the browser does
+// with the policy a blob inherits, never what production does.
 test("a blob: document built from bytes inherits the policy: an inline script in an HTML blob does not run, a PDF blob raises nothing", async ({
   page,
 }) => {

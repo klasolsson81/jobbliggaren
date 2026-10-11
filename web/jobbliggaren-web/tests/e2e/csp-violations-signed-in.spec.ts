@@ -4,12 +4,12 @@ import { loggedInTest } from "./helpers/session";
 
 // ADR 0163 — the signed-in half of the nonce-CSP verification: the login flow, a client navigation
 // inside the app shell, and the CV preview (a `blob:` PDF framed in a modal; ADR 0101 Amendment
-// 2026-09-06). Needs the dev stack (API + database), so it is run by the stack-owner session and in
-// CI where the backend is up; the public-page half is `csp-violations.spec.ts` and needs nothing.
+// 2026-09-06). Needs the dev stack (API + database), so it is run by the stack-owner session; the
+// public-page half is `csp-violations.spec.ts` and needs nothing.
 //
-// Note on the CV half: `/api/cv/import` refuses a request whose Origin is not https in a production
-// build (`isSameOriginRequest`), so the import below works against `pnpm dev`, which is also how the
-// stack-owner runs it.
+// The CV half is skipped in CI: CI serves a production build over http, and `isSameOriginRequest`
+// requires an https Origin in production, so `/api/cv/import` answers 403 there. It runs against
+// `pnpm dev`, which is how the stack-owner runs it.
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
@@ -100,6 +100,7 @@ base("login, then a client navigation inside the app shell, raise no CSP violati
 const test = loggedInTest(RUN_ID);
 
 test("the CV preview: a PDF in a blob: iframe renders in the modal with no CSP violation", async ({ page }) => {
+  test.skip(!!process.env.CI, "the import route refuses an http Origin in a production build; run against pnpm dev");
   const seen = await watchViolations(page);
 
   // Imported from inside the page, so the request carries the browser's own Origin and the session

@@ -1,30 +1,10 @@
 // Browser security headers for the Jobbliggaren frontend — issue #591 (epic #485).
 //
-// Nonce-based CSP (ADR 0163, Klas-direktiv 2026-10-11) — supersedes "Approach A" (non-nonce,
-// senior-cto-advisor 2026-07-04). The resource surface is verified same-origin-only: 0 external
-// scripts, 0 analytics, 0 external image domains, no external fonts (next/font self-hosts
-// Source Sans 3 + JetBrains Mono), and every client-side fetch hits a same-origin /api/* route
-// handler (BACKEND_URL is a server-only env getter — the browser never connects to the backend
-// origin). So default-src/connect-src stay 'self'.
-//
-// `script-src` carries a per-request nonce + 'strict-dynamic' and NO 'unsafe-inline'. The page
-// policy is built by `proxy.ts` (it needs a fresh nonce per request, so it cannot live in
-// next.config.ts `headers()`); Next reads the nonce back out of the request's CSP header and
-// stamps it on its own inline bootstrap/RSC scripts. The cost the 2026-07-04 bind priced —
-// forcing dynamic rendering — was measured 2026-10-11 to be nil: every page route was already
-// `ƒ` (the root layout reads the NEXT_LOCALE cookie), only the metadata files are `○`.
-//
-// `style-src` keeps 'unsafe-inline': next/font and Radix inject <style> at runtime (BUILD.md
-// §3.1, input-otp), and style injection is not script execution.
-//
-// The nonce is also what hardens the `blob:` document below. A `blob:` document inherits its
-// creator's origin AND its CSP, so under the old 'unsafe-inline' a blob of type text/html would
-// have run inline script in the app's origin; under a nonce policy it cannot (measured
-// 2026-10-11, ADR 0163). The CV-preview blob type is additionally pinned in cv-preview.tsx.
-//
-// `/api/*` is outside the proxy matcher, so it keeps a STATIC policy (no nonce, no inline
-// script): the OAuth callback answers with a small HTML document (inline <style> only) and the
-// CV routes stream user bytes. Exactly one CSP header per response either way.
+// The page CSP is nonce-based and written per request by `proxy.ts`; the policy, its measurements and
+// the reasons are ADR 0163. The resource surface is same-origin-only (0 external scripts, 0 analytics,
+// self-hosted fonts, every client fetch to a same-origin /api/* handler), so default-src and
+// connect-src stay 'self'. `style-src` keeps 'unsafe-inline': next/font, Radix and input-otp inject
+// <style> at runtime. `/api/*` is outside the proxy matcher and has the static policy below.
 //
 // frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the user's own
 // uploaded PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl =

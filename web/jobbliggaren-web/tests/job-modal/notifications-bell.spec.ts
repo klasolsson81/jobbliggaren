@@ -63,26 +63,29 @@ test.afterEach(() => {
 
 test("the bell names its unread count and a row opens the ad in the job modal", async ({ page }) => {
   await page.goto("/sparade");
-  const bell = page.getByRole("button", { name: "Aviseringar, 2 olästa" });
+  const bell = page.getByRole("button", { name: "Notiser, 2 olästa" });
   await expect(bell).toBeVisible();
   await expect(page.locator(".jp-notif-badge")).toHaveText("2");
 
   await bell.click();
-  const panel = page.getByRole("dialog", { name: "Aviseringar" });
+  const panel = page.getByRole("dialog", { name: "Notiser" });
   await expect(panel.getByText("2 olästa")).toBeVisible();
   await expect(panel.getByText("Toppmatch")).toBeVisible();
   await expect(panel.getByText("Bevakar")).toBeVisible();
+  // The panel holds notifications and nothing else (#2130): the rows' own links, no fixed footer.
+  await expect(panel.getByRole("link")).toHaveCount(2);
+  await expect(panel.locator(".jp-notif__foot")).toHaveCount(0);
 
   await panel.getByRole("link", { name: ADS.open.title }).click();
   await expect(page).toHaveURL(`/jobb/${ADS.open.id}`);
   await expect(page.getByRole("dialog", { name: ADS.open.title })).toContainText("Öppna annonsen");
-  await expect(page.getByRole("dialog", { name: "Aviseringar" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Notiser" })).toHaveCount(0);
 });
 
 test("Markera alla som lästa sends each token unchanged to its own seen endpoint", async ({ page }) => {
   await page.goto("/sparade");
-  await page.getByRole("button", { name: "Aviseringar, 2 olästa" }).click();
-  const panel = page.getByRole("dialog", { name: "Aviseringar" });
+  await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
+  const panel = page.getByRole("dialog", { name: "Notiser" });
   harness.notificationFeed = {
     ...QUIET_NOTIFICATION_FEED,
     items: UNREAD_FEED.items.map((item) => ({ ...item, isUnread: false })),
@@ -96,13 +99,31 @@ test("Markera alla som lästa sends each token unchanged to its own seen endpoin
     { route: "POST /api/v1/me/followed-company-ads/seen", body: { seenThrough: FOLLOW_TOKEN } },
   ]);
   await expect(page.locator(".jp-notif-badge")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Aviseringar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Notiser" })).toBeVisible();
+});
+
+// The sheet at phone width: inside the window, nothing scrolls sideways.
+test("the panel fits a 375 px screen and the page does not scroll sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/sparade");
+  await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
+  const panel = page.getByRole("dialog", { name: "Notiser" });
+  await expect(panel).toBeVisible();
+
+  const box = await panel.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test("opening the bell writes nothing", async ({ page }) => {
   await page.goto("/sparade");
-  await page.getByRole("button", { name: "Aviseringar, 2 olästa" }).click();
-  await expect(page.getByRole("dialog", { name: "Aviseringar" }).getByText("2 olästa")).toBeVisible();
+  await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
+  await expect(page.getByRole("dialog", { name: "Notiser" }).getByText("2 olästa")).toBeVisible();
   // A write the click started would still be in flight here; wait for the network to settle first.
   await page.waitForLoadState("networkidle");
 

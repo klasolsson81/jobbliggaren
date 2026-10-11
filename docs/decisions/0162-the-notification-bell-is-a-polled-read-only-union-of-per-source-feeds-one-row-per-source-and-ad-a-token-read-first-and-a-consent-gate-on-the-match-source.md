@@ -10,6 +10,8 @@ doctrine (2026-09-05), dark mode (2026-06-28 and 2026-06-30), accessibility is n
 ADR 0080 Beslut 5 (2026-06-24). The round needed no STOPP to Klas.
 **Amends:** nothing. ADR 0080 is read and cited, not amended: its amendment belongs to #2106 (ADR 0161). ADR 0018 is applied through its
 Amendment of 2026-10-10, not changed.
+**Amendment 2026-10-11:** the panel holds notifications only (#2130; D3, D4, D6, D11) — see
+[§Amendment 2026-10-11](#amendment-2026-10-11--the-panel-holds-notifications-only-2130).
 **Related:** [#1666](https://github.com/klasolsson81/jobbliggaren/issues/1666) (the issue this ADR ships under) ·
 [#1662](https://github.com/klasolsson81/jobbliggaren/issues/1662) (the notification epic) · #2106 (a Toppmatch within minutes, in parallel) ·
 #2107 (the e-mail notice controls) · #1663 (smart-watch criterion hits, not built: the next source) · #1576 (the follow window rule) ·
@@ -381,3 +383,151 @@ One vertical slice in one PR (backend, frontend, DESIGN.md and this ADR), with n
   CLAUDE.md §6.5, §9.2, §9.6, §12
 - Martin, *Clean Architecture* (2017), ch. 7–8 (SRP, OCP) · Evans, *Domain-Driven Design* (2003), "Bounded Contexts" · Hunt and Thomas,
   *The Pragmatic Programmer* (1999), DRY
+
+---
+
+## Amendment 2026-10-11 — the panel holds notifications only (#2130)
+
+**Date:** 2026-10-11
+**Source:** `senior-cto-advisor`, "the CTO" below (decision-maker under CLAUDE.md §9.2): the ruling on the #2130 form round, A4 and point 13 of
+its binding form for PR 1 (`docs/reviews/2026-10-11-2130-form-cto.md`, local), on the brief (`…-form-brief.md`, `…-form-brief-addendum.md`) and
+the reports of `dotnet-architect` (`…-form-dotnet-architect.md`), `security-auditor` (`…-form-security-auditor.md`), `design-reviewer`
+(`…-form-design-reviewer.md`) and `db-migration-writer` (`…-form-db-migration-writer.md`, a consultation without grades), all local. Klas
+Olsson's direction of 2026-10-11 on #2130 is applied, not re-decided. The round needed no STOPP to Klas. Recorded by `adr-keeper` for the
+driving session from the ruling; it adds no decision of its own.
+**Status:** Accepted. D4 and D11 are changed below, D3 gets a dated correction and D6 a dated row. Where the text above differs from what is
+stated here, this amendment governs, and the original text stays as the record.
+**Measured against:** `origin/main` at `0887dcca3`, 2026-10-11. The amended D4 and D11 describe what PR 1 of #2130 builds (branch
+`feat/bell-real-notifications`), which is not merged at the time of writing; the D3 and D6 rows describe `origin/main`.
+
+### Context
+
+ADR 0162 made the bell a live feed (#1666). #2130 records Klas's direction of 2026-10-11: the bell holds notifications, not fixed links that
+are always shown, and a setting decides what counts as a notification. Its first acceptance criterion (AC1) is that the panel contains no
+link that is not a notification, except at most one "Visa alla" to a notifications page. D11's footer carries two fixed links
+(`/matchningar`, `/foretag/bevakade/nya`), so it conflicts with AC1.
+
+Removing the footer is not enough on its own, because D4 as decided can hide unread rows from the panel. Two findings of the form round show
+it, both derived from the code and not measured on the box.
+
+- **The selection ignores read state.** It takes the 20 newest rows with read ones included, so 20 newer read matches push out three older
+  unread follow rows while the badge counts three. `design-reviewer`'s Blocker 1: the footer, the unread-first selection and the
+  not-in-list line land in one PR and never separately.
+- **The horizon clips unread rows, and the follow source can count unread ads it never returns** (`dotnet-architect`'s Viktigt 1 and 2).
+  The follow window reads the newest 61 hits with read ones included, so every user with at least 61 hits on Active ads has a horizon, and
+  the merge then drops every match older than the 61st hit, unread or not. On the grade path the count reads and grades up to
+  `MaxCountedHits` hits while the list reads the window and filters it afterwards, so when an "endast matchade" watch excludes the whole
+  window the source reports `unreadCount >= 1` and no unread row.
+
+### Decision
+
+**The panel holds notifications and nothing else.** D4 and D11 are changed below; D3 gets a dated correction and D6 a dated row. D1, D5, D7,
+D8, D9, D12 and D13 are unchanged.
+
+#### D3 — dated correction of the lock citation
+
+D3 cites `[DisableConcurrentExecution(timeoutInSeconds: 1800)]` on both producers, at `6292ee856`. The matching worker's lock has been 120 s
+since ADR 0161 (`BackgroundMatchingWorker.cs:28`); the follow scan's stays 1800 s (`CompanyWatchScanWorker.cs:19`), both read at `0887dcca3`.
+There is still one writer per table, so the lapse condition (a second concurrent producer of either source's rows) is unchanged.
+
+#### D4 — the selection, the horizon and the hidden count (changed)
+
+The panel shows **every unread row the sources return first, up to the cap of 20 across the sources, and then the newest read rows above the
+newest horizon**, on Active ads only (D8). This replaces D4's "20 newest rows, read ones included". Grounds: ADR 0120, AC2 and
+`dotnet-architect`'s Viktigt 1.
+With `ByTime` as `occurredAt` descending, then `kind`, then `jobAdId`, `GetMyNotificationFeedQueryHandler.Merge` selects (`maxItems` is 20):
+
+```csharp
+unread = ByTime(all.Where(i => i.IsUnread)).Take(maxItems)
+read   = ByTime(all.Where(i => !i.IsUnread && (horizon is not {} cut || i.OccurredAt > cut))).Take(maxItems - unread.Count)
+items  = ByTime(unread.Concat(read))
+```
+
+- **The horizon cuts read rows only.** An unread row is never clipped at it. This replaces D4's "The merged list is clipped to
+  `occurredAt > max(horizons)` before the cap". The match source still has no horizon, and the follow source's horizon is still the
+  `CreatedAt` of the hit just past its window.
+- **Display is by time only**, with no grouping of unread rows in the client, so a row never moves when its state changes (which
+  click-to-read needs). Accepted: an unread row can sit below newer read rows in a panel that scrolls. With more than 20 unread rows the
+  panel shows the newest 20 of those the sources returned and no read row.
+- **The follow source's grade path lists the unread ads its window did not reach.** When the count is on the grade path and the window
+  yields fewer distinct unread included ads than `min(unreadCount, MaxItems)` (for example because an "endast matchade" watch excludes the
+  window's newest hits), the source takes the rows from the counted hits. It applies the inclusion rule to `countInput.GradeHits` with
+  `resolution.Matching`, which already covers those candidates, so there is still **one grading
+  call per poll**; it keeps each ad's newest included hit, orders the ads newest first and takes `MaxItems`. It then reads title and company
+  name for the ads not already in the window, in one more statement that runs only in this case. That statement composes `NewHits` (which
+  carries the `Status == Active` gate, D8) onto a join against `JobAds` for the display columns, bounded by time (from the oldest wanted
+  ad's newest included hit up to the token), and never sends an id list to the database (no `Contains` over the strongly typed id). The ads
+  leave the source as unread rows, one per ad. The common path and the refused state are unchanged, and D10's nine-statement pin, taken
+  without an "endast matchade" watch, is unaffected. The read stays inside `ReadBoundedAsync`, where `JobAdLifecycleReadRegistry` declares a
+  second site for it (the registry owes one decision per `get_JobAds` call). It ships in PR 1 because it has the same change reason as removing the footer: without it, once the footer is gone, an unread ad
+  that is counted but not listed would be a dead end.
+- **The number of unread notifications not in the list is exact or absent.** It is the sum of the sources' counts minus the unread rows
+  shown, it is never negative, and it is rendered only when every source count is a number (ADR 0120 clauses 3 and 5). The line reads
+  "N olästa visas inte i listan." and never says "older": the list shows the newest unread rows among those the sources returned, not the
+  newest in total, so nothing guarantees that the rows left out are older.
+
+The selection keeps six invariants. The ruling lists the unit, source, Testcontainers and client tests that pin them.
+
+- **M1** No read row is shown while a returned unread row is left out.
+- **M2** Every unread row shown is counted.
+- **M3** The number of unread rows not shown is the sum of the `unreadCount`s minus the unread rows shown: never negative, and rendered only
+  when every count is a number.
+- **M4** The counts are never capped by the row cap.
+- **M5** The fill with read rows is gap-free above the horizon.
+- **M6** The rows are displayed in time order.
+
+#### D6 — a dated row
+
+**2026-10-11.** `security-auditor` graded a **GDPR Blocker** in delivered behaviour that lies outside the bell: the match rows the consented
+run created are kept after `BackgroundMatch` is withdrawn, and `/matchningar` keeps listing them while their ad is Active
+(`JobSeeker.cs:130-155`, `GetMyMatchesQueryHandler.cs:62-83` and `AccountHardDeleter.cs:247,249`, read at `0887dcca3`). It is open with
+Klas (asked 2026-10-11) and does not block #2130, which neither causes it nor is blocked by it; it is tracked in #2138. The ruling lists
+what is not built while it is open. This row replaces the last sentence of the "Not widened" bullet above ("His decision is needed only if
+someone wants matches shown after a withdrawal, which would need new consent and privacy text"). **B1 is unchanged**: the match source is
+still read only while `NotificationConsent.BackgroundMatch` holds, and the assessment that no register row, no privacy-text change and no
+`CurrentPrivacyPolicyVersion` bump is needed still holds only while B1 holds.
+
+#### D11 — the panel holds notifications and nothing else (changed)
+
+D11 is changed as follows. Grounds: AC1, `design-reviewer`'s Blocker 1 and A1, ADR 0080 Beslut 5 and ADR 0144.
+
+- **No footer, no destination links, no settings link and no gear.** The only links in the panel are the rows' titles, each the row's one
+  link to `/jobb/{jobAdId}`. This replaces D11's sentence that the footer carries the two destination links. The rows are unchanged (reason
+  chip, "Ny", time, title, company; the title is semibold while the row is unread), and so is the sheet at 480 px and below. The header holds
+  "Notiser", the count line, and "Markera alla som lästa" only when the total is exact and above 0. The settings are reached through the
+  user menu, Inställningar, Notiser.
+- **There is no unread dot in PR 1.** #2130's ask text has it in PR 1; it comes with click-to-read in PR 2 instead, because a dot that stays
+  after the row is opened would show a state that no longer holds (ADR 0047 point 2). This deviates from the ask text's timing and not from AC1.
+- **No "Visa alla".** Decided, not built. AC1 allows at most one and none fits within it; a page would cost a top-level route, keyset
+  pagination over two sources with the grade path per page, its own shape in D8, its own budget in D10 and every state of the page, and
+  would duplicate two lists that already exist. Trigger: #1663 lands a third source, or Klas asks. When it is built it is one link after the
+  last row that replaces the not-in-list line, with the settings link in the page's header, read behind the B1 gate.
+- **The empty state is one line**, "Du har inga notiser.", which describes and invites nothing. This replaces D11's heading "Inga aviseringar
+  än" and its one sentence. With no rows and a source that refuses to count, the panel shows a line without a number, worded by
+  `design-reviewer`, and never "Du har inga notiser." while the badge shows an empty pill (ADR 0120). With no rows and an exact total above 0
+  the not-in-list line stands alone.
+- **The bell is named "Notiser"** (it was "Aviseringar") in the heading, the button's accessible name, the live region and the load and
+  error texts, as the rest of the product names them (`design-reviewer`'s Major 3).
+- **The not-in-list line exists** (D4): after the last row, inside the list's scroll area, with no link and no `role="status"`.
+
+### Decided for PR 2, not built
+
+- **Storage:** a non-nullable `bool` named after its channel on each source row (one migration, Klas's GO); no store, overlay or timestamp.
+- **Read state:** the bell's read state never moves a watermark (Klas, 2026-10-11), so D5's mechanism and the exception in Q3a end in PR 2.
+- **Settings:** the bell's per-type settings decide only what reaches the bell, never what Översikt or the lists show, and switching a type
+  back on marks what arrived while it was off as read.
+- **Click-to-read**, with the unread dot, and its own write bucket (neither `me-write` nor `follow-seen-mark`).
+- **The sources** return their newest unread rows explicitly, and the contract text in D1 changes.
+- **The index swap Q8**, as a separately named line in the migration that Klas can strike.
+- **A new ADR** amends 0162, its number taken last: the title's "read-only", D5's "adds no write surface" and D13's "No migration" become
+  false there, and it also amends D7, D8, D10 and the trigger in s5.
+
+### Cross-references
+
+- #2130 (this change) · #2138 (the open GDPR Blocker, D6) · #1662 (the notification epic) · #1663 (the next source, and the "Visa alla"
+  trigger)
+- ADR 0161 (the matching worker's lock, D3) · ADR 0120 (clauses 3 and 5: the hidden count is exact or absent, D4) · ADR 0080 (Beslut 5, the
+  consent and the settings-only invitation, D11; Beslut 6, the watermark the bell stops moving in PR 2) · ADR 0164 (#2107, merged 2026-10-11 as `b52994c32`: its D1 has
+  the bell read neither the e-mail master switch nor the per-type pauses) · ADR 0047 (point 2, D11)
+- Local reports: `docs/reviews/2026-10-11-2130-form-cto.md` (the ruling) · `…-form-brief.md` · `…-form-brief-addendum.md` ·
+  `…-form-dotnet-architect.md` · `…-form-security-auditor.md` · `…-form-design-reviewer.md` · `…-form-db-migration-writer.md`

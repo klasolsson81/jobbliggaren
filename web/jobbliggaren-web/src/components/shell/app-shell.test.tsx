@@ -23,7 +23,7 @@ vi.mock("@/components/shell/header-stats", () => ({
 // these tests prove where it is mounted without a fetch or a timer. Its behaviour is tested in
 // notifications-bell.test.tsx.
 vi.mock("@/components/shell/notifications-bell", () => ({
-  NotificationsBell: () => <button type="button" aria-label="Aviseringar" />,
+  NotificationsBell: () => <button type="button" aria-label="Notiser" />,
 }));
 
 const STATS_FIXTURE: LandingStatsDto = {

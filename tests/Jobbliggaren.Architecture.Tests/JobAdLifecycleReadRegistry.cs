@@ -155,11 +155,18 @@ public static class JobAdLifecycleReadRegistry
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
             ["Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource.ReadBoundedAsync"] =
-                One(Active("join JobAds for the ad columns of the notification bell's followed-company rows "
+            [
+                Active("join JobAds for the ad columns of the notification bell's followed-company rows "
                     + "(#1666). NO Status predicate at this site: the gate is INHERITED from "
                     + "NewFollowedCompanyAdSet.NewHits, which the window composes onto — the same posture as "
                     + "ListNewFollowedCompanyAdsQueryHandler.Handle, so the bell cannot show an ad the count "
-                    + "beside it did not count.")),
+                    + "beside it did not count."),
+                Active("join JobAds for the ad columns of the unread ads the window never reached (#2130, "
+                    + "the grade path only). NO Status predicate at this site: the gate is INHERITED from "
+                    + "NewFollowedCompanyAdSet.NewHits, which this read composes onto exactly as the window "
+                    + "does, and only ads the counted hits already named are kept, so a row listed here is "
+                    + "one the count beside it counted."),
+            ],
             ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
                 One(Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
                     + "Status predicate at this site: the gate is INHERITED from NewMatchSet.Matches, which "

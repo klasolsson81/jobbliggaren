@@ -50,6 +50,10 @@ function counts(match: number | null, followed: number | null): NotificationFeed
   ];
 }
 
+function readMatchRows(): NotificationFeed["items"] {
+  return feed().items.map((item) => ({ ...item, kind: "Match" as const, grade: item.grade ?? "Good", isUnread: false }));
+}
+
 const ok = (body: NotificationFeed) => Promise.resolve(Response.json(body));
 const status = (code: number, headers: Record<string, string> = {}) =>
   Promise.resolve(new Response(null, { status: code, headers }));
@@ -68,12 +72,12 @@ async function renderBell() {
 }
 
 function bell() {
-  return screen.getByRole("button", { name: /^Aviseringar/ });
+  return screen.getByRole("button", { name: /^Notiser/ });
 }
 
 function open() {
   fireEvent.click(bell());
-  return screen.getByRole("dialog", { name: "Aviseringar" });
+  return screen.getByRole("dialog", { name: "Notiser" });
 }
 
 async function poll() {
@@ -101,11 +105,11 @@ describe("NotificationsBell (#1666)", () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     await renderBell();
 
-    expect(bell()).toHaveAccessibleName("Aviseringar");
+    expect(bell()).toHaveAccessibleName("Notiser");
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
     const dialog = open();
     expect(within(dialog).getByRole("list", { hidden: true })).toHaveAttribute("aria-busy", "true");
-    expect(within(dialog).getByText("Hämtar aviseringar…")).toBeInTheDocument();
+    expect(within(dialog).getByText("Hämtar notiser…")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/me/notification-feed", expect.objectContaining({ cache: "no-store" }));
   });
 
@@ -114,7 +118,7 @@ describe("NotificationsBell (#1666)", () => {
     await renderBell();
 
     expect(document.querySelector(".jp-notif-badge")).toHaveTextContent("3");
-    expect(bell()).toHaveAccessibleName("Aviseringar, 3 olästa");
+    expect(bell()).toHaveAccessibleName("Notiser, 3 olästa");
     expect(within(open()).getByText("3 olästa")).toBeInTheDocument();
   });
 
@@ -123,7 +127,7 @@ describe("NotificationsBell (#1666)", () => {
     await renderBell();
 
     expect(document.querySelector(".jp-notif-badge")).toHaveTextContent("99+");
-    expect(bell()).toHaveAccessibleName("Aviseringar, fler än 99 olästa");
+    expect(bell()).toHaveAccessibleName("Notiser, fler än 99 olästa");
     expect(within(open()).getByText("120 olästa")).toBeInTheDocument();
   });
 
@@ -135,7 +139,7 @@ describe("NotificationsBell (#1666)", () => {
     const badge = document.querySelector(".jp-notif-badge");
     expect(badge).toHaveClass("jp-notif-badge--unknown");
     expect(badge).toHaveTextContent("");
-    expect(bell()).toHaveAccessibleName("Aviseringar, olästa finns");
+    expect(bell()).toHaveAccessibleName("Notiser, olästa finns");
     const dialog = open();
     expect(within(dialog).queryByText(/oläst/)).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Markera alla som lästa" })).toBeNull();
@@ -149,7 +153,7 @@ describe("NotificationsBell (#1666)", () => {
     await renderBell();
 
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
-    expect(bell()).toHaveAccessibleName("Aviseringar");
+    expect(bell()).toHaveAccessibleName("Notiser");
     const dialog = open();
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Markera alla som lästa" })).toBeNull();
@@ -157,18 +161,45 @@ describe("NotificationsBell (#1666)", () => {
     expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
   });
 
-  // ADR 0080 Beslut 5: the invitation to turn notifications on lives in settings only.
-  it("describes the empty bell without inviting the user to turn anything on", async () => {
+  // ADR 0080 Beslut 5: the invitation to turn notifications on lives in settings only, so the empty
+  // bell states one fact on one line, with no link and no settings entry (#2130, ADR 0162 D11 as amended).
+  it("shows the empty bell as one line with no link and no invitation", async () => {
     fetchMock.mockReturnValue(ok({ items: [], sources: counts(0, 0) }));
     await renderBell();
 
     const dialog = open();
-    expect(within(dialog).getByText("Inga aviseringar än")).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("Nya matchningar och nya annonser från företag du bevakar visas här."),
-    ).toBeInTheDocument();
-    const hrefs = within(dialog).getAllByRole("link").map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(["/matchningar", "/foretag/bevakade/nya"]);
+    expect(within(dialog).getByText("Du har inga notiser.")).toBeInTheDocument();
+    expect(dialog.querySelectorAll(".jp-notif__body p")).toHaveLength(1);
+    expect(within(dialog).queryAllByRole("link")).toHaveLength(0);
+    expect(within(dialog).queryByRole("button", { name: /Markera/ })).toBeNull();
+  });
+
+  // AC1 of #2130: the panel holds notifications and nothing else, in every state. The only links are
+  // the rows' own, to the ad. The fixed footer to two list pages is gone.
+  it.each([
+    ["loading", () => new Promise<Response>(() => {})],
+    ["failed", () => status(502)],
+    ["empty", () => ok({ items: [], sources: counts(0, 0) })],
+    ["unread rows", () => ok(feed({ sources: counts(5, 0) }))],
+    ["read rows", () => ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) }))],
+    ["a refused count beside rows", () => ok(feed({ sources: counts(1, null) }))],
+    [
+      "a refused count beside read rows only",
+      () => ok(feed({ items: readMatchRows(), sources: counts(0, null) })),
+    ],
+    ["a refused count without rows", () => ok({ items: [], sources: counts(0, null) })],
+    ["unread counted but not listed", () => ok({ items: [], sources: counts(0, 3) })],
+  ])("holds no link but the rows' own when %s", async (_state, answer) => {
+    fetchMock.mockReturnValue(answer());
+    await renderBell();
+
+    const dialog = open();
+    for (const link of within(dialog).queryAllByRole("link")) {
+      expect(link.getAttribute("href")).toMatch(/^\/jobb\/[0-9a-f-]{36}$/);
+    }
+    expect(within(dialog).queryAllByRole("link")).toHaveLength(within(dialog).queryAllByRole("listitem").length);
+    expect(dialog.querySelector(".jp-notif__foot")).toBeNull();
+    expect(dialog.querySelector(".jp-notif__footlink")).toBeNull();
   });
 
   it("renders each row's reason, the Ny tag, a link to the ad and the Swedish time", async () => {
@@ -212,7 +243,7 @@ describe("NotificationsBell (#1666)", () => {
 
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
     const dialog = open();
-    expect(within(dialog).getByText("Aviseringarna kunde inte hämtas.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Notiserna kunde inte hämtas.")).toBeInTheDocument();
     expect(within(dialog).queryByText("Inga olästa")).toBeNull();
 
     fetchMock.mockReturnValueOnce(ok(feed()));
@@ -270,7 +301,7 @@ describe("NotificationsBell (#1666)", () => {
 
     fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(2, 2) })));
     await poll();
-    expect(live).toHaveTextContent("Du har 4 olästa aviseringar.");
+    expect(live).toHaveTextContent("Du har 4 olästa notiser.");
 
     fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(1, 0) })));
     await poll();
@@ -291,7 +322,7 @@ describe("NotificationsBell (#1666)", () => {
 
     expect(markNotificationsReadAction).toHaveBeenCalledWith({ match: MATCH_TOKEN, followedCompanyAd: null });
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
-    expect(within(dialog).getByText("Aviseringar", { selector: ".jp-notif__title" })).toHaveFocus();
+    expect(within(dialog).getByText("Notiser", { selector: ".jp-notif__title" })).toHaveFocus();
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
   });
 
@@ -305,7 +336,7 @@ describe("NotificationsBell (#1666)", () => {
     await settle();
 
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
-      "Aviseringarna kunde inte markeras som lästa. Försök igen.",
+      "Notiserna kunde inte markeras som lästa. Försök igen.",
     );
     expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
   });
@@ -400,34 +431,80 @@ describe("NotificationsBell (#1666)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // ADR 0120 / design-reviewer: the header's exact number must never sit over "Inga aviseringar än".
-  it("says where the unread notifications are when none of them is in the list", async () => {
+  // ADR 0120: the header's exact number must never sit over "Du har inga notiser.". Unread notifications
+  // the list does not carry are counted in one line, with no link: the number is exact or absent.
+  it("says how many unread notifications are not in the list, alone when there is no row", async () => {
     fetchMock.mockReturnValue(ok({ items: [], sources: counts(0, 3) }));
     await renderBell();
 
     const dialog = open();
     expect(within(dialog).getByText("3 olästa")).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(/^De olästa aviseringarna ryms inte i den här listan\./),
-    ).toBeInTheDocument();
-    expect(within(dialog).queryByText("Inga aviseringar än")).toBeNull();
+    expect(within(dialog).getByText("3 olästa visas inte i listan.")).toBeInTheDocument();
+    expect(within(dialog).getByText("3 olästa visas inte i listan.").closest(".jp-notif__message")).not.toBeNull();
+    expect(dialog.querySelector(".jp-notif__notinlist")).toBeNull();
+    expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
+    expect(within(dialog).queryAllByRole("link")).toHaveLength(0);
   });
 
-  it("puts that line above a list of read rows, and says it for a refused count too", async () => {
-    const readRows = feed().items.map((i) => ({ ...i, isUnread: false }));
-    fetchMock.mockReturnValueOnce(ok({ items: readRows, sources: counts(0, 2) }));
+  it("puts the line after the last row with the exact number, in singular and plural", async () => {
+    // feed() shows one unread row. Five are counted, so four are not in the list.
+    fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(5, 0) })));
     await renderBell();
     let dialog = open();
-    expect(within(dialog).getByText(/^De olästa aviseringarna ryms inte/)).toBeInTheDocument();
-    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
+    const note = within(dialog).getByText("4 olästa visas inte i listan.");
+    expect(within(dialog).getByRole("list").compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(note.closest("a")).toBeNull();
+    expect(note.closest(".jp-notif__body")).not.toBeNull();
+    expect(note.closest("ul")).toBeNull();
+    expect(note).not.toHaveAttribute("role");
+    fireEvent.click(bell());
+
+    fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(2, 0) })));
+    await poll();
+    dialog = open();
+    expect(within(dialog).getByText("1 oläst visas inte i listan.")).toBeInTheDocument();
+  });
+
+  it("shows no such line when every unread row is in the list", async () => {
+    fetchMock.mockReturnValue(ok(feed({ sources: counts(1, 0) })));
+    await renderBell();
+
+    expect(within(open()).queryByText(/visas inte i listan/)).toBeNull();
+  });
+
+  // ADR 0120 clause 3: a refused count has no number, so no line carries one. Without rows a number-less
+  // line stands alone, never "Du har inga notiser." under an empty pill.
+  it("shows a number-less line for a refused count without rows, and none beside an unread row", async () => {
+    fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(1, null) })));
+    await renderBell();
+    let dialog = open();
+    expect(within(dialog).queryByText(/visas inte i listan/)).toBeNull();
     fireEvent.click(bell());
 
     fetchMock.mockReturnValueOnce(ok({ items: [], sources: counts(0, null) }));
     await poll();
     dialog = open();
-    expect(within(dialog).getByText(/^De olästa aviseringarna ryms inte/)).toBeInTheDocument();
-    expect(within(dialog).queryByText("Inga aviseringar än")).toBeNull();
+    expect(within(dialog).getByText("Olästa notiser visas inte i listan.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
+    expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");
+  });
+
+  it("puts the number-less line after the rows when a refused count leaves only read rows in the list", async () => {
+    fetchMock.mockReturnValue(ok(feed({ items: readMatchRows(), sources: counts(0, null) })));
+    await renderBell();
+
+    expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");
+    const dialog = open();
+    const note = within(dialog).getByText("Olästa notiser visas inte i listan.");
+    expect(within(dialog).getByRole("list").compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(note.closest(".jp-notif__body")).not.toBeNull();
+    expect(note.closest("ul")).toBeNull();
+    expect(note.closest("a")).toBeNull();
+    expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("shows no count line when there has never been a notification", async () => {
@@ -436,7 +513,7 @@ describe("NotificationsBell (#1666)", () => {
 
     const dialog = open();
     expect(within(dialog).queryByText("Inga olästa")).toBeNull();
-    expect(within(dialog).getByText("Inga aviseringar än")).toBeInTheDocument();
+    expect(within(dialog).getByText("Du har inga notiser.")).toBeInTheDocument();
   });
 
   it("keeps Markerar… until the read after acknowledging has landed", async () => {

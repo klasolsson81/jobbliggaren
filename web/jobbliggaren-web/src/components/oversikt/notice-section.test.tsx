@@ -63,7 +63,7 @@ describe("NoticeSection utan prefTypes (#1572)", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Notisinställningar" }),
+      screen.queryByRole("button", { name: "Inställningar för översikten" }),
     ).toBeNull();
     expect(screen.getByText("Notis a")).toBeInTheDocument();
   });
@@ -72,7 +72,7 @@ describe("NoticeSection utan prefTypes (#1572)", () => {
     renderSection([n("a", "matches")]);
 
     expect(
-      screen.getByRole("button", { name: "Notisinställningar" }),
+      screen.getByRole("button", { name: "Inställningar för översikten" }),
     ).toBeInTheDocument();
   });
 });
@@ -157,7 +157,7 @@ describe("NoticeSection", () => {
     await user.click(screen.getByRole("button", { name: "Visa" }));
     await user.click(screen.getByRole("button", { name: "Återställ notis" }));
     expect(
-      screen.getByRole("button", { name: "Notisinställningar" }),
+      screen.getByRole("button", { name: "Inställningar för översikten" }),
     ).toHaveFocus();
   });
 
@@ -172,7 +172,7 @@ describe("NoticeSection", () => {
     );
     expect(screen.getByText("2 lästa notiser")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Notisinställningar" }));
+    await user.click(screen.getByRole("button", { name: "Inställningar för översikten" }));
     await user.click(
       screen.getByRole("button", { name: "Återställ lästa notiser (2)" }),
     );
@@ -187,7 +187,7 @@ describe("NoticeSection", () => {
     const user = userEvent.setup();
     renderSection([n("a", "matches")]);
 
-    const gear = screen.getByRole("button", { name: "Notisinställningar" });
+    const gear = screen.getByRole("button", { name: "Inställningar för översikten" });
     expect(gear).toHaveAttribute("aria-expanded", "false");
     await user.click(gear);
     expect(gear).toHaveAttribute("aria-expanded", "true");

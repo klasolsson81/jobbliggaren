@@ -232,13 +232,14 @@ done
 # CORP by route (ADR 0163 Amendment 2026-10-11): the routes that exist to be shown on other sites say
 # `cross-origin`, everything else keeps `same-origin`. Look-alikes must NOT match: the pattern is anchored.
 for path in /opengraph-image '/opengraph-image?0045498bc7eb3a85' /twitter-image /apple-icon /icon.svg \
-  /favicon.ico /manifest.webmanifest; do
+  /favicon.ico /manifest.webmanifest /icons/icon-192.png /icons/icon-512.png /icons/icon-maskable-512.png; do
   h=$(get "$port" "$SITE" "$path")
   [ "$(status_of "$h")" = 200 ] && one_hsts "$h" && isolated "$h" cross-origin \
     && pass "open $path: one CORP, cross-origin" || fail "open $path: status=$(status_of "$h")"
 done
 for path in /opengraph-imagex /xopengraph-image /opengraph-image/extra /apple-icons /icon.svgx /favicon.icox \
-  /manifest.webmanifest.json /robots.txt /sitemap.xml /jobb/123 /jobb/123/opengraph-image /jobb/123/twitter-image /jobb/123/apple-icon /jobb/123/icon.svg; do
+  /manifest.webmanifest.json /robots.txt /sitemap.xml /jobb/123 /jobb/123/opengraph-image /jobb/123/twitter-image /jobb/123/apple-icon /jobb/123/icon.svg \
+  /icons/icon-192.pngx /icons/icon-192.png/x /xicons/icon-192.png /jobb/icons/icon-192.png /icons/icon-193.png; do
   h=$(get "$port" "$SITE" "$path")
   [ "$(status_of "$h")" = 200 ] && isolated "$h" same-origin \
     && pass "open $path: one CORP, same-origin" || fail "open $path: status=$(status_of "$h")"

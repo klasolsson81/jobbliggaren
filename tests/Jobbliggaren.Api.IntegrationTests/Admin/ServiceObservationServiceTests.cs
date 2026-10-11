@@ -12,7 +12,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Admin;
 /// The hosted service's one job beyond calling the sampler (#1982): it must never be able to stop the API.
 /// <c>BackgroundServiceExceptionBehavior</c> defaults to <c>StopHost</c>, so these tests hand the loop a sampler and a
 /// log sink that throw. They need no web host: the service is built by hand with a one-second interval (the options
-/// are not validated here; the shipped range starts at five seconds).
+/// are not validated here; the shipped range starts at five seconds). The sampler that throws stands in for
+/// <c>ServiceObservationSampler</c>, which catches every source's exception itself, so the one way an exception leaves it is
+/// its own log call failing against a failing sink.
 /// </summary>
 public sealed class ServiceObservationServiceTests
 {

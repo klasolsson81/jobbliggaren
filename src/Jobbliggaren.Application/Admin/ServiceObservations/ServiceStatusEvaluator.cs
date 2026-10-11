@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.Admin.ServiceObservations;
 /// <para>
 /// A row whose sample is older than the stale limit is Unknown, never an old verdict: a statement about "now" that
 /// is no longer current is not shown with a stale mark, it is withdrawn. A sample or a heartbeat dated later than
-/// the API's own clock by more than the future tolerance is Unknown too, because on one clock that cannot be true.
+/// the API's own clock by more than the future tolerance is Unknown too.
 /// No state means that something works. The words are the page's, and they say what was seen and when.
 /// </para>
 /// </summary>

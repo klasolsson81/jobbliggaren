@@ -123,7 +123,7 @@ public sealed class HangfireWorkerHeartbeatSourceTests : IAsyncLifetime
     }
 
     // Actor: a Worker that was killed and restarted. The killed one leaves its record behind until a live server's
-    // watchdog removes it (up to ServerTimeout, five minutes), so a stale record and a fresh one coexist. Two running
+    // watchdog removes it, so a stale record and a fresh one coexist. Two running
     // servers started apart stand for that pair: their heartbeats differ, and the reading must be the newest.
     [Fact]
     public async Task Read_TwoServers_ReportOneFlagAndTheNewestHeartbeat_NeverTheOldestOrACount()

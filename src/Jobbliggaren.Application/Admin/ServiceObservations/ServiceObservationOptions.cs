@@ -16,7 +16,7 @@ public sealed class ServiceObservationOptions : IValidatableObject
     /// <summary>
     /// Seconds between samples. 30, like the host sampler: the overview refreshes every 60 s while visible. The ceiling is
     /// 30 because the alive window (<see cref="ServiceObservationLimits.WorkerAliveWithin"/>) holds a heartbeat interval
-    /// plus one sampling interval, twice, and a longer interval would show a live Worker as silent for part of each one.
+    /// plus one sampling interval, twice.
     /// </summary>
     [Range(5, 30)]
     public int SampleIntervalSeconds { get; set; } = 30;

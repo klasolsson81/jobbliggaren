@@ -116,7 +116,7 @@ sources through ports and keeps the newest outcome of each as an immutable snaps
   and no sign of life inside the window, once the sampler has read the storage successfully for as long as the window (counted from its first successful read, at the sample's own time); until then the row is Unknown,
   so a release shows no false warning whichever container restarts first. A graceful stop removes the record, and the last sign
   of life it gave stays true, which is why that carried evidence is kept.
-- A null or future heartbeat is Unknown. On one clock that is unreachable; the test asserts safe degradation only. Time zone
+- A null or future heartbeat is Unknown. Time zone
   and `Kind` of the heartbeat are proven against real Hangfire.PostgreSql storage on a Testcontainers Postgres under a
   `Europe/Berlin` session, never read on the box (CLAUDE.md §9.2 (b)).
 - **The label claims what was seen:** "senaste livstecken {tid}". Not "fungerar", not "svarar" (a heartbeat answers nothing).

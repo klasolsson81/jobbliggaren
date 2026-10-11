@@ -19,7 +19,7 @@ public enum WorkerProcessState
     /// <summary>No server record, and no sign of life inside the window, once the sampler has read the storage successfully for as long.</summary>
     NoServer,
 
-    /// <summary>The source could not be read, is too old to judge, or says something that cannot be true on one clock.</summary>
+    /// <summary>The source could not be read or is too old to judge.</summary>
     Unknown,
 }
 

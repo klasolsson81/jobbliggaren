@@ -292,7 +292,10 @@ public sealed class AdminServiceObservationAccessTests(ApiFactory factory)
         response.Headers.CacheControl.NoStore.ShouldBeTrue();
     }
 
-    /// <summary>All three ports in one scripted object; the defaults are a healthy system whose import ran 4 minutes ago.</summary>
+    /// <summary>
+    /// All three ports in one scripted object, standing in for <c>HangfireWorkerHeartbeatSource</c>,
+    /// <c>ReadinessVolatileStoreProbe</c> and <c>SqlImportRunRecords</c>; the defaults are a healthy system whose import ran 4 minutes ago.
+    /// </summary>
     private sealed class Sources(DateTimeOffset now) : IWorkerHeartbeatSource, IVolatileStoreProbe, IImportRunRecords
     {
         public Exception? WorkerThrows { get; init; }

@@ -18,6 +18,7 @@ public sealed class GetServiceObservationQueryHandlerTests
     private static readonly DateTimeOffset Now = new(2026, 10, 10, 12, 0, 0, TimeSpan.Zero);
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
+    // Stands in for ServiceObservationSampler, which publishes the snapshot the handler reads.
     private sealed class FixedReader(ServiceObservationSnapshot snapshot) : IServiceObservationReader
     {
         public ServiceObservationSnapshot Current { get; } = snapshot;

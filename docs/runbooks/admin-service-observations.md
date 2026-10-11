@@ -59,7 +59,6 @@ registered cron `*/10 * * * *` (two missed runs and five minutes); the 24 h wind
   more than 5 s ahead of the read, is Unknown.
 - The endpoint shares the per-user `admin-read`
   bucket (30 per 10 s).
-- The page ages a row it keeps (after a refresh that failed) by the same `staleAfterSeconds` and marks it.
 
 ## 4. Cadence and cost
 

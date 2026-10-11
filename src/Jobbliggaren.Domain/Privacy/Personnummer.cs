@@ -151,11 +151,9 @@ public sealed record Personnummer
 
     // A personnummer separator (#497): ASCII '-'/'+', any Unicode dash (\p{Pd}, e.g. U+2013
     // EN DASH, U+2011 NON-BREAKING HYPHEN), or U+2212 MINUS SIGN (category Sm, not Pd, so it
-    // needs the explicit code-point check). This is EXACTLY the separator class the
-    // scanner/normalizer regexes admit — kept symmetric so the flag, redaction and
-    // validation paths accept the identical separator repertoire (no new divergence). The
-    // date+Luhn gate is untouched, so widening the accepted separator SHAPE cannot manufacture
-    // a valid false positive. U+2212 is written as (char)0x2212 to keep the source ASCII-only.
+    // needs the explicit code-point check). The date+Luhn gate is untouched, so widening the
+    // accepted separator SHAPE cannot manufacture a valid false positive. U+2212 is written as
+    // (char)0x2212 to keep the source ASCII-only.
     private static bool IsSeparator(char c) =>
         c is '+'
         || c == (char)0x2212

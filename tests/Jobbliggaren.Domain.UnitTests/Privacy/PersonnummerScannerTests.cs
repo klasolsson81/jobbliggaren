@@ -580,9 +580,7 @@ public class PersonnummerScannerTests
         // SUPERSET of what the scanner masks, on purpose: the count is a tripwire. This pins the exact difference, in BOTH directions, so a reading above
         // zero can be attributed: the scanner masks a spelling of that grammar if and only if it holds
         // at most TWO visible columns in total (ADR 0134 D1), zero-width characters being free. A
-        // narrowing fails the first assertion, a widening past the budget fails the second. The sample
-        // takes up to two characters per side from a mixed alphabet; the query allows three, which only
-        // adds spellings beyond the budget.
+        // narrowing fails the first assertion, a widening past the budget fails the second.
         string[] visible = [" ", "\t", "\u00A0", "\u2009"];
         string[] zeroWidth = ["\u200B", "\uFEFF"];
         string[] separators = ["", "-", "\u2013", "+", "\u2212", "\uFF0D", ".", "/", "_"];
@@ -631,12 +629,13 @@ public class PersonnummerScannerTests
     private const string PreIssue2123GapAwarePattern =
         @"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:\d\p{Cf}*){4}(?!\d)";
 
+    private static readonly System.Text.RegularExpressions.Regex PreIssue2123Grammar = new(
+        PreIssue2123GapAwarePattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private static List<(int Index, int Length)> PreIssue2123MaskedSpans(string text)
     {
-        var oldGrammar = new System.Text.RegularExpressions.Regex(
-            PreIssue2123GapAwarePattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
         var spans = new List<(int Index, int Length)>();
-        foreach (System.Text.RegularExpressions.Match match in oldGrammar.Matches(text))
+        foreach (System.Text.RegularExpressions.Match match in PreIssue2123Grammar.Matches(text))
         {
             var digits = new string([.. match.Value
                 .Select(CharUnicodeInfo.GetDecimalDigitValue)

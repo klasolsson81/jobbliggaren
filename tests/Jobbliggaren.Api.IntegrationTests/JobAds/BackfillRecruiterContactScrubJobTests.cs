@@ -295,8 +295,6 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
         // stored employer.name verbatim; its row is written by the raw UPDATE below. The complement,
         // that the CURRENT writer cannot produce the shape, is pinned in
         // JobAdPersonnummerRedactionTests.A_personnummer_in_the_company_name_is_masked_in_place_on_import
-        // and in RecruiterContactIngestTests.The_separator_forms_and_a_personnummer_in_the_company_name_
-        // are_masked_after_import_and_resync (plain text: neither project is referenced from here).
         // Title and description stay clean, so the name is the only detection in the table.
         var ct = TestContext.Current.CancellationToken;
         using (var seed = _provider.CreateScope())

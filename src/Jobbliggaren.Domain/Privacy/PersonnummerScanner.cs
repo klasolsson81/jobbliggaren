@@ -19,7 +19,7 @@ public static partial class PersonnummerScanner
 {
     // Candidate token: a 10- or 12-digit personnummer-shaped run with an optional separator
     // before the final 4 digits — ASCII '-'/'+', any Unicode dash (\p{Pd}) or U+2212 MINUS
-    // (#497), the same class the redaction/normalizer/TryParse paths admit. The flag path's
+    // (#497), the same class the normalizer/TryParse paths admit. The flag path's
     // Normalize strips \p{Cf} globally before Scan, so this contiguous candidate needs no
     // in-group \p{Cf} tolerance (that lives only in GapAwareCandidateRegex). The lookbehind/lookahead reject
     // a candidate that is part of a longer digit run (token-boundary guard), so an
@@ -126,8 +126,8 @@ public static partial class PersonnummerScanner
 
         List<PersonnummerMatch>? matches = null;
 
-        // The stripped token is DIGIT-ONLY (#497/#498, Approach A): every non-digit — ASCII
-        // '-'/'+', a Unicode dash, and the bridging \p{Zs}/\t/\p{Cf} gap — is dropped, so the
+        // The stripped token is DIGIT-ONLY (#497/#498, Approach A): every non-digit — a
+        // separator or a bridging gap character — is dropped, so the
         // token is the joined digit sequence the shared TryParse validates, exactly mirroring
         // the import flag path's Normalize ($1$2 digit-join). Each kept digit is the Unicode
         // decimal-digit category \p{Nd} FOLDED to its ASCII 0-9 value (#667), the same fold
@@ -159,7 +159,7 @@ public static partial class PersonnummerScanner
 
             // Build the DIGIT-ONLY token (#497/#498, Approach A): keep every decimal digit
             // (\p{Nd}) FOLDED to its ASCII 0-9 value (#667 — fullwidth U+FF10-U+FF19 and other
-            // Nd forms), drop every separator (ASCII/Unicode dash) and every bridging gap char
+            // Nd forms), drop every separator and every bridging gap char
             // (\p{Zs}/\t/\p{Cf}). This mirrors the flag path's $1$2 digit-join AND TryParse's own
             // Nd-fold, so a dash-space-dash form ("811218- -9876", #498b), a Unicode-dash form
             // (#497) and a fullwidth-digit form (#667) validate identically on both paths (no new

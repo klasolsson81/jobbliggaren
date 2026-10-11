@@ -151,10 +151,15 @@ public sealed class PersonnummerBridgeCollisionRateTests
         // dated numbers. The equality catches a NARROWER grammar (the hits fall below the
         // contiguous rate). It cannot catch a wider one on an isolated token, which has no extra
         // candidate to find; that direction is pinned by the negatives in PersonnummerScannerTests.
-        ScanWithGapsHitRate(form, dateColumn: false).ShouldBe(ArbitraryEightPlusFourCollisionRate());
-        ScanWithGapsHitRate(form, dateColumn: true).ShouldBe(DateColumnPlusFourCollisionRate());
-        ScanWithGapsSixPlusFourHitRate(form).ShouldBe(ArbitrarySixPlusFourCollisionRate());
+        ScanWithGapsHitRate(form, dateColumn: false).ShouldBe(ArbitraryEightPlusFourBaseline.Value);
+        ScanWithGapsHitRate(form, dateColumn: true).ShouldBe(DateColumnPlusFourBaseline.Value);
+        ScanWithGapsSixPlusFourHitRate(form).ShouldBe(ArbitrarySixPlusFourBaseline.Value);
     }
+
+    // The contiguous baselines do not depend on the form under test, so each is computed once.
+    private static readonly Lazy<double> ArbitraryEightPlusFourBaseline = new(ArbitraryEightPlusFourCollisionRate);
+    private static readonly Lazy<double> DateColumnPlusFourBaseline = new(DateColumnPlusFourCollisionRate);
+    private static readonly Lazy<double> ArbitrarySixPlusFourBaseline = new(ArbitrarySixPlusFourCollisionRate);
 
     /// <summary>Ten arbitrary digits judged as one contiguous 6+4 personnummer candidate.</summary>
     private static double ArbitrarySixPlusFourCollisionRate()

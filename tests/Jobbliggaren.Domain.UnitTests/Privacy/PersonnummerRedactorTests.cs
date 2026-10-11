@@ -393,6 +393,41 @@ public class PersonnummerRedactorTests
     }
 
     // ===============================================================
+    // #2123 (ADR 0134 amendment 2026-10-11) — the separator forms an employer types into an ad:
+    // a separator between two gap columns, and '.', '/', '_' as separators. Detection is
+    // PersonnummerScannerTests' job; this group pins what the redactor DOES with them: masked in
+    // place, length-preserving, and a fixed point (the nightly upsert re-runs it on every record).
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 - 9876", "****** - ****")]
+    [InlineData("811218 \u2013 9876", "****** \u2013 ****")]
+    [InlineData("19811218 / 9876", "******** / ****")]
+    [InlineData("811218.9876", "******.****")]
+    [InlineData("811218_9876", "******_****")]
+    [InlineData("811278/9873", "******/****")]
+    public void Redact_SeparatorFormsOfIssue2123_MasksInPlaceAndIsAFixedPoint(
+        string form, string masked)
+    {
+        var text = $"Firma {form} söker städare.";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldBe($"Firma {masked} söker städare.");
+        PersonnummerRedactor.Redact(redacted).ShouldBe(redacted);
+    }
+
+    [Theory]
+    [InlineData("Ref 811218 - 9877 gäller.")] // Luhn-invalid
+    [InlineData("Org.nr 556677 - 0001 och 556677/0001.")] // organisation numbers fail the date gate
+    [InlineData("Ring 070-123 45 67 eller 070.123.45.67.")] // phone numbers
+    [InlineData("Utlysning 20261011 - 20261130.")] // two compact dates
+    public void Redact_SeparatorFormsOfIssue2123_LeavesWhatIsNotAPersonnummerAlone(string text)
+    {
+        PersonnummerRedactor.Redact(text).ShouldBeSameAs(text);
+    }
+
+    // ===============================================================
     // #465 (senior-cto-advisor, docs/reviews/2026-07-01-465-srcfilename-pnr-cto.md):
     // superset-equivalence GUARD. The import guard (#426) FLAGS a filename via the
     // Scan(Normalize(x)) path (SpacedCandidateRegex bridges up-to-2 visible-space gaps and

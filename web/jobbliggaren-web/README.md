@@ -34,7 +34,6 @@ environment variables:
 | `BACKEND_URL` | Base URL of the API. Required: server code throws without it. |
 | `NEXT_PUBLIC_SITE_URL` | Canonical site URL for metadata, `robots.txt` and the sitemap. Inlined at build time, so the Dockerfile requires it as a build argument; a local build falls back to a default. |
 | `APP_VERSION` | Release commit, stamped into feedback submissions. Optional. |
-| `DEV_TOOLS_RESET_ENABLED` | Shows the data-reset tool on `/oversikt` in a production build; development always shows it. Optional. |
 | `ADMIN_PREVIEW_ENABLED` | Build-time flag for the admin preview with fixture data. Never set for a deployed build. |
 
 ## Scripts

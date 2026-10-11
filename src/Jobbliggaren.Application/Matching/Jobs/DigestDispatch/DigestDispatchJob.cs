@@ -43,20 +43,6 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// ads the body can never list and the recipient can never open.
 /// </para>
 /// <para>
-/// <b>The row's two ends, and the predicate that governs both (#864).</b> A pending row is partitioned
-/// by ONE question — <i>is this ad still presentable?</i>
-/// <list type="bullet">
-/// <item><b>claim</b> = presentable ∧ grade passes → claimed, emailed, drained (Sent).</item>
-/// <item><b>stayPending</b> = presentable ∧ grade fails → left UNTOUCHED. Grade is a function of
-/// (profile, ad) and the profile is MUTABLE, so the hit may legitimately re-surface later (8C).</item>
-/// <item><b>drain</b> = NOT presentable → drained unconditionally, never shown. Lifecycle is a function
-/// of the AD ALONE and is MONOTONE: nothing un-archives an ad, so waiting is not deferral — it is a
-/// leak, and nothing reaps it (the stranded reaper takes QUEUED rows; a row never claimed is never
-/// queued).</item>
-/// </list>
-/// <b>Lifecycle is a DRAIN reason; grade is a FILTER-OUT reason. Never the other way round.</b>
-/// </para>
-/// <para>
 /// <b>Per-user failure is isolated</b> (one user's exception does not abort the run — TD-25),
 /// parity <see cref="BackgroundMatching.BackgroundMatchingJob"/>.
 /// </para>
@@ -363,8 +349,7 @@ public sealed partial class DigestDispatchJob(
         // Read-time, grade NEVER persisted (Goodhart — the hit has no grade column). The ort filter was
         // already applied SCAN-time (8A, F1); only the OnlyMatched flag needs a dispatch-time grade
         // check. Load the user's ACTIVE watches (whole-watch load, parity the scan/ListCompanyWatches)
-        // → CompanyWatchId → WatchFilterSpec?. A hit whose watch was unfollowed since creation is absent
-        // → treated as no-filter → passes (its WatchFilterSpec was cleared on SoftDelete anyway).
+        // → CompanyWatchId → WatchFilterSpec?.
         var filterByWatchId = (await db.CompanyWatches
                 .AsNoTracking()
                 .Where(w => w.UserId == userId)
@@ -389,24 +374,33 @@ public sealed partial class DigestDispatchJob(
         // absence. That port conflates TWO predicates — `Status == Active` AND grade ≥ Good
         // (PerUserJobAdSearchQuery:370) — into ONE set, so its result cannot tell you WHY a hit is missing
         // from it. That conflation is exactly what hid the leak described at the partition below.
+        //
+        // The join to CompanyWatches drops a hit whose follow has ended: the soft-delete query filter
+        // admits only active watches. It is the live-hit definition of NewFollowedCompanyAdSet.NewHits,
+        // the in-app page this email links to.
         var itemsQuery =
             from h in db.FollowedCompanyAdHits.AsNoTracking()
             where h.UserId == userId
                   && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
                   && h.SeenAt == null
+            join w in db.CompanyWatches on h.CompanyWatchId equals w.Id
+            where w.UserId == userId
             join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
             where j.Status == JobAdStatus.Active
             orderby h.CreatedAt descending, h.Id
-            select new { h.JobAdId, j.Title, Company = j.Company.Name };
+            select new { h.Id, h.JobAdId, j.Title, Company = j.Company.Name };
 
         var presentableRows = await itemsQuery.ToListAsync(ct);
-        var presentableAdIds = presentableRows.Select(r => r.JobAdId).ToHashSet();
+        var presentableHitIds = presentableRows.Select(r => r.Id).ToHashSet();
+
+        // Per HIT, never per ad: one ad can be reached through an active watch and an ended one.
+        bool IsPresentable(FollowedCompanyAdHit h) => presentableHitIds.Contains(h.Id);
 
         // Grade only the hits that could actually be SHOWN. Grading a dead ad is wasted work and — far
         // worse — feeding one to the port would let its absence from the result be misread as "below
         // ≥Good", which is the conflation that hid the leak.
         var idsToGrade = pending
-            .Where(h => NeedsGradeCheck(h) && presentableAdIds.Contains(h.JobAdId))
+            .Where(h => NeedsGradeCheck(h) && IsPresentable(h))
             .Select(h => h.JobAdId)
             .Distinct()
             .ToList();
@@ -444,6 +438,7 @@ public sealed partial class DigestDispatchJob(
         //     stayPending =  presentable ∧ ¬gradePasses   → untouched (8C: the profile may change)
         //     drain       = ¬presentable                  → drained unconditionally, never shown
         //
+        // presentable = the ad is Active ∧ the hit's watch is still followed, decided per hit.
         // `effective` is claim ∪ drain — every row this run consumes.
         //
         // LIFECYCLE IS A DRAIN REASON. GRADE IS A FILTER-OUT REASON. The asymmetry is a domain truth,
@@ -473,7 +468,7 @@ public sealed partial class DigestDispatchJob(
             !gradeFilterActive || !NeedsGradeCheck(h) || matching.Contains(h.JobAdId);
 
         var effective = pending
-            .Where(h => !presentableAdIds.Contains(h.JobAdId) || GradePasses(h))
+            .Where(h => !IsPresentable(h) || GradePasses(h))
             .ToList();
 
         if (effective.Count == 0)
@@ -496,9 +491,8 @@ public sealed partial class DigestDispatchJob(
         var filterSummary = BuildFilterSummary(
             filterByWatchId, onlyMatchedAssessable: assessableProfile is not null);
 
-        // The CLAIM class is presentable ∧ gradePasses. `presentableRows` was read above (in
-        // display order); intersecting it with `effective` removes the drain class — which is
-        // ¬presentable and therefore already absent from it — so what survives is exactly claim.
+        // The CLAIM class is presentable ∧ gradePasses, taken from `effective` per hit. A drained hit's
+        // ad can still be in `presentableRows` through another watch, so its ad id must not count.
         //
         // ONE materialisation, then collapse, then count, THEN cap: `TotalCount >= Items.Count` holds
         // BY CONSTRUCTION.
@@ -508,7 +502,7 @@ public sealed partial class DigestDispatchJob(
         // the lie this PR removes for a rarer one. Capping BEFORE the count would floor the total at
         // MaxItemsPerDigest and silently delete the "och N till" remainder — a third way this one number
         // can lie, and the arm it lives in had no spec at all until code-reviewer said so.
-        var claimedAdIds = effective.Select(h => h.JobAdId).ToHashSet();
+        var claimedAdIds = effective.Where(IsPresentable).Select(h => h.JobAdId).ToHashSet();
 
         // #1612 — ONE ROW PER AD. Storage is hit-granular (UNIQUE(user, ad, watch)) but the
         // user-facing unit is the AD (#1576) — NewFollowedCompanyAdSet.CollapseToAds carries
@@ -553,9 +547,10 @@ public sealed partial class DigestDispatchJob(
         if (items.Count == 0)
         {
             // Nothing PRESENTABLE among the claimed hits — every one of their ads' rows is gone, or
-            // (since #864) archived. Drain the claimed set (mark Sent) so the empty window doesn't
-            // re-process every run; send nothing (an empty digest is noise). The stayPending class is not
-            // in `effective` and is untouched here — a graded-out hit is not consumed by an empty window.
+            // (since #864) archived, or the follow that recorded the hit has ended. Drain the claimed
+            // set (mark Sent) so the empty window doesn't re-process every run; send nothing (an empty
+            // digest is noise). The stayPending class is not in `effective` and is untouched here — a
+            // graded-out hit is not consumed by an empty window.
             DrainSent(effective);
             await db.SaveChangesAsync(ct);
             LogFollowEmptyDrained(logger, effective.Count, userId);
@@ -688,7 +683,7 @@ public sealed partial class DigestDispatchJob(
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob (follow): no presentable ad among {Count} claimed hits for user " +
-                  "{UserId} (rows gone or archived) — drained, no email")]
+                  "{UserId} (rows gone or archived, or follows ended) — drained, no email")]
     private static partial void LogFollowEmptyDrained(ILogger logger, int count, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Warning,

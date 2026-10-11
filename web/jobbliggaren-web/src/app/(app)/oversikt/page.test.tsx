@@ -42,7 +42,6 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/components/oversikt/oversikt-page", () => ({ OversiktPage: (props: Record<string, unknown>) => { overviewProps(props); return null; } }));
-vi.mock("@/components/dev/reset-my-data-note", () => ({ ResetMyDataNote: () => null }));
 vi.mock("@/components/onboarding/match-setup-launcher", () => ({
   MatchSetupLauncher: (props: Record<string, unknown>) => {
     launcherProps(props);

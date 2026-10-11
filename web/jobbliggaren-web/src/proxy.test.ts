@@ -811,7 +811,16 @@ describe("proxy — the nonce CSP (ADR 0163)", () => {
   // The image and manifest routes are fetched by link-preview tools with no session: the proxy must pass them
   // straight on, never redirect them to the login page. The CORP header that lets another site show them is
   // the edge's (deploy/caddy/Caddyfile, ADR 0163 Amendment 2026-10-11).
-  it.each(["/opengraph-image", "/twitter-image", "/apple-icon", "/icon.svg", "/manifest.webmanifest"])(
+  it.each([
+    "/opengraph-image",
+    "/twitter-image",
+    "/apple-icon",
+    "/icon.svg",
+    "/manifest.webmanifest",
+    "/icons/icon-192.png",
+    "/icons/icon-512.png",
+    "/icons/icon-maskable-512.png",
+  ])(
     "%s passes through unauthenticated: no redirect, no login",
     async (path) => {
       const res = await proxy(makeRequest(path));
@@ -840,6 +849,9 @@ describe("proxy — the matcher", () => {
     "/twitter-image",
     "/apple-icon",
     "/manifest.webmanifest",
+    "/icons/icon-192.png",
+    "/icons/icon-512.png",
+    "/icons/icon-maskable-512.png",
     "/provider-marks/google.svg",
   ])("runs on %s", (path) => expect(matches(path)).toBe(true));
 

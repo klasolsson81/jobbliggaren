@@ -203,10 +203,12 @@
 # One `map` picks the value and one `header` writes it (a default plus an exception was measured to
 # leave Caddy's own 401 and 503 with no field). The map reads the path without its query. Covered:
 # `/opengraph-image`, `/twitter-image`, `/apple-icon`, `/icon.svg`, `/favicon.ico`,
-# `/manifest.webmanifest`, at the root only. `header_down` below still drops the upstream's field.
+# `/manifest.webmanifest`, at the root only, and the three PNGs the manifest names under `/icons/`
+# (`icon-192`, `icon-512`, `icon-maskable-512`), each by exact name. `header_down` below still drops
+# the upstream's field.
 (isolation) {
 	map {path} {corp_policy} {
-		~^/(opengraph-image|twitter-image|apple-icon|icon\.svg|favicon\.ico|manifest\.webmanifest)$ cross-origin
+		~^/(opengraph-image|twitter-image|apple-icon|icon\.svg|favicon\.ico|manifest\.webmanifest|icons/icon-(192|512|maskable-512)\.png)$ cross-origin
 		default same-origin
 	}
 

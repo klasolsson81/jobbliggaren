@@ -1,7 +1,8 @@
 <!-- SYNK-KÄLLA: src/components/brand/brand-mark-svg.tsx (BrandMarkSvg "Sigillet").
      Detta är file-convention-mirror för Next.js auto-favicon-pickup
      (modern browsers prefererar SVG-favicon över .ico).
-     Vid geometri-ändring: uppdatera BrandMarkSvg först, mirror-paste hit.
+     Vid geometri-ändring: uppdatera BrandMarkSvg först, mirror-paste hit, kör sedan
+     `node scripts/generate-brand-icons.mjs` (favicon.ico + public/icons/*.png genereras härifrån).
      Favicon saknar CSS-kontext → literala färger (grön #15603F / guld #E8C77B / papper). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Jobbliggaren">
   <title>Jobbliggaren</title>

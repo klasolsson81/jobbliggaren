@@ -124,3 +124,8 @@ Caddy 2.11.4 image carrying this Caddyfile).
 
 **Lapse trigger 5.** A new metadata route meant to be shown on another site (a per-page image route, a different file name, a `generateImageMetadata`
 route with an id segment) that the `map` pattern does not match.
+
+**Lapse trigger 5 fired, 2026-10-11 ([#2146](https://github.com/klasolsson81/jobbliggaren/pull/2146)).** The manifest now names three PNGs for Android
+installs under `/icons/` (`icon-192`, `icon-512`, `icon-maskable-512`). They are brand images of the same class as the five already `cross-origin`, so the
+`map` lists them by exact name (`icons/icon-(192|512|maskable-512)\.png`, no character class: every cross-origin path stays an explicit, pinned entry),
+and `edge-modes.test.sh` and `proxy.test.ts` carry a row for each. A new size or file name fires the trigger again.

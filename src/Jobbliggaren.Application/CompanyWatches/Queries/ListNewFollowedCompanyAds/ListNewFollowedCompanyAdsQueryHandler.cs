@@ -58,6 +58,8 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         // is not a preference: the acknowledgement window is the max over what we return, so taking
         // the oldest leaves everything newer above the watermark for the next visit. Taking the
         // newest would acknowledge past the rest and swallow it permanently.
+        // That rule binds the IMPLICIT acknowledgement a visit makes; the bell's explicit "Markera alla
+        // som lästa" over a number the user has seen acknowledges the whole counted set (ADR 0162).
         var window = await (
                 from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
                 join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id

@@ -1,9 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
-using Jobbliggaren.Domain.JobAds;
 using Mediator;
-using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
 
@@ -68,42 +66,23 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
         if (scope is null)
             return NewFollowedCompanyAdCountDto.Zero;
 
-        var newHitsBase = NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen);
-
-        if (scope.GradeWatchIds.Count == 0)
-        {
-            // Common path (no OnlyMatched watch): a pure SQL COUNT over the join, no row
-            // materialization. DISTINCT on the ad id because the user-facing unit is the AD, not the
-            // hit row (NewFollowedCompanyAdSet.CollapseToAds carries the why) — and with no
-            // OnlyMatched watch every hit is included, so distinct ad ids IS that collapse.
-            var commonCount = await newHitsBase
-                .Select(h => h.JobAdId)
-                .Distinct()
-                .CountAsync(cancellationToken);
-            return new NewFollowedCompanyAdCountDto(commonCount);
-        }
-
-        // Grade path: at least one active watch has an "endast matchade" filter. Materialize the
-        // (per-user-bounded) new hits and read-time-filter the OnlyMatched watches' hits to ≥Good.
-        var newHits = (await newHitsBase
-                .Select(h => new { h.JobAdId, h.CompanyWatchId, h.CreatedAt })
-                .ToListAsync(cancellationToken))
-            .Select(h => new NewFollowedCompanyAdSet.Hit(h.JobAdId, h.CompanyWatchId, h.CreatedAt))
-            .ToList();
-
-        var idsToGrade = newHits
-            .Where(h => scope.GradeWatchIds.Contains(h.CompanyWatchId))
-            .Select(h => h.JobAdId)
-            .Distinct()
-            .ToList();
+        // Both paths are single-sourced in NewFollowedCompanyAdSet: a SQL COUNT(DISTINCT) when no
+        // active watch is OnlyMatched, otherwise the new hits loaded and graded read-time. No bound
+        // and no token here, so this is the count Översikt always ran (#1666 shares it).
+        var input = await NewFollowedCompanyAdSet.LoadCountInputAsync(
+            db, userId, scope, upperBound: null, maxGradeHits: null, cancellationToken);
+        if (input.Exact is { } exact)
+            return new NewFollowedCompanyAdCountDto(exact);
 
         var resolution = await NewFollowedCompanyAdSet.ResolveMatchingAsync(
-            profileBuilder, perUserSearch, idsToGrade, cancellationToken);
+            profileBuilder,
+            perUserSearch,
+            NewFollowedCompanyAdSet.GradeCandidates(input.GradeHits, scope.GradeWatchIds),
+            cancellationToken);
 
         var count = NewFollowedCompanyAdSet
-            .CollapseToAds(newHits, scope.GradeWatchIds, resolution.Matching)
+            .CollapseToAds(input.GradeHits, scope.GradeWatchIds, resolution.Matching)
             .Count;
-
         return new NewFollowedCompanyAdCountDto(count);
     }
 }

@@ -54,9 +54,9 @@ export interface MatchChipProps {
 export function MatchChip({ grade, id }: MatchChipProps) {
   // Synchronous next-intl translator — keeps MatchChip a non-async RSC (it
   // renders as a serialized list slot and has synchronous render tests).
-  const t = useTranslations("jobads.ui.match");
+  const t = useTranslations("jobads.ui.match.grade");
   const modifier = GRADE_MODIFIER[grade];
-  const label = t(`grade.${grade}`);
+  const label = t(grade);
   return (
     <span id={id} className={`jp-matchchip ${modifier}`} data-tag="match">
       <span className="jp-matchchip__dot" aria-hidden="true" />

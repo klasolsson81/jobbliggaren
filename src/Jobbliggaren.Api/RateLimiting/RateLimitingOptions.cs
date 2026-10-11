@@ -255,6 +255,28 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// GET /api/v1/me/notification-feed — the notification bell's poll (#1666), partitioned per UserId
+    /// (claim "sub"), anonymous → NoLimiter (RequireAuthorization answers 401 first). Its own bucket,
+    /// not <see cref="MeListRead"/>: the bell fires on every page of the signed-in shell, in the
+    /// background, and must neither starve /oversikt's fan-out nor be starved by it (bulkhead,
+    /// Nygard), and its per-request cost is two sources — the statement count without an "endast
+    /// matchade" watch is pinned by <c>NotificationFeedEndpointTests</c>, and such a watch adds the
+    /// profile build and one grading round trip — outside MeListRead's class.
+    /// <para>
+    /// The numbers (security-auditor, #1666 form round): a visible tab polls every 5 minutes and on
+    /// open or visibility at most every 30 s, so one tab needs 0.2 calls a minute at rest and 2 at
+    /// most. 12 a minute (burst 12, 2 tokens per 10 s) covers six visible windows at the throttle
+    /// limit, or twelve tabs reloading at once. TokenBucket for a clean Retry-After, QueueLimit 0
+    /// (a queue is a memory-DoS). Re-derive when a source is added (#1663).
+    /// </para>
+    /// </summary>
+    public PolicyOptions NotificationFeedRead { get; init; } = new()
+    {
+        PermitLimit = 12,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
     /// POST /api/v1/me/job-ad-status (per-user-overlay-status batch, ADR 0063,
     /// Pre-4 STEG 5, TD-87) — <strong>dual-partition</strong>: sub närvarande →
     /// user:-bucket, annars → ip:-bucket. Endpointen är anonym-tolerant (INTE

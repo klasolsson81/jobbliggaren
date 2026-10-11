@@ -180,25 +180,16 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12). The invariant is now NARROWER
-    // than "the whole group is unmapped", and the narrowing is measured rather than assumed:
-    //
-    //   * /api/v1/dev/accounts (ADR 0142 part 5a) and /api/v1/dev/login-code (#1735) are
-    //     UNCONDITIONALLY unmapped outside Development. Without authentication they open an account
-    //     and hand out a login code, so no configuration may widen them — and the flag-ON arms below
-    //     are what turn that from a code-reading into a measurement.
-    //   * /api/v1/dev/reset-my-data is unmapped outside Development UNLESS
-    //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
-    //     owner-scoped, authenticated, and refused a second time inside the handler.
-    //
-    // A 404 (not 401/405) proves the route does not exist; if a gate regressed, these
-    // turn red before deploy.
+    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12). The whole /api/v1/dev group is
+    // ENVIRONMENT-gated: /api/v1/dev/accounts (ADR 0142 part 5a) and /api/v1/dev/login-code (#1735) are
+    // unmapped outside Development without exception, because without authentication they open an
+    // account and hand out a login code, so no configuration may widen them. A 404 (not 401/405)
+    // proves the route does not exist; if a gate regressed, these turn red before deploy.
 
     [Fact]
     public async Task POST_dev_login_code_is_unmapped_in_Production_env()
     {
-        // #1735 — the login-code seam's ENVIRONMENT gate. The flag-on polarity is the universally quantified
-        // route-table test below, which admits reset-my-data alone.
+        // #1735 — the login-code seam's ENVIRONMENT gate; the route-table test below measures the whole group.
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.PostAsJsonAsync(
@@ -214,7 +205,7 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     {
         // The seed seam opens an account without an inbox proof, so both gates are measured: the map (a 404
         // for a reserved address, which the handler would otherwise answer 204) and the dev-only policy the
-        // handler cannot resolve without. The flag-on polarity of the map is the route-table test below.
+        // handler cannot resolve without. The route-table test below measures the whole group.
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.PostAsJsonAsync(
@@ -228,68 +219,19 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     }
 
     [Fact]
-    public void IDevSeedableAddressPolicy_is_not_registered_in_Production_env_even_when_the_reset_flag_is_on()
+    public void No_route_under_api_v1_dev_is_mapped_in_Production_env()
     {
-        using var host = _factory.WithWebHostBuilder(
-            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
-        _ = host.CreateClient();
+        // Universally quantified over the route table rather than enumerated: a seam added under the
+        // group fails here on arrival instead of on someone remembering to add a case.
+        _ = _client; // the host is built by the factory's first client, so the route table exists
 
-        using var scope = host.Services.CreateScope();
-        scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env_when_the_flag_is_absent()
-    {
-        // The fail-closed DEFAULT, measured rather than assumed: this host sets no DevTools
-        // section at all, which is exactly how a deployed environment that never heard of the
-        // flag binds it.
-        var ct = TestContext.Current.CancellationToken;
-
-        var response = await _client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task POST_dev_reset_my_data_is_mapped_in_Production_env_when_the_flag_is_on()
-    {
-        // The arm the flag exists for. 404 here would mean the box still cannot re-test
-        // onboarding, which is the whole point of the change.
-        var ct = TestContext.Current.CancellationToken;
-        using var host = _factory.WithWebHostBuilder(
-            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
-        using var client = host.CreateClient();
-
-        var response = await client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
-
-        // 401, not 204: the route now EXISTS, and RequireAuthorization answers first. Any
-        // non-404 proves the mapping; asserting 401 additionally pins that turning the flag on
-        // did not also drop the auth requirement.
-        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public void Only_reset_my_data_is_mapped_under_api_v1_dev_in_Production_env_when_the_flag_is_on()
-    {
-        // The route tests above are ENUMERATED — they each name a route. That is fine for
-        // the routes that exist and blind to a new one: a new endpoint added to
-        // MapDevResetMyDataEndpoint, or a new method called under the same flag, would reach
-        // Production with the flag on and nothing would go red. This assertion is universally
-        // quantified over the route table instead, so it fails on arrival rather than on
-        // someone remembering to add a case.
-        using var host = _factory.WithWebHostBuilder(
-            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
-        _ = host.CreateClient(); // forces the host to build so the route table exists
-
-        var devRoutes = host.Services.GetRequiredService<EndpointDataSource>().Endpoints
+        var devRoutes = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Select(e => e.RoutePattern.RawText ?? string.Empty)
             .Where(p => p.Contains("api/v1/dev", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(p => p, StringComparer.Ordinal)
             .ToList();
 
-        devRoutes.ShouldBe(["/api/v1/dev/reset-my-data"]);
+        devRoutes.ShouldBeEmpty();
     }
 
     // ADR 0142 D10 — outside Development/Test the Api refuses to boot on a sender that cannot deliver, whichever

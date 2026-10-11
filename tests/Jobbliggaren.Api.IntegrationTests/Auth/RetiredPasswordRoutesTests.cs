@@ -60,7 +60,7 @@ public class RetiredPasswordRoutesTests(ApiFactory factory)
     }
 
     [Fact]
-    public void The_dev_group_maps_exactly_its_three_seams_in_Development()
+    public void The_dev_group_maps_exactly_its_two_seams_in_Development()
     {
         // Universally quantified, as the Production route-table test is: a seam added under the group fails here on
         // arrival rather than on someone remembering to add a case.
@@ -71,6 +71,6 @@ public class RetiredPasswordRoutesTests(ApiFactory factory)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        devRoutes.ShouldBe(["/api/v1/dev/accounts", "/api/v1/dev/login-code", "/api/v1/dev/reset-my-data"]);
+        devRoutes.ShouldBe(["/api/v1/dev/accounts", "/api/v1/dev/login-code"]);
     }
 }

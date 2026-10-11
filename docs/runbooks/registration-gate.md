@@ -12,9 +12,18 @@ box, and the only sanctioned way to bring an account into existence there. Owned
 
 ## 1. The model, in one paragraph
 
-Registration is closed by default and the default is not an omission: the app becomes
-publicly reachable before its legal and security gates are green, so an unset value must
-fail closed. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
+**Status 2026-10-11 (Klas-direktiv): registration is OPEN by default on the deployed box.**
+`deploy/docker-compose.yml` renders `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-true}`, pinned by
+`DeployComposeRegistrationGateTests`, and `AUTH_REGISTRATIONS_OPEN=false` in `deploy/.env`
+closes it. `AuthOptions`' own **code** default is still `false`, because a host that this file
+does not feed must fail closed: the default was moved at the compose file, which is the value
+the box actually reads. The visit procedure below was written for a closed gate; read its
+"set `true`" steps as "make sure it is not set to `false`", and its closing step (10) as
+the way to close it again, not as something every visit ends with.
+
+The default used to be closed and that was not an omission: the app was publicly reachable before
+its legal and security gates were green, so an unset value had to fail closed. It still fails
+closed wherever it is not fed by the compose file. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
 where it refuses the boot on any sender that
 cannot deliver, open gate or not (since #1735 login itself is a mailed code) — so the flag
 and the mail provider are one interlock, not two switches. **Writing an account straight into
@@ -96,8 +105,10 @@ forbids it, and this file is the path it prescribes instead.
    the gate, decide, and record the decision **in an ADR or a CLAUDE.md update** before step 2.
    **The decision is Klas's**, because turning the flag on was his; a finding
    that the pair does not fire the gate is an answer, and only an unread gate is an omission.
-   **Answered 2026-09-06 (Klas; derivation ADR 0138, local): `reset-my-data` stays until he says otherwise.** §2.7's
-   text is unchanged; this line records who deferred it and when.
+   **Answered 2026-09-06 (Klas; derivation ADR 0138, local): `reset-my-data` stays until he says otherwise.**
+   **Discharged 2026-10-11: Klas said to remove it, and the tool, its flag and its tests are gone**
+   (`release-checklist.md` §2.7 records the teardown). The `accounts` and `login-code` seams §2.7 also names are
+   Development-gated and unreachable on the box, so nothing in that gate is still live here.
 
 ## 3. The visit
 
@@ -254,8 +265,9 @@ grepping the local part, which is the natural thing to reach for.
 its tracked template (`docs/test-accounts.local.md.example`). It is gitignored and stays
 that way: this repo is public, and the file carries the K2 credential. It is deliberately **not** synced into worktrees.
 
-**10. Close the gate again — and RE-CREATE, exactly as in step 7.** Comment out
-`AUTH_REGISTRATIONS_OPEN`, then:
+**10. Close the gate again — and RE-CREATE, exactly as in step 7.** This step is now only for
+closing an open gate, since open is the default (see the status note at the top). Set
+`AUTH_REGISTRATIONS_OPEN=false`, then:
 
 ```bash
 sudo test -f /var/lib/jobbliggaren/applied-release.env || { echo "REFUSING: no release record has been applied on this box. Until vps-deploy-stack.md §3b Activation has run, take this step from this runbook as the box's checkout holds it: sudo git -C /opt/jobbliggaren show HEAD:docs/runbooks/registration-gate.md"; exit 1; }
@@ -263,11 +275,11 @@ sudo flock /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggaren/d
 ```
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
-higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}` at
+higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-true}` at
 container *creation*, so a restart re-runs the process against the env it already has. The last
-re-create before this point happened **while the gate line was still set**, so the live container
+re-create before this point happened **while the gate was open**, so the live container
 carries `true`, and there is no rescuing re-create between then and here.
-Commenting the line out and restarting leaves the gate **open** while `.env` says closed and the
+Editing the line and restarting leaves the gate **open** while `.env` says closed and the
 operator believes it is closed.
 
 **Then read the gate's own line, exactly as step 4 does. This step is not done until it says
@@ -335,14 +347,9 @@ runs only on `verdict: consistent`.
 
 Accounts and logins survive a closed gate; closing it refuses new registrations only.
 
-Closed is the default rather than a preference: the gate is
-opened for a visit and not left open between them. Leaving it open is available, but it is a
-deliberate exception with K2 as the only thing in front of it.
-
-⚠ **That exception is the shape a visit for other people's registrations has to take.** They do
-not arrive inside a visit's window, so the gate cannot be opened and closed around them; it
-stays open for as long as they need. This step does not decide that and neither does this file:
-precondition 5 and the checklist own what an open gate costs, and the call is Klas's.
+Since 2026-10-11 open is the default and Klas's decision: other people register themselves, they
+do not arrive inside a visit's window, and the gate stays open for as long as they need.
+Precondition 5 and the checklist own what an open gate costs; closing it is this step.
 
 ## 4. Verification row 23's second half
 

@@ -325,9 +325,6 @@ services:
       # Caddy to Next, which has no /api/v1/* handlers, and 404s.
       BACKEND_URL: "http://api:8080"
       NODE_ENV: production
-      # DEV-ONLY, see the api service. Without this slot NODE_ENV=production hides the reset
-      # button on the very box it exists for.
-      DEV_TOOLS_RESET_ENABLED: ${DEV_TOOLS_RESET_ENABLED:-false}
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
     mem_limit: 640m
@@ -372,15 +369,18 @@ services:
       ForwardedHeaders__KnownNetworks__0: ${JBL_WEB_API_SUBNET:?Set the reviewed web-api bridge CIDR}
       ConnectionStrings__Redis_FILE: /run/redis-persistent/connection
       ConnectionStrings__VolatileRedis_FILE: /run/redis-volatile/connection
-      # Registration gate (#734). Absent knob renders `false` — AuthOptions' own default, and
-      # the posture the box has today: POST /auth/challenge/complete answers 503, so no NEW account
-      # can be created. Inline rather than a shared anchor because the worker
+      # Registration gate (#734). Absent knob renders `true` (Klas-direktiv 2026-10-11: registration
+      # is open on jobbliggaren.se): POST /auth/challenge/complete creates an account for anyone who
+      # proves their inbox. `AUTH_REGISTRATIONS_OPEN=false` closes it again and answers 503, and
+      # AuthOptions' own code default stays `false`, so a host that is not fed by this file is closed.
+      # Inline rather than a shared anchor because the worker
       # consumes no Auth__* at all — every host-specific key in this file is already inline,
       # while x-app-email and x-app-seq are anchors precisely because both hosts read them.
-      # The default is pinned by DeployComposeRegistrationGateTests, since an open default
-      # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
+      # The default is pinned by DeployComposeRegistrationGateTests, so it changes only by a
+      # visible edit of both. AuthOptionsValidator still refuses to boot an open gate outside
+      # Development on a sender that cannot deliver. Operator view, flip order and
       # failure modes: deploy/.env.example.
-      Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
+      Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-true}
       # Feedback's switch (#1979, ADR 0156 D4). Absent renders `false`, so feedback stays closed whatever
       # the recipient. Api only: the worker's dispatch does not read it, so turning it off stops new
       # submissions while queued notices still go out. Pinned by DeployComposeFeedbackGateTests.
@@ -398,13 +398,6 @@ services:
       Auth__OAuth__GitHub__ClientSecret_FILE: ${AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE:-}
       Auth__OAuth__LinkedIn__ClientId: ${AUTH_OAUTH_LINKEDIN_CLIENT_ID:-}
       Auth__OAuth__LinkedIn__ClientSecret_FILE: ${AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE:-}
-      # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
-      # (docs/runbooks/release-checklist.md 2.7). Default pinned by
-      # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an
-      # absent value must resolve to false rather than to whatever the shell happens to hold.
-      # Same variable feeds the web service, deliberately: the two halves are set together or
-      # not at all, and with only one on the button renders and every press is refused.
-      DevTools__EnableResetMyData: ${DEV_TOOLS_RESET_ENABLED:-false}
       # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
       # account created after this boot receives the role on the NEXT restart while the role
       # has no holder, and the boot in between logs "ingen matchande user hittades". Blank

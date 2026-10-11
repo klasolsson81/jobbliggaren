@@ -15,12 +15,10 @@ import {
 } from "@/lib/api/company-criteria";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
-import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { getSetupState, hasSavedMatchingChoices } from "@/lib/onboarding/setup-state";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher";
-import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { PageFeedback } from "@/components/feedback/page-feedback";
@@ -208,18 +206,6 @@ export default async function OversiktRoute({
           resumeStep: hasSavedMatchingChoices(setupProfile) ? 1 : 0,
         } : null}
       />
-      {/* DEV-ONLY — remove before launch (Klas), with the flag and the endpoint
-          (docs/runbooks/release-checklist.md). Wipes the caller's own test data so the
-          welcome setup can run again.
-
-          NODE_ENV alone is not enough any more: the box builds and runs the web image in
-          production mode, so that check hid the button in the one environment that needs
-          it. The explicit opt-in is what makes it reachable there, and it must be set
-          together with the backend's DevTools:EnableResetMyData — with only this half on,
-          the button renders and every press returns "avstängd på servern". */}
-      {(process.env.NODE_ENV !== "production" || env.DEV_TOOLS_RESET_ENABLED) && (
-        <ResetMyDataNote />
-      )}
       <PageFeedback pageKey="overview" />
     </>
   );

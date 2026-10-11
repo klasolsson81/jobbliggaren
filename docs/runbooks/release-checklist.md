@@ -2373,6 +2373,14 @@ samma stycken men medvetet inte flippade dem).
 `reset-my-data` nåbar på lådan (Klas-direktiv 2026-08-27), därför att ett verktyg vars
 borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 
+✅ **`reset-my-data` RIVEN 2026-10-11 (Klas: "ta bort dev-tool data rensningen").** Endpointen, kommandot,
+`DevToolsOptions`, boot-annonseringen, knappen på `/oversikt`, `DEV_TOOLS_RESET_ENABLED`, compose-slotarna,
+`.env.example`-blocket och deras tester är borta i en PR. En kvarlämnad `DEV_TOOLS_RESET_ENABLED` i lådans
+`deploy/.env` är overksam — ingenting läser den längre — och tas bort vid nästa `.env`-besök.
+**Grinden är inte uppfylld i sin helhet:** `accounts` och `login-code` (Development-grindade i två lager,
+onåbara på lådan) finns kvar för Playwright, så steg 2:s rivning av dem och steg 4:s noll-träffs-mätning
+gäller fortfarande dem. Stegen nedan som nämner `reset-my-data` är historik.
+
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
 operation, och `accounts` (ADR 0142 del 5a) är en **oautentiserad** seam som öppnar ett konto
 för en reserverad adress. `login-code` (#1735) lämnar ut inloggningskoden till en reserverad adress

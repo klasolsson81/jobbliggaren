@@ -30,6 +30,8 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
     private const string FollowPath = "/api/v1/me/followed-company-notification-consent";
     private const string ProfilePath = "/api/v1/me/profile";
     private const string MatchPreferencesPath = "/api/v1/me/match-preferences";
+    private const string NotificationMailPath = "/api/v1/me/notification-mail";
+    private const string TopMatchMailPath = "/api/v1/me/top-match-mail";
 
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -162,6 +164,63 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
             .ToList();
         added.ShouldBe(
             ["JobSeeker.FollowedCompanyNotificationConsentUpdated", "JobSeeker.ProfileUpdated"],
+            ignoreOrder: true);
+    }
+
+    // ADR 0164 (#2107) — the pause of every notification mail commits while a Toppmatch-mail save is held.
+    // The held save is re-run on a fresh read, so it lays only its own stamp over the pause.
+    [Fact]
+    public async Task An_all_mail_pause_committed_inside_a_top_match_mail_save_stands_and_the_top_match_switch_still_lands()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var granted = await ReadSeekerAsync(userId, ct);
+        granted.Preferences.NotificationMailOffAt.ShouldBeNull();
+        granted.Preferences.TopMatchMailOffAt.ShouldBeNull();
+        var auditBefore = (await ReadAuditEntriesAsync(granted.Id.Value, ct)).Select(a => a.Id).ToHashSet();
+
+        HttpStatusCode? pauseStatus = null;
+        Preferences? rightAfterPause = null;
+        _factory.JobSeekerSaveRace.Arm(userId, times: 1, async raceCt =>
+        {
+            pauseStatus = (await _competitor.PutAsJsonAsync(NotificationMailPath, new { enabled = false }, raceCt))
+                .StatusCode;
+            rightAfterPause = (await ReadSeekerAsync(userId, raceCt)).Preferences;
+        });
+        HttpResponseMessage topMatchSave;
+        try
+        {
+            topMatchSave = await _client.PutAsJsonAsync(TopMatchMailPath, new { enabled = false }, ct);
+        }
+        finally
+        {
+            _factory.JobSeekerSaveRace.Disarm();
+        }
+
+        _factory.JobSeekerSaveRace.Fired.ShouldBe(1);
+        pauseStatus.ShouldBe(HttpStatusCode.NoContent);
+        topMatchSave.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        rightAfterPause.ShouldNotBeNull();
+        rightAfterPause.NotificationMailOffAt.ShouldNotBeNull();
+        rightAfterPause.TopMatchMailOffAt.ShouldBeNull();
+
+        var stored = (await ReadSeekerAsync(userId, ct)).Preferences;
+        stored.NotificationMailOffAt.ShouldBe(rightAfterPause.NotificationMailOffAt);
+        stored.TopMatchMailOffAt.ShouldNotBeNull();
+        stored.ShouldBe(granted.Preferences with
+        {
+            NotificationMailOffAt = rightAfterPause.NotificationMailOffAt,
+            TopMatchMailOffAt = stored.TopMatchMailOffAt,
+        });
+
+        var added = (await ReadAuditEntriesAsync(granted.Id.Value, ct))
+            .Where(a => !auditBefore.Contains(a.Id))
+            .Select(a => a.EventType)
+            .ToList();
+        added.ShouldBe(
+            ["JobSeeker.NotificationMailUpdated", "JobSeeker.TopMatchMailUpdated"],
             ignoreOrder: true);
     }
 

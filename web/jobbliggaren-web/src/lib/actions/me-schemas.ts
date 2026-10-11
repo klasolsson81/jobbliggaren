@@ -38,7 +38,7 @@ export type UpdateMyProfileInput = z.infer<
   ReturnType<typeof makeUpdateMyProfileSchema>
 >;
 
-// The three notification-settings schemas are strict: a Server Action ID can outlive its build,
+// The notification-settings schemas are strict: a Server Action ID can outlive its build,
 // so a tab on an earlier build may still post the combined `{ enabled, cadence }` body here. Refusing
 // the unknown key keeps that body from being cut down to a consent write. Structural protection
 // (the backend is the last barrier), so no user-facing validation text: the action answers with its
@@ -66,6 +66,39 @@ export function makeUpdateFollowedCompanyNotificationConsentSchema(
 
 export type UpdateFollowedCompanyNotificationConsentInput = z.infer<
   ReturnType<typeof makeUpdateFollowedCompanyNotificationConsentSchema>
+>;
+
+/** ADR 0164 (#2107) — `updateNotificationMailAction`: the pause of every notification mail. */
+export function makeUpdateNotificationMailSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateNotificationMailInput = z.infer<
+  ReturnType<typeof makeUpdateNotificationMailSchema>
+>;
+
+/** ADR 0164 (#2107) — `updateTopMatchMailAction`: the Toppmatch mail alone. */
+export function makeUpdateTopMatchMailSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateTopMatchMailInput = z.infer<
+  ReturnType<typeof makeUpdateTopMatchMailSchema>
+>;
+
+/** ADR 0164 (#2107) — `updateMatchSummaryMailAction`: the summary mail alone. */
+export function makeUpdateMatchSummaryMailSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateMatchSummaryMailInput = z.infer<
+  ReturnType<typeof makeUpdateMatchSummaryMailSchema>
 >;
 
 /**

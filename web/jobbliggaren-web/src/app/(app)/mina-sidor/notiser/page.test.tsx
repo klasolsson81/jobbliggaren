@@ -23,7 +23,10 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/api/me", () => ({ getMyProfile: () => getMyProfile() }));
 vi.mock("@/lib/actions/me", () => ({
+  updateNotificationMailAction: vi.fn(),
   updateNotificationConsentAction: vi.fn(),
+  updateTopMatchMailAction: vi.fn(),
+  updateMatchSummaryMailAction: vi.fn(),
   updateFollowedCompanyNotificationConsentAction: vi.fn(),
   updateDigestCadenceAction: vi.fn(),
 }));
@@ -33,13 +36,36 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-function profile(matchEnabled: boolean, followEnabled: boolean): JobSeekerProfileDto {
+const MAIL = "E-postnotiser";
+const MATCH = "Matcha nya annonser åt mig";
+const TOP = "Toppmatchningar via e-post";
+const SUMMARY = "Sammanfattning via e-post";
+const FOLLOW = "Nya annonser via e-post";
+
+interface Saved {
+  mail?: boolean;
+  match?: boolean;
+  top?: boolean;
+  summary?: boolean;
+  follow?: boolean;
+}
+
+function profile({
+  mail = true,
+  match = false,
+  top = true,
+  summary = true,
+  follow = false,
+}: Saved = {}): JobSeekerProfileDto {
   return {
     id: "profile-1",
     language: "sv",
-    backgroundMatchNotificationsEnabled: matchEnabled,
+    backgroundMatchNotificationsEnabled: match,
     digestCadence: "Weekly",
-    followedCompanyNotificationsEnabled: followEnabled,
+    followedCompanyNotificationsEnabled: follow,
+    notificationMailEnabled: mail,
+    topMatchMailEnabled: top,
+    matchSummaryMailEnabled: summary,
     createdAt: "2026-05-01T08:00:00Z",
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],
@@ -75,20 +101,55 @@ describe("MinaSidorNotiserPage (/mina-sidor/notiser)", () => {
     [false, true],
   ])(
     "shows the saved match consent (%s) and followed-company consent (%s) on their own switches",
-    async (matchEnabled, followEnabled) => {
-      getMyProfile.mockResolvedValue({ kind: "ok", data: profile(matchEnabled, followEnabled) });
+    async (match, follow) => {
+      getMyProfile.mockResolvedValue({ kind: "ok", data: profile({ match, follow }) });
       await renderPage();
 
       expectNotiserCurrent();
-      expect(screen.getByRole("switch", { name: "Matcha nya annonser åt mig" })).toHaveAttribute(
+      expect(screen.getByRole("switch", { name: MATCH })).toHaveAttribute(
         "aria-checked",
-        String(matchEnabled),
+        String(match),
       );
-      expect(
-        screen.getByRole("switch", { name: "Mejla mig nya annonser från företag jag följer" }),
-      ).toHaveAttribute("aria-checked", String(followEnabled));
+      expect(screen.getByRole("switch", { name: FOLLOW })).toHaveAttribute(
+        "aria-checked",
+        String(follow),
+      );
     },
   );
+
+  // Each switch shows its own saved value: a value read into the wrong switch would show a mail
+  // as off while it is sent, or on while it is not.
+  it.each([
+    [{ mail: true, match: true, top: true, summary: false }],
+    [{ mail: true, match: true, top: false, summary: true }],
+  ])("shows the saved e-mail, Toppmatch and summary values on their own switches (%o)", async (saved) => {
+    getMyProfile.mockResolvedValue({ kind: "ok", data: profile(saved) });
+    await renderPage();
+
+    expect(screen.getByRole("switch", { name: MAIL })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: TOP })).toHaveAttribute(
+      "aria-checked",
+      String(saved.top),
+    );
+    expect(screen.getByRole("switch", { name: SUMMARY })).toHaveAttribute(
+      "aria-checked",
+      String(saved.summary),
+    );
+  });
+
+  it("shows the saved pause: the e-mail switch off, the mail switches hidden, the consents on show", async () => {
+    getMyProfile.mockResolvedValue({
+      kind: "ok",
+      data: profile({ mail: false, match: true, follow: true }),
+    });
+    await renderPage();
+
+    expect(screen.getByRole("switch", { name: MAIL })).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("switch", { name: TOP })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: SUMMARY })).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: MATCH })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: FOLLOW })).toHaveAttribute("aria-checked", "true");
+  });
 
   it.each([
     [

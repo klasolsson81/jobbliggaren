@@ -319,4 +319,52 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         body.ShouldNotContain("Stark match"); // en follow-hit är inte gradad (D1-förseglingen)
         body.ShouldNotContain("poäng");
     }
+
+    // ── Row 14 of ADR 0144 Decision 4, as security-auditor signed it for this mail (#2107, V6) ──────
+    // The plain part is hard-wrapped, so both parts are compared paragraph by paragraph with whitespace
+    // collapsed (MailText); the words and the punctuation stay verbatim.
+
+    private const string ReasonPlain =
+        "Du får detta för att du har slagit på ”Nya annonser via e-post” för företag du följer. "
+        + "Du kan ändra hur ofta du får dem, eller stänga av dem helt, i dina inställningar:";
+
+    private const string ReasonHtml =
+        "Du får detta för att du har slagit på ”Nya annonser via e-post” för företag du följer. "
+        + "Du kan ändra hur ofta du får dem, eller stänga av dem helt:";
+
+    private const string SettingsLinkText = "Ändra dina inställningar";
+
+    // Rendered with the disclosure, so the reason is shown to stay its own paragraph beside it.
+    [Fact]
+    public void FollowedCompanyNotification_CarriesTheSignedReasonVerbatimInBothParts()
+    {
+        var email = EmailTemplates.FollowedCompanyNotification(
+            BaseUrl,
+            ContentWithSummary(
+                new FollowedCompanyFilterSummary(OnlyMatchedActive: true, LocationFilterActive: true),
+                Item(), Item("Frontend", "Beta AB")));
+
+        MailText.PlainParagraphs(email.PlainTextBody).ShouldContain($"{ReasonPlain} {BaseUrl}/mina-sidor/notiser");
+        MailText.HtmlParagraphs(email.HtmlBody).ShouldContain($"{ReasonHtml} {SettingsLinkText}");
+        email.HtmlBody.ShouldContain(
+            EmailHtml.LinkParagraph(ReasonHtml, $"{BaseUrl}/mina-sidor/notiser", SettingsLinkText).ToString());
+    }
+
+    [Fact]
+    public void FollowedCompanyNotification_QuotesTheSwitchLabelWithU201DOnBothSidesInBothParts()
+    {
+        var email = EmailTemplates.FollowedCompanyNotification(BaseUrl, Content(1, DigestCadence.Weekly, Item()));
+
+        var reasons = new[]
+        {
+            MailText.PlainParagraphs(email.PlainTextBody).Single(paragraph => paragraph.StartsWith("Du får detta", StringComparison.Ordinal)),
+            MailText.HtmlParagraphs(email.HtmlBody).Single(paragraph => paragraph.StartsWith("Du får detta", StringComparison.Ordinal)),
+        };
+        foreach (var reason in reasons)
+        {
+            reason.ShouldContain("\u201DNya annonser via e-post\u201D");
+            string.Concat(reason.Where(c => c is '"' or '\u201C' or '\u201D' or '\u201E' or '\u00AB' or '\u00BB'))
+                .ShouldBe("\u201D\u201D");
+        }
+    }
 }

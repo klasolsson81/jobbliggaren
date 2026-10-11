@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.UnitTests.JobAds;
 using Shouldly;
+using static Jobbliggaren.Domain.UnitTests.JobSeekers.ConsentLifecycleDriver;
 
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
@@ -11,14 +12,6 @@ namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 /// </summary>
 public class NotificationConsentTests
 {
-    public enum Lifecycle
-    {
-        NeverGranted,
-        Granted,
-        Withdrawn,
-        GrantedAgain,
-    }
-
     private static readonly FakeDateTimeProvider BaseClock = FakeDateTimeProvider.Default;
 
     private static JobSeeker NewSeeker() =>
@@ -33,7 +26,7 @@ public class NotificationConsentTests
         Lifecycle lifecycle, bool granted)
     {
         var seeker = NewSeeker();
-        Apply(lifecycle, (enabled, clock) => seeker.UpdateNotificationConsent(enabled, clock));
+        Apply(lifecycle, seeker.UpdateNotificationConsent, fromHour: 1);
 
         NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBe(granted);
         NotificationConsent.FollowedCompany.IsSatisfiedBy(seeker).ShouldBeFalse();
@@ -48,7 +41,7 @@ public class NotificationConsentTests
         Lifecycle lifecycle, bool granted)
     {
         var seeker = NewSeeker();
-        Apply(lifecycle, (enabled, clock) => seeker.UpdateFollowedCompanyNotificationConsent(enabled, clock));
+        Apply(lifecycle, seeker.UpdateFollowedCompanyNotificationConsent, fromHour: 1);
 
         NotificationConsent.FollowedCompany.IsSatisfiedBy(seeker).ShouldBe(granted);
         NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBeFalse();
@@ -92,22 +85,6 @@ public class NotificationConsentTests
 
         NotificationConsent.BackgroundMatch.IsSatisfiedBy(seeker).ShouldBeTrue();
         NotificationConsent.FollowedCompany.IsSatisfiedBy(seeker).ShouldBeTrue();
-    }
-
-    private static void Apply(Lifecycle lifecycle, Action<bool, FakeDateTimeProvider> setConsent)
-    {
-        if (lifecycle == Lifecycle.NeverGranted)
-            return;
-
-        setConsent(true, Later(1));
-        if (lifecycle == Lifecycle.Granted)
-            return;
-
-        setConsent(false, Later(2));
-        if (lifecycle == Lifecycle.Withdrawn)
-            return;
-
-        setConsent(true, Later(3));
     }
 
     private static FakeDateTimeProvider Later(int hours) =>

@@ -13,9 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * `/mina-sidor/notiser` (#1891): both notification consents and the cadence they share. The
- * notification mails' Art. 7(3) withdrawal link lands here (`EmailTemplates.cs`), and
- * `NotificationMailLinksLandOnServedRoutesTests` reads this file's path to prove it.
+ * `/mina-sidor/notiser` (#1891, #2107): the e-mail switches, both notification consents and the
+ * cadence they share. The notification mails' Art. 7(3) withdrawal link lands here
+ * (`EmailTemplates.cs`), and `NotificationMailLinksLandOnServedRoutesTests` reads this file's path
+ * to prove it.
  */
 export default async function MinaSidorNotiserPage() {
   const user = await getServerSession();
@@ -30,7 +31,10 @@ export default async function MinaSidorNotiserPage() {
       <MinaSidorShell active="notiser">
         {profileResult.kind === "ok" ? (
           <NotificationsSection
+            initialMailEnabled={profileResult.data.notificationMailEnabled}
             initialMatchEnabled={profileResult.data.backgroundMatchNotificationsEnabled}
+            initialTopMatchEnabled={profileResult.data.topMatchMailEnabled}
+            initialSummaryEnabled={profileResult.data.matchSummaryMailEnabled}
             initialFollowEnabled={profileResult.data.followedCompanyNotificationsEnabled}
             initialCadence={profileResult.data.digestCadence}
           />

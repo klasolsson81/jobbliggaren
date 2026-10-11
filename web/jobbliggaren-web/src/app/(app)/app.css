@@ -103,9 +103,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   min-width: 0;
   max-width: 688px;
 }
-/* A group inside a section card (Notiser: each switch and the cadence; Konto: e-postadress, språk;
-   Sekretess och data: export, radera konto): a hairline above every group but the first, each group
-   carrying its own receipt or refusal (#1391). */
+/* A group inside a section card (Notiser: the e-mail switch, each consent's section and the
+   cadence; Konto: e-postadress, språk; Sekretess och data: export, radera konto): a hairline above
+   every group but the first, each group carrying its own receipt or refusal (#1391). */
 .jp-settings-group + .jp-settings-group {
   margin-top: 16px;
   padding-top: 16px;
@@ -162,6 +162,28 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   padding-block: 0;
 }
 .jp-togglerow + .jp-settings-group__message {
+  margin-top: 8px;
+}
+/* Notiser (#2107): one unit per control, carrying its own receipt or refusal. The units under one
+   heading stack without a hairline, so a mail switch reads as part of the consent above it. */
+.jp-settings-control + .jp-settings-control {
+  margin-top: 16px;
+}
+.jp-settings-control > .jp-togglerow {
+  padding-block: 0;
+}
+.jp-settings-control .jp-togglerow__desc {
+  color: var(--jp-ink-1);
+}
+.jp-settings-control--master .jp-togglerow__label {
+  font-weight: var(--jp-fw-semibold);
+}
+.jp-settings-control__status {
+  margin: 8px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-settings-control__status + .jp-settings-group__message {
   margin-top: 8px;
 }
 

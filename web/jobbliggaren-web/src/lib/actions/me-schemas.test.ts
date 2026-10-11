@@ -3,8 +3,11 @@ import { createTranslator } from "next-intl";
 import {
   makeUpdateDigestCadenceSchema,
   makeUpdateFollowedCompanyNotificationConsentSchema,
+  makeUpdateMatchSummaryMailSchema,
   makeUpdateMyProfileSchema,
   makeUpdateNotificationConsentSchema,
+  makeUpdateNotificationMailSchema,
+  makeUpdateTopMatchMailSchema,
 } from "./me-schemas";
 import svValidation from "../../../messages/sv/validation.json";
 
@@ -82,5 +85,31 @@ describe("the notification-settings schemas", () => {
     expect(cadence.safeParse({}).success).toBe(false);
     expect(consent.safeParse({ enabled: "true" }).success).toBe(false);
     expect(cadence.safeParse({ cadence: "Hourly" }).success).toBe(false);
+  });
+});
+
+// ADR 0164 (#2107): the e-mail switches are pauses inside the consents. Each carries `{enabled}`
+// alone, and a body that also carries a consent, another switch or the cadence is refused whole.
+describe.each([
+  ["notification mail", makeUpdateNotificationMailSchema(t)],
+  ["Toppmatch mail", makeUpdateTopMatchMailSchema(t)],
+  ["summary mail", makeUpdateMatchSummaryMailSchema(t)],
+])("the %s schema", (_name, schema) => {
+  it("accepts {enabled} both ways", () => {
+    expect(schema.safeParse({ enabled: true }).success).toBe(true);
+    expect(schema.safeParse({ enabled: false }).success).toBe(true);
+  });
+
+  it.each([
+    ["a cadence", { enabled: false, cadence: "Daily" }],
+    ["a consent", { enabled: false, backgroundMatchNotificationsEnabled: true }],
+    ["another switch", { enabled: false, topMatchMailEnabled: true }],
+  ])("refuses a body that also carries %s", (_extra, body) => {
+    expect(schema.safeParse(body).success).toBe(false);
+  });
+
+  it("refuses an empty body and a wrong type", () => {
+    expect(schema.safeParse({}).success).toBe(false);
+    expect(schema.safeParse({ enabled: "false" }).success).toBe(false);
   });
 });

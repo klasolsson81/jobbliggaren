@@ -14,7 +14,10 @@ vi.mock("@/lib/auth/session", () => ({
 import {
   updateDigestCadence,
   updateFollowedCompanyNotificationConsent,
+  updateMatchSummaryMail,
   updateNotificationConsent,
+  updateNotificationMail,
+  updateTopMatchMail,
 } from "./me";
 
 const originalFetch = global.fetch;
@@ -140,6 +143,73 @@ describe("updateNotificationConsent (ADR 0080 Vag 4 PR-6)", () => {
     expect(await updateNotificationConsent({ enabled: true })).toEqual({
       kind: "error",
     });
+  });
+});
+
+// ADR 0164 (#2107): the e-mail switches. Each has its own route, and none of them is a consent's.
+describe.each([
+  ["updateNotificationMail", updateNotificationMail, "/api/v1/me/notification-mail"],
+  ["updateTopMatchMail", updateTopMatchMail, "/api/v1/me/top-match-mail"],
+  ["updateMatchSummaryMail", updateMatchSummaryMail, "/api/v1/me/match-summary-mail"],
+])("%s (ADR 0164)", (_name, update, path) => {
+  it("utan session → unauthorized utan backend-rundtur", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await update({ enabled: false })).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    "PUT mot sin egen route med Bearer och bodyn {enabled: %s}, inget annat",
+    async (enabled) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+      global.fetch = fetchMock;
+
+      expect(await update({ enabled })).toEqual({ kind: "ok", data: undefined });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`http://test-backend${path}`);
+      expect(init.method).toBe("PUT");
+      expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
+      expect(JSON.parse(init.body as string)).toEqual({ enabled });
+    },
+  );
+
+  it("bygger bodyn av det namngivna fältet: en extra nyckel i indata följer aldrig med", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    await update({ enabled: true, cadence: "Daily" } as unknown as { enabled: boolean });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ enabled: true });
+  });
+
+  it.each([
+    [401, { kind: "unauthorized" }],
+    [400, { kind: "error" }],
+    [409, { kind: "error" }],
+  ])("%i → %o", async (status, expected) => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status }));
+    expect(await update({ enabled: false })).toEqual(expected);
+  });
+
+  it("429 → rateLimited med Retry-After", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "30" } }));
+    expect(await update({ enabled: false })).toEqual({
+      kind: "rateLimited",
+      retryAfterSeconds: 30,
+    });
+  });
+
+  it("network-fail → error (kastar aldrig)", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("ENETUNREACH"));
+    expect(await update({ enabled: true })).toEqual({ kind: "error" });
   });
 });
 

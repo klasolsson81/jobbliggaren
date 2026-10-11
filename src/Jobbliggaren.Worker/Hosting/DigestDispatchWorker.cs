@@ -7,7 +7,7 @@ namespace Jobbliggaren.Worker.Hosting;
 /// <summary>
 /// ADR 0080 Vag 4 PR-4b — Hangfire wrapper for the Strong-match digest dispatch. Two entry points
 /// (one per cadence) carry only the <see cref="DisableConcurrentExecutionAttribute"/>; the inner
-/// <see cref="DigestDispatchJob"/> filters consenting users to the cadence it is invoked for (the
+/// <see cref="DigestDispatchJob"/> filters the users its mail gates admit to the cadence it is invoked for (the
 /// cron IS the window). Parity <see cref="BackgroundMatchingWorker"/>.
 /// </summary>
 public sealed class DigestDispatchWorker(DigestDispatchJob job)

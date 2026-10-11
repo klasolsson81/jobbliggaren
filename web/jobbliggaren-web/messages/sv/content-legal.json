@@ -87,7 +87,7 @@
         "paragraphs": [
           "Om du vill kan du slå på notiser om nya jobb som matchar dina önskemål och, som ett eget val, e-postnotiser om nya annonser från företag du följer. Behandlingen sker bara för det du själv aktivt slår på. Den rättsliga grunden är ditt samtycke (artikel 6.1 a). Båda är avstängda som standard. Slår du på något av dem sparar vi en uppgift om att och när du lämnade ditt samtycke till just det, så att vi kan visa att behandlingen är laglig.",
           "Notiserna skickas med e-post till adressen du har på ditt konto och levereras av Scaleway SAS i Frankrike, som behandlar e-posten i leverantörens region fr-par. Leverantören utfäster i personuppgiftsbiträdesavtalet att behandlingen sker inom EU. Vad det innebär för dina uppgifter står i avsnittet Mottagare av uppgifter nedan.",
-          "Du kan när som helst återkalla ditt samtycke genom att stänga av notiserna i dina inställningar. Då upphör vi att skicka dem. Att du återkallar samtycket påverkar inte att behandlingen var laglig innan du återkallade det."
+          "Du kan när som helst återkalla ett samtycke genom att stänga av det i dina inställningar. Återkallar du samtycket till matchning slutar vi matcha nya annonser mot din profil och mejla dig matchningar. Återkallar du samtycket till mejl om företag du följer slutar vi mejla dem till dig. Stänger du i stället av alla e-postnotiser, eller bara mejlen om toppmatchningar eller sammanfattningen, slutar vi skicka de mejlen, men dina samtycken står kvar och matchningen fortsätter i appen. Att du återkallar ett samtycke påverkar inte att behandlingen var laglig innan du återkallade det."
         ]
       },
       {
@@ -141,7 +141,7 @@
           "Begränsning. Du har rätt att begära att behandlingen begränsas i vissa fall, till exempel medan en invändning eller en fråga om riktighet utreds.",
           "Invändning. Du har rätt att invända mot behandling som grundas på berättigat intresse. Då upphör vi med den behandlingen om vi inte har tvingande berättigade skäl som väger tyngre.",
           "Dataportabilitet. För uppgifter du själv lämnat och som behandlas med stöd av avtal eller samtycke har du rätt att få ut dem i ett strukturerat, allmänt använt och maskinläsbart format, och att få dem överförda till en annan aktör där det är tekniskt möjligt.",
-          "Återkalla samtycke. Där behandlingen grundas på ditt samtycke kan du återkalla samtycket när som helst, utan att det påverkar lagligheten av behandlingen dessförinnan. Notiserna stänger du av i dina inställningar. Har du skickat med teknisk information i en feedback kontaktar du oss på e-postadressen ovan, så raderar vi den."
+          "Återkalla samtycke. Där behandlingen grundas på ditt samtycke kan du återkalla samtycket när som helst, utan att det påverkar lagligheten av behandlingen dessförinnan. Samtycket till matchning och samtycket till mejl om företag du följer återkallar du genom att stänga av dem i dina inställningar. Har du skickat med teknisk information i en feedback kontaktar du oss på e-postadressen ovan, så raderar vi den."
         ]
       },
       {

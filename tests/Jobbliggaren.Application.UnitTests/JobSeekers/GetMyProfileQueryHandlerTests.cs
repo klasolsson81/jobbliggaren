@@ -142,4 +142,70 @@ public class GetMyProfileQueryHandlerTests
         // The other consent purpose is untouched — separate flags, separate opt-ins.
         result.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
     }
+
+    public enum MailSwitch
+    {
+        AllNotificationMail,
+        TopMatchMail,
+        MatchSummaryMail,
+    }
+
+    // ADR 0164 (#2107) — the three mail switches project as on/off, derived from their pause stamps.
+    [Fact]
+    public async Task Handle_WhenNoMailSwitchWasEverSet_ProjectsAllThreeOn()
+    {
+        var userId = Guid.NewGuid();
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await HandlerFor(db, userId).Handle(new GetMyProfileQuery(), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.NotificationMailEnabled.ShouldBeTrue();
+        result.TopMatchMailEnabled.ShouldBeTrue();
+        result.MatchSummaryMailEnabled.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(MailSwitch.AllNotificationMail)]
+    [InlineData(MailSwitch.TopMatchMail)]
+    [InlineData(MailSwitch.MatchSummaryMail)]
+    public async Task Handle_AfterASwitchIsTurnedOff_ProjectsThatSwitchOffAndTheOthersOn(MailSwitch turnedOff)
+    {
+        var userId = Guid.NewGuid();
+        var db = TestAppDbContextFactory.Create();
+        var clock = FakeDateTimeProvider.Default;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        switch (turnedOff)
+        {
+            case MailSwitch.AllNotificationMail:
+                seeker.SetNotificationMail(on: false, clock);
+                break;
+            case MailSwitch.TopMatchMail:
+                seeker.SetTopMatchMail(on: false, clock);
+                break;
+            case MailSwitch.MatchSummaryMail:
+                seeker.SetMatchSummaryMail(on: false, clock);
+                break;
+        }
+
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await HandlerFor(db, userId).Handle(new GetMyProfileQuery(), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.NotificationMailEnabled.ShouldBe(turnedOff != MailSwitch.AllNotificationMail);
+        result.TopMatchMailEnabled.ShouldBe(turnedOff != MailSwitch.TopMatchMail);
+        result.MatchSummaryMailEnabled.ShouldBe(turnedOff != MailSwitch.MatchSummaryMail);
+    }
+
+    private static GetMyProfileQueryHandler HandlerFor(IAppDbContext db, Guid userId)
+    {
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(userId);
+        return new GetMyProfileQueryHandler(db, currentUser);
+    }
 }

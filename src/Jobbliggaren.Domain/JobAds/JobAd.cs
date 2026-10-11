@@ -525,16 +525,16 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// </remarks>
     private void ApplyContactRedaction(IReadOnlyList<AdContact> declaredContacts)
     {
-        var title = RecruiterContactRedactor.Redact(Title);
-        var description = RecruiterContactRedactor.Redact(Description);
+        // #2098 — a sole trader's org.nr written into the ad text is the holder's personnummer. It
+        // runs FIRST: the phone pattern is anchored on a leading 0, so a personnummer born 2000-2009
+        // is phone-shaped and would otherwise be promoted into Contacts instead of removed.
+        // Length-preserving (every digit → '*'), so the Title clamp below is unaffected.
+        var title = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Title));
+        var description = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Description));
         var payload = RecruiterContactRedactor.Redact(RawPayload);
 
-        // #2098 — a sole trader's org.nr written into the ad text is the holder's personnummer. It runs
-        // over the POST-contact-scrub text and is length-preserving (every digit → '*'), so the Title
-        // clamp below is unaffected.
-        var scrubbedTitle = PersonnummerRedactor.Redact(title.Scrubbed);
-        Title = scrubbedTitle.Length <= 300 ? scrubbedTitle : scrubbedTitle[..300];
-        Description = PersonnummerRedactor.Redact(description.Scrubbed);
+        Title = title.Scrubbed.Length <= 300 ? title.Scrubbed : title.Scrubbed[..300];
+        Description = description.Scrubbed;
         RawPayload = payload.Scrubbed;
 
         // The asymmetric promote gate (ADR 0106 amendment 2026-07-17): scrub for safety,

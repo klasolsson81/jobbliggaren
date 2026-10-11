@@ -109,15 +109,47 @@ public class JobAdPersonnummerRedactionTests
     }
 
     [Fact]
-    public void A_title_at_the_column_limit_stays_within_it()
+    public void A_personnummer_pushed_past_the_title_clamp_by_a_contact_marker_leaves_no_digits()
     {
-        // Masking is length-preserving, so the varchar(300) clamp is unaffected.
-        var title = new string('x', 280) + " " + Personnummer;
+        // 300 chars in: the phone near the start grows to the marker and pushes the personnummer
+        // across position 300. Masking runs BEFORE the clamp, so the cut can only remove asterisks;
+        // clamped first, "811218-98" would survive and the four-digit tail the scanner needs is gone.
+        var title = "Ring 070-123 45 67 " + new string('x', 269) + " " + Personnummer;
+        title.Length.ShouldBe(300);
 
         var ad = Import(title, "Neutral text.");
 
-        ad.Title.Length.ShouldBe(title.Length);
+        ad.Title.Length.ShouldBe(300);
+        ad.Title.ShouldNotContain("811218");
         ad.Title.ShouldNotContain(UnmaskedDigits);
+    }
+
+    [Fact]
+    public void A_zero_leading_personnummer_is_masked_and_never_promoted_into_contacts_as_a_phone()
+    {
+        // 050505-1235 (born 2005) is Luhn-valid AND phone-shaped to RecruiterContactRedactor.
+        var ad = Import(title: "Städare", description: "Enskild firma 050505-1235 söker städare.");
+
+        ad.Description.ShouldNotContain("050505");
+        ad.Description.ShouldNotContain("1235");
+        (ad.Contacts is null || ad.Contacts.IsEmpty).ShouldBeTrue(
+            "a personnummer is removed, never moved into contacts under a recruiter-phone label.");
+    }
+
+    [Theory]
+    [InlineData("8112189876")]
+    [InlineData("811218 9876")]
+    [InlineData("811218+9876")]
+    [InlineData("198112189876")]
+    [InlineData("811278-9873")] // samordningsnummer: day + 60
+    public void Every_supported_spelling_is_masked_whole_and_the_backfill_probe_then_finds_nothing(string spelling)
+    {
+        var ad = Import(title: "Städare", description: $"Firma {spelling} söker städare.");
+
+        ad.Description.Any(char.IsDigit).ShouldBeFalse(
+            "no digit of the number, date part or check part, may survive the mask.");
+        ad.ApplyContactScrubBackfill().Value.ShouldBeFalse(
+            "the backfill probe and the write path use one detector — masked text is a fixed point.");
     }
 
     [Fact]

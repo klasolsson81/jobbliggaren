@@ -203,14 +203,20 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 
     // ================================================================================
     // #2098 — the same job also strips a personnummer from the stored Title/Description. Its own
-    // corpus (the counts above are pinned to the contact corpus). The legacy row is a RETIRED-ACTOR
-    // seed like the two above: ads imported before #2098, which the current writer can no longer
-    // produce — the complement is pinned in JobAdPersonnummerRedactionTests (plain text, this
-    // project does not reference Domain.UnitTests).
+    // corpus (the counts above are pinned to the contact corpus). The legacy rows are a
+    // RETIRED-ACTOR seed like the two seeded below: ads imported before #2098, including the
+    // extracted_terms that Import derived from the unmasked text. The current writer can no longer
+    // produce this shape; the complement is pinned in JobAdPersonnummerRedactionTests
+    // (Import_masks_a_personnummer_in_title_and_description_in_both_spellings and
+    // A_resync_carrying_a_personnummer_is_masked_too — plain text, this project does not
+    // reference Domain.UnitTests).
     // ================================================================================
 
     private const string PersonnummerExternalId = "backfill-personnummer-4";
+    private const string ZeroLeadingPersonnummerExternalId = "backfill-personnummer-zero-5";
     private const string Personnummer = "811218-9876";
+    // Born 2005, so it starts with 0 and is phone-shaped to the contact detector.
+    private const string ZeroLeadingPersonnummer = "050505-1235";
 
     [Fact]
     public async Task Destructive_run_masks_a_personnummer_in_title_and_description_and_the_search_vector_follows()
@@ -221,22 +227,22 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
             var seedDb = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             seedDb.JobAds.Add(ImportClean(CleanExternalId, new FixedClock(Now)));
             seedDb.JobAds.Add(ImportClean(PersonnummerExternalId, new FixedClock(Now)));
+            seedDb.JobAds.Add(ImportClean(ZeroLeadingPersonnummerExternalId, new FixedClock(Now)));
             await seedDb.SaveChangesAsync(ct);
 
-            var title = $"Städare {Personnummer}";
-            var description = $"Enskild firma {Personnummer} söker städare.";
-            await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
-                UPDATE job_ads SET title = {title}, description = {description}
-                WHERE external_id = {PersonnummerExternalId}
-                """, ct);
+            await SeedLegacyPersonnummerAsync(seedDb, PersonnummerExternalId, Personnummer, ct);
+            await SeedLegacyPersonnummerAsync(
+                seedDb, ZeroLeadingPersonnummerExternalId, ZeroLeadingPersonnummer, ct);
         }
 
-        // Counterfactual: the seeded state IS findable in the search index, so the 0 below proves
-        // the scrub and not a tokenizer that never indexed the number.
+        // Counterfactual: the seeded state IS findable in the search index and sits in the derived
+        // terms, so the 0s below prove the scrub and not a tokenizer that never indexed the number.
         using (var before = _provider.CreateScope())
         {
             var db = before.ServiceProvider.GetRequiredService<AppDbContext>();
             (await FtsHitsAsync(db, "811218", ct)).ShouldBe(1);
+            (await ExtractedColumnsContainAsync(db, PersonnummerExternalId, "9876", ct)).ShouldBeTrue(
+                "the legacy extracted_terms/extracted_lexemes carry the number's digit tokens.");
         }
 
         ContactScrubBackfillCounts counts;
@@ -246,8 +252,9 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
             counts = await job.RunAsync(dryRun: false, ct);
         }
 
-        counts.Scrubbed.ShouldBe(1, "only the personnummer row carries a detection.");
-        counts.ContactsPromoted.ShouldBe(0);
+        counts.Scrubbed.ShouldBe(2, "only the two personnummer rows carry a detection.");
+        counts.ContactsPromoted.ShouldBe(0,
+            "a personnummer is removed, never promoted into contacts as a phone.");
 
         using var check = _provider.CreateScope();
         var checkDb = check.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -257,6 +264,15 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
         ad.Description.ShouldBe("Enskild firma ******-**** söker städare.");
         (await FtsHitsAsync(checkDb, "811218", ct)).ShouldBe(0,
             "the stored search_vector regenerates from the masked text.");
+        (await ExtractedColumnsContainAsync(checkDb, PersonnummerExternalId, "9876", ct)).ShouldBeFalse(
+            "the job re-extracts from the masked text.");
+        (await ExtractedColumnsContainAsync(checkDb, PersonnummerExternalId, "811218", ct)).ShouldBeFalse();
+
+        var zeroLeading = await checkDb.JobAds.AsNoTracking()
+            .SingleAsync(j => j.External!.ExternalId == ZeroLeadingPersonnummerExternalId, ct);
+        zeroLeading.Description.ShouldBe("Enskild firma ******-**** söker städare.");
+        (zeroLeading.Contacts is null || zeroLeading.Contacts.IsEmpty).ShouldBeTrue(
+            "a 0-leading personnummer is phone-shaped; it must be masked, not moved into contacts.");
 
         // Fixed point: a re-run (or the run after a crash) touches nothing.
         using var rerun = _provider.CreateScope();
@@ -264,6 +280,35 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
             .RunAsync(dryRun: false, ct);
         again.Scrubbed.ShouldBe(0);
     }
+
+    // The retired actor: Import derived extracted_terms from the UNMASKED text with the real
+    // extractor, so the seed does the same.
+    private async Task SeedLegacyPersonnummerAsync(
+        AppDbContext db, string externalId, string personnummer, CancellationToken ct)
+    {
+        var title = $"Städare {personnummer}";
+        var description = $"Enskild firma {personnummer} söker städare.";
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE job_ads SET title = {title}, description = {description}
+            WHERE external_id = {externalId}
+            """, ct);
+
+        db.ChangeTracker.Clear();
+        var ad = await db.JobAds.SingleAsync(j => j.External!.ExternalId == externalId, ct);
+        var extractor = _provider.GetRequiredService<IJobAdKeywordExtractor>();
+        ad.SetExtractedTerms(ExtractedTerms.From(
+            extractor.Extract(new JobAdExtractionInput(ad.Title, ad.Description)).Terms));
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<bool> ExtractedColumnsContainAsync(
+        AppDbContext db, string externalId, string needle, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<int>(
+                "SELECT count(*)::int AS \"Value\" FROM job_ads WHERE external_id = {0} "
+                + "AND (extracted_terms::text LIKE {1} OR extracted_lexemes::text LIKE {1})",
+                externalId, $"%{needle}%")
+            .ToListAsync(ct)).Single() > 0;
 
     private static async Task<int> FtsHitsAsync(AppDbContext db, string term, CancellationToken ct) =>
         (await db.Database
@@ -274,7 +319,7 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
             .ToListAsync(ct)).Single();
 
     // ================================================================================
-    // Seeding — the ONE sanctioned hand-seed (see the class remarks). Clean ads are imported
+    // Seeding — the sanctioned hand-seeds (see the class remarks). Clean ads are imported
     // through the real aggregate; the two legacy rows are then dropped to pre-invariant state
     // (address in body/payload, contacts NULL) by raw SQL that bypasses the aggregate.
     // ================================================================================

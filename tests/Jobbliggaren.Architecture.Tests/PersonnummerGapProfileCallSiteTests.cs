@@ -134,7 +134,7 @@ public class PersonnummerGapProfileCallSiteTests
     // a q value inside a file under Resumes/ would pass here. It is a tripwire on the event that
     // would actually make D7 false, not a proof of D7.
     [Fact]
-    public void Every_redaction_call_site_is_a_resume_surface_so_D7s_vacuity_holds()
+    public void No_redaction_call_site_redacts_single_line_user_input_so_D7s_vacuity_holds()
     {
         var srcRoot = Path.Combine(RepoRoot(), "src");
 

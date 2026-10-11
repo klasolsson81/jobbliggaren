@@ -265,9 +265,10 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
 
             ad.Title.ShouldBe("Städare ******-****", $"pass {pass}");
             ad.Description.ShouldBe("Enskild firma ******-**** söker städare till kontor i Uppsala.", $"pass {pass}");
-            (await FtsHitsAsync(db, "811218", ct)).ShouldBe(0, $"pass {pass}: the search index is built from the masked text.");
-            (await ColumnValueAsync(db, PersonnummerExternalId, "extracted_terms", ct) ?? string.Empty)
-                .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
+            // ADR 0106 D5 amendment 2026-10-11: raw_payload is deliberately NOT scrubbed for a
+            // personnummer (not a read surface, purged by retention). Any other column holding it
+            // is a new leak this line catches.
+            (await ColumnsStillContainingAsync(db, PersonnummerInAd, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
         }
     }
 
@@ -798,9 +799,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
 
     /// <summary>
     /// Ingests ONE ad, through the real source and the real sanitizer, whose declared contact
-    /// carries the caller's name. The class corpus is left alone: these facts assert absolute
-    /// counts, so a sixth ad in <see cref="SnapshotJson"/> would move every other test's numbers.
-    /// Safe to re-point the stub because the fixture is per-test.
+    /// carries the caller's name. Safe to re-point the stub because the fixture is per-test.
     /// </summary>
     private async Task IngestOneAdWithDeclaredContactNameAsync(string contactName, CancellationToken ct)
     {

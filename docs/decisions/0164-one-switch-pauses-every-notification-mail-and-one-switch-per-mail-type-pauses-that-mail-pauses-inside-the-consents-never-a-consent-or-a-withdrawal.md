@@ -256,11 +256,11 @@ The strings themselves are in ADR 0144's Amendment 2026-10-11 (b). In short:
   #2107 (Rek.)").
 - **The policy's version is the merge date (CTO D5).** `TermsAcceptance.CurrentPrivacyPolicyVersion` is an ISO date, `privacy.updated` in
   both locales must end with it (`TermsAcceptanceVersionsMatchPublishedPolicyTests`), and the column is `varchar(20)`. It identifies
-  which text a registrant saw (Art. 5(2)), and 2026-10-11 is already #2114's. So the PR **does not merge on 2026-10-11**
-  (Europe/Stockholm): in the last content head the session stamps both JSON files and the constant with the date it will merge, 2026-10-12
-  or later. If the merge slips past that date, it re-stamps before `agents-done`, three lines, and `security-auditor` re-verifies
-  report-only (a moved head, not a round). No suffix scheme: a suffix would break the constant's contract ("the ISO date the published
-  copy carries") and put a non-date into "Senast uppdaterad".
+  which text a registrant saw (Art. 5(2)). The CTO ruled that the PR not merge on 2026-10-11, since 2026-10-11 is already #2114's text.
+  **Klas overrode that on 2026-10-11:** "Merga i dag, jag överskrider" and "Vi har 0 andra användare ännu, så ingen fara med exakta
+  datum". The PR merges the same day with version 2026-10-11, so "Senast uppdaterad" stays true. The two texts that share the version are
+  told apart by `TermsAcceptance.AcceptedAt` against the time the release went live. No suffix scheme: a suffix would break the
+  constant's contract ("the ISO date the published copy carries") and put a non-date into "Senast uppdaterad".
 
 ### D9 — #2118 ships in the same PR, as its own commits (CTO D4)
 

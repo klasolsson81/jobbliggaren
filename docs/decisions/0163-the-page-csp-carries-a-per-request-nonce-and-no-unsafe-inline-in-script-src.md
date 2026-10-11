@@ -92,3 +92,35 @@ domain, measured `autoconfig.jobbliggaren.se` presenting `CN=*.strato.de`). Neit
 2. A document-returning route handler appears under `/api/` that needs inline script: the static `/api/*` policy forbids it.
 3. The proxy matcher stops matching a page route.
 4. Any widening of `script-src`, or of what `cv-preview.tsx` accepts into a `blob:` (DPIA #659 §11 lapse triggers 1 and 2).
+
+## Amendment 2026-10-11 — CORP is `cross-origin` on the image and manifest routes
+
+**Bug.** D7 put `Cross-Origin-Resource-Policy: same-origin` on every response, including the share-card image. Preview tools that render the image in the
+visitor's browser (opengraphpreview.com) showed only the alt text. **Measured 2026-10-11, anonymously:** `curl -I` on `/opengraph-image` (with and
+without a query), `/twitter-image`, `/icon.svg`, `/apple-icon`, `/favicon.ico` and `/manifest.webmanifest` answered 200 with the right content type and
+`Cross-Origin-Resource-Policy: same-origin`; the CSP on them is the page policy and no `Cross-Origin-Embedder-Policy` is sent. The image is a valid
+33 577-byte PNG, `og:image` is an absolute `https://jobbliggaren.se/opengraph-image?<hash>`, and a request with a `LinkedInBot` user agent gets the same
+200. An `Image()` created on `https://example.com` and pointed at each of the five image routes failed on all five. Next writes no CORP of its own, so
+the edge is the only writer.
+
+**Correction to the earlier comment.** The Caddyfile said CORP "does not stop a social crawler". That holds for a crawler fetching server-side (LinkedIn,
+Facebook, X, Slack), which does not enforce CORP. It does not hold for a browser rendering the image for another origin, which is the case that broke.
+
+**Decision.** `isolation` (Caddyfile) picks the value with one `map` on `{path}` and writes it with one `header`: `cross-origin` for
+`/opengraph-image` and `/twitter-image` (also one segment down, for a per-page image), `/apple-icon`, `/icon.svg`, `/favicon.ico` and
+`/manifest.webmanifest`; `same-origin` for everything else, `robots.txt` and `sitemap.xml` included (crawlers fetch them, no page embeds them). The
+upstream's field is still dropped by `header_down`, so each response carries one. **A second form was measured and rejected:** a default
+`header ?Cross-Origin-Resource-Policy` plus an exception left Caddy's own 401 and 503 with no CORP field at all (17 failing checks in
+`edge-modes.test.sh` on 2.11.4).
+
+**What stays.** COOP is `same-origin` everywhere. The CSP and the proxy matcher are untouched: the image routes pass the proxy unauthenticated (200,
+no redirect; `proxy.test.ts` and `security-headers.spec.ts` pin it), and a CSP on an image response restricts nothing about who may embed it.
+
+**Pinned.** `edge-modes.test.sh` requires one `cross-origin` CORP on the nine image and manifest paths (the gate's 401 and the open 200 alike) and one
+`same-origin` CORP on twelve look-alikes and ordinary pages; the upstream stub sends `same-origin` on every path, so a kept copy fails it (114/114 on a
+Caddy 2.11.4 image carrying this Caddyfile).
+
+**Not measured here.** The rendering in opengraphpreview.com and LinkedIn Post Inspector after the release; Klas checks both.
+
+**Lapse trigger 5.** A new metadata route meant to be shown on another site (a per-page image under a different file name, a `generateImageMetadata`
+route with an id segment) that the `map` pattern does not match.

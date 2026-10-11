@@ -4734,23 +4734,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-notif__message p { margin: 0; }
-.jp-notif__message-title { font-weight: var(--jp-fw-semibold); }
-.jp-notif__foot {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px 10px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-notif__footlink {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
+/* The line for unread notifications the list does not carry (#2130): a statement after the last row,
+   inside the scrolling body, with no link and no role. The hairline only separates it from a list. */
+.jp-notif__notinlist {
+  margin: 0;
+  padding: 10px 14px;
   font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
-@media (max-width: 768px) {
-  .jp-notif__footlink { min-height: 44px; }
-}
+.jp-notif__list + .jp-notif__notinlist { border-top: 1px solid var(--jp-border-soft); }
 /* Narrow screens: the bell sits right of centre, so a 360 px panel anchored to it runs off the left
    edge below about 480 px. There it becomes a sheet with 8 px insets under the header. */
 @media (max-width: 480px) {

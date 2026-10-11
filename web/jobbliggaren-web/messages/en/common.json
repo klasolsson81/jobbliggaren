@@ -37,14 +37,12 @@
     "loadFailed": "The notifications could not be loaded.",
     "retry": "Try again",
     "stale": "The list could not be updated and is from {time}.",
-    "emptyTitle": "No notifications yet",
-    "emptyBody": "New matches and new ads from companies you follow appear here.",
-    "unreadElsewhere": "The unread notifications do not fit in this list. You will find them under My matches and New ads from followed companies.",
+    "empty": "You have no notifications.",
+    "notInList": "{count, plural, one {# unread notification is not in the list.} other {# unread notifications are not in the list.}}",
+    "notInListUnknown": "Unread notifications are not in the list.",
     "listLabel": "Latest notifications",
     "timeToday": "today, {time}",
     "timeYesterday": "yesterday, {time}",
-    "matchesLink": "My matches",
-    "followedAdsLink": "New ads from followed companies",
     "announce": "{count, plural, one {You have # unread notification.} other {You have # unread notifications.}}"
   },
   "userMenu": {

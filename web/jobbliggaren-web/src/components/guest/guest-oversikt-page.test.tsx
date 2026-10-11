@@ -140,7 +140,7 @@ describe("GuestOversiktPage — ytan skriver inte i den inloggade appen (#1572)"
     render(<GuestOversiktPage />);
 
     expect(
-      screen.queryByRole("button", { name: "Notisinställningar" }),
+      screen.queryByRole("button", { name: "Inställningar för översikten" }),
     ).toBeNull();
   });
 

@@ -690,7 +690,7 @@ test("the header reads in DOM order: skip link, brand, the seven links, then the
     "Jobbliggaren, startsida",
     ...PAGES.map((p) => p.label),
     "Adminmeny",
-    "Aviseringar",
+    "Notiser",
     "Inställningar",
   ]);
 });

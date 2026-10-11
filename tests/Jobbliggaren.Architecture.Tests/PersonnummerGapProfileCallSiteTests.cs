@@ -154,7 +154,8 @@ public class PersonnummerGapProfileCallSiteTests
         callSites.ShouldNotBeEmpty("no Redact call sites found — the scan is measuring nothing");
 
         var outsideResumes = callSites
-            .Where(f => !f.Contains("/Resumes/", StringComparison.Ordinal))
+            .Where(f => !f.Contains("/Resumes/", StringComparison.Ordinal)
+                && !ImportedAdText.Contains(f))
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
 
@@ -166,6 +167,15 @@ public class PersonnummerGapProfileCallSiteTests
             "#465 and #498 each had to close. Re-read D7 before adding one. Offending files: " +
             string.Join(", ", outsideResumes));
     }
+
+    // #2098 (ADR 0106 D5 amendment 2026-10-11): an imported ad's Title/Description is third-party
+    // text, not single-line user input, and no flag guard reads it — so there is no flag profile for
+    // the redactor to be a subset of, and D7's vacuity holds for this site. The one place the scrub
+    // lives is the aggregate (ADR 0106 D4); a second JobAds site would be a second normaliser.
+    private static readonly HashSet<string> ImportedAdText = new(StringComparer.Ordinal)
+    {
+        "Jobbliggaren.Domain/JobAds/JobAd.cs",
+    };
 
     private static readonly Regex RedactCall = new(
         @"PersonnummerRedactor\.Redact\(",

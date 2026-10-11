@@ -202,6 +202,78 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
     }
 
     // ================================================================================
+    // #2098 — the same job also strips a personnummer from the stored Title/Description. Its own
+    // corpus (the counts above are pinned to the contact corpus). The legacy row is a RETIRED-ACTOR
+    // seed like the two above: ads imported before #2098, which the current writer can no longer
+    // produce — the complement is pinned in JobAdPersonnummerRedactionTests (plain text, this
+    // project does not reference Domain.UnitTests).
+    // ================================================================================
+
+    private const string PersonnummerExternalId = "backfill-personnummer-4";
+    private const string Personnummer = "811218-9876";
+
+    [Fact]
+    public async Task Destructive_run_masks_a_personnummer_in_title_and_description_and_the_search_vector_follows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using (var seed = _provider.CreateScope())
+        {
+            var seedDb = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            seedDb.JobAds.Add(ImportClean(CleanExternalId, new FixedClock(Now)));
+            seedDb.JobAds.Add(ImportClean(PersonnummerExternalId, new FixedClock(Now)));
+            await seedDb.SaveChangesAsync(ct);
+
+            var title = $"Städare {Personnummer}";
+            var description = $"Enskild firma {Personnummer} söker städare.";
+            await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE job_ads SET title = {title}, description = {description}
+                WHERE external_id = {PersonnummerExternalId}
+                """, ct);
+        }
+
+        // Counterfactual: the seeded state IS findable in the search index, so the 0 below proves
+        // the scrub and not a tokenizer that never indexed the number.
+        using (var before = _provider.CreateScope())
+        {
+            var db = before.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await FtsHitsAsync(db, "811218", ct)).ShouldBe(1);
+        }
+
+        ContactScrubBackfillCounts counts;
+        using (var scope = _provider.CreateScope())
+        {
+            var job = scope.ServiceProvider.GetRequiredService<BackfillRecruiterContactScrubJob>();
+            counts = await job.RunAsync(dryRun: false, ct);
+        }
+
+        counts.Scrubbed.ShouldBe(1, "only the personnummer row carries a detection.");
+        counts.ContactsPromoted.ShouldBe(0);
+
+        using var check = _provider.CreateScope();
+        var checkDb = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ad = await checkDb.JobAds.AsNoTracking()
+            .SingleAsync(j => j.External!.ExternalId == PersonnummerExternalId, ct);
+        ad.Title.ShouldBe("Städare ******-****");
+        ad.Description.ShouldBe("Enskild firma ******-**** söker städare.");
+        (await FtsHitsAsync(checkDb, "811218", ct)).ShouldBe(0,
+            "the stored search_vector regenerates from the masked text.");
+
+        // Fixed point: a re-run (or the run after a crash) touches nothing.
+        using var rerun = _provider.CreateScope();
+        var again = await rerun.ServiceProvider.GetRequiredService<BackfillRecruiterContactScrubJob>()
+            .RunAsync(dryRun: false, ct);
+        again.Scrubbed.ShouldBe(0);
+    }
+
+    private static async Task<int> FtsHitsAsync(AppDbContext db, string term, CancellationToken ct) =>
+        (await db.Database
+            .SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value" FROM job_ads
+                WHERE search_vector @@ websearch_to_tsquery('swedish'::regconfig, {term})
+                """)
+            .ToListAsync(ct)).Single();
+
+    // ================================================================================
     // Seeding — the ONE sanctioned hand-seed (see the class remarks). Clean ads are imported
     // through the real aggregate; the two legacy rows are then dropped to pre-invariant state
     // (address in body/payload, contacts NULL) by raw SQL that bypasses the aggregate.

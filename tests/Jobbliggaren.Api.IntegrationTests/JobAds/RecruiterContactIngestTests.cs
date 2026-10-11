@@ -96,6 +96,11 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
     private static readonly string WriteGateBody =
         $"Vi söker en DevOps-ingenjör. Skicka din ansökan till {WriteGateBodyEmail}.";
 
+    // ── Ad F — #2098: a sole trader's org.nr written into the ad text is a personnummer
+    //    (Luhn-valid synthetic vector). It must reach neither title, description nor the FTS index. ──
+    private const string PersonnummerExternalId = "personnummer-6";
+    private const string PersonnummerInAd = "811218-9876";
+
     private readonly SharedPostgresFixture _postgres;
     private string _connectionString = string.Empty;
     private WireMockServer _jobTech = default!;
@@ -203,6 +208,14 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
           "application_contacts": [
             { "name": "Elvira Sandell", "description": "Rekryterare", "email": "{{WriteGateDeclaredEmail}}", "telephone": "08-987 65 43", "contact_type": null }
           ]
+        },{
+          "id": "{{PersonnummerExternalId}}",
+          "headline": "Städare {{PersonnummerInAd}}",
+          "description": { "text": "Enskild firma {{PersonnummerInAd}} söker städare till kontor i Uppsala." },
+          "employer": { "name": "Städ Enskild Firma", "organization_number": "8112189876" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{PersonnummerExternalId}}",
+          "publication_date": "2026-07-06T10:00:00Z",
+          "application_contacts": []
         }]
         """;
 
@@ -229,6 +242,32 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
             await handler.Handle(
                 new UpsertExternalJobAdCommand(JobSource.Platsbanken, item.ExternalId, item), ct);
             await db.SaveChangesAsync(ct);
+        }
+    }
+
+    // ================================================================================
+    // #2098 — a personnummer in the ad text, through the production write path, twice.
+    // ================================================================================
+
+    [Fact]
+    public async Task A_personnummer_in_title_and_description_is_masked_and_not_findable_after_import_and_resync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        for (var pass = 1; pass <= 2; pass++) // 1 = Import, 2 = UpdateFromSource (the nightly sync)
+        {
+            await IngestThroughProductionPathAsync(ct);
+
+            using var scope = _provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var ad = await db.JobAds.AsNoTracking()
+                .SingleAsync(j => j.External!.ExternalId == PersonnummerExternalId, ct);
+
+            ad.Title.ShouldBe("Städare ******-****", $"pass {pass}");
+            ad.Description.ShouldBe("Enskild firma ******-**** söker städare till kontor i Uppsala.", $"pass {pass}");
+            (await FtsHitsAsync(db, "811218", ct)).ShouldBe(0, $"pass {pass}: the search index is built from the masked text.");
+            (await ColumnValueAsync(db, PersonnummerExternalId, "extracted_terms", ct) ?? string.Empty)
+                .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
         }
     }
 

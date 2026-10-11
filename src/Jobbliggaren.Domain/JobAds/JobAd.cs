@@ -315,7 +315,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         var detections =
             RecruiterContactRedactor.Redact(Title).Found.Count
             + RecruiterContactRedactor.Redact(Description).Found.Count
-            + RecruiterContactRedactor.Redact(RawPayload).Found.Count;
+            + RecruiterContactRedactor.Redact(RawPayload).Found.Count
+            + PersonnummerScanner.ScanWithGaps(Title).Count
+            + PersonnummerScanner.ScanWithGaps(Description).Count;
         if (detections == 0)
             return Result.Success(false);
 
@@ -527,8 +529,12 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         var description = RecruiterContactRedactor.Redact(Description);
         var payload = RecruiterContactRedactor.Redact(RawPayload);
 
-        Title = title.Scrubbed.Length <= 300 ? title.Scrubbed : title.Scrubbed[..300];
-        Description = description.Scrubbed;
+        // #2098 — a sole trader's org.nr written into the ad text is the holder's personnummer. It runs
+        // over the POST-contact-scrub text and is length-preserving (every digit → '*'), so the Title
+        // clamp below is unaffected.
+        var scrubbedTitle = PersonnummerRedactor.Redact(title.Scrubbed);
+        Title = scrubbedTitle.Length <= 300 ? scrubbedTitle : scrubbedTitle[..300];
+        Description = PersonnummerRedactor.Redact(description.Scrubbed);
         RawPayload = payload.Scrubbed;
 
         // The asymmetric promote gate (ADR 0106 amendment 2026-07-17): scrub for safety,

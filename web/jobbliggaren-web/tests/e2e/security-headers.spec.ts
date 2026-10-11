@@ -133,6 +133,22 @@ for (const path of ["/finns-inte.png", "/finns-inte.svg", "/jobb/abc.png", "/fav
   });
 }
 
+// The share-card images are fetched with no session by link-preview tools: a served 200 of the right type, never
+// a redirect to the login page. The CORP header that lets another site show them is the edge's, not Next's
+// (deploy/caddy/edge-modes.test.sh, ADR 0163 Amendment 2026-10-11).
+for (const [path, type] of [
+  ["/opengraph-image", "image/png"],
+  ["/twitter-image", "image/png"],
+  ["/apple-icon", "image/png"],
+] as const) {
+  test(`${path} is served unauthenticated as ${type}, with no redirect`, async ({ request }) => {
+    const res = await request.get(path, { maxRedirects: 0 });
+
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toBe(type);
+  });
+}
+
 test("/api/* is outside the proxy and keeps the static policy: self-only scripts, no nonce, one header", async ({
   request,
 }) => {

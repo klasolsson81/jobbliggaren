@@ -46,7 +46,9 @@ function fileResponse(contentType: string): Response {
     ok: true,
     status: 200,
     headers: { get: (name: string) => (name === "Content-Type" ? contentType : null) },
-    blob: async () => new Blob(["file"], { type: contentType }),
+    // Ingen `blob()` med flit: komponenten ska läsa bytes och sätta typen själv. Skulle den gå
+    // tillbaka till `res.blob()` kastar mocken, och testet nedan faller.
+    arrayBuffer: async () => new TextEncoder().encode("file").buffer,
   } as unknown as Response;
 }
 
@@ -146,6 +148,36 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     expect(download).toHaveAttribute("download", "original.pdf");
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Det här är filen du laddade upp, oförändrad.")).toBeInTheDocument();
+  });
+
+  it("blob:en får typen ur allowlisten, aldrig ur svarets rubrik — en pdf kan inte bli ett HTML-dokument", async () => {
+    // `blob:`-URL:er får ingen `nosniff` (ADR 0101 Amendment 2026-09-06), och ett `blob:`-dokument
+    // ärver appens origin. Typen är därför det enda som hindrar en `text/html`-blob från att köra
+    // skript. Rubriken här bär en parameter: `res.blob()` hade gett `application/pdf; charset=…`.
+    const user = userEvent.setup();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(fileResponse(`${PDF_CONTENT_TYPE}; charset=utf-8`)) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
+    await screen.findByTitle("Din uppladdade CV-fil");
+
+    const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe("application/pdf");
+  });
+
+  it("en HTML-typad respons blir aldrig en blob: fel-state, ingen blob-URL, ingen ram", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockResolvedValue(fileResponse("text/html")) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByTitle("Din uppladdade CV-fil")).not.toBeInTheDocument());
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it("pdf: renderas ur BLOB:en — den mekanism ADR 0101 kräver att en PR namnger", async () => {
